@@ -21,6 +21,7 @@ export enum AppSharingLevel {
   UNRECOGNIZED = -1,
 }
 
+/** WorkspaceTransition is the desired outcome of a build */
 export enum WorkspaceTransition {
   START = 0,
   STOP = 1,
@@ -64,7 +65,10 @@ export interface RichParameter {
   validationMax?: number | undefined
   validationMonotonic: string
   required: boolean
+  /** legacy_variable_name was removed (= 14) */
   displayName: string
+  order: number
+  ephemeral: boolean
 }
 
 /** RichParameterValue holds the key/value mapping of a parameter. */
@@ -174,29 +178,8 @@ export interface Resource_Metadata {
   isNull: boolean
 }
 
-/** Parse consumes source-code from a directory to produce inputs. */
-export interface Parse {}
-
-export interface Parse_Request {
-  directory: string
-}
-
-export interface Parse_Complete {
-  templateVariables: TemplateVariable[]
-}
-
-export interface Parse_Response {
-  log?: Log | undefined
-  complete?: Parse_Complete | undefined
-}
-
-/**
- * Provision consumes source-code from a directory to produce resources.
- * Exactly one of Plan or Apply must be provided in a single session.
- */
-export interface Provision {}
-
-export interface Provision_Metadata {
+/** Metadata is information about a workspace used in the execution of a build */
+export interface Metadata {
   coderUrl: string
   workspaceTransition: WorkspaceTransition
   workspaceName: string
@@ -210,49 +193,74 @@ export interface Provision_Metadata {
   workspaceOwnerSessionToken: string
 }
 
-/**
- * Config represents execution configuration shared by both Plan and
- * Apply commands.
- */
-export interface Provision_Config {
-  directory: string
+/** Config represents execution configuration shared by all subsequent requests in the Session */
+export interface Config {
+  /** template_source_archive is a tar of the template source files */
+  templateSourceArchive: Uint8Array
+  /** state is the provisioner state (if any) */
   state: Uint8Array
-  metadata: Provision_Metadata | undefined
   provisionerLogLevel: string
 }
 
-export interface Provision_Plan {
-  config: Provision_Config | undefined
+/** ParseRequest consumes source-code to produce inputs. */
+export interface ParseRequest {}
+
+/** ParseComplete indicates a request to parse completed. */
+export interface ParseComplete {
+  error: string
+  templateVariables: TemplateVariable[]
+  readme: Uint8Array
+}
+
+/** PlanRequest asks the provisioner to plan what resources & parameters it will create */
+export interface PlanRequest {
+  metadata: Metadata | undefined
   richParameterValues: RichParameterValue[]
   variableValues: VariableValue[]
   gitAuthProviders: GitAuthProvider[]
 }
 
-export interface Provision_Apply {
-  config: Provision_Config | undefined
-  plan: Uint8Array
+/** PlanComplete indicates a request to plan completed. */
+export interface PlanComplete {
+  error: string
+  resources: Resource[]
+  parameters: RichParameter[]
+  gitAuthProviders: string[]
 }
 
-export interface Provision_Cancel {}
-
-export interface Provision_Request {
-  plan?: Provision_Plan | undefined
-  apply?: Provision_Apply | undefined
-  cancel?: Provision_Cancel | undefined
+/**
+ * ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
+ * in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
+ */
+export interface ApplyRequest {
+  metadata: Metadata | undefined
 }
 
-export interface Provision_Complete {
+/** ApplyComplete indicates a request to apply completed. */
+export interface ApplyComplete {
   state: Uint8Array
   error: string
   resources: Resource[]
   parameters: RichParameter[]
   gitAuthProviders: string[]
-  plan: Uint8Array
 }
 
-export interface Provision_Response {
+/** CancelRequest requests that the previous request be canceled gracefully. */
+export interface CancelRequest {}
+
+export interface Request {
+  config?: Config | undefined
+  parse?: ParseRequest | undefined
+  plan?: PlanRequest | undefined
+  apply?: ApplyRequest | undefined
+  cancel?: CancelRequest | undefined
+}
+
+export interface Response {
   log?: Log | undefined
-  complete?: Provision_Complete | undefined
+  parse?: ParseComplete | undefined
+  plan?: PlanComplete | undefined
+  apply?: ApplyComplete | undefined
 }
 
 export const Empty = {
@@ -355,6 +363,12 @@ export const RichParameter = {
     }
     if (message.displayName !== "") {
       writer.uint32(122).string(message.displayName)
+    }
+    if (message.order !== 0) {
+      writer.uint32(128).int32(message.order)
+    }
+    if (message.ephemeral === true) {
+      writer.uint32(136).bool(message.ephemeral)
     }
     return writer
   },
@@ -639,60 +653,9 @@ export const Resource_Metadata = {
   },
 }
 
-export const Parse = {
-  encode(_: Parse, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    return writer
-  },
-}
-
-export const Parse_Request = {
+export const Metadata = {
   encode(
-    message: Parse_Request,
-    writer: _m0.Writer = _m0.Writer.create(),
-  ): _m0.Writer {
-    if (message.directory !== "") {
-      writer.uint32(10).string(message.directory)
-    }
-    return writer
-  },
-}
-
-export const Parse_Complete = {
-  encode(
-    message: Parse_Complete,
-    writer: _m0.Writer = _m0.Writer.create(),
-  ): _m0.Writer {
-    for (const v of message.templateVariables) {
-      TemplateVariable.encode(v!, writer.uint32(10).fork()).ldelim()
-    }
-    return writer
-  },
-}
-
-export const Parse_Response = {
-  encode(
-    message: Parse_Response,
-    writer: _m0.Writer = _m0.Writer.create(),
-  ): _m0.Writer {
-    if (message.log !== undefined) {
-      Log.encode(message.log, writer.uint32(10).fork()).ldelim()
-    }
-    if (message.complete !== undefined) {
-      Parse_Complete.encode(message.complete, writer.uint32(18).fork()).ldelim()
-    }
-    return writer
-  },
-}
-
-export const Provision = {
-  encode(_: Provision, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    return writer
-  },
-}
-
-export const Provision_Metadata = {
-  encode(
-    message: Provision_Metadata,
+    message: Metadata,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.coderUrl !== "") {
@@ -732,96 +695,108 @@ export const Provision_Metadata = {
   },
 }
 
-export const Provision_Config = {
+export const Config = {
   encode(
-    message: Provision_Config,
+    message: Config,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.directory !== "") {
-      writer.uint32(10).string(message.directory)
+    if (message.templateSourceArchive.length !== 0) {
+      writer.uint32(10).bytes(message.templateSourceArchive)
     }
     if (message.state.length !== 0) {
       writer.uint32(18).bytes(message.state)
     }
-    if (message.metadata !== undefined) {
-      Provision_Metadata.encode(
-        message.metadata,
-        writer.uint32(26).fork(),
-      ).ldelim()
-    }
     if (message.provisionerLogLevel !== "") {
-      writer.uint32(34).string(message.provisionerLogLevel)
+      writer.uint32(26).string(message.provisionerLogLevel)
     }
     return writer
   },
 }
 
-export const Provision_Plan = {
+export const ParseRequest = {
   encode(
-    message: Provision_Plan,
+    _: ParseRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.config !== undefined) {
-      Provision_Config.encode(message.config, writer.uint32(10).fork()).ldelim()
+    return writer
+  },
+}
+
+export const ParseComplete = {
+  encode(
+    message: ParseComplete,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error)
+    }
+    for (const v of message.templateVariables) {
+      TemplateVariable.encode(v!, writer.uint32(18).fork()).ldelim()
+    }
+    if (message.readme.length !== 0) {
+      writer.uint32(26).bytes(message.readme)
+    }
+    return writer
+  },
+}
+
+export const PlanRequest = {
+  encode(
+    message: PlanRequest,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim()
     }
     for (const v of message.richParameterValues) {
-      RichParameterValue.encode(v!, writer.uint32(26).fork()).ldelim()
+      RichParameterValue.encode(v!, writer.uint32(18).fork()).ldelim()
     }
     for (const v of message.variableValues) {
-      VariableValue.encode(v!, writer.uint32(34).fork()).ldelim()
+      VariableValue.encode(v!, writer.uint32(26).fork()).ldelim()
     }
     for (const v of message.gitAuthProviders) {
-      GitAuthProvider.encode(v!, writer.uint32(42).fork()).ldelim()
+      GitAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim()
     }
     return writer
   },
 }
 
-export const Provision_Apply = {
+export const PlanComplete = {
   encode(
-    message: Provision_Apply,
+    message: PlanComplete,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    if (message.config !== undefined) {
-      Provision_Config.encode(message.config, writer.uint32(10).fork()).ldelim()
+    if (message.error !== "") {
+      writer.uint32(10).string(message.error)
     }
-    if (message.plan.length !== 0) {
-      writer.uint32(18).bytes(message.plan)
+    for (const v of message.resources) {
+      Resource.encode(v!, writer.uint32(18).fork()).ldelim()
+    }
+    for (const v of message.parameters) {
+      RichParameter.encode(v!, writer.uint32(26).fork()).ldelim()
+    }
+    for (const v of message.gitAuthProviders) {
+      writer.uint32(34).string(v!)
     }
     return writer
   },
 }
 
-export const Provision_Cancel = {
+export const ApplyRequest = {
   encode(
-    _: Provision_Cancel,
+    message: ApplyRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    return writer
-  },
-}
-
-export const Provision_Request = {
-  encode(
-    message: Provision_Request,
-    writer: _m0.Writer = _m0.Writer.create(),
-  ): _m0.Writer {
-    if (message.plan !== undefined) {
-      Provision_Plan.encode(message.plan, writer.uint32(10).fork()).ldelim()
-    }
-    if (message.apply !== undefined) {
-      Provision_Apply.encode(message.apply, writer.uint32(18).fork()).ldelim()
-    }
-    if (message.cancel !== undefined) {
-      Provision_Cancel.encode(message.cancel, writer.uint32(26).fork()).ldelim()
+    if (message.metadata !== undefined) {
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim()
     }
     return writer
   },
 }
 
-export const Provision_Complete = {
+export const ApplyComplete = {
   encode(
-    message: Provision_Complete,
+    message: ApplyComplete,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.state.length !== 0) {
@@ -839,34 +814,76 @@ export const Provision_Complete = {
     for (const v of message.gitAuthProviders) {
       writer.uint32(42).string(v!)
     }
-    if (message.plan.length !== 0) {
-      writer.uint32(50).bytes(message.plan)
+    return writer
+  },
+}
+
+export const CancelRequest = {
+  encode(
+    _: CancelRequest,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    return writer
+  },
+}
+
+export const Request = {
+  encode(
+    message: Request,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.config !== undefined) {
+      Config.encode(message.config, writer.uint32(10).fork()).ldelim()
+    }
+    if (message.parse !== undefined) {
+      ParseRequest.encode(message.parse, writer.uint32(18).fork()).ldelim()
+    }
+    if (message.plan !== undefined) {
+      PlanRequest.encode(message.plan, writer.uint32(26).fork()).ldelim()
+    }
+    if (message.apply !== undefined) {
+      ApplyRequest.encode(message.apply, writer.uint32(34).fork()).ldelim()
+    }
+    if (message.cancel !== undefined) {
+      CancelRequest.encode(message.cancel, writer.uint32(42).fork()).ldelim()
     }
     return writer
   },
 }
 
-export const Provision_Response = {
+export const Response = {
   encode(
-    message: Provision_Response,
+    message: Response,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.log !== undefined) {
       Log.encode(message.log, writer.uint32(10).fork()).ldelim()
     }
-    if (message.complete !== undefined) {
-      Provision_Complete.encode(
-        message.complete,
-        writer.uint32(18).fork(),
-      ).ldelim()
+    if (message.parse !== undefined) {
+      ParseComplete.encode(message.parse, writer.uint32(18).fork()).ldelim()
+    }
+    if (message.plan !== undefined) {
+      PlanComplete.encode(message.plan, writer.uint32(26).fork()).ldelim()
+    }
+    if (message.apply !== undefined) {
+      ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim()
     }
     return writer
   },
 }
 
 export interface Provisioner {
-  Parse(request: Parse_Request): Observable<Parse_Response>
-  Provision(
-    request: Observable<Provision_Request>,
-  ): Observable<Provision_Response>
+  /**
+   * Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
+   * by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
+   * of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
+   * ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
+   * and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
+   * request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
+   *
+   * The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
+   * PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
+   * that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
+   */
+  Session(request: Observable<Request>): Observable<Response>
 }

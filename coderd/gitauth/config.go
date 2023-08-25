@@ -8,15 +8,17 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"github.com/google/go-github/v43/github"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/retry"
 )
 
 type OAuth2Config interface {
@@ -75,12 +77,26 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 		// we aren't trying to surface an error, we're just trying to obtain a valid token.
 		return gitAuthLink, false, nil
 	}
-
+	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
+	// See the comment below why the retry and cancel is required.
+	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
+	defer retryCtxCancel()
+validate:
 	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
 	if err != nil {
 		return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
 	}
 	if !valid {
+		// A customer using GitHub in Australia reported that validating immediately
+		// after refreshing the token would intermittently fail with a 401. Waiting
+		// a few milliseconds with the exact same token on the exact same request
+		// would resolve the issue. It seems likely that the write is not propagating
+		// to the read replica in time.
+		//
+		// We do an exponential backoff here to give the write time to propagate.
+		if c.Type == codersdk.GitProviderGitHub && r.Wait(retryCtx) {
+			goto validate
+		}
 		// The token is no longer valid!
 		return gitAuthLink, false, nil
 	}

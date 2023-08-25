@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -23,11 +24,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // Run runs the entire workspace app test suite against deployments minted
@@ -51,23 +52,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			t.Skip("ConPTY appears to be inconsistent on Windows.")
 		}
 
-		expectLine := func(t *testing.T, r *bufio.Reader, matcher func(string) bool) {
-			for {
-				line, err := r.ReadString('\n')
-				require.NoError(t, err)
-				if matcher(line) {
-					break
-				}
-			}
-		}
-		matchEchoCommand := func(line string) bool {
-			return strings.Contains(line, "echo test")
-		}
-		matchEchoOutput := func(line string) bool {
-			return strings.Contains(line, "test") && !strings.Contains(line, "echo")
-		}
-
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			appDetails := setupProxyTest(t, nil)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -76,40 +62,13 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Run the test against the path app hostname since that's where the
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
-			conn, err := client.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:   appDetails.Agent.ID,
 				Reconnect: uuid.New(),
-				Height:    80,
-				Width:     80,
-				Command:   "/bin/bash",
+				Height:    100,
+				Width:     100,
+				Command:   "bash",
 			})
-			require.NoError(t, err)
-			defer conn.Close()
-
-			// First attempt to resize the TTY.
-			// The websocket will close if it fails!
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Height: 250,
-				Width:  250,
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-			bufRead := bufio.NewReader(conn)
-
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-
-			expectLine(t, bufRead, matchEchoCommand)
-			expectLine(t, bufRead, matchEchoOutput)
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -137,41 +96,14 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
-			conn, err := unauthedAppClient.WorkspaceAgentReconnectingPTY(ctx, codersdk.WorkspaceAgentReconnectingPTYOpts{
+			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:     appDetails.Agent.ID,
 				Reconnect:   uuid.New(),
-				Height:      80,
-				Width:       80,
-				Command:     "/bin/bash",
+				Height:      100,
+				Width:       100,
+				Command:     "bash",
 				SignedToken: issueRes.SignedToken,
 			})
-			require.NoError(t, err)
-			defer conn.Close()
-
-			// First attempt to resize the TTY.
-			// The websocket will close if it fails!
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Height: 250,
-				Width:  250,
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-			bufRead := bufio.NewReader(conn)
-
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = conn.Write(data)
-			require.NoError(t, err)
-
-			expectLine(t, bufRead, matchEchoCommand)
-			expectLine(t, bufRead, matchEchoOutput)
 		})
 	})
 
@@ -1406,4 +1338,123 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
 		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
 	})
+
+	t.Run("ReportStats", func(t *testing.T) {
+		t.Parallel()
+
+		flush := make(chan chan<- struct{}, 1)
+
+		reporter := &fakeStatsReporter{}
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			StatsCollectorOptions: workspaceapps.StatsCollectorOptions{
+				Reporter:       reporter,
+				ReportInterval: time.Hour,
+				RollupWindow:   time.Minute,
+
+				Flush: flush,
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u := appDetails.PathAppURL(appDetails.Apps.Owner)
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var stats []workspaceapps.StatsReport
+		require.Eventually(t, func() bool {
+			// Keep flushing until we get a non-empty stats report.
+			flushDone := make(chan struct{}, 1)
+			flush <- flushDone
+			<-flushDone
+
+			stats = reporter.stats()
+			return len(stats) > 0
+		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
+
+		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
+		assert.Equal(t, 1, stats[0].Requests)
+	})
+}
+
+type fakeStatsReporter struct {
+	mu sync.Mutex
+	s  []workspaceapps.StatsReport
+}
+
+func (r *fakeStatsReporter) stats() []workspaceapps.StatsReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.s
+}
+
+func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+	r.mu.Lock()
+	r.s = append(r.s, stats...)
+	r.mu.Unlock()
+	return nil
+}
+
+func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
+	matchEchoCommand := func(line string) bool {
+		return strings.Contains(line, "echo test")
+	}
+	matchEchoOutput := func(line string) bool {
+		return strings.Contains(line, "test") && !strings.Contains(line, "echo")
+	}
+	matchExitCommand := func(line string) bool {
+		return strings.Contains(line, "exit")
+	}
+	matchExitOutput := func(line string) bool {
+		return strings.Contains(line, "exit") || strings.Contains(line, "logout")
+	}
+
+	conn, err := client.WorkspaceAgentReconnectingPTY(ctx, opts)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	// First attempt to resize the TTY.
+	// The websocket will close if it fails!
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Height: 80,
+		Width:  80,
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	// Brief pause to reduce the likelihood that we send keystrokes while
+	// the shell is simultaneously sending a prompt.
+	time.Sleep(100 * time.Millisecond)
+
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r\n",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoCommand), "find echo command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoOutput), "find echo output")
+
+	// Exit should cause the connection to close.
+	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "exit\r\n",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
+	// Once for the input and again for the output.
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitCommand), "find exit command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitOutput), "find exit output")
+
+	// Ensure the connection closes.
+	require.ErrorIs(t, testutil.ReadUntil(ctx, t, conn, nil), io.EOF)
 }

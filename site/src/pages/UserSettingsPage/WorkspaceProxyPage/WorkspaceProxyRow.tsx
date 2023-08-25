@@ -169,9 +169,14 @@ const DetailedProxyStatus: FC<{
     return <ProxyStatus proxy={proxy} />
   }
 
+  let derpOnly = false
+  if ("derp_only" in proxy) {
+    derpOnly = proxy.derp_only
+  }
+
   switch (proxy.status.status) {
     case "ok":
-      return <HealthyBadge />
+      return <HealthyBadge derpOnly={derpOnly} />
     case "unhealthy":
       return <NotHealthyBadge />
     case "unreachable":
@@ -189,7 +194,7 @@ const ProxyStatus: FC<{
 }> = ({ proxy }) => {
   let icon = <NotHealthyBadge />
   if (proxy.healthy) {
-    icon = <HealthyBadge />
+    icon = <HealthyBadge derpOnly={false} />
   }
 
   return icon

@@ -22,22 +22,22 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd"
-	agplaudit "github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	agplschedule "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/enterprise/coderd/proxyhealth"
-	"github.com/coder/coder/enterprise/coderd/schedule"
-	"github.com/coder/coder/enterprise/derpmesh"
-	"github.com/coder/coder/enterprise/replicasync"
-	"github.com/coder/coder/enterprise/tailnet"
-	"github.com/coder/coder/provisionerd/proto"
-	agpltailnet "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd"
+	agplaudit "github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/v2/enterprise/coderd/schedule"
+	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/enterprise/replicasync"
+	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	agpltailnet "github.com/coder/coder/v2/tailnet"
 )
 
 // New constructs an Enterprise coderd API instance.
@@ -130,6 +130,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Post("/refresh-entitlements", api.postRefreshEntitlements)
 			r.Post("/", api.postLicense)
 			r.Get("/", api.licenses)
 			r.Delete("/{id}", api.deleteLicense)
@@ -167,6 +168,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				)
 				r.Get("/coordinate", api.workspaceProxyCoordinate)
 				r.Post("/issue-signed-app-token", api.workspaceProxyIssueSignedAppToken)
+				r.Post("/app-stats", api.workspaceProxyReportAppStats)
 				r.Post("/register", api.workspaceProxyRegister)
 				r.Post("/deregister", api.workspaceProxyDeregister)
 			})
@@ -402,10 +404,13 @@ type API struct {
 }
 
 func (api *API) Close() error {
-	api.cancel()
+	// Replica manager should be closed first. This is because the replica
+	// manager updates the replica's table in the database when it closes.
+	// This tells other Coderds that it is now offline.
 	if api.replicaManager != nil {
 		_ = api.replicaManager.Close()
 	}
+	api.cancel()
 	if api.derpMesh != nil {
 		_ = api.derpMesh.Close()
 	}
@@ -497,7 +502,10 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			committer := committer{Database: api.Database}
+			committer := committer{
+				Log:      api.Logger.Named("quota_committer"),
+				Database: api.Database,
+			}
 			ptr := proto.QuotaCommitter(&committer)
 			api.AGPL.QuotaCommitter.Store(&ptr)
 		} else {
@@ -507,7 +515,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			templateStore := schedule.NewEnterpriseTemplateScheduleStore()
+			templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore)
 			templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 			api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 		} else {
@@ -594,7 +602,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureWorkspaceProxy); shouldUpdate(initial, changed, enabled) {
 		if enabled {
-			fn := derpMapper(api.Logger, api.DeploymentValues, api.ProxyHealth)
+			fn := derpMapper(api.Logger, api.ProxyHealth)
 			api.AGPL.DERPMapper.Store(&fn)
 		} else {
 			api.AGPL.DERPMapper.Store(nil)
@@ -659,7 +667,7 @@ var (
 	lastDerpConflictLog   time.Time
 )
 
-func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
+func derpMapper(logger slog.Logger, proxyHealth *proxyhealth.ProxyHealth) func(*tailcfg.DERPMap) *tailcfg.DERPMap {
 	return func(derpMap *tailcfg.DERPMap) *tailcfg.DERPMap {
 		derpMap = derpMap.Clone()
 
@@ -753,43 +761,22 @@ func derpMapper(logger slog.Logger, cfg *codersdk.DeploymentValues, proxyHealth 
 				}
 			}
 
-			var stunNodes []*tailcfg.DERPNode
-			if !cfg.DERP.Config.BlockDirect.Value() {
-				stunNodes, err = agpltailnet.STUNNodes(regionID, cfg.DERP.Server.STUNAddresses)
-				if err != nil {
-					// Log a warning if we haven't logged one in the last
-					// minute.
-					lastDerpConflictMutex.Lock()
-					shouldLog := lastDerpConflictLog.IsZero() || time.Since(lastDerpConflictLog) > time.Minute
-					if shouldLog {
-						lastDerpConflictLog = time.Now()
-					}
-					lastDerpConflictMutex.Unlock()
-					if shouldLog {
-						logger.Error(context.Background(), "failed to calculate STUN nodes", slog.Error(err))
-					}
-
-					// No continue because we can keep going.
-					stunNodes = []*tailcfg.DERPNode{}
-				}
-			}
-
-			nodes := append(stunNodes, &tailcfg.DERPNode{
-				Name:      fmt.Sprintf("%da", regionID),
-				RegionID:  regionID,
-				HostName:  u.Hostname(),
-				DERPPort:  portInt,
-				STUNPort:  -1,
-				ForceHTTP: u.Scheme == "http",
-			})
-
 			derpMap.Regions[regionID] = &tailcfg.DERPRegion{
 				// EmbeddedRelay ONLY applies to the primary.
 				EmbeddedRelay: false,
 				RegionID:      regionID,
 				RegionCode:    regionCode,
 				RegionName:    regionName,
-				Nodes:         nodes,
+				Nodes: []*tailcfg.DERPNode{
+					{
+						Name:      fmt.Sprintf("%da", regionID),
+						RegionID:  regionID,
+						HostName:  u.Hostname(),
+						DERPPort:  portInt,
+						STUNPort:  -1,
+						ForceHTTP: u.Scheme == "http",
+					},
+				},
 			}
 		}
 
@@ -819,6 +806,17 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 	updates := make(chan struct{}, 1)
 	subscribed := false
 
+	defer func() {
+		// If this function ends, it means the context was canceled and this
+		// coderd is shutting down. In this case, post a pubsub message to
+		// tell other coderd's to resync their entitlements. This is required to
+		// make sure things like replica counts are updated in the UI.
+		// Ignore the error, as this is just a best effort. If it fails,
+		// the system will eventually recover as replicas timeout
+		// if their heartbeats stop. The best effort just tries to update the
+		// UI faster if it succeeds.
+		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+	}()
 	for {
 		select {
 		case <-ctx.Done():

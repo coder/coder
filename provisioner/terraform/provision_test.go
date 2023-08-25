@@ -3,6 +3,8 @@
 package terraform_test
 
 import (
+	"archive/tar"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -20,9 +22,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type provisionerServeOptions struct {
@@ -35,6 +37,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts = &provisionerServeOptions{}
 	}
 	cachePath := t.TempDir()
+	workDir := t.TempDir()
 	client, server := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverErr := make(chan error, 1)
@@ -50,40 +53,75 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	go func() {
 		serverErr <- terraform.Serve(ctx, &terraform.ServeOptions{
 			ServeOptions: &provisionersdk.ServeOptions{
-				Listener: server,
+				Listener:      server,
+				Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+				WorkDirectory: workDir,
 			},
 			BinaryPath:  opts.binaryPath,
 			CachePath:   cachePath,
-			Logger:      slogtest.Make(t, nil).Leveled(slog.LevelDebug),
 			ExitTimeout: opts.exitTimeout,
 		})
 	}()
 	api := proto.NewDRPCProvisionerClient(client)
+
 	return ctx, api
 }
 
-func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_ProvisionClient) (
-	string,
-	*proto.Provision_Complete,
-) {
-	var (
-		logBuf strings.Builder
-		c      *proto.Provision_Complete
-	)
+func makeTar(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+	var buffer bytes.Buffer
+	writer := tar.NewWriter(&buffer)
+	for name, content := range files {
+		err := writer.WriteHeader(&tar.Header{
+			Name: name,
+			Size: int64(len(content)),
+			Mode: 0o644,
+		})
+		require.NoError(t, err)
+		_, err = writer.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	err := writer.Flush()
+	require.NoError(t, err)
+	return buffer.Bytes()
+}
+
+func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
+	t.Helper()
+	sess, err := client.Session(ctx)
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_Config{Config: config}})
+	require.NoError(t, err)
+	return sess
+}
+
+func readProvisionLog(t *testing.T, response proto.DRPCProvisioner_SessionClient) string {
+	var logBuf strings.Builder
 	for {
 		msg, err := response.Recv()
 		require.NoError(t, err)
 
 		if log := msg.GetLog(); log != nil {
 			t.Log(log.Level.String(), log.Output)
-			_, _ = logBuf.WriteString(log.Output)
+			_, err = logBuf.WriteString(log.Output)
+			require.NoError(t, err)
+			continue
 		}
-		if c = msg.GetComplete(); c != nil {
-			require.Empty(t, c.Error)
-			break
-		}
+		break
 	}
-	return logBuf.String(), c
+	return logBuf.String()
+}
+
+func sendPlan(sess proto.DRPCProvisioner_SessionClient, transition proto.WorkspaceTransition) error {
+	return sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
+		Metadata: &proto.Metadata{WorkspaceTransition: transition},
+	}}})
+}
+
+func sendApply(sess proto.DRPCProvisioner_SessionClient, transition proto.WorkspaceTransition) error {
+	return sess.Send(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{
+		Metadata: &proto.Metadata{WorkspaceTransition: transition},
+	}}})
 }
 
 func TestProvision_Cancel(t *testing.T) {
@@ -109,9 +147,10 @@ func TestProvision_Cancel(t *testing.T) {
 			wantLog:       []string{"interrupt", "exit"},
 		},
 		{
-			name:          "Cancel apply",
-			mode:          "apply",
-			startSequence: []string{"init", "apply_start"},
+			// Provisioner requires a plan before an apply, so test cancel with plan.
+			name:          "Cancel plan",
+			mode:          "plan",
+			startSequence: []string{"init", "plan_start"},
 			wantLog:       []string{"interrupt", "exit"},
 		},
 	}
@@ -131,24 +170,16 @@ func TestProvision_Cancel(t *testing.T) {
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binPath,
 			})
-
-			response, err := api.Provision(ctx)
-			require.NoError(t, err)
-			err = response.Send(&proto.Provision_Request{
-				Type: &proto.Provision_Request_Apply{
-					Apply: &proto.Provision_Apply{
-						Config: &proto.Provision_Config{
-							Directory: dir,
-							Metadata:  &proto.Provision_Metadata{},
-						},
-					},
-				},
+			sess := configure(ctx, t, api, &proto.Config{
+				TemplateSourceArchive: makeTar(t, nil),
 			})
+
+			err = sendPlan(sess, proto.WorkspaceTransition_START)
 			require.NoError(t, err)
 
 			for _, line := range tt.startSequence {
 			LoopStart:
-				msg, err := response.Recv()
+				msg, err := sess.Recv()
 				require.NoError(t, err)
 
 				t.Log(msg.Type)
@@ -160,22 +191,22 @@ func TestProvision_Cancel(t *testing.T) {
 				require.Equal(t, line, log.Output)
 			}
 
-			err = response.Send(&proto.Provision_Request{
-				Type: &proto.Provision_Request_Cancel{
-					Cancel: &proto.Provision_Cancel{},
+			err = sess.Send(&proto.Request{
+				Type: &proto.Request_Cancel{
+					Cancel: &proto.CancelRequest{},
 				},
 			})
 			require.NoError(t, err)
 
 			var gotLog []string
 			for {
-				msg, err := response.Recv()
+				msg, err := sess.Recv()
 				require.NoError(t, err)
 
 				if log := msg.GetLog(); log != nil {
 					gotLog = append(gotLog, log.Output)
 				}
-				if c := msg.GetComplete(); c != nil {
+				if c := msg.GetPlan(); c != nil {
 					require.Contains(t, c.Error, "exit status 1")
 					break
 				}
@@ -208,23 +239,17 @@ func TestProvision_CancelTimeout(t *testing.T) {
 		exitTimeout: time.Second,
 	})
 
-	response, err := api.Provision(ctx)
-	require.NoError(t, err)
-	err = response.Send(&proto.Provision_Request{
-		Type: &proto.Provision_Request_Apply{
-			Apply: &proto.Provision_Apply{
-				Config: &proto.Provision_Config{
-					Directory: dir,
-					Metadata:  &proto.Provision_Metadata{},
-				},
-			},
-		},
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, nil),
 	})
+
+	// provisioner requires plan before apply, so test cancel with plan.
+	err = sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	for _, line := range []string{"init", "apply_start"} {
+	for _, line := range []string{"init", "plan_start"} {
 	LoopStart:
-		msg, err := response.Recv()
+		msg, err := sess.Recv()
 		require.NoError(t, err)
 
 		t.Log(msg.Type)
@@ -236,18 +261,14 @@ func TestProvision_CancelTimeout(t *testing.T) {
 		require.Equal(t, line, log.Output)
 	}
 
-	err = response.Send(&proto.Provision_Request{
-		Type: &proto.Provision_Request_Cancel{
-			Cancel: &proto.Provision_Cancel{},
-		},
-	})
+	err = sess.Send(&proto.Request{Type: &proto.Request_Cancel{Cancel: &proto.CancelRequest{}}})
 	require.NoError(t, err)
 
 	for {
-		msg, err := response.Recv()
+		msg, err := sess.Recv()
 		require.NoError(t, err)
 
-		if c := msg.GetComplete(); c != nil {
+		if c := msg.GetPlan(); c != nil {
 			require.Contains(t, c.Error, "killed")
 			break
 		}
@@ -258,17 +279,18 @@ func TestProvision(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		Name    string
-		Files   map[string]string
-		Request *proto.Provision_Plan
+		Name     string
+		Files    map[string]string
+		Metadata *proto.Metadata
+		Request  *proto.PlanRequest
 		// Response may be nil to not check the response.
-		Response *proto.Provision_Response
-		// If ErrorContains is not empty, then response.Recv() should return an
-		// error containing this string before a Complete response is returned.
+		Response *proto.PlanComplete
+		// If ErrorContains is not empty, PlanComplete should have an Error containing the given string
 		ErrorContains string
 		// If ExpectLogContains is not empty, then the logs should contain it.
 		ExpectLogContains string
-		Apply             bool
+		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
+		Apply bool
 	}{
 		{
 			Name: "missing-variable",
@@ -293,15 +315,11 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "A",
-							Type: "null_resource",
-						}},
-					},
-				},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "A",
+					Type: "null_resource",
+				}},
 			},
 		},
 		{
@@ -309,15 +327,11 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "A",
-							Type: "null_resource",
-						}},
-					},
-				},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "A",
+					Type: "null_resource",
+				}},
 			},
 			Apply: true,
 		},
@@ -334,15 +348,11 @@ func TestProvision(t *testing.T) {
 					}
 				}`,
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "A",
-							Type: "null_resource",
-						}},
-					},
-				},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "A",
+					Type: "null_resource",
+				}},
 			},
 			Apply: true,
 		},
@@ -351,7 +361,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `a`,
 			},
-			ErrorContains:     "plan terraform",
+			ErrorContains:     "initialize terraform",
 			ExpectLogContains: "Argument or block definition required",
 		},
 		{
@@ -359,7 +369,7 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `;asdf;`,
 			},
-			ErrorContains:     "plan terraform",
+			ErrorContains:     "initialize terraform",
 			ExpectLogContains: `The ";" character is not valid.`,
 		},
 		{
@@ -367,12 +377,8 @@ func TestProvision(t *testing.T) {
 			Files: map[string]string{
 				"main.tf": `resource "null_resource" "A" {}`,
 			},
-			Request: &proto.Provision_Plan{
-				Config: &proto.Provision_Config{
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
-					},
-				},
+			Metadata: &proto.Metadata{
+				WorkspaceTransition: proto.WorkspaceTransition_DESTROY,
 			},
 			ExpectLogContains: "nothing to do",
 		},
@@ -406,7 +412,7 @@ func TestProvision(t *testing.T) {
 					}
 				  }`,
 			},
-			Request: &proto.Provision_Plan{
+			Request: &proto.PlanRequest{
 				RichParameterValues: []*proto.RichParameterValue{
 					{
 						Name:  "Example",
@@ -418,27 +424,23 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:         "Example",
-								Type:         "string",
-								DefaultValue: "foobar",
-							},
-							{
-								Name:         "Sample",
-								Type:         "string",
-								DefaultValue: "foobaz",
-							},
-						},
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "null_resource",
-						}},
+			Response: &proto.PlanComplete{
+				Parameters: []*proto.RichParameter{
+					{
+						Name:         "Example",
+						Type:         "string",
+						DefaultValue: "foobar",
+					},
+					{
+						Name:         "Sample",
+						Type:         "string",
+						DefaultValue: "foobaz",
 					},
 				},
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+				}},
 			},
 		},
 		{
@@ -488,7 +490,7 @@ func TestProvision(t *testing.T) {
 					]
 				}`,
 			},
-			Request: &proto.Provision_Plan{
+			Request: &proto.PlanRequest{
 				RichParameterValues: []*proto.RichParameterValue{
 					{
 						Name:  "Example",
@@ -500,27 +502,23 @@ func TestProvision(t *testing.T) {
 					},
 				},
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:         "Example",
-								Type:         "string",
-								DefaultValue: "foobar",
-							},
-							{
-								Name:         "Sample",
-								Type:         "string",
-								DefaultValue: "foobaz",
-							},
-						},
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "null_resource",
-						}},
+			Response: &proto.PlanComplete{
+				Parameters: []*proto.RichParameter{
+					{
+						Name:         "Example",
+						Type:         "string",
+						DefaultValue: "foobar",
+					},
+					{
+						Name:         "Sample",
+						Type:         "string",
+						DefaultValue: "foobaz",
 					},
 				},
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+				}},
 			},
 		},
 		{
@@ -550,25 +548,21 @@ func TestProvision(t *testing.T) {
 				}
 				`,
 			},
-			Request: &proto.Provision_Plan{
+			Request: &proto.PlanRequest{
 				GitAuthProviders: []*proto.GitAuthProvider{{
 					Id:          "github",
 					AccessToken: "some-value",
 				}},
 			},
-			Response: &proto.Provision_Response{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: []*proto.Resource{{
-							Name: "example",
-							Type: "null_resource",
-							Metadata: []*proto.Resource_Metadata{{
-								Key:   "token",
-								Value: "some-value",
-							}},
-						}},
-					},
-				},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "token",
+						Value: "some-value",
+					}},
+				}},
 			},
 		},
 	}
@@ -579,50 +573,26 @@ func TestProvision(t *testing.T) {
 			t.Parallel()
 
 			ctx, api := setupProvisioner(t, nil)
+			sess := configure(ctx, t, api, &proto.Config{
+				TemplateSourceArchive: makeTar(t, testCase.Files),
+			})
 
-			directory := t.TempDir()
-			for path, content := range testCase.Files {
-				err := os.WriteFile(filepath.Join(directory, path), []byte(content), 0o600)
-				require.NoError(t, err)
-			}
-
-			planRequest := &proto.Provision_Request{
-				Type: &proto.Provision_Request_Plan{
-					Plan: &proto.Provision_Plan{
-						Config: &proto.Provision_Config{
-							Directory: directory,
-						},
-					},
-				},
-			}
+			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
+				Metadata: testCase.Metadata,
+			}}}
 			if testCase.Request != nil {
-				if planRequest.GetPlan().GetConfig() == nil {
-					planRequest.GetPlan().Config = &proto.Provision_Config{}
-				}
-				planRequest.GetPlan().RichParameterValues = testCase.Request.RichParameterValues
-				planRequest.GetPlan().GitAuthProviders = testCase.Request.GitAuthProviders
-				if testCase.Request.Config != nil {
-					planRequest.GetPlan().Config.State = testCase.Request.Config.State
-					planRequest.GetPlan().Config.Metadata = testCase.Request.Config.Metadata
-				}
-			}
-			if planRequest.GetPlan().Config.Metadata == nil {
-				planRequest.GetPlan().Config.Metadata = &proto.Provision_Metadata{}
+				planRequest = &proto.Request{Type: &proto.Request_Plan{Plan: testCase.Request}}
 			}
 
 			gotExpectedLog := testCase.ExpectLogContains == ""
 
-			provision := func(req *proto.Provision_Request) *proto.Provision_Complete {
-				response, err := api.Provision(ctx)
+			provision := func(req *proto.Request) *proto.Response {
+				err := sess.Send(req)
 				require.NoError(t, err)
-				err = response.Send(req)
-				require.NoError(t, err)
-
-				var complete *proto.Provision_Complete
-
 				for {
-					msg, err := response.Recv()
-					if msg != nil && msg.GetLog() != nil {
+					msg, err := sess.Recv()
+					require.NoError(t, err)
+					if msg.GetLog() != nil {
 						if testCase.ExpectLogContains != "" && strings.Contains(msg.GetLog().Output, testCase.ExpectLogContains) {
 							gotExpectedLog = true
 						}
@@ -630,73 +600,73 @@ func TestProvision(t *testing.T) {
 						t.Logf("log: [%s] %s", msg.GetLog().Level, msg.GetLog().Output)
 						continue
 					}
-					if testCase.ErrorContains != "" {
-						require.ErrorContains(t, err, testCase.ErrorContains)
-						break
-					}
-					require.NoError(t, err)
-
-					if complete = msg.GetComplete(); complete == nil {
-						continue
-					}
-
-					require.NoError(t, err)
-
-					// Remove randomly generated data.
-					for _, resource := range msg.GetComplete().Resources {
-						sort.Slice(resource.Agents, func(i, j int) bool {
-							return resource.Agents[i].Name < resource.Agents[j].Name
-						})
-
-						for _, agent := range resource.Agents {
-							agent.Id = ""
-							if agent.GetToken() == "" {
-								continue
-							}
-							agent.Auth = &proto.Agent_Token{}
-						}
-					}
-
-					if testCase.Response != nil {
-						require.Equal(t, testCase.Response.GetComplete().Error, msg.GetComplete().Error)
-
-						resourcesGot, err := json.Marshal(msg.GetComplete().Resources)
-						require.NoError(t, err)
-						resourcesWant, err := json.Marshal(testCase.Response.GetComplete().Resources)
-						require.NoError(t, err)
-
-						require.Equal(t, string(resourcesWant), string(resourcesGot))
-
-						parametersGot, err := json.Marshal(msg.GetComplete().Parameters)
-						require.NoError(t, err)
-						parametersWant, err := json.Marshal(testCase.Response.GetComplete().Parameters)
-						require.NoError(t, err)
-						require.Equal(t, string(parametersWant), string(parametersGot))
-					}
-					break
+					return msg
 				}
-
-				return complete
 			}
 
-			planComplete := provision(planRequest)
+			resp := provision(planRequest)
+			planComplete := resp.GetPlan()
+			require.NotNil(t, planComplete)
+
+			if testCase.ErrorContains != "" {
+				require.Contains(t, planComplete.GetError(), testCase.ErrorContains)
+			}
+
+			if testCase.Response != nil {
+				require.Equal(t, testCase.Response.Error, planComplete.Error)
+
+				// Remove randomly generated data.
+				normalizeResources(planComplete.Resources)
+				resourcesGot, err := json.Marshal(planComplete.Resources)
+				require.NoError(t, err)
+				resourcesWant, err := json.Marshal(testCase.Response.Resources)
+				require.NoError(t, err)
+				require.Equal(t, string(resourcesWant), string(resourcesGot))
+
+				parametersGot, err := json.Marshal(planComplete.Parameters)
+				require.NoError(t, err)
+				parametersWant, err := json.Marshal(testCase.Response.Parameters)
+				require.NoError(t, err)
+				require.Equal(t, string(parametersWant), string(parametersGot))
+			}
 
 			if testCase.Apply {
-				require.NotNil(t, planComplete.Plan)
-				provision(&proto.Provision_Request{
-					Type: &proto.Provision_Request_Apply{
-						Apply: &proto.Provision_Apply{
-							Config: planRequest.GetPlan().GetConfig(),
-							Plan:   planComplete.Plan,
-						},
-					},
-				})
+				resp = provision(&proto.Request{Type: &proto.Request_Apply{Apply: &proto.ApplyRequest{
+					Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_START},
+				}}})
+				applyComplete := resp.GetApply()
+				require.NotNil(t, applyComplete)
+
+				if testCase.Response != nil {
+					normalizeResources(applyComplete.Resources)
+					resourcesGot, err := json.Marshal(applyComplete.Resources)
+					require.NoError(t, err)
+					resourcesWant, err := json.Marshal(testCase.Response.Resources)
+					require.NoError(t, err)
+					require.Equal(t, string(resourcesWant), string(resourcesGot))
+				}
 			}
 
 			if !gotExpectedLog {
 				t.Fatalf("expected log string %q but never saw it", testCase.ExpectLogContains)
 			}
 		})
+	}
+}
+
+func normalizeResources(resources []*proto.Resource) {
+	for _, resource := range resources {
+		sort.Slice(resource.Agents, func(i, j int) bool {
+			return resource.Agents[i].Name < resource.Agents[j].Name
+		})
+
+		for _, agent := range resource.Agents {
+			agent.Id = ""
+			if agent.GetToken() == "" {
+				continue
+			}
+			agent.Auth = &proto.Agent_Token{}
+		}
 	}
 }
 
@@ -708,31 +678,15 @@ func TestProvision_ExtraEnv(t *testing.T) {
 	t.Setenv("TF_SUPERSECRET", secretValue)
 
 	ctx, api := setupProvisioner(t, nil)
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
+	})
 
-	directory := t.TempDir()
-	path := filepath.Join(directory, "main.tf")
-	err := os.WriteFile(path, []byte(`resource "null_resource" "A" {}`), 0o600)
-	require.NoError(t, err)
-
-	request := &proto.Provision_Request{
-		Type: &proto.Provision_Request_Plan{
-			Plan: &proto.Provision_Plan{
-				Config: &proto.Provision_Config{
-					Directory: directory,
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_START,
-					},
-				},
-			},
-		},
-	}
-	response, err := api.Provision(ctx)
-	require.NoError(t, err)
-	err = response.Send(request)
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 	found := false
 	for {
-		msg, err := response.Recv()
+		msg, err := sess.Recv()
 		require.NoError(t, err)
 
 		if log := msg.GetLog(); log != nil {
@@ -742,7 +696,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 			}
 			require.NotContains(t, log.Output, secretValue)
 		}
-		if c := msg.GetComplete(); c != nil {
+		if c := msg.GetPlan(); c != nil {
 			require.Empty(t, c.Error)
 			break
 		}
@@ -774,48 +728,19 @@ func TestProvision_SafeEnv(t *testing.T) {
 	`
 
 	ctx, api := setupProvisioner(t, nil)
-
-	directory := t.TempDir()
-	path := filepath.Join(directory, "main.tf")
-	err := os.WriteFile(path, []byte(echoResource), 0o600)
-	require.NoError(t, err)
-
-	response, err := api.Provision(ctx)
-	require.NoError(t, err)
-	err = response.Send(&proto.Provision_Request{
-		Type: &proto.Provision_Request_Plan{
-			Plan: &proto.Provision_Plan{
-				Config: &proto.Provision_Config{
-					Directory: directory,
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_START,
-					},
-				},
-			},
-		},
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": echoResource}),
 	})
+
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	_, complete := readProvisionLog(t, response)
+	_ = readProvisionLog(t, sess)
 
-	response, err = api.Provision(ctx)
-	require.NoError(t, err)
-	err = response.Send(&proto.Provision_Request{
-		Type: &proto.Provision_Request_Apply{
-			Apply: &proto.Provision_Apply{
-				Config: &proto.Provision_Config{
-					Directory: directory,
-					Metadata: &proto.Provision_Metadata{
-						WorkspaceTransition: proto.WorkspaceTransition_START,
-					},
-				},
-				Plan: complete.GetPlan(),
-			},
-		},
-	})
+	err = sendApply(sess, proto.WorkspaceTransition_START)
 	require.NoError(t, err)
 
-	log, _ := readProvisionLog(t, response)
+	log := readProvisionLog(t, sess)
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")

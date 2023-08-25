@@ -3,14 +3,15 @@ package cli
 import (
 	"fmt"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) update() *clibase.Cmd {
 	var (
-		richParameterFile string
-		alwaysPrompt      bool
+		alwaysPrompt bool
 
 		parameterFlags workspaceParameterFlags
 	)
@@ -30,33 +31,45 @@ func (r *RootCmd) update() *clibase.Cmd {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.buildOptions {
+			if !workspace.Outdated && !alwaysPrompt && !parameterFlags.promptBuildOptions && len(parameterFlags.buildOptions) == 0 {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
 				return nil
 			}
+
+			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return err
 			}
 
-			var existingRichParams []codersdk.WorkspaceBuildParameter
-			if !alwaysPrompt {
-				existingRichParams, err = client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
-				if err != nil {
-					return err
-				}
+			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
 			}
 
-			buildParams, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
-				Template:           template,
-				ExistingRichParams: existingRichParams,
-				RichParameterFile:  richParameterFile,
-				NewWorkspaceName:   workspace.Name,
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
 
-				UpdateWorkspace: true,
-				WorkspaceID:     workspace.LatestBuild.ID,
+			buildParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:           WorkspaceUpdate,
+				Template:         template,
+				NewWorkspaceName: workspace.Name,
+				WorkspaceID:      workspace.LatestBuild.ID,
 
-				BuildOptions: parameterFlags.buildOptions,
+				LastBuildParameters: lastBuildParameters,
+
+				PromptBuildOptions: parameterFlags.promptBuildOptions,
+				BuildOptions:       buildOptions,
+
+				PromptRichParameters: alwaysPrompt,
+				RichParameters:       cliRichParameters,
+				RichParameterFile:    parameterFlags.richParameterFile,
 			})
 			if err != nil {
 				return err
@@ -65,7 +78,7 @@ func (r *RootCmd) update() *clibase.Cmd {
 			build, err := client.CreateWorkspaceBuild(inv.Context(), workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				TemplateVersionID:   template.ActiveVersionID,
 				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParams.richParameters,
+				RichParameterValues: buildParameters,
 			})
 			if err != nil {
 				return err
@@ -92,13 +105,8 @@ func (r *RootCmd) update() *clibase.Cmd {
 			Description: "Always prompt all parameters. Does not pull parameter values from existing workspace.",
 			Value:       clibase.BoolOf(&alwaysPrompt),
 		},
-		{
-			Flag:        "rich-parameter-file",
-			Description: "Specify a file path with values for rich parameters defined in the template.",
-			Env:         "CODER_RICH_PARAMETER_FILE",
-			Value:       clibase.StringOf(&richParameterFile),
-		},
 	}
-	cmd.Options = append(cmd.Options, parameterFlags.options()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliBuildOptions()...)
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	return cmd
 }

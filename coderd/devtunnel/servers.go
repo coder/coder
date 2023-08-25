@@ -10,7 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 type Region struct {
@@ -115,8 +116,8 @@ func FindClosestNode(nodes []Node) (Node, error) {
 		return Node{}, err
 	}
 
-	slices.SortFunc(nodes, func(i, j Node) bool {
-		return i.AvgLatency < j.AvgLatency
+	slices.SortFunc(nodes, func(a, b Node) int {
+		return slice.Ascending(a.AvgLatency, b.AvgLatency)
 	})
 	return nodes[0], nil
 }

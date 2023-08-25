@@ -21,7 +21,10 @@ import { ComponentProps, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { AuditPaywall } from "./AuditPaywall"
 import { AuditFilter } from "./AuditFilter"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
 
 export const Language = {
@@ -73,12 +76,14 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         <Cond condition={isAuditLogVisible}>
           <AuditFilter {...filterProps} />
 
-          <PaginationStatus
-            isLoading={Boolean(isLoading)}
-            showing={auditLogs?.length ?? 0}
-            total={count ?? 0}
-            label="audit logs"
-          />
+          <TableToolbar>
+            <PaginationStatus
+              isLoading={Boolean(isLoading)}
+              showing={auditLogs?.length ?? 0}
+              total={count ?? 0}
+              label="audit logs"
+            />
+          </TableToolbar>
 
           <TableContainer>
             <Table>

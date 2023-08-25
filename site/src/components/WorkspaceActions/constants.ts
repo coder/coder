@@ -12,8 +12,8 @@ export enum ButtonTypesEnum {
   deleting = "deleting",
   update = "update",
   updating = "updating",
-  unlock = "lock",
-  unlocking = "unlocking",
+  activate = "activate",
+  activating = "activating",
   // disabled buttons
   canceling = "canceling",
   deleted = "deleted",
@@ -34,9 +34,9 @@ export const actionsByWorkspaceStatus = (
   workspace: Workspace,
   status: WorkspaceStatus,
 ): WorkspaceAbilities => {
-  if (workspace.locked_at) {
+  if (workspace.dormant_at) {
     return {
-      actions: [ButtonTypesEnum.unlock],
+      actions: [ButtonTypesEnum.activate],
       canCancel: false,
       canAcceptJobs: false,
     }

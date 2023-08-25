@@ -86,11 +86,19 @@ dark = createTheme(dark, {
   components: {
     MuiCssBaseline: {
       styleOverrides: `
+        html, body, #root, #storybook-root {
+          height: 100%;
+        }
+
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus,
         input:-webkit-autofill:active  {
           -webkit-box-shadow: 0 0 0 100px ${dark.palette.background.default} inset !important;
+        }
+
+        ::placeholder {
+          color: ${dark.palette.text.disabled};
         }
       `,
     },
@@ -378,6 +386,15 @@ dark = createTheme(dark, {
     MuiRadio: {
       defaultProps: {
         disableRipple: true,
+      },
+    },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          "&.Mui-disabled": {
+            color: colors.gray[11],
+          },
+        },
       },
     },
     MuiSwitch: {

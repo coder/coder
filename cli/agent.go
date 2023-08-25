@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,12 +28,12 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/agent/reaper"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/reaper"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
@@ -253,7 +254,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			}
 
 			prometheusRegistry := prometheus.NewRegistry()
-			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystems := []codersdk.AgentSubsystem{}
+			for _, s := range strings.Split(subsystemsRaw, ",") {
+				subsystem := codersdk.AgentSubsystem(strings.TrimSpace(s))
+				if subsystem == "" {
+					continue
+				}
+				if !subsystem.Valid() {
+					return xerrors.Errorf("invalid subsystem %q", subsystem)
+				}
+				subsystems = append(subsystems, subsystem)
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -275,7 +288,7 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
-				Subsystem:     codersdk.AgentSubsystem(subsystem),
+				Subsystems:    subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
 			})

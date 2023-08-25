@@ -8,13 +8,13 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Create group for organization
@@ -46,9 +46,9 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if req.Name == database.AllUsersGroup {
+	if req.Name == database.EveryoneGroup {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.AllUsersGroup),
+			Message: fmt.Sprintf("%q is a reserved keyword and cannot be used for a group name.", database.EveryoneGroup),
 		})
 		return
 	}
@@ -81,9 +81,11 @@ func (api *API) postGroupByOrganization(rw http.ResponseWriter, r *http.Request)
 // @Summary Update group by name
 // @ID update-group-by-name
 // @Security CoderSessionToken
+// @Accept json
 // @Produce json
 // @Tags Enterprise
 // @Param group path string true "Group name"
+// @Param request body codersdk.PatchGroupRequest true "Patch group request"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [patch]
 func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
@@ -100,23 +102,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
-	currentMembers, currentMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
-	if currentMembersErr != nil {
-		httpapi.InternalServerError(rw, currentMembersErr)
-		return
-	}
-
-	aReq.Old = group.Auditable(currentMembers)
-
 	var req codersdk.PatchGroupRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-
-	if req.Name != "" && req.Name == database.AllUsersGroup {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved group name!", database.AllUsersGroup),
-		})
 		return
 	}
 
@@ -126,9 +113,44 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		req.Name = ""
 	}
 
+	if group.IsEveryone() && req.Name != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot rename the %q group!", database.EveryoneGroup),
+		})
+		return
+	}
+
+	if group.IsEveryone() && (req.DisplayName != nil && *req.DisplayName != "") {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Cannot update the Display Name for the %q group!", database.EveryoneGroup),
+		})
+		return
+	}
+
+	if req.Name == database.EveryoneGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("%q is a reserved group name!", database.EveryoneGroup),
+		})
+		return
+	}
+
 	users := make([]string, 0, len(req.AddUsers)+len(req.RemoveUsers))
 	users = append(users, req.AddUsers...)
 	users = append(users, req.RemoveUsers...)
+
+	if len(users) > 0 && group.Name == database.EveryoneGroup {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Cannot add or remove users from the %q group!", database.EveryoneGroup),
+		})
+		return
+	}
+
+	currentMembers, err := api.Database.GetGroupMembers(ctx, group.ID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = group.Auditable(currentMembers)
 
 	for _, id := range users {
 		if _, err := uuid.Parse(id); err != nil {
@@ -154,6 +176,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+
 	if req.Name != "" && req.Name != group.Name {
 		_, err := api.Database.GetGroupByOrgAndName(ctx, database.GetGroupByOrgAndNameParams{
 			OrganizationID: group.OrganizationID,
@@ -167,8 +190,7 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := api.Database.InTx(func(tx database.Store) error {
-		var err error
+	err = database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
 		group, err = tx.GetGroupByID(ctx, group.ID)
 		if err != nil {
 			return xerrors.Errorf("get group by ID: %w", err)
@@ -228,7 +250,8 @@ func (api *API) patchGroup(rw http.ResponseWriter, r *http.Request) {
 			}
 		}
 		return nil
-	}, nil)
+	})
+
 	if database.IsUniqueViolation(err) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Cannot add the same user to a group twice!",
@@ -281,6 +304,13 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	)
 	defer commitAudit()
 
+	if group.Name == database.EveryoneGroup {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.EveryoneGroup),
+		})
+		return
+	}
+
 	groupMembers, getMembersErr := api.Database.GetGroupMembers(ctx, group.ID)
 	if getMembersErr != nil {
 		httpapi.InternalServerError(rw, getMembersErr)
@@ -288,13 +318,6 @@ func (api *API) deleteGroup(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.Old = group.Auditable(groupMembers)
-
-	if group.Name == database.AllUsersGroup {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q is a reserved group and cannot be deleted!", database.AllUsersGroup),
-		})
-		return
-	}
 
 	err := api.Database.DeleteGroupByID(ctx, group.ID)
 	if err != nil {
@@ -320,12 +343,12 @@ func (api *API) groupByOrganization(rw http.ResponseWriter, r *http.Request) {
 	api.group(rw, r)
 }
 
-// @Summary Get group by name
-// @ID get-group-by-name
+// @Summary Get group by ID
+// @ID get-group-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param group path string true "Group name"
+// @Param group path string true "Group id"
 // @Success 200 {object} codersdk.Group
 // @Router /groups/{group} [get]
 func (api *API) group(rw http.ResponseWriter, r *http.Request) {
@@ -409,6 +432,7 @@ func convertGroup(g database.Group, users []database.User) codersdk.Group {
 		AvatarURL:      g.AvatarURL,
 		QuotaAllowance: int(g.QuotaAllowance),
 		Members:        convertUsers(users, orgs),
+		Source:         codersdk.GroupSource(g.Source),
 	}
 }
 

@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armon/circbuf"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -34,14 +34,14 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -63,7 +63,7 @@ type Options struct {
 	IgnorePorts                  map[int]string
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
-	Subsystem                    codersdk.AgentSubsystem
+	Subsystems                   []codersdk.AgentSubsystem
 	Addresses                    []netip.Prefix
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
@@ -91,9 +91,6 @@ type Agent interface {
 }
 
 func New(options Options) Agent {
-	if options.ReconnectingPTYTimeout == 0 {
-		options.ReconnectingPTYTimeout = 5 * time.Minute
-	}
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
@@ -144,7 +141,7 @@ func New(options Options) Agent {
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystem:                    options.Subsystem,
+		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
 
 		prometheusRegistry: prometheusRegistry,
@@ -166,7 +163,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
-	subsystem   codersdk.AgentSubsystem
+	subsystems  []codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -608,7 +605,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystem:         a.subsystem,
+		Subsystems:        a.subsystems,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -657,7 +654,7 @@ func (a *agent) run(ctx context.Context) error {
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
-				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.ShutdownScriptTimeout))
+				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.StartupScriptTimeout))
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
@@ -681,7 +678,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DERPForceWebSockets, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -704,8 +701,10 @@ func (a *agent) run(ctx context.Context) error {
 		if err != nil {
 			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
 		}
-		// Update the DERP map and allow/disallow direct connections.
+		// Update the DERP map, force WebSocket setting and allow/disallow
+		// direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetDERPForceWebSockets(manifest.DERPForceWebSockets)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
@@ -759,13 +758,15 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      a.wireguardAddresses(agentID),
-		DERPMap:        derpMap,
-		Logger:         a.logger.Named("net.tailnet"),
-		ListenPort:     a.tailnetListenPort,
-		BlockEndpoints: disableDirectConnections,
+		ID:                  agentID,
+		Addresses:           a.wireguardAddresses(agentID),
+		DERPMap:             derpMap,
+		DERPForceWebSockets: derpForceWebSockets,
+		Logger:              a.logger.Named("net.tailnet"),
+		ListenPort:          a.tailnetListenPort,
+		BlockEndpoints:      disableDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -1074,8 +1075,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
-	logger.Debug(ctx, "starting handler")
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -1086,22 +1087,22 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "reconnecting PTY failed with session error (agent closed)", slog.Error(err))
+				connLogger.Debug(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "reconnecting PTY failed with session error", slog.Error(err))
+				connLogger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
 			}
 		}
-		logger.Debug(ctx, "session closed")
+		connLogger.Debug(ctx, "reconnecting pty connection closed")
 	}()
 
-	var rpty *reconnectingPTY
-	sendConnected := make(chan *reconnectingPTY, 1)
+	var rpty reconnectingpty.ReconnectingPTY
+	sendConnected := make(chan reconnectingpty.ReconnectingPTY, 1)
 	// On store, reserve this ID to prevent multiple concurrent new connections.
 	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
 	if ok {
 		close(sendConnected) // Unused.
-		logger.Debug(ctx, "connecting to existing session")
-		c, ok := waitReady.(chan *reconnectingPTY)
+		connLogger.Debug(ctx, "connecting to existing reconnecting pty")
+		c, ok := waitReady.(chan reconnectingpty.ReconnectingPTY)
 		if !ok {
 			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
 		}
@@ -1111,7 +1112,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 		c <- rpty // Put it back for the next reconnect.
 	} else {
-		logger.Debug(ctx, "creating new session")
+		connLogger.Debug(ctx, "creating new reconnecting pty")
 
 		connected := false
 		defer func() {
@@ -1127,169 +1128,24 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
-		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-		// Default to buffer 64KiB.
-		circularBuffer, err := circbuf.NewBuffer(64 << 10)
-		if err != nil {
-			return xerrors.Errorf("create circular buffer: %w", err)
-		}
+		rpty = reconnectingpty.New(ctx, cmd, &reconnectingpty.Options{
+			Timeout: a.reconnectingPTYTimeout,
+			Metrics: a.metrics.reconnectingPTYErrors,
+		}, logger.With(slog.F("message_id", msg.ID)))
 
-		ptty, process, err := pty.Start(cmd)
-		if err != nil {
-			a.metrics.reconnectingPTYErrors.WithLabelValues("start_command").Add(1)
-			return xerrors.Errorf("start command: %w", err)
-		}
-
-		ctx, cancel := context.WithCancel(ctx)
-		rpty = &reconnectingPTY{
-			activeConns: map[string]net.Conn{
-				// We have to put the connection in the map instantly otherwise
-				// the connection won't be closed if the process instantly dies.
-				connectionID: conn,
-			},
-			ptty: ptty,
-			// Timeouts created with an after func can be reset!
-			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancel),
-			circularBuffer: circularBuffer,
-		}
-		// We don't need to separately monitor for the process exiting.
-		// When it exits, our ptty.OutputReader() will return EOF after
-		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
-			buffer := make([]byte, 1024)
-			for {
-				read, err := rpty.ptty.OutputReader().Read(buffer)
-				if err != nil {
-					// When the PTY is closed, this is triggered.
-					// Error is typically a benign EOF, so only log for debugging.
-					if errors.Is(err, io.EOF) {
-						logger.Debug(ctx, "unable to read pty output, command might have exited", slog.Error(err))
-					} else {
-						logger.Warn(ctx, "unable to read pty output, command might have exited", slog.Error(err))
-						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
-					}
-					break
-				}
-				part := buffer[:read]
-				rpty.circularBufferMutex.Lock()
-				_, err = rpty.circularBuffer.Write(part)
-				rpty.circularBufferMutex.Unlock()
-				if err != nil {
-					logger.Error(ctx, "write to circular buffer", slog.Error(err))
-					break
-				}
-				rpty.activeConnsMutex.Lock()
-				for cid, conn := range rpty.activeConns {
-					_, err = conn.Write(part)
-					if err != nil {
-						logger.Warn(ctx,
-							"error writing to active conn",
-							slog.F("other_conn_id", cid),
-							slog.Error(err),
-						)
-						a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
-					}
-				}
-				rpty.activeConnsMutex.Unlock()
-			}
-
-			// Cleanup the process, PTY, and delete it's
-			// ID from memory.
-			_ = process.Kill()
-			rpty.Close()
+			rpty.Wait()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
-			_ = process.Kill()
-			_ = ptty.Close()
+			rpty.Close(err)
 			return xerrors.Errorf("start routine: %w", err)
 		}
+
 		connected = true
 		sendConnected <- rpty
 	}
-	// Resize the PTY to initial height + width.
-	err := rpty.ptty.Resize(msg.Height, msg.Width)
-	if err != nil {
-		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
-		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
-	}
-	// Write any previously stored data for the TTY.
-	rpty.circularBufferMutex.RLock()
-	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-	rpty.circularBufferMutex.RUnlock()
-	// Note that there is a small race here between writing buffered
-	// data and storing conn in activeConns. This is likely a very minor
-	// edge case, but we should look into ways to avoid it. Holding
-	// activeConnsMutex would be one option, but holding this mutex
-	// while also holding circularBufferMutex seems dangerous.
-	_, err = conn.Write(prevBuf)
-	if err != nil {
-		a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
-		return xerrors.Errorf("write buffer to conn: %w", err)
-	}
-	// Multiple connections to the same TTY are permitted.
-	// This could easily be used for terminal sharing, but
-	// we do it because it's a nice user experience to
-	// copy/paste a terminal URL and have it _just work_.
-	rpty.activeConnsMutex.Lock()
-	rpty.activeConns[connectionID] = conn
-	rpty.activeConnsMutex.Unlock()
-	// Resetting this timeout prevents the PTY from exiting.
-	rpty.timeout.Reset(a.reconnectingPTYTimeout)
-
-	ctx, cancelFunc := context.WithCancel(ctx)
-	defer cancelFunc()
-	heartbeat := time.NewTicker(a.reconnectingPTYTimeout / 2)
-	defer heartbeat.Stop()
-	go func() {
-		// Keep updating the activity while this
-		// connection is alive!
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-heartbeat.C:
-			}
-			rpty.timeout.Reset(a.reconnectingPTYTimeout)
-		}
-	}()
-	defer func() {
-		// After this connection ends, remove it from
-		// the PTYs active connections. If it isn't
-		// removed, all PTY data will be sent to it.
-		rpty.activeConnsMutex.Lock()
-		delete(rpty.activeConns, connectionID)
-		rpty.activeConnsMutex.Unlock()
-	}()
-	decoder := json.NewDecoder(conn)
-	var req codersdk.ReconnectingPTYRequest
-	for {
-		err = decoder.Decode(&req)
-		if xerrors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			logger.Warn(ctx, "reconnecting PTY failed with read error", slog.Error(err))
-			return nil
-		}
-		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
-		if err != nil {
-			logger.Warn(ctx, "reconnecting PTY failed with write error", slog.Error(err))
-			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
-			return nil
-		}
-		// Check if a resize needs to happen!
-		if req.Height == 0 || req.Width == 0 {
-			continue
-		}
-		err = rpty.ptty.Resize(req.Height, req.Width)
-		if err != nil {
-			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "reconnecting PTY resize failed, but will continue", slog.Error(err))
-			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
-		}
-	}
+	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
 }
 
 // startReportingConnectionStats runs the connection stats reporting goroutine.
@@ -1408,24 +1264,57 @@ func (a *agent) isClosed() bool {
 }
 
 func (a *agent) HTTPDebug() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r := chi.NewRouter()
+
+	requireNetwork := func(w http.ResponseWriter) (*tailnet.Conn, bool) {
 		a.closeMutex.Lock()
 		network := a.network
 		a.closeMutex.Unlock()
 
 		if network == nil {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte("network is not ready yet"))
+			return nil, false
+		}
+
+		return network, true
+	}
+
+	r.Get("/debug/magicsock", func(w http.ResponseWriter, r *http.Request) {
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
+		}
+		network.MagicsockServeHTTPDebug(w, r)
+	})
+
+	r.Get("/debug/magicsock/debug-logging/{state}", func(w http.ResponseWriter, r *http.Request) {
+		state := chi.URLParam(r, "state")
+		stateBool, err := strconv.ParseBool(state)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
 			return
 		}
 
-		if r.URL.Path == "/debug/magicsock" {
-			network.MagicsockServeHTTPDebug(w, r)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("404 not found"))
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
 		}
+
+		network.MagicsockSetDebugLoggingEnabled(stateBool)
+		a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("404 not found"))
+	})
+
+	return r
 }
 
 func (a *agent) Close() error {
@@ -1505,31 +1394,6 @@ lifecycleWaitLoop:
 	a.connCloseWait.Wait()
 
 	return nil
-}
-
-type reconnectingPTY struct {
-	activeConnsMutex sync.Mutex
-	activeConns      map[string]net.Conn
-
-	circularBuffer      *circbuf.Buffer
-	circularBufferMutex sync.RWMutex
-	timeout             *time.Timer
-	ptty                pty.PTYCmd
-}
-
-// Close ends all connections to the reconnecting
-// PTY and clear the circular buffer.
-func (r *reconnectingPTY) Close() {
-	r.activeConnsMutex.Lock()
-	defer r.activeConnsMutex.Unlock()
-	for _, conn := range r.activeConns {
-		_ = conn.Close()
-	}
-	_ = r.ptty.Close()
-	r.circularBufferMutex.Lock()
-	r.circularBuffer.Reset()
-	r.circularBufferMutex.Unlock()
-	r.timeout.Stop()
 }
 
 // userHomeDir returns the home directory of the current user, giving

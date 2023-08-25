@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database/postgres"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // nolint:tparallel,paralleltest

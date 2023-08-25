@@ -10,7 +10,7 @@ import (
 	"storj.io/drpc"
 	"storj.io/drpc/drpcconn"
 
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 const (
@@ -19,7 +19,7 @@ const (
 	MaxMessageSize = 4 << 20
 )
 
-// MultiplexedConn returns a multiplexed dRPC connection from a yamux session.
+// MultiplexedConn returns a multiplexed dRPC connection from a yamux Session.
 func MultiplexedConn(session *yamux.Session) drpc.Conn {
 	return &multiplexedDRPC{session}
 }

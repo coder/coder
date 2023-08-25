@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/enterprise/audit/audittest"
-	"github.com/coder/coder/enterprise/audit/backends"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/enterprise/audit/audittest"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
 )
 
 func TestPostgresBackend(t *testing.T) {

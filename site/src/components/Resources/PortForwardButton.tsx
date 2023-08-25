@@ -14,18 +14,16 @@ import { docs } from "utils/docs"
 import Box from "@mui/material/Box"
 import { useQuery } from "@tanstack/react-query"
 import { getAgentListeningPorts } from "api/api"
-import { WorkspaceAgentListeningPort } from "api/typesGenerated"
+import { WorkspaceAgent, WorkspaceAgentListeningPort } from "api/typesGenerated"
 import CircularProgress from "@mui/material/CircularProgress"
 import { portForwardURL } from "utils/portForward"
-import { MockListeningPortsResponse } from "testHelpers/entities"
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 
 export interface PortForwardButtonProps {
   host: string
   username: string
   workspaceName: string
-  agentName: string
-  agentId: string
+  agent: WorkspaceAgent
 }
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
@@ -33,10 +31,11 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   const [isOpen, setIsOpen] = useState(false)
   const id = isOpen ? "schedule-popover" : undefined
   const styles = useStyles()
-  const { data: listeningPorts } = useQuery({
-    queryKey: ["portForward", props.agentId],
-    queryFn: () => getAgentListeningPorts(props.agentId),
-    initialData: MockListeningPortsResponse,
+  const portsQuery = useQuery({
+    queryKey: ["portForward", props.agent.id],
+    queryFn: () => getAgentListeningPorts(props.agent.id),
+    enabled: props.agent.status === "connected",
+    refetchInterval: 5_000,
   })
 
   const onClose = () => {
@@ -46,21 +45,22 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
   return (
     <>
       <SecondaryAgentButton
-        disabled={!listeningPorts}
+        disabled={!portsQuery.data}
         ref={anchorRef}
         onClick={() => {
           setIsOpen(true)
         }}
       >
         Ports
-        {listeningPorts ? (
+        {portsQuery.data ? (
           <Box
             sx={{
               fontSize: 12,
               fontWeight: 500,
-              height: 16,
-              padding: (theme) => theme.spacing(0, 1),
-              borderRadius: 7,
+              height: 20,
+              minWidth: 20,
+              padding: (theme) => theme.spacing(0, 0.5),
+              borderRadius: "50%",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -68,7 +68,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
               ml: 1,
             }}
           >
-            {listeningPorts.ports.length}
+            {portsQuery.data.ports.length}
           </Box>
         ) : (
           <CircularProgress size={10} sx={{ ml: 1 }} />
@@ -82,14 +82,14 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         onClose={onClose}
         anchorOrigin={{
           vertical: "bottom",
-          horizontal: "left",
+          horizontal: "right",
         }}
         transformOrigin={{
           vertical: "top",
-          horizontal: "left",
+          horizontal: "right",
         }}
       >
-        <PortForwardPopoverView {...props} ports={listeningPorts?.ports} />
+        <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
       </Popover>
     </>
   )
@@ -98,7 +98,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
 export const PortForwardPopoverView: React.FC<
   PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
 > = (props) => {
-  const { host, workspaceName, agentName, username, ports } = props
+  const { host, workspaceName, agent, username, ports } = props
 
   return (
     <>
@@ -121,7 +121,7 @@ export const PortForwardPopoverView: React.FC<
             const url = portForwardURL(
               host,
               p.port,
-              agentName,
+              agent.name,
               workspaceName,
               username,
             )
@@ -193,7 +193,7 @@ export const PortForwardPopoverView: React.FC<
             const url = portForwardURL(
               host,
               port,
-              agentName,
+              agent.name,
               workspaceName,
               username,
             )
@@ -210,7 +210,7 @@ export const PortForwardPopoverView: React.FC<
             max={65535}
             required
             sx={{
-              fontSize: 12,
+              fontSize: 14,
               height: 34,
               p: (theme) => theme.spacing(0, 1.5),
               background: "none",
@@ -248,7 +248,7 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
     width: theme.spacing(38),
     color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.25),
+    marginTop: theme.spacing(0.5),
   },
 
   openUrlButton: {

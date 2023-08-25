@@ -118,6 +118,16 @@ Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp
 
 URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
+### --derp-force-websockets
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DERP_FORCE_WEBSOCKETS</code>    |
+| YAML        | <code>networking.derp.forceWebSockets</code> |
+
+Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
+
 ### --derp-server-enable
 
 |             |                                        |
@@ -128,28 +138,6 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 | Default     | <code>true</code>                      |
 
 Whether to enable or disable the embedded DERP relay server.
-
-### --derp-server-region-code
-
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_DERP_SERVER_REGION_CODE</code> |
-| YAML        | <code>networking.derp.regionCode</code>     |
-| Default     | <code>coder</code>                          |
-
-Region code to use for the embedded DERP server.
-
-### --derp-server-region-id
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Type        | <code>int</code>                          |
-| Environment | <code>$CODER_DERP_SERVER_REGION_ID</code> |
-| YAML        | <code>networking.derp.regionID</code>     |
-| Default     | <code>999</code>                          |
-
-Region ID to use for the embedded DERP server.
 
 ### --derp-server-region-name
 
@@ -174,14 +162,14 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 
 ### --derp-server-stun-addresses
 
-|             |                                                |
-| ----------- | ---------------------------------------------- |
-| Type        | <code>string-array</code>                      |
-| Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code> |
-| YAML        | <code>networking.derp.stunAddresses</code>     |
-| Default     | <code>stun.l.google.com:19302</code>           |
+|             |                                                                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Type        | <code>string-array</code>                                                                                                                |
+| Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code>                                                                                           |
+| YAML        | <code>networking.derp.stunAddresses</code>                                                                                               |
+| Default     | <code>stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302</code> |
 
-Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.
+Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.
 
 ### --default-quiet-hours-schedule
 
@@ -242,6 +230,17 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 | YAML        | <code>networking.docsURL</code> |
 
 Specifies the custom docs URL.
+
+### --oidc-group-auto-create
+
+|             |                                            |
+| ----------- | ------------------------------------------ |
+| Type        | <code>bool</code>                          |
+| Environment | <code>$CODER_OIDC_GROUP_AUTO_CREATE</code> |
+| YAML        | <code>oidc.enableGroupAutoCreate</code>    |
+| Default     | <code>false</code>                         |
+
+Automatically creates missing groups from a user's groups claim.
 
 ### --enable-terraform-debug-mode
 
@@ -429,6 +428,16 @@ Whether new users can sign up with OIDC.
 
 OIDC auth URL parameters to pass to the upstream provider.
 
+### --oidc-client-cert-file
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_OIDC_CLIENT_CERT_FILE</code> |
+| YAML        | <code>oidc.oidcClientCertFile</code>      |
+
+Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.
+
 ### --oidc-client-id
 
 |             |                                    |
@@ -438,6 +447,16 @@ OIDC auth URL parameters to pass to the upstream provider.
 | YAML        | <code>oidc.clientID</code>         |
 
 Client ID to use for Login with OIDC.
+
+### --oidc-client-key-file
+
+|             |                                          |
+| ----------- | ---------------------------------------- |
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_OIDC_CLIENT_KEY_FILE</code> |
+| YAML        | <code>oidc.oidcClientKeyFile</code>      |
+
+Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be used instead of oidc-client-secret if your IDP supports it.
 
 ### --oidc-client-secret
 
@@ -520,6 +539,17 @@ Ignore the userinfo endpoint and only use the ID token for user information.
 | YAML        | <code>oidc.issuerURL</code>         |
 
 Issuer URL to use for Login with OIDC.
+
+### --oidc-group-regex-filter
+
+|             |                                             |
+| ----------- | ------------------------------------------- |
+| Type        | <code>regexp</code>                         |
+| Environment | <code>$CODER_OIDC_GROUP_REGEX_FILTER</code> |
+| YAML        | <code>oidc.groupRegexFilter</code>          |
+| Default     | <code>.\*</code>                            |
+
+If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
 
 ### --oidc-scopes
 

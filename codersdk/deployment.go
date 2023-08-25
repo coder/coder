@@ -16,8 +16,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -103,6 +103,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
+	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
@@ -228,9 +229,10 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	URL         clibase.String `json:"url" typescript:",notnull"`
-	Path        clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL             clibase.String `json:"url" typescript:",notnull"`
+	Path            clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -260,9 +262,12 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool                        `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String                      `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String                      `json:"client_secret" typescript:",notnull"`
+	AllowSignups clibase.Bool   `json:"allow_signups" typescript:",notnull"`
+	ClientID     clibase.String `json:"client_id" typescript:",notnull"`
+	ClientSecret clibase.String `json:"client_secret" typescript:",notnull"`
+	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
+	ClientKeyFile       clibase.String                      `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      clibase.String                      `json:"client_cert_file" typescript:",notnull"`
 	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
 	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
 	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
@@ -271,6 +276,8 @@ type OIDCConfig struct {
 	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -731,6 +738,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			Hidden:      true,
 			// Does not apply to external proxies as this value is generated.
 		},
 		{
@@ -742,6 +750,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			Hidden:      true,
 			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
@@ -757,10 +766,10 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302",
+			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
@@ -788,6 +797,15 @@ when required by your organization's security policy.`,
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
 			YAML:  "blockDirect",
+		},
+		{
+			Name:        "DERP Force WebSockets",
+			Description: "Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.",
+			Flag:        "derp-force-websockets",
+			Env:         "CODER_DERP_FORCE_WEBSOCKETS",
+			Value:       &c.DERP.Config.ForceWebSockets,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "forceWebSockets",
 		},
 		{
 			Name:        "DERP Config URL",
@@ -965,6 +983,26 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupOIDC,
 		},
 		{
+			Name: "OIDC Client Key File",
+			Description: "Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. " +
+				"This can be used instead of oidc-client-secret if your IDP supports it.",
+			Flag:  "oidc-client-key-file",
+			Env:   "CODER_OIDC_CLIENT_KEY_FILE",
+			YAML:  "oidcClientKeyFile",
+			Value: &c.OIDC.ClientKeyFile,
+			Group: &deploymentGroupOIDC,
+		},
+		{
+			Name: "OIDC Client Cert File",
+			Description: "Pem encoded certificate file to use for oauth2 PKI/JWT authorization. " +
+				"The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.",
+			Flag:  "oidc-client-cert-file",
+			Env:   "CODER_OIDC_CLIENT_CERT_FILE",
+			YAML:  "oidcClientCertFile",
+			Value: &c.OIDC.ClientCertFile,
+			Group: &deploymentGroupOIDC,
+		},
+		{
 			Name:        "OIDC Email Domain",
 			Description: "Email domains that clients logging in with OIDC must match.",
 			Flag:        "oidc-email-domain",
@@ -1065,6 +1103,26 @@ when required by your organization's security policy.`,
 			Value:       &c.OIDC.GroupMapping,
 			Group:       &deploymentGroupOIDC,
 			YAML:        "groupMapping",
+		},
+		{
+			Name:        "Enable OIDC Group Auto Create",
+			Description: "Automatically creates missing groups from a user's groups claim.",
+			Flag:        "oidc-group-auto-create",
+			Env:         "CODER_OIDC_GROUP_AUTO_CREATE",
+			Default:     "false",
+			Value:       &c.OIDC.GroupAutoCreate,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "enableGroupAutoCreate",
+		},
+		{
+			Name:        "OIDC Regex Group Filter",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
+			Flag:        "oidc-group-regex-filter",
+			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
+			Default:     ".*",
+			Value:       &c.OIDC.GroupRegexFilter,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupRegexFilter",
 		},
 		{
 			Name:        "OIDC User Role Field",
@@ -1881,6 +1939,9 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
+	// Workspaces batch actions
+	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1891,6 +1952,7 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
+	ExperimentWorkspacesBatchActions,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

@@ -21,7 +21,7 @@ import (
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
 
-	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
 // @typescript-generate DERPReport
@@ -118,7 +118,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 		mu.Unlock()
 	}
 	nc := &netcheck.Client{
-		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil),
+		PortMapper: portmapper.NewClient(tslogger.WithPrefix(ncLogf, "portmap: "), nil, nil, nil),
 		Logf:       tslogger.WithPrefix(ncLogf, "netcheck: "),
 	}
 	ncReport, netcheckErr := nc.GetReport(ctx, opts.DERPMap)

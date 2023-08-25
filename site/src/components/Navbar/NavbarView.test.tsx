@@ -154,7 +154,7 @@ describe("NavbarView", () => {
     )
     const auditLink = await screen.findByText(navLanguage.deployment)
     expect((auditLink as HTMLAnchorElement).href).toContain(
-      "/settings/deployment/general",
+      "/deployment/general",
     )
   })
 

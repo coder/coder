@@ -260,7 +260,7 @@ const useStyles = makeStyles((theme) => ({
     height: bannerHeight,
     bottom: 0,
     zIndex: 1,
-    padding: theme.spacing(1, 2),
+    padding: theme.spacing(0, 2),
     backgroundColor: theme.palette.background.paper,
     display: "flex",
     alignItems: "center",
@@ -268,12 +268,8 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     gap: theme.spacing(4),
     borderTop: `1px solid ${theme.palette.divider}`,
-
-    [theme.breakpoints.down("lg")]: {
-      flexDirection: "column",
-      gap: theme.spacing(1),
-      alignItems: "left",
-    },
+    overflowX: "auto",
+    whiteSpace: "nowrap",
   },
   group: {
     display: "flex",

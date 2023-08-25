@@ -3,14 +3,16 @@ package db2sdk
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/google/uuid"
+	"golang.org/x/exp/slices"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/parameter"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/parameter"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func WorkspaceBuildParameters(params []database.WorkspaceBuildParameter) []codersdk.WorkspaceBuildParameter {
@@ -29,19 +31,9 @@ func WorkspaceBuildParameter(p database.WorkspaceBuildParameter) codersdk.Worksp
 }
 
 func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk.TemplateVersionParameter, error) {
-	var protoOptions []*proto.RichParameterOption
-	err := json.Unmarshal(param.Options, &protoOptions)
+	options, err := templateVersionParameterOptions(param.Options)
 	if err != nil {
 		return codersdk.TemplateVersionParameter{}, err
-	}
-	options := make([]codersdk.TemplateVersionParameterOption, 0)
-	for _, option := range protoOptions {
-		options = append(options, codersdk.TemplateVersionParameterOption{
-			Name:        option.Name,
-			Description: option.Description,
-			Value:       option.Value,
-			Icon:        option.Icon,
-		})
 	}
 
 	descriptionPlaintext, err := parameter.Plaintext(param.Description)
@@ -131,4 +123,83 @@ func Role(role rbac.Role) codersdk.Role {
 		DisplayName: role.DisplayName,
 		Name:        role.Name,
 	}
+}
+
+func TemplateInsightsParameters(parameterRows []database.GetTemplateParameterInsightsRow) ([]codersdk.TemplateParameterUsage, error) {
+	// Use a stable sort, similarly to how we would sort in the query, note that
+	// we don't sort in the query because order varies depending on the table
+	// collation.
+	//
+	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
+	slices.SortFunc(parameterRows, func(a, b database.GetTemplateParameterInsightsRow) int {
+		if a.Name != b.Name {
+			return strings.Compare(a.Name, b.Name)
+		}
+		if a.Type != b.Type {
+			return strings.Compare(a.Type, b.Type)
+		}
+		if a.DisplayName != b.DisplayName {
+			return strings.Compare(a.DisplayName, b.DisplayName)
+		}
+		if a.Description != b.Description {
+			return strings.Compare(a.Description, b.Description)
+		}
+		if string(a.Options) != string(b.Options) {
+			return strings.Compare(string(a.Options), string(b.Options))
+		}
+		return strings.Compare(a.Value, b.Value)
+	})
+
+	parametersUsage := []codersdk.TemplateParameterUsage{}
+	indexByNum := make(map[int64]int)
+	for _, param := range parameterRows {
+		if _, ok := indexByNum[param.Num]; !ok {
+			var opts []codersdk.TemplateVersionParameterOption
+			err := json.Unmarshal(param.Options, &opts)
+			if err != nil {
+				return nil, err
+			}
+
+			plaintextDescription, err := parameter.Plaintext(param.Description)
+			if err != nil {
+				return nil, err
+			}
+
+			parametersUsage = append(parametersUsage, codersdk.TemplateParameterUsage{
+				TemplateIDs: param.TemplateIDs,
+				Name:        param.Name,
+				Type:        param.Type,
+				DisplayName: param.DisplayName,
+				Description: plaintextDescription,
+				Options:     opts,
+			})
+			indexByNum[param.Num] = len(parametersUsage) - 1
+		}
+
+		i := indexByNum[param.Num]
+		parametersUsage[i].Values = append(parametersUsage[i].Values, codersdk.TemplateParameterValue{
+			Value: param.Value,
+			Count: param.Count,
+		})
+	}
+
+	return parametersUsage, nil
+}
+
+func templateVersionParameterOptions(rawOptions json.RawMessage) ([]codersdk.TemplateVersionParameterOption, error) {
+	var protoOptions []*proto.RichParameterOption
+	err := json.Unmarshal(rawOptions, &protoOptions)
+	if err != nil {
+		return nil, err
+	}
+	var options []codersdk.TemplateVersionParameterOption
+	for _, option := range protoOptions {
+		options = append(options, codersdk.TemplateVersionParameterOption{
+			Name:        option.Name,
+			Description: option.Description,
+			Value:       option.Value,
+			Icon:        option.Icon,
+		})
+	}
+	return options, nil
 }

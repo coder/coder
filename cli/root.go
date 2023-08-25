@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -13,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -28,15 +31,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 var (
@@ -55,6 +58,7 @@ const (
 	varAgentToken       = "agent-token"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
+	varHeaderCommand    = "header-command"
 	varNoOpen           = "no-open"
 	varNoVersionCheck   = "no-version-warning"
 	varNoFeatureWarning = "no-feature-warning"
@@ -357,6 +361,13 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varHeaderCommand,
+			Env:         "CODER_HEADER_COMMAND",
+			Description: "An external command that outputs additional HTTP headers added to all requests. The command must output each header as `key=value` on its own line.",
+			Value:       clibase.StringOf(&r.headerCommand),
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
 			Description: "Suppress opening the browser after logging in.",
@@ -437,6 +448,7 @@ type RootCmd struct {
 	token         string
 	globalConfig  string
 	header        []string
+	headerCommand string
 	agentToken    string
 	agentURL      *url.URL
 	forceTTY      bool
@@ -540,9 +552,7 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 					return err
 				}
 			}
-			err = r.setClient(
-				client, r.clientURL,
-			)
+			err = r.setClient(inv.Context(), client, r.clientURL)
 			if err != nil {
 				return err
 			}
@@ -592,12 +602,38 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 	}
 }
 
-func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
+func (r *RootCmd) setClient(ctx context.Context, client *codersdk.Client, serverURL *url.URL) error {
 	transport := &headerTransport{
 		transport: http.DefaultTransport,
 		header:    http.Header{},
 	}
-	for _, header := range r.header {
+	headers := r.header
+	if r.headerCommand != "" {
+		shell := "sh"
+		caller := "-c"
+		if runtime.GOOS == "windows" {
+			shell = "cmd.exe"
+			caller = "/c"
+		}
+		var outBuf bytes.Buffer
+		// #nosec
+		cmd := exec.CommandContext(ctx, shell, caller, r.headerCommand)
+		cmd.Env = append(os.Environ(), "CODER_URL="+serverURL.String())
+		cmd.Stdout = &outBuf
+		cmd.Stderr = io.Discard
+		err := cmd.Run()
+		if err != nil {
+			return xerrors.Errorf("failed to run %v: %w", cmd.Args, err)
+		}
+		scanner := bufio.NewScanner(&outBuf)
+		for scanner.Scan() {
+			headers = append(headers, scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			return xerrors.Errorf("scan %v: %w", cmd.Args, err)
+		}
+	}
+	for _, header := range headers {
 		parts := strings.SplitN(header, "=", 2)
 		if len(parts) < 2 {
 			return xerrors.Errorf("split header %q had less than two parts", header)
@@ -611,9 +647,9 @@ func (r *RootCmd) setClient(client *codersdk.Client, serverURL *url.URL) error {
 	return nil
 }
 
-func (r *RootCmd) createUnauthenticatedClient(serverURL *url.URL) (*codersdk.Client, error) {
+func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL) (*codersdk.Client, error) {
 	var client codersdk.Client
-	err := r.setClient(&client, serverURL)
+	err := r.setClient(ctx, &client, serverURL)
 	return &client, err
 }
 
@@ -945,6 +981,8 @@ func (p *prettyErrorFormatter) format(err error) {
 		msg = sdkError.Message
 		if sdkError.Helper != "" {
 			msg = msg + "\n" + sdkError.Helper
+		} else if sdkError.Detail != "" {
+			msg = msg + "\n" + sdkError.Detail
 		}
 		// The SDK error is usually good enough, and we don't want to overwhelm
 		// the user with output.

@@ -4,11 +4,12 @@ import { FC, PropsWithChildren } from "react"
 import { makeStyles } from "@mui/styles"
 import { combineClasses } from "utils/combineClasses"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import {
-  LockedBadge,
-  ImpendingDeletionText,
-} from "components/WorkspaceDeletion"
+import { ImpendingDeletionText } from "components/WorkspaceDeletion"
 import { getDisplayWorkspaceStatus } from "utils/workspace"
+import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip"
+import { styled } from "@mui/material/styles"
+import Box from "@mui/material/Box"
+import ErrorOutline from "@mui/icons-material/ErrorOutline"
 
 export type WorkspaceStatusBadgeProps = {
   workspace: Workspace
@@ -24,9 +25,26 @@ export const WorkspaceStatusBadge: FC<
   )
   return (
     <ChooseOne>
-      {/* <ImpendingDeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(LockedBadge({ workspace }))}>
-        <LockedBadge workspace={workspace} />
+      <Cond condition={workspace.latest_build.status === "failed"}>
+        <FailureTooltip
+          title={
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
+              <ErrorOutline
+                sx={{
+                  width: 14,
+                  height: 14,
+                  color: (theme) => theme.palette.error.light,
+                }}
+              />
+              <Box>{workspace.latest_build.job.error}</Box>
+            </Box>
+          }
+          placement="top"
+        >
+          <div>
+            <Pill className={className} icon={icon} text={text} type={type} />
+          </div>
+        </FailureTooltip>
       </Cond>
       <Cond>
         <Pill className={className} icon={icon} text={text} type={type} />
@@ -65,6 +83,17 @@ export const WorkspaceStatusText: FC<
     </ChooseOne>
   )
 }
+
+const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
+  <Tooltip {...props} classes={{ popper: className }} />
+))(({ theme }) => ({
+  [`& .${tooltipClasses.tooltip}`]: {
+    backgroundColor: theme.palette.background.paperLight,
+    border: `1px solid ${theme.palette.divider}`,
+    fontSize: 12,
+    padding: theme.spacing(1, 1.25),
+  },
+}))
 
 const useStyles = makeStyles((theme) => ({
   root: { fontWeight: 600 },

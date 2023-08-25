@@ -23,13 +23,13 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/tailnet/tailnettest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -179,9 +179,10 @@ func setupAgent(t *testing.T, manifest agentsdk.Manifest, ptyTimeout time.Durati
 		_ = closer.Close()
 	})
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   manifest.DERPMap,
-		Logger:    slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:             manifest.DERPMap,
+		DERPForceWebSockets: manifest.DERPForceWebSockets,
+		Logger:              slogtest.Make(t, nil).Named("tailnet").Leveled(slog.LevelDebug),
 	})
 	require.NoError(t, err)
 	clientConn, serverConn := net.Pipe()

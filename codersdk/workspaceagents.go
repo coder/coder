@@ -20,8 +20,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -167,7 +167,7 @@ type WorkspaceAgent struct {
 	LoginBeforeReady             bool                 `json:"login_before_ready"`
 	ShutdownScript               string               `json:"shutdown_script,omitempty"`
 	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
-	Subsystem                    AgentSubsystem       `json:"subsystem"`
+	Subsystems                   []AgentSubsystem     `json:"subsystems"`
 	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
 }
 
@@ -186,6 +186,7 @@ type DERPRegion struct {
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
+	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
@@ -247,11 +248,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		header = headerTransport.Header()
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:        connInfo.DERPMap,
-		DERPHeader:     &header,
-		Logger:         options.Logger,
-		BlockEndpoints: c.DisableDirectConnections || options.BlockEndpoints,
+		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:             connInfo.DERPMap,
+		DERPHeader:          &header,
+		DERPForceWebSockets: connInfo.DERPForceWebSockets,
+		Logger:              options.Logger,
+		BlockEndpoints:      c.DisableDirectConnections || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -754,8 +756,19 @@ type WorkspaceAgentLog struct {
 type AgentSubsystem string
 
 const (
-	AgentSubsystemEnvbox AgentSubsystem = "envbox"
+	AgentSubsystemEnvbox     AgentSubsystem = "envbox"
+	AgentSubsystemEnvbuilder AgentSubsystem = "envbuilder"
+	AgentSubsystemExectrace  AgentSubsystem = "exectrace"
 )
+
+func (s AgentSubsystem) Valid() bool {
+	switch s {
+	case AgentSubsystemEnvbox, AgentSubsystemEnvbuilder, AgentSubsystemExectrace:
+		return true
+	default:
+		return false
+	}
+}
 
 type WorkspaceAgentLogSource string
 

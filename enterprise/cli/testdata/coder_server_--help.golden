@@ -172,21 +172,25 @@ backed by Tailscale and WireGuard.
           URL to fetch a DERP mapping on startup. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.
 
+      --derp-force-websockets bool, $CODER_DERP_FORCE_WEBSOCKETS
+          Force clients and agents to always use WebSocket to connect to DERP
+          relay servers. By default, DERP uses `Upgrade: derp`, which may cause
+          issues with some reverse proxies. Clients may automatically fallback
+          to WebSocket if they detect an issue with `Upgrade: derp`, but this
+          does not work in all situations.
+
       --derp-server-enable bool, $CODER_DERP_SERVER_ENABLE (default: true)
           Whether to enable or disable the embedded DERP relay server.
-
-      --derp-server-region-code string, $CODER_DERP_SERVER_REGION_CODE (default: coder)
-          Region code to use for the embedded DERP server.
-
-      --derp-server-region-id int, $CODER_DERP_SERVER_REGION_ID (default: 999)
-          Region ID to use for the embedded DERP server.
 
       --derp-server-region-name string, $CODER_DERP_SERVER_REGION_NAME (default: Coder Embedded Relay)
           Region name that for the embedded DERP server.
 
-      --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302)
-          Addresses for STUN servers to establish P2P connections. Use special
-          value 'disable' to turn off STUN.
+      --derp-server-stun-addresses string-array, $CODER_DERP_SERVER_STUN_ADDRESSES (default: stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302)
+          Addresses for STUN servers to establish P2P connections. It's
+          recommended to have at least two STUN servers to give users the best
+          chance of connecting P2P to workspaces. Each STUN server will get it's
+          own DERP region, with region IDs starting at `--derp-server-region-id
+          + 1`. Use special value 'disable' to turn off STUN completely.
 
 [1mNetworking / HTTP Options[0m 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
@@ -298,14 +302,27 @@ can safely ignore these settings.
           GitHub.
 
 [1mOIDC Options[0m 
+      --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
+          Automatically creates missing groups from a user's groups claim.
+
       --oidc-allow-signups bool, $CODER_OIDC_ALLOW_SIGNUPS (default: true)
           Whether new users can sign up with OIDC.
 
       --oidc-auth-url-params struct[map[string]string], $CODER_OIDC_AUTH_URL_PARAMS (default: {"access_type": "offline"})
           OIDC auth URL parameters to pass to the upstream provider.
 
+      --oidc-client-cert-file string, $CODER_OIDC_CLIENT_CERT_FILE
+          Pem encoded certificate file to use for oauth2 PKI/JWT authorization.
+          The public certificate that accompanies oidc-client-key-file. A
+          standard x509 certificate is expected.
+
       --oidc-client-id string, $CODER_OIDC_CLIENT_ID
           Client ID to use for Login with OIDC.
+
+      --oidc-client-key-file string, $CODER_OIDC_CLIENT_KEY_FILE
+          Pem encoded RSA private key to use for oauth2 PKI/JWT authorization.
+          This can be used instead of oidc-client-secret if your IDP supports
+          it.
 
       --oidc-client-secret string, $CODER_OIDC_CLIENT_SECRET
           Client secret to use for Login with OIDC.
@@ -333,6 +350,11 @@ can safely ignore these settings.
 
       --oidc-issuer-url string, $CODER_OIDC_ISSUER_URL
           Issuer URL to use for Login with OIDC.
+
+      --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
+          If provided any group name not matching the regex is ignored. This
+          allows for filtering out groups that are not needed. This filter is
+          applied after the group mapping.
 
       --oidc-scopes string-array, $CODER_OIDC_SCOPES (default: openid,profile,email)
           Scopes to grant when authenticating with OIDC.

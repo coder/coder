@@ -2,12 +2,13 @@ package tailnet
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
 	"reflect"
 	"strconv"
 	"sync"
@@ -19,14 +20,16 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	"tailscale.com/hostinfo"
+	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
+	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
 	"tailscale.com/net/tstun"
 	"tailscale.com/tailcfg"
+	"tailscale.com/tsd"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	tslogger "tailscale.com/types/logger"
@@ -35,14 +38,13 @@ import (
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/magicsock"
-	"tailscale.com/wgengine/monitor"
 	"tailscale.com/wgengine/netstack"
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 const (
@@ -51,22 +53,64 @@ const (
 	WorkspaceAgentSpeedtestPort       = 3
 )
 
+// EnvMagicsockDebugLogging enables super-verbose logging for the magicsock
+// internals. A logger must be supplied to the connection with the debug level
+// enabled.
+//
+// With this disabled, you still get a lot of output if you have a valid logger
+// with the debug level enabled.
+const EnvMagicsockDebugLogging = "CODER_MAGICSOCK_DEBUG_LOGGING"
+
 func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are
+	// "actively" communicating with in an effort to save memory. Since
+	// Tailscale removed keep-alives, it seems like open but idle connections
+	// (SSH, port-forward, etc) can get trimmed fairly easily, causing hangs for
+	// a few seconds while the connection is setup again.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their
+	// use case, users create one persistent tailnet per device, and it allows
+	// connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection
+	// to a single workspace, and lasts only as long as the connection.  For
+	// agents, it's connections to a small number of clients (CLI or Coderd)
+	// that are being actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
+	ID         uuid.UUID
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPForceWebSockets determines whether websockets is always used for DERP
+	// connections, rather than trying `Upgrade: derp` first and potentially
+	// falling back. This is useful for misbehaving proxies that prevent
+	// fallback due to odd behavior, like Azure App Proxy.
+	DERPForceWebSockets bool
 
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
 	BlockEndpoints bool
 	Logger         slog.Logger
 	ListenPort     uint16
+}
+
+// NodeID creates a Tailscale NodeID from the last 8 bytes of a UUID. It ensures
+// the returned NodeID is always positive.
+func NodeID(uid uuid.UUID) tailcfg.NodeID {
+	id := int64(binary.BigEndian.Uint64(uid[8:]))
+
+	// ensure id is positive
+	y := id >> 63
+	id = (id ^ y) - y
+
+	return tailcfg.NodeID(id)
 }
 
 // NewConn constructs a new Wireguard server that will accept connections from the addresses provided.
@@ -117,19 +161,29 @@ func NewConn(options *Options) (conn *Conn, err error) {
 			Caps: []filter.CapMatch{},
 		}},
 	}
-	nodeID, err := cryptorand.Int63()
-	if err != nil {
-		return nil, xerrors.Errorf("generate node id: %w", err)
+
+	var nodeID tailcfg.NodeID
+
+	// If we're provided with a UUID, use it to populate our node ID.
+	if options.ID != uuid.Nil {
+		nodeID = NodeID(options.ID)
+	} else {
+		uid, err := cryptorand.Int63()
+		if err != nil {
+			return nil, xerrors.Errorf("generate node id: %w", err)
+		}
+		nodeID = tailcfg.NodeID(uid)
 	}
+
 	// This is used by functions below to identify the node via key
 	netMap.SelfNode = &tailcfg.Node{
-		ID:         tailcfg.NodeID(nodeID),
+		ID:         nodeID,
 		Key:        nodePublicKey,
 		Addresses:  options.Addresses,
 		AllowedIPs: options.Addresses,
 	}
 
-	wireguardMonitor, err := monitor.New(Logger(options.Logger.Named("net.wgmonitor")))
+	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
 	if err != nil {
 		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
 	}
@@ -139,14 +193,15 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 
-	IP()
 	dialer := &tsdial.Dialer{
 		Logf: Logger(options.Logger.Named("net.tsdial")),
 	}
+	sys := new(tsd.System)
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
-		LinkMonitor: wireguardMonitor,
-		Dialer:      dialer,
-		ListenPort:  options.ListenPort,
+		NetMon:       wireguardMonitor,
+		Dialer:       dialer,
+		ListenPort:   options.ListenPort,
+		SetSubsystem: sys.Set,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -161,18 +216,24 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return ok
 	}
 
-	// This is taken from Tailscale:
-	// https://github.com/tailscale/tailscale/blob/0f05b2c13ff0c305aa7a1655fa9c17ed969d65be/tsnet/tsnet.go#L247-L255
-	wireguardInternals, ok := wireguardEngine.(wgengine.InternalsGetter)
-	if !ok {
-		return nil, xerrors.Errorf("wireguard engine isn't the correct type %T", wireguardEngine)
-	}
-	tunDevice, magicConn, dnsManager, ok := wireguardInternals.GetInternals()
-	if !ok {
-		return nil, xerrors.New("get wireguard internals")
-	}
+	sys.Set(wireguardEngine)
+
+	magicConn := sys.MagicSock.Get()
+	magicConn.SetDERPForceWebsockets(options.DERPForceWebSockets)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
+	}
+
+	if v, ok := os.LookupEnv(EnvMagicsockDebugLogging); ok {
+		vBool, err := strconv.ParseBool(v)
+		if err != nil {
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled due to invalid value %s=%q, use true or false", EnvMagicsockDebugLogging, v))
+		} else {
+			magicConn.SetDebugLoggingEnabled(vBool)
+			options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging set by %s=%t", EnvMagicsockDebugLogging, vBool))
+		}
+	} else {
+		options.Logger.Debug(context.Background(), fmt.Sprintf("magicsock debug logging disabled, use %s=true to enable", EnvMagicsockDebugLogging))
 	}
 
 	// Update the keys for the magic connection!
@@ -184,11 +245,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 
 	netStack, err := netstack.Create(
 		Logger(options.Logger.Named("net.netstack")),
-		tunDevice,
+		sys.Tun.Get(),
 		wireguardEngine,
 		magicConn,
 		dialer,
-		dnsManager,
+		sys.DNSManager.Get(),
 	)
 	if err != nil {
 		return nil, xerrors.Errorf("create netstack: %w", err)
@@ -222,6 +283,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:           options.BlockEndpoints,
+		derpForceWebSockets:      options.DERPForceWebSockets,
 		dialContext:              dialContext,
 		dialCancel:               dialCancel,
 		closed:                   make(chan struct{}),
@@ -230,8 +292,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		dialer:                   dialer,
 		listeners:                map[listenKey]*listener{},
 		peerMap:                  map[tailcfg.NodeID]*tailcfg.Node{},
-		lastDERPForcedWebsockets: map[int]string{},
-		tunDevice:                tunDevice,
+		lastDERPForcedWebSockets: map[int]string{},
+		tunDevice:                sys.Tun.Get(),
 		netMap:                   netMap,
 		netStack:                 netStack,
 		wireguardMonitor:         wireguardMonitor,
@@ -283,17 +345,16 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetDERPForcedWebsocketCallback(func(region int, reason string) {
 		server.logger.Debug(context.Background(), "derp forced websocket", slog.F("region", region), slog.F("reason", reason))
 		server.lastMutex.Lock()
-		if server.lastDERPForcedWebsockets[region] == reason {
+		if server.lastDERPForcedWebSockets[region] == reason {
 			server.lastMutex.Unlock()
 			return
 		}
-		server.lastDERPForcedWebsockets[region] = reason
+		server.lastDERPForcedWebSockets[region] = reason
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
 
-	netStack.ForwardTCPIn = server.forwardTCP
-	netStack.ForwardTCPSockOpts = server.forwardTCPSockOpts
+	netStack.GetTCPHandlerForFlow = server.forwardTCP
 
 	err = netStack.Start(nil)
 	if err != nil {
@@ -329,12 +390,13 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext    context.Context
-	dialCancel     context.CancelFunc
-	mutex          sync.Mutex
-	closed         chan struct{}
-	logger         slog.Logger
-	blockEndpoints bool
+	dialContext         context.Context
+	dialCancel          context.CancelFunc
+	mutex               sync.Mutex
+	closed              chan struct{}
+	logger              slog.Logger
+	blockEndpoints      bool
+	derpForceWebSockets bool
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -342,7 +404,7 @@ type Conn struct {
 	netMap           *netmap.NetworkMap
 	netStack         *netstack.Impl
 	magicConn        *magicsock.Conn
-	wireguardMonitor *monitor.Mon
+	wireguardMonitor *netmon.Monitor
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
 	listeners        map[listenKey]*listener
@@ -354,11 +416,15 @@ type Conn struct {
 	// so the values must be stored for retrieval later on.
 	lastStatus               time.Time
 	lastEndpoints            []tailcfg.Endpoint
-	lastDERPForcedWebsockets map[int]string
+	lastDERPForcedWebSockets map[int]string
 	lastNetInfo              *tailcfg.NetInfo
 	nodeCallback             func(node *Node)
 
 	trafficStats *connstats.Statistics
+}
+
+func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
+	c.magicConn.SetDebugLoggingEnabled(enabled)
 }
 
 func (c *Conn) SetAddresses(ips []netip.Prefix) error {
@@ -403,6 +469,10 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
+func (c *Conn) SetDERPForceWebSockets(v bool) {
+	c.magicConn.SetDERPForceWebsockets(v)
+}
+
 // SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
 // will only apply to new peers.
 func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
@@ -424,6 +494,11 @@ func (c *Conn) SetDERPRegionDialer(dialer func(ctx context.Context, region *tail
 func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
+
+	if c.isClosed() {
+		return xerrors.New("connection closed")
+	}
+
 	status := c.Status()
 	if replacePeers {
 		c.netMap.Peers = []*tailcfg.Node{}
@@ -456,7 +531,6 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
-		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
 			Created:    time.Now(),
@@ -466,11 +540,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			AllowedIPs: node.AllowedIPs,
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
-			Hostinfo:   hostinfo.New().View(),
-			// Starting KeepAlive messages at the initialization
-			// of a connection cause it to hang for an unknown
-			// reason. TODO: @kylecarbs debug this!
-			KeepAlive: ok && peerStatus.Active,
+			Hostinfo:   (&tailcfg.Hostinfo{}).View(),
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -492,6 +562,56 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	}
 
 	return nil
+}
+
+// PeerSelector is used to select a peer from within a Tailnet.
+type PeerSelector struct {
+	ID tailcfg.NodeID
+	IP netip.Prefix
+}
+
+func (c *Conn) RemovePeer(selector PeerSelector) (deleted bool, err error) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	if c.isClosed() {
+		return false, xerrors.New("connection closed")
+	}
+
+	deleted = false
+	for _, peer := range c.peerMap {
+		if peer.ID == selector.ID {
+			delete(c.peerMap, peer.ID)
+			deleted = true
+			break
+		}
+
+		for _, peerIP := range peer.Addresses {
+			if peerIP.Bits() == selector.IP.Bits() && peerIP.Addr().Compare(selector.IP.Addr()) == 0 {
+				delete(c.peerMap, peer.ID)
+				deleted = true
+				break
+			}
+		}
+	}
+	if !deleted {
+		return false, nil
+	}
+
+	c.netMap.Peers = make([]*tailcfg.Node, 0, len(c.peerMap))
+	for _, peer := range c.peerMap {
+		c.netMap.Peers = append(c.netMap.Peers, peer.Clone())
+	}
+
+	netMapCopy := *c.netMap
+	c.logger.Debug(context.Background(), "updating network map")
+	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+	err = c.reconfig()
+	if err != nil {
+		return false, xerrors.Errorf("reconfig: %w", err)
+	}
+
+	return true, nil
 }
 
 func (c *Conn) reconfig() error {
@@ -730,8 +850,16 @@ func (c *Conn) selfNode() *Node {
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
-		for k, v := range c.lastDERPForcedWebsockets {
-			derpForcedWebsocket[k] = v
+
+		if c.derpForceWebSockets {
+			// We only need to store this for a single region, since this is
+			// mostly used for debugging purposes and doesn't actually have a
+			// code purpose.
+			derpForcedWebsocket[preferredDERP] = "DERP is configured to always fallback to WebSockets"
+		} else {
+			for k, v := range c.lastDERPForcedWebSockets {
+				derpForcedWebsocket[k] = v
+			}
 		}
 	}
 
@@ -798,68 +926,31 @@ func (c *Conn) DialContextUDP(ctx context.Context, ipp netip.AddrPort) (*gonet.U
 	return c.netStack.DialContextUDP(ctx, ipp)
 }
 
-func (c *Conn) forwardTCP(conn net.Conn, port uint16) {
+func (c *Conn) forwardTCP(_, dst netip.AddrPort) (handler func(net.Conn), opts []tcpip.SettableSocketOption, intercept bool) {
 	c.mutex.Lock()
-	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(port)}]
+	ln, ok := c.listeners[listenKey{"tcp", "", fmt.Sprint(dst.Port())}]
 	c.mutex.Unlock()
 	if !ok {
-		c.forwardTCPToLocal(conn, port)
-		return
+		return nil, nil, false
 	}
-
-	t := time.NewTimer(time.Second)
-	defer t.Stop()
-	select {
-	case ln.conn <- conn:
-		return
-	case <-ln.closed:
-	case <-c.closed:
-	case <-t.C:
-	}
-	_ = conn.Close()
-}
-
-func (*Conn) forwardTCPSockOpts(port uint16) []tcpip.SettableSocketOption {
-	opts := []tcpip.SettableSocketOption{}
-
 	// See: https://github.com/tailscale/tailscale/blob/c7cea825aea39a00aca71ea02bab7266afc03e7c/wgengine/netstack/netstack.go#L888
-	if port == WorkspaceAgentSSHPort || port == 22 {
-		opt := tcpip.KeepaliveIdleOption(72*time.Hour + time.Minute) // Default ssh-max-timeout is 72h, so let's add some extra time.
+	if dst.Port() == WorkspaceAgentSSHPort || dst.Port() == 22 {
+		opt := tcpip.KeepaliveIdleOption(72 * time.Hour)
 		opts = append(opts, &opt)
 	}
 
-	return opts
-}
-
-func (c *Conn) forwardTCPToLocal(conn net.Conn, port uint16) {
-	defer conn.Close()
-	dialAddrStr := net.JoinHostPort("127.0.0.1", strconv.Itoa(int(port)))
-	var stdDialer net.Dialer
-	server, err := stdDialer.DialContext(c.dialContext, "tcp", dialAddrStr)
-	if err != nil {
-		c.logger.Debug(c.dialContext, "dial local port", slog.F("port", port), slog.Error(err))
-		return
-	}
-	defer server.Close()
-
-	connClosed := make(chan error, 2)
-	go func() {
-		_, err := io.Copy(server, conn)
-		connClosed <- err
-	}()
-	go func() {
-		_, err := io.Copy(conn, server)
-		connClosed <- err
-	}()
-	select {
-	case err = <-connClosed:
-	case <-c.closed:
-		return
-	}
-	if err != nil {
-		c.logger.Debug(c.dialContext, "proxy connection closed with error", slog.Error(err))
-	}
-	c.logger.Debug(c.dialContext, "forwarded connection closed", slog.F("local_addr", dialAddrStr))
+	return func(conn net.Conn) {
+		t := time.NewTimer(time.Second)
+		defer t.Stop()
+		select {
+		case ln.conn <- conn:
+			return
+		case <-ln.closed:
+		case <-c.closed:
+		case <-t.C:
+		}
+		_ = conn.Close()
+	}, opts, true
 }
 
 // SetConnStatsCallback sets a callback to be called after maxPeriod or

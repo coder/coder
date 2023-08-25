@@ -4,7 +4,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService"
 import { useTemplateVersionData } from "./data"
@@ -16,15 +16,9 @@ type Params = {
 
 export const TemplateVersionEditorPage: FC = () => {
   const { version: versionName, template: templateName } = useParams() as Params
-  const navigate = useNavigate()
   const orgId = useOrganizationId()
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
-    actions: {
-      onPublish: () => {
-        navigate(`/templates/${templateName}`)
-      },
-    },
   })
   const permissions = usePermissions()
   const { isSuccess, data } = useTemplateVersionData(
@@ -59,14 +53,14 @@ export const TemplateVersionEditorPage: FC = () => {
               templateId: data.template.id,
             })
           }}
-          onCancelPublish={() => {
-            sendEvent({
-              type: "CANCEL_PUBLISH",
-            })
-          }}
           onPublish={() => {
             sendEvent({
               type: "PUBLISH",
+            })
+          }}
+          onCancelPublish={() => {
+            sendEvent({
+              type: "CANCEL_PUBLISH",
             })
           }}
           onConfirmPublish={(data) => {

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 func TestOptionSet_ParseFlags(t *testing.T) {
@@ -70,6 +70,40 @@ func TestOptionSet_ParseFlags(t *testing.T) {
 		}
 
 		err := os.FlagSet().Parse([]string{"--some-unknown", "foo"})
+		require.Error(t, err)
+	})
+
+	t.Run("RegexValid", func(t *testing.T) {
+		t.Parallel()
+
+		var regexpString clibase.Regexp
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:  "RegexpString",
+				Value: &regexpString,
+				Flag:  "regexp-string",
+			},
+		}
+
+		err := os.FlagSet().Parse([]string{"--regexp-string", "$test^"})
+		require.NoError(t, err)
+	})
+
+	t.Run("RegexInvalid", func(t *testing.T) {
+		t.Parallel()
+
+		var regexpString clibase.Regexp
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:  "RegexpString",
+				Value: &regexpString,
+				Flag:  "regexp-string",
+			},
+		}
+
+		err := os.FlagSet().Parse([]string{"--regexp-string", "(("})
 		require.Error(t, err)
 	})
 }

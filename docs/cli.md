@@ -94,7 +94,18 @@ Path to the global `coder` config directory.
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
 
-Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
+Additional HTTP headers added to all requests. Provide as key=value. Can be
+specified multiple times.
+
+### --header-command
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>string</code>                |
+| Environment | <code>$CODER_HEADER_COMMAND</code> |
+
+An external command that outputs additional HTTP headers added to all requests.
+The command must output each header as `key=value` on its own line.
 
 ### --no-feature-warning
 
@@ -121,7 +132,8 @@ Suppress warning when client and server versions do not match.
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
 
-Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+Specify an authentication token. For security reasons setting
+CODER_SESSION_TOKEN is preferred.
 
 ### --url
 

@@ -22,7 +22,7 @@ describe("WorkspaceBuildPage", () => {
       expect(getWorkspaceBuildSpy).toBeCalledWith(
         MockWorkspace.owner_name,
         MockWorkspace.name,
-        `${MockWorkspaceBuild.build_number}`,
+        MockWorkspaceBuild.build_number,
       ),
     )
   })

@@ -10,12 +10,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 func TestBatchStats(t *testing.T) {
@@ -31,7 +31,7 @@ func TestBatchStats(t *testing.T) {
 	deps1 := setupDeps(t, store)
 	deps2 := setupDeps(t, store)
 	tick := make(chan time.Time)
-	flushed := make(chan int)
+	flushed := make(chan int, 1)
 
 	b, closer, err := New(ctx,
 		WithStore(store),
@@ -46,7 +46,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
-	t1 := time.Now()
+	t1 := database.Now()
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
 	f := <-flushed
@@ -59,9 +59,9 @@ func TestBatchStats(t *testing.T) {
 	require.Empty(t, stats, "should have no stats for workspace")
 
 	// Given: a single data point is added for workspace
-	t2 := time.Now()
+	t2 := t1.Add(time.Second)
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -77,7 +77,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: a lot of data points are added for both workspaces
 	// (equal to batch size)
-	t3 := time.Now()
+	t3 := t2.Add(time.Second)
 	done := make(chan struct{})
 
 	go func() {
@@ -85,9 +85,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randAgentSDKStats(t)))
 			} else {
-				require.NoError(t, b.Add(deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
+				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randAgentSDKStats(t)))
 			}
 		}
 	}()
@@ -105,7 +105,7 @@ func TestBatchStats(t *testing.T) {
 	require.Len(t, stats, 2, "should have stats for both workspaces")
 
 	// Ensures that a subsequent flush pushes all the remaining data
-	t4 := time.Now()
+	t4 := t3.Add(time.Second)
 	tick <- t4
 	f2 := <-flushed
 	t.Logf("flush 4 completed")
@@ -113,7 +113,7 @@ func TestBatchStats(t *testing.T) {
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
 	// Ensure that a subsequent flush does not push stale data.
-	t5 := time.Now()
+	t5 := t4.Add(time.Second)
 	tick <- t5
 	f = <-flushed
 	require.Zero(t, f, "expected zero stats to have been flushed")

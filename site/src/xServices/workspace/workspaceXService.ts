@@ -96,7 +96,7 @@ export type WorkspaceEvent =
   | { type: "INCREASE_DEADLINE"; hours: number }
   | { type: "DECREASE_DEADLINE"; hours: number }
   | { type: "RETRY_BUILD" }
-  | { type: "UNLOCK" }
+  | { type: "ACTIVATE" }
 
 export const checks = {
   readWorkspace: "readWorkspace",
@@ -171,7 +171,7 @@ export const workspaceMachine = createMachine(
         cancelWorkspace: {
           data: Types.Message
         }
-        unlockWorkspace: {
+        activateWorkspace: {
           data: Types.Message
         }
         listening: {
@@ -264,7 +264,7 @@ export const workspaceMachine = createMachine(
                       actions: ["enableDebugMode"],
                     },
                   ],
-                  UNLOCK: "requestingUnlock",
+                  ACTIVATE: "requestingActivate",
                 },
               },
               askingDelete: {
@@ -410,15 +410,15 @@ export const workspaceMachine = createMachine(
                   ],
                 },
               },
-              requestingUnlock: {
+              requestingActivate: {
                 entry: ["clearBuildError"],
                 invoke: {
-                  src: "unlockWorkspace",
-                  id: "unlockWorkspace",
+                  src: "activateWorkspace",
+                  id: "activateWorkspace",
                   onDone: "idle",
                   onError: {
                     target: "idle",
-                    actions: ["displayUnlockError"],
+                    actions: ["displayActivateError"],
                   },
                 },
               },
@@ -576,8 +576,8 @@ export const workspaceMachine = createMachine(
         )
         displayError(message)
       },
-      displayUnlockError: (_, { data }) => {
-        const message = getErrorMessage(data, "Error unlocking workspace.")
+      displayActivateError: (_, { data }) => {
+        const message = getErrorMessage(data, "Error activate workspace.")
         displayError(message)
       },
       assignMissedParameters: assign({
@@ -695,16 +695,16 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot cancel workspace without build id")
         }
       },
-      unlockWorkspace: (context) => async (send) => {
+      activateWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          const unlockWorkspacePromise = await API.updateWorkspaceLock(
+          const activateWorkspacePromise = await API.updateWorkspaceDormancy(
             context.workspace.id,
             false,
           )
-          send({ type: "REFRESH_WORKSPACE", data: unlockWorkspacePromise })
-          return unlockWorkspacePromise
+          send({ type: "REFRESH_WORKSPACE", data: activateWorkspacePromise })
+          return activateWorkspacePromise
         } else {
-          throw Error("Cannot unlock workspace without workspace id")
+          throw Error("Cannot activate workspace without workspace id")
         }
       },
       listening: (context) => (send) => {

@@ -4,13 +4,13 @@ Get started with the Coder API:
 
 Generate a token on your Coder deployment by visiting:
 
-```sh
+```shell
 https://coder.example.com/settings/tokens
 ```
 
 List your workspaces
 
-```sh
+```shell
 # CLI
 curl https://coder.example.com/api/v2/workspaces?q=owner:me \
 -H "Coder-Session-Token: <your-token>"

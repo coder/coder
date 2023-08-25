@@ -13,15 +13,15 @@ import (
 	"tailscale.com/derp"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/enterprise/audit"
-	"github.com/coder/coder/enterprise/audit/backends"
-	"github.com/coder/coder/enterprise/coderd"
-	"github.com/coder/coder/enterprise/trialer"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/trialer"
+	"github.com/coder/coder/v2/tailnet"
 
-	agplcoderd "github.com/coder/coder/coderd"
+	agplcoderd "github.com/coder/coder/v2/coderd"
 )
 
 func (r *RootCmd) server() *clibase.Cmd {

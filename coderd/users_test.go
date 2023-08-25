@@ -4,24 +4,26 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"sort"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestFirstUser(t *testing.T) {
@@ -564,6 +566,71 @@ func TestPostUsers(t *testing.T) {
 				require.Zero(t, user.LastSeenAt)
 			}
 		}
+	})
+
+	t.Run("CreateNoneLoginType", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: first.OrganizationID,
+			Email:          "another@user.org",
+			Username:       "someone-else",
+			Password:       "",
+			UserLoginType:  codersdk.LoginTypeNone,
+		})
+		require.NoError(t, err)
+
+		found, err := client.User(ctx, user.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, found.LoginType, codersdk.LoginTypeNone)
+	})
+
+	t.Run("CreateOIDCLoginType", func(t *testing.T) {
+		t.Parallel()
+		email := "another@user.org"
+		conf := coderdtest.NewOIDCConfig(t, "")
+		config := conf.OIDCConfig(t, jwt.MapClaims{
+			"email": email,
+		})
+		config.AllowSignups = false
+		config.IgnoreUserInfo = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: config,
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
+			OrganizationID: first.OrganizationID,
+			Email:          email,
+			Username:       "someone-else",
+			Password:       "",
+			UserLoginType:  codersdk.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+
+		// Try to log in with OIDC.
+		userClient := codersdk.New(client.URL)
+		resp := oidcCallback(t, userClient, conf.EncodeClaims(t, jwt.MapClaims{
+			"email": email,
+		}))
+		require.Equal(t, resp.StatusCode, http.StatusTemporaryRedirect)
+		// Set the client to use this OIDC context
+		authCookie := authCookieValue(resp.Cookies())
+		userClient.SetSessionToken(authCookie)
+		_ = resp.Body.Close()
+
+		found, err := userClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 	})
 }
 
@@ -1804,8 +1871,8 @@ func assertPagination(ctx context.Context, t *testing.T, client *codersdk.Client
 
 // sortUsers sorts by (created_at, id)
 func sortUsers(users []codersdk.User) {
-	sort.Slice(users, func(i, j int) bool {
-		return strings.ToLower(users[i].Username) < strings.ToLower(users[j].Username)
+	slices.SortFunc(users, func(a, b codersdk.User) int {
+		return slice.Ascending(strings.ToLower(a.Username), strings.ToLower(b.Username))
 	})
 }
 

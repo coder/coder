@@ -14,8 +14,8 @@ import (
 	"github.com/hashicorp/go-reap"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/agent/reaper"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent/reaper"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // TestReap checks that's the reaper is successfully reaping

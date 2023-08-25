@@ -12,11 +12,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/scaletest/harness"
-	"github.com/coder/coder/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
 
 type Runner struct {
@@ -112,7 +112,30 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	build, err := r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
+
+	ws, err := r.client.Workspace(ctx, r.workspaceID)
+	if err != nil {
+		return err
+	}
+
+	build, err := r.client.WorkspaceBuild(ctx, ws.LatestBuild.ID)
+	if err == nil && build.Job.Status.Active() {
+		// mark the build as canceled
+		if err = r.client.CancelWorkspaceBuild(ctx, build.ID); err == nil {
+			// Wait for the job to cancel before we delete it
+			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
+		} else {
+			logger.Warn(ctx, "failed to cancel workspace build, attempting to delete anyway", slog.Error(err))
+		}
+	} else {
+		logger.Warn(ctx, "unable to lookup latest workspace build, attempting to delete anyway", slog.Error(err))
+	}
+
+	build, err = r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	if err != nil {

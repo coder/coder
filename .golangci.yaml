@@ -211,6 +211,7 @@ issues:
 run:
   skip-dirs:
     - node_modules
+    - .git
   skip-files:
     - scripts/rules.go
   timeout: 10m

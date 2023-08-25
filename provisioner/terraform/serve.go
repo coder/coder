@@ -12,8 +12,8 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/unhanger"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/coderd/unhanger"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 type ServeOptions struct {
@@ -24,7 +24,6 @@ type ServeOptions struct {
 	BinaryPath string
 	// CachePath must not be used by multiple processes at once.
 	CachePath string
-	Logger    slog.Logger
 	Tracer    trace.Tracer
 
 	// ExitTimeout defines how long we will wait for a running Terraform
@@ -128,5 +127,6 @@ func (s *server) executor(workdir string) *executor {
 		binaryPath: s.binaryPath,
 		cachePath:  s.cachePath,
 		workdir:    workdir,
+		logger:     s.logger.Named("executor"),
 	}
 }

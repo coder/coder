@@ -24,7 +24,7 @@ permissions:
 # additional changes
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   changes:
@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.1
+        uses: crate-ci/typos@v1.16.6
         with:
           config: .github/workflows/typos.toml
 
@@ -188,16 +188,13 @@ jobs:
 
       - name: Install Protoc
         run: |
-          # protoc must be in lockstep with our dogfood Dockerfile or the
-          # version in the comments will differ. This is also defined in
-          # security.yaml
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
 
       - name: make gen
         run: "make --output-sync -j -B gen"
@@ -224,7 +221,7 @@ jobs:
         with:
           # This doesn't need caching. It's super fast anyways!
           cache: false
-          go-version: 1.20.6
+          go-version: 1.20.7
 
       - name: Install shfmt
         run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
@@ -532,6 +529,24 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: go install tools
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/mikefarah/yq/v4@v4.30.6
+          go install github.com/golang/mock/mockgen@v1.6.0
+
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
+
       - name: Build
         run: |
           make -B site/out/index.html
@@ -586,6 +601,7 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
@@ -611,6 +627,7 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
@@ -640,9 +657,7 @@ jobs:
           go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Setup sqlc
-        uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.19.1"
+        uses: ./.github/actions/setup-sqlc
 
       - name: Format
         run: |
@@ -668,6 +683,7 @@ jobs:
       - test-go-pg
       - test-go-race
       - test-js
+      - test-e2e
       - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
@@ -701,7 +717,6 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -741,12 +756,10 @@ jobs:
             --push \
             build/coder_linux_amd64
 
-          # Get commit sha to be used as package tag
-          new_package_tag=$(gh api repos/coder/coder/commits/main | jq -r '.sha[0:7]')
-
           # Tag image with new package tag and push
-          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$new_package_tag
-          docker push ghcr.io/coder/coder-preview:main-$new_package_tag
+          tag=$(echo "$version" | sed 's/+/-/g')
+          docker tag ghcr.io/coder/coder-preview:main ghcr.io/coder/coder-preview:main-$tag
+          docker push ghcr.io/coder/coder-preview:main-$tag
 
       - name: Prune old images
         uses: vlaurin/action-ghcr-prune@v0.5.0

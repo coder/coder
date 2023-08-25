@@ -5,25 +5,24 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"github.com/google/uuid"
-	"github.com/spf13/afero"
-
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // ProvisionApplyWithAgent returns provision responses that will mock a fake
 // "aws_instance" resource with an agent that has the given auth token.
-func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
-	return []*proto.Provision_Response{{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
+func ProvisionApplyWithAgent(authToken string) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
 				Resources: []*proto.Resource{{
 					Name: "example",
 					Type: "aws_instance",
@@ -42,23 +41,36 @@ func ProvisionApplyWithAgent(authToken string) []*proto.Provision_Response {
 
 var (
 	// ParseComplete is a helper to indicate an empty parse completion.
-	ParseComplete = []*proto.Parse_Response{{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{},
+	ParseComplete = []*proto.Response{{
+		Type: &proto.Response_Parse{
+			Parse: &proto.ParseComplete{},
 		},
 	}}
-	// ProvisionComplete is a helper to indicate an empty provision completion.
-	ProvisionComplete = []*proto.Provision_Response{{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{},
+	// PlanComplete is a helper to indicate an empty provision completion.
+	PlanComplete = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{},
+		},
+	}}
+	// ApplyComplete is a helper to indicate an empty provision completion.
+	ApplyComplete = []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{},
 		},
 	}}
 
-	// ProvisionFailed is a helper to convey a failed provision
-	// operation.
-	ProvisionFailed = []*proto.Provision_Response{{
-		Type: &proto.Provision_Response_Complete{
-			Complete: &proto.Provision_Complete{
+	// PlanFailed is a helper to convey a failed plan operation
+	PlanFailed = []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Error: "failed!",
+			},
+		},
+	}}
+	// ApplyFailed is a helper to convey a failed apply operation
+	ApplyFailed = []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
 				Error: "failed!",
 			},
 		},
@@ -66,179 +78,219 @@ var (
 )
 
 // Serve starts the echo provisioner.
-func Serve(ctx context.Context, filesystem afero.Fs, options *provisionersdk.ServeOptions) error {
-	return provisionersdk.Serve(ctx, &echo{
-		filesystem: filesystem,
-	}, options)
+func Serve(ctx context.Context, options *provisionersdk.ServeOptions) error {
+	return provisionersdk.Serve(ctx, &echo{}, options)
 }
 
 // The echo provisioner serves as a dummy provisioner primarily
 // used for testing. It echos responses from JSON files in the
 // format %d.protobuf. It's used for testing.
-type echo struct {
-	filesystem afero.Fs
+type echo struct{}
+
+func readResponses(sess *provisionersdk.Session, trans string, suffix string) ([]*proto.Response, error) {
+	var responses []*proto.Response
+	for i := 0; ; i++ {
+		paths := []string{
+			// Try more specific path first, then fallback to generic.
+			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s.%s", i, trans, suffix)),
+			filepath.Join(sess.WorkDirectory, fmt.Sprintf("%d.%s", i, suffix)),
+		}
+		for pathIndex, path := range paths {
+			_, err := os.Stat(path)
+			if err != nil && pathIndex == (len(paths)-1) {
+				// If there are zero messages, something is wrong
+				if i == 0 {
+					// Error if nothing is around to enable failed states.
+					return nil, xerrors.Errorf("no state: %w", err)
+				}
+				// Otherwise, we've read all responses
+				return responses, nil
+			}
+			if err != nil {
+				// try next path
+				continue
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, xerrors.Errorf("read file %q: %w", path, err)
+			}
+			response := new(proto.Response)
+			err = protobuf.Unmarshal(data, response)
+			if err != nil {
+				return nil, xerrors.Errorf("unmarshal: %w", err)
+			}
+			responses = append(responses, response)
+			break
+		}
+	}
 }
 
 // Parse reads requests from the provided directory to stream responses.
-func (e *echo) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
-	for index := 0; ; index++ {
-		path := filepath.Join(request.Directory, fmt.Sprintf("%d.parse.protobuf", index))
-		_, err := e.filesystem.Stat(path)
-		if err != nil {
-			if index == 0 {
-				// Error if nothing is around to enable failed states.
-				return xerrors.Errorf("no state: %w", err)
-			}
-			break
+func (*echo) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
+	responses, err := readResponses(sess, "unspecified", "parse.protobuf")
+	if err != nil {
+		return &proto.ParseComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
 		}
-		data, err := afero.ReadFile(e.filesystem, path)
-		if err != nil {
-			return xerrors.Errorf("read file %q: %w", path, err)
-		}
-		var response proto.Parse_Response
-		err = protobuf.Unmarshal(data, &response)
-		if err != nil {
-			return xerrors.Errorf("unmarshal: %w", err)
-		}
-		err = stream.Send(&response)
-		if err != nil {
-			return err
+		if complete := response.GetParse(); complete != nil {
+			return complete
 		}
 	}
-	<-stream.Context().Done()
-	return stream.Context().Err()
+
+	// if we didn't get a complete from the filesystem, that's an error
+	return provisionersdk.ParseErrorf("complete response missing")
 }
 
-// Provision reads requests from the provided directory to stream responses.
-func (e *echo) Provision(stream proto.DRPCProvisioner_ProvisionStream) error {
-	msg, err := stream.Recv()
+// Plan reads requests from the provided directory to stream responses.
+func (*echo) Plan(sess *provisionersdk.Session, req *proto.PlanRequest, canceledOrComplete <-chan struct{}) *proto.PlanComplete {
+	responses, err := readResponses(
+		sess,
+		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
+		"plan.protobuf")
 	if err != nil {
-		return err
+		return &proto.PlanComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetPlan(); complete != nil {
+			return complete
+		}
 	}
 
-	var config *proto.Provision_Config
-	switch {
-	case msg.GetPlan() != nil:
-		config = msg.GetPlan().GetConfig()
-	case msg.GetApply() != nil:
-		config = msg.GetApply().GetConfig()
-	default:
-		// Probably a cancel
-		return nil
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.PlanErrorf("canceled")
+}
+
+// Apply reads requests from the provided directory to stream responses.
+func (*echo) Apply(sess *provisionersdk.Session, req *proto.ApplyRequest, canceledOrComplete <-chan struct{}) *proto.ApplyComplete {
+	responses, err := readResponses(
+		sess,
+		strings.ToLower(req.GetMetadata().GetWorkspaceTransition().String()),
+		"apply.protobuf")
+	if err != nil {
+		return &proto.ApplyComplete{Error: err.Error()}
+	}
+	for _, response := range responses {
+		if log := response.GetLog(); log != nil {
+			sess.ProvisionLog(log.Level, log.Output)
+		}
+		if complete := response.GetApply(); complete != nil {
+			return complete
+		}
 	}
 
-	for index := 0; ; index++ {
-		var extension string
-		if msg.GetPlan() != nil {
-			extension = ".plan.protobuf"
-		} else {
-			extension = ".apply.protobuf"
-		}
-		path := filepath.Join(config.Directory, fmt.Sprintf("%d.provision"+extension, index))
-		_, err := e.filesystem.Stat(path)
-		if err != nil {
-			if index == 0 {
-				// Error if nothing is around to enable failed states.
-				return xerrors.New("no state")
-			}
-			break
-		}
-		data, err := afero.ReadFile(e.filesystem, path)
-		if err != nil {
-			return xerrors.Errorf("read file %q: %w", path, err)
-		}
-		var response proto.Provision_Response
-		err = protobuf.Unmarshal(data, &response)
-		if err != nil {
-			return xerrors.Errorf("unmarshal: %w", err)
-		}
-		r, ok := filterLogResponses(config, &response)
-		if !ok {
-			continue
-		}
-
-		err = stream.Send(r)
-		if err != nil {
-			return err
-		}
-	}
-	<-stream.Context().Done()
-	return stream.Context().Err()
+	// some tests use Echo without a complete response to test cancel
+	<-canceledOrComplete
+	return provisionersdk.ApplyErrorf("canceled")
 }
 
 func (*echo) Shutdown(_ context.Context, _ *proto.Empty) (*proto.Empty, error) {
 	return &proto.Empty{}, nil
 }
 
+// Responses is a collection of mocked responses to Provision operations.
 type Responses struct {
-	Parse          []*proto.Parse_Response
-	ProvisionApply []*proto.Provision_Response
-	ProvisionPlan  []*proto.Provision_Response
+	Parse []*proto.Response
+
+	// ProvisionApply and ProvisionPlan are used to mock ALL responses of
+	// Apply and Plan, regardless of transition.
+	ProvisionApply []*proto.Response
+	ProvisionPlan  []*proto.Response
+
+	// ProvisionApplyMap and ProvisionPlanMap are used to mock specific
+	// transition responses. They are prioritized over the generic responses.
+	ProvisionApplyMap map[proto.WorkspaceTransition][]*proto.Response
+	ProvisionPlanMap  map[proto.WorkspaceTransition][]*proto.Response
 }
 
 // Tar returns a tar archive of responses to provisioner operations.
 func Tar(responses *Responses) ([]byte, error) {
 	if responses == nil {
-		responses = &Responses{ParseComplete, ProvisionComplete, ProvisionComplete}
+		responses = &Responses{
+			ParseComplete, ApplyComplete, PlanComplete,
+			nil, nil,
+		}
 	}
 	if responses.ProvisionPlan == nil {
-		responses.ProvisionPlan = responses.ProvisionApply
+		for _, resp := range responses.ProvisionApply {
+			if resp.GetLog() != nil {
+				responses.ProvisionPlan = append(responses.ProvisionPlan, resp)
+				continue
+			}
+			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
+				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+					Error:            resp.GetApply().GetError(),
+					Resources:        resp.GetApply().GetResources(),
+					Parameters:       resp.GetApply().GetParameters(),
+					GitAuthProviders: resp.GetApply().GetGitAuthProviders(),
+				}},
+			})
+		}
 	}
 
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
-	for index, response := range responses.Parse {
-		data, err := protobuf.Marshal(response)
+
+	writeProto := func(name string, message protobuf.Message) error {
+		data, err := protobuf.Marshal(message)
 		if err != nil {
-			return nil, err
+			return err
 		}
+
 		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.parse.protobuf", index),
+			Name: name,
 			Size: int64(len(data)),
 			Mode: 0o644,
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
+
 		_, err = writer.Write(data)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+	for index, response := range responses.Parse {
+		err := writeProto(fmt.Sprintf("%d.parse.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for index, response := range responses.ProvisionApply {
-		data, err := protobuf.Marshal(response)
-		if err != nil {
-			return nil, err
-		}
-		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.apply.protobuf", index),
-			Size: int64(len(data)),
-			Mode: 0o644,
-		})
-		if err != nil {
-			return nil, err
-		}
-		_, err = writer.Write(data)
+		err := writeProto(fmt.Sprintf("%d.apply.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
 	}
 	for index, response := range responses.ProvisionPlan {
-		data, err := protobuf.Marshal(response)
+		err := writeProto(fmt.Sprintf("%d.plan.protobuf", index), response)
 		if err != nil {
 			return nil, err
 		}
-		err = writer.WriteHeader(&tar.Header{
-			Name: fmt.Sprintf("%d.provision.plan.protobuf", index),
-			Size: int64(len(data)),
-			Mode: 0o644,
-		})
-		if err != nil {
-			return nil, err
+	}
+	for trans, m := range responses.ProvisionApplyMap {
+		for i, rs := range m {
+			err := writeProto(fmt.Sprintf("%d.%s.apply.protobuf", i, strings.ToLower(trans.String())), rs)
+			if err != nil {
+				return nil, err
+			}
 		}
-		_, err = writer.Write(data)
-		if err != nil {
-			return nil, err
+	}
+	for trans, m := range responses.ProvisionPlanMap {
+		for i, rs := range m {
+			err := writeProto(fmt.Sprintf("%d.%s.plan.protobuf", i, strings.ToLower(trans.String())), rs)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	err := writer.Flush()
@@ -248,22 +300,14 @@ func Tar(responses *Responses) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-func filterLogResponses(config *proto.Provision_Config, response *proto.Provision_Response) (*proto.Provision_Response, bool) {
-	responseLog, ok := response.Type.(*proto.Provision_Response_Log)
-	if !ok {
-		// Pass all non-log responses
-		return response, true
+func WithResources(resources []*proto.Resource) *Responses {
+	return &Responses{
+		Parse: ParseComplete,
+		ProvisionApply: []*proto.Response{{Type: &proto.Response_Apply{Apply: &proto.ApplyComplete{
+			Resources: resources,
+		}}}},
+		ProvisionPlan: []*proto.Response{{Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
+			Resources: resources,
+		}}}},
 	}
-
-	if config.ProvisionerLogLevel == "" {
-		// Don't change the default behavior of "echo"
-		return response, true
-	}
-
-	provisionerLogLevel := proto.LogLevel_value[strings.ToUpper(config.ProvisionerLogLevel)]
-	if int32(responseLog.Log.Level) < provisionerLogLevel {
-		// Log level is not enabled
-		return nil, false
-	}
-	return response, true
 }

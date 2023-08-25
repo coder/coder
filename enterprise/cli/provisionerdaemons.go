@@ -11,16 +11,16 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionerd"
-	provisionerdproto "github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionerd"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
@@ -70,6 +70,11 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
 			}
 
+			tempDir, err := os.MkdirTemp("", "provisionerd")
+			if err != nil {
+				return err
+			}
+
 			terraformClient, terraformServer := provisionersdk.MemTransportPipe()
 			go func() {
 				<-ctx.Done()
@@ -84,10 +89,11 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
-						Listener: terraformServer,
+						Listener:      terraformServer,
+						Logger:        logger.Named("terraform"),
+						WorkDirectory: tempDir,
 					},
 					CachePath: cacheDir,
-					Logger:    logger.Named("terraform"),
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
@@ -96,11 +102,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 					}
 				}
 			}()
-
-			tempDir, err := os.MkdirTemp("", "provisionerd")
-			if err != nil {
-				return err
-			}
 
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
@@ -121,7 +122,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				JobPollJitter:   pollJitter,
 				UpdateInterval:  500 * time.Millisecond,
 				Provisioners:    provisioners,
-				WorkDirectory:   tempDir,
 			})
 
 			var exitErr error
@@ -137,9 +137,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				cliui.Errorf(inv.Stderr, "Unexpected error, shutting down server: %s\n", exitErr)
 			}
 
-			shutdown, shutdownCancel := context.WithTimeout(ctx, time.Minute)
-			defer shutdownCancel()
-			err = srv.Shutdown(shutdown)
+			err = srv.Shutdown(ctx)
 			if err != nil {
 				return xerrors.Errorf("shutdown: %w", err)
 			}

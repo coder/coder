@@ -9,9 +9,9 @@ import (
 	"github.com/codeclysm/extract/v3"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templatePull() *clibase.Cmd {
@@ -83,7 +83,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 			}
 
 			if dest == "" {
-				dest = templateName + "/"
+				dest = templateName
 			}
 
 			err = os.MkdirAll(dest, 0o750)

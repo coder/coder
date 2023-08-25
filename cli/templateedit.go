@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
@@ -104,7 +104,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					Weeks:      restartRequirementWeeks,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
-				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,

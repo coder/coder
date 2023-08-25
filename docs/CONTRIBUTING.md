@@ -2,13 +2,17 @@
 
 ## Requirements
 
-We recommend using the [Nix](https://nix.dev/) package manager as it makes any pain related to maintaining dependency versions [just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once nix [has been installed](https://nixos.org/download.html) the development environment can be _manually instantiated_ through the `nix-shell` command:
+We recommend using the [Nix](https://nix.dev/) package manager as it makes any
+pain related to maintaining dependency versions
+[just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once
+nix [has been installed](https://nixos.org/download.html) the development
+environment can be _manually instantiated_ through the `nix-shell` command:
 
-```
-$ cd ~/code/coder
+```shell
+cd ~/code/coder
 
 # https://nix.dev/tutorials/declarative-and-reproducible-developer-environments
-$ nix-shell
+nix-shell
 
 ...
 copying path '/nix/store/3ms6cs5210n8vfb5a7jkdvzrzdagqzbp-iana-etc-20210225' from 'https://cache.nixos.org'...
@@ -17,20 +21,24 @@ copying path '/nix/store/v2gvj8whv241nj4lzha3flq8pnllcmvv-ignore-5.2.0.tgz' from
 ...
 ```
 
-If [direnv](https://direnv.net/) is installed and the [hooks are configured](https://direnv.net/docs/hook.html) then the development environment can be _automatically instantiated_ by creating the following `.envrc`, thus removing the need to run `nix-shell` by hand!
+If [direnv](https://direnv.net/) is installed and the
+[hooks are configured](https://direnv.net/docs/hook.html) then the development
+environment can be _automatically instantiated_ by creating the following
+`.envrc`, thus removing the need to run `nix-shell` by hand!
 
+```shell
+cd ~/code/coder
+echo "use nix" >.envrc
+direnv allow
 ```
-$ cd ~/code/coder
-$ echo "use nix" >.envrc
-$ direnv allow
-```
 
-Now, whenever you enter the project folder, `direnv` will prepare the environment for you:
+Now, whenever you enter the project folder,
+[`direnv`](https://direnv.net/docs/hook.html) will prepare the environment for
+you:
 
-```
-$ cd ~/code/coder
+```shell
+cd ~/code/coder
 
-# https://direnv.net/docs/hook.html
 direnv: loading ~/code/coder/.envrc
 direnv: using nix
 direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_BINTOOLS +NIX_BINTOOLS_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_BUILD_CORES +NIX_BUILD_TOP +NIX_CC +NIX_CC_WRAPPER_TARGET_HOST_x86_64_unknown_linux_gnu +NIX_CFLAGS_COMPILE +NIX_ENFORCE_NO_NATIVE +NIX_HARDENING_ENABLE +NIX_INDENT_MAKE +NIX_LDFLAGS +NIX_STORE +NM +NODE_PATH +OBJCOPY +OBJDUMP +RANLIB +READELF +SIZE +SOURCE_DATE_EPOCH +STRINGS +STRIP +TEMP +TEMPDIR +TMP +TMPDIR +XDG_DATA_DIRS +buildInputs +buildPhase +builder +cmakeFlags +configureFlags +depsBuildBuild +depsBuildBuildPropagated +depsBuildTarget +depsBuildTargetPropagated +depsHostHost +depsHostHostPropagated +depsTargetTarget +depsTargetTargetPropagated +doCheck +doInstallCheck +mesonFlags +name +nativeBuildInputs +out +outputs +patches +phases +propagatedBuildInputs +propagatedNativeBuildInputs +shell +shellHook +stdenv +strictDeps +system ~PATH
@@ -38,7 +46,8 @@ direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_
 🎉
 ```
 
-Alternatively if you do not want to use nix then you'll need to install the need the following tools by hand:
+Alternatively if you do not want to use nix then you'll need to install the need
+the following tools by hand:
 
 - Go 1.18+
   - on macOS, run `brew install go`
@@ -53,15 +62,15 @@ Alternatively if you do not want to use nix then you'll need to install the need
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
-- [`pkg-config`]()
+- `pkg-config`
   - on macOS, run `brew install pkg-config`
-- [`pixman`]()
+- `pixman`
   - on macOS, run `brew install pixman`
-- [`cairo`]()
+- `cairo`
   - on macOS, run `brew install cairo`
-- [`pango`]()
+- `pango`
   - on macOS, run `brew install pango`
-- [`pandoc`]()
+- `pandoc`
   - on macOS, run `brew install pandocomatic`
 
 ### Development workflow
@@ -77,43 +86,56 @@ Use the following `make` commands and scripts in development:
 
 - Run `./scripts/develop.sh`
 - Access `http://localhost:8080`
-- The default user is `admin@coder.com` and the default password is `SomeSecurePassword!`
+- The default user is `admin@coder.com` and the default password is
+  `SomeSecurePassword!`
 
 ### Deploying a PR
 
-You can test your changes by creating a PR deployment. There are two ways to do this:
+You can test your changes by creating a PR deployment. There are two ways to do
+this:
 
 1. By running `./scripts/deploy-pr.sh`
-2. By manually triggering the [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml) GitHub Action workflow
-   ![Deploy PR manually](./images/pr-deploy-manual.png)
+2. By manually triggering the
+   [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
+   GitHub Action workflow ![Deploy PR manually](./images/deploy-pr-manually.png)
 
 #### Available options
 
-- `-s` or `--skip-build`, force prevents the build of the Docker image.(generally not needed as we are intelligently checking if the image needs to be built)
-- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will enable the specified experiments. (defaults to `*`)
-- `-n` or `--dry-run` will display the context without deployment. e.g., branch name and PR number, etc.
+- `-d` or `--deploy`, force deploys the PR by deleting the existing deployment.
+- `-b` or `--build`, force builds the Docker image. (generally not needed as we
+  are intelligently checking if the image needs to be built)
+- `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will
+  enable the specified experiments. (defaults to `*`)
+- `-n` or `--dry-run` will display the context without deployment. e.g., branch
+  name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.
 
-> Note: PR deployment will be re-deployed automatically when the PR is updated. It will use the last values automatically for redeployment.
+> Note: PR deployment will be re-deployed automatically when the PR is updated.
+> It will use the last values automatically for redeployment.
 
-> You need to be a member or collaborator of the of [coder](github.com/coder) GitHub organization to be able to deploy a PR.
+> You need to be a member or collaborator of the of [coder](github.com/coder)
+> GitHub organization to be able to deploy a PR.
 
-Once the deployment is finished, a unique link and credentials will be posted in the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack channel.
+Once the deployment is finished, a unique link and credentials will be posted in
+the [#pr-deployments](https://codercom.slack.com/archives/C05DNE982E8) Slack
+channel.
 
 ### Adding database migrations and fixtures
 
 #### Database migrations
 
-Database migrations are managed with [`migrate`](https://github.com/golang-migrate/migrate).
+Database migrations are managed with
+[`migrate`](https://github.com/golang-migrate/migrate).
 
 To add new migrations, use the following command:
 
-```
-$ ./coderd/database/migrations/create_fixture.sh my name
+```shell
+./coderd/database/migrations/create_fixture.sh my name
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.up.sql
 /home/coder/src/coder/coderd/database/migrations/000070_my_name.down.sql
-Run "make gen" to generate models.
 ```
+
+Run "make gen" to generate models.
 
 Then write queries into the generated `.up.sql` and `.down.sql` files and commit
 them into the repository. The down script should make a best-effort to retain as
@@ -124,11 +146,15 @@ much data as possible.
 There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
-- Partial fixtures [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
-- Full database dumps [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
+- Partial fixtures
+  [`migrations/testdata/fixtures`](../coderd/database/migrations/testdata/fixtures)
+- Full database dumps
+  [`migrations/testdata/full_dumps`](../coderd/database/migrations/testdata/full_dumps)
 
-Both types behave like database migrations (they also [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors Coder migrations such that when migration
-number `000022` is applied, fixture `000022` is applied afterwards.
+Both types behave like database migrations (they also
+[`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
+Coder migrations such that when migration number `000022` is applied, fixture
+`000022` is applied afterwards.
 
 Partial fixtures are used to conveniently add data to newly created tables so
 that we can ensure that this data is migrated without issue.
@@ -140,8 +166,8 @@ migration of multiple features or complex configurations.
 
 To add a new partial fixture, run the following command:
 
-```
-$ ./coderd/database/migrations/create_fixture.sh my fixture
+```shell
+./coderd/database/migrations/create_fixture.sh my fixture
 /home/coder/src/coder/coderd/database/migrations/testdata/fixtures/000070_my_fixture.up.sql
 ```
 
@@ -153,9 +179,9 @@ To create a full dump, run a fully fledged Coder deployment and use it to
 generate data in the database. Then shut down the deployment and take a snapshot
 of the database.
 
-```
-$ mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
-$ pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
+```shell
+mkdir -p coderd/database/migrations/testdata/full_dumps/v0.12.2 && cd $_
+pg_dump "postgres://coder@localhost:..." -a --inserts >000069_dump_v0.12.2.up.sql
 ```
 
 Make sure sensitive data in the dump is desensitized, for instance names,
@@ -164,8 +190,8 @@ emails, OAuth tokens and other secrets. Then commit the dump to the project.
 To find out what the latest migration for a version of Coder is, use the
 following command:
 
-```
-$ git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
+```shell
+git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
 ```
 
 This helps in naming the dump (e.g. `000069` above).
@@ -174,19 +200,20 @@ This helps in naming the dump (e.g. `000069` above).
 
 ### Documentation
 
-Our style guide for authoring documentation can be found [here](./contributing/documentation.md).
+Our style guide for authoring documentation can be found
+[here](./contributing/documentation.md).
 
 ### Backend
 
 #### Use Go style
 
-Contributions must adhere to the guidelines outlined in [Effective
-Go](https://go.dev/doc/effective_go). We prefer linting rules over documenting
-styles (run ours with `make lint`); humans are error-prone!
+Contributions must adhere to the guidelines outlined in
+[Effective Go](https://go.dev/doc/effective_go). We prefer linting rules over
+documenting styles (run ours with `make lint`); humans are error-prone!
 
-Read [Go's Code Review Comments
-Wiki](https://github.com/golang/go/wiki/CodeReviewComments) for information on
-common comments made during reviews of Go code.
+Read
+[Go's Code Review Comments Wiki](https://github.com/golang/go/wiki/CodeReviewComments)
+for information on common comments made during reviews of Go code.
 
 #### Avoid unused packages
 
@@ -201,8 +228,8 @@ Our frontend guide can be found [here](./contributing/frontend.md).
 
 ## Reviews
 
-> The following information has been borrowed from [Go's review
-> philosophy](https://go.dev/doc/contribute#reviews).
+> The following information has been borrowed from
+> [Go's review philosophy](https://go.dev/doc/contribute#reviews).
 
 Coder values thorough reviews. For each review comment that you receive, please
 "close" it by implementing the suggestion or providing an explanation on why the
@@ -219,27 +246,45 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are initiated via [`./scripts/release.sh`](../scripts/release.sh) and automated via GitHub Actions. Specifically, the [`release.yaml`](../.github/workflows/release.yaml) workflow. They are created based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
+Coder releases are initiated via [`./scripts/release.sh`](../scripts/release.sh)
+and automated via GitHub Actions. Specifically, the
+[`release.yaml`](../.github/workflows/release.yaml) workflow. They are created
+based on the current [`main`](https://github.com/coder/coder/tree/main) branch.
 
-The release notes for a release are automatically generated from commit titles and metadata from PRs that are merged into `main`.
+The release notes for a release are automatically generated from commit titles
+and metadata from PRs that are merged into `main`.
 
 ### Creating a release
 
-The creation of a release is initiated via [`./scripts/release.sh`](../scripts/release.sh). This script will show a preview of the release that will be created, and if you choose to continue, create and push the tag which will trigger the creation of the release via GitHub Actions.
+The creation of a release is initiated via
+[`./scripts/release.sh`](../scripts/release.sh). This script will show a preview
+of the release that will be created, and if you choose to continue, create and
+push the tag which will trigger the creation of the release via GitHub Actions.
 
 See `./scripts/release.sh --help` for more information.
 
 ### Creating a release (via workflow dispatch)
 
-Typically the workflow dispatch is only used to test (dry-run) a release, meaning no actual release will take place. The workflow can be dispatched manually from [Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml). Simply press "Run workflow" and choose dry-run.
+Typically the workflow dispatch is only used to test (dry-run) a release,
+meaning no actual release will take place. The workflow can be dispatched
+manually from
+[Actions: Release](https://github.com/coder/coder/actions/workflows/release.yaml).
+Simply press "Run workflow" and choose dry-run.
 
-If a release has failed after the tag has been created and pushed, it can be retried by again, pressing "Run workflow", changing "Use workflow from" from "Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
+If a release has failed after the tag has been created and pushed, it can be
+retried by again, pressing "Run workflow", changing "Use workflow from" from
+"Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
 
 ### Commit messages
 
-Commit messages should follow the [Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+Commit messages should follow the
+[Conventional Commits 1.0.0](https://www.conventionalcommits.org/en/v1.0.0/)
+specification.
 
-Allowed commit types (`feat`, `fix`, etc.) are listed in [conventional-commit-types](https://github.com/commitizen/conventional-commit-types/blob/c3a9be4c73e47f2e8197de775f41d981701407fb/index.json). Note that these types are also used to automatically sort and organize the release notes.
+Allowed commit types (`feat`, `fix`, etc.) are listed in
+[conventional-commit-types](https://github.com/commitizen/conventional-commit-types/blob/c3a9be4c73e47f2e8197de775f41d981701407fb/index.json).
+Note that these types are also used to automatically sort and organize the
+release notes.
 
 A good commit message title uses the imperative, present tense and is ~50
 characters long (no more than 72).
@@ -249,21 +294,34 @@ Examples:
 - Good: `feat(api): add feature X`
 - Bad: `feat(api): added feature X` (past tense)
 
-A good rule of thumb for writing good commit messages is to recite: [If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+A good rule of thumb for writing good commit messages is to recite:
+[If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
 
-**Note:** We lint PR titles to ensure they follow the Conventional Commits specification, however, it's still possible to merge PRs on GitHub with a badly formatted title. Take care when merging single-commit PRs as GitHub may prefer to use the original commit title instead of the PR title.
+**Note:** We lint PR titles to ensure they follow the Conventional Commits
+specification, however, it's still possible to merge PRs on GitHub with a badly
+formatted title. Take care when merging single-commit PRs as GitHub may prefer
+to use the original commit title instead of the PR title.
 
 ### Breaking changes
 
 Breaking changes can be triggered in two ways:
 
-- Add `!` to the commit message title, e.g. `feat(api)!: remove deprecated endpoint /test`
-- Add the [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking) label to a PR that has, or will be, merged into `main`.
+- Add `!` to the commit message title, e.g.
+  `feat(api)!: remove deprecated endpoint /test`
+- Add the
+  [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking)
+  label to a PR that has, or will be, merged into `main`.
 
 ### Security
 
-The [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity) label can be added to PRs that have, or will be, merged into `main`. Doing so will make sure the change stands out in the release notes.
+The
+[`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity)
+label can be added to PRs that have, or will be, merged into `main`. Doing so
+will make sure the change stands out in the release notes.
 
 ### Experimental
 
-The [`release/experimental`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fexperimental) label can be used to move the note to the bottom of the release notes under a separate title.
+The
+[`release/experimental`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fexperimental)
+label can be used to move the note to the bottom of the release notes under a
+separate title.

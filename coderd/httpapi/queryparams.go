@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // QueryParamParser is a helper for parsing all query params and gathering all
@@ -45,7 +45,7 @@ func (p *QueryParamParser) ErrorExcessParams(values url.Values) {
 		if _, ok := p.Parsed[k]; !ok {
 			p.Errors = append(p.Errors, codersdk.ValidationError{
 				Field:  k,
-				Detail: fmt.Sprintf("Query param %q is not a valid query param", k),
+				Detail: fmt.Sprintf("%q is not a valid query param", k),
 			})
 		}
 	}

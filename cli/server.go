@@ -41,7 +41,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/afero"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -57,42 +56,43 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/autobuild"
-	"github.com/coder/coder/coderd/batchstats"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbmetrics"
-	"github.com/coder/coder/coderd/database/dbpurge"
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/devtunnel"
-	"github.com/coder/coder/coderd/dormancy"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/prometheusmetrics"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/unhanger"
-	"github.com/coder/coder/coderd/updatecheck"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/batchstats"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbmetrics"
+	"github.com/coder/coder/v2/coderd/database/dbpurge"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/devtunnel"
+	"github.com/coder/coder/v2/coderd/dormancy"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/oauthpki"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/unhanger"
+	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionerd"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
@@ -551,9 +551,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if cfg.OIDC.ClientSecret != "" {
+			if cfg.OIDC.ClientKeyFile != "" || cfg.OIDC.ClientSecret != "" {
 				if cfg.OIDC.ClientID == "" {
-					return xerrors.Errorf("OIDC client ID be set!")
+					return xerrors.Errorf("OIDC client ID must be set!")
 				}
 				if cfg.OIDC.IssuerURL == "" {
 					return xerrors.Errorf("OIDC issuer URL must be set!")
@@ -578,15 +578,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if slice.Contains(cfg.OIDC.Scopes, "groups") && cfg.OIDC.GroupField == "" {
 					cfg.OIDC.GroupField = "groups"
 				}
+				oauthCfg := &oauth2.Config{
+					ClientID:     cfg.OIDC.ClientID.String(),
+					ClientSecret: cfg.OIDC.ClientSecret.String(),
+					RedirectURL:  redirectURL.String(),
+					Endpoint:     oidcProvider.Endpoint(),
+					Scopes:       cfg.OIDC.Scopes,
+				}
+
+				var useCfg httpmw.OAuth2Config = oauthCfg
+				if cfg.OIDC.ClientKeyFile != "" {
+					// PKI authentication is done in the params. If a
+					// counter example is found, we can add a config option to
+					// change this.
+					oauthCfg.Endpoint.AuthStyle = oauth2.AuthStyleInParams
+					if cfg.OIDC.ClientSecret != "" {
+						return xerrors.Errorf("cannot specify both oidc client secret and oidc client key file")
+					}
+
+					pkiCfg, err := configureOIDCPKI(oauthCfg, cfg.OIDC.ClientKeyFile.Value(), cfg.OIDC.ClientCertFile.Value())
+					if err != nil {
+						return xerrors.Errorf("configure oauth pki authentication: %w", err)
+					}
+					useCfg = pkiCfg
+				}
 				options.OIDCConfig = &coderd.OIDCConfig{
-					OAuth2Config: &oauth2.Config{
-						ClientID:     cfg.OIDC.ClientID.String(),
-						ClientSecret: cfg.OIDC.ClientSecret.String(),
-						RedirectURL:  redirectURL.String(),
-						Endpoint:     oidcProvider.Endpoint(),
-						Scopes:       cfg.OIDC.Scopes,
-					},
-					Provider: oidcProvider,
+					OAuth2Config: useCfg,
+					Provider:     oidcProvider,
 					Verifier: oidcProvider.Verifier(&oidc.Config{
 						ClientID: cfg.OIDC.ClientID.String(),
 					}),
@@ -597,6 +615,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					AuthURLParams:       cfg.OIDC.AuthURLParams.Value,
 					IgnoreUserInfo:      cfg.OIDC.IgnoreUserInfo.Value(),
 					GroupField:          cfg.OIDC.GroupField.String(),
+					GroupFilter:         cfg.OIDC.GroupRegexFilter.Value(),
+					CreateMissingGroups: cfg.OIDC.GroupAutoCreate.Value(),
 					GroupMapping:        cfg.OIDC.GroupMapping.Value,
 					UserRoleField:       cfg.OIDC.UserRoleField.String(),
 					UserRoleMapping:     cfg.OIDC.UserRoleMapping.Value,
@@ -1028,7 +1048,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					defer wg.Done()
 
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...\n", id)
+						cliui.Infof(inv.Stdout, "Shutting down provisioner daemon %d...", id)
 					}
 					err := shutdownWithTimeout(provisionerDaemon.Shutdown, 5*time.Second)
 					if err != nil {
@@ -1041,7 +1061,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return
 					}
 					if ok, _ := inv.ParsedFlags().GetBool(varVerbose); ok {
-						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d\n", id)
+						cliui.Infof(inv.Stdout, "Gracefully shut down provisioner daemon %d", id)
 					}
 				}()
 			}
@@ -1283,7 +1303,11 @@ func newProvisionerDaemon(
 			defer wg.Done()
 			defer cancel()
 
-			err := echo.Serve(ctx, afero.NewOsFs(), &provisionersdk.ServeOptions{Listener: echoServer})
+			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+				Listener:      echoServer,
+				WorkDirectory: workDir,
+				Logger:        logger.Named("echo"),
+			})
 			if err != nil {
 				select {
 				case errCh <- err:
@@ -1315,10 +1339,11 @@ func newProvisionerDaemon(
 
 			err := terraform.Serve(ctx, &terraform.ServeOptions{
 				ServeOptions: &provisionersdk.ServeOptions{
-					Listener: terraformServer,
+					Listener:      terraformServer,
+					Logger:        logger.Named("terraform"),
+					WorkDirectory: workDir,
 				},
 				CachePath: tfDir,
-				Logger:    logger,
 				Tracer:    tracer,
 			})
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -1338,14 +1363,13 @@ func newProvisionerDaemon(
 		// in provisionerdserver.go to learn more!
 		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
 	}, &provisionerd.Options{
-		Logger:              logger,
+		Logger:              logger.Named("provisionerd"),
 		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
 		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
 		JobPollDebounce:     debounce,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Provisioners:        provisioners,
-		WorkDirectory:       workDir,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
@@ -1490,6 +1514,33 @@ func configureTLS(tlsMinVersion, tlsClientAuth string, tlsCertFiles, tlsKeyFiles
 	}
 
 	return tlsConfig, nil
+}
+
+func configureOIDCPKI(orig *oauth2.Config, keyFile string, certFile string) (*oauthpki.Config, error) {
+	// Read the files
+	keyData, err := os.ReadFile(keyFile)
+	if err != nil {
+		return nil, xerrors.Errorf("read oidc client key file: %w", err)
+	}
+
+	var certData []byte
+	// According to the spec, this is not required. So do not require it on the initial loading
+	// of the PKI config.
+	if certFile != "" {
+		certData, err = os.ReadFile(certFile)
+		if err != nil {
+			return nil, xerrors.Errorf("read oidc client cert file: %w", err)
+		}
+	}
+
+	return oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
+		ClientID:       orig.ClientID,
+		TokenURL:       orig.Endpoint.TokenURL,
+		Scopes:         orig.Scopes,
+		PemEncodedKey:  keyData,
+		PemEncodedCert: certData,
+		Config:         orig,
+	})
 }
 
 func configureCAPool(tlsClientCAFile string, tlsConfig *tls.Config) error {
@@ -1797,7 +1848,7 @@ func (f *debugFilterSink) compile(res []string) error {
 func (f *debugFilterSink) LogEntry(ctx context.Context, ent slog.SinkEntry) {
 	if ent.Level == slog.LevelDebug {
 		logName := strings.Join(ent.LoggerNames, ".")
-		if f.re != nil && !f.re.MatchString(logName) {
+		if f.re != nil && !f.re.MatchString(logName) && !f.re.MatchString(ent.Message) {
 			return
 		}
 	}

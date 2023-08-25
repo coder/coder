@@ -14,14 +14,15 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
+	"tailscale.com/tailcfg"
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -152,6 +153,25 @@ func (c *Client) IssueSignedAppTokenHTML(ctx context.Context, rw http.ResponseWr
 	return res, true
 }
 
+type ReportAppStatsRequest struct {
+	Stats []workspaceapps.StatsReport `json:"stats"`
+}
+
+// ReportAppStats reports the given app stats to the primary coder server.
+func (c *Client) ReportAppStats(ctx context.Context, req ReportAppStatsRequest) error {
+	resp, err := c.Request(ctx, http.MethodPost, "/api/v2/workspaceproxies/me/app-stats", req)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return codersdk.ReadBodyAsError(resp)
+	}
+
+	return nil
+}
+
 type RegisterWorkspaceProxyRequest struct {
 	// AccessURL that hits the workspace proxy api.
 	AccessURL string `json:"access_url"`
@@ -187,9 +207,11 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey string `json:"app_security_key"`
-	DERPMeshKey    string `json:"derp_mesh_key"`
-	DERPRegionID   int32  `json:"derp_region_id"`
+	AppSecurityKey      string           `json:"app_security_key"`
+	DERPMeshKey         string           `json:"derp_mesh_key"`
+	DERPRegionID        int32            `json:"derp_region_id"`
+	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
+	DERPForceWebSockets bool             `json:"derp_force_websockets"`
 	// SiblingReplicas is a list of all other replicas of the proxy that have
 	// not timed out.
 	SiblingReplicas []codersdk.Replica `json:"sibling_replicas"`

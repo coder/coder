@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/enterprise/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/flog"
 )
 

@@ -10,6 +10,13 @@ import (
 	"golang.org/x/xerrors"
 )
 
+type GroupSource string
+
+const (
+	GroupSourceUser GroupSource = "user"
+	GroupSourceOIDC GroupSource = "oidc"
+)
+
 type CreateGroupRequest struct {
 	Name           string `json:"name"`
 	DisplayName    string `json:"display_name"`
@@ -18,13 +25,18 @@ type CreateGroupRequest struct {
 }
 
 type Group struct {
-	ID             uuid.UUID `json:"id" format:"uuid"`
-	Name           string    `json:"name"`
-	DisplayName    string    `json:"display_name"`
-	OrganizationID uuid.UUID `json:"organization_id" format:"uuid"`
-	Members        []User    `json:"members"`
-	AvatarURL      string    `json:"avatar_url"`
-	QuotaAllowance int       `json:"quota_allowance"`
+	ID             uuid.UUID   `json:"id" format:"uuid"`
+	Name           string      `json:"name"`
+	DisplayName    string      `json:"display_name"`
+	OrganizationID uuid.UUID   `json:"organization_id" format:"uuid"`
+	Members        []User      `json:"members"`
+	AvatarURL      string      `json:"avatar_url"`
+	QuotaAllowance int         `json:"quota_allowance"`
+	Source         GroupSource `json:"source"`
+}
+
+func (g Group) IsEveryone() bool {
+	return g.ID == g.OrganizationID
 }
 
 func (c *Client) CreateGroup(ctx context.Context, orgID uuid.UUID, req CreateGroupRequest) (Group, error) {

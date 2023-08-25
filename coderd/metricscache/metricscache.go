@@ -15,9 +15,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
@@ -146,8 +146,14 @@ func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse 
 	}
 
 	dates := maps.Keys(respMap)
-	slices.SortFunc(dates, func(a, b time.Time) bool {
-		return a.Before(b)
+	slices.SortFunc(dates, func(a, b time.Time) int {
+		if a.Before(b) {
+			return -1
+		} else if a.Equal(b) {
+			return 0
+		} else {
+			return 1
+		}
 	})
 
 	var resp codersdk.DAUsResponse

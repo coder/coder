@@ -17,21 +17,21 @@ import (
 	"golang.org/x/oauth2"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func mockAuditor() *atomic.Pointer[audit.Auditor] {
@@ -267,7 +267,7 @@ func TestAcquireJob(t *testing.T) {
 					Id:          gitAuthProvider,
 					AccessToken: "access_token",
 				}},
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      srv.AccessURL.String(),
 					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
 					WorkspaceName:                 workspace.Name,
@@ -359,7 +359,7 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:      srv.AccessURL.String(),
 					WorkspaceName: "testing",
 				},
@@ -391,7 +391,7 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: srv.AccessURL.String(),
 				},
 			},
@@ -434,7 +434,7 @@ func TestAcquireJob(t *testing.T) {
 				UserVariableValues: []*sdkproto.VariableValue{
 					{Name: "first", Sensitive: true, Value: "first_value"},
 				},
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: srv.AccessURL.String(),
 				},
 			},

@@ -14,11 +14,17 @@ import { Stack } from "components/Stack/Stack"
 import { WorkspaceHelpTooltip } from "components/Tooltips"
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable"
 import { useLocalStorage } from "hooks"
-import { LockedWorkspaceBanner, Count } from "components/WorkspaceDeletion"
+import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { WorkspacesFilter } from "./filter/filter"
 import { hasError, isApiValidationError } from "api/errors"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
+import Box from "@mui/material/Box"
+import Button from "@mui/material/Button"
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -32,20 +38,24 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
-  lockedWorkspaces?: Workspace[]
+  dormantWorkspaces?: Workspace[]
+  checkedWorkspaces: Workspace[]
   count?: number
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
+  isWorkspaceBatchActionsEnabled?: boolean
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
+  onCheckChange: (checkedWorkspaces: Workspace[]) => void
+  onDeleteAll: () => void
 }
 
 export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
 > = ({
   workspaces,
-  lockedWorkspaces,
+  dormantWorkspaces,
   error,
   limit,
   count,
@@ -53,15 +63,19 @@ export const WorkspacesPageView: FC<
   onPageChange,
   onUpdateWorkspace,
   page,
+  checkedWorkspaces,
+  isWorkspaceBatchActionsEnabled,
+  onCheckChange,
+  onDeleteAll,
 }) => {
   const { saveLocal } = useLocalStorage()
 
-  const workspacesDeletionScheduled = lockedWorkspaces
+  const workspacesDeletionScheduled = dormantWorkspaces
     ?.filter((workspace) => workspace.deleting_at)
     .map((workspace) => workspace.id)
 
-  const hasLockedWorkspace =
-    lockedWorkspaces !== undefined && lockedWorkspaces.length > 0
+  const hasDormantWorkspace =
+    dormantWorkspaces !== undefined && dormantWorkspaces.length > 0
 
   return (
     <Margins>
@@ -87,9 +101,9 @@ export const WorkspacesPageView: FC<
           <ErrorAlert error={error} />
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
-        <LockedWorkspaceBanner
-          workspaces={lockedWorkspaces}
-          shouldRedisplayBanner={hasLockedWorkspace}
+        <DormantWorkspaceBanner
+          workspaces={dormantWorkspaces}
+          shouldRedisplayBanner={hasDormantWorkspace}
           onDismiss={() =>
             saveLocal(
               "dismissedWorkspaceList",
@@ -102,17 +116,42 @@ export const WorkspacesPageView: FC<
         <WorkspacesFilter error={error} {...filterProps} />
       </Stack>
 
-      <PaginationStatus
-        isLoading={!workspaces && !error}
-        showing={workspaces?.length ?? 0}
-        total={count ?? 0}
-        label="workspaces"
-      />
+      <TableToolbar>
+        {checkedWorkspaces.length > 0 ? (
+          <>
+            <Box>
+              Selected <strong>{checkedWorkspaces.length}</strong> of{" "}
+              <strong>{workspaces?.length}</strong>{" "}
+              {workspaces?.length === 1 ? "workspace" : "workspaces"}
+            </Box>
+
+            <Box sx={{ marginLeft: "auto" }}>
+              <Button
+                size="small"
+                startIcon={<DeleteOutlined />}
+                onClick={onDeleteAll}
+              >
+                Delete all
+              </Button>
+            </Box>
+          </>
+        ) : (
+          <PaginationStatus
+            isLoading={!workspaces && !error}
+            showing={workspaces?.length ?? 0}
+            total={count ?? 0}
+            label="workspaces"
+          />
+        )}
+      </TableToolbar>
 
       <WorkspacesTable
         workspaces={workspaces}
         isUsingFilter={filterProps.filter.used}
         onUpdateWorkspace={onUpdateWorkspace}
+        checkedWorkspaces={checkedWorkspaces}
+        onCheckChange={onCheckChange}
+        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
       />
       {count !== undefined && (
         <PaginationWidgetBase

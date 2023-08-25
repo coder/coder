@@ -61,3 +61,6 @@ site/stats/
 ./scaletest/terraform/.terraform.lock.hcl
 scaletest/terraform/secrets.tfvars
 .terraform.tfstate.*
+
+# Nix
+result

@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestConvertResources(t *testing.T) {

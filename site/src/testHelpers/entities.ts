@@ -445,8 +445,8 @@ export const MockTemplate: TypesGen.Template = {
   icon: "/icon/code.svg",
   allow_user_cancel_workspace_jobs: true,
   failure_ttl_ms: 0,
-  inactivity_ttl_ms: 0,
-  locked_ttl_ms: 0,
+  time_til_dormant_ms: 0,
+  time_til_dormant_autodelete_ms: 0,
   allow_user_autostart: false,
   allow_user_autostop: false,
 }
@@ -563,7 +563,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   logs_overflowed: false,
   startup_script_timeout_seconds: 120,
   shutdown_script_timeout_seconds: 120,
-  subsystem: "envbox",
+  subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
   },
@@ -815,7 +815,7 @@ export const MockFailedWorkspaceBuild = (
   deadline: "2022-05-17T23:39:00.00Z",
   reason: "initiator",
   resources: [],
-  status: "running",
+  status: "failed",
   daily_cost: 20,
 })
 
@@ -1450,6 +1450,7 @@ export const MockEntitlements: TypesGen.Entitlements = {
   features: withDefaultFeatures({}),
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
 }
 
 export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
@@ -1458,6 +1459,7 @@ export const MockEntitlementsWithWarnings: TypesGen.Entitlements = {
   has_license: true,
   trial: false,
   require_telemetry: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     user_limit: {
       enabled: true,
@@ -1482,6 +1484,7 @@ export const MockEntitlementsWithAuditLog: TypesGen.Entitlements = {
   has_license: true,
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     audit_log: {
       enabled: true,
@@ -1496,6 +1499,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   has_license: true,
   require_telemetry: false,
   trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
   features: withDefaultFeatures({
     advanced_template_scheduling: {
       enabled: true,
@@ -1507,6 +1511,7 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
+  "workspaces_batch_actions",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -1670,6 +1675,7 @@ export const MockGroup: TypesGen.Group = {
   organization_id: MockOrganization.id,
   members: [MockUser, MockUser2],
   quota_allowance: 5,
+  source: "user",
 }
 
 export const MockTemplateACL: TypesGen.TemplateACL = {

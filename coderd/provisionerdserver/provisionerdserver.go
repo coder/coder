@@ -26,21 +26,21 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/apikey"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 var (
@@ -280,7 +280,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
 				VariableValues:      asVariableValues(templateVariables),
 				GitAuthProviders:    gitAuthProviders,
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      server.AccessURL.String(),
 					WorkspaceTransition:           transition,
 					WorkspaceName:                 workspace.Name,
@@ -316,7 +316,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
 				RichParameterValues: convertRichParameterValues(input.RichParameterValues),
 				VariableValues:      asVariableValues(templateVariables),
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:      server.AccessURL.String(),
 					WorkspaceName: input.WorkspaceName,
 				},
@@ -337,7 +337,7 @@ func (server *Server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Ac
 		protoJob.Type = &proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
 				UserVariableValues: convertVariableValues(userVariableValues),
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: server.AccessURL.String(),
 				},
 			},

@@ -31,6 +31,11 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE group_source AS ENUM (
+    'user',
+    'oidc'
+);
+
 CREATE TYPE log_level AS ENUM (
     'trace',
     'debug',
@@ -143,7 +148,8 @@ CREATE TYPE workspace_agent_log_source AS ENUM (
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
-    'none'
+    'none',
+    'exectrace'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -299,10 +305,13 @@ CREATE TABLE groups (
     organization_id uuid NOT NULL,
     avatar_url text DEFAULT ''::text NOT NULL,
     quota_allowance integer DEFAULT 0 NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL
+    display_name text DEFAULT ''::text NOT NULL,
+    source group_source DEFAULT 'user'::group_source NOT NULL
 );
 
 COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
+
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,
@@ -626,8 +635,8 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL,
-    locked_ttl bigint DEFAULT 0 NOT NULL,
+    time_til_dormant bigint DEFAULT 0 NOT NULL,
+    time_til_dormant_autodelete bigint DEFAULT 0 NOT NULL,
     restart_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     restart_requirement_weeks bigint DEFAULT 0 NOT NULL
 );
@@ -667,8 +676,8 @@ CREATE VIEW template_with_users AS
     templates.allow_user_autostart,
     templates.allow_user_autostop,
     templates.failure_ttl,
-    templates.inactivity_ttl,
-    templates.locked_ttl,
+    templates.time_til_dormant,
+    templates.time_til_dormant_autodelete,
     templates.restart_requirement_days_of_week,
     templates.restart_requirement_weeks,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
@@ -767,11 +776,12 @@ CREATE TABLE workspace_agents (
     shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     logs_length integer DEFAULT 0 NOT NULL,
     logs_overflowed boolean DEFAULT false NOT NULL,
-    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
     startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
-    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576))
+    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
+    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -801,6 +811,50 @@ COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup scri
 COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+CREATE TABLE workspace_app_stats (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    access_method text NOT NULL,
+    slug_or_port text NOT NULL,
+    session_id uuid NOT NULL,
+    session_started_at timestamp with time zone NOT NULL,
+    session_ended_at timestamp with time zone NOT NULL,
+    requests integer NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_stats IS 'A record of workspace app usage statistics';
+
+COMMENT ON COLUMN workspace_app_stats.id IS 'The ID of the record';
+
+COMMENT ON COLUMN workspace_app_stats.user_id IS 'The user who used the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.workspace_id IS 'The workspace that the workspace app was used in';
+
+COMMENT ON COLUMN workspace_app_stats.agent_id IS 'The workspace agent that was used';
+
+COMMENT ON COLUMN workspace_app_stats.access_method IS 'The method used to access the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.slug_or_port IS 'The slug or port used to to identify the app';
+
+COMMENT ON COLUMN workspace_app_stats.session_id IS 'The unique identifier for the session';
+
+COMMENT ON COLUMN workspace_app_stats.session_started_at IS 'The time the session started';
+
+COMMENT ON COLUMN workspace_app_stats.session_ended_at IS 'The time the session ended';
+
+COMMENT ON COLUMN workspace_app_stats.requests IS 'The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one';
+
+CREATE SEQUENCE workspace_app_stats_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -949,7 +1003,7 @@ CREATE TABLE workspaces (
     autostart_schedule text,
     ttl bigint,
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    locked_at timestamp with time zone,
+    dormant_at timestamp with time zone,
     deleting_at timestamp with time zone
 );
 
@@ -958,6 +1012,8 @@ ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq':
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_agent_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+
+ALTER TABLE ONLY workspace_app_stats ALTER COLUMN id SET DEFAULT nextval('workspace_app_stats_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('workspace_proxies_region_id_seq'::regclass);
 
@@ -1071,6 +1127,12 @@ ALTER TABLE ONLY workspace_agent_logs
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
+
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
@@ -1157,6 +1219,8 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
+CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
@@ -1241,6 +1305,15 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

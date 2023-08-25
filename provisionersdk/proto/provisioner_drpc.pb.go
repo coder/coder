@@ -38,8 +38,7 @@ func (drpcEncoding_File_provisionersdk_proto_provisioner_proto) JSONUnmarshal(bu
 type DRPCProvisionerClient interface {
 	DRPCConn() drpc.Conn
 
-	Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error)
-	Provision(ctx context.Context) (DRPCProvisioner_ProvisionClient, error)
+	Session(ctx context.Context) (DRPCProvisioner_SessionClient, error)
 }
 
 type drpcProvisionerClient struct {
@@ -52,123 +51,69 @@ func NewDRPCProvisionerClient(cc drpc.Conn) DRPCProvisionerClient {
 
 func (c *drpcProvisionerClient) DRPCConn() drpc.Conn { return c.cc }
 
-func (c *drpcProvisionerClient) Parse(ctx context.Context, in *Parse_Request) (DRPCProvisioner_ParseClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
+func (c *drpcProvisionerClient) Session(ctx context.Context) (DRPCProvisioner_SessionClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Session", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 	if err != nil {
 		return nil, err
 	}
-	x := &drpcProvisioner_ParseClient{stream}
-	if err := x.MsgSend(in, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
-		return nil, err
-	}
-	if err := x.CloseSend(); err != nil {
-		return nil, err
-	}
+	x := &drpcProvisioner_SessionClient{stream}
 	return x, nil
 }
 
-type DRPCProvisioner_ParseClient interface {
+type DRPCProvisioner_SessionClient interface {
 	drpc.Stream
-	Recv() (*Parse_Response, error)
+	Send(*Request) error
+	Recv() (*Response, error)
 }
 
-type drpcProvisioner_ParseClient struct {
+type drpcProvisioner_SessionClient struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ParseClient) GetStream() drpc.Stream {
+func (x *drpcProvisioner_SessionClient) GetStream() drpc.Stream {
 	return x.Stream
 }
 
-func (x *drpcProvisioner_ParseClient) Recv() (*Parse_Response, error) {
-	m := new(Parse_Response)
-	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (x *drpcProvisioner_ParseClient) RecvMsg(m *Parse_Response) error {
-	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
-}
-
-func (c *drpcProvisionerClient) Provision(ctx context.Context) (DRPCProvisioner_ProvisionClient, error) {
-	stream, err := c.cc.NewStream(ctx, "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
-	if err != nil {
-		return nil, err
-	}
-	x := &drpcProvisioner_ProvisionClient{stream}
-	return x, nil
-}
-
-type DRPCProvisioner_ProvisionClient interface {
-	drpc.Stream
-	Send(*Provision_Request) error
-	Recv() (*Provision_Response, error)
-}
-
-type drpcProvisioner_ProvisionClient struct {
-	drpc.Stream
-}
-
-func (x *drpcProvisioner_ProvisionClient) GetStream() drpc.Stream {
-	return x.Stream
-}
-
-func (x *drpcProvisioner_ProvisionClient) Send(m *Provision_Request) error {
+func (x *drpcProvisioner_SessionClient) Send(m *Request) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
-func (x *drpcProvisioner_ProvisionClient) Recv() (*Provision_Response, error) {
-	m := new(Provision_Response)
+func (x *drpcProvisioner_SessionClient) Recv() (*Response, error) {
+	m := new(Response)
 	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcProvisioner_ProvisionClient) RecvMsg(m *Provision_Response) error {
+func (x *drpcProvisioner_SessionClient) RecvMsg(m *Response) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
 type DRPCProvisionerServer interface {
-	Parse(*Parse_Request, DRPCProvisioner_ParseStream) error
-	Provision(DRPCProvisioner_ProvisionStream) error
+	Session(DRPCProvisioner_SessionStream) error
 }
 
 type DRPCProvisionerUnimplementedServer struct{}
 
-func (s *DRPCProvisionerUnimplementedServer) Parse(*Parse_Request, DRPCProvisioner_ParseStream) error {
-	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
-}
-
-func (s *DRPCProvisionerUnimplementedServer) Provision(DRPCProvisioner_ProvisionStream) error {
+func (s *DRPCProvisionerUnimplementedServer) Session(DRPCProvisioner_SessionStream) error {
 	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 type DRPCProvisionerDescription struct{}
 
-func (DRPCProvisionerDescription) NumMethods() int { return 2 }
+func (DRPCProvisionerDescription) NumMethods() int { return 1 }
 
 func (DRPCProvisionerDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
 	case 0:
-		return "/provisioner.Provisioner/Parse", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
+		return "/provisioner.Provisioner/Session", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return nil, srv.(DRPCProvisionerServer).
-					Parse(
-						in1.(*Parse_Request),
-						&drpcProvisioner_ParseStream{in2.(drpc.Stream)},
+					Session(
+						&drpcProvisioner_SessionStream{in1.(drpc.Stream)},
 					)
-			}, DRPCProvisionerServer.Parse, true
-	case 1:
-		return "/provisioner.Provisioner/Provision", drpcEncoding_File_provisionersdk_proto_provisioner_proto{},
-			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
-				return nil, srv.(DRPCProvisionerServer).
-					Provision(
-						&drpcProvisioner_ProvisionStream{in1.(drpc.Stream)},
-					)
-			}, DRPCProvisionerServer.Provision, true
+			}, DRPCProvisionerServer.Session, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -178,41 +123,28 @@ func DRPCRegisterProvisioner(mux drpc.Mux, impl DRPCProvisionerServer) error {
 	return mux.Register(impl, DRPCProvisionerDescription{})
 }
 
-type DRPCProvisioner_ParseStream interface {
+type DRPCProvisioner_SessionStream interface {
 	drpc.Stream
-	Send(*Parse_Response) error
+	Send(*Response) error
+	Recv() (*Request, error)
 }
 
-type drpcProvisioner_ParseStream struct {
+type drpcProvisioner_SessionStream struct {
 	drpc.Stream
 }
 
-func (x *drpcProvisioner_ParseStream) Send(m *Parse_Response) error {
+func (x *drpcProvisioner_SessionStream) Send(m *Response) error {
 	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }
 
-type DRPCProvisioner_ProvisionStream interface {
-	drpc.Stream
-	Send(*Provision_Response) error
-	Recv() (*Provision_Request, error)
-}
-
-type drpcProvisioner_ProvisionStream struct {
-	drpc.Stream
-}
-
-func (x *drpcProvisioner_ProvisionStream) Send(m *Provision_Response) error {
-	return x.MsgSend(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
-}
-
-func (x *drpcProvisioner_ProvisionStream) Recv() (*Provision_Request, error) {
-	m := new(Provision_Request)
+func (x *drpcProvisioner_SessionStream) Recv() (*Request, error) {
+	m := new(Request)
 	if err := x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{}); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func (x *drpcProvisioner_ProvisionStream) RecvMsg(m *Provision_Request) error {
+func (x *drpcProvisioner_SessionStream) RecvMsg(m *Request) error {
 	return x.MsgRecv(m, drpcEncoding_File_provisionersdk_proto_provisioner_proto{})
 }

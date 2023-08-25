@@ -2,12 +2,15 @@
 
 ## Support Links
 
-Support links let admins adjust the user dropdown menu to include links referring to internal company resources. The menu section replaces the original menu positions: documentation, report a bug to GitHub, or join the Discord server.
+Support links let admins adjust the user dropdown menu to include links
+referring to internal company resources. The menu section replaces the original
+menu positions: documentation, report a bug to GitHub, or join the Discord
+server.
 
 ![support links](../images/admin/support-links.png)
 
-Custom links can be set in the deployment configuration using the `-c <yamlFile>`
-flag to `coder server`.
+Custom links can be set in the deployment configuration using the
+`-c <yamlFile>` flag to `coder server`.
 
 ```yaml
 supportLinks:
@@ -27,7 +30,8 @@ The link icons are optional, and limited to: `bug`, `chat`, and `docs`.
 
 ## Service Banners (enterprise)
 
-Service Banners let admins post important messages to all site users. Only Site Owners may set the service banner.
+Service Banners let admins post important messages to all site users. Only Site
+Owners may set the service banner.
 
 ![service banners](../images/admin/service-banners.png)
 

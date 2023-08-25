@@ -11,9 +11,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/tailnet/tailnettest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -99,7 +99,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		w1IP := tailnet.IP()
 		derpMap := tailnettest.RunDERPOnlyWebSockets(t)

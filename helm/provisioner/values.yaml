@@ -1,0 +1,209 @@
+# coder -- Common configuration options.
+coder:
+  # coder.env -- The environment variables to set. These can be used to
+  # configure all aspects of Coder provisioner daemon. Please see
+  # `coder provisionerd start --help for information about what environment
+  # variables can be set.
+  # Note: The following environment variables are set by default and cannot be
+  # overridden:
+  # - CODER_PROMETHEUS_ADDRESS: set to 0.0.0.0:2112 and cannot be changed.
+  #   Prometheus must still be enabled by setting CODER_PROMETHEUS_ENABLE.
+  #
+  # We will additionally set CODER_URL, if unset, to the cluster service
+  # URL.
+  env: []
+  # - name: "CODER_URL"
+  #   value: "https://coder.example.com"
+
+  # coder.image -- The image to use for Coder provisioner daemon.
+  image:
+    # coder.image.repo -- The repository of the image.
+    repo: "ghcr.io/coder/coder"
+    # coder.image.tag -- The tag of the image, defaults to {{.Chart.AppVersion}}
+    # if not set. If you're using the chart directly from git, the default
+    # app version will not work and you'll need to set this value. The helm
+    # chart helpfully fails quickly in this case.
+    tag: ""
+    # coder.image.pullPolicy -- The pull policy to use for the image. See:
+    # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
+    pullPolicy: IfNotPresent
+    # coder.image.pullSecrets -- The secrets used for pulling the Coder image from
+    # a private registry.
+    pullSecrets: []
+    #  - name: "pull-secret"
+
+  # coder.initContainers -- Init containers for the deployment. See:
+  # https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+  initContainers:
+    []
+    # - name: init-container
+    #   image: busybox:1.28
+    #   command: ['sh', '-c', "sleep 2"]
+
+  # coder.annotations -- The Deployment annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  annotations: {}
+
+  # coder.labels -- The Deployment labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  labels: {}
+
+  # coder.podAnnotations -- The Coder pod annotations. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+  podAnnotations: {}
+
+  # coder.podLabels -- The Coder pod labels. See:
+  # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+  podLabels: {}
+
+  # coder.serviceAccount -- Configuration for the automatically created service
+  # account. Creation of the service account cannot be disabled.
+  serviceAccount:
+    # coder.serviceAccount.workspacePerms -- Whether or not to grant the
+    # service account permissions to manage workspaces. This includes
+    # permission to manage pods and persistent volume claims in the deployment
+    # namespace.
+    #
+    # It is recommended to keep this on if you are using Kubernetes templates
+    # within Coder.
+    workspacePerms: true
+    # coder.serviceAccount.enableDeployments -- Provides the service account permission
+    # to manage Kubernetes deployments.
+    enableDeployments: true
+    # coder.serviceAccount.annotations -- The Coder service account annotations.
+    annotations: {}
+    # coder.serviceAccount.name -- The service account name
+    name: coder-provisioner
+
+  # coder.securityContext -- Fields related to the container's security
+  # context (as opposed to the pod). Some fields are also present in the pod
+  # security context, in which case these values will take precedence.
+  securityContext:
+    # coder.securityContext.runAsNonRoot -- Requires that the coder container
+    # runs as an unprivileged user. If setting runAsUser to 0 (root), this
+    # will need to be set to false.
+    runAsNonRoot: true
+    # coder.securityContext.runAsUser -- Sets the user id of the container.
+    # For security reasons, we recommend using a non-root user.
+    runAsUser: 1000
+    # coder.securityContext.runAsGroup -- Sets the group id of the container.
+    # For security reasons, we recommend using a non-root group.
+    runAsGroup: 1000
+    # coder.securityContext.readOnlyRootFilesystem -- Mounts the container's
+    # root filesystem as read-only.
+    readOnlyRootFilesystem: null
+    # coder.securityContext.seccompProfile -- Sets the seccomp profile for
+    # the coder container.
+    seccompProfile:
+      type: RuntimeDefault
+    # coder.securityContext.allowPrivilegeEscalation -- Controls whether
+    # the container can gain additional privileges, such as escalating to
+    # root. It is recommended to leave this setting disabled in production.
+    allowPrivilegeEscalation: false
+
+  # coder.volumes -- A list of extra volumes to add to the Coder provisioner daemon pod.
+  volumes: []
+  # - name: "my-volume"
+  #   emptyDir: {}
+
+  # coder.volumeMounts -- A list of extra volume mounts to add to the Coder provisioner daemon pod.
+  volumeMounts: []
+  # - name: "my-volume"
+  #   mountPath: "/mnt/my-volume"
+
+  # coder.replicaCount -- The number of Kubernetes deployment replicas. This
+  # should only be increased if High Availability is enabled.
+  #
+  # This is an Enterprise feature. Contact sales@coder.com.
+  replicaCount: 1
+
+  # coder.lifecycle -- container lifecycle handlers for the Coder container, allowing
+  # for lifecycle events such as postStart and preStop events
+  # See: https://kubernetes.io/docs/tasks/configure-pod-container/attach-handler-lifecycle-event/
+  lifecycle:
+    {}
+    # postStart:
+    #   exec:
+    #     command: ["/bin/sh", "-c", "echo postStart"]
+    # preStop:
+    #   exec:
+    #     command: ["/bin/sh","-c","echo preStart"]
+
+  # coder.resources -- The resources to request for Coder. These are optional
+  # and are not set by default.
+  resources:
+    {}
+    # limits:
+    #   cpu: 2000m
+    #   memory: 4096Mi
+    # requests:
+    #   cpu: 2000m
+    #   memory: 4096Mi
+
+  # coder.certs -- CA bundles to mount inside the Coder pod.
+  certs:
+    # coder.certs.secrets -- A list of CA bundle secrets to mount into the
+    # pod. The secrets should exist in the same namespace as the Helm
+    # deployment.
+    #
+    # The given key in each secret is mounted at
+    # `/etc/ssl/certs/{secret_name}.crt`.
+    secrets:
+      []
+      # - name: "my-ca-bundle"
+      #   key: "ca-bundle.crt"
+
+  # coder.affinity -- Allows specifying an affinity rule for the deployment.
+  affinity:
+    {}
+    #  podAntiAffinity:
+    #    preferredDuringSchedulingIgnoredDuringExecution:
+    #      - podAffinityTerm:
+    #          labelSelector:
+    #            matchExpressions:
+    #              - key: app.kubernetes.io/instance
+    #                operator: In
+    #                values:
+    #                  - "coder"
+    #          topologyKey: kubernetes.io/hostname
+    #        weight: 1
+
+  # coder.tolerations -- Tolerations for tainted nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+  tolerations:
+    {}
+    # - key: "key"
+    #   operator: "Equal"
+    #   value: "value"
+    #   effect: "NoSchedule"
+
+  # coder.nodeSelector -- Node labels for constraining coder pods to nodes.
+  # See: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  nodeSelector: {}
+  #  kubernetes.io/os: linux
+
+  # coder.command -- The command to use when running the container. Used
+  # for customizing the location of the `coder` binary in your image.
+  command:
+    - /opt/coder
+
+  # coder.commandArgs -- Set arguments for the entrypoint command of the Coder pod.
+  commandArgs: []
+
+# provisionerDaemon -- Provisioner Daemon configuration options
+provisionerDaemon:
+  # provisionerDaemon.pskSecretName -- The name of the Kubernetes secret that contains the
+  # Pre-Shared Key (PSK) to use to authenticate with Coder.  The secret must be in the same namespace
+  # as the Helm deployment, and contain an item called "psk" which contains the pre-shared key.
+  pskSecretName: "coder-provisioner-psk"
+
+  # provisionerDaemon.tags -- Tags to filter provisioner jobs by
+  tags:
+    {}
+    # location: usa
+    # provider: kubernetes
+
+  # provisionerDaemon.terminationGracePeriodSeconds -- Time in seconds that Kubernetes should wait before forcibly
+  # terminating the provisioner daemon.  You should set this to be longer than your longest expected build time so that
+  # redeployments do not interrupt builds in progress.
+  terminationGracePeriodSeconds: 600

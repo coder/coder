@@ -14,13 +14,13 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Builder encapsulates the business logic of inserting a new workspace build into the database.
@@ -525,7 +525,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, err.Error(), err}
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
 		}
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)

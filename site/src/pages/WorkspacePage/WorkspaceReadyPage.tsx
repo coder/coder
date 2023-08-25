@@ -111,7 +111,6 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
   }, [bannerSend, workspace])
-
   return (
     <>
       <Helmet>
@@ -176,7 +175,7 @@ export const WorkspaceReadyPage = ({
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true)
         }}
-        handleUnlock={() => workspaceSend({ type: "UNLOCK" })}
+        handleDormantActivate={() => workspaceSend({ type: "ACTIVATE" })}
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
@@ -351,7 +350,7 @@ const WarningDialog: FC<
 }
 
 const useBuildLogs = (workspace: TypesGen.Workspace) => {
-  const buildNumber = workspace.latest_build.build_number.toString()
+  const buildNumber = workspace.latest_build.build_number
   const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
     context: {
       buildNumber,

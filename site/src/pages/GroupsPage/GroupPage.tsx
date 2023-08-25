@@ -33,7 +33,12 @@ import { pageTitle } from "utils/page"
 import { groupMachine } from "xServices/groups/groupXService"
 import { Maybe } from "components/Conditionals/Maybe"
 import { makeStyles } from "@mui/styles"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar"
+import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { isEveryoneGroup } from "utils/groups"
 
 const AddGroupMember: React.FC<{
   isLoading: boolean
@@ -120,6 +125,7 @@ export const GroupPage: React.FC = () => {
                     <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
                   <Button
+                    disabled={group?.id === group?.organization_id}
                     onClick={() => {
                       send("DELETE")
                     }}
@@ -142,7 +148,13 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              <Maybe condition={canUpdateGroup}>
+              <Maybe
+                condition={
+                  canUpdateGroup &&
+                  group !== undefined &&
+                  !isEveryoneGroup(group)
+                }
+              >
                 <AddGroupMember
                   isLoading={state.matches("addingMember")}
                   onSubmit={(user, reset) => {
@@ -154,12 +166,14 @@ export const GroupPage: React.FC = () => {
                   }}
                 />
               </Maybe>
-              <PaginationStatus
-                isLoading={Boolean(isLoading)}
-                showing={group?.members.length ?? 0}
-                total={group?.members.length ?? 0}
-                label="members"
-              />
+              <TableToolbar>
+                <PaginationStatus
+                  isLoading={Boolean(isLoading)}
+                  showing={group?.members.length ?? 0}
+                  total={group?.members.length ?? 0}
+                  label="members"
+                />
+              </TableToolbar>
 
               <TableContainer>
                 <Table>
@@ -188,6 +202,12 @@ export const GroupPage: React.FC = () => {
                           <TableRow key={member.id}>
                             <TableCell width="99%">
                               <AvatarData
+                                avatar={
+                                  <UserAvatar
+                                    username={member.username}
+                                    avatarURL={member.avatar_url}
+                                  />
+                                }
                                 title={member.username}
                                 subtitle={member.email}
                               />
@@ -205,7 +225,8 @@ export const GroupPage: React.FC = () => {
                                           userId: member.id,
                                         })
                                       },
-                                      disabled: false,
+                                      disabled:
+                                        group.id === group.organization_id,
                                     },
                                   ]}
                                 />

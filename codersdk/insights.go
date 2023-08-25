@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -61,18 +62,18 @@ type UserLatencyInsightsRequest struct {
 }
 
 func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsightsRequest) (UserLatencyInsightsResponse, error) {
-	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(insightsTimeLayout)))
-	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(insightsTimeLayout)))
+	qp := url.Values{}
+	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
+	qp.Add("end_time", req.EndTime.Format(insightsTimeLayout))
 	if len(req.TemplateIDs) > 0 {
 		var templateIDs []string
 		for _, id := range req.TemplateIDs {
 			templateIDs = append(templateIDs, id.String())
 		}
-		qp = append(qp, fmt.Sprintf("template_ids=%s", strings.Join(templateIDs, ",")))
+		qp.Add("template_ids", strings.Join(templateIDs, ","))
 	}
 
-	reqURL := fmt.Sprintf("/api/v2/insights/user-latency?%s", strings.Join(qp, "&"))
+	reqURL := fmt.Sprintf("/api/v2/insights/user-latency?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return UserLatencyInsightsResponse{}, xerrors.Errorf("make request: %w", err)
@@ -118,8 +119,7 @@ type TemplateAppsType string
 // TemplateAppsType enums.
 const (
 	TemplateAppsTypeBuiltin TemplateAppsType = "builtin"
-	// TODO(mafredri): To be introduced in a future pull request.
-	// TemplateAppsTypeApp     TemplateAppsType = "app"
+	TemplateAppsTypeApp     TemplateAppsType = "app"
 )
 
 // TemplateAppUsage shows the usage of an app for one or more templates.
@@ -138,6 +138,8 @@ type TemplateParameterUsage struct {
 	TemplateIDs []uuid.UUID                      `json:"template_ids" format:"uuid"`
 	DisplayName string                           `json:"display_name"`
 	Name        string                           `json:"name"`
+	Type        string                           `json:"type"`
+	Description string                           `json:"description"`
 	Options     []TemplateVersionParameterOption `json:"options,omitempty"`
 	Values      []TemplateParameterValue         `json:"values"`
 }
@@ -157,21 +159,21 @@ type TemplateInsightsRequest struct {
 }
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
-	var qp []string
-	qp = append(qp, fmt.Sprintf("start_time=%s", req.StartTime.Format(insightsTimeLayout)))
-	qp = append(qp, fmt.Sprintf("end_time=%s", req.EndTime.Format(insightsTimeLayout)))
+	qp := url.Values{}
+	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
+	qp.Add("end_time", req.EndTime.Format(insightsTimeLayout))
 	if len(req.TemplateIDs) > 0 {
 		var templateIDs []string
 		for _, id := range req.TemplateIDs {
 			templateIDs = append(templateIDs, id.String())
 		}
-		qp = append(qp, fmt.Sprintf("template_ids=%s", strings.Join(templateIDs, ",")))
+		qp.Add("template_ids", strings.Join(templateIDs, ","))
 	}
 	if req.Interval != "" {
-		qp = append(qp, fmt.Sprintf("interval=%s", req.Interval))
+		qp.Add("interval", string(req.Interval))
 	}
 
-	reqURL := fmt.Sprintf("/api/v2/insights/templates?%s", strings.Join(qp, "&"))
+	reqURL := fmt.Sprintf("/api/v2/insights/templates?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
 		return TemplateInsightsResponse{}, xerrors.Errorf("make request: %w", err)

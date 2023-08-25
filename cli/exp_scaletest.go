@@ -22,19 +22,19 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/scaletest/agentconn"
-	"github.com/coder/coder/scaletest/createworkspaces"
-	"github.com/coder/coder/scaletest/dashboard"
-	"github.com/coder/coder/scaletest/harness"
-	"github.com/coder/coder/scaletest/reconnectingpty"
-	"github.com/coder/coder/scaletest/workspacebuild"
-	"github.com/coder/coder/scaletest/workspacetraffic"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/createworkspaces"
+	"github.com/coder/coder/v2/scaletest/dashboard"
+	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/reconnectingpty"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 )
 
 const scaletestTracerName = "coder_scaletest"
@@ -427,7 +427,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest workspaces\n", len(workspaces))
 			if len(workspaces) != 0 {
-				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces..."+"\n")
+				cliui.Infof(inv.Stdout, "Deleting scaletest workspaces...")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, w := range workspaces {
@@ -443,7 +443,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 					return xerrors.Errorf("run test harness to delete workspaces (harness failure, not a test failure): %w", err)
 				}
 
-				cliui.Infof(inv.Stdout, "Done deleting scaletest workspaces:"+"\n")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest workspaces:")
 				res := harness.Results()
 				res.PrintText(inv.Stderr)
 
@@ -460,7 +460,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 
 			cliui.Errorf(inv.Stderr, "Found %d scaletest users\n", len(users))
 			if len(users) != 0 {
-				cliui.Infof(inv.Stdout, "Deleting scaletest users..."+"\n")
+				cliui.Infof(inv.Stdout, "Deleting scaletest users...")
 				harness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
 
 				for i, u := range users {
@@ -479,7 +479,7 @@ func (r *RootCmd) scaletestCleanup() *clibase.Cmd {
 					return xerrors.Errorf("run test harness to delete users (harness failure, not a test failure): %w", err)
 				}
 
-				cliui.Infof(inv.Stdout, "Done deleting scaletest users:"+"\n")
+				cliui.Infof(inv.Stdout, "Done deleting scaletest users:")
 				res := harness.Results()
 				res.PrintText(inv.Stderr)
 

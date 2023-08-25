@@ -200,8 +200,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly dormant_ttl_ms?: number
+  readonly delete_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -247,6 +247,7 @@ export interface CreateUserRequest {
   readonly email: string
   readonly username: string
   readonly password: string
+  readonly login_type: LoginType
   readonly disable_login: boolean
   readonly organization_id: string
 }
@@ -304,6 +305,7 @@ export interface DERP {
 // From codersdk/deployment.go
 export interface DERPConfig {
   readonly block_direct: boolean
+  readonly force_websockets: boolean
   readonly url: string
   readonly path: string
 }
@@ -320,7 +322,7 @@ export interface DERPServerConfig {
   readonly region_id: number
   readonly region_code: string
   readonly region_name: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly stun_addresses: string[]
   readonly relay_url: string
 }
@@ -354,9 +356,9 @@ export interface DeploymentValues {
   readonly derp?: DERP
   readonly prometheus?: PrometheusConfig
   readonly pprof?: PprofConfig
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly proxy_trusted_headers?: string[]
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly proxy_trusted_origins?: string[]
   readonly cache_directory?: string
   readonly in_memory_database?: boolean
@@ -368,7 +370,7 @@ export interface DeploymentValues {
   readonly trace?: TraceConfig
   readonly secure_auth_cookie?: boolean
   readonly strict_transport_security?: number
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly strict_transport_security_options?: string[]
   readonly ssh_keygen_algorithm?: string
   readonly metrics_cache_refresh_interval?: number
@@ -378,7 +380,7 @@ export interface DeploymentValues {
   readonly scim_api_key?: string
   readonly provisioner?: ProvisionerConfig
   readonly rate_limit?: RateLimitConfig
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly experiments?: string[]
   readonly update_check?: boolean
   readonly max_token_lifetime?: number
@@ -390,7 +392,7 @@ export interface DeploymentValues {
   readonly disable_session_expiry_refresh?: boolean
   readonly disable_password_auth?: boolean
   readonly support?: SupportConfig
-  // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.GitAuthConfig]" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly git_auth?: any
   readonly config_ssh?: SSHConfig
@@ -399,10 +401,10 @@ export interface DeploymentValues {
   readonly proxy_health_status_interval?: number
   readonly enable_terraform_debug_mode?: boolean
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.YAMLConfigPath")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.YAMLConfigPath")
   readonly config?: string
   readonly write_config?: boolean
-  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address?: any
 }
@@ -415,6 +417,7 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
+  readonly refreshed_at: string
 }
 
 // From codersdk/deployment.go
@@ -513,6 +516,7 @@ export interface Group {
   readonly members: User[]
   readonly avatar_url: string
   readonly quota_allowance: number
+  readonly source: GroupSource
 }
 
 // From codersdk/workspaceapps.go
@@ -552,7 +556,7 @@ export interface LinkConfig {
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly log_filter: string[]
   readonly human: string
   readonly json: string
@@ -586,9 +590,9 @@ export interface OAuth2Config {
 export interface OAuth2GithubConfig {
   readonly client_id: string
   readonly client_secret: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly allowed_orgs: string[]
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly allowed_teams: string[]
   readonly allow_signups: boolean
   readonly allow_everyone: boolean
@@ -614,27 +618,33 @@ export interface OIDCConfig {
   readonly allow_signups: boolean
   readonly client_id: string
   readonly client_secret: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  readonly client_key_file: string
+  readonly client_cert_file: string
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly email_domain: string[]
   readonly issuer_url: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly scopes: string[]
   readonly ignore_email_verified: boolean
   readonly username_field: string
   readonly email_field: string
-  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly auth_url_params: any
   readonly ignore_user_info: boolean
+  readonly group_auto_create: boolean
+  // Named type "github.com/coder/coder/v2/cli/clibase.Regexp" unknown, using "any"
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
+  readonly group_regex_filter: any
   readonly groups_field: string
-  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string]string]" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly group_mapping: any
   readonly user_role_field: string
-  // Named type "github.com/coder/coder/cli/clibase.Struct[map[string][]string]" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string][]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly user_role_mapping: any
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly user_roles_default: string[]
   readonly sign_in_text: string
   readonly icon_url: string
@@ -692,7 +702,7 @@ export interface PatchWorkspaceProxy {
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
 }
@@ -700,7 +710,7 @@ export interface PprofConfig {
 // From codersdk/deployment.go
 export interface PrometheusConfig {
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly collect_agent_stats: boolean
@@ -814,7 +824,7 @@ export interface Role {
 // From codersdk/deployment.go
 export interface SSHConfig {
   readonly DeploymentName: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly SSHConfigOptions: string[]
 }
 
@@ -849,7 +859,7 @@ export interface SessionCountDeploymentStats {
 
 // From codersdk/deployment.go
 export interface SupportConfig {
-  // Named type "github.com/coder/coder/cli/clibase.Struct[[]github.com/coder/coder/codersdk.LinkConfig]" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.LinkConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly links: any
 }
@@ -862,15 +872,15 @@ export interface SwaggerConfig {
 // From codersdk/deployment.go
 export interface TLSConfig {
   readonly enable: boolean
-  // Named type "github.com/coder/coder/cli/clibase.HostPort" unknown, using "any"
+  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
   readonly address: any
   readonly redirect_http: boolean
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly cert_file: string[]
   readonly client_auth: string
   readonly client_ca_file: string
-  // This is likely an enum in an external package ("github.com/coder/coder/cli/clibase.StringArray")
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly key_file: string[]
   readonly min_version: string
   readonly client_cert_file: string
@@ -907,8 +917,8 @@ export interface Template {
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
-  readonly inactivity_ttl_ms: number
-  readonly locked_ttl_ms: number
+  readonly time_til_dormant_ms: number
+  readonly time_til_dormant_autodelete_ms: number
 }
 
 // From codersdk/templates.go
@@ -987,6 +997,8 @@ export interface TemplateParameterUsage {
   readonly template_ids: string[]
   readonly display_name: string
   readonly name: string
+  readonly type: string
+  readonly description: string
   readonly options?: TemplateVersionParameterOption[]
   readonly values: TemplateParameterValue[]
 }
@@ -1140,8 +1152,10 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly time_til_dormant_ms?: number
+  readonly time_til_dormant_autodelete_ms?: number
+  readonly update_workspace_last_used_at: boolean
+  readonly update_workspace_dormant_at: boolean
 }
 
 // From codersdk/users.go
@@ -1166,8 +1180,8 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
-export interface UpdateWorkspaceLock {
-  readonly lock: boolean
+export interface UpdateWorkspaceDormancy {
+  readonly dormant: boolean
 }
 
 // From codersdk/workspaceproxy.go
@@ -1296,7 +1310,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
-  readonly locked_at?: string
+  readonly dormant_at?: string
   readonly health: WorkspaceHealth
 }
 
@@ -1333,7 +1347,7 @@ export interface WorkspaceAgent {
   readonly login_before_ready: boolean
   readonly shutdown_script?: string
   readonly shutdown_script_timeout_seconds: number
-  readonly subsystem: AgentSubsystem
+  readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
 }
 
@@ -1538,8 +1552,12 @@ export type APIKeyScope = "all" | "application_connect"
 export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 
 // From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox"
-export const AgentSubsystems: AgentSubsystem[] = ["envbox"]
+export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
+export const AgentSubsystems: AgentSubsystem[] = [
+  "envbox",
+  "envbuilder",
+  "exectrace",
+]
 
 // From codersdk/audit.go
 export type AuditAction =
@@ -1586,6 +1604,7 @@ export type Experiment =
   | "tailnet_pg_coordinator"
   | "template_restart_requirement"
   | "workspace_actions"
+  | "workspaces_batch_actions"
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
@@ -1593,6 +1612,7 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_restart_requirement",
   "workspace_actions",
+  "workspaces_batch_actions",
 ]
 
 // From codersdk/deployment.go
@@ -1635,18 +1655,17 @@ export const GitProviders: GitProvider[] = [
   "gitlab",
 ]
 
+// From codersdk/groups.go
+export type GroupSource = "oidc" | "user"
+export const GroupSources: GroupSource[] = ["oidc", "user"]
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day"
 export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode =
-  | "MISSING_TEMPLATE_PARAMETER"
-  | "REQUIRED_TEMPLATE_VARIABLES"
-export const JobErrorCodes: JobErrorCode[] = [
-  "MISSING_TEMPLATE_PARAMETER",
-  "REQUIRED_TEMPLATE_VARIABLES",
-]
+export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"]
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
@@ -1657,8 +1676,9 @@ export type LogSource = "provisioner" | "provisioner_daemon"
 export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token"
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
 export const LoginTypes: LoginType[] = [
+  "",
   "github",
   "none",
   "oidc",
@@ -1764,22 +1784,26 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go
@@ -1791,8 +1815,8 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 ]
 
 // From codersdk/insights.go
-export type TemplateAppsType = "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["builtin"]
+export type TemplateAppsType = "app" | "builtin"
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"

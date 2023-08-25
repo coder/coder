@@ -18,11 +18,12 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/rbac"
-	agpl "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 const (
@@ -402,11 +403,15 @@ func (b *binder) writeOne(bnd binding) error {
 			CoordinatorID: b.coordinatorID,
 			Node:          nodeRaw,
 		})
+		b.logger.Debug(b.ctx, "upserted agent binding",
+			slog.F("agent_id", bnd.agent), slog.F("node", nodeRaw), slog.Error(err))
 	case bnd.isAgent() && len(nodeRaw) == 0:
 		_, err = b.store.DeleteTailnetAgent(b.ctx, database.DeleteTailnetAgentParams{
 			ID:            bnd.agent,
 			CoordinatorID: b.coordinatorID,
 		})
+		b.logger.Debug(b.ctx, "deleted agent binding",
+			slog.F("agent_id", bnd.agent), slog.Error(err))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// treat deletes as idempotent
 			err = nil
@@ -418,11 +423,16 @@ func (b *binder) writeOne(bnd binding) error {
 			AgentID:       bnd.agent,
 			Node:          nodeRaw,
 		})
+		b.logger.Debug(b.ctx, "upserted client binding",
+			slog.F("agent_id", bnd.agent), slog.F("client_id", bnd.client),
+			slog.F("node", nodeRaw), slog.Error(err))
 	case bnd.isClient() && len(nodeRaw) == 0:
 		_, err = b.store.DeleteTailnetClient(b.ctx, database.DeleteTailnetClientParams{
 			ID:            bnd.client,
 			CoordinatorID: b.coordinatorID,
 		})
+		b.logger.Debug(b.ctx, "deleted client binding",
+			slog.F("agent_id", bnd.agent), slog.F("client_id", bnd.client), slog.Error(err))
 		if xerrors.Is(err, sql.ErrNoRows) {
 			// treat deletes as idempotent
 			err = nil
@@ -585,10 +595,12 @@ type querier struct {
 
 	workQ      *workQ[mKey]
 	heartbeats *heartbeats
-	updates    <-chan struct{}
+	updates    <-chan hbUpdate
 
 	mu      sync.Mutex
 	mappers map[mKey]*countedMapper
+	conns   map[*connIO]struct{}
+	healthy bool
 }
 
 type countedMapper struct {
@@ -603,7 +615,7 @@ func newQuerier(
 	self uuid.UUID, newConnections chan *connIO, numWorkers int,
 	firstHeartbeat chan<- struct{},
 ) *querier {
-	updates := make(chan struct{})
+	updates := make(chan hbUpdate)
 	q := &querier{
 		ctx:            ctx,
 		logger:         logger.Named("querier"),
@@ -613,9 +625,11 @@ func newQuerier(
 		workQ:          newWorkQ[mKey](ctx),
 		heartbeats:     newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat),
 		mappers:        make(map[mKey]*countedMapper),
+		conns:          make(map[*connIO]struct{}),
 		updates:        updates,
+		healthy:        true, // assume we start healthy
 	}
-	go q.subscribe()
+	q.subscribe()
 	go q.handleConnIO()
 	for i := 0; i < numWorkers; i++ {
 		go q.worker()
@@ -638,6 +652,15 @@ func (q *querier) handleConnIO() {
 func (q *querier) newConn(c *connIO) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	if !q.healthy {
+		err := c.updates.Close()
+		q.logger.Info(q.ctx, "closed incoming connection while unhealthy",
+			slog.Error(err),
+			slog.F("agent_id", c.agent),
+			slog.F("client_id", c.client),
+		)
+		return
+	}
 	mk := mKey{
 		agent: c.agent,
 		// if client is Nil, this is an agent connection, and it wants the mappings for all the clients of itself
@@ -660,6 +683,7 @@ func (q *querier) newConn(c *connIO) {
 		return
 	}
 	cm.count++
+	q.conns[c] = struct{}{}
 	go q.cleanupConn(c)
 }
 
@@ -667,6 +691,7 @@ func (q *querier) cleanupConn(c *connIO) {
 	<-c.ctx.Done()
 	q.mu.Lock()
 	defer q.mu.Unlock()
+	delete(q.conns, c)
 	mk := mKey{
 		agent: c.agent,
 		// if client is Nil, this is an agent connection, and it wants the mappings for all the clients of itself
@@ -732,6 +757,8 @@ func (q *querier) query(mk mKey) error {
 
 func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 	clients, err := q.store.GetTailnetClientsForAgent(q.ctx, agent)
+	q.logger.Debug(q.ctx, "queried clients of agent",
+		slog.F("agent_id", agent), slog.F("num_clients", len(clients)), slog.Error(err))
 	if err != nil {
 		return nil, err
 	}
@@ -756,6 +783,8 @@ func (q *querier) queryClientsOfAgent(agent uuid.UUID) ([]mapping, error) {
 
 func (q *querier) queryAgent(agentID uuid.UUID) ([]mapping, error) {
 	agents, err := q.store.GetTailnetAgents(q.ctx, agentID)
+	q.logger.Debug(q.ctx, "queried agents",
+		slog.F("agent_id", agentID), slog.F("num_agents", len(agents)), slog.Error(err))
 	if err != nil {
 		return nil, err
 	}
@@ -777,50 +806,62 @@ func (q *querier) queryAgent(agentID uuid.UUID) ([]mapping, error) {
 	return mappings, nil
 }
 
+// subscribe starts our subscriptions to client and agent updates in a new goroutine, and returns once we are subscribed
+// or the querier context is canceled.
 func (q *querier) subscribe() {
-	eb := backoff.NewExponentialBackOff()
-	eb.MaxElapsedTime = 0 // retry indefinitely
-	eb.MaxInterval = dbMaxBackoff
-	bkoff := backoff.WithContext(eb, q.ctx)
-	var cancelClient context.CancelFunc
-	err := backoff.Retry(func() error {
-		cancelFn, err := q.pubsub.SubscribeWithErr(eventClientUpdate, q.listenClient)
+	subscribed := make(chan struct{})
+	go func() {
+		defer close(subscribed)
+		eb := backoff.NewExponentialBackOff()
+		eb.MaxElapsedTime = 0 // retry indefinitely
+		eb.MaxInterval = dbMaxBackoff
+		bkoff := backoff.WithContext(eb, q.ctx)
+		var cancelClient context.CancelFunc
+		err := backoff.Retry(func() error {
+			cancelFn, err := q.pubsub.SubscribeWithErr(eventClientUpdate, q.listenClient)
+			if err != nil {
+				q.logger.Warn(q.ctx, "failed to subscribe to client updates", slog.Error(err))
+				return err
+			}
+			cancelClient = cancelFn
+			return nil
+		}, bkoff)
 		if err != nil {
-			q.logger.Warn(q.ctx, "failed to subscribe to client updates", slog.Error(err))
-			return err
+			if q.ctx.Err() == nil {
+				q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+			}
+			return
 		}
-		cancelClient = cancelFn
-		return nil
-	}, bkoff)
-	if err != nil {
-		if q.ctx.Err() == nil {
-			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
-		}
-		return
-	}
-	defer cancelClient()
-	bkoff.Reset()
+		defer cancelClient()
+		bkoff.Reset()
+		q.logger.Debug(q.ctx, "subscribed to client updates")
 
-	var cancelAgent context.CancelFunc
-	err = backoff.Retry(func() error {
-		cancelFn, err := q.pubsub.SubscribeWithErr(eventAgentUpdate, q.listenAgent)
+		var cancelAgent context.CancelFunc
+		err = backoff.Retry(func() error {
+			cancelFn, err := q.pubsub.SubscribeWithErr(eventAgentUpdate, q.listenAgent)
+			if err != nil {
+				q.logger.Warn(q.ctx, "failed to subscribe to agent updates", slog.Error(err))
+				return err
+			}
+			cancelAgent = cancelFn
+			return nil
+		}, bkoff)
 		if err != nil {
-			q.logger.Warn(q.ctx, "failed to subscribe to agent updates", slog.Error(err))
-			return err
+			if q.ctx.Err() == nil {
+				q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
+			}
+			return
 		}
-		cancelAgent = cancelFn
-		return nil
-	}, bkoff)
-	if err != nil {
-		if q.ctx.Err() == nil {
-			q.logger.Error(q.ctx, "code bug: retry failed before context canceled", slog.Error(err))
-		}
-		return
-	}
-	defer cancelAgent()
+		defer cancelAgent()
+		q.logger.Debug(q.ctx, "subscribed to agent updates")
 
-	// hold subscriptions open until context is canceled
-	<-q.ctx.Done()
+		// unblock the outer function from returning
+		subscribed <- struct{}{}
+
+		// hold subscriptions open until context is canceled
+		<-q.ctx.Done()
+	}()
+	<-subscribed
 }
 
 func (q *querier) listenClient(_ context.Context, msg []byte, err error) {
@@ -910,8 +951,18 @@ func (q *querier) handleUpdates() {
 		select {
 		case <-q.ctx.Done():
 			return
-		case <-q.updates:
-			q.updateAll()
+		case u := <-q.updates:
+			if u.filter == filterUpdateUpdated {
+				q.updateAll()
+			}
+			if u.health == healthUpdateUnhealthy {
+				q.unhealthyCloseAll()
+				continue
+			}
+			if u.health == healthUpdateHealthy {
+				q.setHealthy()
+				continue
+			}
 		}
 	}
 }
@@ -929,6 +980,30 @@ func (q *querier) updateAll() {
 			_ = sendCtx(m.ctx, m.update, struct{}{})
 		}(cm.mapper)
 	}
+}
+
+// unhealthyCloseAll marks the coordinator unhealthy and closes all connections.  We do this so that clients and agents
+// are forced to reconnect to the coordinator, and will hopefully land on a healthy coordinator.
+func (q *querier) unhealthyCloseAll() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.healthy = false
+	for c := range q.conns {
+		// close connections async so that we don't block the querier routine that responds to updates
+		go func(c *connIO) {
+			err := c.updates.Close()
+			if err != nil {
+				q.logger.Debug(q.ctx, "error closing conn while unhealthy", slog.Error(err))
+			}
+		}(c)
+		// NOTE: we don't need to remove the connection from the map, as that will happen async in q.cleanupConn()
+	}
+}
+
+func (q *querier) setHealthy() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.healthy = true
 }
 
 func (q *querier) getAll(ctx context.Context) (map[uuid.UUID]database.TailnetAgent, map[uuid.UUID][]database.TailnetClient, error) {
@@ -1077,6 +1152,28 @@ func (q *workQ[K]) done(key K) {
 	q.cond.Signal()
 }
 
+type filterUpdate int
+
+const (
+	filterUpdateNone filterUpdate = iota
+	filterUpdateUpdated
+)
+
+type healthUpdate int
+
+const (
+	healthUpdateNone healthUpdate = iota
+	healthUpdateHealthy
+	healthUpdateUnhealthy
+)
+
+// hbUpdate is an update sent from the heartbeats to the querier.  Zero values of the fields mean no update of that
+// kind.
+type hbUpdate struct {
+	filter filterUpdate
+	health healthUpdate
+}
+
 // heartbeats sends heartbeats for this coordinator on a timer, and monitors heartbeats from other coordinators.  If a
 // coordinator misses their heartbeat, we remove it from our map of "valid" coordinators, such that we will filter out
 // any mappings for it when filter() is called, and we send a signal on the update channel, which triggers all mappers
@@ -1088,8 +1185,9 @@ type heartbeats struct {
 	store  database.Store
 	self   uuid.UUID
 
-	update         chan<- struct{}
-	firstHeartbeat chan<- struct{}
+	update           chan<- hbUpdate
+	firstHeartbeat   chan<- struct{}
+	failedHeartbeats int
 
 	lock         sync.RWMutex
 	coordinators map[uuid.UUID]time.Time
@@ -1102,7 +1200,7 @@ type heartbeats struct {
 func newHeartbeats(
 	ctx context.Context, logger slog.Logger,
 	ps pubsub.Pubsub, store database.Store,
-	self uuid.UUID, update chan<- struct{},
+	self uuid.UUID, update chan<- hbUpdate,
 	firstHeartbeat chan<- struct{},
 ) *heartbeats {
 	h := &heartbeats{
@@ -1193,7 +1291,7 @@ func (h *heartbeats) recvBeat(id uuid.UUID) {
 		h.logger.Info(h.ctx, "heartbeats (re)started", slog.F("other_coordinator_id", id))
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, struct{}{})
+			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	h.coordinators[id] = time.Now()
@@ -1240,7 +1338,7 @@ func (h *heartbeats) checkExpiry() {
 	if expired {
 		// send on a separate goroutine to avoid holding lock.  Triggering update can be async
 		go func() {
-			_ = sendCtx(h.ctx, h.update, struct{}{})
+			_ = sendCtx(h.ctx, h.update, hbUpdate{filter: filterUpdateUpdated})
 		}()
 	}
 	// we need to reset the timer for when the next oldest coordinator will expire, if any.
@@ -1268,11 +1366,20 @@ func (h *heartbeats) sendBeats() {
 func (h *heartbeats) sendBeat() {
 	_, err := h.store.UpsertTailnetCoordinator(h.ctx, h.self)
 	if err != nil {
-		// just log errors, heartbeats are rescheduled on a timer
 		h.logger.Error(h.ctx, "failed to send heartbeat", slog.Error(err))
+		h.failedHeartbeats++
+		if h.failedHeartbeats == 3 {
+			h.logger.Error(h.ctx, "coordinator failed 3 heartbeats and is unhealthy")
+			_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateUnhealthy})
+		}
 		return
 	}
 	h.logger.Debug(h.ctx, "sent heartbeat")
+	if h.failedHeartbeats >= 3 {
+		h.logger.Info(h.ctx, "coordinator sent heartbeat and is healthy")
+		_ = sendCtx(h.ctx, h.update, hbUpdate{health: healthUpdateHealthy})
+	}
+	h.failedHeartbeats = 0
 }
 
 func (h *heartbeats) sendDelete() {
@@ -1351,8 +1458,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 				Node: conn.Node,
 			})
 		}
-		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) bool {
-			return a.Name < b.Name
+		slices.SortFunc(htmlAgent.Connections, func(a, b *agpl.HTMLClient) int {
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.Agents = append(data.Agents, htmlAgent)
@@ -1362,8 +1469,8 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 			Node: agent.Node,
 		})
 	}
-	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) bool {
-		return a.Name < b.Name
+	slices.SortFunc(data.Agents, func(a, b *agpl.HTMLAgent) int {
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	for agentID, conns := range clients {
@@ -1389,14 +1496,14 @@ func (c *pgCoord) htmlDebug(ctx context.Context) (agpl.HTMLDebug, error) {
 				Node: conn.Node,
 			})
 		}
-		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) bool {
-			return a.Name < b.Name
+		slices.SortFunc(agent.Connections, func(a, b *agpl.HTMLClient) int {
+			return slice.Ascending(a.Name, b.Name)
 		})
 
 		data.MissingAgents = append(data.MissingAgents, agent)
 	}
-	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) bool {
-		return a.Name < b.Name
+	slices.SortFunc(data.MissingAgents, func(a, b *agpl.HTMLAgent) int {
+		return slice.Ascending(a.Name, b.Name)
 	})
 
 	return data, nil

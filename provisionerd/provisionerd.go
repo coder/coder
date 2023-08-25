@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/spf13/afero"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -21,12 +20,12 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionerd/runner"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/retry"
 )
 
@@ -44,7 +43,6 @@ type Provisioners map[string]sdkproto.DRPCProvisionerClient
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
-	Filesystem     afero.Fs
 	Logger         slog.Logger
 	TracerProvider trace.TracerProvider
 	Metrics        *Metrics
@@ -56,8 +54,6 @@ type Options struct {
 	JobPollJitter       time.Duration
 	JobPollDebounce     time.Duration
 	Provisioners        Provisioners
-	// WorkDirectory must not be used by multiple processes at once.
-	WorkDirectory string
 }
 
 // New creates and starts a provisioner daemon.
@@ -79,9 +75,6 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	}
 	if opts.LogBufferInterval == 0 {
 		opts.LogBufferInterval = 250 * time.Millisecond
-	}
-	if opts.Filesystem == nil {
-		opts.Filesystem = afero.NewOsFs()
 	}
 	if opts.TracerProvider == nil {
 		opts.TracerProvider = trace.NewNoopTracerProvider()
@@ -204,7 +197,7 @@ func (p *Server) connect(ctx context.Context) {
 		p.clientValue.Store(ptr.Ref(client))
 		p.mutex.Unlock()
 
-		p.opts.Logger.Debug(context.Background(), "connected")
+		p.opts.Logger.Debug(ctx, "successfully connected to coderd")
 		break
 	}
 	select {
@@ -404,9 +397,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 		runner.Options{
 			Updater:             p,
 			QuotaCommitter:      p,
-			Logger:              p.opts.Logger,
-			Filesystem:          p.opts.Filesystem,
-			WorkDirectory:       p.opts.WorkDirectory,
+			Logger:              p.opts.Logger.Named("runner"),
 			Provisioner:         provisioner,
 			UpdateInterval:      p.opts.UpdateInterval,
 			ForceCancelInterval: p.opts.ForceCancelInterval,

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 func TestNewDERPMap(t *testing.T) {
@@ -24,7 +24,9 @@ func TestNewDERPMap(t *testing.T) {
 			Nodes:    []*tailcfg.DERPNode{{}},
 		}, []string{"stun.google.com:2345"}, "", "", false)
 		require.NoError(t, err)
-		require.Len(t, derpMap.Regions[1].Nodes, 2)
+		require.Len(t, derpMap.Regions, 2)
+		require.Len(t, derpMap.Regions[1].Nodes, 1)
+		require.Len(t, derpMap.Regions[2].Nodes, 1)
 	})
 	t.Run("RemoteURL", func(t *testing.T) {
 		t.Parallel()
