@@ -33,7 +33,7 @@ export const PublishTemplateVersionDialog: FC<
     initialValues: {
       name: defaultName,
       message: "",
-      isActiveVersion: false,
+      isActiveVersion: true,
     },
     validationSchema: Yup.object({
       name: Yup.string().required(),

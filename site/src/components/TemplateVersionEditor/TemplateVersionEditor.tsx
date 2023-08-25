@@ -65,6 +65,7 @@ export interface TemplateVersionEditorProps {
   onCancelPublish: () => void
   publishingError: unknown
   publishedVersion?: TemplateVersion
+  onCreateWorkspace: () => void
   isAskingPublishParameters: boolean
   isPromptingMissingVariables: boolean
   isPublishing: boolean
@@ -102,6 +103,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   isPublishing,
   publishingError,
   publishedVersion,
+  onCreateWorkspace,
   buildLogs,
   resources,
   isPromptingMissingVariables,
@@ -207,8 +209,16 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
           </div>
 
           {publishedVersion && (
-            <Alert severity="success" dismissible>
-              Successfully published!
+            <Alert
+              severity="success"
+              dismissible
+              actions={
+                <Button variant="text" size="small" onClick={onCreateWorkspace}>
+                  Create a new workspace
+                </Button>
+              }
+            >
+              Successfully published {publishedVersion.name}!
             </Alert>
           )}
 
