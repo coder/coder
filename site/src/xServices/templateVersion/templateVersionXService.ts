@@ -166,8 +166,9 @@ export const templateVersionMachine = createMachine(
         if (previousVersion) {
           loadFilesPromises.push(getTemplateVersionFiles(previousVersion))
         }
-        const [currentFiles, previousFiles] =
-          await Promise.all(loadFilesPromises)
+        const [currentFiles, previousFiles] = await Promise.all(
+          loadFilesPromises,
+        )
         return {
           currentFiles,
           previousFiles,
