@@ -37,10 +37,9 @@ test("restart workspace with ephemeral parameters", async ({ page }) => {
     true,
   )
 
-  // FIXME: verify that build options are default (not selected).
-  // It is the opposite now until the site logic is corrected.
+  // Verify that build options are default (not selected).
   await verifyParameters(page, workspaceName, richParameters, [
-    { name: firstBuildOption.name, value: buildParameters[0].value },
-    { name: secondBuildOption.name, value: buildParameters[1].value },
+    { name: firstBuildOption.name, value: firstBuildOption.defaultValue },
+    { name: secondBuildOption.name, value: secondBuildOption.defaultValue },
   ])
 })
