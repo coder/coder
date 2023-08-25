@@ -158,7 +158,7 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-resource "coder_agent" "main" {
+resource "coder_agent" "dev" {
   arch                   = "amd64"
   auth                   = "aws-instance-identity"
   os                     = "linux"
@@ -195,7 +195,7 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  agent_id     = coder_agent.dev.id
   slug         = "code-server"
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
@@ -239,7 +239,7 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.dev.init_script}'
 --//--
 EOT
 }
@@ -249,7 +249,7 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = local.user_data_start
+  user_data = local.user_data
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
