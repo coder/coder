@@ -2,6 +2,10 @@
 # Over time we should try tightening some of these.
 
 linters-settings:
+  dupl:
+    # goal: 100
+    threshold: 412
+
   exhaustruct:
     include:
       # Gradually extend to cover more of the codebase.
@@ -268,3 +272,4 @@ linters:
     - typecheck
     - unconvert
     - unused
+    - dupl
