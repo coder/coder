@@ -28,7 +28,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
     : metadataToDisplay.slice(0, 4)
 
   return (
-    <div key={resource.id} className={styles.resourceCard}>
+    <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
       <Stack
         direction="row"
         alignItems="flex-start"

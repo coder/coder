@@ -19,12 +19,12 @@ message AcquiredJob {
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
         repeated provisioner.VariableValue variable_values = 5;
         repeated provisioner.GitAuthProvider git_auth_providers = 6;
-        provisioner.Provision.Metadata metadata = 7;
+        provisioner.Metadata metadata = 7;
         bytes state = 8;
         string log_level = 9;
     }
     message TemplateImport {
-        provisioner.Provision.Metadata metadata = 1;
+        provisioner.Metadata metadata = 1;
         repeated provisioner.VariableValue user_variable_values = 2;
     }
     message TemplateDryRun {
@@ -32,7 +32,7 @@ message AcquiredJob {
 
         repeated provisioner.RichParameterValue rich_parameter_values = 2;
         repeated provisioner.VariableValue variable_values = 3;
-        provisioner.Provision.Metadata metadata = 4;
+        provisioner.Metadata metadata = 4;
     }
 
     string job_id = 1;
@@ -45,9 +45,9 @@ message AcquiredJob {
         TemplateImport template_import = 7;
         TemplateDryRun template_dry_run = 8;
     }
-	// trace_metadata is currently used for tracing information only. It allows
-	// jobs to be tied to the request that created them.
-	map<string, string> trace_metadata = 9;
+    // trace_metadata is currently used for tracing information only. It allows
+    // jobs to be tied to the request that created them.
+    map<string, string> trace_metadata = 9;
 }
 
 message FailedJob {
@@ -113,7 +113,7 @@ message UpdateJobRequest {
     string job_id = 1;
     repeated Log logs = 2;
     repeated provisioner.TemplateVariable template_variables = 4;
-	repeated provisioner.VariableValue user_variable_values = 5;
+    repeated provisioner.VariableValue user_variable_values = 5;
     bytes readme = 6;
 }
 
@@ -121,7 +121,7 @@ message UpdateJobResponse {
     reserved 2;
 
     bool canceled = 1;
-	repeated provisioner.VariableValue variable_values = 3;
+    repeated provisioner.VariableValue variable_values = 3;
 }
 
 message CommitQuotaRequest {

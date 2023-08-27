@@ -132,10 +132,7 @@ export const WorkspaceParametersForm: FC<{
                     })
                   }}
                   parameter={parameter}
-                  initialValue={workspaceBuildParameterValue(
-                    buildParameters,
-                    parameter,
-                  )}
+                  initialValue={form.values.rich_parameter_values[index]?.value}
                 />
               ) : null,
             )}

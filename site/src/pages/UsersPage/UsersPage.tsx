@@ -20,6 +20,8 @@ import { useStatusFilterMenu } from "./UsersFilter"
 import { useFilter } from "components/Filter/filter"
 import { useDashboard } from "components/Dashboard/DashboardProvider"
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
+import { useQuery } from "@tanstack/react-query"
+import { getAuthMethods } from "api/api"
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -78,16 +80,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const oidcRoleSyncEnabled =
     viewDeploymentValues &&
     deploymentValues?.config.oidc?.user_role_field !== ""
-
-  // Is loading if
-  // - users are loading or
-  // - the user can edit the users but the roles are loading
-  const isLoading =
-    usersState.matches("gettingUsers") ||
-    (canEditUsers && rolesState.matches("gettingRoles"))
-
   const me = useMe()
-
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: () => {
@@ -105,6 +98,19 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         status: option?.value,
       }),
   })
+  const authMethods = useQuery({
+    queryKey: ["authMethods"],
+    queryFn: () => {
+      return getAuthMethods()
+    },
+  })
+  // Is loading if
+  // - users are loading or
+  // - the user can edit the users but the roles are loading
+  const isLoading =
+    usersState.matches("gettingUsers") ||
+    (canEditUsers && rolesState.matches("gettingRoles")) ||
+    authMethods.isLoading
 
   return (
     <>
@@ -115,6 +121,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
         roles={roles}
         users={users}
+        authMethods={authMethods.data}
         count={count}
         onListWorkspaces={(user) => {
           navigate(

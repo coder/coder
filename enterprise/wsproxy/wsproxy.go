@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -121,7 +122,7 @@ type Server struct {
 
 	// DERP
 	derpMesh      *derpmesh.Mesh
-	latestDERPMap *tailcfg.DERPMap
+	latestDERPMap atomic.Pointer[tailcfg.DERPMap]
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
@@ -247,8 +248,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			s.Logger,
 			nil,
 			func() *tailcfg.DERPMap {
-				return s.latestDERPMap
+				return s.latestDERPMap.Load()
 			},
+			regResp.DERPForceWebSockets,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
 			s.TracerProvider,
@@ -455,7 +457,7 @@ func (s *Server) handleRegister(_ context.Context, res wsproxysdk.RegisterWorksp
 	}
 	s.derpMesh.SetAddresses(addresses, false)
 
-	s.latestDERPMap = res.DERPMap
+	s.latestDERPMap.Store(res.DERPMap)
 
 	return nil
 }

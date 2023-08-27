@@ -72,7 +72,11 @@ const deleteUser = async (setupActionSpies: () => void) => {
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog")
   expect(confirmDialog).toHaveTextContent(
-    t("deleteDialog.confirm", { ns: "common", entity: "user" }).toString(),
+    t("deleteDialog.confirm", {
+      ns: "common",
+      entity: "user",
+      name: MockUser2.username,
+    }).toString(),
   )
 
   // Confirm with text input

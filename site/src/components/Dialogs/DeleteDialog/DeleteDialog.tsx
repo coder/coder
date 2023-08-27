@@ -39,7 +39,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       <Maybe condition={info !== undefined}>
         <p className={styles.warning}>{info}</p>
       </Maybe>
-      <p>{t("deleteDialog.confirm", { entity })}</p>
+      <p>{t("deleteDialog.confirm", { entity, name })}</p>
 
       <form
         onSubmit={(e) => {

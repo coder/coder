@@ -160,7 +160,7 @@ export interface ScheduleDialogProps extends ConfirmDialogProps {
   readonly inactiveWorkspacesToGoDormantInWeek: number
   readonly dormantWorkspacesToBeDeleted: number
   readonly dormantWorkspacesToBeDeletedInWeek: number
-  readonly updateLockedWorkspaces: (confirm: boolean) => void
+  readonly updateDormantWorkspaces: (confirm: boolean) => void
   readonly updateInactiveWorkspaces: (confirm: boolean) => void
   readonly dormantValueChanged: boolean
   readonly deletionValueChanged: boolean
@@ -180,7 +180,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
   inactiveWorkspacesToGoDormantInWeek,
   dormantWorkspacesToBeDeleted,
   dormantWorkspacesToBeDeletedInWeek,
-  updateLockedWorkspaces,
+  updateDormantWorkspaces,
   updateInactiveWorkspaces,
   dormantValueChanged,
   deletionValueChanged,
@@ -250,7 +250,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
                     <Checkbox
                       size="small"
                       onChange={(e) => {
-                        updateLockedWorkspaces(e.target.checked)
+                        updateDormantWorkspaces(e.target.checked)
                       }}
                     />
                   }

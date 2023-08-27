@@ -48,6 +48,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "dormant_at": "2019-08-24T14:15:22Z",
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -182,7 +183,6 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
-  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -237,6 +237,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "dormant_at": "2019-08-24T14:15:22Z",
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -371,7 +372,6 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
-  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -429,6 +429,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
+      "dormant_at": "2019-08-24T14:15:22Z",
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false
@@ -559,7 +560,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
-      "locked_at": "2019-08-24T14:15:22Z",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
@@ -615,6 +615,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "dormant_at": "2019-08-24T14:15:22Z",
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -749,7 +750,6 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
-  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -846,88 +846,34 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Extend workspace deadline by ID
+## Update workspace dormancy status by id.
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PUT /workspaces/{workspace}/extend`
+`PUT /workspaces/{workspace}/dormant`
 
 > Body parameter
 
 ```json
 {
-  "deadline": "2019-08-24T14:15:22Z"
+  "dormant": true
 }
 ```
 
 ### Parameters
 
-| Name        | In   | Type                                                                               | Required | Description                    |
-| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
-| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
-| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
-
-### Example responses
-
-> 200 Response
-
-```json
-{
-  "detail": "string",
-  "message": "string",
-  "validations": [
-    {
-      "detail": "string",
-      "field": "string"
-    }
-  ]
-}
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
-## Update workspace lock by id.
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
-  -H 'Content-Type: application/json' \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`PUT /workspaces/{workspace}/lock`
-
-> Body parameter
-
-```json
-{
-  "lock": true
-}
-```
-
-### Parameters
-
-| Name        | In   | Type                                                                   | Required | Description                |
-| ----------- | ---- | ---------------------------------------------------------------------- | -------- | -------------------------- |
-| `workspace` | path | string(uuid)                                                           | true     | Workspace ID               |
-| `body`      | body | [codersdk.UpdateWorkspaceLock](schemas.md#codersdkupdateworkspacelock) | true     | Lock or unlock a workspace |
+| Name        | In   | Type                                                                           | Required | Description                        |
+| ----------- | ---- | ------------------------------------------------------------------------------ | -------- | ---------------------------------- |
+| `workspace` | path | string(uuid)                                                                   | true     | Workspace ID                       |
+| `body`      | body | [codersdk.UpdateWorkspaceDormancy](schemas.md#codersdkupdateworkspacedormancy) | true     | Make a workspace dormant or active |
 
 ### Example responses
 
@@ -938,6 +884,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "dormant_at": "2019-08-24T14:15:22Z",
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -1072,7 +1019,6 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
-  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
@@ -1094,6 +1040,60 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/lock \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Workspace](schemas.md#codersdkworkspace) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Extend workspace deadline by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/extend \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /workspaces/{workspace}/extend`
+
+> Body parameter
+
+```json
+{
+  "deadline": "2019-08-24T14:15:22Z"
+}
+```
+
+### Parameters
+
+| Name        | In   | Type                                                                               | Required | Description                    |
+| ----------- | ---- | ---------------------------------------------------------------------------------- | -------- | ------------------------------ |
+| `workspace` | path | string(uuid)                                                                       | true     | Workspace ID                   |
+| `body`      | body | [codersdk.PutExtendWorkspaceRequest](schemas.md#codersdkputextendworkspacerequest) | true     | Extend deadline update request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

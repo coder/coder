@@ -302,7 +302,7 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	agentToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:          echo.ParseComplete,
-		ProvisionPlan:  echo.ProvisionComplete,
+		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 	})
 

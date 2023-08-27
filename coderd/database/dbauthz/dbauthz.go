@@ -2636,18 +2636,18 @@ func (q *querier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.U
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceDormantDeletingAt)(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.ID)
-	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedDeletingAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -2671,12 +2671,12 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) (database.Template, error) {
+func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
 
-	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesLockedDeletingAtByTemplateID)(ctx, arg)
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesDormantDeletingAtByTemplateID)(ctx, arg)
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
