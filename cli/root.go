@@ -831,6 +831,13 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 	return nil
 }
 
+// Verbosef logs a message if verbose mode is enabled.
+func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...interface{}) {
+	if r.verbose {
+		cliui.Infof(inv.Stdout, fmtStr, args...)
+	}
+}
+
 type headerTransport struct {
 	transport http.RoundTripper
 	header    http.Header
