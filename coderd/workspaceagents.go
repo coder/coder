@@ -532,7 +532,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		var msg agentsdk.LogsNotifyMessage
 		err := json.Unmarshal(logs, &msg)
 		if err != nil {
-			api.Logger.Warn(ctx, "failed to unmarshal logs notify message", slog.F("error", err))
+			api.Logger.Warn(ctx, "failed to unmarshal logs notify message", slog.Error(err))
 			return
 		}
 

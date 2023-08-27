@@ -888,7 +888,7 @@ func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetC
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) DeleteWorkspaceAgentLogsBySource(ctx context.Context, arg database.DeleteWorkspaceAgentLogsBySourceParams) error {
+func (q *FakeQuerier) DeleteWorkspaceAgentLogsBySource(_ context.Context, arg database.DeleteWorkspaceAgentLogsBySourceParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
