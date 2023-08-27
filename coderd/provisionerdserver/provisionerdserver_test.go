@@ -267,7 +267,7 @@ func TestAcquireJob(t *testing.T) {
 					Id:          gitAuthProvider,
 					AccessToken: "access_token",
 				}},
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      srv.AccessURL.String(),
 					WorkspaceTransition:           sdkproto.WorkspaceTransition_START,
 					WorkspaceName:                 workspace.Name,
@@ -359,7 +359,7 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateDryRun_{
 			TemplateDryRun: &proto.AcquiredJob_TemplateDryRun{
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl:      srv.AccessURL.String(),
 					WorkspaceName: "testing",
 				},
@@ -391,7 +391,7 @@ func TestAcquireJob(t *testing.T) {
 
 		want, err := json.Marshal(&proto.AcquiredJob_TemplateImport_{
 			TemplateImport: &proto.AcquiredJob_TemplateImport{
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: srv.AccessURL.String(),
 				},
 			},
@@ -434,7 +434,7 @@ func TestAcquireJob(t *testing.T) {
 				UserVariableValues: []*sdkproto.VariableValue{
 					{Name: "first", Sensitive: true, Value: "first_value"},
 				},
-				Metadata: &sdkproto.Provision_Metadata{
+				Metadata: &sdkproto.Metadata{
 					CoderUrl: srv.AccessURL.String(),
 				},
 			},

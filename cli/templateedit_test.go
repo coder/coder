@@ -752,7 +752,7 @@ func TestTemplateEdit(t *testing.T) {
 				ctr.DefaultTTLMillis = nil
 				ctr.RestartRequirement = nil
 				ctr.FailureTTLMillis = nil
-				ctr.InactivityTTLMillis = nil
+				ctr.TimeTilDormantMillis = nil
 			})
 
 			// Test the cli command with --allow-user-autostart.
@@ -798,7 +798,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -892,7 +892,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -990,7 +990,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 	})
 }

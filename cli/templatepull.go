@@ -83,7 +83,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 			}
 
 			if dest == "" {
-				dest = templateName + "/"
+				dest = templateName
 			}
 
 			err = os.MkdirAll(dest, 0o750)

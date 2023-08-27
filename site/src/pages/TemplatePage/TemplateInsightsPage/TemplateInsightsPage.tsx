@@ -30,12 +30,12 @@ import { subDays, isToday } from "date-fns"
 import "react-date-range/dist/styles.css"
 import "react-date-range/dist/theme/default.css"
 import { DateRange, DateRangeValue } from "./DateRange"
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
 import Link from "@mui/material/Link"
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
 import CancelOutlined from "@mui/icons-material/CancelOutlined"
 import { getDateRangeFilter } from "./utils"
 import Tooltip from "@mui/material/Tooltip"
+import LinkOutlined from "@mui/icons-material/LinkOutlined"
 
 export default function TemplateInsightsPage() {
   const now = new Date()
@@ -393,10 +393,6 @@ const ParameterUsageLabel = ({
   usage: TemplateParameterValue
   parameter: TemplateParameterUsage
 }) => {
-  if (usage.value.trim() === "") {
-    return <Box component="span">Not set</Box>
-  }
-
   if (parameter.options) {
     const option = parameter.options.find((o) => o.value === usage.value)!
     const icon = option.icon
@@ -441,8 +437,14 @@ const ParameterUsageLabel = ({
           color: (theme) => theme.palette.text.primary,
         }}
       >
-        <OpenInNewOutlined sx={{ width: 14, height: 14 }} />
-        {usage.value}
+        <TextValue>{usage.value}</TextValue>
+        <LinkOutlined
+          sx={{
+            width: 14,
+            height: 14,
+            color: (theme) => theme.palette.primary.light,
+          }}
+        />
       </Link>
     )
   }
@@ -506,7 +508,7 @@ const ParameterUsageLabel = ({
     )
   }
 
-  return <Box>{usage.value}</Box>
+  return <TextValue>{usage.value}</TextValue>
 }
 
 const Panel = styled(Box)(({ theme }) => ({
@@ -549,6 +551,34 @@ const NoDataAvailable = (props: BoxProps) => {
       }}
     >
       No data available
+    </Box>
+  )
+}
+
+const TextValue = ({ children }: { children: ReactNode }) => {
+  return (
+    <Box component="span">
+      <Box
+        component="span"
+        sx={{
+          color: (theme) => theme.palette.text.secondary,
+          weight: 600,
+          mr: 0.25,
+        }}
+      >
+        &quot;
+      </Box>
+      {children}
+      <Box
+        component="span"
+        sx={{
+          color: (theme) => theme.palette.text.secondary,
+          weight: 600,
+          ml: 0.25,
+        }}
+      >
+        &quot;
+      </Box>
     </Box>
   )
 }

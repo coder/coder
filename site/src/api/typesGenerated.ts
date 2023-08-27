@@ -200,8 +200,8 @@ export interface CreateTemplateRequest {
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly dormant_ttl_ms?: number
+  readonly delete_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -305,6 +305,7 @@ export interface DERP {
 // From codersdk/deployment.go
 export interface DERPConfig {
   readonly block_direct: boolean
+  readonly force_websockets: boolean
   readonly url: string
   readonly path: string
 }
@@ -416,6 +417,7 @@ export interface Entitlements {
   readonly has_license: boolean
   readonly trial: boolean
   readonly require_telemetry: boolean
+  readonly refreshed_at: string
 }
 
 // From codersdk/deployment.go
@@ -915,8 +917,8 @@ export interface Template {
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
-  readonly inactivity_ttl_ms: number
-  readonly locked_ttl_ms: number
+  readonly time_til_dormant_ms: number
+  readonly time_til_dormant_autodelete_ms: number
 }
 
 // From codersdk/templates.go
@@ -1150,8 +1152,10 @@ export interface UpdateTemplateMeta {
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly time_til_dormant_ms?: number
+  readonly time_til_dormant_autodelete_ms?: number
+  readonly update_workspace_last_used_at: boolean
+  readonly update_workspace_dormant_at: boolean
 }
 
 // From codersdk/users.go
@@ -1176,8 +1180,8 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
-export interface UpdateWorkspaceLock {
-  readonly lock: boolean
+export interface UpdateWorkspaceDormancy {
+  readonly dormant: boolean
 }
 
 // From codersdk/workspaceproxy.go
@@ -1306,7 +1310,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
-  readonly locked_at?: string
+  readonly dormant_at?: string
   readonly health: WorkspaceHealth
 }
 
@@ -1667,13 +1671,8 @@ export type InsightsReportInterval = "day"
 export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode =
-  | "MISSING_TEMPLATE_PARAMETER"
-  | "REQUIRED_TEMPLATE_VARIABLES"
-export const JobErrorCodes: JobErrorCode[] = [
-  "MISSING_TEMPLATE_PARAMETER",
-  "REQUIRED_TEMPLATE_VARIABLES",
-]
+export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"]
 
 // From codersdk/provisionerdaemons.go
 export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
@@ -1792,22 +1791,26 @@ export type ResourceType =
   | "git_ssh_key"
   | "group"
   | "license"
+  | "organization"
   | "template"
   | "template_version"
   | "user"
   | "workspace"
   | "workspace_build"
+  | "workspace_proxy"
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
   "git_ssh_key",
   "group",
   "license",
+  "organization",
   "template",
   "template_version",
   "user",
   "workspace",
   "workspace_build",
+  "workspace_proxy",
 ]
 
 // From codersdk/serversentevents.go
@@ -1819,8 +1822,8 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 ]
 
 // From codersdk/insights.go
-export type TemplateAppsType = "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["builtin"]
+export type TemplateAppsType = "app" | "builtin"
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use"

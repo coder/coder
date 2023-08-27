@@ -9,14 +9,20 @@ import useToggle from "react-use/lib/useToggle"
 import { pageTitle } from "utils/page"
 import { entitlementsMachine } from "xServices/entitlements/entitlementsXService"
 import LicensesSettingsPageView from "./LicensesSettingsPageView"
+import { getErrorMessage } from "api/errors"
 
 const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient()
-  const [entitlementsState] = useMachine(entitlementsMachine)
-  const { entitlements } = entitlementsState.context
+  const [entitlementsState, sendEvent] = useMachine(entitlementsMachine)
+  const { entitlements, getEntitlementsError } = entitlementsState.context
   const [searchParams, setSearchParams] = useSearchParams()
   const success = searchParams.get("success")
   const [confettiOn, toggleConfettiOn] = useToggle(false)
+  if (getEntitlementsError) {
+    displayError(
+      getErrorMessage(getEntitlementsError, "Failed to fetch entitlements"),
+    )
+  }
 
   const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
     useMutation(removeLicense, {
@@ -58,6 +64,10 @@ const LicensesSettingsPage: FC = () => {
         licenses={licenses}
         isRemovingLicense={isRemovingLicense}
         removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
+        refreshEntitlements={() => {
+          const x = sendEvent("REFRESH")
+          return !x.context.getEntitlementsError
+        }}
       />
     </>
   )

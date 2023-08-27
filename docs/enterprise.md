@@ -1,8 +1,8 @@
 # Enterprise Features
 
-Coder is free to use and includes some features that are only accessible with a paid license.
-[Contact Sales](https://coder.com/contact) for pricing or [get a free
-trial](https://coder.com/trial).
+Coder is free to use and includes some features that are only accessible with a
+paid license. [Contact Sales](https://coder.com/contact) for pricing or
+[get a free trial](https://coder.com/trial).
 
 | Category        | Feature                                                                              | Open Source | Enterprise |
 | --------------- | ------------------------------------------------------------------------------------ | :---------: | :--------: |
@@ -20,10 +20,19 @@ trial](https://coder.com/trial).
 | Deployment      | [Isolated Terraform Runners](./admin/provisioners.md)                                |     ❌      |     ✅     |
 | Deployment      | [Workspace Proxies](./admin/workspace-proxies.md)                                    |     ❌      |     ✅     |
 
-> Previous plans to restrict OIDC and Git Auth features in OSS have been removed
-> as of 2023-01-11
-
 ## Adding your license key
+
+There are two ways to add an enterprise license to a Coder deployment: In the
+Coder UI or with the Coder CLI.
+
+### Coder UI
+
+Click Deployment, Licenses, Add a license then drag or select the license file
+with the `jwt` extension.
+
+![Add License UI](./images/add-license-ui.png)
+
+### Coder CLI
 
 ### Requirements
 

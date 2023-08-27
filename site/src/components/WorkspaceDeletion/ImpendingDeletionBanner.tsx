@@ -10,7 +10,7 @@ export enum Count {
   Multiple,
 }
 
-export const LockedWorkspaceBanner = ({
+export const DormantWorkspaceBanner = ({
   workspaces,
   onDismiss,
   shouldRedisplayBanner,
@@ -27,8 +27,8 @@ export const LockedWorkspaceBanner = ({
     return null
   }
 
-  const hasLockedWorkspaces = workspaces.find(
-    (workspace) => workspace.locked_at,
+  const hasDormantWorkspaces = workspaces.find(
+    (workspace) => workspace.dormant_at,
   )
 
   const hasDeletionScheduledWorkspaces = workspaces.find(
@@ -38,7 +38,7 @@ export const LockedWorkspaceBanner = ({
   if (
     // Only show this if the experiment is included.
     !experimentEnabled ||
-    !hasLockedWorkspaces ||
+    !hasDormantWorkspaces ||
     // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
     !shouldRedisplayBanner
   ) {
@@ -59,20 +59,20 @@ export const LockedWorkspaceBanner = ({
       if (
         hasDeletionScheduledWorkspaces &&
         hasDeletionScheduledWorkspaces.deleting_at &&
-        hasDeletionScheduledWorkspaces.locked_at
+        hasDeletionScheduledWorkspaces.dormant_at
       ) {
-        return `This workspace has been locked since ${formatDistanceToNow(
-          Date.parse(hasDeletionScheduledWorkspaces.locked_at),
-        )} and is scheduled to be deleted at ${formatDate(
+        return `This workspace has been dormant for ${formatDistanceToNow(
+          Date.parse(hasDeletionScheduledWorkspaces.dormant_at),
+        )} and is scheduled to be deleted on ${formatDate(
           hasDeletionScheduledWorkspaces.deleting_at,
-        )} . To keep it you must unlock the workspace.`
-      } else if (hasLockedWorkspaces && hasLockedWorkspaces.locked_at) {
-        return `This workspace has been locked since ${formatDate(
-          hasLockedWorkspaces.locked_at,
+        )} . To keep it you must activate the workspace.`
+      } else if (hasDormantWorkspaces && hasDormantWorkspaces.dormant_at) {
+        return `This workspace has been dormant for ${formatDistanceToNow(
+          Date.parse(hasDormantWorkspaces.dormant_at),
         )}
         and cannot be interacted
-		with. Locked workspaces are eligible for
-		permanent deletion. To prevent deletion, unlock
+		with. Dormant workspaces are eligible for
+		permanent deletion. To prevent deletion, activate
 		the workspace.`
       }
     }
@@ -88,12 +88,12 @@ export const LockedWorkspaceBanner = ({
           <span>There are</span>{" "}
           <Link
             component={RouterLink}
-            to="/workspaces?filter=locked_at:1970-01-01"
+            to="/workspaces?filter=dormant_at:1970-01-01"
           >
             workspaces
           </Link>{" "}
-          that may be deleted soon due to inactivity. Unlock the workspaces you
-          wish to retain.
+          that may be deleted soon due to inactivity. Activate the workspaces
+          you wish to retain.
         </>
       )}
     </Alert>

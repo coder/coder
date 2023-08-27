@@ -1,17 +1,17 @@
 # JetBrains Gateway
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
-a JetBrains IDE without even downloading one. [See JetBrains' website to learn
-about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
+a JetBrains IDE without even downloading one.
+[See JetBrains' website to learn about and Gateway.](https://www.jetbrains.com/remote-development/gateway/)
 
 Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
 manually setting up an SSH connection.
 
 ## Using Coder's JetBrains Gateway Plugin
 
-> If you experience problems, please [create a GitHub
-> issue](https://github.com/coder/coder/issues) or share in [our Discord
-> channel](https://discord.gg/coder).
+> If you experience problems, please
+> [create a GitHub issue](https://github.com/coder/coder/issues) or share in
+> [our Discord channel](https://discord.gg/coder).
 
 1. [Install Gateway](https://www.jetbrains.com/help/idea/jetbrains-gateway.html)
 1. Open Gateway and click the Coder icon to install the Coder plugin.
@@ -22,7 +22,8 @@ manually setting up an SSH connection.
 
    ![Gateway Connect to Coder](../images/gateway/plugin-connect-to-coder.png)
 
-1. Enter your Coder deployment's Access Url and click "Connect" then paste the Session Token and click "OK"
+1. Enter your Coder deployment's Access Url and click "Connect" then paste the
+   Session Token and click "OK"
 
    ![Gateway Session Token](../images/gateway/plugin-session-token.png)
 
@@ -37,7 +38,8 @@ manually setting up an SSH connection.
    ![Gateway IDE List](../images/gateway/plugin-select-ide.png)
 
 1. Select the JetBrains IDE for your project and the project directory then
-   click "Start IDE and connect" ![Gateway Select IDE](../images/gateway/plugin-ide-list.png)
+   click "Start IDE and connect"
+   ![Gateway Select IDE](../images/gateway/plugin-ide-list.png)
 
    ![Gateway IDE Opened](../images/gateway/gateway-intellij-opened.png)
 
@@ -99,7 +101,7 @@ Windows example:
 
 macOS example:
 
-```sh
+```shell
 keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
 ```
 
@@ -150,12 +152,13 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
    ![Gateway Continue](../images/gateway/gateway-continue.png)
 
-1. Select the JetBrains IDE for your project and the project directory. SSH into your server to create a directory or check out code if you haven't already.
+1. Select the JetBrains IDE for your project and the project directory. SSH into
+   your server to create a directory or check out code if you haven't already.
 
    ![Gateway Choose IDE](../images/gateway/gateway-choose-ide.png)
 
-   > Note the JetBrains IDE is remotely installed into `~/.
-cache/JetBrains/RemoteDev/dist`
+   > Note the JetBrains IDE is remotely installed into
+   > `~/. cache/JetBrains/RemoteDev/dist`
 
 1. Click "Download and Start IDE" to connect.
 
@@ -168,7 +171,7 @@ are air-gapped, and cannot reach jetbrains.com), run the following script in the
 JetBrains IDE directory to point the default Gateway directory to the IDE
 directory. This step must be done before configuring Gateway.
 
-```sh
+```shell
 cd /opt/idea/bin
 ./remote-dev-server.sh registerBackendLocationForGateway
 ```
@@ -176,12 +179,12 @@ cd /opt/idea/bin
 > Gateway only works with paid versions of JetBrains IDEs so the script will not
 > be located in the `bin` directory of JetBrains Community editions.
 
-[Here is the JetBrains
-article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
+[Here is the JetBrains article](https://www.jetbrains.com/help/idea/remote-development-troubleshooting.html#setup:~:text=Can%20I%20point%20Remote%20Development%20to%20an%20existing%20IDE%20on%20my%20remote%20server%3F%20Is%20it%20possible%20to%20install%20IDE%20manually%3F)
 explaining this IDE specification.
 
 ## JetBrains Gateway in an offline environment
 
 In networks that restrict access to the internet, you will need to leverage the
 JetBrains Client Installer to download and save the IDE clients locally. Please
-see the [JetBrains documentation for more information](https://www.jetbrains.com/help/idea/fully-offline-mode.html).
+see the
+[JetBrains documentation for more information](https://www.jetbrains.com/help/idea/fully-offline-mode.html).

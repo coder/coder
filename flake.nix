@@ -16,13 +16,16 @@
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
 
+        # From https://nixos.wiki/wiki/Google_Cloud_SDK
+        gdk = pkgs.google-cloud-sdk.withExtraComponents ([pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin]);
+
         devShellPackages = with pkgs; [
           bat
           cairo
           curl
           drpc.defaultPackage.${system}
           gcc
-          google-cloud-sdk
+          gdk
           getopt
           git
           gh
@@ -35,8 +38,11 @@
           gotestsum
           jq
           kubectl
+          kubectx
           kubernetes-helm
           less
+          # Needed for many LD system libs!
+          libuuid
           mockgen
           nfpm
           nodejs
@@ -49,10 +55,11 @@
           pango
           pixman
           pkg-config
-          postgresql
+          postgresql_13
           protobuf
           protoc-gen-go
           ripgrep
+          sapling
           shellcheck
           shfmt
           sqlc
@@ -73,6 +80,9 @@
         devImagePackages = with pkgs; [
           docker
           exa
+          freetype
+          glib
+          harfbuzz
           nix
           nixpkgs-fmt
           screen
@@ -109,10 +119,12 @@
             mkdir -p /etc/init.d
           '';
         };
+        allPackages = devShellPackages ++ devImagePackages;
         # Environment variables that live in `/etc/environment` in the container.
         # These will also be applied to the container config.
         devEnvVars = [
-          "PATH=${pkgs.lib.makeBinPath (devShellPackages ++ devImagePackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "PATH=${pkgs.lib.makeBinPath (allPackages)}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/coder/go/bin"
+          "LD_LIBRARY_PATH=${pkgs.lib.makeLibraryPath allPackages}"
           # This setting prevents Go from using the public checksum database for
           # our module path prefixes. It is required because these are in private
           # repositories that require authentication.
@@ -123,6 +135,7 @@
           "NODE_OPTIONS=--max_old_space_size=8192"
           "TERM=xterm-256color"
           "LANG=en_US.UTF-8"
+          "LOCALE_ARCHIVE=/usr/lib/locale/locale-archive"
         ];
         # Builds our development environment image with all the tools included.
         # Using Nix instead of Docker is **significantly** faster. This _build_

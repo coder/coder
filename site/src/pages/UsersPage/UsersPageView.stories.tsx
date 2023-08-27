@@ -5,6 +5,7 @@ import {
   MockUser2,
   MockAssignableSiteRoles,
   mockApiError,
+  MockAuthMethods,
 } from "testHelpers/entities"
 import { UsersPageView } from "./UsersPageView"
 import { ComponentProps } from "react"
@@ -33,6 +34,7 @@ const meta: Meta<typeof UsersPageView> = {
     count: 2,
     canEditUsers: true,
     filterProps: defaultFilterProps,
+    authMethods: MockAuthMethods,
   },
 }
 

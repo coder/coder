@@ -1,8 +1,14 @@
 {
+  "_comment": "This version doesn't matter, it's just to allow importing from other repos.",
+  "name": "coder",
+  "version": "0.0.0",
   "scripts": {
     "format:write:only": "pnpm exec prettier --write"
   },
   "devDependencies": {
     "prettier": "3.0.0"
+  },
+  "dependencies": {
+    "exec": "^0.2.1"
   }
 }

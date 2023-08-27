@@ -26,6 +26,7 @@ import {
 import { BuildIcon } from "components/BuildIcon/BuildIcon"
 import Skeleton from "@mui/material/Skeleton"
 import { Alert } from "components/Alert/Alert"
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
@@ -39,7 +40,6 @@ export interface WorkspaceBuildPageViewProps {
   build: WorkspaceBuild | undefined
   builds: WorkspaceBuild[] | undefined
   activeBuildNumber: number
-  hasDeploymentBanner: boolean
 }
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
@@ -47,31 +47,15 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   build,
   builds,
   activeBuildNumber,
-  hasDeploymentBanner,
 }) => {
   const styles = useStyles()
-  const navbarHeight = 62
-  const deploymentBannerHeight = 48
-  const heightOffset = hasDeploymentBanner
-    ? navbarHeight + deploymentBannerHeight
-    : navbarHeight
 
   if (!build) {
     return <Loader />
   }
 
   return (
-    <Box
-      sx={{
-        // 62px is the navbar height
-        height: `calc(100vh - ${heightOffset}px)`,
-        overflow: "hidden",
-        // Remove padding added from dashboard layout (.siteContent)
-        marginBottom: "-48px",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
         <Stack direction="row" alignItems="center" spacing={3}>
           <BuildAvatar build={build} />
@@ -126,6 +110,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           alignItems: "start",
           overflow: "hidden",
           flex: 1,
+          flexBasis: 0,
         }}
       >
         <Sidebar>
@@ -184,7 +169,7 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
           )}
         </Box>
       </Box>
-    </Box>
+    </DashboardFullPage>
   )
 }
 

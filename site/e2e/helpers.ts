@@ -8,32 +8,102 @@ import {
   Agent,
   App,
   AppSharingLevel,
-  Parse_Complete,
-  Parse_Response,
-  Provision_Complete,
-  Provision_Response,
+  Response,
+  ParseComplete,
+  PlanComplete,
+  ApplyComplete,
   Resource,
+  RichParameter,
 } from "./provisionerGenerated"
 import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
+import { WorkspaceBuildParameter } from "api/typesGenerated"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
 export const createWorkspace = async (
   page: Page,
   templateName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "networkidle",
   })
   const name = randomName()
   await page.getByLabel("name").fill(name)
+
+  await fillParameters(page, richParameters, buildParameters)
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
-  await page.getByTestId("build-status").isVisible()
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
   return name
+}
+
+export const verifyParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[],
+  expectedBuildParameters: WorkspaceBuildParameter[],
+) => {
+  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+    waitUntil: "networkidle",
+  })
+  await expect(page).toHaveURL(
+    "/@admin/" + workspaceName + "/settings/parameters",
+  )
+
+  for (const buildParameter of expectedBuildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled"
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" +
+          muiDisabled +
+          " input",
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet") // FIXME
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input" + muiDisabled,
+      )
+      const value = await parameterField.inputValue()
+      expect(value).toEqual(buildParameter.value)
+    }
+  }
 }
 
 // createTemplate navigates to the /templates/new page and uploads a template
@@ -105,6 +175,50 @@ export const sshIntoWorkspace = async (
       resolve(client)
     })
   })
+}
+
+export const stopWorkspace = async (page: Page, workspaceName: string) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("workspace-stop-button").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Stopped",
+    {
+      state: "visible",
+    },
+  )
+}
+
+export const buildWorkspaceWithParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+  confirm: boolean = false,
+) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("build-parameters-button").click()
+
+  await fillParameters(page, richParameters, buildParameters)
+  await page.getByTestId("build-parameters-submit").click()
+  if (confirm) {
+    await page.getByTestId("confirm-button").click()
+  }
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
 }
 
 // startAgent runs the coder agent with the provided token.
@@ -231,11 +345,11 @@ type RecursivePartial<T> = {
 
 interface EchoProvisionerResponses {
   // parse is for observing any Terraform variables
-  parse?: RecursivePartial<Parse_Response>[]
+  parse?: RecursivePartial<Response>[]
   // plan occurs when the template is imported
-  plan?: RecursivePartial<Provision_Response>[]
+  plan?: RecursivePartial<Response>[]
   // apply occurs when the workspace is built
-  apply?: RecursivePartial<Provision_Response>[]
+  apply?: RecursivePartial<Response>[]
 }
 
 // createTemplateVersionTar consumes a series of echo provisioner protobufs and
@@ -247,109 +361,133 @@ const createTemplateVersionTar = async (
     responses = {}
   }
   if (!responses.parse) {
-    responses.parse = [{}]
+    responses.parse = [
+      {
+        parse: {},
+      },
+    ]
   }
   if (!responses.apply) {
-    responses.apply = [{}]
+    responses.apply = [
+      {
+        apply: {},
+      },
+    ]
   }
   if (!responses.plan) {
-    responses.plan = responses.apply
+    responses.plan = responses.apply.map((response) => {
+      if (response.log) {
+        return response
+      }
+      return {
+        plan: {
+          error: response.apply?.error ?? "",
+          resources: response.apply?.resources ?? [],
+          parameters: response.apply?.parameters ?? [],
+          gitAuthProviders: response.apply?.gitAuthProviders ?? [],
+        },
+      }
+    })
   }
 
   const tar = new TarWriter()
   responses.parse.forEach((response, index) => {
-    response.complete = {
+    response.parse = {
       templateVariables: [],
-      ...response.complete,
-    } as Parse_Complete
+      error: "",
+      readme: new Uint8Array(),
+      ...response.parse,
+    } as ParseComplete
     tar.addFile(
       `${index}.parse.protobuf`,
-      Parse_Response.encode(response as Parse_Response).finish(),
+      Response.encode(response as Response).finish(),
     )
   })
 
-  const fillProvisionResponse = (
-    response: RecursivePartial<Provision_Response>,
-  ) => {
-    response.complete = {
+  const fillResource = (resource: RecursivePartial<Resource>) => {
+    if (resource.agents) {
+      resource.agents = resource.agents?.map(
+        (agent: RecursivePartial<Agent>) => {
+          if (agent.apps) {
+            agent.apps = agent.apps?.map((app: RecursivePartial<App>) => {
+              return {
+                command: "",
+                displayName: "example",
+                external: false,
+                icon: "",
+                sharingLevel: AppSharingLevel.PUBLIC,
+                slug: "example",
+                subdomain: false,
+                url: "",
+                ...app,
+              } as App
+            })
+          }
+          return {
+            apps: [],
+            architecture: "amd64",
+            connectionTimeoutSeconds: 300,
+            directory: "",
+            env: {},
+            id: randomUUID(),
+            metadata: [],
+            motdFile: "",
+            name: "dev",
+            operatingSystem: "linux",
+            shutdownScript: "",
+            shutdownScriptTimeoutSeconds: 0,
+            startupScript: "",
+            startupScriptBehavior: "",
+            startupScriptTimeoutSeconds: 300,
+            troubleshootingUrl: "",
+            token: randomUUID(),
+            ...agent,
+          } as Agent
+        },
+      )
+    }
+    return {
+      agents: [],
+      dailyCost: 0,
+      hide: false,
+      icon: "",
+      instanceType: "",
+      metadata: [],
+      name: "dev",
+      type: "echo",
+      ...resource,
+    } as Resource
+  }
+
+  responses.apply.forEach((response, index) => {
+    response.apply = {
       error: "",
       state: new Uint8Array(),
       resources: [],
       parameters: [],
       gitAuthProviders: [],
-      plan: new Uint8Array(),
-      ...response.complete,
-    } as Provision_Complete
-    response.complete.resources = response.complete.resources?.map(
-      (resource) => {
-        if (resource.agents) {
-          resource.agents = resource.agents?.map((agent) => {
-            if (agent.apps) {
-              agent.apps = agent.apps?.map((app) => {
-                return {
-                  command: "",
-                  displayName: "example",
-                  external: false,
-                  icon: "",
-                  sharingLevel: AppSharingLevel.PUBLIC,
-                  slug: "example",
-                  subdomain: false,
-                  url: "",
-                  ...app,
-                } as App
-              })
-            }
-            return {
-              apps: [],
-              architecture: "amd64",
-              connectionTimeoutSeconds: 300,
-              directory: "",
-              env: {},
-              id: randomUUID(),
-              metadata: [],
-              motdFile: "",
-              name: "dev",
-              operatingSystem: "linux",
-              shutdownScript: "",
-              shutdownScriptTimeoutSeconds: 0,
-              startupScript: "",
-              startupScriptBehavior: "",
-              startupScriptTimeoutSeconds: 300,
-              troubleshootingUrl: "",
-              token: randomUUID(),
-              ...agent,
-            } as Agent
-          })
-        }
-        return {
-          agents: [],
-          dailyCost: 0,
-          hide: false,
-          icon: "",
-          instanceType: "",
-          metadata: [],
-          name: "dev",
-          type: "echo",
-          ...resource,
-        } as Resource
-      },
-    )
-  }
-
-  responses.apply.forEach((response, index) => {
-    fillProvisionResponse(response)
+      ...response.apply,
+    } as ApplyComplete
+    response.apply.resources = response.apply.resources?.map(fillResource)
 
     tar.addFile(
-      `${index}.provision.apply.protobuf`,
-      Provision_Response.encode(response as Provision_Response).finish(),
+      `${index}.apply.protobuf`,
+      Response.encode(response as Response).finish(),
     )
   })
   responses.plan.forEach((response, index) => {
-    fillProvisionResponse(response)
+    response.plan = {
+      error: "",
+      resources: [],
+      parameters: [],
+      gitAuthProviders: [],
+      ...response.plan,
+    } as PlanComplete
+    response.plan.resources = response.plan.resources?.map(fillResource)
 
     tar.addFile(
-      `${index}.provision.plan.protobuf`,
-      Provision_Response.encode(response as Provision_Response).finish(),
+      `${index}.plan.protobuf`,
+      Response.encode(response as Response).finish(),
     )
   })
   const tarFile = await tar.write()
@@ -400,4 +538,80 @@ const findSessionToken = async (page: Page): Promise<string> => {
     throw new Error("session token not found")
   }
   return sessionCookie.value
+}
+
+export const echoResponsesWithParameters = (
+  richParameters: RichParameter[],
+): EchoProvisionerResponses => {
+  return {
+    parse: [
+      {
+        parse: {},
+      },
+    ],
+    plan: [
+      {
+        plan: {
+          parameters: richParameters,
+        },
+      },
+    ],
+    apply: [
+      {
+        apply: {
+          resources: [
+            {
+              name: "example",
+            },
+          ],
+        },
+      },
+    ],
+  }
+}
+
+export const fillParameters = async (
+  page: Page,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  for (const buildParameter of buildParameters) {
+    const richParameter = richParameters.find(
+      (richParam) => richParam.name === buildParameter.name,
+    )
+    if (!richParameter) {
+      throw new Error(
+        "build parameter is expected to be present in rich parameter schema",
+      )
+    }
+
+    const parameterLabel = await page.waitForSelector(
+      "[data-testid='parameter-field-" + richParameter.name + "']",
+      { state: "visible" },
+    )
+
+    if (richParameter.type === "bool") {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.options.length > 0) {
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
+          buildParameter.value +
+          "']",
+      )
+      await parameterField.check()
+    } else if (richParameter.type === "list(string)") {
+      throw new Error("not implemented yet") // FIXME
+    } else {
+      // text or number
+      const parameterField = await parameterLabel.waitForSelector(
+        "[data-testid='parameter-field-text'] input",
+      )
+      await parameterField.fill(buildParameter.value)
+    }
+  }
 }

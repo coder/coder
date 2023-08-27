@@ -1,8 +1,10 @@
 # Offline Deployments
 
-All Coder features are supported in offline / behind firewalls / in air-gapped environments. However, some changes to your configuration are necessary.
+All Coder features are supported in offline / behind firewalls / in air-gapped
+environments. However, some changes to your configuration are necessary.
 
-> This is a general comparison. Keep reading for a full tutorial running Coder offline with Kubernetes or Docker.
+> This is a general comparison. Keep reading for a full tutorial running Coder
+> offline with Kubernetes or Docker.
 
 |                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                                         |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -16,16 +18,23 @@ All Coder features are supported in offline / behind firewalls / in air-gapped e
 
 ## Offline container images
 
-The following instructions walk you through how to build a custom Coder server image for Docker or Kubernetes
+The following instructions walk you through how to build a custom Coder server
+image for Docker or Kubernetes
 
-First, build and push a container image extending our official image with the following:
+First, build and push a container image extending our official image with the
+following:
 
-- CLI config (.tfrc) for Terraform referring to [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
+- CLI config (.tfrc) for Terraform referring to
+  [external mirror](https://www.terraform.io/cli/config/config-file#explicit-installation-method-configuration)
 - [Terraform Providers](https://registry.terraform.io) for templates
-  - These could also be specified via a volume mount (Docker) or [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol). See below for details.
+  - These could also be specified via a volume mount (Docker) or
+    [network mirror](https://www.terraform.io/internals/provider-network-mirror-protocol).
+    See below for details.
 
-> Note: Coder includes the latest [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24) of Terraform in the official Docker images.
-> If you need to bundle a different version of terraform, you can do so by customizing the image.
+> Note: Coder includes the latest
+> [supported version](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)
+> of Terraform in the official Docker images. If you need to bundle a different
+> version of terraform, you can do so by customizing the image.
 
 Here's an example Dockerfile:
 
@@ -104,7 +113,9 @@ ENV TF_CLI_CONFIG_FILE=/opt/terraform/config.tfrc
 ```
 
 > If you are bundling Terraform providers into your Coder image, be sure the
-> provider version matches any templates or [example templates](https://github.com/coder/coder/tree/main/examples/templates) you intend to use.
+> provider version matches any templates or
+> [example templates](https://github.com/coder/coder/tree/main/examples/templates)
+> you intend to use.
 
 ```hcl
 # filesystem-mirror-example.tfrc
@@ -126,7 +137,10 @@ provider_installation {
 
 ## Run offline via Docker
 
-Follow our [docker-compose](./docker.md#run-coder-with-docker-compose) documentation and modify the docker-compose file to specify your custom Coder image. Additionally, you can add a volume mount to add providers to the filesystem mirror without re-building the image.
+Follow our [docker-compose](./docker.md#run-coder-with-docker-compose)
+documentation and modify the docker-compose file to specify your custom Coder
+image. Additionally, you can add a volume mount to add providers to the
+filesystem mirror without re-building the image.
 
 First, make a create an empty plugins directory:
 
@@ -158,11 +172,17 @@ services:
     # ...
 ```
 
-> The [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror) command can be used to download the required plugins for a Coder template. This can be uploaded into the `plugins` directory on your offline server.
+> The
+> [terraform providers mirror](https://www.terraform.io/cli/commands/providers/mirror)
+> command can be used to download the required plugins for a Coder template.
+> This can be uploaded into the `plugins` directory on your offline server.
 
 ## Run offline via Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our [Kubernetes](./kubernetes.md) documentation and modify the Helm values to specify your custom Coder image.
+We publish the Helm chart for download on
+[GitHub Releases](https://github.com/coder/coder/releases/latest). Follow our
+[Kubernetes](./kubernetes.md) documentation and modify the Helm values to
+specify your custom Coder image.
 
 ```yaml
 # values.yaml
@@ -188,12 +208,31 @@ coder:
 
 ## Offline docs
 
-Coder also provides offline documentation in case you want to host it on your own server. The docs are exported as static files that you can host on any web server, as demonstrated in the example below:
+Coder also provides offline documentation in case you want to host it on your
+own server. The docs are exported as static files that you can host on any web
+server, as demonstrated in the example below:
 
-1. Go to the release page. In this case, we want to use the [latest version](https://github.com/coder/coder/releases/latest).
-2. Download the documentation files from the "Assets" section. It is named as `coder_docs_<version>.tgz`.
+1. Go to the release page. In this case, we want to use the
+   [latest version](https://github.com/coder/coder/releases/latest).
+2. Download the documentation files from the "Assets" section. It is named as
+   `coder_docs_<version>.tgz`.
 3. Extract the file and move its contents to your server folder.
-4. If you are using NodeJS, you can execute the following command: `cd docs && npx http-server .`
-5. Set the [CODER_DOCS_URL](../cli/server#--docs-url) environment variable to use the URL of your hosted docs. This way, the Coder UI will reference the documentation from your specified URL.
+4. If you are using NodeJS, you can execute the following command:
+   `cd docs && npx http-server .`
+5. Set the [CODER_DOCS_URL](../cli/server.md#--docs-url) environment variable to
+   use the URL of your hosted docs. This way, the Coder UI will reference the
+   documentation from your specified URL.
 
-With these steps, you'll have the Coder documentation hosted on your server and accessible for your team to use.
+With these steps, you'll have the Coder documentation hosted on your server and
+accessible for your team to use.
+
+## Firewall exceptions
+
+In restricted internet networks, Coder may require connection to internet.
+Ensure that the following web addresses are accessible from the machine where
+Coder is installed.
+
+- code-server.dev (install via AUR)
+- open-vsx.org (optional if someone would use code-server)
+- registry.terraform.io (to create and push template)
+- v2-licensor.coder.com (developing Coder in Coder)

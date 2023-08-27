@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -31,12 +32,13 @@ func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, con
 }
 
 func TestWorkspaceQuota(t *testing.T) {
-	// TODO: refactor for new impl
-
 	t.Parallel()
 
-	t.Run("BlocksBuild", func(t *testing.T) {
+	// This first test verifies the behavior of creating and deleting workspaces.
+	// It also tests multi-group quota stacking and the everyone group.
+	t.Run("CreateDelete", func(t *testing.T) {
 		t.Parallel()
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 		max := 1
@@ -48,8 +50,6 @@ func TestWorkspaceQuota(t *testing.T) {
 				},
 			},
 		})
-		coderdtest.NewProvisionerDaemon(t, api.AGPL)
-		coderdtest.NewProvisionerDaemon(t, api.AGPL)
 		coderdtest.NewProvisionerDaemon(t, api.AGPL)
 
 		verifyQuota(ctx, t, client, 0, 0)
@@ -89,9 +89,9 @@ func TestWorkspaceQuota(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name:      "example",
 							Type:      "aws_instance",
@@ -157,4 +157,108 @@ func TestWorkspaceQuota(t *testing.T) {
 		verifyQuota(ctx, t, client, 4, 4)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 	})
+
+	t.Run("StartStop", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		max := 1
+		client, _, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			UserWorkspaceQuota: max,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			},
+		})
+		coderdtest.NewProvisionerDaemon(t, api.AGPL)
+
+		verifyQuota(ctx, t, client, 0, 0)
+
+		// Patch the 'Everyone' group to verify its quota allowance is being accounted for.
+		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(4),
+		})
+		require.NoError(t, err)
+		verifyQuota(ctx, t, client, 0, 4)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionPlanMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: planWithCost(2),
+				proto.WorkspaceTransition_STOP:  planWithCost(1),
+			},
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: applyWithCost(2),
+				proto.WorkspaceTransition_STOP:  applyWithCost(1),
+			},
+		})
+
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Spin up two workspaces.
+		var wg sync.WaitGroup
+		var workspaces []codersdk.Workspace
+		for i := 0; i < 2; i++ {
+			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+			workspaces = append(workspaces, workspace)
+			build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			assert.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+		}
+		wg.Wait()
+		verifyQuota(ctx, t, client, 4, 4)
+
+		// Next one must fail
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Contains(t, build.Job.Error, "quota")
+
+		// Consumed shouldn't bump
+		verifyQuota(ctx, t, client, 4, 4)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+
+		build = coderdtest.CreateWorkspaceBuild(t, client, workspaces[0], database.WorkspaceTransitionStop)
+		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Quota goes down one
+		verifyQuota(ctx, t, client, 3, 4)
+		require.Equal(t, codersdk.WorkspaceStatusStopped, build.Status)
+
+		build = coderdtest.CreateWorkspaceBuild(t, client, workspaces[0], database.WorkspaceTransitionStart)
+		build = coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+
+		// Quota goes back up
+		verifyQuota(ctx, t, client, 4, 4)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+	})
+}
+
+func planWithCost(cost int32) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Plan{
+			Plan: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name:      "example",
+					Type:      "aws_instance",
+					DailyCost: cost,
+				}},
+			},
+		},
+	}}
+}
+
+func applyWithCost(cost int32) []*proto.Response {
+	return []*proto.Response{{
+		Type: &proto.Response_Apply{
+			Apply: &proto.ApplyComplete{
+				Resources: []*proto.Resource{{
+					Name:      "example",
+					Type:      "aws_instance",
+					DailyCost: cost,
+				}},
+			},
+		},
+	}}
 }

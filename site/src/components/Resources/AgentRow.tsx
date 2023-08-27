@@ -49,8 +49,9 @@ export interface AgentRowProps {
   agent: WorkspaceAgent
   workspace: Workspace
   showApps: boolean
-  hideSSHButton?: boolean
+  showBuiltinApps?: boolean
   sshPrefix?: string
+  hideSSHButton?: boolean
   hideVSCodeDesktopButton?: boolean
   serverVersion: string
   onUpdateAgent: () => void
@@ -62,6 +63,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   agent,
   workspace,
   showApps,
+  showBuiltinApps = true,
   hideSSHButton,
   hideVSCodeDesktopButton,
   serverVersion,
@@ -236,28 +238,31 @@ export const AgentRow: FC<AgentRowProps> = ({
               </>
             )}
 
-            <TerminalLink
-              workspaceName={workspace.name}
-              agentName={agent.name}
-              userName={workspace.owner_name}
-            />
-            {!hideSSHButton && (
-              <SSHButton
-                workspaceName={workspace.name}
-                agentName={agent.name}
-                sshPrefix={sshPrefix}
-              />
-            )}
-            {proxy.preferredWildcardHostname &&
-              proxy.preferredWildcardHostname !== "" && (
-                <PortForwardButton
-                  host={proxy.preferredWildcardHostname}
+            {showBuiltinApps && (
+              <>
+                <TerminalLink
                   workspaceName={workspace.name}
-                  agentId={agent.id}
                   agentName={agent.name}
-                  username={workspace.owner_name}
+                  userName={workspace.owner_name}
                 />
-              )}
+                {!hideSSHButton && (
+                  <SSHButton
+                    workspaceName={workspace.name}
+                    agentName={agent.name}
+                    sshPrefix={sshPrefix}
+                  />
+                )}
+                {proxy.preferredWildcardHostname &&
+                  proxy.preferredWildcardHostname !== "" && (
+                    <PortForwardButton
+                      host={proxy.preferredWildcardHostname}
+                      workspaceName={workspace.name}
+                      agent={agent}
+                      username={workspace.owner_name}
+                    />
+                  )}
+              </>
+            )}
           </div>
         )}
 

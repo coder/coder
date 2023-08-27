@@ -22,6 +22,7 @@ export interface UsersPageViewProps {
   oidcRoleSyncEnabled: boolean
   canViewActivity?: boolean
   isLoading?: boolean
+  authMethods?: TypesGen.AuthMethods
   onSuspendUser: (user: TypesGen.User) => void
   onDeleteUser: (user: TypesGen.User) => void
   onListWorkspaces: (user: TypesGen.User) => void
@@ -58,6 +59,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   paginationRef,
   isNonInitialPage,
   actorID,
+  authMethods,
 }) => {
   return (
     <>
@@ -89,6 +91,7 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         isLoading={isLoading}
         isNonInitialPage={isNonInitialPage}
         actorID={actorID}
+        authMethods={authMethods}
       />
 
       <PaginationWidget numRecords={count} paginationRef={paginationRef} />
