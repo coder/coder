@@ -1,9 +1,8 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
+import Box, { BoxProps } from "@mui/material/Box"
+import { makeStyles, useTheme } from "@mui/styles"
 import TableCell from "@mui/material/TableCell"
 import TableRow from "@mui/material/TableRow"
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { LastUsed } from "components/LastUsed/LastUsed"
 import { Pill } from "components/Pill/Pill"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"
@@ -16,6 +15,16 @@ import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
+import dayjs from "dayjs"
+import { SxProps, Theme } from "@mui/material/styles"
+import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined"
+import KeyOutlined from "@mui/icons-material/KeyOutlined"
+import GitHub from "@mui/icons-material/GitHub"
+import PasswordOutlined from "@mui/icons-material/PasswordOutlined"
+import relativeTime from "dayjs/plugin/relativeTime"
+import ShieldOutlined from "@mui/icons-material/ShieldOutlined"
+
+dayjs.extend(relativeTime)
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
   return role.name === "owner"
@@ -31,6 +40,7 @@ const sortRoles = (roles: TypesGen.Role[]) => {
 
 interface UsersTableBodyProps {
   users?: TypesGen.User[]
+  authMethods?: TypesGen.AuthMethods
   roles?: TypesGen.AssignableRoles[]
   isUpdatingUserRoles?: boolean
   canEditUsers?: boolean
@@ -58,6 +68,7 @@ export const UsersTableBody: FC<
   React.PropsWithChildren<UsersTableBodyProps>
 > = ({
   users,
+  authMethods,
   roles,
   onSuspendUser,
   onDeleteUser,
@@ -80,7 +91,7 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoaderSkeleton columns={5} useAvatarData />
+        <TableLoaderSkeleton columns={canEditUsers ? 5 : 4} useAvatarData />
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>
@@ -156,7 +167,10 @@ export const UsersTableBody: FC<
                     </Stack>
                   </TableCell>
                   <TableCell>
-                    <pre>{user.login_type}</pre>
+                    <LoginType
+                      authMethods={authMethods!}
+                      value={user.login_type}
+                    />
                   </TableCell>
                   <TableCell
                     className={combineClasses([
@@ -166,11 +180,10 @@ export const UsersTableBody: FC<
                         : undefined,
                     ])}
                   >
-                    {user.status}
+                    <Box>{user.status}</Box>
+                    <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
                   </TableCell>
-                  <TableCell>
-                    <LastUsed lastUsedAt={user.last_seen_at} />
-                  </TableCell>
+
                   {canEditUsers && (
                     <TableCell>
                       <TableRowMenu
@@ -233,6 +246,88 @@ export const UsersTableBody: FC<
         </>
       </Cond>
     </ChooseOne>
+  )
+}
+
+const LoginType = ({
+  authMethods,
+  value,
+}: {
+  authMethods: TypesGen.AuthMethods
+  value: TypesGen.LoginType
+}) => {
+  let displayName = value as string
+  let icon = <></>
+  const iconStyles: SxProps = { width: 14, height: 14 }
+
+  if (value === "password") {
+    displayName = "Password"
+    icon = <PasswordOutlined sx={iconStyles} />
+  } else if (value === "none") {
+    displayName = "None"
+    icon = <HideSourceOutlined sx={iconStyles} />
+  } else if (value === "github") {
+    displayName = "GitHub"
+    icon = <GitHub sx={iconStyles} />
+  } else if (value === "token") {
+    displayName = "Token"
+    icon = <KeyOutlined sx={iconStyles} />
+  } else if (value === "oidc") {
+    displayName =
+      authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText
+    icon =
+      authMethods.oidc.iconUrl === "" ? (
+        <ShieldOutlined sx={iconStyles} />
+      ) : (
+        <Box
+          component="img"
+          alt="Open ID Connect icon"
+          src={authMethods.oidc.iconUrl}
+          sx={iconStyles}
+        />
+      )
+  }
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: 14 }}>
+      {icon}
+      {displayName}
+    </Box>
+  )
+}
+
+const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
+  const theme: Theme = useTheme()
+  const t = dayjs(value)
+  const now = dayjs()
+
+  let message = t.fromNow()
+  let color = theme.palette.text.secondary
+
+  if (t.isAfter(now.subtract(1, "hour"))) {
+    color = theme.palette.success.light
+    // Since the agent reports on a 10m interval,
+    // the last_used_at can be inaccurate when recent.
+    message = "Now"
+  } else if (t.isAfter(now.subtract(3, "day"))) {
+    color = theme.palette.text.secondary
+  } else if (t.isAfter(now.subtract(1, "month"))) {
+    color = theme.palette.warning.light
+  } else if (t.isAfter(now.subtract(100, "year"))) {
+    color = theme.palette.error.light
+  } else {
+    message = "Never"
+  }
+
+  return (
+    <Box
+      component="span"
+      data-chromatic="ignore"
+      {...boxProps}
+      sx={{ color, ...boxProps.sx }}
+    >
+      {message}
+    </Box>
   )
 }
 

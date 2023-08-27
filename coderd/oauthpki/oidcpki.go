@@ -215,7 +215,10 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	var tokenRes struct {
-		oauth2.Token
+		AccessToken  string `json:"access_token"`
+		TokenType    string `json:"token_type,omitempty"`
+		RefreshToken string `json:"refresh_token,omitempty"`
+
 		// Extra fields returned by the refresh that are needed
 		IDToken   string `json:"id_token"`
 		ExpiresIn int64  `json:"expires_in"` // relative seconds from now
