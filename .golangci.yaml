@@ -11,7 +11,7 @@ linters-settings:
       # Gradually extend to cover more of the codebase.
       - 'httpmw\.\w+'
   gocognit:
-    min-complexity: 46 # Min code complexity (def 30).
+    min-complexity: 300
 
   goconst:
     min-len: 4 # Min length of string consts (def 3).
@@ -121,10 +121,6 @@ linters-settings:
 
   goimports:
     local-prefixes: coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder
-
-  gocyclo:
-    # goal: 30
-    min-complexity: 47
 
   importas:
     no-unaliased: true
@@ -236,7 +232,11 @@ linters:
     - exportloopref
     - forcetypeassert
     - gocritic
-    - gocyclo
+    # gocyclo is may be useful in the future when we start caring
+    # about testing complexity, but for the time being we should
+    # create a good culture around cognitive complexity.
+    # - gocyclo
+    - gocognit
     - goimports
     - gomodguard
     - gosec
