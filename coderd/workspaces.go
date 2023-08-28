@@ -1028,6 +1028,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	_ = sendEvent(ctx, codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
 	})
+	// Send updated workspace info after connection is established. This avoids
+	// missing updates if the client connects after an update.
+	sendUpdate(ctx, nil)
 
 	for {
 		select {
