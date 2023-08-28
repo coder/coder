@@ -8,7 +8,7 @@ updates:
       timezone: "America/Chicago"
     labels: []
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
     ignore:
       # These actions deliver the latest versions by updating the major
       # release tag, so ignore minor and patch versions
