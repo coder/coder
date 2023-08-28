@@ -139,8 +139,8 @@
       "icon_path": "./images/icons/picture.svg",
       "children": [
         {
-          "title": "Creating, editing, and updating templates",
-          "description": "Working with templates",
+          "title": "Working with templates",
+          "description": "Creating, editing, and updating templates",
           "path": "./templates/creating.md"
         },
         {
