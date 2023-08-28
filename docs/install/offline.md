@@ -225,3 +225,14 @@ server, as demonstrated in the example below:
 
 With these steps, you'll have the Coder documentation hosted on your server and
 accessible for your team to use.
+
+## Firewall exceptions
+
+In restricted internet networks, Coder may require connection to internet.
+Ensure that the following web addresses are accessible from the machine where
+Coder is installed.
+
+- code-server.dev (install via AUR)
+- open-vsx.org (optional if someone would use code-server)
+- registry.terraform.io (to create and push template)
+- v2-licensor.coder.com (developing Coder in Coder)

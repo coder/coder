@@ -322,7 +322,7 @@ export const AppRouter: FC = () => {
             {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
-              element={<TerminalPage renderer="canvas" />}
+              element={<TerminalPage renderer="webgl" />}
             />
             <Route path="cli-auth" element={<CliAuthenticationPage />} />
           </Route>

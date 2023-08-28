@@ -1,73 +1,80 @@
-import { ComponentMeta, Story } from "@storybook/react"
 import {
   MockUser,
   MockUser2,
   MockAssignableSiteRoles,
+  MockAuthMethods,
 } from "testHelpers/entities"
-import { UsersTable, UsersTableProps } from "./UsersTable"
+import { UsersTable } from "./UsersTable"
+import type { Meta, StoryObj } from "@storybook/react"
 
-export default {
+const meta: Meta<typeof UsersTable> = {
   title: "components/UsersTable",
   component: UsersTable,
   args: {
     isNonInitialPage: false,
+    authMethods: MockAuthMethods,
   },
-} as ComponentMeta<typeof UsersTable>
-
-const Template: Story<UsersTableProps> = (args) => <UsersTable {...args} />
-
-export const Example = Template.bind({})
-Example.args = {
-  users: [MockUser, MockUser2],
-  roles: MockAssignableSiteRoles,
-  canEditUsers: false,
 }
 
-export const Editable = Template.bind({})
-Editable.args = {
-  users: [
-    MockUser,
-    MockUser2,
-    {
-      ...MockUser,
-      username: "John Doe",
-      email: "john.doe@coder.com",
-      roles: [],
-      status: "dormant",
-    },
-    {
-      ...MockUser,
-      username: "Roger Moore",
-      email: "roger.moore@coder.com",
-      roles: [],
-      status: "suspended",
-    },
-    {
-      ...MockUser,
-      username: "OIDC User",
-      email: "oidc.user@coder.com",
-      roles: [],
-      status: "active",
-      login_type: "oidc",
-    },
-  ],
-  roles: MockAssignableSiteRoles,
-  canEditUsers: true,
-  canViewActivity: true,
+export default meta
+type Story = StoryObj<typeof UsersTable>
+
+export const Example: Story = {
+  args: {
+    users: [MockUser, MockUser2],
+    roles: MockAssignableSiteRoles,
+    canEditUsers: false,
+  },
 }
 
-export const Empty = Template.bind({})
-Empty.args = {
-  users: [],
-  roles: MockAssignableSiteRoles,
+export const Editable: Story = {
+  args: {
+    users: [
+      MockUser,
+      MockUser2,
+      {
+        ...MockUser,
+        username: "John Doe",
+        email: "john.doe@coder.com",
+        roles: [],
+        status: "dormant",
+      },
+      {
+        ...MockUser,
+        username: "Roger Moore",
+        email: "roger.moore@coder.com",
+        roles: [],
+        status: "suspended",
+      },
+      {
+        ...MockUser,
+        username: "OIDC User",
+        email: "oidc.user@coder.com",
+        roles: [],
+        status: "active",
+        login_type: "oidc",
+      },
+    ],
+    roles: MockAssignableSiteRoles,
+    canEditUsers: true,
+    canViewActivity: true,
+  },
 }
 
-export const Loading = Template.bind({})
-Loading.args = {
-  users: [],
-  roles: MockAssignableSiteRoles,
-  isLoading: true,
+export const Empty: Story = {
+  args: {
+    users: [],
+    roles: MockAssignableSiteRoles,
+  },
 }
-Loading.parameters = {
-  chromatic: { pauseAnimationAtEnd: true },
+
+export const Loading: Story = {
+  args: {
+    users: [],
+    roles: MockAssignableSiteRoles,
+    isLoading: true,
+  },
+  parameters: {
+    chromatic: { pauseAnimationAtEnd: true },
+  },
 }
