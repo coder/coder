@@ -311,7 +311,9 @@ func Test_GenerateToken(t *testing.T) {
 }
 
 func Test_FromRequest(t *testing.T) {
-	t.Run("MutlipleTokens", func(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleTokens", func(t *testing.T) {
 		r := httptest.NewRequest("GET", "/", nil)
 
 		// Add an invalid token
