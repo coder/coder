@@ -45,7 +45,7 @@ Allow users to cancel in-progress workspace jobs.
 | ---- | --------------------- |
 | Type | <code>duration</code> |
 
-Edit the template default time before shutdown - workspaces created from this template default to this value.
+Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to "Default autostop" in the UI.
 
 ### --description
 
@@ -70,7 +70,7 @@ Edit the template display name.
 | Type    | <code>duration</code> |
 | Default | <code>0h</code>       |
 
-Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).
+Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed "start" build before coder automatically schedules a "stop" build to cleanup.This licensed feature's default is 0h (off). Maps to "Failure cleanup" in the UI.
 
 ### --icon
 
@@ -87,7 +87,7 @@ Edit the template icon path.
 | Type    | <code>duration</code> |
 | Default | <code>0h</code>       |
 
-Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).
+Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to "Dormancy threshold" in the UI.
 
 ### --max-ttl
 
@@ -95,7 +95,7 @@ Specify an inactivity TTL for workspaces created from this template. This licens
 | ---- | --------------------- |
 | Type | <code>duration</code> |
 
-Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.
+Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to "Max lifetime" in the UI.
 
 ### --name
 

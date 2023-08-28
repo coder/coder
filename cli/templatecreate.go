@@ -29,9 +29,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		variablesFile   string
 		variables       []string
 		disableEveryone bool
-		defaultTTL      time.Duration
-		failureTTL      time.Duration
-		inactivityTTL   time.Duration
+
+		defaultTTL    time.Duration
+		failureTTL    time.Duration
+		inactivityTTL time.Duration
+		maxTTL        time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -44,7 +46,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if failureTTL != 0 || inactivityTTL != 0 {
+			if failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0 {
 				// This call can be removed when workspace_actions is no longer experimental
 				experiments, exErr := client.Experiments(inv.Context())
 				if exErr != nil {
@@ -134,6 +136,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				VersionID:                  job.ID,
 				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
 				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
+				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
 				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
 			}
@@ -182,21 +185,26 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		},
 		{
 			Flag:        "default-ttl",
-			Description: "Specify a default TTL for workspaces created from this template.",
+			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Default:     "24h",
 			Value:       clibase.DurationOf(&defaultTTL),
 		},
 		{
 			Flag:        "failure-ttl",
-			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\"in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&failureTTL),
 		},
 		{
 			Flag:        "inactivity-ttl",
-			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
+		},
+		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
 		},
 		{
 			Flag:        "test.provisioner",

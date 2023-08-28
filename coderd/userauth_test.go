@@ -4,28 +4,25 @@ import (
 	"context"
 	"crypto"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -35,85 +32,42 @@ import (
 // This test specifically tests logging in with OIDC when an expired
 // OIDC session token exists.
 // The token refreshing should not happen since we are reauthenticating.
+// nolint:bodyclose
 func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	t.Parallel()
 
-	conf := coderdtest.NewOIDCConfig(t, "",
-		// Provide a refresh token so we use the refresh token flow
-		coderdtest.WithRefreshToken("refresh_token"),
-		// We need to set the expire in the future for the first api calls.
-		coderdtest.WithTokenExpires(func() time.Time {
-			return time.Now().Add(time.Hour).UTC()
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithRefreshHook(func(_ string) error {
+			return xerrors.New("refreshing token should never occur")
 		}),
-		// No refresh should actually happen in this test.
-		coderdtest.WithTokenSource(func() (*oauth2.Token, error) {
-			return nil, xerrors.New("token should not require refresh")
-		}),
+		oidctest.WithServing(),
 	)
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	auditor := audit.NewMock()
+
+	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+		cfg.AllowSignups = true
+		cfg.IgnoreUserInfo = true
+	})
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		OIDCConfig: cfg,
+	})
+
 	const username = "alice"
 	claims := jwt.MapClaims{
 		"email":              "alice@coder.com",
 		"email_verified":     true,
 		"preferred_username": username,
 	}
-	config := conf.OIDCConfig(t, claims)
 
-	config.AllowSignups = true
-	config.IgnoreUserInfo = true
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Auditor:    auditor,
-		OIDCConfig: config,
-		Logger:     &logger,
-	})
-
+	helper := oidctest.NewLoginHelper(client, fake)
 	// Signup alice
-	resp := oidcCallback(t, client, conf.EncodeClaims(t, claims))
-	// Set the client to use this OIDC context
-	authCookie := authCookieValue(resp.Cookies())
-	client.SetSessionToken(authCookie)
-	_ = resp.Body.Close()
+	userClient, _ := helper.Login(t, claims)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	// Verify the user and oauth link
-	user, err := client.User(ctx, "me")
-	require.NoError(t, err)
-	require.Equal(t, username, user.Username)
+	// Expire the link. This will force the client to refresh the token.
+	helper.ExpireOauthToken(t, api.Database, userClient)
 
-	// nolint:gocritic
-	link, err := api.Database.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
-		UserID:    user.ID,
-		LoginType: database.LoginType(user.LoginType),
-	})
-	require.NoError(t, err, "failed to get user link")
-
-	// Expire the link
-	// nolint:gocritic
-	_, err = api.Database.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-		OAuthAccessToken:  link.OAuthAccessToken,
-		OAuthRefreshToken: link.OAuthRefreshToken,
-		OAuthExpiry:       time.Now().Add(time.Hour * -1).UTC(),
-		UserID:            link.UserID,
-		LoginType:         link.LoginType,
-	})
-	require.NoError(t, err, "failed to update user link")
-
-	// Log in again with OIDC
-	loginAgain := oidcCallbackWithState(t, client, conf.EncodeClaims(t, claims), "seconds_login", func(req *http.Request) {
-		req.AddCookie(&http.Cookie{
-			Name:  codersdk.SessionTokenCookie,
-			Value: authCookie,
-			Path:  "/",
-		})
-	})
-	require.Equal(t, http.StatusTemporaryRedirect, loginAgain.StatusCode)
-	_ = loginAgain.Body.Close()
-
-	// Try to use new login
-	client.SetSessionToken(authCookieValue(resp.Cookies()))
-	_, err = client.User(ctx, "me")
-	require.NoError(t, err, "use new session")
+	// Instead of refreshing, just log in again.
+	helper.Login(t, claims)
 }
 
 func TestUserLogin(t *testing.T) {
@@ -660,7 +614,7 @@ func TestUserOIDC(t *testing.T) {
 			"email": "kyle@kwc.io",
 		},
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 		Username:     "kyle",
 	}, {
 		Name: "EmailNotVerified",
@@ -685,7 +639,7 @@ func TestUserOIDC(t *testing.T) {
 			"email_verified": false,
 		},
 		AllowSignups:        true,
-		StatusCode:          http.StatusTemporaryRedirect,
+		StatusCode:          http.StatusOK,
 		Username:            "kyle",
 		IgnoreEmailVerified: true,
 	}, {
@@ -709,7 +663,7 @@ func TestUserOIDC(t *testing.T) {
 		EmailDomain: []string{
 			"kwc.io",
 		},
-		StatusCode: http.StatusTemporaryRedirect,
+		StatusCode: http.StatusOK,
 	}, {
 		Name:          "EmptyClaims",
 		IDTokenClaims: jwt.MapClaims{},
@@ -730,7 +684,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		Username:     "kyle",
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		Name: "UsernameFromClaims",
 		IDTokenClaims: jwt.MapClaims{
@@ -740,7 +694,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		Username:     "hotdog",
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		// Services like Okta return the email as the username:
 		// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
@@ -752,7 +706,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		Username:     "kyle",
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		// See: https://github.com/coder/coder/issues/4472
 		Name: "UsernameIsEmail",
@@ -761,7 +715,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		Username:     "kyle",
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		Name: "WithPicture",
 		IDTokenClaims: jwt.MapClaims{
@@ -773,7 +727,7 @@ func TestUserOIDC(t *testing.T) {
 		Username:     "kyle",
 		AllowSignups: true,
 		AvatarURL:    "/example.png",
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		Name: "WithUserInfoClaims",
 		IDTokenClaims: jwt.MapClaims{
@@ -787,7 +741,7 @@ func TestUserOIDC(t *testing.T) {
 		Username:     "potato",
 		AllowSignups: true,
 		AvatarURL:    "/example.png",
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		Name: "GroupsDoesNothing",
 		IDTokenClaims: jwt.MapClaims{
@@ -795,7 +749,7 @@ func TestUserOIDC(t *testing.T) {
 			"groups": []string{"pingpong"},
 		},
 		AllowSignups: true,
-		StatusCode:   http.StatusTemporaryRedirect,
+		StatusCode:   http.StatusOK,
 	}, {
 		Name: "UserInfoOverridesIDTokenClaims",
 		IDTokenClaims: jwt.MapClaims{
@@ -810,7 +764,7 @@ func TestUserOIDC(t *testing.T) {
 		Username:            "user",
 		AllowSignups:        true,
 		IgnoreEmailVerified: false,
-		StatusCode:          http.StatusTemporaryRedirect,
+		StatusCode:          http.StatusOK,
 	}, {
 		Name: "InvalidUserInfo",
 		IDTokenClaims: jwt.MapClaims{
@@ -837,36 +791,41 @@ func TestUserOIDC(t *testing.T) {
 		Username:       "user",
 		IgnoreUserInfo: true,
 		AllowSignups:   true,
-		StatusCode:     http.StatusTemporaryRedirect,
+		StatusCode:     http.StatusOK,
 	}} {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
+			fake := oidctest.NewFakeIDP(t,
+				oidctest.WithRefreshHook(func(_ string) error {
+					return xerrors.New("refreshing token should never occur")
+				}),
+				oidctest.WithServing(),
+				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
+			)
+			cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+				cfg.AllowSignups = tc.AllowSignups
+				cfg.EmailDomain = tc.EmailDomain
+				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
+				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+			})
+
 			auditor := audit.NewMock()
-			conf := coderdtest.NewOIDCConfig(t, "")
-
-			config := conf.OIDCConfig(t, tc.UserInfoClaims)
-			config.AllowSignups = tc.AllowSignups
-			config.EmailDomain = tc.EmailDomain
-			config.IgnoreEmailVerified = tc.IgnoreEmailVerified
-			config.IgnoreUserInfo = tc.IgnoreUserInfo
-
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-			client := coderdtest.New(t, &coderdtest.Options{
+			owner := coderdtest.New(t, &coderdtest.Options{
 				Auditor:    auditor,
-				OIDCConfig: config,
+				OIDCConfig: cfg,
 				Logger:     &logger,
 			})
 			numLogs := len(auditor.AuditLogs())
 
-			resp := oidcCallback(t, client, conf.EncodeClaims(t, tc.IDTokenClaims))
+			client, resp := fake.AttemptLogin(t, owner, tc.IDTokenClaims)
 			numLogs++ // add an audit log for login
-			assert.Equal(t, tc.StatusCode, resp.StatusCode)
+			require.Equal(t, tc.StatusCode, resp.StatusCode)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
 
 			if tc.Username != "" {
-				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.Username, user.Username)
@@ -877,7 +836,6 @@ func TestUserOIDC(t *testing.T) {
 			}
 
 			if tc.AvatarURL != "" {
-				client.SetSessionToken(authCookieValue(resp.Cookies()))
 				user, err := client.User(ctx, "me")
 				require.NoError(t, err)
 				require.Equal(t, tc.AvatarURL, user.AvatarURL)
@@ -890,26 +848,29 @@ func TestUserOIDC(t *testing.T) {
 
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()
+
 		auditor := audit.NewMock()
-		conf := coderdtest.NewOIDCConfig(t, "")
-
-		config := conf.OIDCConfig(t, nil)
-		config.AllowSignups = true
-
-		cfg := coderdtest.DeploymentValues(t)
-		client := coderdtest.New(t, &coderdtest.Options{
-			Auditor:          auditor,
-			OIDCConfig:       config,
-			DeploymentValues: cfg,
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefreshHook(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
 		})
-		owner := coderdtest.CreateFirstUser(t, client)
 
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:    auditor,
+			OIDCConfig: cfg,
+		})
+
+		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		code := conf.EncodeClaims(t, jwt.MapClaims{
+		claims := jwt.MapClaims{
 			"email": userData.Email,
-		})
-
+		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
@@ -921,52 +882,58 @@ func TestUserOIDC(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		resp := oidcCallbackWithState(t, user, code, convertResponse.StateString, nil)
-		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+		fake.LoginWithClient(t, user, claims, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+			cookies := user.HTTPClient.Jar.Cookies(r.URL)
+			for _, cookie := range cookies {
+				r.AddCookie(cookie)
+			}
+		})
 	})
 
 	t.Run("AlternateUsername", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		conf := coderdtest.NewOIDCConfig(t, "")
-
-		config := conf.OIDCConfig(t, nil)
-		config.AllowSignups = true
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefreshHook(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			Auditor:    auditor,
-			OIDCConfig: config,
+			OIDCConfig: cfg,
 		})
-		numLogs := len(auditor.AuditLogs())
 
-		code := conf.EncodeClaims(t, jwt.MapClaims{
+		numLogs := len(auditor.AuditLogs())
+		claims := jwt.MapClaims{
 			"email": "jon@coder.com",
-		})
-		resp := oidcCallback(t, client, code)
+		}
+
+		userClient, _ := fake.Login(t, client, claims)
 		numLogs++ // add an audit log for login
 
-		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-
-		client.SetSessionToken(authCookieValue(resp.Cookies()))
-		user, err := client.User(ctx, "me")
+		user, err := userClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.Equal(t, "jon", user.Username)
 
 		// Pass a different subject field so that we prompt creating a
-		// new user.
-		code = conf.EncodeClaims(t, jwt.MapClaims{
+		// new user
+		userClient, _ = fake.Login(t, client, jwt.MapClaims{
 			"email": "jon@example2.com",
 			"sub":   "diff",
 		})
-		resp = oidcCallback(t, client, code)
 		numLogs++ // add an audit log for login
 
-		assert.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-
-		client.SetSessionToken(authCookieValue(resp.Cookies()))
-		user, err = client.User(ctx, "me")
+		user, err = userClient.User(ctx, "me")
 		require.NoError(t, err)
 		require.True(t, strings.HasPrefix(user.Username, "jon-"), "username %q should have prefix %q", user.Username, "jon-")
 
@@ -977,45 +944,62 @@ func TestUserOIDC(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		resp := oidcCallback(t, client, "asdf")
+		oauthURL, err := client.URL.Parse("/api/v2/users/oidc/callback")
+		require.NoError(t, err)
+
+		req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
+		require.NoError(t, err)
+		resp, err := client.HTTPClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("NoIDToken", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: &coderd.OIDCConfig{
-				OAuth2Config: &testutil.OAuth2Config{},
-			},
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefreshHook(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
 		})
 
-		resp := oidcCallback(t, client, "asdf")
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
 	t.Run("BadVerify", func(t *testing.T) {
 		t.Parallel()
-		verifier := oidc.NewVerifier("", &oidc.StaticKeySet{
+		badVerifier := oidc.NewVerifier("", &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{},
 		}, &oidc.Config{})
-		provider := &oidc.Provider{}
+		badProvider := &oidc.Provider{}
 
-		client := coderdtest.New(t, &coderdtest.Options{
-			OIDCConfig: &coderd.OIDCConfig{
-				OAuth2Config: &testutil.OAuth2Config{
-					Token: (&oauth2.Token{
-						AccessToken: "token",
-					}).WithExtra(map[string]interface{}{
-						"id_token": "invalid",
-					}),
-				},
-				Provider: provider,
-				Verifier: verifier,
-			},
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefreshHook(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.Provider = badProvider
+			cfg.Verifier = badVerifier
 		})
 
-		resp := oidcCallback(t, client, "asdf")
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
 
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 }
@@ -1143,36 +1127,6 @@ func oauth2Callback(t *testing.T, client *codersdk.Client) *http.Response {
 	t.Cleanup(func() {
 		_ = res.Body.Close()
 	})
-	return res
-}
-
-func oidcCallback(t *testing.T, client *codersdk.Client, code string) *http.Response {
-	return oidcCallbackWithState(t, client, code, "somestate", nil)
-}
-
-func oidcCallbackWithState(t *testing.T, client *codersdk.Client, code, state string, modify func(r *http.Request)) *http.Response {
-	t.Helper()
-
-	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/api/v2/users/oidc/callback?code=%s&state=%s", code, state))
-	require.NoError(t, err)
-	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
-	require.NoError(t, err)
-	req.AddCookie(&http.Cookie{
-		Name:  codersdk.OAuth2StateCookie,
-		Value: state,
-	})
-	if modify != nil {
-		modify(req)
-	}
-	res, err := client.HTTPClient.Do(req)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	data, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	t.Log(string(data))
 	return res
 }
 

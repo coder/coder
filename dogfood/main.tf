@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.22.0"
+      version = "~> 3.0.0"
     }
   }
 }
@@ -40,9 +40,10 @@ data "coder_parameter" "dotfiles_url" {
 }
 
 data "coder_parameter" "region" {
-  type = "string"
-  name = "Region"
-  icon = "/emojis/1f30e.png"
+  type    = "string"
+  name    = "Region"
+  icon    = "/emojis/1f30e.png"
+  default = "us-pittsburgh"
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
@@ -325,5 +326,9 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "runtime"
     value = docker_container.workspace[0].runtime
+  }
+  item {
+    key   = "region"
+    value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
 }

@@ -12,12 +12,15 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/oauthpki"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -121,6 +124,58 @@ func TestAzureADPKIOIDC(t *testing.T) {
 	_, err = pkiConfig.Exchange(ctx, base64.StdEncoding.EncodeToString([]byte("random-code")))
 	// We hijack the request and return an error intentionally
 	require.Error(t, err, "error expected")
+}
+
+// TestAzureAKPKIWithCoderd uses a fake IDP and a real Coderd to test PKI auth.
+// nolint:bodyclose
+func TestAzureAKPKIWithCoderd(t *testing.T) {
+	t.Parallel()
+
+	scopes := []string{"openid", "email", "profile", "offline_access"}
+	fake := oidctest.NewFakeIDP(t,
+		oidctest.WithIssuer("https://login.microsoftonline.com/fake_app"),
+		oidctest.WithCustomClientAuth(func(t testing.TB, req *http.Request) (url.Values, error) {
+			values := assertJWTAuth(t, req)
+			if values == nil {
+				return nil, xerrors.New("authorizatin failed in request")
+			}
+			return values, nil
+		}),
+		oidctest.WithServing(),
+	)
+	cfg := fake.OIDCConfig(t, scopes, func(cfg *coderd.OIDCConfig) {
+		cfg.AllowSignups = true
+	})
+
+	oauthCfg := cfg.OAuth2Config.(*oauth2.Config)
+	// Create the oauthpki config
+	pki, err := oauthpki.NewOauth2PKIConfig(oauthpki.ConfigParams{
+		ClientID:       oauthCfg.ClientID,
+		TokenURL:       oauthCfg.Endpoint.TokenURL,
+		Scopes:         scopes,
+		PemEncodedKey:  []byte(testClientKey),
+		PemEncodedCert: []byte(testClientCert),
+		Config:         oauthCfg,
+	})
+	require.NoError(t, err)
+	cfg.OAuth2Config = pki
+
+	owner, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		OIDCConfig: cfg,
+	})
+
+	// Create a user and login
+	const email = "alice@coder.com"
+	claims := jwt.MapClaims{
+		"email": email,
+	}
+	helper := oidctest.NewLoginHelper(owner, fake)
+	user, _ := helper.Login(t, claims)
+
+	// Try refreshing the token more than once.
+	for i := 0; i < 2; i++ {
+		helper.ForceRefresh(t, api.Database, user, claims)
+	}
 }
 
 // TestSavedAzureADPKIOIDC was created by capturing actual responses from an Azure
@@ -269,7 +324,7 @@ func (f fakeRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 // assertJWTAuth will assert the basic JWT auth assertions. It will return the
 // url.Values from the request body for any additional assertions to be made.
-func assertJWTAuth(t *testing.T, r *http.Request) url.Values {
+func assertJWTAuth(t testing.TB, r *http.Request) url.Values {
 	body, err := io.ReadAll(r.Body)
 	if !assert.NoError(t, err) {
 		return nil
