@@ -76,6 +76,9 @@ export const TemplateVersionEditorPage: FC = () => {
           isPublishing={editorState.matches("publishingVersion")}
           publishingError={editorState.context.publishingError}
           publishedVersion={editorState.context.lastSuccessfulPublishedVersion}
+          publishedVersionIsDefault={
+            editorState.context.lastSuccessfulPublishIsDefault
+          }
           onCreateWorkspace={() => {
             navigate(`/templates/${templateName}/workspace`)
           }}

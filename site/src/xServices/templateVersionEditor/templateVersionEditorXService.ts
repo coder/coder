@@ -25,6 +25,7 @@ export interface TemplateVersionEditorMachineContext {
   tarReader?: TarReader
   publishingError?: unknown
   lastSuccessfulPublishedVersion?: TemplateVersion
+  lastSuccessfulPublishIsDefault?: boolean
   missingVariables?: TemplateVersionVariable[]
   missingVariableValues?: VariableValue[]
 }
@@ -69,7 +70,7 @@ export const templateVersionEditorMachine = createMachine(
           data: WorkspaceResource[]
         }
         publishingVersion: {
-          data: void
+          data: { isActiveVersion: boolean }
         }
         loadMissingVariables: {
           data: TemplateVersionVariable[]
@@ -260,6 +261,8 @@ export const templateVersionEditorMachine = createMachine(
       }),
       assignLastSuccessfulPublishedVersion: assign({
         lastSuccessfulPublishedVersion: (ctx) => ctx.version,
+        lastSuccessfulPublishIsDefault: (_, event) =>
+          event.data.isActiveVersion,
         version: () => undefined,
       }),
       addBuildLog: assign({
@@ -429,6 +432,8 @@ export const templateVersionEditorMachine = createMachine(
               })
             : Promise.resolve(),
         ])
+
+        return { isActiveVersion }
       },
       loadMissingVariables: ({ version }) => {
         if (!version) {
