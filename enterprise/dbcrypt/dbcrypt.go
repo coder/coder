@@ -27,6 +27,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"github.com/google/uuid"
 	"strings"
 	"sync/atomic"
 
@@ -142,6 +143,19 @@ func (db *dbCrypt) GetUserLinkByLinkedID(ctx context.Context, linkedID string) (
 	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
+func (db *dbCrypt) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
+	links, err := db.Store.GetUserLinksByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range links {
+		if err := db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken); err != nil {
+			return nil, err
+		}
+	}
+	return links, nil
+}
+
 func (db *dbCrypt) GetUserLinkByUserIDLoginType(ctx context.Context, params database.GetUserLinkByUserIDLoginTypeParams) (database.UserLink, error) {
 	link, err := db.Store.GetUserLinkByUserIDLoginType(ctx, params)
 	if err != nil {
@@ -180,6 +194,19 @@ func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAut
 		return database.GitAuthLink{}, err
 	}
 	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
+}
+
+func (db *dbCrypt) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
+	links, err := db.Store.GetGitAuthLinksByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	for _, link := range links {
+		if err := db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken); err != nil {
+			return nil, err
+		}
+	}
+	return links, nil
 }
 
 func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
