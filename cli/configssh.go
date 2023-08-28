@@ -190,7 +190,6 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-//nolint:gocyclo
 func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile       string

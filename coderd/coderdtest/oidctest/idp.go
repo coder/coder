@@ -663,7 +663,7 @@ func (f *FakeIDP) HTTPClient(rest *http.Client) *http.Client {
 						return f.fakeCoderd(req)
 					}
 					if rest == nil || rest.Transport == nil {
-						return nil, fmt.Errorf("unexpected network request to %q", req.URL.Host)
+						return nil, xerrors.Errorf("unexpected network request to %q", req.URL.Host)
 					}
 					return rest.Transport.RoundTrip(req)
 				}

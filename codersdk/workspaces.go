@@ -28,6 +28,7 @@ type Workspace struct {
 	TemplateDisplayName                  string         `json:"template_display_name"`
 	TemplateIcon                         string         `json:"template_icon"`
 	TemplateAllowUserCancelWorkspaceJobs bool           `json:"template_allow_user_cancel_workspace_jobs"`
+	TemplateActiveVersionID              uuid.UUID      `json:"template_active_version_id" format:"uuid"`
 	LatestBuild                          WorkspaceBuild `json:"latest_build"`
 	Outdated                             bool           `json:"outdated"`
 	Name                                 string         `json:"name"`

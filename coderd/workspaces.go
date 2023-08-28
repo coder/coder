@@ -1187,6 +1187,7 @@ func convertWorkspace(
 		TemplateIcon:                         template.Icon,
 		TemplateDisplayName:                  template.DisplayName,
 		TemplateAllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
+		TemplateActiveVersionID:              template.ActiveVersionID,
 		Outdated:                             workspaceBuild.TemplateVersionID.String() != template.ActiveVersionID.String(),
 		Name:                                 workspace.Name,
 		AutostartSchedule:                    autostartSchedule,

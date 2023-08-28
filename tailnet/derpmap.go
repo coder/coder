@@ -13,10 +13,12 @@ import (
 	"tailscale.com/tailcfg"
 )
 
+const DisableSTUN = "disable"
+
 func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, error) {
 	regions := make([]*tailcfg.DERPRegion, 0, len(stunAddrs))
 	for index, stunAddr := range stunAddrs {
-		if stunAddr == "disable" {
+		if stunAddr == DisableSTUN {
 			return []*tailcfg.DERPRegion{}, nil
 		}
 
