@@ -243,7 +243,8 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 		for _, opt := range cmd.Options {
 			// Verify that every option is configurable.
 			if opt.Flag == "" && opt.Env == "" {
-				if cmd.Name() == "server" {
+				// TODO(Cian): maybe move dbcrypt-rotate under server to work around this?
+				if cmd.Name() == "server" || cmd.Name() == "dbcrypt-rotate" {
 					// The server command is funky and has YAML-only options, e.g.
 					// support links.
 					return

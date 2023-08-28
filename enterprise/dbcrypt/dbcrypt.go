@@ -27,12 +27,11 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
-	"github.com/google/uuid"
 	"strings"
 	"sync/atomic"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
