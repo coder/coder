@@ -19,7 +19,6 @@ import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
 import { WorkspaceBuildParameter } from "api/typesGenerated"
-import { createTemplateVersion, uploadTemplateFile } from "api/api"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -117,6 +116,7 @@ export const createTemplate = async (
   await page.addInitScript({
     content: "window.playwright = true",
   })
+
   await page.goto("/templates/new", { waitUntil: "networkidle" })
   await page.getByTestId("file-upload").setInputFiles({
     buffer: await createTemplateVersionTar(responses),
@@ -617,23 +617,74 @@ export const fillParameters = async (
   }
 }
 
-export const uploadTemplateVersion = async (
+export const updateTemplate = async (
+  page: Page,
   templateName: string,
   responses?: EchoProvisionerResponses,
-): Promise<string> => {
+) => {
   const tarball = await createTemplateVersionTar(responses)
-  const file = new File([tarball], "version.tar", { type: "application/x-tar" })
-  const uploadResponse = await uploadTemplateFile(file)
 
-  // FIXME find:
-  const organizationId = ""
-  const templateId = ""
-  const templateVersion = await createTemplateVersion(organizationId, {
-    template_id: templateId,
-    storage_method: "file",
-    file_id: uploadResponse.hash,
-    provisioner: "echo",
-    tags: {},
+  const sessionToken = await findSessionToken(page)
+  const child = spawn(
+    "go",
+    [
+      "run",
+      coderMainPath(),
+      "templates",
+      "push",
+      "--test.provisioner",
+      "echo",
+      "-y",
+      "-d",
+      "-",
+      templateName,
+    ],
+    {
+      env: {
+        ...process.env,
+        CODER_SESSION_TOKEN: sessionToken,
+        CODER_URL: "http://localhost:3000",
+      },
+    },
+  )
+
+  const uploaded = new Awaiter()
+  child.on("exit", (code) => {
+    if (code === 0) {
+      uploaded.done()
+      return
+    }
+
+    throw new Error(`coder templates push failed with code ${code}`)
   })
-  return templateVersion.id
+
+  child.stdin.write(tarball)
+  child.stdin.end()
+
+  await uploaded.wait()
+}
+
+export const updateWorkspace = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("workspace-update-button").click()
+  await page.getByTestId("confirm-button").click()
+
+  await fillParameters(page, richParameters, buildParameters)
+  await page.getByTestId("form-submit").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
 }

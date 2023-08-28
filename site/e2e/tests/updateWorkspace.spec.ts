@@ -3,14 +3,15 @@ import {
   createTemplate,
   createWorkspace,
   echoResponsesWithParameters,
-  uploadTemplateVersion,
+  updateTemplate,
+  updateWorkspace,
   verifyParameters,
 } from "../helpers"
 
 import { fifthParameter, firstParameter, secondParameter } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
 
-test("update workspace, new optional, mutable parameter added", async ({
+test("update workspace, new optional, immutable parameter added", async ({
   page,
 }) => {
   const richParameters: RichParameter[] = [firstParameter, secondParameter]
@@ -27,23 +28,23 @@ test("update workspace, new optional, mutable parameter added", async ({
     { name: secondParameter.name, value: secondParameter.defaultValue },
   ])
 
-  // Upload new template version with extra parameter.
+  // Push updated template.
   const updatedRichParameters = [...richParameters, fifthParameter]
-  const templateVersion = await uploadTemplateVersion(
+  await updateTemplate(
+    page,
     template,
     echoResponsesWithParameters(updatedRichParameters),
   )
 
-  // TODO Activate the template version
-  // Go to Versions -> Promote version
-
-  // Now, update the workspace.
-  // TODO Update workspace
+  // Now, update the workspace, and select the value for immutable parameter.
+  await updateWorkspace(page, workspaceName, updatedRichParameters, [
+    { name: fifthParameter.name, value: fifthParameter.options[0].value },
+  ])
 
   // Verify that parameter values are default.
   await verifyParameters(page, workspaceName, updatedRichParameters, [
     { name: firstParameter.name, value: firstParameter.defaultValue },
     { name: secondParameter.name, value: secondParameter.defaultValue },
-    { name: fifthParameter.name, value: fifthParameter.defaultValue },
+    { name: fifthParameter.name, value: fifthParameter.options[0].value },
   ])
 })
