@@ -744,8 +744,6 @@ func (server *Server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*p
 }
 
 // CompleteJob is triggered by a provision daemon to mark a provisioner job as completed.
-//
-//nolint:gocyclo
 func (server *Server) CompleteJob(ctx context.Context, completed *proto.CompletedJob) (*proto.Empty, error) {
 	ctx, span := server.startTrace(ctx, tracing.FuncName())
 	defer span.End()

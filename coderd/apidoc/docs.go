@@ -10555,6 +10555,10 @@ const docTemplate = `{
                 "owner_name": {
                     "type": "string"
                 },
+                "template_active_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "template_allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },

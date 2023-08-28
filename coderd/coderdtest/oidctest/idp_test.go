@@ -10,10 +10,11 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
+
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 )
 
 // TestFakeIDPBasicFlow tests the basic flow of the fake IDP.
