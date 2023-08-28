@@ -39,6 +39,7 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name)
 
+  // FIXME: workaround for https://github.com/coder/coder/issues/8566
   const reloadTimer = setInterval(async () => {
     await page.reload()
   }, 3000)
