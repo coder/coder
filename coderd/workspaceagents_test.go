@@ -308,20 +308,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		case <-first:
 		}
 
-		// Create a new version and update the template.
-		version2, err := client.CreateTemplateVersion(ctx, user.OrganizationID, codersdk.CreateTemplateVersionRequest{
-			TemplateID:    template.ID,
-			Name:          "version2",
-			StorageMethod: codersdk.ProvisionerStorageMethodFile,
-			FileID:        version.Job.FileID,
-			Provisioner:   codersdk.ProvisionerTypeEcho,
-		})
-		require.NoError(t, err)
-		coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
-
-		_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart, func(req *codersdk.CreateWorkspaceBuildRequest) {
-			req.TemplateVersionID = version2.ID
-		})
+		_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
 
 		// Send a new log message to trigger a re-check.
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
