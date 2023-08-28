@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -481,6 +482,15 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace by agent id.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -556,7 +566,8 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer close(bufferedLogs)
 
-		for {
+		keepGoing := true
+		for keepGoing {
 			select {
 			case <-ctx.Done():
 				return
@@ -564,6 +575,18 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			case <-notifyCh:
 				t.Reset(recheckInterval)
 			}
+
+			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return
+				}
+				logger.Warn(ctx, "failed to get workspace agents in latest build", slog.Error(err))
+				continue
+			}
+			// If the agent is no longer in the latest build, we can stop after
+			// checking once.
+			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == workspaceAgent.ID })
 
 			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID:      workspaceAgent.ID,
