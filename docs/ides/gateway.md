@@ -211,7 +211,7 @@ and a client to be installed on your local machine. You can host both on the ser
 in this example.
 
 See here for the full [JetBrains product list and builds](https://data.services.jetbrains.com/products).
-Below the full list of supported `--platforms-filter` values:
+Below is the full list of supported `--platforms-filter` values:
 
 ```console
 windows-x64, windows-aarch64, linux-x64, linux-aarch64, osx-x64, osx-aarch64
