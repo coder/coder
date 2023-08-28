@@ -536,6 +536,11 @@
           "path": "cli/create.md"
         },
         {
+          "title": "dbcrypt-rotate",
+          "description": "Rotate database encryption keys",
+          "path": "cli/dbcrypt-rotate.md"
+        },
+        {
           "title": "delete",
           "description": "Delete a workspace",
           "path": "cli/delete.md"
