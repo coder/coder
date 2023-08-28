@@ -47,6 +47,29 @@ func Test_TokenMatchesRequest(t *testing.T) {
 			want: true,
 		},
 		{
+			name: "NormalizePath",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod: workspaceapps.AccessMethodPath,
+					// With trailing slash
+					BasePath:          "/app/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "qux",
+				},
+			},
+			want: true,
+		},
+		{
 			name: "DifferentAccessMethod",
 			req: workspaceapps.Request{
 				AccessMethod: workspaceapps.AccessMethodPath,
