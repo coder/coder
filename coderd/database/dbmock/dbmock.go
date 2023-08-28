@@ -699,6 +699,21 @@ func (mr *MockStoreMockRecorder) GetGitAuthLink(arg0, arg1 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLink", reflect.TypeOf((*MockStore)(nil).GetGitAuthLink), arg0, arg1)
 }
 
+// GetGitAuthLinksByUserID mocks base method.
+func (m *MockStore) GetGitAuthLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.GitAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitAuthLinksByUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GitAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitAuthLinksByUserID indicates an expected call of GetGitAuthLinksByUserID.
+func (mr *MockStoreMockRecorder) GetGitAuthLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetGitAuthLinksByUserID), arg0, arg1)
+}
+
 // GetGitSSHKey mocks base method.
 func (m *MockStore) GetGitSSHKey(arg0 context.Context, arg1 uuid.UUID) (database.GitSSHKey, error) {
 	m.ctrl.T.Helper()
@@ -1642,6 +1657,21 @@ func (m *MockStore) GetUserLinkByUserIDLoginType(arg0 context.Context, arg1 data
 func (mr *MockStoreMockRecorder) GetUserLinkByUserIDLoginType(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinkByUserIDLoginType", reflect.TypeOf((*MockStore)(nil).GetUserLinkByUserIDLoginType), arg0, arg1)
+}
+
+// GetUserLinksByUserID mocks base method.
+func (m *MockStore) GetUserLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.UserLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserLinksByUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.UserLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserLinksByUserID indicates an expected call of GetUserLinksByUserID.
+func (mr *MockStoreMockRecorder) GetUserLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetUserLinksByUserID), arg0, arg1)
 }
 
 // GetUsers mocks base method.

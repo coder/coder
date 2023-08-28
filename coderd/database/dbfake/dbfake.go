@@ -1436,6 +1436,10 @@ func (q *FakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthL
 	return database.GitAuthLink{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetGitAuthLinksByUserID(_ context.Context, _ uuid.UUID) ([]database.GitAuthLink, error) {
+	panic("this is intentionally not implemented")
+}
+
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -2874,6 +2878,10 @@ func (q *FakeQuerier) GetUserLinkByUserIDLoginType(_ context.Context, params dat
 		}
 	}
 	return database.UserLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
+	panic("this is intentionally not implemented")
 }
 
 func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams) ([]database.GetUsersRow, error) {

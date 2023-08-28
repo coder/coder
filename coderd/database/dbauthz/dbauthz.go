@@ -924,6 +924,10 @@ func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLin
 	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
 }
 
+func (q *querier) GetGitAuthLinksByUserID(_ context.Context, _ uuid.UUID) ([]database.GitAuthLink, error) {
+	return nil, xerrors.Errorf("this is intentionally not implemented")
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetch(q.log, q.auth, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -1490,6 +1494,10 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 		return database.UserLink{}, err
 	}
 	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
+}
+
+func (q *querier) GetUserLinksByUserID(_ context.Context, _ uuid.UUID) ([]database.UserLink, error) {
+	return nil, xerrors.Errorf("this is intentionally not implemented")
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {

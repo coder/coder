@@ -857,6 +857,41 @@ func (q *sqlQuerier) GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParam
 	return i, err
 }
 
+const getGitAuthLinksByUserID = `-- name: GetGitAuthLinksByUserID :many
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry FROM git_auth_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]GitAuthLink, error) {
+	rows, err := q.db.QueryContext(ctx, getGitAuthLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GitAuthLink
+	for rows.Next() {
+		var i GitAuthLink
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertGitAuthLink = `-- name: InsertGitAuthLink :one
 INSERT INTO git_auth_links (
     provider_id,
@@ -5543,6 +5578,40 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 	)
 	return i, err
+}
+
+const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry FROM user_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
+	rows, err := q.db.QueryContext(ctx, getUserLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserLink
+	for rows.Next() {
+		var i UserLink
+		if err := rows.Scan(
+			&i.UserID,
+			&i.LoginType,
+			&i.LinkedID,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertUserLink = `-- name: InsertUserLink :one

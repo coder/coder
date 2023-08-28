@@ -72,6 +72,7 @@ type sqlcQuerier interface {
 	// Get all templates that use a file.
 	GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]GetFileTemplatesRow, error)
 	GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error)
+	GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]GitAuthLink, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupByID(ctx context.Context, id uuid.UUID) (Group, error)
 	GetGroupByOrgAndName(ctx context.Context, arg GetGroupByOrgAndNameParams) (Group, error)
@@ -153,6 +154,7 @@ type sqlcQuerier interface {
 	GetUserLatencyInsights(ctx context.Context, arg GetUserLatencyInsightsParams) ([]GetUserLatencyInsightsRow, error)
 	GetUserLinkByLinkedID(ctx context.Context, linkedID string) (UserLink, error)
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
+	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)
 	// This shouldn't check for deleted, because it's frequently used

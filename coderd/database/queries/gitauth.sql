@@ -1,6 +1,10 @@
 -- name: GetGitAuthLink :one
 SELECT * FROM git_auth_links WHERE provider_id = $1 AND user_id = $2;
 
+-- name: GetGitAuthLinksByUserID :many
+SELECT * FROM git_auth_links WHERE user_id = $1;
+
+
 -- name: InsertGitAuthLink :one
 INSERT INTO git_auth_links (
     provider_id,
