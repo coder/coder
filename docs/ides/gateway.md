@@ -191,13 +191,13 @@ see the
 
 ### Configuration Steps
 
-The Coder team built a POC of the JetBrains Gateway Offline Mode solution. Here
-are the steps we took (and "gotchas"):
+The Coder team built a POC of the JetBrains Gateway Offline Mode solution. Here are
+the steps we took (and "gotchas"):
 
 ### 1. Deploy the server and install the Client Downloader
 
-We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader
-binary. Note that the server must be a Linux-based distribution.
+We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader binary. Note
+that the server must be a Linux-based distribution.
 
 ```shell
 wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \
@@ -206,12 +206,11 @@ tar -xzvf jetbrains-clients-downloader-linux-x86_64-1867.tar.gz
 
 ### 2. Install backends and clients
 
-JetBrains Gateway requires both a backend to be installed on the remote host
-(your Coder workspace) and a client to be installed on your local machine. You
-can host both on the server in this example.
+JetBrains Gateway requires both a backend to be installed on the remote host (your Coder workspace)
+and a client to be installed on your local machine. You can host both on the server
+in this example.
 
-See here for the full
-[JetBrains product list and builds](https://data.services.jetbrains.com/products).
+See here for the full [JetBrains product list and builds](https://data.services.jetbrains.com/products).
 Below is the full list of supported `--platforms-filter` values:
 
 ```console
@@ -234,13 +233,12 @@ This is the same command as above, with the `--download-backends` flag removed.
 ./jetbrains-clients-downloader-linux-x86_64-1867/bin4/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64 ~/clients
 ```
 
-We now have both clients and backends installed.
+We now have both clients and backends installed in
 
 ### 3. Install a web server
 
-You will need to run a web server in order to serve requests to the backend and
-client files. We installed `nginx` and setup an FQDN and routed all requests to
-`/`. See below:
+You will need to run a web server in order to serve requests to the backend and client
+files. We installed `nginx` and setup an FQDN and routed all requests to `/`. See below:
 
 ```console
 server {
@@ -260,22 +258,19 @@ server {
 ```
 
 Then, configure your DNS entry to point to the IP address of the server. For the
-purposes of the POC, we did not configure TLS, although that is a supported
-option.
+purposes of the POC, we did not configure TLS, although that is a supported option.
 
 ### 4. Setup SSH connection with JetBrains Gateway
 
 With the server now configured, you can now configure your local machine to use
-Gateway. Here is the documentation to
-[setup SSH config via the Coder CLI](../ides.md#ssh-configuration). On the
-Gateway side, follow our guide here until step 16.
+Gateway. Here is the documentation to [setup SSH config via the Coder CLI](../ides.md#ssh-configuration).
+On the Gateway side, follow our guide here until step 16.
 
-Instead of downloading from jetbrains.com, we will point Gateway to our server
-endpoint. Select `Installation options...` and select `Use download link`. Note
-that the URL must explicitly reference the archive file:
+Instead of downloading from jetbrains.com, we will point Gateway to our server endpoint.
+Select `Installation options...` and select `Use download link`. Note that the URL
+must explicitly reference the archive file:
 
 ![Offline Gateway](../images/gateway/offline-gateway.png)
 
-Click `Download IDE and Connect`. Gateway should now download the backend and
-clients from the server into your remote workspace and local machine,
-respectively.
+Click `Download IDE and Connect`. Gateway should now download the backend and clients
+from the server into your remote workspace and local machine, respectively.
