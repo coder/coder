@@ -39,17 +39,12 @@ export const createWorkspace = async (
 
   await expect(page).toHaveURL("/@admin/" + name)
 
-  // FIXME: workaround for https://github.com/coder/coder/issues/8566
-  const reloadTimer = setInterval(async () => {
-    await page.reload()
-  }, 3000)
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
       state: "visible",
     },
   )
-  clearInterval(reloadTimer)
   return name
 }
 
