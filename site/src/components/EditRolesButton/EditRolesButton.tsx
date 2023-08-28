@@ -37,7 +37,7 @@ const Option: React.FC<{
             onChange(e.currentTarget.value)
           }}
         />
-        <Stack spacing={0.5}>
+        <Stack spacing={0}>
           <strong>{name}</strong>
           <span className={styles.optionDescription}>{description}</span>
         </Stack>
@@ -142,7 +142,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         <div className={styles.footer}>
           <Stack direction="row" alignItems="flex-start">
             <UserIcon className={styles.userIcon} />
-            <Stack spacing={0.5}>
+            <Stack spacing={0}>
               <strong>{t("member")}</strong>
               <span className={styles.optionDescription}>
                 {t("roleDescription.member")}
@@ -182,7 +182,7 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
 
     "&:disabled": {
-      opacity: 0.5,
+      opacity: 0,
     },
   },
   options: {
@@ -190,6 +190,7 @@ const useStyles = makeStyles((theme) => ({
   },
   option: {
     cursor: "pointer",
+    fontSize: 14,
   },
   checkbox: {
     padding: 0,
@@ -202,13 +203,15 @@ const useStyles = makeStyles((theme) => ({
     },
   },
   optionDescription: {
-    fontSize: 12,
+    fontSize: 13,
     color: theme.palette.text.secondary,
+    lineHeight: "160%",
   },
   footer: {
     padding: theme.spacing(3),
     backgroundColor: theme.palette.background.paper,
     borderTop: `1px solid ${theme.palette.divider}`,
+    fontSize: 14,
   },
   userIcon: {
     width: theme.spacing(2.5), // Same as the checkbox
