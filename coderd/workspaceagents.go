@@ -920,7 +920,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
 			err := json.NewEncoder(nconn).Encode(derpMap)
 			if err != nil {
-				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				_ = nconn.Close()
 				return
 			}
 			lastDERPMap = derpMap
