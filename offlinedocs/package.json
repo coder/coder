@@ -19,7 +19,7 @@
     "@emotion/react": "11",
     "@emotion/styled": "11",
     "@types/lodash": "4.14.196",
-    "archiver": "5.3.1",
+    "archiver": "6.0.0",
     "framer-motion": "10",
     "front-matter": "4.0.2",
     "fs-extra": "11.1.1",
