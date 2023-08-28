@@ -15,7 +15,7 @@ export interface VSCodeDesktopButtonProps {
   workspaceName: string
   agentName?: string
   folderPath?: string
-  defaultApps: DisplayApp[]
+  displayApps: DisplayApp[]
 }
 
 type VSCodeVariant = "vscode" | "vscode-insiders"
@@ -42,8 +42,8 @@ export const VSCodeDesktopButton: FC<
     setIsVariantMenuOpen(false)
   }
 
-  const includesVSCodeDesktop = props.defaultApps.includes("vscode")
-  const includesVSCodeInsiders = props.defaultApps.includes("vscode_insiders")
+  const includesVSCodeDesktop = props.displayApps.includes("vscode")
+  const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders")
 
   return includesVSCodeDesktop && includesVSCodeInsiders ? (
     <div>

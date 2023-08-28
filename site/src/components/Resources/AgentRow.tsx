@@ -227,7 +227,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                       workspaceName={workspace.name}
                       agentName={agent.name}
                       folderPath={agent.expanded_directory}
-                      defaultApps={agent.display_apps}
+                      displayApps={agent.display_apps}
                     />
                   )}
                 {agent.apps.map((app) => (
