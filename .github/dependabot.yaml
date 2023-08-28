@@ -8,7 +8,7 @@ updates:
       timezone: "America/Chicago"
     labels: []
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
     ignore:
       # These actions deliver the latest versions by updating the major
       # release tag, so ignore minor and patch versions
@@ -117,11 +117,6 @@ updates:
           - "@eslint*"
           - "@typescript-eslint/eslint-plugin"
           - "@typescript-eslint/parser"
-      jest:
-        patterns:
-          - "jest*"
-          - "@swc/jest"
-          - "@types/jest"
 
   - package-ecosystem: "npm"
     directory: "/offlinedocs/"
@@ -146,20 +141,6 @@ updates:
           - version-update:semver-major
 
   # Update dogfood.
-  - package-ecosystem: "docker"
-    directory: "/dogfood/"
-    schedule:
-      interval: "weekly"
-      time: "06:00"
-      timezone: "America/Chicago"
-    commit-message:
-      prefix: "chore"
-    labels: []
-    groups:
-      dogfood-docker:
-        patterns:
-          - "*"
-
   - package-ecosystem: "terraform"
     directory: "/dogfood/"
     schedule:
