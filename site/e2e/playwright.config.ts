@@ -43,7 +43,7 @@ export default defineConfig({
       `--in-memory --telemetry=false ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
-      `--provisioner-daemon-poll-interval 50ms`,
+      `--provisioner-daemon-poll-interval 1s`,
     env: {
       ...process.env,
 
