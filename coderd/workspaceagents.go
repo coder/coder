@@ -878,13 +878,15 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+	ctx, nconn := websocketNetConn(ctx, ws, websocket.MessageBinary)
 	defer nconn.Close()
 
 	// Slurp all packets from the connection into io.Discard so pongs get sent
-	// by the websocket package.
+	// by the websocket package. We don't do any reads ourselves so this is
+	// necessary.
 	go func() {
 		_, _ = io.Copy(io.Discard, nconn)
+		_ = nconn.Close()
 	}()
 
 	go func(ctx context.Context) {
@@ -899,13 +901,11 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// We don't need a context that times out here because the ping will
-			// eventually go through. If the context times out, then other
-			// websocket read operations will receive an error, obfuscating the
-			// actual problem.
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			err := ws.Ping(ctx)
+			cancel()
 			if err != nil {
-				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				_ = nconn.Close()
 				return
 			}
 		}
@@ -920,7 +920,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
 			err := json.NewEncoder(nconn).Encode(derpMap)
 			if err != nil {
-				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				_ = nconn.Close()
 				return
 			}
 			lastDERPMap = derpMap
