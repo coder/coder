@@ -447,10 +447,10 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // APITokenFromRequest returns the api token from the request.
 // Find the session token from:
 // 1: The cookie
-// 1: The devurl cookie
-// 3: The old cookie
-// 4. The coder_session_token query parameter
-// 5. The custom auth header
+// 2. The coder_session_token query parameter
+// 3. The custom auth header
+//
+// API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
@@ -465,11 +465,6 @@ func APITokenFromRequest(r *http.Request) string {
 	headerValue := r.Header.Get(codersdk.SessionTokenHeader)
 	if headerValue != "" {
 		return headerValue
-	}
-
-	cookie, err = r.Cookie(codersdk.DevURLSessionTokenCookie)
-	if err == nil && cookie.Value != "" {
-		return cookie.Value
 	}
 
 	return ""
