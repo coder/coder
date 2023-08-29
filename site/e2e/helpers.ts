@@ -31,6 +31,8 @@ export const createWorkspace = async (
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "networkidle",
   })
+  await expect(page).toHaveURL("/templates/" + templateName + "/workspace")
+
   const name = randomName()
   await page.getByLabel("name").fill(name)
 
@@ -678,6 +680,30 @@ export const updateWorkspace = async (
 
   await page.getByTestId("workspace-update-button").click()
   await page.getByTestId("confirm-button").click()
+
+  await fillParameters(page, richParameters, buildParameters)
+  await page.getByTestId("form-submit").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
+}
+
+export const updateWorkspaceParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL(
+    "/@admin/" + workspaceName + "/settings/parameters",
+  )
 
   await fillParameters(page, richParameters, buildParameters)
   await page.getByTestId("form-submit").click()
