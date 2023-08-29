@@ -48,6 +48,7 @@ const (
 	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
 	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
 	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureWorkspaceBatchActions      FeatureName = "workspace_batch_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -64,6 +65,7 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureWorkspaceBatchActions,
 }
 
 // Humanize returns the feature name in a human-readable format.

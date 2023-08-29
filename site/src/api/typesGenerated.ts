@@ -1628,6 +1628,7 @@ export type FeatureName =
   | "template_restart_requirement"
   | "user_limit"
   | "user_role_management"
+  | "workspace_batch_actions"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1642,6 +1643,7 @@ export const FeatureNames: FeatureName[] = [
   "template_restart_requirement",
   "user_limit",
   "user_role_management",
+  "workspace_batch_actions",
   "workspace_proxy",
 ]
 
