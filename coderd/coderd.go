@@ -1099,25 +1099,27 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 
 	mux := drpcmux.New()
 
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:                   api.AccessURL,
-		ID:                          daemon.ID,
-		OIDCConfig:                  api.OIDCConfig,
-		Database:                    api.Database,
-		Pubsub:                      api.Pubsub,
-		Provisioners:                daemon.Provisioners,
-		GitAuthConfigs:              api.GitAuthConfigs,
-		Telemetry:                   api.Telemetry,
-		Tracer:                      tracer,
-		Tags:                        tags,
-		QuotaCommitter:              &api.QuotaCommitter,
-		Auditor:                     &api.Auditor,
-		TemplateScheduleStore:       api.TemplateScheduleStore,
-		UserQuietHoursScheduleStore: api.UserQuietHoursScheduleStore,
-		AcquireJobDebounce:          debounce,
-		Logger:                      api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		DeploymentValues:            api.DeploymentValues,
-	})
+	err = proto.DRPCRegisterProvisionerDaemon(mux, provisionerdserver.NewServer(
+		api.AccessURL,
+		daemon.ID,
+		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		daemon.Provisioners,
+		tags,
+		api.Database,
+		api.Pubsub,
+		api.Telemetry,
+		tracer,
+		&api.QuotaCommitter,
+		&api.Auditor,
+		api.TemplateScheduleStore,
+		api.UserQuietHoursScheduleStore,
+		api.DeploymentValues,
+		debounce,
+		provisionerdserver.Options{
+			OIDCConfig:     api.OIDCConfig,
+			GitAuthConfigs: api.GitAuthConfigs,
+		},
+	))
 	if err != nil {
 		return nil, err
 	}
