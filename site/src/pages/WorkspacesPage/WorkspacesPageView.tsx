@@ -48,6 +48,7 @@ export interface WorkspacesPageViewProps {
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
   onDeleteAll: () => void
+  canCheckWorkspaces: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -65,6 +66,7 @@ export const WorkspacesPageView: FC<
   checkedWorkspaces,
   onCheckChange,
   onDeleteAll,
+  canCheckWorkspaces,
 }) => {
   const { saveLocal } = useLocalStorage()
 
@@ -149,6 +151,7 @@ export const WorkspacesPageView: FC<
         onUpdateWorkspace={onUpdateWorkspace}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={onCheckChange}
+        canCheckWorkspaces={canCheckWorkspaces}
       />
       {count !== undefined && (
         <PaginationWidgetBase

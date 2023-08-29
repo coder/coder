@@ -45,6 +45,7 @@ export interface WorkspacesTableProps {
   isUsingFilter: boolean
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
+  canCheckWorkspaces: boolean
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -53,6 +54,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   isUsingFilter,
   onUpdateWorkspace,
   onCheckChange,
+  canCheckWorkspaces,
 }) => {
   const { t } = useTranslation("workspacesPage")
   const styles = useStyles()
@@ -62,29 +64,29 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell
-              width="40%"
-              sx={{
-                paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
-              }}
-            >
+            <TableCell width="40%">
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Checkbox
-                  disabled={!workspaces || workspaces.length === 0}
-                  checked={checkedWorkspaces.length === workspaces?.length}
-                  size="small"
-                  onChange={(_, checked) => {
-                    if (!workspaces) {
-                      return
-                    }
+                {canCheckWorkspaces && (
+                  <Checkbox
+                    // Remove the extra padding added for the first cell in the
+                    // table
+                    sx={{ marginLeft: "-20px" }}
+                    disabled={!workspaces || workspaces.length === 0}
+                    checked={checkedWorkspaces.length === workspaces?.length}
+                    size="small"
+                    onChange={(_, checked) => {
+                      if (!workspaces) {
+                        return
+                      }
 
-                    if (!checked) {
-                      onCheckChange([])
-                    } else {
-                      onCheckChange(workspaces)
-                    }
-                  }}
-                />
+                      if (!checked) {
+                        onCheckChange([])
+                      } else {
+                        onCheckChange(workspaces)
+                      }
+                    }}
+                  />
+                )}
                 Name
               </Box>
             </TableCell>
@@ -137,33 +139,33 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                   key={workspace.id}
                   checked={checked}
                 >
-                  <TableCell
-                    sx={{
-                      paddingLeft: (theme) =>
-                        `${theme.spacing(1.5)} !important`,
-                    }}
-                  >
+                  <TableCell>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Checkbox
-                        data-testid={`checkbox-${workspace.id}`}
-                        size="small"
-                        disabled={cantBeChecked(workspace)}
-                        checked={checked}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                        }}
-                        onChange={(e) => {
-                          if (e.currentTarget.checked) {
-                            onCheckChange([...checkedWorkspaces, workspace])
-                          } else {
-                            onCheckChange(
-                              checkedWorkspaces.filter(
-                                (w) => w.id !== workspace.id,
-                              ),
-                            )
-                          }
-                        }}
-                      />
+                      {canCheckWorkspaces && (
+                        <Checkbox
+                          // Remove the extra padding added for the first cell in the
+                          // table
+                          sx={{ marginLeft: "-20px" }}
+                          data-testid={`checkbox-${workspace.id}`}
+                          size="small"
+                          disabled={cantBeChecked(workspace)}
+                          checked={checked}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                          }}
+                          onChange={(e) => {
+                            if (e.currentTarget.checked) {
+                              onCheckChange([...checkedWorkspaces, workspace])
+                            } else {
+                              onCheckChange(
+                                checkedWorkspaces.filter(
+                                  (w) => w.id !== workspace.id,
+                                ),
+                              )
+                            }
+                          }}
+                        />
+                      )}
                       <AvatarData
                         title={
                           <Stack

@@ -97,6 +97,7 @@ const meta: Meta<typeof WorkspacesPageView> = {
     limit: DEFAULT_RECORDS_PER_PAGE,
     filterProps: defaultFilterProps,
     checkedWorkspaces: [],
+    canCheckWorkspaces: true,
   },
   decorators: [
     (Story) => (
