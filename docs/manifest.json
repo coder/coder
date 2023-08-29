@@ -795,11 +795,6 @@
           "path": "cli/templates_list.md"
         },
         {
-          "title": "templates plan",
-          "description": "Plan a template push from the current directory",
-          "path": "cli/templates_plan.md"
-        },
-        {
           "title": "templates pull",
           "description": "Download the latest version of a template to a path.",
           "path": "cli/templates_pull.md"

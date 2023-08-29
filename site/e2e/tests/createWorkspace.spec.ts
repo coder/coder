@@ -1,4 +1,4 @@
-import { test } from "@playwright/test"
+import { test, Page } from "@playwright/test"
 import {
   createTemplate,
   createWorkspace,
@@ -16,6 +16,11 @@ import {
   sixthParameter,
 } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
+
+test.beforeEach(async ({ page }: { page: Page }) => {
+  // eslint-disable-next-line no-console -- For debugging purposes
+  page.on("console", (msg) => console.log("Console: " + msg.text()))
+})
 
 test("create workspace", async ({ page }) => {
   const template = await createTemplate(page, {
@@ -107,6 +112,7 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
     page,
     echoResponsesWithParameters(richParameters),
   )
+
   const workspaceName = await createWorkspace(
     page,
     template,

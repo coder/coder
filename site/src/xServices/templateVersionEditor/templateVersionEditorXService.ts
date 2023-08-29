@@ -24,13 +24,15 @@ export interface TemplateVersionEditorMachineContext {
   buildLogs?: ProvisionerJobLog[]
   tarReader?: TarReader
   publishingError?: unknown
+  lastSuccessfulPublishedVersion?: TemplateVersion
+  lastSuccessfulPublishIsDefault?: boolean
   missingVariables?: TemplateVersionVariable[]
   missingVariableValues?: VariableValue[]
 }
 
 export const templateVersionEditorMachine = createMachine(
   {
-    /** @xstate-layout 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 */
+    /** @xstate-layout N4IgpgJg5mDOIC5QBcwFsAOAbAhqgamAE6wCWA9gHYCiEpy5RAdKZfaTlqQF6tQDEASQByggCqCAggBlBALWoBtAAwBdRKAzkyyCpQ0gAHogC0AFgDsypgDYAnAFZlFpzefKbADgA0IAJ6IAIzKngDMTIF2FmYONoFW9s4Avkm+qJi4BMRkVLT0jCwQWGD8AMIAStSSYtQA+vjU5QDKggDywirqSCBaOnoGxggmoTYOTKEATIEOThNxDmajvgEIgTFjDhaeNpPTZpbRKWno2HhghCR6eQzMpEUlAAoAqgBCsk0AEp0GvexUA6Y5mNlKEzBNPJ5Ap4JjCbEt-EEJsozEw7MoHKEQhYJqFPBYbBYjiB0qcspdcnQboVivwACKCJoAWQZTVqzzeDI+tRekmEwka326v10-26gxMcM8TGcoRGc0CNjMyg8yyCkzsqOUkWcnjMEJhRJJmXO2SulIKOFgAGsHgBXABGXFgAAsHjgiDg0GBUCQyrzStRpGzXu8vmofto-voxaZAvFxnZ9mFonY7NswarVuCLEwLPjQlCPGsJodUsSTsaLjkaObmJabQ6na73Z7vdkyu0AGKCcqM4Mcz6CzSRkXR0CDOM5ta6ya4jHbZR2TNx1O5iHTHEWQLgzyGitnKtm-LMDCN0guviHqj8CBUMAsSgAN3IVvvp8d5+dl9NVCHPRH-QxggSrWOioSOHCdhzCEMzLuCGoFqMkJmGsgRynuGQHj+NbHkw75Nt+5KUPwxBEAUpIAGaMGgeFnhelBQFelB-sKgHjkEcbStESKbGYaZFoEy6LlKcJePE4IzDYEwYaSJpEdcBQAMY4JQilgFwDGCJQDxkVARBwLALy2qQWAQDed4Ps+r5MMpqnqUZJkQCxAGiuxQyhA4UpmLiLhePYaEjMuFgFqibjOPmqbKNJZZGlh8m1kwtrYOQOAQGI7rmZQ96sFZ95JVgKVpe6zl9K5RimFETAljioI4mmdgjBYy7QhsepWE4DVQShMmVthCnMIp+l4HwDmmZl2VPi+96DWAZyjU54ZCi5Y7lcBDgTNKeITGm+LYutNjNRMrV4uii7gRM+w9XF1b9UwADueCKV+DHzdI5BQLA-CSLStLck8gjSL90itAA4iVUYAggjg5o4UxJutkzbEFDgakionbImMKeVdZI3QlD3IE9I3GaZb0ffwLz-YDtS0u0SiLcOpUrYMvlMJJowwgqiZpsumPSoWnjIrEMTBTjcl47hBNEy9JMQGTn2lP6gb1I0LTtODo6QyYeKoidaZxBd0JxMuUnWCjFipiMITeeBYtMbdUvPVAr3vQrlTVHUDTNG0HQM-+TNa3ENi5vEnjQ6m20o4dgS2GC6L1W4upmHbfUJRR3rS4x2HjZZU1MOnhPOkxGtsatUkorqmxWLKFuC4JCIIHDwcuAj60uKCiwp-FuEF5nTE5zlee90X2GKIEXSMxDQHBDsuZah5cbBHYAWZk3uYzJEDVxlJdhdxLVIYGRmDIPg7ocI6cBMAVqV8Iy55kAxp9EOfxSfbeWW59ZsW40eB9HxgJ8z44AvrAK+hVb730vEAkBCBB7KVHJ0EuZVBhhVRAFTwvFI5TFXrVJg3l9Qll1CEGwe9f7kX-oA5+wDX7UhKE0agYhajMiaC0YQIN6iSHKFIN4nsZBPGoE0JBzNEAEgiDuWUippgW28qvdaG0rBrB3iEKKhIYr7h-hSXCh9yDHyfi-S+dwaSK2EAGIMzDWHsPwJw7h0heHSH4YIv2rFkFBEklVUI0ipgNSsPsVeJZg5RCxmhWYkRQikM0VSYe5Q4DkFtEQNSb8LKD2sjAZA0TYCxPiXAIRkNixjDQpCDwgTtz4hNk4WwDgFTKgxHxLcYSiSUHIBAOABhv7izIUQCMAcgImC3MHGUcog4gQOg3VMYx7DREWDEaEkJorHEwhonCVJWDsE4DwPgXSp5uQlCFPpUIkTInsBmBucYPARGiFFSYJYPAFnCUsgohiwCbM1j0gs8jqlgjRKmbcy4PIbTxEnI6BYYIODubdesdoPwujdB6L0Pp4BLW6ds7cGow6eVlOta2YIRkrG3MiTUGIsQ4jxASMFCV8KfkItWZ5pdBgeSlM4GYwtrZOF8ScuM4QkTgX2ASZUaZ6nzNkvbBKtk1IaSgFpHS719KwEMrLGlLihhKgZSUuuQIwg4tcZVYSWp4hSW2GEMluF8qFXSp0xFWzVrDEcNKSY6JDYzxxA4Q64R1ptxBEcw5RqqQzWGjLRyCrhGrEWGzDxVgwjeXWpCHwJzoSuqOkCKEnlwQkLUQs9pESCiO2Jo5eWgbIZwg2nHeeSIrAesOv0o5BIwR6lxLvNNQrU49wzk7Ji+agJeE5QSfyTgUYwjMKvLUGwbl2FGAU7qDberdz-jogBejqEtItS8ty20Y6JkWDCFw0zjkrCxuEFCCxLBxDzF6yd10Ol4QofOkBYCb4MTvrKqBVCQHtrcrKDU66pIlgWJ5HdiAcRKjQQsD1wRtoCvLOm4VWir3QJoY819q0wioo6mjLY2JFg4MVHg6Y4FZzbn7d6goUSYlxISQhicHiEJxCVCMewiotSrwKbYXYwQPAoTxCkFIQA */
     predictableActionArguments: true,
     id: "templateVersionEditor",
     schema: {
@@ -68,7 +70,7 @@ export const templateVersionEditorMachine = createMachine(
           data: WorkspaceResource[]
         }
         publishingVersion: {
-          data: void
+          data: { isActiveVersion: boolean }
         }
         loadMissingVariables: {
           data: TemplateVersionVariable[]
@@ -108,7 +110,7 @@ export const templateVersionEditorMachine = createMachine(
 
       publishingVersion: {
         tags: "loading",
-        entry: ["clearPublishingError"],
+        entry: ["clearPublishingError", "clearLastSuccessfulPublishedVersion"],
         invoke: {
           id: "publishingVersion",
           src: "publishingVersion",
@@ -119,6 +121,7 @@ export const templateVersionEditorMachine = createMachine(
           },
 
           onDone: {
+            actions: ["assignLastSuccessfulPublishedVersion"],
             target: ["idle"],
           },
         },
@@ -256,6 +259,12 @@ export const templateVersionEditorMachine = createMachine(
       assignBuild: assign({
         version: (_, event) => event.data,
       }),
+      assignLastSuccessfulPublishedVersion: assign({
+        lastSuccessfulPublishedVersion: (ctx) => ctx.version,
+        lastSuccessfulPublishIsDefault: (_, event) =>
+          event.data.isActiveVersion,
+        version: () => undefined,
+      }),
       addBuildLog: assign({
         buildLogs: (context, event) => {
           const previousLogs = context.buildLogs ?? []
@@ -285,6 +294,9 @@ export const templateVersionEditorMachine = createMachine(
         publishingError: (_, event) => event.data,
       }),
       clearPublishingError: assign({ publishingError: (_) => undefined }),
+      clearLastSuccessfulPublishedVersion: assign({
+        lastSuccessfulPublishedVersion: (_) => undefined,
+      }),
       assignMissingVariables: assign({
         missingVariables: (_, event) => event.data,
       }),
@@ -420,6 +432,8 @@ export const templateVersionEditorMachine = createMachine(
               })
             : Promise.resolve(),
         ])
+
+        return { isActiveVersion }
       },
       loadMissingVariables: ({ version }) => {
         if (!version) {

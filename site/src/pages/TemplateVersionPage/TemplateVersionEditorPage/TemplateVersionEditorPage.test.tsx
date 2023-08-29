@@ -7,6 +7,7 @@ import {
   MockTemplateVersion,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities"
+import { Language } from "../../../components/TemplateVersionEditor/PublishTemplateVersionDialog"
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out
@@ -67,9 +68,6 @@ test("Use custom name, message and set it as active when publishing", async () =
   const messageField = within(publishDialog).getByLabelText("Message")
   await user.clear(messageField)
   await user.type(messageField, "Informative message")
-  await user.click(
-    within(publishDialog).getByLabelText("Promote to default version"),
-  )
   await user.click(
     within(publishDialog).getByRole("button", { name: "Publish" }),
   )
@@ -132,6 +130,9 @@ test("Do not mark as active if promote is not checked", async () => {
   const nameField = within(publishDialog).getByLabelText("Version name")
   await user.clear(nameField)
   await user.type(nameField, "v1.0")
+  await user.click(
+    within(publishDialog).getByLabelText(Language.defaultCheckboxLabel),
+  )
   await user.click(
     within(publishDialog).getByRole("button", { name: "Publish" }),
   )
