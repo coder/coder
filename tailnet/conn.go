@@ -517,7 +517,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		// We double-check that it's safe to remove by ensuring no
 		// handshake has been sent in the past 5 minutes as well. Connections that
 		// are actively exchanging IP traffic will handshake every 2 minutes.
-		if time.Since(peerStatus.LastHandshake) < 5*time.Minute {
+		if time.Since(peerStatus.LastHandshake) > 5*time.Minute {
 			continue
 		}
 		delete(c.peerMap, peer.ID)
