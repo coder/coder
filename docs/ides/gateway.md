@@ -263,7 +263,64 @@ Then, configure your DNS entry to point to the IP address of the server. For the
 purposes of the POC, we did not configure TLS, although that is a supported
 option.
 
-### 4. Setup SSH connection with JetBrains Gateway
+### 4. Add Client Files
+
+You will need to add the following files on your local machine in order for Gateway
+to pull the backend and client from the server.
+
+```shell
+$ cat productsInfoUrl
+
+file://Users/YourUsername/backends/<PRODUCT_CODE>/products.json
+
+$ cat clientDownloadUrl
+
+https://internal.site/clients/
+
+$ cat jreDownloadUrl
+
+https://internal.site/jre/
+
+$ cat pgpPublicKeyUrl
+
+https://internal.site/KEYS
+```
+
+The location of these files will depend upon your local operating system:
+
+**macOS**
+
+```console
+# User-specific settings
+/Users/UserName/Library/Application Support/JetBrains/RemoteDev
+# System-wide settings
+/Library/Application Support/JetBrains/RemoteDev/
+```
+
+**Linux**
+
+```console
+# User-specific settings
+$HOME/.config/JetBrains/RemoteDev
+# System-wide settings
+/etc/xdg/JetBrains/RemoteDev/
+```
+
+**Windows**
+
+```console
+# User-specific settings
+HKEY_CURRENT_USER registry
+# System-wide settings
+HKEY_LOCAL_MACHINE registry
+```
+
+Additionally, create a string for each setting with its appropriate value in
+`SOFTWARE\JetBrains\RemoteDev`:
+
+![Alt text](../images/gateway/jetbrains-offline-windows.png)
+
+### 5. Setup SSH connection with JetBrains Gateway
 
 With the server now configured, you can now configure your local machine to use
 Gateway. Here is the documentation to
