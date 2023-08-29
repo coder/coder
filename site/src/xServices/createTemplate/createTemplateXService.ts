@@ -487,7 +487,7 @@ export const createTemplateMachine =
         assignError: assign({ error: (_, { data }) => data }),
         assignJobError: assign({ jobError: (_, { data }) => data.job.error }),
         displayUploadError: () => {
-          displayError("Error on upload the file")
+          displayError("Error on upload the file.")
         },
         assignStarterTemplate: assign({
           starterTemplate: (_, { data }) => data,
