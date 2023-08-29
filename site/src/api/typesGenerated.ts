@@ -1102,6 +1102,7 @@ export interface TraceConfig {
   readonly enable: boolean
   readonly honeycomb_api_key: string
   readonly capture_logs: boolean
+  readonly data_dog: boolean
 }
 
 // From codersdk/templates.go

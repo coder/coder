@@ -10110,6 +10110,9 @@ const docTemplate = `{
                 "capture_logs": {
                     "type": "boolean"
                 },
+                "data_dog": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 },

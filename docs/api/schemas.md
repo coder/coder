@@ -2198,6 +2198,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "trace": {
       "capture_logs": true,
+      "data_dog": true,
       "enable": true,
       "honeycomb_api_key": "string"
     },
@@ -2561,6 +2562,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "trace": {
     "capture_logs": true,
+    "data_dog": true,
     "enable": true,
     "honeycomb_api_key": "string"
   },
@@ -4871,6 +4873,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "capture_logs": true,
+  "data_dog": true,
   "enable": true,
   "honeycomb_api_key": "string"
 }
@@ -4881,6 +4884,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                | Type    | Required | Restrictions | Description |
 | ------------------- | ------- | -------- | ------------ | ----------- |
 | `capture_logs`      | boolean | false    |              |             |
+| `data_dog`          | boolean | false    |              |             |
 | `enable`            | boolean | false    |              |             |
 | `honeycomb_api_key` | string  | false    |              |             |
 
