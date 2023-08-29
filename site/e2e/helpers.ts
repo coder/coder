@@ -38,6 +38,7 @@ export const createWorkspace = async (
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
+
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
