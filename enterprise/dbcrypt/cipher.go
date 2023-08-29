@@ -98,11 +98,11 @@ func (cs Ciphers) Encrypt(plaintext []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("no ciphers configured")
 	}
 	prefix := []byte(c.HexDigest() + "-")
-	crypted, err := c.Encrypt(plaintext)
+	encrypted, err := c.Encrypt(plaintext)
 	if err != nil {
 		return nil, err
 	}
-	return append(prefix, crypted...), nil
+	return append(prefix, encrypted...), nil
 }
 
 // Decrypt decrypts the given ciphertext using the cipher indicated by the
