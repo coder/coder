@@ -4,6 +4,8 @@ import (
 	_ "embed"
 	"fmt"
 	"strings"
+
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 var (
@@ -35,11 +37,6 @@ var (
 			"arm64": darwinScript,
 		},
 	}
-
-	// AllDisplayApps indicates that a user has not specified a 'display_apps' block in their template.
-	// There is no way to distinguish between a nil array (unset) and an empty array in protobuf and an
-	// empty array already signifies that all display apps should be disabled.
-	AllDisplayApps = "*"
 )
 
 // AgentScriptEnv returns a key-pair of scripts that are consumed
@@ -54,4 +51,16 @@ func AgentScriptEnv() map[string]string {
 		}
 	}
 	return env
+}
+
+// DefaultDisplayApps returns the default display applications to enable
+// if none are specified in a template.
+func DefaultDisplayApps() *proto.DisplayApps {
+	return &proto.DisplayApps{
+		Vscode:               true,
+		VscodeInsiders:       false,
+		WebTerminal:          true,
+		PortForwardingHelper: true,
+		SshHelper:            true,
+	}
 }

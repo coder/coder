@@ -15,6 +15,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -192,16 +193,10 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 
 			// If a user doesn't specify 'display_apps' then they default
 			// into all apps except VSCode Insiders.
-			displayApps := proto.DisplayApps{
-				Vscode:               true,
-				VscodeInsiders:       false,
-				WebTerminal:          true,
-				PortForwardingHelper: true,
-				SshHelper:            true,
-			}
+			displayApps := provisionersdk.DefaultDisplayApps()
 
 			if len(attrs.DisplayApps) != 0 {
-				displayApps = proto.DisplayApps{
+				displayApps = &proto.DisplayApps{
 					Vscode:               attrs.DisplayApps[0].VSCode,
 					VscodeInsiders:       attrs.DisplayApps[0].VSCodeInsiders,
 					WebTerminal:          attrs.DisplayApps[0].WebTerminal,
@@ -226,7 +221,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				ShutdownScript:               attrs.ShutdownScript,
 				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
 				Metadata:                     metadata,
-				DisplayApps:                  &displayApps,
+				DisplayApps:                  displayApps,
 			}
 			switch attrs.Auth {
 			case "token":

@@ -1528,7 +1528,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		}, agent.DisplayApps)
 	})
 
-	t.Run("AllDefaultApps", func(t *testing.T) {
+	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
 		job := uuid.New()
