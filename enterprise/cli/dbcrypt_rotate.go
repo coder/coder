@@ -22,9 +22,12 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 		opts = vals.Options()
 	)
 	cmd := &clibase.Cmd{
-		Use:     "dbcrypt-rotate --postgres-url <postgres_url> --external-token-encryption-keys <new-key>,<old-key>",
-		Short:   "Rotate database encryption keys",
-		Options: opts,
+		Use:   "dbcrypt-rotate --postgres-url <postgres_url> --external-token-encryption-keys <new-key>,<old-key>",
+		Short: "Rotate database encryption keys",
+		Options: clibase.OptionSet{
+			*opts.ByName("Postgres Connection URL"),
+			*opts.ByName("External Token Encryption Keys"),
+		},
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(0),
 		),
