@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -65,17 +64,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	ctx, cancelFunc := context.WithCancel(ctx)
 
 	if options.PrimaryExternalTokenEncryption != nil {
-		primaryExternalTokenCipher := atomic.Pointer[dbcrypt.Cipher]{}
-		primaryExternalTokenCipher.Store(&options.PrimaryExternalTokenEncryption)
-		secondaryExternalTokenCipher := atomic.Pointer[dbcrypt.Cipher]{}
+		cs := make([]dbcrypt.Cipher, 0)
+		cs = append(cs, options.PrimaryExternalTokenEncryption)
 		if options.SecondaryExternalTokenEncryption != nil {
-			secondaryExternalTokenCipher.Store(&options.SecondaryExternalTokenEncryption)
+			cs = append(cs, options.SecondaryExternalTokenEncryption)
 		}
-		cryptDB, err := dbcrypt.New(ctx, options.Database, &dbcrypt.Options{
-			PrimaryCipher:   &primaryExternalTokenCipher,
-			SecondaryCipher: &secondaryExternalTokenCipher,
-		})
-
+		cryptDB, err := dbcrypt.New(ctx, options.Database, dbcrypt.NewCiphers(cs...))
 		if err != nil {
 			cancelFunc()
 			return nil, xerrors.Errorf("init dbcrypt: %w", err)

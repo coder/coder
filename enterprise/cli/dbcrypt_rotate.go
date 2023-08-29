@@ -7,8 +7,6 @@ import (
 	"cdr.dev/slog"
 	"context"
 	"encoding/base64"
-	"sync/atomic"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/database"
@@ -59,8 +57,6 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 				return xerrors.Errorf("old and new keys must be different")
 			}
 
-			primaryCipherPtr := &atomic.Pointer[dbcrypt.Cipher]{}
-			secondaryCipherPtr := &atomic.Pointer[dbcrypt.Cipher]{}
 			primaryCipher, err := dbcrypt.CipherAES256(newKey)
 			if err != nil {
 				return xerrors.Errorf("create primary cipher: %w", err)
@@ -69,8 +65,7 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("create secondary cipher: %w", err)
 			}
-			primaryCipherPtr.Store(&primaryCipher)
-			secondaryCipherPtr.Store(&secondaryCipher)
+			ciphers := dbcrypt.NewCiphers(primaryCipher, secondaryCipher)
 
 			sqlDB, err := cli.ConnectToPostgres(inv.Context(), logger, "postgres", vals.PostgresURL.Value())
 			if err != nil {
@@ -83,11 +78,7 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 
 			db := database.New(sqlDB)
 
-			cryptDB, err := dbcrypt.New(ctx, db, &dbcrypt.Options{
-				PrimaryCipher:   primaryCipherPtr,
-				SecondaryCipher: secondaryCipherPtr,
-				Logger:          logger.Named("cryptdb"),
-			})
+			cryptDB, err := dbcrypt.New(ctx, db, ciphers)
 			if err != nil {
 				return xerrors.Errorf("create cryptdb: %w", err)
 			}

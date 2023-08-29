@@ -6,10 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"sync/atomic"
 	"testing"
-
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -47,17 +44,10 @@ func TestDBCryptRotate(t *testing.T) {
 	keyA := mustString(t, 32)
 	cA, err := dbcrypt.CipherAES256([]byte(keyA))
 	require.NoError(t, err)
-	cipherA := &atomic.Pointer[dbcrypt.Cipher]{}
-	cipherB := &atomic.Pointer[dbcrypt.Cipher]{}
-	cipherA.Store(&cA)
+	ciphers := dbcrypt.NewCiphers(cA)
 
 	// Create an encrypted database
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	cryptdb, err := dbcrypt.New(ctx, db, &dbcrypt.Options{
-		PrimaryCipher:   cipherA,
-		SecondaryCipher: cipherB,
-		Logger:          log,
-	})
+	cryptdb, err := dbcrypt.New(ctx, db, ciphers)
 	require.NoError(t, err)
 
 	// Populate the database with some data encrypted with cipher A.
@@ -102,29 +92,35 @@ func TestDBCryptRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been updated with the checksum of the new cipher.
-	expectedPrefixA := fmt.Sprintf("dbcrypt-%s-", cA.HexDigest()[:7])
-	expectedPrefixB := fmt.Sprintf("dbcrypt-%s-", cB.HexDigest()[:7])
 	for _, usr := range users {
 		ul, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    usr.ID,
 			LoginType: usr.LoginType,
 		})
 		require.NoError(t, err, "failed to get user link for user %s", usr.ID)
-		require.NotContains(t, ul.OAuthAccessToken, expectedPrefixA, "user_link.oauth_access_token should not contain the old cipher checksum")
-		require.NotContains(t, ul.OAuthRefreshToken, expectedPrefixA, "user_link.oauth_refresh_token should not contain the old cipher checksum")
-		require.Contains(t, ul.OAuthAccessToken, expectedPrefixB, "user_link.oauth_access_token should contain the new cipher checksum")
-		require.Contains(t, ul.OAuthRefreshToken, expectedPrefixB, "user_link.oauth_refresh_token should contain the new cipher checksum")
+		requireEncrypted(t, cB, ul.OAuthAccessToken)
+		requireEncrypted(t, cB, ul.OAuthRefreshToken)
 
 		gal, err := db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 			UserID:     usr.ID,
 			ProviderID: "fake",
 		})
 		require.NoError(t, err, "failed to get git auth link for user %s", usr.ID)
-		require.NotContains(t, gal.OAuthAccessToken, expectedPrefixA, "git_auth_link.oauth_access_token should not contain the old cipher checksum")
-		require.NotContains(t, gal.OAuthRefreshToken, expectedPrefixA, "git_auth_link.oauth_refresh_token should not contain the old cipher checksum")
-		require.Contains(t, gal.OAuthAccessToken, expectedPrefixB, "git_auth_link.oauth_access_token should contain the new cipher checksum")
-		require.Contains(t, gal.OAuthRefreshToken, expectedPrefixB, "git_auth_link.oauth_refresh_token should contain the new cipher checksum")
+		requireEncrypted(t, cB, gal.OAuthAccessToken)
+		requireEncrypted(t, cB, gal.OAuthRefreshToken)
 	}
+}
+
+func requireEncrypted(t *testing.T, c dbcrypt.Cipher, s string) {
+	t.Helper()
+	require.Greater(t, len(s), 8, "encrypted string is too short")
+	require.Equal(t, dbcrypt.MagicPrefix, s[:8], "missing magic prefix")
+	decodedVal, err := base64.StdEncoding.DecodeString(s[8:])
+	require.NoError(t, err, "failed to decode base64 string")
+	require.Greater(t, len(decodedVal), 8, "base64-decoded value is too short")
+	require.Equal(t, c.HexDigest(), string(decodedVal[:7]), "cipher digest does not match")
+	_, err = c.Decrypt(decodedVal[8:])
+	require.NoError(t, err, "failed to decrypt value")
 }
 
 func mustString(t *testing.T, n int) string {
