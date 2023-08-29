@@ -150,6 +150,7 @@ func TestNew(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
 		// Given: a cipher is loaded
 		cipher := dbcrypt.NewCiphers(initCipher(t))
 		ctx, cancel := context.WithCancel(context.Background())
@@ -172,6 +173,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("NoCipher", func(t *testing.T) {
+		t.Parallel()
 		// Given: no cipher is loaded
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
@@ -189,6 +191,7 @@ func TestNew(t *testing.T) {
 	})
 
 	t.Run("CipherChanged", func(t *testing.T) {
+		t.Parallel()
 		// Given: no cipher is loaded
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)

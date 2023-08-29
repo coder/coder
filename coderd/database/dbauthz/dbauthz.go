@@ -911,8 +911,11 @@ func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLin
 	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
 }
 
-func (q *querier) GetGitAuthLinksByUserID(_ context.Context, _ uuid.UUID) ([]database.GitAuthLink, error) {
-	return nil, xerrors.Errorf("this is intentionally not implemented")
+func (q *querier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGitAuthLinksByUserID(ctx, userID)
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -1483,8 +1486,11 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
 }
 
-func (q *querier) GetUserLinksByUserID(_ context.Context, _ uuid.UUID) ([]database.UserLink, error) {
-	return nil, xerrors.Errorf("this is intentionally not implemented")
+func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserLinksByUserID(ctx, userID)
 }
 
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {

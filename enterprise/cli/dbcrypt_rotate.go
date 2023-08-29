@@ -18,7 +18,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
+func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 	var (
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
@@ -58,7 +58,7 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("old key must be base64-encoded")
 			}
-			if bytes.Compare(newKey, oldKey) == 0 {
+			if bytes.Equal(newKey, oldKey) {
 				return xerrors.Errorf("old and new keys must be different")
 			}
 
@@ -126,7 +126,7 @@ func (r *RootCmd) dbcryptRotate() *clibase.Cmd {
 				}
 				logger.Info(ctx, "encrypted user tokens", slog.F("current", idx+1), slog.F("of", len(users)))
 			}
-			logger.Info(ctx, "operation completed successfully!")
+			logger.Info(ctx, "operation completed successfully")
 			return nil
 		},
 	}

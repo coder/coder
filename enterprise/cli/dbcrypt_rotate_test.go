@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: paralleltest // use of t.Setenv
 func TestDBCryptRotate(t *testing.T) {
-	//nolint: paralleltest // use of t.Setenv
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("this test requires a postgres instance")
 	}

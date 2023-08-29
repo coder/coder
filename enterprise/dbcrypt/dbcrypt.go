@@ -81,6 +81,7 @@ func New(ctx context.Context, db database.Store, cs *Ciphers) (database.Store, e
 		ciphers: cs,
 		Store:   db,
 	}
+	// nolint: gocritic // This is allowed.
 	if err := ensureEncrypted(dbauthz.AsSystemRestricted(ctx), dbc); err != nil {
 		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)
 	}
