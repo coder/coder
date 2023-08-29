@@ -265,8 +265,8 @@ option.
 
 ### 4. Add Client Files
 
-You will need to add the following files on your local machine in order for Gateway
-to pull the backend and client from the server.
+You will need to add the following files on your local machine in order for
+Gateway to pull the backend and client from the server.
 
 ```shell
 $ cat productsInfoUrl
