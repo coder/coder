@@ -26,15 +26,15 @@ const validFormValues: FormValues = {
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
-  restart_requirement: {
+  autostop_requirement: {
     days_of_week: [],
     weeks: 1,
   },
   failure_ttl_ms: 0,
-  inactivity_ttl_ms: 0,
-  locked_ttl_ms: 0,
+  time_til_dormant_ms: 0,
+  time_til_dormant_autodelete_ms: 0,
   update_workspace_last_used_at: false,
-  update_workspace_locked_at: false,
+  update_workspace_dormant_at: false,
 }
 
 const renderTemplateSettingsPage = async () => {

@@ -38,15 +38,19 @@ const (
 	// OAuth2RedirectCookie is the name of the cookie that stores the oauth2 redirect.
 	OAuth2RedirectCookie = "oauth_redirect"
 
-	// DevURLSessionTokenCookie is the name of the cookie that stores a devurl
-	// token on app domains.
+	// PathAppSessionTokenCookie is the name of the cookie that stores an
+	// application-scoped API token on workspace proxy path app domains.
 	//nolint:gosec
-	DevURLSessionTokenCookie = "coder_devurl_session_token"
-	// DevURLSignedAppTokenCookie is the name of the cookie that stores a
-	// temporary JWT that can be used to authenticate instead of the session
-	// token.
+	PathAppSessionTokenCookie = "coder_path_app_session_token"
+	// SubdomainAppSessionTokenCookie is the name of the cookie that stores an
+	// application-scoped API token on subdomain app domains (both the primary
+	// and proxies).
 	//nolint:gosec
-	DevURLSignedAppTokenCookie = "coder_devurl_signed_app_token"
+	SubdomainAppSessionTokenCookie = "coder_subdomain_app_session_token"
+	// SignedAppTokenCookie is the name of the cookie that stores a temporary
+	// JWT that can be used to authenticate instead of the app session token.
+	//nolint:gosec
+	SignedAppTokenCookie = "coder_signed_app_token"
 	// SignedAppTokenQueryParameter is the name of the query parameter that
 	// stores a temporary JWT that can be used to authenticate instead of the
 	// session token. This is only acceptable on reconnecting-pty requests, not

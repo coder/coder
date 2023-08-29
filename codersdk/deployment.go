@@ -46,7 +46,7 @@ const (
 	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                  FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
-	FeatureTemplateAutostopRequirement FeatureName = "template_restart_requirement"
+	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
 	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
 )
 
@@ -229,9 +229,10 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	URL         clibase.String `json:"url" typescript:",notnull"`
-	Path        clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL             clibase.String `json:"url" typescript:",notnull"`
+	Path            clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -796,6 +797,15 @@ when required by your organization's security policy.`,
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
 			YAML:  "blockDirect",
+		},
+		{
+			Name:        "DERP Force WebSockets",
+			Description: "Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.",
+			Flag:        "derp-force-websockets",
+			Env:         "CODER_DERP_FORCE_WEBSOCKETS",
+			Value:       &c.DERP.Config.ForceWebSockets,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "forceWebSockets",
 		},
 		{
 			Name:        "DERP Config URL",
@@ -1923,8 +1933,8 @@ const (
 	//
 	// Enables:
 	// - User quiet hours schedule settings
-	// - Template restart requirement settings
-	// - Changes the max_deadline algorithm to use restart requirement and user
+	// - Template autostop requirement settings
+	// - Changes the max_deadline algorithm to use autostop requirement and user
 	//   quiet hours instead of max_ttl.
 	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
 

@@ -697,7 +697,7 @@ export const workspaceMachine = createMachine(
       },
       activateWorkspace: (context) => async (send) => {
         if (context.workspace) {
-          const activateWorkspacePromise = await API.updateWorkspaceLock(
+          const activateWorkspacePromise = await API.updateWorkspaceDormancy(
             context.workspace.id,
             false,
           )

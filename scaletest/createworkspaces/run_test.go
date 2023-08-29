@@ -48,10 +48,10 @@ func Test_Runner(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Log{
+					Type: &proto.Response_Log{
 						Log: &proto.Log{
 							Level:  proto.LogLevel_INFO,
 							Output: "hello from logs",
@@ -59,8 +59,8 @@ func Test_Runner(t *testing.T) {
 					},
 				},
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example",
@@ -163,17 +163,21 @@ func Test_Runner(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// need to include our own logger because the provisioner (rightly) drops error logs when we shut down the
+		// test with a build in progress.
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Log{Log: &proto.Log{}},
+					Type: &proto.Response_Log{Log: &proto.Log{}},
 				},
 			},
 		})
@@ -251,14 +255,17 @@ func Test_Runner(t *testing.T) {
 			if err != nil {
 				return false
 			}
-			for _, build := range builds {
+			for i, build := range builds {
+				t.Logf("checking build #%d: %s | %s", i, build.Transition, build.Job.Status)
 				// One of the builds should be for creating the workspace,
 				if build.Transition != codersdk.WorkspaceTransitionStart {
 					continue
 				}
 
-				// And it should be either canceled or canceling
-				if build.Job.Status == codersdk.ProvisionerJobCanceled || build.Job.Status == codersdk.ProvisionerJobCanceling {
+				// And it should be either failed (Echo returns an error when job is canceled), canceling, or canceled.
+				if build.Job.Status == codersdk.ProvisionerJobFailed ||
+					build.Job.Status == codersdk.ProvisionerJobCanceling ||
+					build.Job.Status == codersdk.ProvisionerJobCanceled {
 					return true
 				}
 			}
@@ -282,10 +289,10 @@ func Test_Runner(t *testing.T) {
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Log{
+					Type: &proto.Response_Log{
 						Log: &proto.Log{
 							Level:  proto.LogLevel_INFO,
 							Output: "hello from logs",
@@ -293,8 +300,8 @@ func Test_Runner(t *testing.T) {
 					},
 				},
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example",
@@ -407,11 +414,11 @@ func Test_Runner(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Error: "test error",
 						},
 					},

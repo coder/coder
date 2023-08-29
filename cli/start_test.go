@@ -33,10 +33,10 @@ func TestStart(t *testing.T) {
 
 	echoResponses := &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
+		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        ephemeralParameterName,
@@ -49,11 +49,7 @@ func TestStart(t *testing.T) {
 				},
 			},
 		},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
+		ProvisionApply: echo.ApplyComplete,
 	}
 
 	t.Run("BuildOptions", func(t *testing.T) {
@@ -151,10 +147,10 @@ func TestStartWithParameters(t *testing.T) {
 
 	echoResponses := &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
+		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        immutableParameterName,
@@ -166,11 +162,7 @@ func TestStartWithParameters(t *testing.T) {
 				},
 			},
 		},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
+		ProvisionApply: echo.ApplyComplete,
 	}
 
 	t.Run("DoNotAskForImmutables", func(t *testing.T) {

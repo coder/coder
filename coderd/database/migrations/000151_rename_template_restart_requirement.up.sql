@@ -1,3 +1,0 @@
-ALTER TABLE templates
-	RENAME COLUMN restart_requirement_days_of_week TO autostop_requirement_days_of_week,
-	RENAME COLUMN restart_requirement_weeks TO autostop_requirement_weeks;

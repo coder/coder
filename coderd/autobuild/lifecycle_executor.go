@@ -175,35 +175,35 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 
-				// Lock the workspace if it has breached the template's
+				//  Transition the workspace to dormant if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
-					ws, err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
+					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 						ID: ws.ID,
-						LockedAt: sql.NullTime{
+						DormantAt: sql.NullTime{
 							Time:  database.Now(),
 							Valid: true,
 						},
 					})
 					if err != nil {
-						log.Error(e.ctx, "unable to lock workspace",
+						log.Error(e.ctx, "unable to transition workspace to dormant",
 							slog.F("transition", nextTransition),
 							slog.Error(err),
 						)
 						return nil
 					}
 
-					log.Info(e.ctx, "locked workspace",
+					log.Info(e.ctx, "dormant workspace",
 						slog.F("last_used_at", ws.LastUsedAt),
-						slog.F("inactivity_ttl", templateSchedule.InactivityTTL),
+						slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
 						slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 					)
 				}
 
 				if reason == database.BuildReasonAutodelete {
 					log.Info(e.ctx, "deleted workspace",
-						slog.F("locked_at", ws.LockedAt.Time),
-						slog.F("locked_ttl", templateSchedule.LockedTTL),
+						slog.F("dormant_at", ws.DormantAt.Time),
+						slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
 					)
 				}
 
@@ -246,7 +246,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // for this function to return a nil error as well as an empty transition.
 // In such cases it means no provisioning should occur but the workspace
 // may be "transitioning" to a new state (such as an inactive, stopped
-// workspace transitioning to the locked state).
+// workspace transitioning to the dormant state).
 func getNextTransition(
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
@@ -265,13 +265,13 @@ func getNextTransition(
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForLockedStop(ws, templateSchedule, currentTick):
+	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.
 		if latestBuild.Transition == database.WorkspaceTransitionStart {
 			return database.WorkspaceTransitionStop, database.BuildReasonAutolock, nil
 		}
 		// We shouldn't transition the workspace but we should still
-		// lock it.
+		// make it dormant.
 		return "", database.BuildReasonAutolock, nil
 
 	case isEligibleForDelete(ws, templateSchedule, currentTick):
@@ -288,8 +288,8 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	// If the workspace is locked we should not autostart it.
-	if ws.LockedAt.Valid {
+	// If the workspace is dormant we should not autostart it.
+	if ws.DormantAt.Valid {
 		return false
 	}
 
@@ -322,8 +322,8 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 		return false
 	}
 
-	// If the workspace is locked we should not autostop it.
-	if ws.LockedAt.Valid {
+	// If the workspace is dormant we should not autostop it.
+	if ws.DormantAt.Valid {
 		return false
 	}
 
@@ -334,23 +334,23 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 		!currentTick.Before(build.Deadline)
 }
 
-// isEligibleForLockedStop returns true if the workspace should be locked
+// isEligibleForDormantStop returns true if the workspace should be dormant
 // for breaching the inactivity threshold of the template.
-func isEligibleForLockedStop(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// Only attempt to lock workspaces not already locked.
-	return !ws.LockedAt.Valid &&
-		// The template must specify an inactivity TTL.
-		templateSchedule.InactivityTTL > 0 &&
-		// The workspace must breach the inactivity TTL.
-		currentTick.Sub(ws.LastUsedAt) > templateSchedule.InactivityTTL
+func isEligibleForDormantStop(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Only attempt against workspaces not already dormant.
+	return !ws.DormantAt.Valid &&
+		// The template must specify an time_til_dormant value.
+		templateSchedule.TimeTilDormant > 0 &&
+		// The workspace must breach the time_til_dormant value.
+		currentTick.Sub(ws.LastUsedAt) > templateSchedule.TimeTilDormant
 }
 
 func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// Only attempt to delete locked workspaces.
-	return ws.LockedAt.Valid && ws.DeletingAt.Valid &&
-		// Locked workspaces should only be deleted if a locked_ttl is specified.
-		templateSchedule.LockedTTL > 0 &&
-		// The workspace must breach the locked_ttl.
+	// Only attempt to delete dormant workspaces.
+	return ws.DormantAt.Valid && ws.DeletingAt.Valid &&
+		// Dormant workspaces should only be deleted if a time_til_dormant_autodelete value is specified.
+		templateSchedule.TimeTilDormantAutoDelete > 0 &&
+		// The workspace must breach the time_til_dormant_autodelete value.
 		currentTick.After(ws.DeletingAt.Time)
 }
 

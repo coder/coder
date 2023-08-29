@@ -63,20 +63,20 @@ func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
 	return days
 }
 
-// VerifyTemplateAutostopRequirement returns an error if the restart requirement
-// is invalid.
+// VerifyTemplateAutostopRequirement returns an error if the autostop
+// requirement is invalid.
 func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days&0b10000000 != 0 {
-		return xerrors.New("invalid restart requirement days, last bit is set")
+		return xerrors.New("invalid autostop requirement days, last bit is set")
 	}
 	if days > 0b11111111 {
-		return xerrors.New("invalid restart requirement days, too large")
+		return xerrors.New("invalid autostop requirement days, too large")
 	}
 	if weeks < 0 {
-		return xerrors.New("invalid restart requirement weeks, negative")
+		return xerrors.New("invalid autostop requirement weeks, negative")
 	}
 	if weeks > MaxTemplateAutostopRequirementWeeks {
-		return xerrors.New("invalid restart requirement weeks, too large")
+		return xerrors.New("invalid autostop requirement weeks, too large")
 	}
 	return nil
 }
@@ -85,38 +85,38 @@ type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
 	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
 	DefaultTTL           time.Duration `json:"default_ttl"`
-	// TODO(@dean): remove MaxTTL once restart_requirement is matured and the
+	// TODO(@dean): remove MaxTTL once autostop_requirement is matured and the
 	// default
 	MaxTTL time.Duration `json:"max_ttl"`
-	// UseAutostopRequirement dictates whether the restart requirement should be
-	// used instead of MaxTTL. This is governed by the feature flag and
+	// UseAutostopRequirement dictates whether the autostop requirement should
+	// be used instead of MaxTTL. This is governed by the feature flag and
 	// licensing.
 	// TODO(@dean): remove this when we remove max_tll
 	UseAutostopRequirement bool
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
-	AutostopRequirement TemplateAutostopRequirement `json:"restart_requirement"`
+	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
-	// InactivityTTL dictates the duration after which inactive workspaces will
-	// be locked.
-	InactivityTTL time.Duration `json:"inactivity_ttl"`
-	// LockedTTL dictates the duration after which locked workspaces will be
+	// TimeTilDormant dictates the duration after which inactive workspaces will
+	// go dormant.
+	TimeTilDormant time.Duration `json:"time_til_dormant"`
+	// TimeTilDormantAutoDelete dictates the duration after which dormant workspaces will be
 	// permanently deleted.
-	LockedTTL time.Duration `json:"locked_ttl"`
+	TimeTilDormantAutoDelete time.Duration `json:"time_til_dormant_autodelete"`
 	// UpdateWorkspaceLastUsedAt updates the template's workspaces'
 	// last_used_at field. This is useful for preventing updates to the
-	// templates inactivity_ttl immediately triggering a lock action against
+	// templates inactivity_ttl immediately triggering a dormant action against
 	// workspaces whose last_used_at field violates the new template
 	// inactivity_ttl threshold.
 	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
-	// UpdateWorkspaceLockedAt updates the template's workspaces'
-	// locked_at field. This is useful for preventing updates to the
+	// UpdateWorkspaceDormantAt updates the template's workspaces'
+	// dormant_at field. This is useful for preventing updates to the
 	// templates locked_ttl immediately triggering a delete action against
-	// workspaces whose locked_at field violates the new template locked_ttl
+	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
-	UpdateWorkspaceLockedAt bool `json:"update_workspace_locked_at"`
+	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -150,16 +150,16 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UserAutostopEnabled:  true,
 		DefaultTTL:           time.Duration(tpl.DefaultTTL),
 		// Disregard the values in the database, since AutostopRequirement,
-		// FailureTTL, InactivityTTL, and LockedTTL are enterprise features.
+		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseAutostopRequirement: false,
 		MaxTTL:                 0,
 		AutostopRequirement: TemplateAutostopRequirement{
 			DaysOfWeek: 0,
 			Weeks:      0,
 		},
-		FailureTTL:    0,
-		InactivityTTL: 0,
-		LockedTTL:     0,
+		FailureTTL:               0,
+		TimeTilDormant:           0,
+		TimeTilDormantAutoDelete: 0,
 	}, nil
 }
 
@@ -186,8 +186,8 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			AllowUserAutostart:            tpl.AllowUserAutostart,
 			AllowUserAutostop:             tpl.AllowUserAutostop,
 			FailureTTL:                    tpl.FailureTTL,
-			InactivityTTL:                 tpl.InactivityTTL,
-			LockedTTL:                     tpl.LockedTTL,
+			TimeTilDormant:                tpl.TimeTilDormant,
+			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

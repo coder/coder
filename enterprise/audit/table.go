@@ -58,32 +58,32 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
 	},
 	&database.Template{}: {
-		"id":                               ActionTrack,
-		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":                  ActionIgnore, /// Never changes.
-		"deleted":                          ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":                             ActionTrack,
-		"display_name":                     ActionTrack,
-		"provisioner":                      ActionTrack,
-		"active_version_id":                ActionTrack,
-		"description":                      ActionTrack,
-		"icon":                             ActionTrack,
-		"default_ttl":                      ActionTrack,
-		"max_ttl":                          ActionTrack,
-		"restart_requirement_days_of_week": ActionTrack,
-		"restart_requirement_weeks":        ActionTrack,
-		"created_by":                       ActionTrack,
-		"created_by_username":              ActionIgnore,
-		"created_by_avatar_url":            ActionIgnore,
-		"group_acl":                        ActionTrack,
-		"user_acl":                         ActionTrack,
-		"allow_user_autostart":             ActionTrack,
-		"allow_user_autostop":              ActionTrack,
-		"allow_user_cancel_workspace_jobs": ActionTrack,
-		"failure_ttl":                      ActionTrack,
-		"inactivity_ttl":                   ActionTrack,
-		"locked_ttl":                       ActionTrack,
+		"id":                                ActionTrack,
+		"created_at":                        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":                   ActionIgnore, /// Never changes.
+		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                              ActionTrack,
+		"display_name":                      ActionTrack,
+		"provisioner":                       ActionTrack,
+		"active_version_id":                 ActionTrack,
+		"description":                       ActionTrack,
+		"icon":                              ActionTrack,
+		"default_ttl":                       ActionTrack,
+		"max_ttl":                           ActionTrack,
+		"autostop_requirement_days_of_week": ActionTrack,
+		"autostop_requirement_weeks":        ActionTrack,
+		"created_by":                        ActionTrack,
+		"created_by_username":               ActionIgnore,
+		"created_by_avatar_url":             ActionIgnore,
+		"group_acl":                         ActionTrack,
+		"user_acl":                          ActionTrack,
+		"allow_user_autostart":              ActionTrack,
+		"allow_user_autostop":               ActionTrack,
+		"allow_user_cancel_workspace_jobs":  ActionTrack,
+		"failure_ttl":                       ActionTrack,
+		"time_til_dormant":                  ActionTrack,
+		"time_til_dormant_autodelete":       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                    ActionTrack,
@@ -127,7 +127,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
-		"locked_at":          ActionTrack,
+		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {

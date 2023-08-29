@@ -88,6 +88,11 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPForceWebSockets determines whether websockets is always used for DERP
+	// connections, rather than trying `Upgrade: derp` first and potentially
+	// falling back. This is useful for misbehaving proxies that prevent
+	// fallback due to odd behavior, like Azure App Proxy.
+	DERPForceWebSockets bool
 
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
@@ -214,6 +219,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	sys.Set(wireguardEngine)
 
 	magicConn := sys.MagicSock.Get()
+	magicConn.SetDERPForceWebsockets(options.DERPForceWebSockets)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
@@ -277,6 +283,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:           options.BlockEndpoints,
+		derpForceWebSockets:      options.DERPForceWebSockets,
 		dialContext:              dialContext,
 		dialCancel:               dialCancel,
 		closed:                   make(chan struct{}),
@@ -285,7 +292,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		dialer:                   dialer,
 		listeners:                map[listenKey]*listener{},
 		peerMap:                  map[tailcfg.NodeID]*tailcfg.Node{},
-		lastDERPForcedWebsockets: map[int]string{},
+		lastDERPForcedWebSockets: map[int]string{},
 		tunDevice:                sys.Tun.Get(),
 		netMap:                   netMap,
 		netStack:                 netStack,
@@ -338,11 +345,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetDERPForcedWebsocketCallback(func(region int, reason string) {
 		server.logger.Debug(context.Background(), "derp forced websocket", slog.F("region", region), slog.F("reason", reason))
 		server.lastMutex.Lock()
-		if server.lastDERPForcedWebsockets[region] == reason {
+		if server.lastDERPForcedWebSockets[region] == reason {
 			server.lastMutex.Unlock()
 			return
 		}
-		server.lastDERPForcedWebsockets[region] = reason
+		server.lastDERPForcedWebSockets[region] = reason
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
@@ -383,12 +390,13 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext    context.Context
-	dialCancel     context.CancelFunc
-	mutex          sync.Mutex
-	closed         chan struct{}
-	logger         slog.Logger
-	blockEndpoints bool
+	dialContext         context.Context
+	dialCancel          context.CancelFunc
+	mutex               sync.Mutex
+	closed              chan struct{}
+	logger              slog.Logger
+	blockEndpoints      bool
+	derpForceWebSockets bool
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -408,7 +416,7 @@ type Conn struct {
 	// so the values must be stored for retrieval later on.
 	lastStatus               time.Time
 	lastEndpoints            []tailcfg.Endpoint
-	lastDERPForcedWebsockets map[int]string
+	lastDERPForcedWebSockets map[int]string
 	lastNetInfo              *tailcfg.NetInfo
 	nodeCallback             func(node *Node)
 
@@ -459,6 +467,10 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	netMapCopy := *c.netMap
 	c.logger.Debug(context.Background(), "updating network map")
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
+}
+
+func (c *Conn) SetDERPForceWebSockets(v bool) {
+	c.magicConn.SetDERPForceWebsockets(v)
 }
 
 // SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
@@ -838,8 +850,16 @@ func (c *Conn) selfNode() *Node {
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
-		for k, v := range c.lastDERPForcedWebsockets {
-			derpForcedWebsocket[k] = v
+
+		if c.derpForceWebSockets {
+			// We only need to store this for a single region, since this is
+			// mostly used for debugging purposes and doesn't actually have a
+			// code purpose.
+			derpForcedWebsocket[preferredDERP] = "DERP is configured to always fallback to WebSockets"
+		} else {
+			for k, v := range c.lastDERPForcedWebSockets {
+				derpForcedWebsocket[k] = v
+			}
 		}
 	}
 

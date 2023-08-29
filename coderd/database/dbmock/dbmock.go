@@ -3379,6 +3379,21 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceDeletedByID(arg0, arg1 interface
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceDeletedByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceDeletedByID), arg0, arg1)
 }
 
+// UpdateWorkspaceDormantDeletingAt mocks base method.
+func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceDormantDeletingAt", arg0, arg1)
+	ret0, _ := ret[0].(database.Workspace)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkspaceDormantDeletingAt indicates an expected call of UpdateWorkspaceDormantDeletingAt.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceDormantDeletingAt(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceDormantDeletingAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceDormantDeletingAt), arg0, arg1)
+}
+
 // UpdateWorkspaceLastUsedAt mocks base method.
 func (m *MockStore) UpdateWorkspaceLastUsedAt(arg0 context.Context, arg1 database.UpdateWorkspaceLastUsedAtParams) error {
 	m.ctrl.T.Helper()
@@ -3391,21 +3406,6 @@ func (m *MockStore) UpdateWorkspaceLastUsedAt(arg0 context.Context, arg1 databas
 func (mr *MockStoreMockRecorder) UpdateWorkspaceLastUsedAt(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLastUsedAt), arg0, arg1)
-}
-
-// UpdateWorkspaceLockedDeletingAt mocks base method.
-func (m *MockStore) UpdateWorkspaceLockedDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceLockedDeletingAt", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateWorkspaceLockedDeletingAt indicates an expected call of UpdateWorkspaceLockedDeletingAt.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceLockedDeletingAt(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLockedDeletingAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLockedDeletingAt), arg0, arg1)
 }
 
 // UpdateWorkspaceProxy mocks base method.
@@ -3451,18 +3451,18 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceTTL", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceTTL), arg0, arg1)
 }
 
-// UpdateWorkspacesLockedDeletingAtByTemplateID mocks base method.
-func (m *MockStore) UpdateWorkspacesLockedDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
+// UpdateWorkspacesDormantDeletingAtByTemplateID mocks base method.
+func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspacesLockedDeletingAtByTemplateID", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdateWorkspacesDormantDeletingAtByTemplateID", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateWorkspacesLockedDeletingAtByTemplateID indicates an expected call of UpdateWorkspacesLockedDeletingAtByTemplateID.
-func (mr *MockStoreMockRecorder) UpdateWorkspacesLockedDeletingAtByTemplateID(arg0, arg1 interface{}) *gomock.Call {
+// UpdateWorkspacesDormantDeletingAtByTemplateID indicates an expected call of UpdateWorkspacesDormantDeletingAtByTemplateID.
+func (mr *MockStoreMockRecorder) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesLockedDeletingAtByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesLockedDeletingAtByTemplateID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesDormantDeletingAtByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesDormantDeletingAtByTemplateID), arg0, arg1)
 }
 
 // UpsertAppSecurityKey mocks base method.

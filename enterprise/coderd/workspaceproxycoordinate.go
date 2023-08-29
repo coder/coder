@@ -68,7 +68,7 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 
 	id := uuid.New()
 	sub := (*api.AGPL.TailnetCoordinator.Load()).ServeMultiAgent(id)
-	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
+	ctx, nc := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer nc.Close()
 
 	err = tailnet.ServeWorkspaceProxy(ctx, nc, sub)

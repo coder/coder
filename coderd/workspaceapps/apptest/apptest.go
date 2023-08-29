@@ -257,7 +257,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -302,7 +302,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -400,30 +400,19 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			appDetails := setupProxyTest(t, nil)
 
 			cases := []struct {
-				name         string
-				appURL       *url.URL
-				verifyCookie func(t *testing.T, c *http.Cookie)
+				name                   string
+				appURL                 *url.URL
+				sessionTokenCookieName string
 			}{
 				{
-					name:   "Subdomain",
-					appURL: appDetails.SubdomainAppURL(appDetails.Apps.Owner),
-					verifyCookie: func(t *testing.T, c *http.Cookie) {
-						// TODO(@dean): fix these asserts, they don't seem to
-						// work. I wonder if Go strips the domain from the
-						// cookie object if it's invalid or something.
-						// domain := strings.SplitN(appDetails.Options.AppHost, ".", 2)
-						// require.Equal(t, "."+domain[1], c.Domain, "incorrect domain on app token cookie")
-					},
+					name:                   "Subdomain",
+					appURL:                 appDetails.SubdomainAppURL(appDetails.Apps.Owner),
+					sessionTokenCookieName: codersdk.SubdomainAppSessionTokenCookie,
 				},
 				{
-					name:   "Path",
-					appURL: appDetails.PathAppURL(appDetails.Apps.Owner),
-					verifyCookie: func(t *testing.T, c *http.Cookie) {
-						// TODO(@dean): fix these asserts, they don't seem to
-						// work. I wonder if Go strips the domain from the
-						// cookie object if it's invalid or something.
-						// require.Equal(t, "", c.Domain, "incorrect domain on app token cookie")
-					},
+					name:                   "Path",
+					appURL:                 appDetails.PathAppURL(appDetails.Apps.Owner),
+					sessionTokenCookieName: codersdk.PathAppSessionTokenCookie,
 				},
 			}
 
@@ -508,14 +497,13 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 					cookies := resp.Cookies()
 					var cookie *http.Cookie
-					for _, c := range cookies {
-						if c.Name == codersdk.DevURLSessionTokenCookie {
-							cookie = c
+					for _, co := range cookies {
+						if co.Name == c.sessionTokenCookieName {
+							cookie = co
 							break
 						}
 					}
 					require.NotNil(t, cookie, "no app session token cookie was set")
-					c.verifyCookie(t, cookie)
 					apiKey := cookie.Value
 
 					// Fetch the API key from the API.
@@ -715,7 +703,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -759,7 +747,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}

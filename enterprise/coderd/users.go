@@ -26,13 +26,13 @@ func (api *API) autostopRequirementEnabledMW(next http.Handler) http.Handler {
 		api.entitlementsMu.RUnlock()
 		if !entitled {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "Template restart requirement is an Enterprise feature. Contact sales!",
+				Message: "Template autostop requirement is an Enterprise feature. Contact sales!",
 			})
 			return
 		}
 		if !enabled {
 			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-				Message: "Template restart requirement feature is not enabled. Please specify a default user quiet hours schedule to use this feature.",
+				Message: "Template autostop requirement feature is not enabled. Please specify a default user quiet hours schedule to use this feature.",
 			})
 			return
 		}

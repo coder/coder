@@ -25,7 +25,7 @@ func TestCalculateAutoStop(t *testing.T) {
 
 	// Wednesday the 8th of February 2023 at midnight. This date was
 	// specifically chosen as it doesn't fall on a applicable week for both
-	// fortnightly and triweekly restart requirements.
+	// fortnightly and triweekly autostop requirements.
 	wednesdayMidnightUTC := time.Date(2023, 2, 8, 0, 0, 0, 0, time.UTC)
 
 	sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
@@ -176,7 +176,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			expectedMaxDeadline: saturdayMidnightSydney.Add(7 * 24 * time.Hour).In(time.UTC),
 		},
 		{
-			// The next restart requirement should be skipped if the
+			// The next autostop requirement should be skipped if the
 			// workspace is started within 1 hour of it.
 			name:                   "TemplateAutostopRequirementDaily",
 			now:                    fridayEveningSydney,
@@ -231,7 +231,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			},
 			workspaceTTL: 0,
 			// expectedDeadline is copied from expectedMaxDeadline.
-			// The next triweekly restart requirement happens next week
+			// The next triweekly autostop requirement happens next week
 			// according to the epoch.
 			expectedMaxDeadline: saturdayMidnightSydney.AddDate(0, 0, 7).In(time.UTC),
 		},

@@ -635,8 +635,8 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL,
-    locked_ttl bigint DEFAULT 0 NOT NULL,
+    time_til_dormant bigint DEFAULT 0 NOT NULL,
+    time_til_dormant_autodelete bigint DEFAULT 0 NOT NULL,
     autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL
 );
@@ -651,9 +651,9 @@ COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an a
 
 COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
 
-COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
+COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
 
-COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
+COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -676,10 +676,10 @@ CREATE VIEW template_with_users AS
     templates.allow_user_autostart,
     templates.allow_user_autostop,
     templates.failure_ttl,
-    templates.inactivity_ttl,
-    templates.locked_ttl,
-    templates.restart_requirement_days_of_week,
-    templates.restart_requirement_weeks,
+    templates.time_til_dormant,
+    templates.time_til_dormant_autodelete,
+    templates.autostop_requirement_days_of_week,
+    templates.autostop_requirement_weeks,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -1003,7 +1003,7 @@ CREATE TABLE workspaces (
     autostart_schedule text,
     ttl bigint,
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    locked_at timestamp with time zone,
+    dormant_at timestamp with time zone,
     deleting_at timestamp with time zone
 );
 

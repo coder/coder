@@ -184,8 +184,6 @@ type Options struct {
 // @in header
 // @name Coder-Session-Token
 // New constructs a Coder API handler.
-//
-//nolint:gocyclo
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
@@ -405,6 +403,7 @@ func New(options *Options) *API {
 			options.Logger,
 			options.DERPServer,
 			api.DERPMap,
+			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
@@ -854,7 +853,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
-				r.Put("/lock", api.putWorkspaceLock)
+				r.Put("/dormant", api.putWorkspaceDormant)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {

@@ -84,11 +84,11 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
-	// AutostopRequirement allows optionally specifying the restart requirement
+	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
-	AutostopRequirement *TemplateAutostopRequirement `json:"restart_requirement,omitempty"`
+	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
@@ -108,12 +108,12 @@ type CreateTemplateRequest struct {
 	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
 	// stops all resources for failed workspaces created from this template.
 	FailureTTLMillis *int64 `json:"failure_ttl_ms,omitempty"`
-	// InactivityTTLMillis allows optionally specifying the max lifetime before Coder
+	// TimeTilDormantMillis allows optionally specifying the max lifetime before Coder
 	// locks inactive workspaces created from this template.
-	InactivityTTLMillis *int64 `json:"inactivity_ttl_ms,omitempty"`
-	// LockedTTLMillis allows optionally specifying the max lifetime before Coder
-	// permanently deletes locked workspaces created from this template.
-	LockedTTLMillis *int64 `json:"locked_ttl_ms,omitempty"`
+	TimeTilDormantMillis *int64 `json:"dormant_ttl_ms,omitempty"`
+	// TimeTilDormantAutoDeleteMillis allows optionally specifying the max lifetime before Coder
+	// permanently deletes dormant workspaces created from this template.
+	TimeTilDormantAutoDeleteMillis *int64 `json:"delete_ttl_ms,omitempty"`
 
 	// DisableEveryoneGroupAccess allows optionally disabling the default
 	// behavior of granting the 'everyone' group access to use the template.

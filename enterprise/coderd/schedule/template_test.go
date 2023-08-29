@@ -225,9 +225,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					DaysOfWeek: 0b01111111,
 					Weeks:      0,
 				},
-				FailureTTL:    0,
-				InactivityTTL: 0,
-				LockedTTL:     0,
+				FailureTTL:               0,
+				TimeTilDormant:           0,
+				TimeTilDormantAutoDelete: 0,
 			})
 			require.NoError(t, err)
 
@@ -500,9 +500,9 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			DaysOfWeek: 0b01111111,
 			Weeks:      0,
 		},
-		FailureTTL:    0,
-		InactivityTTL: 0,
-		LockedTTL:     0,
+		FailureTTL:               0,
+		TimeTilDormant:           0,
+		TimeTilDormantAutoDelete: 0,
 	})
 	require.NoError(t, err)
 

@@ -1709,32 +1709,32 @@ type TailnetCoordinator struct {
 
 // Joins in the username + avatar url of the created by user.
 type Template struct {
-	ID                           uuid.UUID       `db:"id" json:"id"`
-	CreatedAt                    time.Time       `db:"created_at" json:"created_at"`
-	UpdatedAt                    time.Time       `db:"updated_at" json:"updated_at"`
-	OrganizationID               uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Deleted                      bool            `db:"deleted" json:"deleted"`
-	Name                         string          `db:"name" json:"name"`
-	Provisioner                  ProvisionerType `db:"provisioner" json:"provisioner"`
-	ActiveVersionID              uuid.UUID       `db:"active_version_id" json:"active_version_id"`
-	Description                  string          `db:"description" json:"description"`
-	DefaultTTL                   int64           `db:"default_ttl" json:"default_ttl"`
-	CreatedBy                    uuid.UUID       `db:"created_by" json:"created_by"`
-	Icon                         string          `db:"icon" json:"icon"`
-	UserACL                      TemplateACL     `db:"user_acl" json:"user_acl"`
-	GroupACL                     TemplateACL     `db:"group_acl" json:"group_acl"`
-	DisplayName                  string          `db:"display_name" json:"display_name"`
-	AllowUserCancelWorkspaceJobs bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
-	MaxTTL                       int64           `db:"max_ttl" json:"max_ttl"`
-	AllowUserAutostart           bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
-	AllowUserAutostop            bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
-	FailureTTL                   int64           `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL                int64           `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL                    int64           `db:"locked_ttl" json:"locked_ttl"`
-	AutostopRequirementDaysOfWeek int16           `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
-	AutostopRequirementWeeks      int64           `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
-	CreatedByAvatarURL           sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername            string          `db:"created_by_username" json:"created_by_username"`
+	ID                            uuid.UUID       `db:"id" json:"id"`
+	CreatedAt                     time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt                     time.Time       `db:"updated_at" json:"updated_at"`
+	OrganizationID                uuid.UUID       `db:"organization_id" json:"organization_id"`
+	Deleted                       bool            `db:"deleted" json:"deleted"`
+	Name                          string          `db:"name" json:"name"`
+	Provisioner                   ProvisionerType `db:"provisioner" json:"provisioner"`
+	ActiveVersionID               uuid.UUID       `db:"active_version_id" json:"active_version_id"`
+	Description                   string          `db:"description" json:"description"`
+	DefaultTTL                    int64           `db:"default_ttl" json:"default_ttl"`
+	CreatedBy                     uuid.UUID       `db:"created_by" json:"created_by"`
+	Icon                          string          `db:"icon" json:"icon"`
+	UserACL                       TemplateACL     `db:"user_acl" json:"user_acl"`
+	GroupACL                      TemplateACL     `db:"group_acl" json:"group_acl"`
+	DisplayName                   string          `db:"display_name" json:"display_name"`
+	AllowUserCancelWorkspaceJobs  bool            `db:"allow_user_cancel_workspace_jobs" json:"allow_user_cancel_workspace_jobs"`
+	MaxTTL                        int64           `db:"max_ttl" json:"max_ttl"`
+	AllowUserAutostart            bool            `db:"allow_user_autostart" json:"allow_user_autostart"`
+	AllowUserAutostop             bool            `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL                    int64           `db:"failure_ttl" json:"failure_ttl"`
+	TimeTilDormant                int64           `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete      int64           `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
+	AutostopRequirementDaysOfWeek int16           `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
+	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateTable struct {
@@ -1761,14 +1761,14 @@ type TemplateTable struct {
 	// Allow users to specify an autostart schedule for workspaces (enterprise).
 	AllowUserAutostart bool `db:"allow_user_autostart" json:"allow_user_autostart"`
 	// Allow users to specify custom autostop values for workspaces (enterprise).
-	AllowUserAutostop bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
-	FailureTTL        int64 `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL     int64 `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL         int64 `db:"locked_ttl" json:"locked_ttl"`
+	AllowUserAutostop        bool  `db:"allow_user_autostop" json:"allow_user_autostop"`
+	FailureTTL               int64 `db:"failure_ttl" json:"failure_ttl"`
+	TimeTilDormant           int64 `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete int64 `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 	// A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.
-	AutostopRequirementDaysOfWeek int16 `db:"restart_requirement_days_of_week" json:"restart_requirement_days_of_week"`
+	AutostopRequirementDaysOfWeek int16 `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	// The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.
-	AutostopRequirementWeeks int64 `db:"restart_requirement_weeks" json:"restart_requirement_weeks"`
+	AutostopRequirementWeeks int64 `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 }
 
 // Joins in the username + avatar url of the created by user.
@@ -1903,7 +1903,7 @@ type Workspace struct {
 	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	LockedAt          sql.NullTime   `db:"locked_at" json:"locked_at"`
+	DormantAt         sql.NullTime   `db:"dormant_at" json:"dormant_at"`
 	DeletingAt        sql.NullTime   `db:"deleting_at" json:"deleting_at"`
 }
 

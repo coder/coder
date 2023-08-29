@@ -341,7 +341,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			AutostartSchedule: w.AutostartSchedule,
 			Ttl:               w.Ttl,
 			LastUsedAt:        w.LastUsedAt,
-			LockedAt:          w.LockedAt,
+			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
 			Count:             count,
 		}
@@ -2018,6 +2018,10 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			return nil, err
 		}
 
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
 		app, _ := q.getWorkspaceAppByAgentIDAndSlugNoLock(ctx, database.GetWorkspaceAppByAgentIDAndSlugParams{
 			AgentID: s.AgentID,
 			Slug:    s.SlugOrPort,
@@ -2044,8 +2048,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 			t = arg.StartTime
 		}
 		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
-			appUsageIntervalsByUserAgentApp[key][t] = 300 // 5 minutes.
-			t = t.Add(5 * time.Minute)
+			appUsageIntervalsByUserAgentApp[key][t] = 60 // 1 minute.
+			t = t.Add(1 * time.Minute)
 		}
 	}
 
@@ -2095,6 +2099,8 @@ func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.G
 		})
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY access_method, slug_or_port, display_name, icon, is_app
 	return rows, nil
 }
 
@@ -2264,17 +2270,16 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			}
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[s.TemplateID] = struct{}{}
-			break
 		}
 	}
 
 	for _, s := range q.workspaceAppStats {
-		// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
 			continue
 		}
 
@@ -2282,20 +2287,14 @@ func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database
 			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
 			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
 			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-			if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
-				(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
-				(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
+				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
+				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
 				continue
-			}
-
-			w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-			if err != nil {
-				return nil, err
 			}
 
 			ds.userSet[s.UserID] = struct{}{}
 			ds.templateIDSet[w.TemplateID] = struct{}{}
-			break
 		}
 	}
 
@@ -2341,22 +2340,22 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 		if appUsageIntervalsByUser[s.UserID] == nil {
 			appUsageIntervalsByUser[s.UserID] = make(map[time.Time]*database.GetTemplateInsightsRow)
 		}
-		t := s.CreatedAt.Truncate(5 * time.Minute)
+		t := s.CreatedAt.Truncate(time.Minute)
 		if _, ok := appUsageIntervalsByUser[s.UserID][t]; !ok {
 			appUsageIntervalsByUser[s.UserID][t] = &database.GetTemplateInsightsRow{}
 		}
 
 		if s.SessionCountJetBrains > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageJetbrainsSeconds = 60
 		}
 		if s.SessionCountVSCode > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageVscodeSeconds = 60
 		}
 		if s.SessionCountReconnectingPTY > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageReconnectingPtySeconds = 60
 		}
 		if s.SessionCountSSH > 0 {
-			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 300
+			appUsageIntervalsByUser[s.UserID][t].UsageSshSeconds = 60
 		}
 	}
 
@@ -2430,7 +2429,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 			if tvp.TemplateVersionID != tv.ID {
 				continue
 			}
-			key := fmt.Sprintf("%s:%s:%s:%s", tvp.Name, tvp.DisplayName, tvp.Description, tvp.Options)
+			// GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
+			key := fmt.Sprintf("%s:%s:%s:%s:%s", tvp.Name, tvp.Type, tvp.DisplayName, tvp.Description, tvp.Options)
 			if _, ok := uniqueTemplateParams[key]; !ok {
 				num++
 				uniqueTemplateParams[key] = &database.GetTemplateParameterInsightsRow{
@@ -2480,6 +2480,8 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 		}
 	}
 
+	// NOTE(mafredri): Add sorting if we decide on how to handle PostgreSQL collations.
+	// ORDER BY utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 	return rows, nil
 }
 
@@ -3735,14 +3737,14 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if build.Transition == database.WorkspaceTransitionStart &&
 			!build.Deadline.IsZero() &&
 			build.Deadline.Before(now) &&
-			!workspace.LockedAt.Valid {
+			!workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
 		if build.Transition == database.WorkspaceTransitionStop &&
 			workspace.AutostartSchedule.Valid &&
-			!workspace.LockedAt.Valid {
+			!workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -3760,11 +3762,11 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if err != nil {
 			return nil, xerrors.Errorf("get template by ID: %w", err)
 		}
-		if !workspace.LockedAt.Valid && template.InactivityTTL > 0 {
+		if !workspace.DormantAt.Valid && template.TimeTilDormant > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
-		if workspace.LockedAt.Valid && template.LockedTTL > 0 {
+		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -5128,8 +5130,8 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
 		tpl.FailureTTL = arg.FailureTTL
-		tpl.InactivityTTL = arg.InactivityTTL
-		tpl.LockedTTL = arg.LockedTTL
+		tpl.TimeTilDormant = arg.TimeTilDormant
+		tpl.TimeTilDormantAutoDelete = arg.TimeTilDormantAutoDelete
 		q.templates[idx] = tpl
 		return nil
 	}
@@ -5697,6 +5699,45 @@ func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.Workspace{}, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.DormantAt = arg.DormantAt
+		if workspace.DormantAt.Time.IsZero() {
+			workspace.LastUsedAt = database.Now()
+			workspace.DeletingAt = sql.NullTime{}
+		}
+		if !workspace.DormantAt.Time.IsZero() {
+			var template database.TemplateTable
+			for _, t := range q.templates {
+				if t.ID == workspace.TemplateID {
+					template = t
+					break
+				}
+			}
+			if template.ID == uuid.Nil {
+				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
+			}
+			if template.TimeTilDormantAutoDelete > 0 {
+				workspace.DeletingAt = sql.NullTime{
+					Valid: true,
+					Time:  workspace.DormantAt.Time.Add(time.Duration(template.TimeTilDormantAutoDelete)),
+				}
+			}
+		}
+		q.workspaces[index] = workspace
+		return workspace, nil
+	}
+	return database.Workspace{}, sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5715,45 +5756,6 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateWorkspaceLockedDeletingAt(_ context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.Workspace{}, err
-	}
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	for index, workspace := range q.workspaces {
-		if workspace.ID != arg.ID {
-			continue
-		}
-		workspace.LockedAt = arg.LockedAt
-		if workspace.LockedAt.Time.IsZero() {
-			workspace.LastUsedAt = database.Now()
-			workspace.DeletingAt = sql.NullTime{}
-		}
-		if !workspace.LockedAt.Time.IsZero() {
-			var template database.TemplateTable
-			for _, t := range q.templates {
-				if t.ID == workspace.TemplateID {
-					template = t
-					break
-				}
-			}
-			if template.ID == uuid.Nil {
-				return database.Workspace{}, xerrors.Errorf("unable to find workspace template")
-			}
-			if template.LockedTTL > 0 {
-				workspace.DeletingAt = sql.NullTime{
-					Valid: true,
-					Time:  workspace.LockedAt.Time.Add(time.Duration(template.LockedTTL)),
-				}
-			}
-		}
-		q.workspaces[index] = workspace
-		return workspace, nil
-	}
-	return database.Workspace{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -5816,7 +5818,7 @@ func (q *FakeQuerier) UpdateWorkspaceTTL(_ context.Context, arg database.UpdateW
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
+func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -5830,22 +5832,22 @@ func (q *FakeQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(_ context.Con
 			continue
 		}
 
-		if ws.LockedAt.Time.IsZero() {
+		if ws.DormantAt.Time.IsZero() {
 			continue
 		}
 
-		if !arg.LockedAt.IsZero() {
-			ws.LockedAt = sql.NullTime{
+		if !arg.DormantAt.IsZero() {
+			ws.DormantAt = sql.NullTime{
 				Valid: true,
-				Time:  arg.LockedAt,
+				Time:  arg.DormantAt,
 			}
 		}
 
 		deletingAt := sql.NullTime{
-			Valid: arg.LockedTtlMs > 0,
+			Valid: arg.TimeTilDormantAutodeleteMs > 0,
 		}
-		if arg.LockedTtlMs > 0 {
-			deletingAt.Time = ws.LockedAt.Time.Add(time.Duration(arg.LockedTtlMs) * time.Millisecond)
+		if arg.TimeTilDormantAutodeleteMs > 0 {
+			deletingAt.Time = ws.DormantAt.Time.Add(time.Duration(arg.TimeTilDormantAutodeleteMs) * time.Millisecond)
 		}
 		ws.DeletingAt = deletingAt
 		q.workspaces[i] = ws
@@ -6051,7 +6053,6 @@ func (q *FakeQuerier) GetTemplateUserRoles(_ context.Context, id uuid.UUID) ([]d
 	return users, nil
 }
 
-//nolint:gocyclo
 func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.GetWorkspacesParams, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesRow, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -6222,12 +6223,12 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// We omit locked workspaces by default.
-		if arg.LockedAt.IsZero() && workspace.LockedAt.Valid {
+		if arg.DormantAt.IsZero() && workspace.DormantAt.Valid {
 			continue
 		}
 
 		// Filter out workspaces that are locked after the timestamp.
-		if !arg.LockedAt.IsZero() && workspace.LockedAt.Time.Before(arg.LockedAt) {
+		if !arg.DormantAt.IsZero() && workspace.DormantAt.Time.Before(arg.DormantAt) {
 			continue
 		}
 

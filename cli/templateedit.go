@@ -104,7 +104,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 					Weeks:      autostopRequirementWeeks,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
-				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
@@ -142,17 +142,17 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		},
 		{
 			Flag:        "default-ttl",
-			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value.",
+			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Value:       clibase.DurationOf(&defaultTTL),
 		},
 		{
 			Flag:        "max-ttl",
-			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to \"Max lifetime\" in the UI.",
 			Value:       clibase.DurationOf(&maxTTL),
 		},
 		{
-			Flag:        "restart-requirement-weekdays",
-			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
+			Flag:        "autostop-requirement-weekdays",
+			Description: "Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
 			Value: clibase.Validate(clibase.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *clibase.StringArray) error {
@@ -162,27 +162,27 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				}
 				_, err := codersdk.WeekdaysToBitmap(v)
 				if err != nil {
-					return xerrors.Errorf("invalid restart requirement days of week %q: %w", strings.Join(v, ","), err)
+					return xerrors.Errorf("invalid autostop requirement days of week %q: %w", strings.Join(v, ","), err)
 				}
 				return nil
 			}),
 		},
 		{
-			Flag:        "restart-requirement-weeks",
-			Description: "Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
+			Flag:        "autostop-requirement-weeks",
+			Description: "Edit the template autostop requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
 			Value:  clibase.Int64Of(&autostopRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",
-			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&failureTTL),
 		},
 		{
 			Flag:        "inactivity-ttl",
-			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
 		},

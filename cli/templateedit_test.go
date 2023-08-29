@@ -263,20 +263,20 @@ func TestTemplateEdit(t *testing.T) {
 				{
 					name: "Weekdays",
 					flags: []string{
-						"--restart-requirement-weekdays", "monday",
+						"--autostop-requirement-weekdays", "monday",
 					},
 				},
 				{
 					name: "WeekdaysNoneAllowed",
 					flags: []string{
-						"--restart-requirement-weekdays", "none",
+						"--autostop-requirement-weekdays", "none",
 					},
 					ok: true,
 				},
 				{
 					name: "Weeks",
 					flags: []string{
-						"--restart-requirement-weeks", "1",
+						"--autostop-requirement-weeks", "1",
 					},
 				},
 			}
@@ -377,20 +377,20 @@ func TestTemplateEdit(t *testing.T) {
 				{
 					name: "Weekdays",
 					flags: []string{
-						"--restart-requirement-weekdays", "monday",
+						"--autostop-requirement-weekdays", "monday",
 					},
 				},
 				{
 					name: "WeekdaysNoneAllowed",
 					flags: []string{
-						"--restart-requirement-weekdays", "none",
+						"--autostop-requirement-weekdays", "none",
 					},
 					ok: true,
 				},
 				{
 					name: "Weeks",
 					flags: []string{
-						"--restart-requirement-weeks", "1",
+						"--autostop-requirement-weeks", "1",
 					},
 				},
 			}
@@ -504,8 +504,8 @@ func TestTemplateEdit(t *testing.T) {
 				"templates",
 				"edit",
 				template.Name,
-				"--restart-requirement-weekdays", "monday,tuesday",
-				"--restart-requirement-weeks", "3",
+				"--autostop-requirement-weekdays", "monday,tuesday",
+				"--autostop-requirement-weeks", "3",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
@@ -752,7 +752,7 @@ func TestTemplateEdit(t *testing.T) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
 				ctr.FailureTTLMillis = nil
-				ctr.InactivityTTLMillis = nil
+				ctr.TimeTilDormantMillis = nil
 			})
 
 			// Test the cli command with --allow-user-autostart.
@@ -798,7 +798,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -892,7 +892,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -990,7 +990,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 	})
 }

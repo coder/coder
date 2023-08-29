@@ -195,13 +195,13 @@ export interface CreateTemplateRequest {
   readonly template_version_id: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
-  readonly restart_requirement?: TemplateRestartRequirement
+  readonly autostop_requirement?: TemplateAutostopRequirement
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly dormant_ttl_ms?: number
+  readonly delete_ttl_ms?: number
   readonly disable_everyone_group_access: boolean
 }
 
@@ -305,6 +305,7 @@ export interface DERP {
 // From codersdk/deployment.go
 export interface DERPConfig {
   readonly block_direct: boolean
+  readonly force_websockets: boolean
   readonly url: string
   readonly path: string
 }
@@ -909,15 +910,15 @@ export interface Template {
   readonly icon: string
   readonly default_ttl_ms: number
   readonly max_ttl_ms: number
-  readonly restart_requirement: TemplateRestartRequirement
+  readonly autostop_requirement: TemplateAutostopRequirement
   readonly created_by_id: string
   readonly created_by_name: string
   readonly allow_user_autostart: boolean
   readonly allow_user_autostop: boolean
   readonly allow_user_cancel_workspace_jobs: boolean
   readonly failure_ttl_ms: number
-  readonly inactivity_ttl_ms: number
-  readonly locked_ttl_ms: number
+  readonly time_til_dormant_ms: number
+  readonly time_til_dormant_autodelete_ms: number
 }
 
 // From codersdk/templates.go
@@ -934,6 +935,12 @@ export interface TemplateAppUsage {
   readonly slug: string
   readonly icon: string
   readonly seconds: number
+}
+
+// From codersdk/templates.go
+export interface TemplateAutostopRequirement {
+  readonly days_of_week: string[]
+  readonly weeks: number
 }
 
 // From codersdk/templates.go
@@ -1006,12 +1013,6 @@ export interface TemplateParameterUsage {
 export interface TemplateParameterValue {
   readonly value: string
   readonly count: number
-}
-
-// From codersdk/templates.go
-export interface TemplateRestartRequirement {
-  readonly days_of_week: string[]
-  readonly weeks: number
 }
 
 // From codersdk/templates.go
@@ -1146,15 +1147,15 @@ export interface UpdateTemplateMeta {
   readonly icon?: string
   readonly default_ttl_ms?: number
   readonly max_ttl_ms?: number
-  readonly restart_requirement?: TemplateRestartRequirement
+  readonly autostop_requirement?: TemplateAutostopRequirement
   readonly allow_user_autostart?: boolean
   readonly allow_user_autostop?: boolean
   readonly allow_user_cancel_workspace_jobs?: boolean
   readonly failure_ttl_ms?: number
-  readonly inactivity_ttl_ms?: number
-  readonly locked_ttl_ms?: number
+  readonly time_til_dormant_ms?: number
+  readonly time_til_dormant_autodelete_ms?: number
   readonly update_workspace_last_used_at: boolean
-  readonly update_workspace_locked_at: boolean
+  readonly update_workspace_dormant_at: boolean
 }
 
 // From codersdk/users.go
@@ -1179,8 +1180,8 @@ export interface UpdateWorkspaceAutostartRequest {
 }
 
 // From codersdk/workspaces.go
-export interface UpdateWorkspaceLock {
-  readonly lock: boolean
+export interface UpdateWorkspaceDormancy {
+  readonly dormant: boolean
 }
 
 // From codersdk/workspaceproxy.go
@@ -1302,6 +1303,7 @@ export interface Workspace {
   readonly template_display_name: string
   readonly template_icon: string
   readonly template_allow_user_cancel_workspace_jobs: boolean
+  readonly template_active_version_id: string
   readonly latest_build: WorkspaceBuild
   readonly outdated: boolean
   readonly name: string
@@ -1309,7 +1311,7 @@ export interface Workspace {
   readonly ttl_ms?: number
   readonly last_used_at: string
   readonly deleting_at?: string
-  readonly locked_at?: string
+  readonly dormant_at?: string
   readonly health: WorkspaceHealth
 }
 
@@ -1601,7 +1603,7 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_restart_requirement"
+  | "template_autostop_requirement"
   | "workspace_actions"
   | "workspaces_batch_actions"
 export const Experiments: Experiment[] = [
@@ -1609,7 +1611,7 @@ export const Experiments: Experiment[] = [
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
-  "template_restart_requirement",
+  "template_autostop_requirement",
   "workspace_actions",
   "workspaces_batch_actions",
 ]
@@ -1624,8 +1626,8 @@ export type FeatureName =
   | "high_availability"
   | "multiple_git_auth"
   | "scim"
+  | "template_autostop_requirement"
   | "template_rbac"
-  | "template_restart_requirement"
   | "user_limit"
   | "user_role_management"
   | "workspace_proxy"
@@ -1638,8 +1640,8 @@ export const FeatureNames: FeatureName[] = [
   "high_availability",
   "multiple_git_auth",
   "scim",
+  "template_autostop_requirement",
   "template_rbac",
-  "template_restart_requirement",
   "user_limit",
   "user_role_management",
   "workspace_proxy",

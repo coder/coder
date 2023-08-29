@@ -7,9 +7,10 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { colors } from "theme/colors"
 import { v4 as uuidv4 } from "uuid"
 import * as XTerm from "xterm"
-import { CanvasAddon } from "xterm-addon-canvas"
+import { WebglAddon } from "xterm-addon-webgl"
 import { FitAddon } from "xterm-addon-fit"
 import { WebLinksAddon } from "xterm-addon-web-links"
+import { Unicode11Addon } from "xterm-addon-unicode11"
 import "xterm/css/xterm.css"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
 import { pageTitle } from "../../utils/page"
@@ -57,7 +58,7 @@ const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
 }
 
 type TerminalPageProps = React.PropsWithChildren<{
-  renderer: "canvas" | "dom"
+  renderer: "webgl" | "dom"
 }>
 
 const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
@@ -176,6 +177,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       return
     }
     const terminal = new XTerm.Terminal({
+      allowProposedApi: true,
       allowTransparency: true,
       disableStdin: false,
       fontFamily: MONOSPACE_FONT_FAMILY,
@@ -185,12 +187,14 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       },
     })
     // DOM is the default renderer.
-    if (renderer === "canvas") {
-      terminal.loadAddon(new CanvasAddon())
+    if (renderer === "webgl") {
+      terminal.loadAddon(new WebglAddon())
     }
     const fitAddon = new FitAddon()
     setFitAddon(fitAddon)
     terminal.loadAddon(fitAddon)
+    terminal.loadAddon(new Unicode11Addon())
+    terminal.unicode.activeVersion = "11"
     terminal.loadAddon(
       new WebLinksAddon((_, uri) => {
         handleWebLink(uri)

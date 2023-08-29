@@ -38,6 +38,7 @@ export interface UsersTableProps {
   isNonInitialPage: boolean
   actorID: string
   oidcRoleSyncEnabled: boolean
+  authMethods?: TypesGen.AuthMethods
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
@@ -57,6 +58,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   isNonInitialPage,
   actorID,
   oidcRoleSyncEnabled,
+  authMethods,
 }) => {
   return (
     <TableContainer>
@@ -70,10 +72,8 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
                 <UserRoleHelpTooltip />
               </Stack>
             </TableCell>
-            <TableCell width="10%">{Language.loginTypeLabel}</TableCell>
-            <TableCell width="10%">{Language.statusLabel}</TableCell>
-            <TableCell width="10%">{Language.lastSeenLabel}</TableCell>
-
+            <TableCell width="15%">{Language.loginTypeLabel}</TableCell>
+            <TableCell width="15%">{Language.statusLabel}</TableCell>
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
@@ -96,6 +96,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             isNonInitialPage={isNonInitialPage}
             actorID={actorID}
             oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+            authMethods={authMethods}
           />
         </TableBody>
       </Table>

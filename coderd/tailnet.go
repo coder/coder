@@ -45,6 +45,7 @@ func NewServerTailnet(
 	logger slog.Logger,
 	derpServer *derp.Server,
 	derpMapFn func() *tailcfg.DERPMap,
+	derpForceWebSockets bool,
 	getMultiAgent func(context.Context) (tailnet.MultiAgentConn, error),
 	cache *wsconncache.Cache,
 	traceProvider trace.TracerProvider,
@@ -52,9 +53,10 @@ func NewServerTailnet(
 	logger = logger.Named("servertailnet")
 	originalDerpMap := derpMapFn()
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses: []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
-		DERPMap:   originalDerpMap,
-		Logger:    logger,
+		Addresses:           []netip.Prefix{netip.PrefixFrom(tailnet.IP(), 128)},
+		DERPMap:             originalDerpMap,
+		DERPForceWebSockets: derpForceWebSockets,
+		Logger:              logger,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet conn: %w", err)

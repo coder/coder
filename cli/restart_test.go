@@ -20,30 +20,14 @@ import (
 func TestRestart(t *testing.T) {
 	t.Parallel()
 
-	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
-			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Parameters: []*proto.RichParameter{
-							{
-								Name:        ephemeralParameterName,
-								Description: ephemeralParameterDescription,
-								Mutable:     true,
-								Ephemeral:   true,
-							},
-						},
-					},
-				},
-			},
+	echoResponses := prepareEchoResponses([]*proto.RichParameter{
+		{
+			Name:        ephemeralParameterName,
+			Description: ephemeralParameterDescription,
+			Mutable:     true,
+			Ephemeral:   true,
 		},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
-	}
+	})
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -187,10 +171,10 @@ func TestRestartWithParameters(t *testing.T) {
 
 	echoResponses := &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
+		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
 						Parameters: []*proto.RichParameter{
 							{
 								Name:        immutableParameterName,
@@ -202,11 +186,7 @@ func TestRestartWithParameters(t *testing.T) {
 				},
 			},
 		},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
+		ProvisionApply: echo.ApplyComplete,
 	}
 
 	t.Run("DoNotAskForImmutables", func(t *testing.T) {

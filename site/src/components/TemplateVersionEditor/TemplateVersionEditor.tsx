@@ -18,12 +18,10 @@ import { Link as RouterLink } from "react-router-dom"
 import { Alert, AlertDetail } from "components/Alert/Alert"
 import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
-import { bannerHeight } from "components/DeploymentBanner/DeploymentBannerView"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
 import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
-import { navHeight, dashboardContentBottomPadding } from "theme/constants"
 import {
   createFile,
   existsFile,
@@ -50,6 +48,7 @@ import {
 } from "./TemplateVersionStatusBadge"
 import { Theme } from "@mui/material/styles"
 import AlertTitle from "@mui/material/AlertTitle"
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
 
 export interface TemplateVersionEditorProps {
   template: Template
@@ -65,6 +64,9 @@ export interface TemplateVersionEditorProps {
   onConfirmPublish: (data: PublishVersionData) => void
   onCancelPublish: () => void
   publishingError: unknown
+  publishedVersion?: TemplateVersion
+  publishedVersionIsDefault?: boolean
+  onCreateWorkspace: () => void
   isAskingPublishParameters: boolean
   isPromptingMissingVariables: boolean
   isPublishing: boolean
@@ -98,9 +100,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onPublish,
   onConfirmPublish,
   onCancelPublish,
-  publishingError,
   isAskingPublishParameters,
   isPublishing,
+  publishingError,
+  publishedVersion,
+  publishedVersionIsDefault,
+  onCreateWorkspace,
   buildLogs,
   resources,
   isPromptingMissingVariables,
@@ -108,11 +113,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
 }) => {
-  const [selectedTab, setSelectedTab] = useState(() => {
-    // If resources are provided, show them by default!
-    // This is for Storybook!
-    return resources ? 1 : 0
-  })
+  // If resources are provided, show them by default!
+  // This is for Storybook!
+  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0))
   const [fileTree, setFileTree] = useState(defaultFileTree)
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
@@ -185,7 +188,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
   return (
     <>
-      <div className={styles.root}>
+      <DashboardFullPage className={styles.root}>
         <div className={styles.topbar} data-testid="topbar">
           <div className={styles.topbarSides}>
             <Link
@@ -204,6 +207,29 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               />
             </Link>
           </div>
+
+          {publishedVersion && (
+            <Alert
+              severity="success"
+              dismissible
+              actions={
+                // TODO: Only show this button when the version we just published is the
+                // new primary version. We should remove this condition soon, when we can
+                // create workspaces using any version, not just the primary.
+                publishedVersionIsDefault && (
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={onCreateWorkspace}
+                  >
+                    Create a workspace
+                  </Button>
+                )
+              }
+            >
+              Successfully published {publishedVersion.name}!
+            </Alert>
+          )}
 
           <div className={styles.topbarSides}>
             {/* Only start to show the build when a new template version is building */}
@@ -377,7 +403,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               >
                 {templateVersion.job.error && (
                   <div>
-                    <Alert severity="error">
+                    <Alert
+                      severity="error"
+                      sx={{
+                        borderRadius: 0,
+                        border: 0,
+                        borderBottom: (theme) =>
+                          `1px solid ${theme.palette.divider}`,
+                        borderLeft: (theme) =>
+                          `2px solid ${theme.palette.error.main}`,
+                      }}
+                    >
                       <AlertTitle>Error during the build</AlertTitle>
                       <AlertDetail>{templateVersion.job.error}</AlertDetail>
                     </Alert>
@@ -386,7 +422,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0, border: 0 }}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -394,7 +430,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                className={`${styles.panel} ${
+                className={`${styles.panel} ${styles.resources} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -415,7 +451,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             )}
           </div>
         </div>
-      </div>
+      </DashboardFullPage>
 
       <PublishTemplateVersionDialog
         key={templateVersion.name}
@@ -446,15 +482,7 @@ const useStyles = makeStyles<
   }
 >((theme) => ({
   root: {
-    height: (props) =>
-      `calc(100vh - ${
-        navHeight + (props.deploymentBannerVisible ? bannerHeight : 0)
-      }px)`,
     background: theme.palette.background.default,
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    marginBottom: -dashboardContentBottomPadding, // Remove dashboard bottom padding
   },
   topbar: {
     padding: theme.spacing(2),
@@ -478,6 +506,8 @@ const useStyles = makeStyles<
   sidebarAndEditor: {
     display: "flex",
     flex: 1,
+    flexBasis: 0,
+    overflow: "hidden",
   },
   sidebar: {
     minWidth: 256,
@@ -505,7 +535,7 @@ const useStyles = makeStyles<
     width: "100%",
     gridTemplateColumns: (props) =>
       props.showBuildLogs ? "1fr 1fr" : "1fr 0fr",
-    height: `calc(100vh - ${navHeight + topbarHeight}px)`,
+    minHeight: "100%",
     overflow: "hidden",
   },
   editor: {
@@ -513,16 +543,22 @@ const useStyles = makeStyles<
   },
   panelWrapper: {
     flex: 1,
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    overflowY: "auto",
   },
   panel: {
-    padding: theme.spacing(1),
+    overflowY: "auto",
+    height: "100%",
 
     "&.hidden": {
       display: "none",
+    },
+
+    // Hack to access customize resource-card from here
+    "& .resource-card": {
+      border: 0,
     },
   },
   tabs: {
@@ -594,7 +630,8 @@ const useStyles = makeStyles<
   buildLogs: {
     display: "flex",
     flexDirection: "column",
-    overflowY: "auto",
-    gap: theme.spacing(1),
+  },
+  resources: {
+    paddingBottom: theme.spacing(2),
   },
 }))

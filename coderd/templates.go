@@ -214,13 +214,13 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 
 	var (
 		defaultTTL time.Duration
-		// TODO(@dean): remove max_ttl once restart_requirement is ready
+		// TODO(@dean): remove max_ttl once autostop_requirement is ready
 		maxTTL                        time.Duration
 		autostopRequirementDaysOfWeek []string
 		autostopRequirementWeeks      int64
 		failureTTL                    time.Duration
-		inactivityTTL                 time.Duration
-		lockedTTL                     time.Duration
+		dormantTTL                    time.Duration
+		dormantAutoDeletionTTL        time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
@@ -232,11 +232,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if createTemplate.FailureTTLMillis != nil {
 		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
 	}
-	if createTemplate.InactivityTTLMillis != nil {
-		inactivityTTL = time.Duration(*createTemplate.InactivityTTLMillis) * time.Millisecond
+	if createTemplate.TimeTilDormantMillis != nil {
+		dormantTTL = time.Duration(*createTemplate.TimeTilDormantMillis) * time.Millisecond
 	}
-	if createTemplate.LockedTTLMillis != nil {
-		lockedTTL = time.Duration(*createTemplate.LockedTTLMillis) * time.Millisecond
+	if createTemplate.TimeTilDormantAutoDeleteMillis != nil {
+		dormantAutoDeletionTTL = time.Duration(*createTemplate.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 	}
 
 	var (
@@ -255,7 +255,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if len(autostopRequirementDaysOfWeek) > 0 {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostopRequirementDaysOfWeek)
 		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.days_of_week", Detail: err.Error()})
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
 	if createTemplate.MaxTTLMillis != nil {
@@ -265,16 +265,16 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
 	if autostopRequirementWeeks > schedule.MaxTemplateAutostopRequirementWeeks {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
 	if failureTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if inactivityTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	if dormantTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodeletion_ms", Detail: "Must be a positive integer."})
 	}
-	if lockedTTL < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
+	if dormantAutoDeletionTTL < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodeletion_ms", Detail: "Must be a positive integer."})
 	}
 
 	if len(validErrs) > 0 {
@@ -340,9 +340,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				DaysOfWeek: autostopRequirementDaysOfWeekParsed,
 				Weeks:      autostopRequirementWeeks,
 			},
-			FailureTTL:    failureTTL,
-			InactivityTTL: inactivityTTL,
-			LockedTTL:     lockedTTL,
+			FailureTTL:               failureTTL,
+			TimeTilDormant:           dormantTTL,
+			TimeTilDormantAutoDelete: dormantAutoDeletionTTL,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)
@@ -521,25 +521,25 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if len(req.AutostopRequirement.DaysOfWeek) > 0 {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostopRequirement.DaysOfWeek)
 		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.days_of_week", Detail: err.Error()})
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
 	if req.AutostopRequirement.Weeks < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.weeks", Detail: "Must be a positive integer."})
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "restart_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
 	if req.FailureTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.InactivityTTLMillis < 0 {
+	if req.TimeTilDormantMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.InactivityTTLMillis < 0 {
+	if req.TimeTilDormantMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.LockedTTLMillis < 0 {
+	if req.TimeTilDormantAutoDeleteMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
 	}
 
@@ -565,8 +565,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			req.InactivityTTLMillis == time.Duration(template.InactivityTTL).Milliseconds() &&
-			req.LockedTTLMillis == time.Duration(template.LockedTTL).Milliseconds() {
+			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
+			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() {
 			return nil
 		}
 
@@ -598,16 +598,16 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
 		maxTTL := time.Duration(req.MaxTTLMillis) * time.Millisecond
 		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
-		inactivityTTL := time.Duration(req.InactivityTTLMillis) * time.Millisecond
-		lockedTTL := time.Duration(req.LockedTTLMillis) * time.Millisecond
+		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
+		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
 
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
 			req.AutostopRequirement.Weeks != scheduleOpts.AutostopRequirement.Weeks ||
 			failureTTL != time.Duration(template.FailureTTL) ||
-			inactivityTTL != time.Duration(template.InactivityTTL) ||
-			lockedTTL != time.Duration(template.LockedTTL) ||
+			inactivityTTL != time.Duration(template.TimeTilDormant) ||
+			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
@@ -623,10 +623,10 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 					Weeks:      req.AutostopRequirement.Weeks,
 				},
 				FailureTTL:                failureTTL,
-				InactivityTTL:             inactivityTTL,
-				LockedTTL:                 lockedTTL,
+				TimeTilDormant:            inactivityTTL,
+				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
-				UpdateWorkspaceLockedAt:   req.UpdateWorkspaceLockedAt,
+				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -738,28 +738,28 @@ func (api *API) convertTemplate(
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
 	return codersdk.Template{
-		ID:                           template.ID,
-		CreatedAt:                    template.CreatedAt,
-		UpdatedAt:                    template.UpdatedAt,
-		OrganizationID:               template.OrganizationID,
-		Name:                         template.Name,
-		DisplayName:                  template.DisplayName,
-		Provisioner:                  codersdk.ProvisionerType(template.Provisioner),
-		ActiveVersionID:              template.ActiveVersionID,
-		ActiveUserCount:              activeCount,
-		BuildTimeStats:               buildTimeStats,
-		Description:                  template.Description,
-		Icon:                         template.Icon,
-		DefaultTTLMillis:             time.Duration(template.DefaultTTL).Milliseconds(),
-		MaxTTLMillis:                 time.Duration(template.MaxTTL).Milliseconds(),
-		CreatedByID:                  template.CreatedBy,
-		CreatedByName:                template.CreatedByUsername,
-		AllowUserAutostart:           template.AllowUserAutostart,
-		AllowUserAutostop:            template.AllowUserAutostop,
-		AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-		FailureTTLMillis:             time.Duration(template.FailureTTL).Milliseconds(),
-		InactivityTTLMillis:          time.Duration(template.InactivityTTL).Milliseconds(),
-		LockedTTLMillis:              time.Duration(template.LockedTTL).Milliseconds(),
+		ID:                             template.ID,
+		CreatedAt:                      template.CreatedAt,
+		UpdatedAt:                      template.UpdatedAt,
+		OrganizationID:                 template.OrganizationID,
+		Name:                           template.Name,
+		DisplayName:                    template.DisplayName,
+		Provisioner:                    codersdk.ProvisionerType(template.Provisioner),
+		ActiveVersionID:                template.ActiveVersionID,
+		ActiveUserCount:                activeCount,
+		BuildTimeStats:                 buildTimeStats,
+		Description:                    template.Description,
+		Icon:                           template.Icon,
+		DefaultTTLMillis:               time.Duration(template.DefaultTTL).Milliseconds(),
+		MaxTTLMillis:                   time.Duration(template.MaxTTL).Milliseconds(),
+		CreatedByID:                    template.CreatedBy,
+		CreatedByName:                  template.CreatedByUsername,
+		AllowUserAutostart:             template.AllowUserAutostart,
+		AllowUserAutostop:              template.AllowUserAutostop,
+		AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+		FailureTTLMillis:               time.Duration(template.FailureTTL).Milliseconds(),
+		TimeTilDormantMillis:           time.Duration(template.TimeTilDormant).Milliseconds(),
+		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
 			Weeks:      template.AutostopRequirementWeeks,

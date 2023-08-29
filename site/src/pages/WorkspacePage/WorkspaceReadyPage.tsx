@@ -111,7 +111,6 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace })
   }, [bannerSend, workspace])
-
   return (
     <>
       <Helmet>

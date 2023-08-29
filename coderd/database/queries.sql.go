@@ -1462,19 +1462,10 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 }
 
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
-WITH ts AS (
+WITH app_stats_by_user_and_agent AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), app_stats_by_user_and_agent AS (
-	SELECT
-		ts.from_,
-		ts.to_,
-		ts.seconds,
+		s.start_time,
+		60 as seconds,
 		w.template_id,
 		was.user_id,
 		was.agent_id,
@@ -1483,15 +1474,10 @@ WITH ts AS (
 		wa.display_name,
 		wa.icon,
 		(wa.slug IS NOT NULL)::boolean AS is_app
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
+	FROM workspace_app_stats was
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN w.template_id = ANY($3::uuid[]) ELSE TRUE END
+		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
 	)
 	-- We do a left join here because we want to include user IDs that have used
 	-- e.g. ports when counting active users.
@@ -1499,13 +1485,20 @@ WITH ts AS (
 		wa.agent_id = was.agent_id
 		AND wa.slug = was.slug_or_port
 	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
 	WHERE
-		-- We already handle timeframe in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		(was.session_started_at >= $1 AND was.session_started_at < $2)
-		OR (was.session_ended_at > $1 AND was.session_ended_at < $2)
-		OR (was.session_started_at < $1 AND was.session_ended_at >= $2)
-	GROUP BY ts.from_, ts.to_, ts.seconds, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
+		s.start_time >= $2::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id, was.agent_id, was.access_method, was.slug_or_port, wa.display_name, wa.icon, wa.slug
 )
 
 SELECT
@@ -1523,9 +1516,9 @@ GROUP BY access_method, slug_or_port, display_name, icon, is_app
 `
 
 type GetTemplateAppInsightsParams struct {
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 	StartTime   time.Time   `db:"start_time" json:"start_time"`
 	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateAppInsightsRow struct {
@@ -1543,7 +1536,7 @@ type GetTemplateAppInsightsRow struct {
 // timeframe. The result can be filtered on template_ids, meaning only user data
 // from workspaces based on those templates will be included.
 func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplateAppInsightsParams) ([]GetTemplateAppInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, arg.StartTime, arg.EndTime, pq.Array(arg.TemplateIDs))
+	rows, err := q.db.QueryContext(ctx, getTemplateAppInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
@@ -1681,37 +1674,22 @@ func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTempla
 }
 
 const getTemplateInsights = `-- name: GetTemplateInsights :one
-WITH ts AS (
+WITH agent_stats_by_interval_and_user AS (
 	SELECT
-		d::timestamptz AS from_,
-		(d::timestamptz + '5 minute'::interval) AS to_,
-		EXTRACT(epoch FROM '5 minute'::interval) AS seconds
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($1::timestamptz, ($2::timestamptz) - '1 second'::interval, '5 minute'::interval) d
-), agent_stats_by_interval_and_user AS (
-	SELECT
-		ts.from_,
-		ts.to_,
+		date_trunc('minute', was.created_at),
 		was.user_id,
 		array_agg(was.template_id) AS template_ids,
-		CASE WHEN SUM(was.session_count_vscode) > 0 THEN ts.seconds ELSE 0 END AS usage_vscode_seconds,
-		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN ts.seconds ELSE 0 END AS usage_jetbrains_seconds,
-		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN ts.seconds ELSE 0 END AS usage_reconnecting_pty_seconds,
-		CASE WHEN SUM(was.session_count_ssh) > 0 THEN ts.seconds ELSE 0 END AS usage_ssh_seconds
-	FROM ts
-	JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
+		CASE WHEN SUM(was.session_count_vscode) > 0 THEN 60 ELSE 0 END AS usage_vscode_seconds,
+		CASE WHEN SUM(was.session_count_jetbrains) > 0 THEN 60 ELSE 0 END AS usage_jetbrains_seconds,
+		CASE WHEN SUM(was.session_count_reconnecting_pty) > 0 THEN 60 ELSE 0 END AS usage_reconnecting_pty_seconds,
+		CASE WHEN SUM(was.session_count_ssh) > 0 THEN 60 ELSE 0 END AS usage_ssh_seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= $1::timestamptz
+		AND was.created_at < $2::timestamptz
 		AND was.connection_count > 0
 		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	)
-	WHERE
-		-- We already handle created_at in the join, but we use an additional
-		-- check against a static timeframe to help speed up the query.
-		was.created_at >= $1
-		AND was.created_at < $2
-	GROUP BY ts.from_, ts.to_, ts.seconds, was.user_id
+	GROUP BY date_trunc('minute', was.created_at), was.user_id
 ), template_ids AS (
 	SELECT array_agg(DISTINCT template_id) AS ids
 	FROM agent_stats_by_interval_and_user, unnest(template_ids) template_id
@@ -1788,13 +1766,13 @@ WITH latest_workspace_builds AS (
 		array_agg(DISTINCT wb.template_id)::uuid[] AS template_ids,
 		array_agg(wb.id)::uuid[] AS workspace_build_ids,
 		tvp.name,
+		tvp.type,
 		tvp.display_name,
 		tvp.description,
-		tvp.options,
-		tvp.type
+		tvp.options
 	FROM latest_workspace_builds wb
 	JOIN template_version_parameters tvp ON (tvp.template_version_id = wb.template_version_id)
-	GROUP BY tvp.name, tvp.display_name, tvp.description, tvp.options, tvp.type
+	GROUP BY tvp.name, tvp.type, tvp.display_name, tvp.description, tvp.options
 )
 
 SELECT
@@ -1809,7 +1787,7 @@ SELECT
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
-GROUP BY utp.num, utp.name, utp.display_name, utp.description, utp.options, utp.template_ids, utp.type, wbp.value
+GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 `
 
 type GetTemplateParameterInsightsParams struct {
@@ -4339,7 +4317,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -4372,8 +4350,8 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
 		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
+		&i.TimeTilDormant,
+		&i.TimeTilDormantAutoDelete,
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
 		&i.CreatedByAvatarURL,
@@ -4384,7 +4362,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -4425,8 +4403,8 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AllowUserAutostart,
 		&i.AllowUserAutostop,
 		&i.FailureTTL,
-		&i.InactivityTTL,
-		&i.LockedTTL,
+		&i.TimeTilDormant,
+		&i.TimeTilDormantAutoDelete,
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
 		&i.CreatedByAvatarURL,
@@ -4436,7 +4414,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -4470,8 +4448,8 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
-			&i.InactivityTTL,
-			&i.LockedTTL,
+			&i.TimeTilDormant,
+			&i.TimeTilDormantAutoDelete,
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
 			&i.CreatedByAvatarURL,
@@ -4492,7 +4470,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, inactivity_ttl, locked_ttl, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -4563,8 +4541,8 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
-			&i.InactivityTTL,
-			&i.LockedTTL,
+			&i.TimeTilDormant,
+			&i.TimeTilDormantAutoDelete,
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
 			&i.CreatedByAvatarURL,
@@ -4754,8 +4732,8 @@ SET
 	autostop_requirement_days_of_week = $7,
 	autostop_requirement_weeks = $8,
 	failure_ttl = $9,
-	inactivity_ttl = $10,
-	locked_ttl = $11
+	time_til_dormant = $10,
+	time_til_dormant_autodelete = $11
 WHERE
 	id = $1
 `
@@ -4770,8 +4748,8 @@ type UpdateTemplateScheduleByIDParams struct {
 	AutostopRequirementDaysOfWeek int16     `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64     `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
-	InactivityTTL                 int64     `db:"inactivity_ttl" json:"inactivity_ttl"`
-	LockedTTL                     int64     `db:"locked_ttl" json:"locked_ttl"`
+	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
+	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -4785,8 +4763,8 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.AutostopRequirementDaysOfWeek,
 		arg.AutostopRequirementWeeks,
 		arg.FailureTTL,
-		arg.InactivityTTL,
-		arg.LockedTTL,
+		arg.TimeTilDormant,
+		arg.TimeTilDormantAutoDelete,
 	)
 	return err
 }
@@ -9126,7 +9104,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 FROM
 	workspaces
 WHERE
@@ -9169,7 +9147,7 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9177,7 +9155,7 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 FROM
 	workspaces
 WHERE
@@ -9201,7 +9179,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9209,7 +9187,7 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 FROM
 	workspaces
 WHERE
@@ -9240,7 +9218,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9248,7 +9226,7 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 FROM
 	workspaces
 WHERE
@@ -9298,7 +9276,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9306,7 +9284,7 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, workspaces.deleting_at,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at,
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
@@ -9490,13 +9468,13 @@ WHERE
 			) > 0
 		ELSE true
 	END
-	-- Filter by locked workspaces. By default we do not return locked
+	-- Filter by dormant workspaces. By default we do not return dormant
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
 		WHEN $10 :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
-			locked_at IS NOT NULL AND locked_at >= $10
+			dormant_at IS NOT NULL AND dormant_at >= $10
 		ELSE
-			locked_at IS NULL
+			dormant_at IS NULL
 	END
 	-- Filter by last_used
 	AND CASE
@@ -9537,7 +9515,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	LockedAt                              time.Time   `db:"locked_at" json:"locked_at"`
+	DormantAt                             time.Time   `db:"dormant_at" json:"dormant_at"`
 	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -9556,7 +9534,7 @@ type GetWorkspacesRow struct {
 	AutostartSchedule   sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
 	Ttl                 sql.NullInt64  `db:"ttl" json:"ttl"`
 	LastUsedAt          time.Time      `db:"last_used_at" json:"last_used_at"`
-	LockedAt            sql.NullTime   `db:"locked_at" json:"locked_at"`
+	DormantAt           sql.NullTime   `db:"dormant_at" json:"dormant_at"`
 	DeletingAt          sql.NullTime   `db:"deleting_at" json:"deleting_at"`
 	TemplateName        string         `db:"template_name" json:"template_name"`
 	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
@@ -9575,7 +9553,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.LockedAt,
+		arg.DormantAt,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,
@@ -9600,7 +9578,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
-			&i.LockedAt,
+			&i.DormantAt,
 			&i.DeletingAt,
 			&i.TemplateName,
 			&i.TemplateVersionID,
@@ -9622,7 +9600,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, workspaces.deleting_at
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at
 FROM
 	workspaces
 LEFT JOIN
@@ -9671,17 +9649,17 @@ WHERE
 		) OR
 
 		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for locking.
+		-- it may be eligible for dormancy.
 		(
-			templates.inactivity_ttl > 0 AND
-			workspaces.locked_at IS NULL
+			templates.time_til_dormant > 0 AND
+			workspaces.dormant_at IS NULL
 		) OR
 
-		-- If the workspace's template has a locked_ttl set
-		-- and the workspace is already locked
+		-- If the workspace's template has a time_til_dormant_autodelete set
+		-- and the workspace is already dormant.
 		(
-			templates.locked_ttl > 0 AND
-			workspaces.locked_at IS NOT NULL
+			templates.time_til_dormant_autodelete > 0 AND
+			workspaces.dormant_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false'
 `
@@ -9707,7 +9685,7 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
-			&i.LockedAt,
+			&i.DormantAt,
 			&i.DeletingAt,
 		); err != nil {
 			return nil, err
@@ -9738,7 +9716,7 @@ INSERT INTO
 		last_used_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 `
 
 type InsertWorkspaceParams struct {
@@ -9780,7 +9758,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9812,7 +9790,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, locked_at, deleting_at
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
 `
 
 type UpdateWorkspaceParams struct {
@@ -9835,7 +9813,7 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.AutostartSchedule,
 		&i.Ttl,
 		&i.LastUsedAt,
-		&i.LockedAt,
+		&i.DormantAt,
 		&i.DeletingAt,
 	)
 	return i, err
@@ -9879,6 +9857,52 @@ func (q *sqlQuerier) UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateW
 	return err
 }
 
+const updateWorkspaceDormantDeletingAt = `-- name: UpdateWorkspaceDormantDeletingAt :one
+UPDATE
+	workspaces
+SET
+	dormant_at = $2,
+	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
+	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
+	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
+FROM
+	templates
+WHERE
+	workspaces.template_id = templates.id
+AND
+	workspaces.id = $1
+RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at
+`
+
+type UpdateWorkspaceDormantDeletingAtParams struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	DormantAt sql.NullTime `db:"dormant_at" json:"dormant_at"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (Workspace, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkspaceDormantDeletingAt, arg.ID, arg.DormantAt)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OwnerID,
+		&i.OrganizationID,
+		&i.TemplateID,
+		&i.Deleted,
+		&i.Name,
+		&i.AutostartSchedule,
+		&i.Ttl,
+		&i.LastUsedAt,
+		&i.DormantAt,
+		&i.DeletingAt,
+	)
+	return i, err
+}
+
 const updateWorkspaceLastUsedAt = `-- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
 	workspaces
@@ -9896,52 +9920,6 @@ type UpdateWorkspaceLastUsedAtParams struct {
 func (q *sqlQuerier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg UpdateWorkspaceLastUsedAtParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceLastUsedAt, arg.ID, arg.LastUsedAt)
 	return err
-}
-
-const updateWorkspaceLockedDeletingAt = `-- name: UpdateWorkspaceLockedDeletingAt :one
-UPDATE
-	workspaces
-SET
-	locked_at = $2,
-	-- When a workspace is unlocked we want to update the last_used_at to avoid the workspace getting re-locked.
-	-- if we're locking the workspace then we leave it alone.
-	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If locked_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
-	-- deleting_at to NULL else set it to the locked_at + locked_ttl duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
-FROM
-	templates
-WHERE
-	workspaces.template_id = templates.id
-AND
-	workspaces.id = $1
-RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.locked_at, workspaces.deleting_at
-`
-
-type UpdateWorkspaceLockedDeletingAtParams struct {
-	ID       uuid.UUID    `db:"id" json:"id"`
-	LockedAt sql.NullTime `db:"locked_at" json:"locked_at"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg UpdateWorkspaceLockedDeletingAtParams) (Workspace, error) {
-	row := q.db.QueryRowContext(ctx, updateWorkspaceLockedDeletingAt, arg.ID, arg.LockedAt)
-	var i Workspace
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OwnerID,
-		&i.OrganizationID,
-		&i.TemplateID,
-		&i.Deleted,
-		&i.Name,
-		&i.AutostartSchedule,
-		&i.Ttl,
-		&i.LastUsedAt,
-		&i.LockedAt,
-		&i.DeletingAt,
-	)
-	return i, err
 }
 
 const updateWorkspaceTTL = `-- name: UpdateWorkspaceTTL :exec
@@ -9963,28 +9941,28 @@ func (q *sqlQuerier) UpdateWorkspaceTTL(ctx context.Context, arg UpdateWorkspace
 	return err
 }
 
-const updateWorkspacesLockedDeletingAtByTemplateID = `-- name: UpdateWorkspacesLockedDeletingAtByTemplateID :exec
+const updateWorkspacesDormantDeletingAtByTemplateID = `-- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
 UPDATE workspaces
 SET
     deleting_at = CASE
         WHEN $1::bigint = 0 THEN NULL
         WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  ($2::timestamptz) + interval '1 milliseconds' * $1::bigint
-        ELSE locked_at + interval '1 milliseconds' * $1::bigint
+        ELSE dormant_at + interval '1 milliseconds' * $1::bigint
     END,
-    locked_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE locked_at END
+    dormant_at = CASE WHEN $2::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN $2::timestamptz ELSE dormant_at END
 WHERE
     template_id = $3
 AND
-    locked_at IS NOT NULL
+    dormant_at IS NOT NULL
 `
 
-type UpdateWorkspacesLockedDeletingAtByTemplateIDParams struct {
-	LockedTtlMs int64     `db:"locked_ttl_ms" json:"locked_ttl_ms"`
-	LockedAt    time.Time `db:"locked_at" json:"locked_at"`
-	TemplateID  uuid.UUID `db:"template_id" json:"template_id"`
+type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
+	TimeTilDormantAutodeleteMs int64     `db:"time_til_dormant_autodelete_ms" json:"time_til_dormant_autodelete_ms"`
+	DormantAt                  time.Time `db:"dormant_at" json:"dormant_at"`
+	TemplateID                 uuid.UUID `db:"template_id" json:"template_id"`
 }
 
-func (q *sqlQuerier) UpdateWorkspacesLockedDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesLockedDeletingAtByTemplateIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspacesLockedDeletingAtByTemplateID, arg.LockedTtlMs, arg.LockedAt, arg.TemplateID)
+func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacesDormantDeletingAtByTemplateID, arg.TimeTilDormantAutodeleteMs, arg.DormantAt, arg.TemplateID)
 	return err
 }
