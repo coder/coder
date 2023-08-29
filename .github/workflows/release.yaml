@@ -328,11 +328,74 @@ jobs:
           event-type: coder-release
           client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
 
+  publish-homebrew:
+    name: Publish to Homebrew tap
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !inputs.dry_run }}
+
+    steps:
+      # TODO: skip this if it's not a new release (i.e. not a backport). This is
+      #       fine right now because it just makes a PR that we can close.
+      # TODO: delete the temp dir. Doesn't really matter right now since
+      #       releases only happen a few times per month and the runners get
+      #       cycled once a day anyways.
+      - name: Update homebrew
+        env:
+          # Variables used by the `gh` command
+          GH_REPO: coder/homebrew-coder
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+        run: |
+          # Keep version number around for reference, removing any potential leading v
+          CODER_VERSION="$(echo "${{ needs.release.outputs.version }}" | tr -d v)"
+
+          set -euxo pipefail
+
+          # Get the SHAs
+          darwin_arm_sha="$(sha256sum coder-cli-darwin-arm64.zip | awk '{ print $1 }')"
+          darwin_intel_sha="$(sha256sum coder-cli-darwin-amd64.zip | awk '{ print $1 }')"
+          linux_sha="$(sha256sum coder-cli-linux-amd64.tar.gz | awk '{ print $1 }')"
+
+          # Setup Git
+          git config --global user.email "ci@coder.com"
+          git config --global user.name "Coder CI"
+
+          # Check out the homebrew repo
+          temp_dir="$(mktemp -d)"
+          cd "$temp_dir"
+          git clone "git@github.com:$GH_REPO.git" homebrew-coder
+          cd homebrew-coder
+
+          brew_branch="auto-release/$CODER_VERSION"
+
+          # Check if a PR already exists.
+          pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
+          if [[ "$pr_count" > 0 ]]; then
+            echo "Bailing out as PR already exists" 2>&1
+            exit 0
+          fi
+
+          # Update the formulae and push
+          git checkout -b "$brew_branch"
+          ./scripts/update-v2.sh "$CODER_VERSION" "$darwin_arm_sha" "$darwin_intel_sha" "$linux_sha"
+          git add .
+          git commit -m "coder $CODER_VERSION"
+          git push -u origin -f "$brew_branch"
+
+          # Create PR
+          gh pr create \
+            -B master -H "$brew_branch" \
+            -t "coder $CODER_VERSION" \
+            -b "" \
+            -r "${{ github.actor }}" \
+            -a "${{ github.actor }}"
+
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
     if: ${{ !inputs.dry_run }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -412,6 +475,7 @@ jobs:
     runs-on: windows-latest
     needs: release
     if: ${{ !inputs.dry_run }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
