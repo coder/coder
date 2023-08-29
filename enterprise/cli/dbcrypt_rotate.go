@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
@@ -36,11 +37,7 @@ func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 		Handler: func(inv *clibase.Invocation) error {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
-			logger, closeLogger, err := cli.BuildLogger(inv, vals)
-			if err != nil {
-				return xerrors.Errorf("set up logging: %w", err)
-			}
-			defer closeLogger()
+			logger := slog.Make(sloghuman.Sink(inv.Stdout))
 
 			if vals.PostgresURL == "" {
 				return xerrors.Errorf("no database configured")
