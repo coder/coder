@@ -145,7 +145,11 @@ func (db *dbCrypt) InsertUserLink(ctx context.Context, params database.InsertUse
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return db.Store.InsertUserLink(ctx, params)
+	link, err := db.Store.InsertUserLink(ctx, params)
+	if err != nil {
+		return database.UserLink{}, err
+	}
+	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUserLinkParams) (database.UserLink, error) {
@@ -153,7 +157,11 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	if err != nil {
 		return database.UserLink{}, err
 	}
-	return db.Store.UpdateUserLink(ctx, params)
+	updated, err := db.Store.UpdateUserLink(ctx, params)
+	if err != nil {
+		return database.UserLink{}, err
+	}
+	return updated, db.decryptFields(&updated.OAuthAccessToken, &updated.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) InsertGitAuthLink(ctx context.Context, params database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -161,7 +169,11 @@ func (db *dbCrypt) InsertGitAuthLink(ctx context.Context, params database.Insert
 	if err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return db.Store.InsertGitAuthLink(ctx, params)
+	link, err := db.Store.InsertGitAuthLink(ctx, params)
+	if err != nil {
+		return database.GitAuthLink{}, err
+	}
+	return link, db.decryptFields(&link.OAuthAccessToken, &link.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
@@ -190,7 +202,11 @@ func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.Update
 	if err != nil {
 		return database.GitAuthLink{}, err
 	}
-	return db.Store.UpdateGitAuthLink(ctx, params)
+	updated, err := db.Store.UpdateGitAuthLink(ctx, params)
+	if err != nil {
+		return database.GitAuthLink{}, err
+	}
+	return updated, db.decryptFields(&updated.OAuthAccessToken, &updated.OAuthRefreshToken)
 }
 
 func (db *dbCrypt) SetDBCryptSentinelValue(ctx context.Context, value string) error {

@@ -29,6 +29,9 @@ func TestUserLinks(t *testing.T) {
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
+		require.Equal(t, link.OAuthAccessToken, "access")
+		require.Equal(t, link.OAuthRefreshToken, "refresh")
+
 		link, err := db.GetUserLinkByLinkedID(ctx, link.LinkedID)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, cipher, link.OAuthAccessToken, "access")
@@ -42,13 +45,16 @@ func TestUserLinks(t *testing.T) {
 		link := dbgen.UserLink(t, crypt, database.UserLink{
 			UserID: user.ID,
 		})
-		_, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
+		updated, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
 		})
 		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, "access")
+		require.Equal(t, updated.OAuthRefreshToken, "refresh")
+
 		link, err = db.GetUserLinkByLinkedID(ctx, link.LinkedID)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, cipher, link.OAuthAccessToken, "access")
@@ -100,6 +106,9 @@ func TestGitAuthLinks(t *testing.T) {
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
+		require.Equal(t, link.OAuthAccessToken, "access")
+		require.Equal(t, link.OAuthRefreshToken, "refresh")
+
 		link, err := db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
@@ -113,13 +122,16 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Parallel()
 		db, crypt, cipher := setup(t)
 		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{})
-		_, err := crypt.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		updated, err := crypt.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
 		require.NoError(t, err)
+		require.Equal(t, updated.OAuthAccessToken, "access")
+		require.Equal(t, updated.OAuthRefreshToken, "refresh")
+
 		link, err = db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
