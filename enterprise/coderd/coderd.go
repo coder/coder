@@ -67,6 +67,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption)
 		if err != nil {
 			cancelFunc()
+			if xerrors.Is(err, dbcrypt.ErrSentinelMismatch) {
+				panic(`Coder has shut down to prevent data corruption: your configured database is encrypted with an unknown external token encryption key. Please check your configuration and try again.`)
+			}
 			return nil, xerrors.Errorf("init dbcrypt: %w", err)
 		}
 		options.Database = cryptDB

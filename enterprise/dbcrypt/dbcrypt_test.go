@@ -208,8 +208,8 @@ func TestNew(t *testing.T) {
 		// When: we init the crypt db with no access to the old cipher
 		cipher2 := initCipher(t)
 		_, err = dbcrypt.New(ctx, rawDB, dbcrypt.NewCiphers(cipher2))
-		// Then: an error is returned
-		require.ErrorContains(t, err, "database is already encrypted with a different key")
+		// Then: a special error is returned
+		require.ErrorIs(t, err, dbcrypt.ErrSentinelMismatch)
 
 		// And the sentinel value should remain unchanged. For now.
 		rawVal, err := rawDB.GetDBCryptSentinelValue(ctx)

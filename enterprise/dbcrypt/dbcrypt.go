@@ -52,9 +52,10 @@ const MagicPrefix = "dbcrypt-"
 const sentinelValue = "coder"
 
 var (
-	ErrNotEnabled = xerrors.New("encryption is not enabled")
-	b64encode     = base64.StdEncoding.EncodeToString
-	b64decode     = base64.StdEncoding.DecodeString
+	ErrNotEnabled       = xerrors.New("encryption is not enabled")
+	ErrSentinelMismatch = xerrors.New("database is already encrypted under a different key")
+	b64encode           = base64.StdEncoding.EncodeToString
+	b64decode           = base64.StdEncoding.DecodeString
 )
 
 // DecryptFailedError is returned when decryption fails.
@@ -266,7 +267,7 @@ func ensureEncrypted(ctx context.Context, dbc *dbCrypt) error {
 		}
 
 		if val != "" && val != sentinelValue {
-			return xerrors.Errorf("database is already encrypted with a different key")
+			return ErrSentinelMismatch
 		}
 
 		// Mark the database as officially having been touched by the new cipher.
