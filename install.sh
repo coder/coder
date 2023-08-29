@@ -428,8 +428,8 @@ with_terraform() {
 
 install_macos() {
 	# If there is no `brew` binary available, just default to installing standalone
-	if [ ! -fx $(which brew) ]; then
-		install_standalone
+	if [ ! -f $(which brew) ]; then
+		echo "hello"
 		return
 	fi
 
