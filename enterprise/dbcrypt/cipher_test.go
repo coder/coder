@@ -127,9 +127,9 @@ func TestCiphersBackwardCompatibility(t *testing.T) {
 
 	// This is the code that was used to generate the above.
 	// Note that the output of this code will change every time it is run.
-	//encrypted, err := cs.Encrypt([]byte(msg))
-	//require.NoError(t, err)
-	//t.Logf("encoded: %q", base64.StdEncoding.EncodeToString(encrypted))
+	// encrypted, err := cs.Encrypt([]byte(msg))
+	// require.NoError(t, err)
+	// t.Logf("encoded: %q", base64.StdEncoding.EncodeToString(encrypted))
 
 	cipher, err := dbcrypt.CipherAES256(key)
 	require.NoError(t, err)
