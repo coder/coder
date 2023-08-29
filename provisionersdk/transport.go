@@ -19,7 +19,7 @@ const (
 	MaxMessageSize = 4 << 20
 )
 
-// MultiplexedConn returns a multiplexed dRPC connection from a yamux session.
+// MultiplexedConn returns a multiplexed dRPC connection from a yamux Session.
 func MultiplexedConn(session *yamux.Session) drpc.Conn {
 	return &multiplexedDRPC{session}
 }

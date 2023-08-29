@@ -64,6 +64,9 @@ export interface TemplateVersionEditorProps {
   onConfirmPublish: (data: PublishVersionData) => void
   onCancelPublish: () => void
   publishingError: unknown
+  publishedVersion?: TemplateVersion
+  publishedVersionIsDefault?: boolean
+  onCreateWorkspace: () => void
   isAskingPublishParameters: boolean
   isPromptingMissingVariables: boolean
   isPublishing: boolean
@@ -97,9 +100,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onPublish,
   onConfirmPublish,
   onCancelPublish,
-  publishingError,
   isAskingPublishParameters,
   isPublishing,
+  publishingError,
+  publishedVersion,
+  publishedVersionIsDefault,
+  onCreateWorkspace,
   buildLogs,
   resources,
   isPromptingMissingVariables,
@@ -107,11 +113,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
 }) => {
-  const [selectedTab, setSelectedTab] = useState(() => {
-    // If resources are provided, show them by default!
-    // This is for Storybook!
-    return resources ? 1 : 0
-  })
+  // If resources are provided, show them by default!
+  // This is for Storybook!
+  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0))
   const [fileTree, setFileTree] = useState(defaultFileTree)
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
@@ -203,6 +207,29 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               />
             </Link>
           </div>
+
+          {publishedVersion && (
+            <Alert
+              severity="success"
+              dismissible
+              actions={
+                // TODO: Only show this button when the version we just published is the
+                // new primary version. We should remove this condition soon, when we can
+                // create workspaces using any version, not just the primary.
+                publishedVersionIsDefault && (
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={onCreateWorkspace}
+                  >
+                    Create a workspace
+                  </Button>
+                )
+              }
+            >
+              Successfully published {publishedVersion.name}!
+            </Alert>
+          )}
 
           <div className={styles.topbarSides}>
             {/* Only start to show the build when a new template version is building */}
@@ -376,7 +403,17 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               >
                 {templateVersion.job.error && (
                   <div>
-                    <Alert severity="error">
+                    <Alert
+                      severity="error"
+                      sx={{
+                        borderRadius: 0,
+                        border: 0,
+                        borderBottom: (theme) =>
+                          `1px solid ${theme.palette.divider}`,
+                        borderLeft: (theme) =>
+                          `2px solid ${theme.palette.error.main}`,
+                      }}
+                    >
                       <AlertTitle>Error during the build</AlertTitle>
                       <AlertDetail>{templateVersion.job.error}</AlertDetail>
                     </Alert>
@@ -385,7 +422,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {buildLogs && buildLogs.length > 0 && (
                   <WorkspaceBuildLogs
-                    sx={{ borderRadius: 0 }}
+                    sx={{ borderRadius: 0, border: 0 }}
                     hideTimestamps
                     logs={buildLogs}
                   />
@@ -393,7 +430,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               </div>
 
               <div
-                className={`${styles.panel} ${
+                className={`${styles.panel} ${styles.resources} ${
                   selectedTab === 1 ? "" : "hidden"
                 }`}
               >
@@ -470,6 +507,7 @@ const useStyles = makeStyles<
     display: "flex",
     flex: 1,
     flexBasis: 0,
+    overflow: "hidden",
   },
   sidebar: {
     minWidth: 256,
@@ -505,16 +543,22 @@ const useStyles = makeStyles<
   },
   panelWrapper: {
     flex: 1,
+    borderLeft: `1px solid ${theme.palette.divider}`,
+    overflow: "hidden",
     display: "flex",
     flexDirection: "column",
-    borderLeft: `1px solid ${theme.palette.divider}`,
-    overflowY: "auto",
   },
   panel: {
-    padding: theme.spacing(1),
+    overflowY: "auto",
+    height: "100%",
 
     "&.hidden": {
       display: "none",
+    },
+
+    // Hack to access customize resource-card from here
+    "& .resource-card": {
+      border: 0,
     },
   },
   tabs: {
@@ -586,7 +630,8 @@ const useStyles = makeStyles<
   buildLogs: {
     display: "flex",
     flexDirection: "column",
-    overflowY: "auto",
-    gap: theme.spacing(1),
+  },
+  resources: {
+    paddingBottom: theme.spacing(2),
   },
 }))

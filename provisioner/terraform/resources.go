@@ -97,7 +97,6 @@ type State struct {
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
-// nolint:gocyclo
 func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {

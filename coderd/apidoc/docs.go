@@ -6082,6 +6082,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/dormant": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace dormancy status by id.",
+                "operationId": "update-workspace-dormancy-status-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Make a workspace dormant or active",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceDormancy"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Workspace"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/extend": {
             "put": {
                 "security": [
@@ -6124,53 +6171,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Response"
-                        }
-                    }
-                }
-            }
-        },
-        "/workspaces/{workspace}/lock": {
-            "put": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Workspaces"
-                ],
-                "summary": "Update workspace lock by id.",
-                "operationId": "update-workspace-lock-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Workspace ID",
-                        "name": "workspace",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Lock or unlock a workspace",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.UpdateWorkspaceLock"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.Workspace"
                         }
                     }
                 }
@@ -7394,6 +7394,10 @@ const docTemplate = `{
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
                 },
+                "delete_ttl_ms": {
+                    "description": "TimeTilDormantAutoDeleteMillis allows optionally specifying the max lifetime before Coder\npermanently deletes dormant workspaces created from this template.",
+                    "type": "integer"
+                },
                 "description": {
                     "description": "Description is a description of what the template contains. It must be\nless than 128 bytes.",
                     "type": "string"
@@ -7406,6 +7410,10 @@ const docTemplate = `{
                     "description": "DisplayName is the displayed name of the template.",
                     "type": "string"
                 },
+                "dormant_ttl_ms": {
+                    "description": "TimeTilDormantMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
+                    "type": "integer"
+                },
                 "failure_ttl_ms": {
                     "description": "FailureTTLMillis allows optionally specifying the max lifetime before Coder\nstops all resources for failed workspaces created from this template.",
                     "type": "integer"
@@ -7413,14 +7421,6 @@ const docTemplate = `{
                 "icon": {
                     "description": "Icon is a relative path or external URL that specifies\nan icon to be displayed in the dashboard.",
                     "type": "string"
-                },
-                "inactivity_ttl_ms": {
-                    "description": "InactivityTTLMillis allows optionally specifying the max lifetime before Coder\nlocks inactive workspaces created from this template.",
-                    "type": "integer"
-                },
-                "locked_ttl_ms": {
-                    "description": "LockedTTLMillis allows optionally specifying the max lifetime before Coder\npermanently deletes locked workspaces created from this template.",
-                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
@@ -9538,7 +9538,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "failure_ttl_ms": {
-                    "description": "FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
+                    "description": "FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their\nvalues are used if your license is entitled to use the advanced\ntemplate scheduling feature.",
                     "type": "integer"
                 },
                 "icon": {
@@ -9547,12 +9547,6 @@ const docTemplate = `{
                 "id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "inactivity_ttl_ms": {
-                    "type": "integer"
-                },
-                "locked_ttl_ms": {
-                    "type": "integer"
                 },
                 "max_ttl_ms": {
                     "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
@@ -9578,6 +9572,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
                         }
                     ]
+                },
+                "time_til_dormant_autodelete_ms": {
+                    "type": "integer"
+                },
+                "time_til_dormant_ms": {
+                    "type": "integer"
                 },
                 "updated_at": {
                     "type": "string",
@@ -10252,10 +10252,10 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.UpdateWorkspaceLock": {
+        "codersdk.UpdateWorkspaceDormancy": {
             "type": "object",
             "properties": {
-                "lock": {
+                "dormant": {
                     "type": "boolean"
                 }
             }
@@ -10508,7 +10508,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "deleting_at": {
-                    "description": "DeletingAt indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil.\nWorkspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.",
+                    "description": "DeletingAt indicates the time at which the workspace will be permanently deleted.\nA workspace is eligible for deletion if it is dormant (a non-nil dormant_at value)\nand a value has been specified for time_til_dormant_autodelete on its template.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "dormant_at": {
+                    "description": "DormantAt being non-nil indicates a workspace that is dormant.\nA dormant workspace is no longer accessible must be activated.\nIt is subject to deletion if it breaches\nthe duration of the time_til_ field on its template.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -10531,11 +10536,6 @@ const docTemplate = `{
                 "latest_build": {
                     "$ref": "#/definitions/codersdk.WorkspaceBuild"
                 },
-                "locked_at": {
-                    "description": "LockedAt being non-nil indicates a workspace that has been locked.\nA locked workspace is no longer accessible by a user and must be\nunlocked by an admin. It is subject to deletion if it breaches\nthe duration of the locked_ttl field on its template.",
-                    "type": "string",
-                    "format": "date-time"
-                },
                 "name": {
                     "type": "string"
                 },
@@ -10552,6 +10552,10 @@ const docTemplate = `{
                 },
                 "owner_name": {
                     "type": "string"
+                },
+                "template_active_version_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "template_allow_user_cancel_workspace_jobs": {
                     "type": "boolean"

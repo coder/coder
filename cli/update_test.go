@@ -57,8 +57,8 @@ func TestUpdate(t *testing.T) {
 
 		version2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionPlan:  echo.PlanComplete,
 		}, template.ID)
 		_ = coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
 
@@ -100,28 +100,13 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		immutableParameterValue       = "4"
 	)
 
-	echoResponses := &echo.Responses{
-		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
-			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Parameters: []*proto.RichParameter{
-							{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
-							{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
-							{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
-							{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
-						},
-					},
-				},
-			},
-		},
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{},
-			},
-		}},
-	}
+	echoResponses := prepareEchoResponses([]*proto.RichParameter{
+		{Name: firstParameterName, Description: firstParameterDescription, Mutable: true},
+		{Name: immutableParameterName, Description: immutableParameterDescription, Mutable: false},
+		{Name: secondParameterName, Description: secondParameterDescription, Mutable: true},
+		{Name: ephemeralParameterName, Description: ephemeralParameterDescription, Mutable: true, Ephemeral: true},
+	},
+	)
 
 	t.Run("ImmutableCannotBeCustomized", func(t *testing.T) {
 		t.Parallel()
@@ -311,28 +296,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 	boolRichParameters := []*proto.RichParameter{
 		{Name: boolParameterName, Type: "bool", Mutable: true},
-	}
-
-	prepareEchoResponses := func(richParameters []*proto.RichParameter) *echo.Responses {
-		return &echo.Responses{
-			Parse: echo.ParseComplete,
-			ProvisionPlan: []*proto.Provision_Response{
-				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
-							Parameters: richParameters,
-						},
-					},
-				},
-			},
-			ProvisionApply: []*proto.Provision_Response{
-				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{},
-					},
-				},
-			},
-		}
 	}
 
 	t.Run("ValidateString", func(t *testing.T) {
@@ -639,13 +602,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update the workspace
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
+
 		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
+		clitest.Start(t, inv)
 
 		matches := []string{
 			stringParameterName, "second_option",
@@ -660,7 +619,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
 	})
 
 	t.Run("ParameterOptionDisappeared", func(t *testing.T) {
@@ -705,13 +663,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update the workspace
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
-		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
-		go func() {
-			defer close(doneChan)
-			err := inv.Run()
-			assert.NoError(t, err)
-		}()
+		clitest.Start(t, inv)
 
 		matches := []string{
 			stringParameterName, "Third option",
@@ -726,7 +679,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
 	})
 
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {

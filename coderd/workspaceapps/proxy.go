@@ -220,8 +220,12 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	// We don't set an expiration because the key in the database already has an
 	// expiration, and expired tokens don't affect the user experience (they get
 	// auto-redirected to re-smuggle the API key).
+	//
+	// We use different cookie names for path apps and for subdomain apps to
+	// avoid both being set and sent to the server at the same time and the
+	// server using the wrong value.
 	http.SetCookie(rw, &http.Cookie{
-		Name:     codersdk.DevURLSessionTokenCookie,
+		Name:     AppConnectSessionTokenCookieName(accessMethod),
 		Value:    token,
 		Domain:   domain,
 		Path:     "/",

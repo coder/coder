@@ -82,9 +82,9 @@ func TestConfigSSH(t *testing.T) {
 	authToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
+		ProvisionPlan: []*proto.Response{{
+			Type: &proto.Response_Plan{
+				Plan: &proto.PlanComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
@@ -720,22 +720,11 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 				resources = append(resources, resource)
 			}
 
-			provisionResponse := []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
-						Resources: resources,
-					},
-				},
-			}}
-
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			// authToken := uuid.NewString()
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionPlan:  provisionResponse,
-				ProvisionApply: provisionResponse,
-			})
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
+				echo.WithResources(resources))
 			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)

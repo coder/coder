@@ -38,7 +38,7 @@ export const Language = {
 export interface WorkspacesPageViewProps {
   error: unknown
   workspaces?: Workspace[]
-  lockedWorkspaces?: Workspace[]
+  dormantWorkspaces?: Workspace[]
   checkedWorkspaces: Workspace[]
   count?: number
   filterProps: ComponentProps<typeof WorkspacesFilter>
@@ -54,7 +54,7 @@ export const WorkspacesPageView: FC<
   React.PropsWithChildren<WorkspacesPageViewProps>
 > = ({
   workspaces,
-  lockedWorkspaces,
+  dormantWorkspaces,
   error,
   limit,
   count,
@@ -68,12 +68,12 @@ export const WorkspacesPageView: FC<
 }) => {
   const { saveLocal } = useLocalStorage()
 
-  const workspacesDeletionScheduled = lockedWorkspaces
+  const workspacesDeletionScheduled = dormantWorkspaces
     ?.filter((workspace) => workspace.deleting_at)
     .map((workspace) => workspace.id)
 
-  const hasLockedWorkspace =
-    lockedWorkspaces !== undefined && lockedWorkspaces.length > 0
+  const hasDormantWorkspace =
+    dormantWorkspaces !== undefined && dormantWorkspaces.length > 0
 
   return (
     <Margins>
@@ -100,8 +100,8 @@ export const WorkspacesPageView: FC<
         </Maybe>
         {/* <ImpendingDeletionBanner/> determines its own visibility */}
         <DormantWorkspaceBanner
-          workspaces={lockedWorkspaces}
-          shouldRedisplayBanner={hasLockedWorkspace}
+          workspaces={dormantWorkspaces}
+          shouldRedisplayBanner={hasDormantWorkspace}
           onDismiss={() =>
             saveLocal(
               "dismissedWorkspaceList",

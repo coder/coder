@@ -1,56 +1,67 @@
-import { Story } from "@storybook/react"
 import {
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersionFileTree,
   MockWorkspaceBuildLogs,
+  MockWorkspaceExtendedBuildLogs,
   MockWorkspaceResource,
   MockWorkspaceResource2,
   MockWorkspaceResource3,
 } from "testHelpers/entities"
-import {
-  TemplateVersionEditor,
-  TemplateVersionEditorProps,
-} from "./TemplateVersionEditor"
+import { TemplateVersionEditor } from "./TemplateVersionEditor"
+import type { Meta, StoryObj } from "@storybook/react"
 
-export default {
+const meta: Meta<typeof TemplateVersionEditor> = {
   title: "components/TemplateVersionEditor",
   component: TemplateVersionEditor,
+  args: {
+    template: MockTemplate,
+    templateVersion: MockTemplateVersion,
+    defaultFileTree: MockTemplateVersionFileTree,
+  },
   parameters: {
     layout: "fullscreen",
   },
 }
 
-const Template: Story<TemplateVersionEditorProps> = (
-  args: TemplateVersionEditorProps,
-) => <TemplateVersionEditor {...args} />
+export default meta
+type Story = StoryObj<typeof TemplateVersionEditor>
 
-export const Example = Template.bind({})
-Example.args = {
-  template: MockTemplate,
-  templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
+export const Example: Story = {}
+
+export const Logs = {
+  args: {
+    buildLogs: MockWorkspaceBuildLogs,
+  },
 }
 
-export const Logs = Template.bind({})
-
-Logs.args = {
-  template: MockTemplate,
-  templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
-  buildLogs: MockWorkspaceBuildLogs,
+export const Resources: Story = {
+  args: {
+    buildLogs: MockWorkspaceBuildLogs,
+    resources: [
+      MockWorkspaceResource,
+      MockWorkspaceResource2,
+      MockWorkspaceResource3,
+    ],
+  },
 }
 
-export const Resources = Template.bind({})
+export const ManyLogs = {
+  args: {
+    templateVersion: {
+      ...MockTemplateVersion,
+      job: {
+        ...MockTemplateVersion.job,
+        error:
+          "template import provision for start: terraform plan: exit status 1",
+      },
+    },
+    buildLogs: MockWorkspaceExtendedBuildLogs,
+  },
+}
 
-Resources.args = {
-  template: MockTemplate,
-  templateVersion: MockTemplateVersion,
-  defaultFileTree: MockTemplateVersionFileTree,
-  buildLogs: MockWorkspaceBuildLogs,
-  resources: [
-    MockWorkspaceResource,
-    MockWorkspaceResource2,
-    MockWorkspaceResource3,
-  ],
+export const Published = {
+  args: {
+    publishedVersion: MockTemplateVersion,
+  },
 }

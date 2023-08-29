@@ -15,7 +15,7 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
   const template = await createTemplate(page, {
     apply: [
       {
-        complete: {
+        apply: {
           resources: [
             {
               agents: [

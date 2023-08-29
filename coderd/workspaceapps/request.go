@@ -103,6 +103,10 @@ func (r Request) Normalize() Request {
 		}
 	}
 
+	if !strings.HasSuffix(req.BasePath, "/") {
+		req.BasePath += "/"
+	}
+
 	return req
 }
 
