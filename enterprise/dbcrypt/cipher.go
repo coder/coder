@@ -46,6 +46,8 @@ func (a *AES256) Encrypt(plaintext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// TODO: the below fails with "cipher: message authentication failed"
+	//return a.aead.Seal(nil, nonce, plaintext, nil), nil
 	return a.aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 

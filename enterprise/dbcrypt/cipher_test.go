@@ -2,6 +2,7 @@ package dbcrypt_test
 
 import (
 	"bytes"
+	"encoding/base64"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -41,6 +42,26 @@ func TestCipherAES256(t *testing.T) {
 
 		_, err := dbcrypt.CipherAES256(bytes.Repeat([]byte{'a'}, 31))
 		require.ErrorContains(t, err, "key must be 32 bytes")
+	})
+
+	t.Run("TestNonce", func(t *testing.T) {
+		key := bytes.Repeat([]byte{'a'}, 32)
+		cipher, err := dbcrypt.CipherAES256(key)
+		require.NoError(t, err)
+		require.Equal(t, "3ba3f5f", cipher.HexDigest())
+
+		encrypted1, err := cipher.Encrypt([]byte("hello world"))
+		require.NoError(t, err)
+		encrypted2, err := cipher.Encrypt([]byte("hello world"))
+		require.NoError(t, err)
+		require.NotEqual(t, encrypted1, encrypted2, "nonce should be different for each encryption")
+
+		munged := make([]byte, len(encrypted1))
+		copy(munged, encrypted1)
+		munged[0] = munged[0] ^ 0xff
+		_, err = cipher.Decrypt(munged)
+		var decryptErr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, err, &decryptErr, "munging the first byte of the encrypted data should cause decryption to fail")
 	})
 }
 
@@ -91,4 +112,33 @@ func TestCiphers(t *testing.T) {
 	require.PanicsWithValue(t, "developer error: do not nest Ciphers", func() {
 		_ = dbcrypt.NewCiphers(ciphers)
 	})
+}
+
+// This test ensures backwards compatibility. If it breaks, something is very wrong.
+func TestCiphersBackwardCompatibility(t *testing.T) {
+	t.Parallel()
+	var (
+		msg = "hello world"
+		key = bytes.Repeat([]byte{'a'}, 32)
+		//nolint: gosec // The below is the base64-encoded result of encrypting the above message with the above key.
+		encoded = `M2JhM2Y1Zi3r1KSStbmfMBXDzdjVcCrtumdMFsJ4QiYlb3fV1HB8yxg9obHaz5I=`
+	)
+
+	// This is the code that was used to generate the above.
+	// Note that the output of this code will change every time it is run.
+	//encrypted, err := cs.Encrypt([]byte(msg))
+	//require.NoError(t, err)
+	//t.Logf("encoded: %q", base64.StdEncoding.EncodeToString(encrypted))
+
+	cipher, err := dbcrypt.CipherAES256(key)
+	require.NoError(t, err)
+	require.Equal(t, "3ba3f5f", cipher.HexDigest())
+	cs := dbcrypt.NewCiphers(cipher)
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	require.NoError(t, err, "the encoded string should be valid base64")
+	decrypted, err := cs.Decrypt(decoded)
+	require.NoError(t, err, "decryption should succeed")
+	require.Equal(t, msg, string(decrypted), "decrypted message should match original message")
+
 }
