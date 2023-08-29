@@ -2,8 +2,12 @@ package workspaceapps_test
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/coder/coder/v2/codersdk"
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
@@ -38,6 +42,29 @@ func Test_TokenMatchesRequest(t *testing.T) {
 				Request: workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "qux",
+				},
+			},
+			want: true,
+		},
+		{
+			name: "NormalizePath",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				BasePath:          "/app",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod: workspaceapps.AccessMethodPath,
+					// With trailing slash
+					BasePath:          "/app/",
 					UsernameOrID:      "foo",
 					WorkspaceNameOrID: "bar",
 					AgentNameOrID:     "baz",
@@ -281,6 +308,62 @@ func Test_GenerateToken(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_FromRequest(t *testing.T) {
+	t.Parallel()
+
+	t.Run("MultipleTokens", func(t *testing.T) {
+		t.Parallel()
+		r := httptest.NewRequest("GET", "/", nil)
+
+		// Add an invalid token
+		r.AddCookie(&http.Cookie{
+			Name:  codersdk.SignedAppTokenCookie,
+			Value: "invalid",
+		})
+
+		token := workspaceapps.SignedToken{
+			Request: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				BasePath:          "/",
+				UsernameOrID:      "user",
+				WorkspaceAndAgent: "workspace/agent",
+				WorkspaceNameOrID: "workspace",
+				AgentNameOrID:     "agent",
+				AppSlugOrPort:     "app",
+			},
+			Expiry:      time.Now().Add(time.Hour),
+			UserID:      uuid.New(),
+			WorkspaceID: uuid.New(),
+			AgentID:     uuid.New(),
+			AppURL:      "/",
+		}
+
+		// Add an expired cookie
+		expired := token
+		expired.Expiry = time.Now().Add(time.Hour * -1)
+		expiredStr, err := coderdtest.AppSecurityKey.SignToken(token)
+		require.NoError(t, err)
+		r.AddCookie(&http.Cookie{
+			Name:  codersdk.SignedAppTokenCookie,
+			Value: expiredStr,
+		})
+
+		// Add a valid token
+		validStr, err := coderdtest.AppSecurityKey.SignToken(token)
+		require.NoError(t, err)
+
+		r.AddCookie(&http.Cookie{
+			Name:  codersdk.SignedAppTokenCookie,
+			Value: validStr,
+		})
+
+		signed, ok := workspaceapps.FromRequest(r, coderdtest.AppSecurityKey)
+		require.True(t, ok, "expected a token to be found")
+		// Confirm it is the correct token.
+		require.Equal(t, signed.UserID, token.UserID)
+	})
 }
 
 // The ParseToken fn is tested quite thoroughly in the GenerateToken test as

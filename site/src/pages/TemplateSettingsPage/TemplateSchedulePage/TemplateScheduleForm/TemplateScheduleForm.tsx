@@ -74,9 +74,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
         : 0,
 
-      restart_requirement: {
-        days_of_week: template.restart_requirement.days_of_week,
-        weeks: template.restart_requirement.weeks,
+      autostop_requirement: {
+        days_of_week: template.autostop_requirement.days_of_week,
+        weeks: template.autostop_requirement.weeks,
       },
 
       allow_user_autostart: template.allow_user_autostart,
