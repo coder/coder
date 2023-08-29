@@ -1757,7 +1757,12 @@ export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: false,
-  features: withDefaultFeatures({}),
+  features: withDefaultFeatures({
+    workspace_batch_actions: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
   require_telemetry: false,
   trial: false,
   refreshed_at: "2022-05-20T16:45:57.122Z",
