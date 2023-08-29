@@ -1,4 +1,4 @@
-import { test } from "@playwright/test"
+import { test, Page } from "@playwright/test"
 import {
   createTemplate,
   createWorkspace,
@@ -16,6 +16,10 @@ import {
   sixthParameter,
 } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
+
+test.beforeEach(async ({ page }: { page: Page }) => {
+  page.on("console", (msg) => console.log(msg.text()))
+})
 
 test("create workspace", async ({ page }) => {
   const template = await createTemplate(page, {
