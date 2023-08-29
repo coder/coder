@@ -72,6 +72,9 @@ func (r *RootCmd) server() *clibase.Cmd {
 		}
 
 		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
+			if len(encKeys) > 2 {
+				return nil, nil, xerrors.Errorf("only 2 external-token-encryption-keys are supported")
+			}
 			cs := make([]dbcrypt.Cipher, 0, len(encKeys))
 			for idx, ek := range encKeys {
 				dk, err := base64.StdEncoding.DecodeString(ek)
