@@ -154,6 +154,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	// jobs are added at once, they will start after at most this duration.
 	lastAcquireMutex.RLock()
 	if !lastAcquire.IsZero() && time.Since(lastAcquire) < s.AcquireJobDebounce {
+		s.Logger.Debug(ctx, "debounce acquire job", slog.F("debounce", s.AcquireJobDebounce), slog.F("last_acquire", lastAcquire))
 		lastAcquireMutex.RUnlock()
 		return &proto.AcquiredJob{}, nil
 	}
