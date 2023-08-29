@@ -774,24 +774,6 @@ func (*FakeQuerier) DeleteCoordinator(context.Context, uuid.UUID) error {
 	return ErrUnimplemented
 }
 
-func (q *FakeQuerier) DeleteGitAuthLink(_ context.Context, arg database.DeleteGitAuthLinkParams) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, link := range q.gitAuthLinks {
-		if link.ProviderID != arg.ProviderID {
-			continue
-		}
-		if link.UserID != arg.UserID {
-			continue
-		}
-		q.gitAuthLinks[index] = q.gitAuthLinks[len(q.gitAuthLinks)-1]
-		q.gitAuthLinks = q.gitAuthLinks[:len(q.gitAuthLinks)-1]
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) DeleteGitSSHKey(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -906,21 +888,6 @@ func (*FakeQuerier) DeleteTailnetAgent(context.Context, database.DeleteTailnetAg
 
 func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetClientParams) (database.DeleteTailnetClientRow, error) {
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
-}
-
-func (q *FakeQuerier) DeleteUserLinkByLinkedID(_ context.Context, linkedID string) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, link := range q.userLinks {
-		if link.LinkedID != linkedID {
-			continue
-		}
-		q.userLinks[index] = q.userLinks[len(q.userLinks)-1]
-		q.userLinks = q.userLinks[:len(q.userLinks)-1]
-		return nil
-	}
-	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {

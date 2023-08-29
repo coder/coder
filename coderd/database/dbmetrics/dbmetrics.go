@@ -127,13 +127,6 @@ func (m metricsStore) DeleteCoordinator(ctx context.Context, id uuid.UUID) error
 	return m.s.DeleteCoordinator(ctx, id)
 }
 
-func (m metricsStore) DeleteGitAuthLink(ctx context.Context, arg database.DeleteGitAuthLinkParams) error {
-	start := time.Now()
-	r0 := m.s.DeleteGitAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("DeleteGitAuthLink").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m metricsStore) DeleteGitSSHKey(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteGitSSHKey(ctx, userID)
@@ -200,13 +193,6 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("DeleteTailnetClient").Observe(time.Since(start).Seconds())
 	return m.s.DeleteTailnetClient(ctx, arg)
-}
-
-func (m metricsStore) DeleteUserLinkByLinkedID(ctx context.Context, linkedID string) error {
-	start := time.Now()
-	r0 := m.s.DeleteUserLinkByLinkedID(ctx, linkedID)
-	m.queryLatencies.WithLabelValues("DeleteUserLinkByLinkedID").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

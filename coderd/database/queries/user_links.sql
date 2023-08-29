@@ -47,9 +47,3 @@ SET
 	oauth_expiry = $3
 WHERE
 	user_id = $4 AND login_type = $5 RETURNING *;
-
--- name: DeleteUserLinkByLinkedID :exec
-DELETE FROM
-	user_links
-WHERE
-	linked_id = $1;
