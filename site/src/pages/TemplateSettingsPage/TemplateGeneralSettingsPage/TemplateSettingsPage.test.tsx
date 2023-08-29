@@ -26,7 +26,7 @@ const validFormValues: FormValues = {
   allow_user_cancel_workspace_jobs: false,
   allow_user_autostart: false,
   allow_user_autostop: false,
-  restart_requirement: {
+  autostop_requirement: {
     days_of_week: [],
     weeks: 1,
   },
