@@ -18,7 +18,7 @@ import {
 import { RichParameter } from "../provisionerGenerated"
 
 test.beforeEach(async ({ page }: { page: Page }) => {
-  page.on("console", (msg) => console.log(msg.text()))
+  page.on("console", (msg) => console.log("Console: " + msg.text()))
 })
 
 test("create workspace", async ({ page }) => {
