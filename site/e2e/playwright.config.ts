@@ -41,7 +41,7 @@ export default defineConfig({
       `--access-url=http://localhost:${port} ` +
       `--http-address=localhost:${port} ` +
       `--in-memory --telemetry=false ` +
-      `--api-rate-limit=-1 ` +
+      `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
       `--provisioner-daemon-poll-interval 50ms`,
