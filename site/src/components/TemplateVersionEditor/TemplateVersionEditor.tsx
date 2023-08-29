@@ -64,6 +64,9 @@ export interface TemplateVersionEditorProps {
   onConfirmPublish: (data: PublishVersionData) => void
   onCancelPublish: () => void
   publishingError: unknown
+  publishedVersion?: TemplateVersion
+  publishedVersionIsDefault?: boolean
+  onCreateWorkspace: () => void
   isAskingPublishParameters: boolean
   isPromptingMissingVariables: boolean
   isPublishing: boolean
@@ -97,9 +100,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onPublish,
   onConfirmPublish,
   onCancelPublish,
-  publishingError,
   isAskingPublishParameters,
   isPublishing,
+  publishingError,
+  publishedVersion,
+  publishedVersionIsDefault,
+  onCreateWorkspace,
   buildLogs,
   resources,
   isPromptingMissingVariables,
@@ -107,11 +113,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   onSubmitMissingVariableValues,
   onCancelSubmitMissingVariableValues,
 }) => {
-  const [selectedTab, setSelectedTab] = useState(() => {
-    // If resources are provided, show them by default!
-    // This is for Storybook!
-    return resources ? 1 : 0
-  })
+  // If resources are provided, show them by default!
+  // This is for Storybook!
+  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0))
   const [fileTree, setFileTree] = useState(defaultFileTree)
   const [createFileOpen, setCreateFileOpen] = useState(false)
   const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
@@ -203,6 +207,29 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               />
             </Link>
           </div>
+
+          {publishedVersion && (
+            <Alert
+              severity="success"
+              dismissible
+              actions={
+                // TODO: Only show this button when the version we just published is the
+                // new primary version. We should remove this condition soon, when we can
+                // create workspaces using any version, not just the primary.
+                publishedVersionIsDefault && (
+                  <Button
+                    variant="text"
+                    size="small"
+                    onClick={onCreateWorkspace}
+                  >
+                    Create a workspace
+                  </Button>
+                )
+              }
+            >
+              Successfully published {publishedVersion.name}!
+            </Alert>
+          )}
 
           <div className={styles.topbarSides}>
             {/* Only start to show the build when a new template version is building */}

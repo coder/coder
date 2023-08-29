@@ -4,7 +4,7 @@ import { useOrganizationId } from "hooks/useOrganizationId"
 import { usePermissions } from "hooks/usePermissions"
 import { FC } from "react"
 import { Helmet } from "react-helmet-async"
-import { useParams } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
 import { templateVersionEditorMachine } from "xServices/templateVersionEditor/templateVersionEditorXService"
 import { useTemplateVersionData } from "./data"
@@ -15,6 +15,7 @@ type Params = {
 }
 
 export const TemplateVersionEditorPage: FC = () => {
+  const navigate = useNavigate()
   const { version: versionName, template: templateName } = useParams() as Params
   const orgId = useOrganizationId()
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
@@ -72,8 +73,15 @@ export const TemplateVersionEditorPage: FC = () => {
           isAskingPublishParameters={editorState.matches(
             "askPublishParameters",
           )}
-          publishingError={editorState.context.publishingError}
           isPublishing={editorState.matches("publishingVersion")}
+          publishingError={editorState.context.publishingError}
+          publishedVersion={editorState.context.lastSuccessfulPublishedVersion}
+          publishedVersionIsDefault={
+            editorState.context.lastSuccessfulPublishIsDefault
+          }
+          onCreateWorkspace={() => {
+            navigate(`/templates/${templateName}/workspace`)
+          }}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={
             editorState.hasTag("loading") ||
