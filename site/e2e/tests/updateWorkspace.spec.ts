@@ -99,7 +99,7 @@ test("update workspace, new required, mutable parameter added", async ({
 })
 
 test("update workspace with ephemeral parameter enabled", async ({ page }) => {
-  page.on('console', msg => console.log(msg.text()));
+  page.on("console", (msg) => console.log(msg.text()))
 
   const richParameters: RichParameter[] = [firstParameter, secondBuildOption]
   const template = await createTemplate(
