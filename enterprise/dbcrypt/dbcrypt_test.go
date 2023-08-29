@@ -6,13 +6,9 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"io"
-	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -26,7 +22,7 @@ func TestUserLinks(t *testing.T) {
 
 	t.Run("InsertUserLink", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
 			UserID:            user.ID,
@@ -41,7 +37,7 @@ func TestUserLinks(t *testing.T) {
 
 	t.Run("UpdateUserLink", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
 			UserID: user.ID,
@@ -61,7 +57,7 @@ func TestUserLinks(t *testing.T) {
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
 			UserID:            user.ID,
@@ -72,17 +68,11 @@ func TestUserLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, cipher, link.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, cipher, link.OAuthRefreshToken, "refresh")
-
-		// Reset the key and empty values should be returned!
-		initCipher(t, cipher)
-
-		link, err = crypt.GetUserLinkByLinkedID(ctx, link.LinkedID)
-		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 
 	t.Run("GetUserLinkByUserIDLoginType", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		user := dbgen.User(t, crypt, database.User{})
 		link := dbgen.UserLink(t, crypt, database.UserLink{
 			UserID:            user.ID,
@@ -96,15 +86,6 @@ func TestUserLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, cipher, link.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, cipher, link.OAuthRefreshToken, "refresh")
-
-		// Reset the key and empty values should be returned!
-		initCipher(t, cipher)
-
-		link, err = crypt.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    link.UserID,
-			LoginType: link.LoginType,
-		})
-		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 
@@ -114,7 +95,7 @@ func TestGitAuthLinks(t *testing.T) {
 
 	t.Run("InsertGitAuthLink", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
@@ -130,7 +111,7 @@ func TestGitAuthLinks(t *testing.T) {
 
 	t.Run("UpdateGitAuthLink", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{})
 		_, err := crypt.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        link.ProviderID,
@@ -150,7 +131,7 @@ func TestGitAuthLinks(t *testing.T) {
 
 	t.Run("GetGitAuthLink", func(t *testing.T) {
 		t.Parallel()
-		db, crypt, cipher, _ := setup(t)
+		db, crypt, cipher := setup(t)
 		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
@@ -162,15 +143,6 @@ func TestGitAuthLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, cipher, link.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, cipher, link.OAuthRefreshToken, "refresh")
-
-		// Reset the key and empty values should be returned!
-		initCipher(t, cipher)
-
-		link, err = crypt.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
-			UserID:     link.UserID,
-			ProviderID: link.ProviderID,
-		})
-		require.ErrorIs(t, err, sql.ErrNoRows)
 	})
 }
 
@@ -179,17 +151,13 @@ func TestNew(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		// Given: a cipher is loaded
-		cipher := &atomic.Pointer[dbcrypt.Cipher]{}
-		initCipher(t, cipher)
+		cipher := dbcrypt.NewCiphers(initCipher(t))
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		rawDB, _ := dbtestutil.NewDB(t)
 
 		// When: we init the crypt db
-		cryptDB, err := dbcrypt.New(ctx, rawDB, &dbcrypt.Options{
-			PrimaryCipher: cipher,
-			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
+		cryptDB, err := dbcrypt.New(ctx, rawDB, cipher)
 		require.NoError(t, err)
 
 		// Then: the sentinel value is encrypted
@@ -205,19 +173,15 @@ func TestNew(t *testing.T) {
 
 	t.Run("NoCipher", func(t *testing.T) {
 		// Given: no cipher is loaded
-		cipher := &atomic.Pointer[dbcrypt.Cipher]{}
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		rawDB, _ := dbtestutil.NewDB(t)
 
 		// When: we init the crypt db
-		_, err := dbcrypt.New(ctx, rawDB, &dbcrypt.Options{
-			PrimaryCipher: cipher,
-			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
+		_, err := dbcrypt.New(ctx, rawDB, nil)
 
 		// Then: an error is returned
-		require.ErrorContains(t, err, "at least one cipher is required")
+		require.ErrorContains(t, err, "no ciphers configured")
 
 		// And: the sentinel value is not present
 		_, err = rawDB.GetDBCryptSentinelValue(ctx)
@@ -226,75 +190,66 @@ func TestNew(t *testing.T) {
 
 	t.Run("CipherChanged", func(t *testing.T) {
 		// Given: no cipher is loaded
-		cipher := &atomic.Pointer[dbcrypt.Cipher]{}
-		initCipher(t, cipher)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 		rawDB, _ := dbtestutil.NewDB(t)
 
 		// And: the sentinel value is encrypted with a different cipher
-		oldCipher := &atomic.Pointer[dbcrypt.Cipher]{}
-		initCipher(t, oldCipher)
+		cipher1 := initCipher(t)
 		field := "coder"
-		encrypted, err := (*oldCipher.Load()).Encrypt([]byte(field))
+		encrypted, err := dbcrypt.NewCiphers(cipher1).Encrypt([]byte(field))
 		require.NoError(t, err)
 		b64encrypted := base64.StdEncoding.EncodeToString(encrypted)
-		require.NoError(t, rawDB.SetDBCryptSentinelValue(ctx, "dbcrypt-"+(*oldCipher.Load()).HexDigest()[:7]+"-"+b64encrypted))
+		require.NoError(t, rawDB.SetDBCryptSentinelValue(ctx, dbcrypt.MagicPrefix+b64encrypted))
 
 		// When: we init the crypt db with no access to the old cipher
-		_, err = dbcrypt.New(ctx, rawDB, &dbcrypt.Options{
-			PrimaryCipher:   cipher,
-			SecondaryCipher: &atomic.Pointer[dbcrypt.Cipher]{},
-			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
+		cipher2 := initCipher(t)
+		_, err = dbcrypt.New(ctx, rawDB, dbcrypt.NewCiphers(cipher2))
 		// Then: an error is returned
 		require.ErrorContains(t, err, "database is already encrypted with a different key")
 
 		// And the sentinel value should remain unchanged. For now.
 		rawVal, err := rawDB.GetDBCryptSentinelValue(ctx)
 		require.NoError(t, err)
-		requireEncryptedEquals(t, oldCipher, rawVal, field)
+		requireEncryptedEquals(t, dbcrypt.NewCiphers(cipher1), rawVal, field)
 
 		// When: we set the secondary cipher
-		_, err = dbcrypt.New(ctx, rawDB, &dbcrypt.Options{
-			PrimaryCipher:   cipher,
-			SecondaryCipher: oldCipher,
-			Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		})
+		cs := dbcrypt.NewCiphers(cipher2, cipher1)
+		_, err = dbcrypt.New(ctx, rawDB, cs)
 		// Then: no error is returned
 		require.NoError(t, err)
 
 		// And the sentinel value should be re-encrypted with the new value.
 		rawVal, err = rawDB.GetDBCryptSentinelValue(ctx)
 		require.NoError(t, err)
-		requireEncryptedEquals(t, cipher, rawVal, field)
+		requireEncryptedEquals(t, dbcrypt.NewCiphers(cipher2), rawVal, field)
 	})
 }
 
-func requireEncryptedEquals(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher], value, expected string) {
+func requireEncryptedEquals(t *testing.T, c dbcrypt.Cipher, value, expected string) {
 	t.Helper()
-	c := (*cipher.Load())
-	require.NotNil(t, c)
-	require.Greater(t, len(value), 16, "value is not encrypted")
-	require.Contains(t, value, dbcrypt.MagicPrefix+c.HexDigest()[:7]+"-")
-	data, err := base64.StdEncoding.DecodeString(value[16:])
-	require.NoError(t, err)
+	require.Greater(t, len(value), 8, "value is not encrypted")
+	require.Equal(t, dbcrypt.MagicPrefix, value[:8], "missing magic prefix")
+	data, err := base64.StdEncoding.DecodeString(value[8:])
+	require.NoError(t, err, "invalid base64")
+	require.Greater(t, len(data), 8, "missing cipher digest")
+	require.Equal(t, c.HexDigest(), string(data[:7]), "cipher digest mismatch")
 	got, err := c.Decrypt(data)
-	require.NoError(t, err)
-	require.Equal(t, expected, string(got))
+	require.NoError(t, err, "failed to decrypt data")
+	require.Equal(t, expected, string(got), "decrypted data does not match")
 }
 
-func initCipher(t *testing.T, cipher *atomic.Pointer[dbcrypt.Cipher]) {
+func initCipher(t *testing.T) *dbcrypt.AES256 {
 	t.Helper()
 	key := make([]byte, 32) // AES-256 key size is 32 bytes
 	_, err := io.ReadFull(rand.Reader, key)
 	require.NoError(t, err)
 	c, err := dbcrypt.CipherAES256(key)
 	require.NoError(t, err)
-	cipher.Store(&c)
+	return c
 }
 
-func setup(t *testing.T) (db, cryptodb database.Store, cipher1 *atomic.Pointer[dbcrypt.Cipher], cipher2 *atomic.Pointer[dbcrypt.Cipher]) {
+func setup(t *testing.T) (db, cryptodb database.Store, ciphers *dbcrypt.Ciphers) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
@@ -303,14 +258,8 @@ func setup(t *testing.T) (db, cryptodb database.Store, cipher1 *atomic.Pointer[d
 	_, err := rawDB.GetDBCryptSentinelValue(ctx)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 
-	cipher1 = &atomic.Pointer[dbcrypt.Cipher]{}
-	cipher2 = &atomic.Pointer[dbcrypt.Cipher]{}
-	initCipher(t, cipher1)
-	cryptDB, err := dbcrypt.New(ctx, rawDB, &dbcrypt.Options{
-		PrimaryCipher:   cipher1,
-		SecondaryCipher: cipher2,
-		Logger:          slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-	})
+	ciphers = dbcrypt.NewCiphers(initCipher(t))
+	cryptDB, err := dbcrypt.New(ctx, rawDB, ciphers)
 	require.NoError(t, err)
 
 	rawVal, err := rawDB.GetDBCryptSentinelValue(ctx)
@@ -321,5 +270,5 @@ func setup(t *testing.T) (db, cryptodb database.Store, cipher1 *atomic.Pointer[d
 	require.NoError(t, err)
 	require.Equal(t, "coder", cryptVal)
 
-	return rawDB, cryptDB, cipher1, cipher2
+	return rawDB, cryptDB, ciphers
 }

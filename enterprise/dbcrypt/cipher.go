@@ -18,7 +18,7 @@ type Cipher interface {
 }
 
 // CipherAES256 returns a new AES-256 cipher.
-func CipherAES256(key []byte) (Cipher, error) {
+func CipherAES256(key []byte) (*AES256, error) {
 	if len(key) != 32 {
 		return nil, xerrors.Errorf("key must be 32 bytes")
 	}
@@ -31,16 +31,16 @@ func CipherAES256(key []byte) (Cipher, error) {
 		return nil, err
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256(key))[:7]
-	return &aes256{aead: aead, digest: digest}, nil
+	return &AES256{aead: aead, digest: digest}, nil
 }
 
-type aes256 struct {
+type AES256 struct {
 	aead cipher.AEAD
 	// digest is the first 7 bytes of the hex-encoded SHA-256 digest of aead.
 	digest string
 }
 
-func (a *aes256) Encrypt(plaintext []byte) ([]byte, error) {
+func (a *AES256) Encrypt(plaintext []byte) ([]byte, error) {
 	nonce := make([]byte, a.aead.NonceSize())
 	_, err := io.ReadFull(rand.Reader, nonce)
 	if err != nil {
@@ -49,7 +49,7 @@ func (a *aes256) Encrypt(plaintext []byte) ([]byte, error) {
 	return a.aead.Seal(nonce, nonce, plaintext, nil), nil
 }
 
-func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
+func (a *AES256) Decrypt(ciphertext []byte) ([]byte, error) {
 	if len(ciphertext) < a.aead.NonceSize() {
 		return nil, xerrors.Errorf("ciphertext too short")
 	}
@@ -60,7 +60,7 @@ func (a *aes256) Decrypt(ciphertext []byte) ([]byte, error) {
 	return decrypted, nil
 }
 
-func (a *aes256) HexDigest() string {
+func (a *AES256) HexDigest() string {
 	return a.digest
 }
 
@@ -70,19 +70,22 @@ type Ciphers struct {
 	m       map[string]Cipher
 }
 
-// CiphersAES256 returns a new Ciphers instance with the given ciphers.
+// NewCiphers returns a new Ciphers instance with the given ciphers.
 // The first cipher in the list is the primary cipher. Any ciphers after the
 // first are considered secondary ciphers and are only used for decryption.
-func CiphersAES256(cs ...Cipher) Ciphers {
+func NewCiphers(cs ...Cipher) *Ciphers {
 	var primary string
 	m := make(map[string]Cipher)
 	for idx, c := range cs {
+		if _, ok := c.(*Ciphers); ok {
+			panic("developer error: do not nest Ciphers")
+		}
 		m[c.HexDigest()] = c
 		if idx == 0 {
 			primary = c.HexDigest()
 		}
 	}
-	return Ciphers{primary: primary, m: m}
+	return &Ciphers{primary: primary, m: m}
 }
 
 // Encrypt encrypts the given plaintext using the primary cipher and returns the
@@ -111,4 +114,9 @@ func (cs Ciphers) Decrypt(ciphertext []byte) ([]byte, error) {
 		return nil, xerrors.Errorf("missing required decryption cipher %s", requiredPrefix)
 	}
 	return c.Decrypt(ciphertext[8:])
+}
+
+// HexDigest returns the digest of the primary cipher.
+func (cs Ciphers) HexDigest() string {
+	return cs.primary
 }

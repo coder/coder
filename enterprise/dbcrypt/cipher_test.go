@@ -44,7 +44,7 @@ func TestCipherAES256(t *testing.T) {
 	})
 }
 
-func TestCiphersAES256(t *testing.T) {
+func TestCiphers(t *testing.T) {
 	t.Parallel()
 
 	// Given: two ciphers
@@ -55,10 +55,7 @@ func TestCiphersAES256(t *testing.T) {
 	cipher2, err := dbcrypt.CipherAES256(key2)
 	require.NoError(t, err)
 
-	ciphers := dbcrypt.CiphersAES256(
-		cipher1,
-		cipher2,
-	)
+	ciphers := dbcrypt.NewCiphers(cipher1, cipher2)
 
 	// Then: it should encrypt with the cipher1
 	output, err := ciphers.Encrypt([]byte("hello world"))
@@ -82,4 +79,16 @@ func TestCiphersAES256(t *testing.T) {
 	decrypted2, err := ciphers.Decrypt(bytes.Join([][]byte{[]byte(cipher2.HexDigest()), output2}, []byte{'-'}))
 	require.NoError(t, err)
 	require.Equal(t, "hello world", string(decrypted2))
+
+	// Decryption of data encrypted with cipher1 should succeed
+	output1, err := cipher1.Encrypt([]byte("hello world"))
+	require.NoError(t, err)
+	decrypted1, err := ciphers.Decrypt(bytes.Join([][]byte{[]byte(cipher1.HexDigest()), output1}, []byte{'-'}))
+	require.NoError(t, err)
+	require.Equal(t, "hello world", string(decrypted1))
+
+	// Wrapping a Ciphers with itself should panic.
+	require.PanicsWithValue(t, "developer error: do not nest Ciphers", func() {
+		_ = dbcrypt.NewCiphers(ciphers)
+	})
 }
