@@ -63,13 +63,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	if options.PrimaryExternalTokenEncryption != nil {
-		cs := make([]dbcrypt.Cipher, 0)
-		cs = append(cs, options.PrimaryExternalTokenEncryption)
-		if options.SecondaryExternalTokenEncryption != nil {
-			cs = append(cs, options.SecondaryExternalTokenEncryption)
-		}
-		cryptDB, err := dbcrypt.New(ctx, options.Database, dbcrypt.NewCiphers(cs...))
+	if options.ExternalTokenEncryption != nil {
+		cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption)
 		if err != nil {
 			cancelFunc()
 			return nil, xerrors.Errorf("init dbcrypt: %w", err)
@@ -379,9 +374,7 @@ type Options struct {
 	BrowserOnly bool
 	SCIMAPIKey  []byte
 
-	// TODO: wire these up properly
-	PrimaryExternalTokenEncryption   dbcrypt.Cipher
-	SecondaryExternalTokenEncryption dbcrypt.Cipher
+	ExternalTokenEncryption *dbcrypt.Ciphers
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -449,7 +442,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
-			codersdk.FeatureExternalTokenEncryption:    api.PrimaryExternalTokenEncryption != nil,
+			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateRestartRequirement depends on
