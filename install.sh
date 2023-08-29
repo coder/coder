@@ -323,7 +323,7 @@ main() {
 	DISTRO=${DISTRO:-$(distro)}
 
 	case $DISTRO in
-	macos) install_macos ;;
+	darwin) install_macos ;;
 	# The .deb and .rpm files are pulled from GitHub.
 	debian) install_deb ;;
 	fedora | opensuse) install_rpm ;;
@@ -428,17 +428,19 @@ with_terraform() {
 
 install_macos() {
 	# If there is no `brew` binary available, just default to installing standalone
-	if [ ! -f $(which brew) ]; then
-		echo "hello"
+	if command_exists brew; then
+		echoh "Installing v$VERSION of the coder formula from coder/coder."
+		echoh
+
+		sh_c brew install coder/coder/coder
+
+		echo_brew_postinstall
 		return
 	fi
 
-	echoh "Installing v$VERSION of the coder formula from coder/coder."
-	echoh
-
-	sh_c brew install coder/coder/coder
-
-	echo_brew_postinstall
+	echoh "Homebrew is not available."
+	echoh "Falling back to standalone installation."
+	install_standalone
 }
 
 install_deb() {
