@@ -4,9 +4,11 @@ package cli
 
 import (
 	"bytes"
-	"cdr.dev/slog"
 	"context"
 	"encoding/base64"
+
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/database"

@@ -84,7 +84,6 @@ func (r *RootCmd) server() *clibase.Cmd {
 				c, err := dbcrypt.CipherAES256(dk)
 				if err != nil {
 					return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher %d: %w", idx, err)
-
 				}
 				cs = append(cs, c)
 			}

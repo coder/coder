@@ -64,11 +64,13 @@ func (a *AES256) HexDigest() string {
 	return a.digest
 }
 
-type CipherDigest string
-type Ciphers struct {
-	primary string
-	m       map[string]Cipher
-}
+type (
+	CipherDigest string
+	Ciphers      struct {
+		primary string
+		m       map[string]Cipher
+	}
+)
 
 // NewCiphers returns a new Ciphers instance with the given ciphers.
 // The first cipher in the list is the primary cipher. Any ciphers after the

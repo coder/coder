@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/database"
