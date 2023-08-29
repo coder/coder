@@ -45,6 +45,7 @@ func TestCipherAES256(t *testing.T) {
 	})
 
 	t.Run("TestNonce", func(t *testing.T) {
+		t.Parallel()
 		key := bytes.Repeat([]byte{'a'}, 32)
 		cipher, err := dbcrypt.CipherAES256(key)
 		require.NoError(t, err)
@@ -140,5 +141,4 @@ func TestCiphersBackwardCompatibility(t *testing.T) {
 	decrypted, err := cs.Decrypt(decoded)
 	require.NoError(t, err, "decryption should succeed")
 	require.Equal(t, msg, string(decrypted), "decrypted message should match original message")
-
 }
