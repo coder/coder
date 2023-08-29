@@ -7390,6 +7390,14 @@ const docTemplate = `{
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
                 },
+                "autostop_requirement": {
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
                 "default_ttl_ms": {
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
@@ -7423,20 +7431,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
-                },
-                "restart_requirement": {
-                    "description": "RestartRequirement allows optionally specifying the restart requirement\nfor workspaces created from this template. This is an enterprise feature.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
-                        }
-                    ]
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
@@ -8124,7 +8124,7 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_restart_requirement",
+                "template_autostop_requirement",
                 "deployment_health_page"
             ],
             "x-enum-varnames": [
@@ -8132,7 +8132,7 @@ const docTemplate = `{
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement",
+                "ExperimentTemplateAutostopRequirement",
                 "ExperimentDeploymentHealthPage"
             ]
         },
@@ -9514,6 +9514,14 @@ const docTemplate = `{
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
+                "autostop_requirement": {
+                    "description": "AutostopRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
                 },
@@ -9549,7 +9557,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
@@ -9563,14 +9571,6 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform"
-                    ]
-                },
-                "restart_requirement": {
-                    "description": "RestartRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
-                        }
                     ]
                 },
                 "time_til_dormant_autodelete_ms": {
@@ -9630,6 +9630,31 @@ const docTemplate = `{
                 "TemplateAppsTypeBuiltin",
                 "TemplateAppsTypeApp"
             ]
+        },
+        "codersdk.TemplateAutostopRequirement": {
+            "type": "object",
+            "properties": {
+                "days_of_week": {
+                    "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                            "saturday",
+                            "sunday"
+                        ]
+                    }
+                },
+                "weeks": {
+                    "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.TemplateBuildTimeStats": {
             "type": "object",
@@ -9788,31 +9813,6 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.TemplateRestartRequirement": {
-            "type": "object",
-            "properties": {
-                "days_of_week": {
-                    "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "monday",
-                            "tuesday",
-                            "wednesday",
-                            "thursday",
-                            "friday",
-                            "saturday",
-                            "sunday"
-                        ]
-                    }
-                },
-                "weeks": {
-                    "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
-                    "type": "integer"
                 }
             }
         },

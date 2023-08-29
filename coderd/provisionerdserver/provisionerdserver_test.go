@@ -1027,11 +1027,11 @@ func TestCompleteJob(t *testing.T) {
 				var store schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:  false,
-							UserAutostopEnabled:   c.templateAllowAutostop,
-							DefaultTTL:            c.templateDefaultTTL,
-							MaxTTL:                c.templateMaxTTL,
-							UseRestartRequirement: false,
+							UserAutostartEnabled:   false,
+							UserAutostopEnabled:    c.templateAllowAutostop,
+							DefaultTTL:             c.templateDefaultTTL,
+							MaxTTL:                 c.templateMaxTTL,
+							UseAutostopRequirement: false,
 						}, nil
 					},
 				}
@@ -1155,7 +1155,7 @@ func TestCompleteJob(t *testing.T) {
 
 		// Wednesday the 8th of February 2023 at midnight. This date was
 		// specifically chosen as it doesn't fall on a applicable week for both
-		// fortnightly and triweekly restart requirements.
+		// fortnightly and triweekly autostop requirements.
 		wednesdayMidnightUTC := time.Date(2023, 2, 8, 0, 0, 0, 0, time.UTC)
 
 		sydneyQuietHours := "CRON_TZ=Australia/Sydney 0 0 * * *"
@@ -1175,44 +1175,44 @@ func TestCompleteJob(t *testing.T) {
 			transition   database.WorkspaceTransition
 
 			// These fields are only used when testing max deadline.
-			userQuietHoursSchedule     string
-			templateRestartRequirement schedule.TemplateRestartRequirement
+			userQuietHoursSchedule      string
+			templateAutostopRequirement schedule.TemplateAutostopRequirement
 
 			expectedDeadline    time.Time
 			expectedMaxDeadline time.Time
 		}{
 			{
-				name:                       "OK",
-				now:                        now,
-				templateRestartRequirement: schedule.TemplateRestartRequirement{},
-				workspaceTTL:               0,
-				transition:                 database.WorkspaceTransitionStart,
-				expectedDeadline:           time.Time{},
-				expectedMaxDeadline:        time.Time{},
+				name:                        "OK",
+				now:                         now,
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+				workspaceTTL:                0,
+				transition:                  database.WorkspaceTransitionStart,
+				expectedDeadline:            time.Time{},
+				expectedMaxDeadline:         time.Time{},
 			},
 			{
-				name:                       "Delete",
-				now:                        now,
-				templateRestartRequirement: schedule.TemplateRestartRequirement{},
-				workspaceTTL:               0,
-				transition:                 database.WorkspaceTransitionDelete,
-				expectedDeadline:           time.Time{},
-				expectedMaxDeadline:        time.Time{},
+				name:                        "Delete",
+				now:                         now,
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+				workspaceTTL:                0,
+				transition:                  database.WorkspaceTransitionDelete,
+				expectedDeadline:            time.Time{},
+				expectedMaxDeadline:         time.Time{},
 			},
 			{
-				name:                       "WorkspaceTTL",
-				now:                        now,
-				templateRestartRequirement: schedule.TemplateRestartRequirement{},
-				workspaceTTL:               time.Hour,
-				transition:                 database.WorkspaceTransitionStart,
-				expectedDeadline:           now.Add(time.Hour),
-				expectedMaxDeadline:        time.Time{},
+				name:                        "WorkspaceTTL",
+				now:                         now,
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{},
+				workspaceTTL:                time.Hour,
+				transition:                  database.WorkspaceTransitionStart,
+				expectedDeadline:            now.Add(time.Hour),
+				expectedMaxDeadline:         time.Time{},
 			},
 			{
-				name:                   "TemplateRestartRequirement",
+				name:                   "TemplateAutostopRequirement",
 				now:                    wednesdayMidnightUTC,
 				userQuietHoursSchedule: sydneyQuietHours,
-				templateRestartRequirement: schedule.TemplateRestartRequirement{
+				templateAutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: 0b00100000, // Saturday
 					Weeks:      0,          // weekly
 				},
@@ -1241,11 +1241,11 @@ func TestCompleteJob(t *testing.T) {
 				var templateScheduleStore schedule.TemplateScheduleStore = schedule.MockTemplateScheduleStore{
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
-							UserAutostartEnabled:  false,
-							UserAutostopEnabled:   true,
-							DefaultTTL:            0,
-							UseRestartRequirement: true,
-							RestartRequirement:    c.templateRestartRequirement,
+							UserAutostartEnabled:   false,
+							UserAutostopEnabled:    true,
+							DefaultTTL:             0,
+							UseAutostopRequirement: true,
+							AutostopRequirement:    c.templateAutostopRequirement,
 						}, nil
 					},
 				}
@@ -1280,13 +1280,13 @@ func TestCompleteJob(t *testing.T) {
 					Provisioner: database.ProvisionerTypeEcho,
 				})
 				err := srv.Database.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-					ID:                           template.ID,
-					UpdatedAt:                    database.Now(),
-					AllowUserAutostart:           false,
-					AllowUserAutostop:            true,
-					DefaultTTL:                   0,
-					RestartRequirementDaysOfWeek: int16(c.templateRestartRequirement.DaysOfWeek),
-					RestartRequirementWeeks:      c.templateRestartRequirement.Weeks,
+					ID:                            template.ID,
+					UpdatedAt:                     database.Now(),
+					AllowUserAutostart:            false,
+					AllowUserAutostop:             true,
+					DefaultTTL:                    0,
+					AutostopRequirementDaysOfWeek: int16(c.templateAutostopRequirement.DaysOfWeek),
+					AutostopRequirementWeeks:      c.templateAutostopRequirement.Weeks,
 				})
 				require.NoError(t, err)
 				template, err = srv.Database.GetTemplateByID(ctx, template.ID)
