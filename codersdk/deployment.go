@@ -310,6 +310,7 @@ type TraceConfig struct {
 	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
+	DataDog         clibase.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -1235,6 +1236,22 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Send Go runtime traces to DataDog",
+			Description: "Enables sending Go runtime traces to the local DataDog agent.",
+			Flag:        "trace-datadog",
+			Env:         "CODER_TRACE_DATADOG",
+			Value:       &c.Trace.DataDog,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "dataDog",
+			// Hidden until an external user asks for it. For the time being,
+			// it's used to detect leaks in dogfood.
+			Hidden: true,
+			// Default is false because datadog creates a bunch of goroutines that
+			// don't get cleaned up and trip the leak detector.
+			Default:     "false",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Provisioner settings
