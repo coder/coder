@@ -121,6 +121,8 @@ export const createTemplate = async (
   })
 
   await page.goto("/templates/new", { waitUntil: "networkidle" })
+  await expect(page).toHaveURL("/templates/new")
+
   await page.getByTestId("file-upload").setInputFiles({
     buffer: await createTemplateVersionTar(responses),
     mimeType: "application/x-tar",
