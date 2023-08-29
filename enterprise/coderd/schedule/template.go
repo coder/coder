@@ -21,11 +21,11 @@ import (
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
 // has all fields implemented for enterprise customers.
 type EnterpriseTemplateScheduleStore struct {
-	// UseRestartRequirement decides whether the RestartRequirement field should
-	// be used instead of the MaxTTL field for determining the max deadline of a
-	// workspace build. This value is determined by a feature flag, licensing,
-	// and whether a default user quiet hours schedule is set.
-	UseRestartRequirement atomic.Bool
+	// UseAutostopRequirement decides whether the AutostopRequirement field
+	// should be used instead of the MaxTTL field for determining the max
+	// deadline of a workspace build. This value is determined by a feature
+	// flag, licensing, and whether a default user quiet hours schedule is set.
+	UseAutostopRequirement atomic.Bool
 
 	// UserQuietHoursScheduleStore is used when recalculating build deadlines on
 	// update.
@@ -62,26 +62,26 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 
 	// These extra checks have to be done before the conversion because we lose
 	// precision and signs when converting to the agpl types from the database.
-	if tpl.RestartRequirementDaysOfWeek < 0 {
-		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid restart requirement days, negative")
+	if tpl.AutostopRequirementDaysOfWeek < 0 {
+		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid autostop requirement days, negative")
 	}
-	if tpl.RestartRequirementDaysOfWeek > 0b11111111 {
-		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid restart requirement days, too large")
+	if tpl.AutostopRequirementDaysOfWeek > 0b11111111 {
+		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid autostop requirement days, too large")
 	}
-	err = agpl.VerifyTemplateRestartRequirement(uint8(tpl.RestartRequirementDaysOfWeek), tpl.RestartRequirementWeeks)
+	err = agpl.VerifyTemplateAutostopRequirement(uint8(tpl.AutostopRequirementDaysOfWeek), tpl.AutostopRequirementWeeks)
 	if err != nil {
 		return agpl.TemplateScheduleOptions{}, err
 	}
 
 	return agpl.TemplateScheduleOptions{
-		UserAutostartEnabled:  tpl.AllowUserAutostart,
-		UserAutostopEnabled:   tpl.AllowUserAutostop,
-		DefaultTTL:            time.Duration(tpl.DefaultTTL),
-		MaxTTL:                time.Duration(tpl.MaxTTL),
-		UseRestartRequirement: s.UseRestartRequirement.Load(),
-		RestartRequirement: agpl.TemplateRestartRequirement{
-			DaysOfWeek: uint8(tpl.RestartRequirementDaysOfWeek),
-			Weeks:      tpl.RestartRequirementWeeks,
+		UserAutostartEnabled:   tpl.AllowUserAutostart,
+		UserAutostopEnabled:    tpl.AllowUserAutostop,
+		DefaultTTL:             time.Duration(tpl.DefaultTTL),
+		MaxTTL:                 time.Duration(tpl.MaxTTL),
+		UseAutostopRequirement: s.UseAutostopRequirement.Load(),
+		AutostopRequirement: agpl.TemplateAutostopRequirement{
+			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
+			Weeks:      tpl.AutostopRequirementWeeks,
 		},
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
@@ -96,8 +96,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
-		int16(opts.RestartRequirement.DaysOfWeek) == tpl.RestartRequirementDaysOfWeek &&
-		opts.RestartRequirement.Weeks == tpl.RestartRequirementWeeks &&
+		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
+		opts.AutostopRequirement.Weeks == tpl.AutostopRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
 		int64(opts.TimeTilDormant) == tpl.TimeTilDormant &&
 		int64(opts.TimeTilDormantAutoDelete) == tpl.TimeTilDormantAutoDelete &&
@@ -107,7 +107,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		return tpl, nil
 	}
 
-	err := agpl.VerifyTemplateRestartRequirement(opts.RestartRequirement.DaysOfWeek, opts.RestartRequirement.Weeks)
+	err := agpl.VerifyTemplateAutostopRequirement(opts.AutostopRequirement.DaysOfWeek, opts.AutostopRequirement.Weeks)
 	if err != nil {
 		return database.Template{}, err
 	}
@@ -118,17 +118,17 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		defer span.End()
 
 		err := tx.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-			ID:                           tpl.ID,
-			UpdatedAt:                    s.now(),
-			AllowUserAutostart:           opts.UserAutostartEnabled,
-			AllowUserAutostop:            opts.UserAutostopEnabled,
-			DefaultTTL:                   int64(opts.DefaultTTL),
-			MaxTTL:                       int64(opts.MaxTTL),
-			RestartRequirementDaysOfWeek: int16(opts.RestartRequirement.DaysOfWeek),
-			RestartRequirementWeeks:      opts.RestartRequirement.Weeks,
-			FailureTTL:                   int64(opts.FailureTTL),
-			TimeTilDormant:               int64(opts.TimeTilDormant),
-			TimeTilDormantAutoDelete:     int64(opts.TimeTilDormantAutoDelete),
+			ID:                            tpl.ID,
+			UpdatedAt:                     s.now(),
+			AllowUserAutostart:            opts.UserAutostartEnabled,
+			AllowUserAutostop:             opts.UserAutostopEnabled,
+			DefaultTTL:                    int64(opts.DefaultTTL),
+			MaxTTL:                        int64(opts.MaxTTL),
+			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
+			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
+			FailureTTL:                    int64(opts.FailureTTL),
+			TimeTilDormant:                int64(opts.TimeTilDormant),
+			TimeTilDormantAutoDelete:      int64(opts.TimeTilDormantAutoDelete),
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
@@ -170,7 +170,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		// Recalculate max_deadline and deadline for all running workspace
 		// builds on this template.
-		if s.UseRestartRequirement.Load() {
+		if s.UseAutostopRequirement.Load() {
 			err = s.updateWorkspaceBuilds(ctx, tx, template)
 			if err != nil {
 				return xerrors.Errorf("update workspace builds: %w", err)
@@ -238,7 +238,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 
 	// If the job completed before the autostop epoch, then it must be skipped
 	// to avoid failures below. Add a week to account for timezones.
-	if job.CompletedAt.Time.Before(agpl.TemplateRestartRequirementEpoch(time.UTC).Add(time.Hour * 7 * 24)) {
+	if job.CompletedAt.Time.Before(agpl.TemplateAutostopRequirementEpoch(time.UTC).Add(time.Hour * 7 * 24)) {
 		return nil
 	}
 
