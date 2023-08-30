@@ -158,7 +158,7 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Empty(t, 0, template.AutostopRequirement.DaysOfWeek)
-		require.Zero(t, template.AutostopRequirement.Weeks)
+		require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 
 		// ctx := testutil.Context(t, testutil.WaitLong)
 		ctx := context.Background()
