@@ -337,9 +337,6 @@ jobs:
     steps:
       # TODO: skip this if it's not a new release (i.e. not a backport). This is
       #       fine right now because it just makes a PR that we can close.
-      # TODO: delete the temp dir. Doesn't really matter right now since
-      #       releases only happen a few times per month and the runners get
-      #       cycled once a day anyways.
       - name: Update homebrew
         env:
           # Variables used by the `gh` command
