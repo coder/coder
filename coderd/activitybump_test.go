@@ -26,7 +26,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	ctx := context.Background()
 
 	// deadline allows you to forcibly set a max_deadline on the build. This
-	// doesn't use template restart requirements and instead edits the
+	// doesn't use template autostop requirements and instead edits the
 	// max_deadline on the build directly in the database.
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		const ttl = time.Minute
@@ -49,7 +49,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 						UserAutostopEnabled: true,
 						DefaultTTL:          ttl,
 						// We set max_deadline manually below.
-						RestartRequirement: schedule.TemplateRestartRequirement{},
+						AutostopRequirement: schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 			},

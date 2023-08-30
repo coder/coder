@@ -35,7 +35,7 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -43,8 +43,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -133,7 +133,7 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -143,7 +143,7 @@ func TestUserQuietHours(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureAdvancedTemplateScheduling: 1,
 					// Not entitled.
-					// codersdk.FeatureTemplateRestartRequirement: 1,
+					// codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -161,7 +161,7 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set("")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			NoDefaultQuietHoursSchedule: true,
@@ -170,8 +170,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -197,8 +197,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})

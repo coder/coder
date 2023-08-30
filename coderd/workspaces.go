@@ -384,8 +384,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	maxTTL := templateSchedule.MaxTTL
-	if templateSchedule.UseRestartRequirement {
-		// If we're using restart requirements, there isn't a max TTL.
+	if templateSchedule.UseAutostopRequirement {
+		// If we're using autostop requirements, there isn't a max TTL.
 		maxTTL = 0
 	}
 
@@ -721,8 +721,8 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		maxTTL := templateSchedule.MaxTTL
-		if templateSchedule.UseRestartRequirement {
-			// If we're using restart requirements, there isn't a max TTL.
+		if templateSchedule.UseAutostopRequirement {
+			// If we're using autostop requirements, there isn't a max TTL.
 			maxTTL = 0
 		}
 
@@ -1028,6 +1028,9 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	_ = sendEvent(ctx, codersdk.ServerSentEvent{
 		Type: codersdk.ServerSentEventTypePing,
 	})
+	// Send updated workspace info after connection is established. This avoids
+	// missing updates if the client connects after an update.
+	sendUpdate(ctx, nil)
 
 	for {
 		select {

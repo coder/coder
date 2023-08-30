@@ -140,7 +140,7 @@ func TestTemplates(t *testing.T) {
 		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
 
-	t.Run("SetRestartRequirement", func(t *testing.T) {
+	t.Run("SetAutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -157,8 +157,8 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.Empty(t, 0, template.RestartRequirement.DaysOfWeek)
-		require.Zero(t, template.RestartRequirement.Weeks)
+		require.Empty(t, 0, template.AutostopRequirement.DaysOfWeek)
+		require.Zero(t, template.AutostopRequirement.Weeks)
 
 		// ctx := testutil.Context(t, testutil.WaitLong)
 		ctx := context.Background()
@@ -169,19 +169,19 @@ func TestTemplates(t *testing.T) {
 			Icon:                         template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
-			RestartRequirement: &codersdk.TemplateRestartRequirement{
+			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 				Weeks:      3,
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"monday", "saturday"}, updated.RestartRequirement.DaysOfWeek)
-		require.EqualValues(t, 3, updated.RestartRequirement.Weeks)
+		require.Equal(t, []string{"monday", "saturday"}, updated.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, updated.AutostopRequirement.Weeks)
 
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		require.Equal(t, []string{"monday", "saturday"}, template.RestartRequirement.DaysOfWeek)
-		require.EqualValues(t, 3, template.RestartRequirement.Weeks)
+		require.Equal(t, []string{"monday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, template.AutostopRequirement.Weeks)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {

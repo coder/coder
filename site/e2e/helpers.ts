@@ -31,6 +31,8 @@ export const createWorkspace = async (
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "networkidle",
   })
+  await expect(page).toHaveURL("/templates/" + templateName + "/workspace")
+
   const name = randomName()
   await page.getByLabel("name").fill(name)
 
@@ -38,6 +40,7 @@ export const createWorkspace = async (
   await page.getByTestId("form-submit").click()
 
   await expect(page).toHaveURL("/@admin/" + name)
+
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
@@ -116,7 +119,10 @@ export const createTemplate = async (
   await page.addInitScript({
     content: "window.playwright = true",
   })
+
   await page.goto("/templates/new", { waitUntil: "networkidle" })
+  await expect(page).toHaveURL("/templates/new")
+
   await page.getByTestId("file-upload").setInputFiles({
     buffer: await createTemplateVersionTar(responses),
     mimeType: "application/x-tar",
@@ -614,4 +620,100 @@ export const fillParameters = async (
       await parameterField.fill(buildParameter.value)
     }
   }
+}
+
+export const updateTemplate = async (
+  page: Page,
+  templateName: string,
+  responses?: EchoProvisionerResponses,
+) => {
+  const tarball = await createTemplateVersionTar(responses)
+
+  const sessionToken = await findSessionToken(page)
+  const child = spawn(
+    "go",
+    [
+      "run",
+      coderMainPath(),
+      "templates",
+      "push",
+      "--test.provisioner",
+      "echo",
+      "-y",
+      "-d",
+      "-",
+      templateName,
+    ],
+    {
+      env: {
+        ...process.env,
+        CODER_SESSION_TOKEN: sessionToken,
+        CODER_URL: "http://localhost:3000",
+      },
+    },
+  )
+
+  const uploaded = new Awaiter()
+  child.on("exit", (code) => {
+    if (code === 0) {
+      uploaded.done()
+      return
+    }
+
+    throw new Error(`coder templates push failed with code ${code}`)
+  })
+
+  child.stdin.write(tarball)
+  child.stdin.end()
+
+  await uploaded.wait()
+}
+
+export const updateWorkspace = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  await page.goto("/@admin/" + workspaceName, {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL("/@admin/" + workspaceName)
+
+  await page.getByTestId("workspace-update-button").click()
+  await page.getByTestId("confirm-button").click()
+
+  await fillParameters(page, richParameters, buildParameters)
+  await page.getByTestId("form-submit").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
+}
+
+export const updateWorkspaceParameters = async (
+  page: Page,
+  workspaceName: string,
+  richParameters: RichParameter[] = [],
+  buildParameters: WorkspaceBuildParameter[] = [],
+) => {
+  await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
+    waitUntil: "domcontentloaded",
+  })
+  await expect(page).toHaveURL(
+    "/@admin/" + workspaceName + "/settings/parameters",
+  )
+
+  await fillParameters(page, richParameters, buildParameters)
+  await page.getByTestId("form-submit").click()
+
+  await page.waitForSelector(
+    "span[data-testid='build-status'] >> text=Running",
+    {
+      state: "visible",
+    },
+  )
 }
