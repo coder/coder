@@ -527,6 +527,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.AutostopRequirement.Weeks < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
 	}
+	if req.AutostopRequirement.Weeks == 0 {
+		req.AutostopRequirement.Weeks = 1
+	}
+	if template.AutostopRequirementWeeks <= 0 {
+		template.AutostopRequirementWeeks = 1
+	}
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
@@ -737,6 +743,11 @@ func (api *API) convertTemplate(
 
 	buildTimeStats := api.metricsCache.TemplateBuildTimeStats(template.ID)
 
+	autostopRequirementWeeks := template.AutostopRequirementWeeks
+	if autostopRequirementWeeks < 1 {
+		autostopRequirementWeeks = 1
+	}
+
 	return codersdk.Template{
 		ID:                             template.ID,
 		CreatedAt:                      template.CreatedAt,
@@ -762,7 +773,7 @@ func (api *API) convertTemplate(
 		TimeTilDormantAutoDeleteMillis: time.Duration(template.TimeTilDormantAutoDelete).Milliseconds(),
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
-			Weeks:      template.AutostopRequirementWeeks,
+			Weeks:      autostopRequirementWeeks,
 		},
 	}
 }

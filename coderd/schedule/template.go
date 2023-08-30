@@ -72,8 +72,8 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	if days > 0b11111111 {
 		return xerrors.New("invalid autostop requirement days, too large")
 	}
-	if weeks < 0 {
-		return xerrors.New("invalid autostop requirement weeks, negative")
+	if weeks < 1 {
+		return xerrors.New("invalid autostop requirement weeks, less than 1")
 	}
 	if weeks > MaxTemplateAutostopRequirementWeeks {
 		return xerrors.New("invalid autostop requirement weeks, too large")
@@ -154,8 +154,10 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		UseAutostopRequirement: false,
 		MaxTTL:                 0,
 		AutostopRequirement: TemplateAutostopRequirement{
+			// No days means never. The weeks value should always be greater
+			// than zero though.
 			DaysOfWeek: 0,
-			Weeks:      0,
+			Weeks:      1,
 		},
 		FailureTTL:               0,
 		TimeTilDormant:           0,

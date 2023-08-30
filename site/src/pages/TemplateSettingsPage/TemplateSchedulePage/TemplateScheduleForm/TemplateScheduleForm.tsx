@@ -1,7 +1,7 @@
 import TextField from "@mui/material/TextField"
 import { Template, UpdateTemplateMeta } from "api/typesGenerated"
 import { FormikTouched, useFormik } from "formik"
-import { FC, ChangeEvent, useState } from "react"
+import { FC, ChangeEvent, useState, useEffect } from "react"
 import { getFormHelpers } from "utils/formUtils"
 import { useTranslation } from "react-i18next"
 import {
@@ -24,6 +24,13 @@ import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
 import { TTLHelperText } from "./TTLHelperText"
 import { docs } from "utils/docs"
 import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import MenuItem from "@mui/material/MenuItem"
+import {
+  AutostopRequirementDaysHelperText,
+  AutostopRequirementWeeksHelperText,
+  calculateAutostopRequirementDaysValue,
+  convertAutostopRequirementDaysValue,
+} from "./AutostopRequirementHelperText"
 
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
@@ -39,6 +46,7 @@ export interface TemplateScheduleForm {
   error?: unknown
   allowAdvancedScheduling: boolean
   allowWorkspaceActions: boolean
+  allowAutostopRequirement: boolean
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>
 }
@@ -50,6 +58,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   error,
   allowAdvancedScheduling,
   allowWorkspaceActions,
+  allowAutostopRequirement,
   isSubmitting,
   initialTouched,
 }) => {
@@ -74,10 +83,16 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? template.time_til_dormant_autodelete_ms / MS_DAY_CONVERSION
         : 0,
 
-      autostop_requirement: {
-        days_of_week: template.autostop_requirement.days_of_week,
-        weeks: template.autostop_requirement.weeks,
-      },
+      autostop_requirement_days_of_week: allowAutostopRequirement
+        ? convertAutostopRequirementDaysValue(
+            template.autostop_requirement.days_of_week,
+          )
+        : "off",
+      autostop_requirement_weeks: allowAutostopRequirement
+        ? template.autostop_requirement.weeks > 0
+          ? template.autostop_requirement.weeks
+          : 1
+        : 1,
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -120,6 +135,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     initialTouched,
   })
+
   const getFieldHelpers = getFormHelpers<TemplateScheduleFormValues>(
     form,
     error,
@@ -167,6 +183,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     useState<boolean>(false)
 
   const submitValues = () => {
+    const autostop_requirement_weeks = ["saturday", "sunday"].includes(
+      form.values.autostop_requirement_days_of_week,
+    )
+      ? form.values.autostop_requirement_weeks
+      : 1
+
     // on submit, convert from hours => ms
     onSubmit({
       default_ttl_ms: form.values.default_ttl_ms
@@ -185,12 +207,43 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ? form.values.time_til_dormant_autodelete_ms * MS_DAY_CONVERSION
         : undefined,
 
+      autostop_requirement: {
+        days_of_week: calculateAutostopRequirementDaysValue(
+          form.values.autostop_requirement_days_of_week,
+        ),
+        weeks: autostop_requirement_weeks,
+      },
+
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
     })
   }
+
+  // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
+  // "daily". Technically you can set weeks to a different value in the backend
+  // and it will work, but this is a UX decision so users don't set days=daily
+  // and weeks=2 and get confused when workspaces only restart daily during
+  // every second week.
+  //
+  // We want to set the value to 1 when the user selects "off" or "daily"
+  // because the input gets disabled so they can't change it to 1 themselves.
+  const { values: currentValues, setValues } = form
+  useEffect(() => {
+    if (
+      !["saturday", "sunday"].includes(
+        currentValues.autostop_requirement_days_of_week,
+      ) &&
+      currentValues.autostop_requirement_weeks !== 1
+    ) {
+      // This is async but we don't really need to await the value.
+      void setValues({
+        ...currentValues,
+        autostop_requirement_weeks: 1,
+      })
+    }
+  }, [currentValues, setValues])
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
     form.handleChange(e)
@@ -274,30 +327,90 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             type="number"
           />
 
-          <TextField
-            {...getFieldHelpers(
-              "max_ttl_ms",
-              allowAdvancedScheduling ? (
-                <TTLHelperText
-                  translationName="maxTTLHelperText"
-                  ttl={form.values.max_ttl_ms}
-                />
-              ) : (
-                <>
-                  {commonT("licenseFieldTextHelper")}{" "}
-                  <Link href={docs("/enterprise")}>{commonT("learnMore")}</Link>
-                  .
-                </>
-              ),
-            )}
-            disabled={isSubmitting || !allowAdvancedScheduling}
-            fullWidth
-            inputProps={{ min: 0, step: 1 }}
-            label={t("maxTtlLabel")}
-            type="number"
-          />
+          {!allowAutostopRequirement && (
+            <TextField
+              {...getFieldHelpers(
+                "max_ttl_ms",
+                allowAdvancedScheduling ? (
+                  <TTLHelperText
+                    translationName="maxTTLHelperText"
+                    ttl={form.values.max_ttl_ms}
+                  />
+                ) : (
+                  <>
+                    {commonT("licenseFieldTextHelper")}{" "}
+                    <Link href={docs("/enterprise")}>
+                      {commonT("learnMore")}
+                    </Link>
+                    .
+                  </>
+                ),
+              )}
+              disabled={isSubmitting || !allowAdvancedScheduling}
+              fullWidth
+              inputProps={{ min: 0, step: 1 }}
+              label={t("maxTtlLabel")}
+              type="number"
+            />
+          )}
         </Stack>
       </FormSection>
+
+      {allowAutostopRequirement && (
+        <FormSection
+          title={t("autostopRequirement.title").toString()}
+          description={t("autostopRequirement.description").toString()}
+        >
+          <Stack direction="row" className={styles.ttlFields}>
+            <TextField
+              {...getFieldHelpers(
+                "autostop_requirement_days_of_week",
+                <AutostopRequirementDaysHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                />,
+              )}
+              disabled={isSubmitting}
+              fullWidth
+              select
+              value={form.values.autostop_requirement_days_of_week}
+              label={t("autostopRequirementDaysLabel")}
+            >
+              <MenuItem key="off" value="off">
+                {t("autostopRequirementDays_off")}
+              </MenuItem>
+              <MenuItem key="daily" value="daily">
+                {t("autostopRequirementDays_daily")}
+              </MenuItem>
+              <MenuItem key="saturday" value="saturday">
+                {t("autostopRequirementDays_saturday")}
+              </MenuItem>
+              <MenuItem key="sunday" value="sunday">
+                {t("autostopRequirementDays_sunday")}
+              </MenuItem>
+            </TextField>
+
+            <TextField
+              {...getFieldHelpers(
+                "autostop_requirement_weeks",
+                <AutostopRequirementWeeksHelperText
+                  days={form.values.autostop_requirement_days_of_week}
+                  weeks={form.values.autostop_requirement_weeks}
+                />,
+              )}
+              disabled={
+                isSubmitting ||
+                !["saturday", "sunday"].includes(
+                  form.values.autostop_requirement_days_of_week || "",
+                )
+              }
+              fullWidth
+              inputProps={{ min: 1, max: 16, step: 1 }}
+              label={t("autostopRequirementWeeksLabel")}
+              type="number"
+            />
+          </Stack>
+        </FormSection>
+      )}
 
       <FormSection
         title="Allow users scheduling"

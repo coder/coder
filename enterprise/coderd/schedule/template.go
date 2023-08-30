@@ -68,6 +68,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 	if tpl.AutostopRequirementDaysOfWeek > 0b11111111 {
 		return agpl.TemplateScheduleOptions{}, xerrors.New("invalid autostop requirement days, too large")
 	}
+	if tpl.AutostopRequirementWeeks == 0 {
+		tpl.AutostopRequirementWeeks = 1
+	}
 	err = agpl.VerifyTemplateAutostopRequirement(uint8(tpl.AutostopRequirementDaysOfWeek), tpl.AutostopRequirementWeeks)
 	if err != nil {
 		return agpl.TemplateScheduleOptions{}, err
@@ -93,6 +96,13 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.Store, tpl database.Template, opts agpl.TemplateScheduleOptions) (database.Template, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
+
+	if opts.AutostopRequirement.Weeks <= 0 {
+		opts.AutostopRequirement.Weeks = 1
+	}
+	if tpl.AutostopRequirementWeeks <= 0 {
+		tpl.AutostopRequirementWeeks = 1
+	}
 
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&

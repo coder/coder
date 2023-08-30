@@ -83,7 +83,7 @@ func WeekdaysToBitmap(days []string) (uint8, error) {
 // BitmapToWeekdays converts a bitmap to a list of weekdays in accordance with
 // the schedule package's rules (see above).
 func BitmapToWeekdays(bitmap uint8) []string {
-	var days []string
+	days := []string{}
 	for i := 0; i < 7; i++ {
 		if bitmap&(1<<i) != 0 {
 			switch i {
