@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/rbac"
 
 	"github.com/stretchr/testify/assert"
@@ -185,7 +186,7 @@ func TestAuditLogging(t *testing.T) {
 		_, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{
-				Auditor: audit.NewAuditor(audit.DefaultFilter),
+				Auditor: audit.NewAuditor(dbfake.New(), audit.DefaultFilter),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -194,7 +195,7 @@ func TestAuditLogging(t *testing.T) {
 			},
 		})
 		auditor := *api.AGPL.Auditor.Load()
-		ea := audit.NewAuditor(audit.DefaultFilter)
+		ea := audit.NewAuditor(dbfake.New(), audit.DefaultFilter)
 		t.Logf("%T = %T", auditor, ea)
 		assert.EqualValues(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})

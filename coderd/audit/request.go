@@ -33,12 +33,14 @@ type Request[T Auditable] struct {
 	Old T
 	New T
 
-	// This optional field can be passed in when the userID cannot be determined from the API Key
-	// such as in the case of login, when the audit log is created prior the API Key's existence.
+	// UserID is an optional field can be passed in when the userID cannot be
+	// determined from the API Key such as in the case of login, when the audit
+	// log is created prior the API Key's existence.
 	UserID uuid.UUID
 
-	// This optional field can be passed in if the AuditAction must be overridden
-	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	// Action is an optional field can be passed in if the AuditAction must be
+	// overridden such as in the case of new user authentication when the Audit
+	// Action is 'register', not 'login'.
 	Action database.AuditAction
 }
 
