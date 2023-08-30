@@ -54,7 +54,7 @@
     "@xstate/inspect": "0.8.0",
     "@xstate/react": "3.2.1",
     "ansi-to-html": "0.7.2",
-    "axios": "1.3.4",
+    "axios": "1.5.0",
     "canvas": "2.11.0",
     "chart.js": "4.3.3",
     "chartjs-adapter-date-fns": "3.0.0",
