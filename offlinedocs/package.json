@@ -29,7 +29,7 @@
     "react-dom": "18.2.0",
     "react-icons": "4.10.1",
     "react-markdown": "8.0.3",
-    "rehype-raw": "6.1.1",
+    "rehype-raw": "7.0.0",
     "remark-gfm": "3.0.1"
   },
   "devDependencies": {
