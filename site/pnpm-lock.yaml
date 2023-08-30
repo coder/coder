@@ -375,8 +375,8 @@ devDependencies:
     specifier: 29.6.2
     version: 29.6.2(@types/node@18.17.0)(ts-node@10.9.1)
   jest-canvas-mock:
-    specifier: 2.4.0
-    version: 2.4.0
+    specifier: 2.5.2
+    version: 2.5.2
   jest-fetch-mock:
     specifier: 3.0.3
     version: 3.0.3
@@ -9498,8 +9498,8 @@ packages:
       minimatch: 3.1.2
     dev: true
 
-  /jest-canvas-mock@2.4.0:
-    resolution: {integrity: sha512-mmMpZzpmLzn5vepIaHk5HoH3Ka4WykbSoLuG/EKoJd0x0ID/t+INo1l8ByfcUJuDM+RIsL4QDg/gDnBbrj2/IQ==}
+  /jest-canvas-mock@2.5.2:
+    resolution: {integrity: sha512-vgnpPupjOL6+L5oJXzxTxFrlGEIbHdZqFU+LFNdtLxZ3lRDCl17FlTMM7IatoRQkrcyOTMlDinjUguqmQ6bR2A==}
     dependencies:
       cssfontparser: 1.2.1
       moo-color: 1.0.3
