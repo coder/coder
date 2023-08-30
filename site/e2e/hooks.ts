@@ -28,8 +28,9 @@ export const beforeCoderTest = async (page: Page) => {
     let responseText = ""
     try {
       if (shouldLogResponse) {
-        const buffer = await response.body() // Read the response as a buffer
-        responseText = buffer.toString("utf-8") // Convert the buffer to text
+        const buffer = await response.body()
+        responseText = buffer.toString("utf-8")
+        responseText = responseText.replace(/\n$/g, "")
       } else {
         responseText = "skipped..."
       }

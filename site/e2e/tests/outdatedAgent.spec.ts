@@ -7,8 +7,11 @@ import {
   sshIntoWorkspace,
   startAgentWithCommand,
 } from "../helpers"
+import { beforeCoderTest } from "../hooks"
 
 const agentVersion = "v0.14.0"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("ssh with agent " + agentVersion, async ({ page }) => {
   const token = randomUUID()
