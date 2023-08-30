@@ -6,7 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -17,7 +20,13 @@ import (
 func TestProvisionerDaemon_PSK(t *testing.T) {
 	t.Parallel()
 
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	})
 	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Logger: &logger,
+		},
 		ProvisionerDaemonPSK: "provisionersftw",
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
@@ -38,7 +47,13 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 func TestProvisionerDaemon_SessionToken(t *testing.T) {
 	t.Parallel()
 
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrors: true,
+	})
 	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Logger: &logger,
+		},
 		ProvisionerDaemonPSK: "provisionersftw",
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
