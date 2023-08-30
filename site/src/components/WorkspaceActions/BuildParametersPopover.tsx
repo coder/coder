@@ -22,7 +22,7 @@ import { useFormik } from "formik"
 import { useRef, useState } from "react"
 import { docs } from "utils/docs"
 import { getFormHelpers } from "utils/formUtils"
-import { getInitialParameterValues } from "utils/richParameters"
+import { getInitialRichParameterValues } from "utils/richParameters"
 
 export const BuildParametersPopover = ({
   workspace,
@@ -148,7 +148,7 @@ const Form = ({
 }) => {
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: getInitialParameterValues(
+      rich_parameter_values: getInitialRichParameterValues(
         ephemeralParameters,
         buildParameters,
       ),
@@ -168,8 +168,6 @@ const Form = ({
               {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
               key={parameter.name}
               parameter={parameter}
-              initialValue={form.values.rich_parameter_values[index]?.value}
-              index={index}
               size="small"
               onChange={async (value) => {
                 await form.setFieldValue(`rich_parameter_values[${index}]`, {

@@ -14,9 +14,8 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { useFormik } from "formik"
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
 } from "utils/richParameters"
 import * as Yup from "yup"
 import DialogActions from "@mui/material/DialogActions"
@@ -26,18 +25,16 @@ import { useTranslation } from "react-i18next"
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void
   onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void
-  missedParameters?: TemplateVersionParameter[]
+  missedParameters: TemplateVersionParameter[]
 }
 
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
   const styles = useStyles()
-  const initialRichParameterValues =
-    selectInitialRichParametersValues(missedParameters)
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: initialRichParameterValues,
+      rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
@@ -84,13 +81,8 @@ export const UpdateBuildParametersDialog: FC<
                     {...getFieldHelpers(
                       "rich_parameter_values[" + index + "].value",
                     )}
-                    initialValue={workspaceBuildParameterValue(
-                      initialRichParameterValues,
-                      parameter,
-                    )}
                     key={parameter.name}
                     parameter={parameter}
-                    index={index}
                     onChange={async (value) => {
                       await form.setFieldValue(
                         "rich_parameter_values." + index,
