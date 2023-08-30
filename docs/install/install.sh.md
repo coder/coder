@@ -5,7 +5,7 @@ and macOS.
 To install, run:
 
 ```shell
-# This is will automatically use supported package managers when available
+# This will automatically use supported package managers when available
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
