@@ -76,6 +76,7 @@ jobs:
           # Setup Git
           git config --global user.email "ci@coder.com"
           git config --global user.name "Coder CI"
+          git config --global credential.helper "store"
 
           temp_dir="$(mktemp -d)"
           cd "$temp_dir"
