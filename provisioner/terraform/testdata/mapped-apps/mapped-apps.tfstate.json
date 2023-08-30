@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "79d79b1a-c38f-431b-a851-bdde26ade277",
+            "id": "9a8356cf-b5ef-4da0-9b4e-cfeaca1fbfcf",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "9cafe3d5-fa42-4fa1-b235-bcdbef63009f",
+            "token": "7116ebd2-5205-4427-8cdb-5f86ec819911",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -37,12 +37,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "79d79b1a-c38f-431b-a851-bdde26ade277",
+            "agent_id": "9a8356cf-b5ef-4da0-9b4e-cfeaca1fbfcf",
             "command": null,
             "display_name": "app1",
             "healthcheck": [],
             "icon": null,
-            "id": "3948838f-cba7-457e-9a6f-ee7717a86cf3",
+            "id": "8ad9b3c3-0951-4612-adea-5c89ac12642a",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -66,12 +66,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "79d79b1a-c38f-431b-a851-bdde26ade277",
+            "agent_id": "9a8356cf-b5ef-4da0-9b4e-cfeaca1fbfcf",
             "command": null,
             "display_name": "app2",
             "healthcheck": [],
             "icon": null,
-            "id": "5b4d0b04-3cfe-4d08-98e3-898695b88cd2",
+            "id": "b3cbb3eb-62d8-485f-8378-2d2ed751aa38",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -94,7 +94,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "2585046395046815387",
+            "id": "5757307222275435634",
             "triggers": null
           },
           "sensitive_values": {},

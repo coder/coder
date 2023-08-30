@@ -9,7 +9,7 @@
           "mode": "managed",
           "type": "coder_agent",
           "name": "main",
-          "provider_name": "example.com/coder/coder",
+          "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
             "arch": "amd64",
@@ -65,7 +65,7 @@
       "mode": "managed",
       "type": "coder_agent",
       "name": "main",
-      "provider_name": "example.com/coder/coder",
+      "provider_name": "registry.terraform.io/coder/coder",
       "change": {
         "actions": [
           "create"
@@ -142,8 +142,8 @@
     "provider_config": {
       "coder": {
         "name": "coder",
-        "full_name": "example.com/coder/coder",
-        "version_constraint": "1.0.0"
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "0.11.2"
       },
       "null": {
         "name": "null",
@@ -201,5 +201,5 @@
       ]
     }
   },
-  "timestamp": "2023-08-24T20:40:34Z"
+  "timestamp": "2023-08-30T19:25:10Z"
 }

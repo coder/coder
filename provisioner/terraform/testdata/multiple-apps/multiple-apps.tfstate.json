@@ -17,11 +17,11 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "036c6928-f693-4eb5-9144-70c34b192610",
+            "id": "c8dab94d-651c-4d9b-a19a-1c067a2976ea",
             "init_script": "",
             "os": "linux",
             "startup_script": null,
-            "token": "60fffcd6-8084-45aa-8c34-1a784b424b86",
+            "token": "96745539-f607-45f5-aa71-4f70f593ca6a",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -36,12 +36,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "036c6928-f693-4eb5-9144-70c34b192610",
+            "agent_id": "c8dab94d-651c-4d9b-a19a-1c067a2976ea",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "7f5c41f9-4465-49b5-902f-43d6010446a3",
+            "id": "de5959cb-248c-44a0-bd04-9d5f28dfb415",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -64,7 +64,7 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "036c6928-f693-4eb5-9144-70c34b192610",
+            "agent_id": "c8dab94d-651c-4d9b-a19a-1c067a2976ea",
             "command": null,
             "display_name": null,
             "healthcheck": [
@@ -75,7 +75,7 @@
               }
             ],
             "icon": null,
-            "id": "31c6b900-a810-41bd-89b8-694c3e8513f7",
+            "id": "60aaa860-01d1-4d42-804b-2dc689676307",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -100,12 +100,12 @@
           "provider_name": "registry.terraform.io/coder/coder",
           "schema_version": 0,
           "values": {
-            "agent_id": "036c6928-f693-4eb5-9144-70c34b192610",
+            "agent_id": "c8dab94d-651c-4d9b-a19a-1c067a2976ea",
             "command": null,
             "display_name": null,
             "healthcheck": [],
             "icon": null,
-            "id": "1b9b8fc7-b836-48df-88f3-df8134e867d3",
+            "id": "3455e899-9bf9-4c0e-ac5b-6f861d5541a0",
             "name": null,
             "relative_path": null,
             "share": "owner",
@@ -128,7 +128,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "383143826809070814",
+            "id": "7562947701260361048",
             "triggers": null
           },
           "sensitive_values": {},

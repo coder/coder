@@ -17,7 +17,7 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "9b8976bb-b7c6-4ef7-bb2d-ec360e1ddc78",
+            "id": "4d2791c5-e623-4c79-9c3a-81d70fde0f1d",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
@@ -36,7 +36,7 @@
             "startup_script": null,
             "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "5679e0fb-9e0e-499e-8471-31ed329a362c",
+            "token": "b068b430-4ecb-4116-a103-de3aaa1abd3e",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -57,7 +57,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "6471d650-ad2b-47fe-850e-e3c3dfc97f69",
+            "id": "0a46d060-c676-4324-a016-8dcdc7581d36",
             "item": [
               {
                 "is_null": false,
@@ -72,7 +72,7 @@
                 "value": ""
               }
             ],
-            "resource_id": "7415628465989691375"
+            "resource_id": "6477445272839759515"
           },
           "sensitive_values": {
             "item": [
@@ -96,7 +96,7 @@
             "daily_cost": 20,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "4a89795d-85f3-4069-960b-0ed9ba3c8e3a",
+            "id": "77a107bc-073e-4180-9f7f-0e60fc42b6c2",
             "item": [
               {
                 "is_null": false,
@@ -105,7 +105,7 @@
                 "value": "world"
               }
             ],
-            "resource_id": "7415628465989691375"
+            "resource_id": "6477445272839759515"
           },
           "sensitive_values": {
             "item": [
@@ -125,7 +125,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7415628465989691375",
+            "id": "6477445272839759515",
             "triggers": null
           },
           "sensitive_values": {},

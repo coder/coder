@@ -17,7 +17,7 @@
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "id": "975d294c-7eed-4c00-963e-58c3e25ff95b",
+            "id": "6b3b30af-2ac4-4e70-a162-42008b6f7b61",
             "init_script": "",
             "login_before_ready": true,
             "metadata": [
@@ -35,7 +35,7 @@
             "shutdown_script_timeout": 300,
             "startup_script": null,
             "startup_script_timeout": 300,
-            "token": "a10e7f6d-d8ef-40a6-8988-1b78d4f3a0a2",
+            "token": "fd450209-d2ce-4d89-8a48-b937de972e41",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -56,7 +56,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "bab9bc39-db12-46dc-9971-2e42b9c96f66",
+            "id": "0bd3be9b-5733-48ee-807a-dadf70117512",
             "item": [
               {
                 "is_null": false,
@@ -83,7 +83,7 @@
                 "value": "squirrel"
               }
             ],
-            "resource_id": "8478793242865886885"
+            "resource_id": "5418245869413214440"
           },
           "sensitive_values": {
             "item": [
@@ -106,7 +106,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8478793242865886885",
+            "id": "5418245869413214440",
             "triggers": null
           },
           "sensitive_values": {},
