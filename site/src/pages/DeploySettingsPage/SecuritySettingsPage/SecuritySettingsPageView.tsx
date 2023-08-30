@@ -23,66 +23,70 @@ export const SecuritySettingsPageView = ({
   options: options,
   featureAuditLogEnabled,
   featureBrowserOnlyEnabled,
-}: SecuritySettingsPageViewProps): JSX.Element => (
-  <>
-    <Stack direction="column" spacing={6}>
-      <div>
-        <Header
-          title="Security"
-          description="Ensure your Coder deployment is secure."
-        />
+}: SecuritySettingsPageViewProps): JSX.Element => {
+  const tlsOptions = options.filter((o) =>
+    deploymentGroupHasParent(o.group, "TLS"),
+  )
 
-        <OptionsTable
-          options={useDeploymentOptions(
-            options,
-            "SSH Keygen Algorithm",
-            "Secure Auth Cookie",
-            "Disable Owner Workspace Access",
-          )}
-        />
-      </div>
+  return (
+    <>
+      <Stack direction="column" spacing={6}>
+        <div>
+          <Header
+            title="Security"
+            description="Ensure your Coder deployment is secure."
+          />
 
-      <div>
-        <Header
-          title="Audit Logging"
-          secondary
-          description="Allow auditors to monitor user operations in your deployment."
-          docsHref={docs("/admin/audit-logs")}
-        />
+          <OptionsTable
+            options={useDeploymentOptions(
+              options,
+              "SSH Keygen Algorithm",
+              "Secure Auth Cookie",
+              "Disable Owner Workspace Access",
+            )}
+          />
+        </div>
 
-        <Badges>
-          {featureAuditLogEnabled ? <EnabledBadge /> : <DisabledBadge />}
-          <EnterpriseBadge />
-        </Badges>
-      </div>
+        <div>
+          <Header
+            title="Audit Logging"
+            secondary
+            description="Allow auditors to monitor user operations in your deployment."
+            docsHref={docs("/admin/audit-logs")}
+          />
 
-      <div>
-        <Header
-          title="Browser Only Connections"
-          secondary
-          description="Block all workspace access via SSH, port forward, and other non-browser connections."
-          docsHref={docs("/networking#browser-only-connections-enterprise")}
-        />
+          <Badges>
+            {featureAuditLogEnabled ? <EnabledBadge /> : <DisabledBadge />}
+            <EnterpriseBadge />
+          </Badges>
+        </div>
 
-        <Badges>
-          {featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
-          <EnterpriseBadge />
-        </Badges>
-      </div>
+        <div>
+          <Header
+            title="Browser Only Connections"
+            secondary
+            description="Block all workspace access via SSH, port forward, and other non-browser connections."
+            docsHref={docs("/networking#browser-only-connections-enterprise")}
+          />
 
-      <div>
-        <Header
-          title="TLS"
-          secondary
-          description="Ensure TLS is properly configured for your Coder deployment."
-        />
+          <Badges>
+            {featureBrowserOnlyEnabled ? <EnabledBadge /> : <DisabledBadge />}
+            <EnterpriseBadge />
+          </Badges>
+        </div>
 
-        <OptionsTable
-          options={options.filter((o) =>
-            deploymentGroupHasParent(o.group, "TLS"),
-          )}
-        />
-      </div>
-    </Stack>
-  </>
-)
+        {tlsOptions.length > 0 && (
+          <div>
+            <Header
+              title="TLS"
+              secondary
+              description="Ensure TLS is properly configured for your Coder deployment."
+            />
+
+            <OptionsTable options={tlsOptions} />
+          </div>
+        )}
+      </Stack>
+    </>
+  )
+}
