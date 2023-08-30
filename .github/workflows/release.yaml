@@ -366,8 +366,12 @@ jobs:
           darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
           linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
 
+          echo "macOS arm64: $darwin_arm_sha"
+          echo "macOS amd64: $darwin_intel_sha"
+          echo "Linux amd64: $linux_sha"
+
           # Check out the homebrew repo
-          git clone "git@github.com:$GH_REPO.git" homebrew-coder
+          git clone "https://github.com/$GH_REPO" homebrew-coder
           brew_branch="auto-release/$coder_version"
           cd homebrew-coder
 
