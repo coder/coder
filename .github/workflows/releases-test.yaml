@@ -1,0 +1,120 @@
+# GitHub release workflow.
+name: Release
+on:
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  # Required to publish a release
+  contents: write
+  # Necessary to push docker images to ghcr.io.
+  packages: write
+  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+  id-token: write
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+env:
+  # Use `inputs` (vs `github.event.inputs`) to ensure that booleans are actual
+  # booleans, not strings.
+  # https://github.blog/changelog/2022-06-10-github-actions-inputs-unified-across-manual-and-reusable-workflows/
+  CODER_RELEASE: ${{ !inputs.dry_run }}
+  CODER_DRY_RUN: ${{ inputs.dry_run }}
+
+jobs:
+  release:
+    name: Build and publish
+    runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    env:
+      # Necessary for Docker manifest
+      DOCKER_CLI_EXPERIMENTAL: "enabled"
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Print version
+        id: version
+        run: |
+          set -euo pipefail
+          version="$(./scripts/version.sh)"
+          echo "version=$version" >> $GITHUB_OUTPUT
+          # Speed up future version.sh calls.
+          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
+          echo "$version"
+
+  publish-homebrew:
+    name: Publish to Homebrew tap
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !inputs.dry_run }}
+
+    steps:
+      # TODO: skip this if it's not a new release (i.e. a backport). This is
+      #       fine right now because it just makes a PR that we can close.
+      - name: Update homebrew
+        env:
+          # Variables used by the `gh` command
+          GH_REPO: coder/homebrew-coder
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+        run: |
+          # Keep version number around for reference, removing any potential leading v
+          coder_version="$(echo "${{ needs.release.outputs.version }}" | tr -d v)"
+
+          set -euxo pipefail
+
+          # Setup Git
+          git config --global user.email "ci@coder.com"
+          git config --global user.name "Coder CI"
+
+          temp_dir="$(mktemp -d)"
+          cd "$temp_dir"
+
+          # Download checksums
+          checksums_url="$(gh release view --repo coder/coder v2.1.4 --json assets \
+            | jq -r ".assets | map(.url) | .[]" \
+            | grep -e ".checksums.txt\$")"
+          wget "$checksums_url" -O checksums.txt
+
+          # Get the SHAs
+          darwin_arm_sha="$(cat checksums.txt | grep "darwin_arm64.zip" | awk '{ print $1 }')"
+          darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
+          linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
+
+          # Check out the homebrew repo
+          git clone "git@github.com:$GH_REPO.git" homebrew-coder
+          brew_branch="auto-release/$coder_version"
+          cd homebrew-coder
+
+          # Check if a PR already exists.
+          pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
+          if [[ "$pr_count" > 0 ]]; then
+            echo "Bailing out as PR already exists" 2>&1
+            exit 0
+          fi
+
+          # Update the formulae and push
+          git checkout -b "$brew_branch"
+          ./scripts/update-v2.sh "$coder_version" "$darwin_arm_sha" "$darwin_intel_sha" "$linux_sha"
+          git add .
+          git commit -m "coder $coder_version"
+          git push -u origin -f "$brew_branch"
+
+          # Create PR
+          gh pr create \
+            -B master -H "$brew_branch" \
+            -t "coder $coder_version" \
+            -b "" \
+            -r "${{ github.actor }}" \
+            -a "${{ github.actor }}"
