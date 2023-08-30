@@ -21,7 +21,7 @@ const OptionsTable: FC<{
   const styles = useStyles()
 
   if (options.length === 0) {
-    return <DisabledBadge></DisabledBadge>
+    return <p>No options to configure</p>
   }
 
   return (
