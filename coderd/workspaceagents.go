@@ -1996,8 +1996,17 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		gitAuthConfig = gitAuth
 	}
 	if gitAuthConfig == nil {
+		detail := "No git providers are configured."
+		if len(api.GitAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.GitAuthConfigs))
+			for _, gitAuth := range api.GitAuthConfigs {
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.Regex.String()))
+			}
+			detail = fmt.Sprintf("The configured git provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
+		}
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No git provider found for URL %q", gitURL),
+			Message: fmt.Sprintf("No matching git provider found in Coder for the url %q.", gitURL),
+			Detail:  detail,
 		})
 		return
 	}
