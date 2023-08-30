@@ -1,10 +1,11 @@
 # macOS
 
-You can use [Homebrew](https://brew.sh) to install the `coder` command.
-Homebrew is recommended, but you can also use our [install script](./install.sh.md)
-or download a [standalone binary](./binary.md).
+You can use [Homebrew](https://brew.sh) to install the `coder` command. Homebrew
+is recommended, but you can also use our [install script](./install.sh.md) or
+download a [standalone binary](./binary.md).
 
-1. Install Coder from our official [Homebrew tap](https://github.com/coder/homebrew-coder)
+1. Install Coder from our official
+   [Homebrew tap](https://github.com/coder/homebrew-coder)
 
    ```console
    brew install coder/coder/coder
