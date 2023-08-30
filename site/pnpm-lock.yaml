@@ -97,8 +97,8 @@ dependencies:
     specifier: 2.0.1
     version: 2.0.1
   cron-parser:
-    specifier: 4.7.0
-    version: 4.7.0
+    specifier: 4.9.0
+    version: 4.9.0
   cronstrue:
     specifier: 2.28.0
     version: 2.28.0
@@ -7153,8 +7153,8 @@ packages:
     resolution: {integrity: sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==}
     dev: true
 
-  /cron-parser@4.7.0:
-    resolution: {integrity: sha512-BdAELR+MCT2ZWsIBhZKDuUqIUCBjHHulPJnm53OfdRLA4EWBjva3R+KM5NeidJuGsNXdEcZkjC7SCnkW5rAFSA==}
+  /cron-parser@4.9.0:
+    resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
     dependencies:
       luxon: 3.3.0
