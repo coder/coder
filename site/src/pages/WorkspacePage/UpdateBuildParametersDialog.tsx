@@ -14,7 +14,7 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
 import { useFormik } from "formik"
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters"
 import * as Yup from "yup"
@@ -25,7 +25,7 @@ import { useTranslation } from "react-i18next"
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void
   onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void
-  missedParameters?: TemplateVersionParameter[]
+  missedParameters: TemplateVersionParameter[]
 }
 
 export const UpdateBuildParametersDialog: FC<
@@ -33,7 +33,7 @@ export const UpdateBuildParametersDialog: FC<
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
   const styles = useStyles()
   const initialRichParameterValues =
-    selectInitialRichParametersValues(missedParameters)
+    getInitialRichParameterValues(missedParameters)
   const form = useFormik({
     initialValues: {
       rich_parameter_values: initialRichParameterValues,

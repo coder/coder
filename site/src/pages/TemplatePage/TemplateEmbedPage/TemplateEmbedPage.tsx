@@ -20,7 +20,7 @@ import { useClipboard } from "hooks/useClipboard"
 import { FC, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
-import { selectInitialRichParametersValues } from "utils/richParameters"
+import { getInitialRichParameterValues } from "utils/richParameters"
 import { paramsUsedToCreateWorkspace } from "utils/workspace"
 
 type ButtonValues = Record<string, string>
@@ -55,7 +55,7 @@ export const TemplateEmbedPageView: FC<{
     mode: "manual",
   })
   const initialRichParametersValues = templateParameters
-    ? selectInitialRichParametersValues(templateParameters)
+    ? getInitialRichParameterValues(templateParameters)
     : undefined
   const deploymentUrl = `${window.location.protocol}//${window.location.host}`
   const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`

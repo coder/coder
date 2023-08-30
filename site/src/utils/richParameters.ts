@@ -5,9 +5,9 @@ import {
 import { useTranslation } from "react-i18next"
 import * as Yup from "yup"
 
-export const selectInitialRichParametersValues = (
-  templateParameters?: TemplateVersionParameter[],
-  defaultBuildParameters?: WorkspaceBuildParameter[],
+export const getInitialRichParameterValues = (
+  templateParameters: TemplateVersionParameter[],
+  buildParameters?: WorkspaceBuildParameter[],
 ): WorkspaceBuildParameter[] => {
   const defaults: WorkspaceBuildParameter[] = []
   if (!templateParameters) {
@@ -21,8 +21,8 @@ export const selectInitialRichParametersValues = (
       parameterValue = parameterValue ?? parameter.options[0].value
       const validValues = parameter.options.map((option) => option.value)
 
-      if (defaultBuildParameters) {
-        const defaultBuildParameter = defaultBuildParameters.find(
+      if (buildParameters) {
+        const defaultBuildParameter = buildParameters.find(
           (p) => p.name === parameter.name,
         )
 
@@ -47,8 +47,8 @@ export const selectInitialRichParametersValues = (
       parameterValue = parameter.default_value
     }
 
-    if (defaultBuildParameters) {
-      const buildParameter = defaultBuildParameters.find(
+    if (buildParameters) {
+      const buildParameter = buildParameters.find(
         (p) => p.name === parameter.name,
       )
 
@@ -192,22 +192,4 @@ export const useValidationSchemaForRichParameters = (
       }),
     )
     .required()
-}
-
-export const getInitialParameterValues = (
-  templateParameters: TemplateVersionParameter[],
-  buildParameters: WorkspaceBuildParameter[],
-) => {
-  return templateParameters.map((parameter) => {
-    const buildParameter = buildParameters.find(
-      (p) => p.name === parameter.name,
-    )
-    if (!buildParameter || parameter.ephemeral) {
-      return {
-        name: parameter.name,
-        value: parameter.default_value,
-      }
-    }
-    return buildParameter
-  })
 }

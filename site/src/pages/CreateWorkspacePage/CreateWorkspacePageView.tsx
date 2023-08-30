@@ -16,7 +16,7 @@ import {
 } from "components/Form/Form"
 import { makeStyles } from "@mui/styles"
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters"
 import {
@@ -54,7 +54,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const initialRichParameterValues = selectInitialRichParametersValues(
+  const initialRichParameterValues = getInitialRichParameterValues(
     parameters,
     defaultBuildParameters,
   )

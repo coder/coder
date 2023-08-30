@@ -22,7 +22,7 @@ import { useFormik } from "formik"
 import { useRef, useState } from "react"
 import { docs } from "utils/docs"
 import { getFormHelpers } from "utils/formUtils"
-import { getInitialParameterValues } from "utils/richParameters"
+import { getInitialRichParameterValues } from "utils/richParameters"
 
 export const BuildParametersPopover = ({
   workspace,
@@ -148,7 +148,7 @@ const Form = ({
 }) => {
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: getInitialParameterValues(
+      rich_parameter_values: getInitialRichParameterValues(
         ephemeralParameters,
         buildParameters,
       ),
