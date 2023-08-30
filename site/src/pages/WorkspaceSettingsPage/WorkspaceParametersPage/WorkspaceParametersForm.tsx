@@ -39,17 +39,12 @@ export const WorkspaceParametersForm: FC<{
   isSubmitting,
 }) => {
   const { t } = useTranslation("workspaceSettingsPage")
-  const mutableParameters = templateVersionRichParameters.filter(
-    (param) => param.mutable === true,
-  )
-  const immutableParameters = templateVersionRichParameters.filter(
-    (param) => param.mutable === false,
-  )
+
   const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(
-        mutableParameters,
+        templateVersionRichParameters,
         buildParameters,
       ),
     },
@@ -64,11 +59,14 @@ export const WorkspaceParametersForm: FC<{
     form,
     error,
   )
-  const hasEphemeralParameters = mutableParameters.some(
+  const hasEphemeralParameters = templateVersionRichParameters.some(
     (parameter) => parameter.ephemeral,
   )
-  const hasNonEphemeralParameters = mutableParameters.some(
+  const hasNonEphemeralParameters = templateVersionRichParameters.some(
     (parameter) => !parameter.ephemeral,
+  )
+  const hasImmutableParameters = templateVersionRichParameters.some(
+    (parameter) => !parameter.mutable,
   )
 
   return (
@@ -79,10 +77,10 @@ export const WorkspaceParametersForm: FC<{
           description={t("parametersDescription").toString()}
         >
           <FormFields>
-            {mutableParameters.map((parameter, index) =>
+            {templateVersionRichParameters.map((parameter, index) =>
               // Since we are adding the values to the form based on the index
               // we can't filter them to not loose the right index position
-              parameter.ephemeral ? null : (
+              parameter.mutable && !parameter.ephemeral ? (
                 <RichParameterInput
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
@@ -97,7 +95,7 @@ export const WorkspaceParametersForm: FC<{
                   }}
                   parameter={parameter}
                 />
-              ),
+              ) : null,
             )}
           </FormFields>
         </FormSection>
@@ -108,10 +106,10 @@ export const WorkspaceParametersForm: FC<{
           description="These parameters only apply for a single workspace start."
         >
           <FormFields>
-            {mutableParameters.map((parameter, index) =>
+            {templateVersionRichParameters.map((parameter, index) =>
               // Since we are adding the values to the form based on the index
               // we can't filter them to not loose the right index position
-              parameter.ephemeral ? (
+              parameter.mutable && parameter.ephemeral ? (
                 <RichParameterInput
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
@@ -132,7 +130,7 @@ export const WorkspaceParametersForm: FC<{
         </FormSection>
       )}
       {/* They are displayed here only for visibility purposes */}
-      {immutableParameters.length > 0 && (
+      {hasImmutableParameters && (
         <FormSection
           title="Immutable parameters"
           description={
@@ -144,19 +142,21 @@ export const WorkspaceParametersForm: FC<{
           }
         >
           <FormFields>
-            {immutableParameters.map((parameter, index) => (
-              <RichParameterInput
-                disabled
-                {...getFieldHelpers(
-                  "rich_parameter_values[" + index + "].value",
-                )}
-                key={parameter.name}
-                parameter={parameter}
-                onChange={() => {
-                  throw new Error("Immutable parameters cannot be changed")
-                }}
-              />
-            ))}
+            {templateVersionRichParameters.map((parameter, index) =>
+              !parameter.mutable ? (
+                <RichParameterInput
+                  disabled
+                  {...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  )}
+                  key={parameter.name}
+                  parameter={parameter}
+                  onChange={() => {
+                    throw new Error("Immutable parameters cannot be changed")
+                  }}
+                />
+              ) : null,
+            )}
           </FormFields>
         </FormSection>
       )}

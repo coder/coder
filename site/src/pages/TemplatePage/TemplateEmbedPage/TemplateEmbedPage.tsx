@@ -63,14 +63,17 @@ export const TemplateEmbedPageView: FC<{
   const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`
   const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`
   const clipboard = useClipboard(buttonMkdCode)
-
   const getInputProps: TemplateParametersSectionProps["getInputProps"] = (
     parameter,
   ) => {
     if (!initialRichParametersValues) {
       throw new Error("initialRichParametersValues is undefined")
     }
+    const buildParam = initialRichParametersValues.find(
+      (v) => v.name === parameter.name,
+    )
     return {
+      value: buildParam?.value ?? "",
       onChange: (value) => {
         setButtonValues((buttonValues) => ({
           ...buttonValues,
