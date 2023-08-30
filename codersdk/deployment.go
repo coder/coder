@@ -48,6 +48,7 @@ const (
 	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
 	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
 	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
+	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -64,6 +65,7 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureWorkspaceBatchActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -1958,9 +1960,6 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
-	// Workspaces batch actions
-	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
-
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )
@@ -1971,7 +1970,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentWorkspacesBatchActions,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

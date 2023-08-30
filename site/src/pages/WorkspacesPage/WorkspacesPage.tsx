@@ -68,10 +68,9 @@ const WorkspacesPage: FC = () => {
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([])
   const [isDeletingAll, setIsDeletingAll] = useState(false)
   const [urlSearchParams] = searchParamsResult
-  const dashboard = useDashboard()
-  const isWorkspaceBatchActionsEnabled =
-    dashboard.experiments.includes("workspaces_batch_actions") ||
-    process.env.NODE_ENV === "development"
+  const { entitlements } = useDashboard()
+  const canCheckWorkspaces =
+    entitlements.features["workspace_batch_actions"].enabled
 
   // We want to uncheck the selected workspaces always when the url changes
   // because of filtering or pagination
@@ -86,9 +85,9 @@ const WorkspacesPage: FC = () => {
       </Helmet>
 
       <WorkspacesPageView
-        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
+        canCheckWorkspaces={canCheckWorkspaces}
         workspaces={data?.workspaces}
         dormantWorkspaces={dormantWorkspaces}
         error={error}
@@ -198,7 +197,7 @@ const BatchDeleteConfirmation = ({
   const confirmDeletion = async () => {
     setConfirmError(false)
 
-    if (confirmValue.toLowerCase() !== "delete") {
+    if (confirmValue !== "DELETE") {
       setConfirmError(true)
       return
     }
