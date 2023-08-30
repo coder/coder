@@ -107,6 +107,8 @@ jobs:
             exit 0
           fi
 
+          # Set up cdrci credentials for pushing to homebrew-coder
+          echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
           # Update the formulae and push
           git checkout -b "$brew_branch"
           ./scripts/update-v2.sh "$coder_version" "$darwin_arm_sha" "$darwin_intel_sha" "$linux_sha"
