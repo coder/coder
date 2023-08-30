@@ -314,9 +314,6 @@ devDependencies:
   '@types/ssh2':
     specifier: 1.11.13
     version: 1.11.13
-  '@types/testing-library__jest-dom':
-    specifier: 6.0.0
-    version: 6.0.0(@types/jest@29.5.2)(jest@29.6.2)
   '@types/ua-parser-js':
     specifier: 0.7.36
     version: 0.7.36
@@ -5699,18 +5696,6 @@ packages:
 
   /@types/stack-utils@2.0.1:
     resolution: {integrity: sha512-Hl219/BT5fLAaz6NDkSuhzasy49dwQS/DSdu4MdggFB8zcXv7vflBI3xp7FEmkmdDkBUI2bPUNeMttp2knYdxw==}
-
-  /@types/testing-library__jest-dom@6.0.0(@types/jest@29.5.2)(jest@29.6.2):
-    resolution: {integrity: sha512-bnreXCgus6IIadyHNlN/oI5FfX4dWgvGhOPvpr7zzCYDGAPIfvyIoAozMBINmhmsVuqV0cncejF2y5KC7ScqOg==}
-    deprecated: This is a stub types definition. @testing-library/jest-dom provides its own type definitions, so you do not need this installed.
-    dependencies:
-      '@testing-library/jest-dom': 6.1.2(@types/jest@29.5.2)(jest@29.6.2)
-    transitivePeerDependencies:
-      - '@jest/globals'
-      - '@types/jest'
-      - jest
-      - vitest
-    dev: true
 
   /@types/tough-cookie@4.0.2:
     resolution: {integrity: sha512-Q5vtl1W5ue16D+nIaW8JWebSSraJVlK+EthKn7e7UcD4KWsaSJ8BqGPXNaPghgtcn/fhvrN17Tv8ksUsQpiplw==}
