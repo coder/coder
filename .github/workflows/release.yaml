@@ -398,7 +398,8 @@ jobs:
             -t "coder $coder_version" \
             -b "" \
             -r "${{ github.actor }}" \
-            -a "${{ github.actor }}"
+            -a "${{ github.actor }}" \
+            -b "This automatic PR was triggered by the release of Coder v$coder_version"
 
   publish-winget:
     name: Publish to winget-pkgs
