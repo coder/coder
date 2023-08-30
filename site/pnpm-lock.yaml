@@ -243,8 +243,8 @@ devDependencies:
     specifier: 11.1.0
     version: 11.1.0
   '@playwright/test':
-    specifier: 1.36.0
-    version: 1.36.0
+    specifier: 1.37.1
+    version: 1.37.1
   '@storybook/addon-actions':
     specifier: 7.2.0
     version: 7.2.0(@types/react-dom@18.2.4)(@types/react@18.2.6)(react-dom@18.2.0)(react@18.2.0)
@@ -3149,13 +3149,13 @@ packages:
       tslib: 2.6.1
     dev: true
 
-  /@playwright/test@1.36.0:
-    resolution: {integrity: sha512-yN+fvMYtiyLFDCQos+lWzoX4XW3DNuaxjBu68G0lkgLgC6BP+m/iTxJQoSicz/x2G5EsrqlZTqTIP9sTgLQerg==}
+  /@playwright/test@1.37.1:
+    resolution: {integrity: sha512-bq9zTli3vWJo8S3LwB91U0qDNQDpEXnw7knhxLM0nwDvexQAwx9tO8iKDZSqqneVq+URd/WIoz+BALMqUTgdSg==}
     engines: {node: '>=16'}
     hasBin: true
     dependencies:
-      '@types/node': 20.4.5
-      playwright-core: 1.36.0
+      '@types/node': 18.17.0
+      playwright-core: 1.37.1
     optionalDependencies:
       fsevents: 2.3.2
     dev: true
@@ -4472,7 +4472,7 @@ packages:
       '@storybook/node-logger': 7.2.0
       '@storybook/types': 7.2.0
       '@types/find-cache-dir': 3.2.1
-      '@types/node': 16.18.39
+      '@types/node': 16.18.41
       '@types/node-fetch': 2.6.4
       '@types/pretty-hrtime': 1.0.1
       chalk: 4.1.2
@@ -4559,7 +4559,7 @@ packages:
       '@storybook/telemetry': 7.2.0
       '@storybook/types': 7.2.0
       '@types/detect-port': 1.3.3
-      '@types/node': 16.18.39
+      '@types/node': 16.18.41
       '@types/pretty-hrtime': 1.0.1
       '@types/semver': 7.5.0
       better-opn: 3.0.2
@@ -5494,6 +5494,7 @@ packages:
 
   /@types/node@20.4.5:
     resolution: {integrity: sha512-rt40Nk13II9JwQBdeYqmbn2Q6IVTA5uPhvSO+JVqdXw/6/4glI6oR9ezty/A9Hg5u7JH4OmYmuQ+XvjKm0Datg==}
+    dev: false
 
   /@types/normalize-package-data@2.4.1:
     resolution: {integrity: sha512-Gj7cI7z+98M282Tqmp2K5EIsoouUEzbBJhQQzDE3jSIRk6r9gsz0oUokqIUR4u1R3dMHo0pDHM7sNOHyhulypw==}
@@ -11523,8 +11524,8 @@ packages:
       find-up: 5.0.0
     dev: true
 
-  /playwright-core@1.36.0:
-    resolution: {integrity: sha512-7RTr8P6YJPAqB+8j5ATGHqD6LvLLM39sYVNsslh78g8QeLcBs5750c6+msjrHUwwGt+kEbczBj1XB22WMwn+WA==}
+  /playwright-core@1.37.1:
+    resolution: {integrity: sha512-17EuQxlSIYCmEMwzMqusJ2ztDgJePjrbttaefgdsiqeLWidjYz9BxXaTaZWxH1J95SHGk6tjE+dwgWILJoUZfA==}
     engines: {node: '>=16'}
     hasBin: true
     dev: true
