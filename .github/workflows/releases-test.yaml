@@ -48,11 +48,10 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          version="$(./scripts/version.sh)"
-          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "version=2.1.4" >> $GITHUB_OUTPUT
           # Speed up future version.sh calls.
-          echo "CODER_FORCE_VERSION=$version" >> $GITHUB_ENV
-          echo "$version"
+          echo "CODER_FORCE_VERSION=2.1.4" >> $GITHUB_ENV
+          echo "2.1.4"
 
   publish-homebrew:
     name: Publish to Homebrew tap
