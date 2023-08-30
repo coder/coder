@@ -97,7 +97,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
           </TableRow>
         </TableHead>
         <TableBody>
-          {!workspaces && <TableLoader />}
+          {!workspaces && (
+            <TableLoader canCheckWorkspaces={canCheckWorkspaces} />
+          )}
           {workspaces && workspaces.length === 0 && (
             <ChooseOne>
               <Cond condition={isUsingFilter}>
@@ -285,18 +287,19 @@ export const UnhealthyTooltip = () => {
   )
 }
 
-const TableLoader = () => {
+const TableLoader = ({
+  canCheckWorkspaces,
+}: {
+  canCheckWorkspaces: boolean
+}) => {
   return (
     <TableLoaderSkeleton>
       <TableRowSkeleton>
-        <TableCell
-          width="40%"
-          sx={{
-            paddingLeft: (theme) => `${theme.spacing(1.5)} !important`,
-          }}
-        >
+        <TableCell width="40%">
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Checkbox size="small" disabled />
+            {canCheckWorkspaces && (
+              <Checkbox size="small" disabled sx={{ marginLeft: "-20px" }} />
+            )}
             <AvatarDataSkeleton />
           </Box>
         </TableCell>
