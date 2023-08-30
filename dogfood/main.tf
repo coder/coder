@@ -183,10 +183,12 @@ resource "coder_agent" "dev" {
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
     filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
 
-    if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
-      mkdir -p ${data.coder_parameter.repo_dir.value}
+    repo_dir="${data.coder_parameter.repo_dir.value}"
+    repo_dir="$${repo_dir/#~\//$HOME\/}"
+    if [ ! -d "$repo_dir" ]; then
+      mkdir -p "$repo_dir"
 
-      git clone https://github.com/coder/coder ${data.coder_parameter.repo_dir.value}
+      git clone https://github.com/coder/coder "$repo_dir"
     fi
 
     sudo service docker start
@@ -207,7 +209,7 @@ resource "coder_app" "code-server" {
   agent_id     = coder_agent.dev.id
   slug         = "code-server"
   display_name = "code-server"
-  url          = "http://localhost:13337/"
+  url          = "http://localhost:13337/?folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}"
   icon         = "/icon/code.svg"
   subdomain    = false
   share        = "owner"
