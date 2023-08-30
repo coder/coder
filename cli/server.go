@@ -2105,6 +2105,7 @@ func ConfigureTraceProvider(
 		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
 			Coder:     shouldCoderTrace,
+			DataDog:   cfg.Trace.DataDog.Value(),
 			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
 		})
 		if err != nil {
