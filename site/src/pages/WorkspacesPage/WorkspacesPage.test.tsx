@@ -63,7 +63,7 @@ describe("WorkspacesPage", () => {
 
     await user.click(getWorkspaceCheckbox(workspaces[0]))
     await user.click(getWorkspaceCheckbox(workspaces[1]))
-    await user.click(screen.getByRole("button", { name: /delete all/i }))
+    await user.click(screen.getByRole("button", { name: /delete selected/i }))
     await user.type(screen.getByLabelText(/type delete to confirm/i), "DELETE")
     await user.click(screen.getByTestId("confirm-button"))
 

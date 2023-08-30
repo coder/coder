@@ -1102,6 +1102,7 @@ export interface TraceConfig {
   readonly enable: boolean
   readonly honeycomb_api_key: string
   readonly capture_logs: boolean
+  readonly data_dog: boolean
 }
 
 // From codersdk/templates.go
@@ -1605,7 +1606,6 @@ export type Experiment =
   | "tailnet_pg_coordinator"
   | "template_autostop_requirement"
   | "workspace_actions"
-  | "workspaces_batch_actions"
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
@@ -1613,7 +1613,6 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "workspace_actions",
-  "workspaces_batch_actions",
 ]
 
 // From codersdk/deployment.go
@@ -1630,6 +1629,7 @@ export type FeatureName =
   | "template_rbac"
   | "user_limit"
   | "user_role_management"
+  | "workspace_batch_actions"
   | "workspace_proxy"
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
@@ -1644,6 +1644,7 @@ export const FeatureNames: FeatureName[] = [
   "template_rbac",
   "user_limit",
   "user_role_management",
+  "workspace_batch_actions",
   "workspace_proxy",
 ]
 

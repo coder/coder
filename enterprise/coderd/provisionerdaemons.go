@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -243,23 +244,33 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:                   api.AccessURL,
-		GitAuthConfigs:              api.GitAuthConfigs,
-		OIDCConfig:                  api.OIDCConfig,
-		ID:                          daemon.ID,
-		Database:                    api.Database,
-		Pubsub:                      api.Pubsub,
-		Provisioners:                daemon.Provisioners,
-		Telemetry:                   api.Telemetry,
-		Auditor:                     &api.AGPL.Auditor,
-		TemplateScheduleStore:       api.AGPL.TemplateScheduleStore,
-		UserQuietHoursScheduleStore: api.AGPL.UserQuietHoursScheduleStore,
-		Logger:                      api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		Tags:                        rawTags,
-		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
-		DeploymentValues:            api.DeploymentValues,
-	})
+	srv, err := provisionerdserver.NewServer(
+		api.AccessURL,
+		daemon.ID,
+		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		daemon.Provisioners,
+		rawTags,
+		api.Database,
+		api.Pubsub,
+		api.Telemetry,
+		trace.NewNoopTracerProvider().Tracer("noop"),
+		&api.AGPL.QuotaCommitter,
+		&api.AGPL.Auditor,
+		api.AGPL.TemplateScheduleStore,
+		api.AGPL.UserQuietHoursScheduleStore,
+		api.DeploymentValues,
+		// TODO(spikecurtis) - fix debounce to not cause flaky tests.
+		time.Duration(0),
+		provisionerdserver.Options{
+			GitAuthConfigs: api.GitAuthConfigs,
+			OIDCConfig:     api.OIDCConfig,
+		},
+	)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
+		return
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
