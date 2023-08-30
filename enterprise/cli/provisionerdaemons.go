@@ -83,6 +83,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			}()
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()

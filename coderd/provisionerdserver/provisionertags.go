@@ -24,7 +24,9 @@ func MutateTags(userID uuid.UUID, tags map[string]string) map[string]string {
 	}
 	switch tags[TagScope] {
 	case ScopeUser:
-		tags[TagOwner] = userID.String()
+		if userID != uuid.Nil {
+			tags[TagOwner] = userID.String()
+		}
 	case ScopeOrganization:
 	default:
 		tags[TagScope] = ScopeOrganization
