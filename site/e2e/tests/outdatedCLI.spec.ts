@@ -7,8 +7,11 @@ import {
   sshIntoWorkspace,
   startAgent,
 } from "../helpers"
+import { beforeCoderTest } from "../hooks"
 
 const clientVersion = "v0.14.0"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("ssh with client " + clientVersion, async ({ page }) => {
   const token = randomUUID()

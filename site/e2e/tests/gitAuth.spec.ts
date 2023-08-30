@@ -3,6 +3,9 @@ import { gitAuth } from "../constants"
 import { Endpoints } from "@octokit/types"
 import { GitAuthDevice } from "api/typesGenerated"
 import { Awaiter, createServer } from "../helpers"
+import { beforeCoderTest } from "../hooks"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 // Ensures that a Git auth provider with the device flow functions and completes!
 test("git auth device", async ({ page }) => {

@@ -554,7 +554,7 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test
+      - run: pnpm playwright:test --workers 1
         env:
           DEBUG: pw:api
         working-directory: site
