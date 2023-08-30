@@ -244,7 +244,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
-	debounce := time.Second
 	srv, err := provisionerdserver.NewServer(
 		api.AccessURL,
 		daemon.ID,
@@ -260,7 +259,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.TemplateScheduleStore,
 		api.AGPL.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
-		debounce,
+		// TODO(spikecurtis) - fix debounce to not cause flaky tests.
+		time.Duration(0),
 		provisionerdserver.Options{
 			GitAuthConfigs: api.GitAuthConfigs,
 			OIDCConfig:     api.OIDCConfig,
