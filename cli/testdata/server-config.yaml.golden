@@ -201,6 +201,9 @@ introspection:
     # which may incur significant costs.
     # (default: <unset>, type: bool)
     captureLogs: false
+    # Enables sending Go runtime traces to the local DataDog agent.
+    # (default: false, type: bool)
+    dataDog: false
   logging:
     # Output debug-level logs.
     # (default: <unset>, type: bool)

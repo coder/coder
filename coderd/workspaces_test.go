@@ -116,6 +116,8 @@ func TestWorkspace(t *testing.T) {
 		if len(want) > 32 {
 			want = want[:32-5] + "-test"
 		}
+		// Sometimes truncated names result in `--test` which is not an allowed name.
+		want = strings.Replace(want, "--", "-", -1)
 		err := client.UpdateWorkspace(ctx, ws1.ID, codersdk.UpdateWorkspaceRequest{
 			Name: want,
 		})
@@ -1837,7 +1839,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
-						RestartRequirement:   schedule.TemplateRestartRequirement{},
+						AutostopRequirement:  schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
@@ -2004,7 +2006,7 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  false,
 						DefaultTTL:           0,
-						RestartRequirement:   schedule.TemplateRestartRequirement{},
+						AutostopRequirement:  schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 				SetFn: func(_ context.Context, _ database.Store, tpl database.Template, _ schedule.TemplateScheduleOptions) (database.Template, error) {
