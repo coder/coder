@@ -18,7 +18,6 @@ import { makeStyles } from "@mui/styles"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
 } from "utils/richParameters"
 import {
   ImmutableTemplateParametersSection,
@@ -173,10 +172,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     })
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
                   disabled: form.isSubmitting,
                 }
               }}
@@ -195,10 +190,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     })
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
                   disabled: form.isSubmitting,
                 }
               }}

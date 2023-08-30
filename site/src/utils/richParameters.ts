@@ -194,16 +194,6 @@ export const useValidationSchemaForRichParameters = (
     .required()
 }
 
-export const workspaceBuildParameterValue = (
-  workspaceBuildParameters: WorkspaceBuildParameter[],
-  parameter: TemplateVersionParameter,
-): string => {
-  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
-    return buildParameter.name === parameter.name
-  })
-  return (buildParameter && buildParameter.value) || ""
-}
-
 export const getInitialParameterValues = (
   templateParameters: TemplateVersionParameter[],
   buildParameters: WorkspaceBuildParameter[],

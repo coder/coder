@@ -20,10 +20,7 @@ import { useClipboard } from "hooks/useClipboard"
 import { FC, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
-import {
-  selectInitialRichParametersValues,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
+import { selectInitialRichParametersValues } from "utils/richParameters"
 import { paramsUsedToCreateWorkspace } from "utils/workspace"
 
 type ButtonValues = Record<string, string>
@@ -74,11 +71,6 @@ export const TemplateEmbedPageView: FC<{
       throw new Error("initialRichParametersValues is undefined")
     }
     return {
-      id: parameter.name,
-      initialValue: workspaceBuildParameterValue(
-        initialRichParametersValues,
-        parameter,
-      ),
       onChange: (value) => {
         setButtonValues((buttonValues) => ({
           ...buttonValues,

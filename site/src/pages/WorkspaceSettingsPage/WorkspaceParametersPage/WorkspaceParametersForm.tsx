@@ -11,7 +11,6 @@ import { useTranslation } from "react-i18next"
 import {
   getInitialParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
 } from "utils/richParameters"
 import * as Yup from "yup"
 import { getFormHelpers } from "utils/formUtils"
@@ -89,7 +88,6 @@ export const WorkspaceParametersForm: FC<{
                     "rich_parameter_values[" + index + "].value",
                   )}
                   disabled={isSubmitting}
-                  index={index}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
@@ -98,10 +96,6 @@ export const WorkspaceParametersForm: FC<{
                     })
                   }}
                   parameter={parameter}
-                  initialValue={workspaceBuildParameterValue(
-                    buildParameters,
-                    parameter,
-                  )}
                 />
               ),
             )}
@@ -123,7 +117,6 @@ export const WorkspaceParametersForm: FC<{
                     "rich_parameter_values[" + index + "].value",
                   )}
                   disabled={isSubmitting}
-                  index={index}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
@@ -132,7 +125,6 @@ export const WorkspaceParametersForm: FC<{
                     })
                   }}
                   parameter={parameter}
-                  initialValue={form.values.rich_parameter_values[index]?.value}
                 />
               ) : null,
             )}
@@ -158,18 +150,11 @@ export const WorkspaceParametersForm: FC<{
                 {...getFieldHelpers(
                   "rich_parameter_values[" + index + "].value",
                 )}
-                index={index}
                 key={parameter.name}
-                onChange={async () => {
-                  throw new Error(
-                    "Cannot change immutable parameter after creation",
-                  )
-                }}
                 parameter={parameter}
-                initialValue={workspaceBuildParameterValue(
-                  buildParameters,
-                  parameter,
-                )}
+                onChange={() => {
+                  throw new Error("Immutable parameters cannot be changed")
+                }}
               />
             ))}
           </FormFields>

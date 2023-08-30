@@ -168,8 +168,6 @@ const Form = ({
               {...getFieldHelpers("rich_parameter_values[" + index + "].value")}
               key={parameter.name}
               parameter={parameter}
-              initialValue={form.values.rich_parameter_values[index]?.value}
-              index={index}
               size="small"
               onChange={async (value) => {
                 await form.setFieldValue(`rich_parameter_values[${index}]`, {

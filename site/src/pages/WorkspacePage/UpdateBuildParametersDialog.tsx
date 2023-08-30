@@ -16,7 +16,6 @@ import { useFormik } from "formik"
 import {
   selectInitialRichParametersValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
 } from "utils/richParameters"
 import * as Yup from "yup"
 import DialogActions from "@mui/material/DialogActions"
@@ -84,13 +83,8 @@ export const UpdateBuildParametersDialog: FC<
                     {...getFieldHelpers(
                       "rich_parameter_values[" + index + "].value",
                     )}
-                    initialValue={workspaceBuildParameterValue(
-                      initialRichParameterValues,
-                      parameter,
-                    )}
                     key={parameter.name}
                     parameter={parameter}
-                    index={index}
                     onChange={async (value) => {
                       await form.setFieldValue(
                         "rich_parameter_values." + index,
