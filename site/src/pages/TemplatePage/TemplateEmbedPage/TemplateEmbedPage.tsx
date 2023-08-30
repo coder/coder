@@ -17,7 +17,7 @@ import {
   TemplateParametersSectionProps,
 } from "components/TemplateParameters/TemplateParameters"
 import { useClipboard } from "hooks/useClipboard"
-import { FC, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
 import { getInitialRichParameterValues } from "utils/richParameters"
@@ -51,12 +51,9 @@ export const TemplateEmbedPageView: FC<{
   template: Template
   templateParameters?: TemplateVersionParameter[]
 }> = ({ template, templateParameters }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues>({
-    mode: "manual",
-  })
-  const initialRichParametersValues = templateParameters
-    ? getInitialRichParameterValues(templateParameters)
-    : undefined
+  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
+    undefined,
+  )
   const deploymentUrl = `${window.location.protocol}//${window.location.host}`
   const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`
   const createWorkspaceParams = new URLSearchParams(buttonValues)
@@ -66,14 +63,11 @@ export const TemplateEmbedPageView: FC<{
   const getInputProps: TemplateParametersSectionProps["getInputProps"] = (
     parameter,
   ) => {
-    if (!initialRichParametersValues) {
-      throw new Error("initialRichParametersValues is undefined")
+    if (!buttonValues) {
+      throw new Error("buttonValues is undefined")
     }
-    const buildParam = initialRichParametersValues.find(
-      (v) => v.name === parameter.name,
-    )
     return {
-      value: buildParam?.value ?? "",
+      value: buttonValues[`param.${parameter.name}`] ?? "",
       onChange: (value) => {
         setButtonValues((buttonValues) => ({
           ...buttonValues,
@@ -83,12 +77,28 @@ export const TemplateEmbedPageView: FC<{
     }
   }
 
+  // template parameters is async so we need to initialize the values after it
+  // is loaded
+  useEffect(() => {
+    if (templateParameters && !buttonValues) {
+      const buttonValues: ButtonValues = {
+        mode: "manual",
+      }
+      for (const parameter of getInitialRichParameterValues(
+        templateParameters,
+      )) {
+        buttonValues[`param.${parameter.name}`] = parameter.value
+      }
+      setButtonValues(buttonValues)
+    }
+  }, [buttonValues, templateParameters])
+
   return (
     <>
       <Helmet>
         <title>{pageTitle(`${template.name} · Embed`)}</title>
       </Helmet>
-      {!templateParameters ? (
+      {!buttonValues || !templateParameters ? (
         <Loader />
       ) : (
         <Box display="flex" alignItems="flex-start" gap={6}>
