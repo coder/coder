@@ -37,6 +37,95 @@ func init() {
 	browser.Stdout = io.Discard
 }
 
+func promptFirstUsername(inv *clibase.Invocation) (string, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", xerrors.Errorf("get current user: %w", err)
+	}
+	username, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text:    "What " + cliui.DefaultStyles.Field.Render("username") + " would you like?",
+		Default: currentUser.Username,
+	})
+	if errors.Is(err, cliui.Canceled) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+
+	return username, nil
+}
+
+func promptFirstPassword(inv *clibase.Invocation) (string, error) {
+retry:
+	password, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text:   "Enter a " + cliui.DefaultStyles.Field.Render("password") + ":",
+		Secret: true,
+		Validate: func(s string) error {
+			return userpassword.Validate(s)
+		},
+	})
+	if err != nil {
+		return "", xerrors.Errorf("specify password prompt: %w", err)
+	}
+	confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
+		Secret:   true,
+		Validate: cliui.ValidateNotEmpty,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("confirm password prompt: %w", err)
+	}
+
+	if confirm != password {
+		_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Passwords do not match"))
+		goto retry
+	}
+
+	return password, nil
+}
+
+func (r *RootCmd) loginWithPassword(
+	inv *clibase.Invocation,
+	client *codersdk.Client,
+	email, password string,
+) error {
+	resp, err := client.LoginWithPassword(inv.Context(), codersdk.LoginWithPasswordRequest{
+		Email:    email,
+		Password: password,
+	})
+	if err != nil {
+		return xerrors.Errorf("login with password: %w", err)
+	}
+
+	sessionToken := resp.SessionToken
+	config := r.createConfig()
+	err = config.Session().Write(sessionToken)
+	if err != nil {
+		return xerrors.Errorf("write session token: %w", err)
+	}
+
+	client.SetSessionToken(sessionToken)
+
+	// Nice side-effect: validates the token.
+	u, err := client.User(inv.Context(), "me")
+	if err != nil {
+		return xerrors.Errorf("get user: %w", err)
+	}
+
+	_, _ = fmt.Fprintf(
+		inv.Stdout,
+		cliui.DefaultStyles.Paragraph.Render(
+			fmt.Sprintf(
+				"Welcome to Coder, %s! You're authenticated.",
+				cliui.DefaultStyles.Keyword.Render(u.Username),
+			),
+		)+"\n",
+	)
+
+	return nil
+}
+
 func (r *RootCmd) login() *clibase.Cmd {
 	const firstUserTrialEnv = "CODER_FIRST_USER_TRIAL"
 
@@ -91,41 +180,30 @@ func (r *RootCmd) login() *clibase.Cmd {
 				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Warn.Render(err.Error()))
 			}
 
-			hasInitialUser, err := client.HasFirstUser(ctx)
+			hasFirstUser, err := client.HasFirstUser(ctx)
 			if err != nil {
 				return xerrors.Errorf("Failed to check server %q for first user, is the URL correct and is coder accessible from your browser? Error - has initial user: %w", serverURL.String(), err)
 			}
-			if !hasInitialUser {
+			if !hasFirstUser {
 				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTY(inv) {
 						return xerrors.New("the initial user cannot be created in non-interactive mode. use the API")
 					}
+
 					_, err := cliui.Prompt(inv, cliui.PromptOptions{
 						Text:      "Would you like to create the first user?",
 						Default:   cliui.ConfirmYes,
 						IsConfirm: true,
 					})
-					if errors.Is(err, cliui.Canceled) {
-						return nil
-					}
 					if err != nil {
 						return err
 					}
-					currentUser, err := user.Current()
+
+					username, err = promptFirstUsername(inv)
 					if err != nil {
-						return xerrors.Errorf("get current user: %w", err)
-					}
-					username, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text:    "What " + cliui.DefaultStyles.Field.Render("username") + " would you like?",
-						Default: currentUser.Username,
-					})
-					if errors.Is(err, cliui.Canceled) {
-						return nil
-					}
-					if err != nil {
-						return xerrors.Errorf("pick username prompt: %w", err)
+						return err
 					}
 				}
 
@@ -141,37 +219,14 @@ func (r *RootCmd) login() *clibase.Cmd {
 						},
 					})
 					if err != nil {
-						return xerrors.Errorf("specify email prompt: %w", err)
+						return err
 					}
 				}
 
 				if password == "" {
-					var matching bool
-
-					for !matching {
-						password, err = cliui.Prompt(inv, cliui.PromptOptions{
-							Text:   "Enter a " + cliui.DefaultStyles.Field.Render("password") + ":",
-							Secret: true,
-							Validate: func(s string) error {
-								return userpassword.Validate(s)
-							},
-						})
-						if err != nil {
-							return xerrors.Errorf("specify password prompt: %w", err)
-						}
-						confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
-							Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
-							Secret:   true,
-							Validate: cliui.ValidateNotEmpty,
-						})
-						if err != nil {
-							return xerrors.Errorf("confirm password prompt: %w", err)
-						}
-
-						matching = confirm == password
-						if !matching {
-							_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Passwords do not match"))
-						}
+					password, err = promptFirstPassword(inv)
+					if err != nil {
+						return err
 					}
 				}
 
@@ -193,29 +248,19 @@ func (r *RootCmd) login() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
 				}
-				resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
-					Email:    email,
-					Password: password,
-				})
+
+				err := r.loginWithPassword(inv, client, email, password)
 				if err != nil {
-					return xerrors.Errorf("login with password: %w", err)
+					return err
 				}
 
-				sessionToken := resp.SessionToken
-				config := r.createConfig()
-				err = config.Session().Write(sessionToken)
-				if err != nil {
-					return xerrors.Errorf("write session token: %w", err)
-				}
-				err = config.URL().Write(serverURL.String())
+				err = r.createConfig().URL().Write(serverURL.String())
 				if err != nil {
 					return xerrors.Errorf("write server url: %w", err)
 				}
 
-				_, _ = fmt.Fprintf(inv.Stdout,
-					cliui.DefaultStyles.Paragraph.Render(fmt.Sprintf("Welcome to Coder, %s! You're authenticated.", cliui.DefaultStyles.Keyword.Render(username)))+"\n")
-
-				_, _ = fmt.Fprintf(inv.Stdout,
+				_, _ = fmt.Fprintf(
+					inv.Stdout,
 					cliui.DefaultStyles.Paragraph.Render("Get started by creating a template: "+cliui.DefaultStyles.Code.Render("coder templates init"))+"\n")
 				return nil
 			}

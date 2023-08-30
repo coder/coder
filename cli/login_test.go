@@ -97,16 +97,15 @@ func TestLogin(t *testing.T) {
 	t.Run("InitialUserFlags", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "SomeSecurePassword!", "--first-user-trial")
-		pty := ptytest.New(t).Attach(root)
-		go func() {
-			defer close(doneChan)
-			err := root.Run()
-			assert.NoError(t, err)
-		}()
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", "testuser", "--first-user-email", "user@coder.com",
+			"--first-user-password", "SomeSecurePassword!", "--first-user-trial",
+		)
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatch("Welcome to Coder")
-		<-doneChan
+		w.RequireSuccess()
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
