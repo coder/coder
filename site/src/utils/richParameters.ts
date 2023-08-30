@@ -9,61 +9,34 @@ export const getInitialRichParameterValues = (
   templateParameters: TemplateVersionParameter[],
   buildParameters?: WorkspaceBuildParameter[],
 ): WorkspaceBuildParameter[] => {
-  const defaults: WorkspaceBuildParameter[] = []
-  if (!templateParameters) {
-    return defaults
+  return templateParameters.map((parameter) => {
+    const existentBuildParameter = buildParameters?.find(
+      (p) => p.name === parameter.name,
+    )
+    const shouldReturnTheDefaultValue =
+      !existentBuildParameter ||
+      !isValidValue(parameter, existentBuildParameter) ||
+      parameter.ephemeral
+    if (shouldReturnTheDefaultValue) {
+      return {
+        name: parameter.name,
+        value: parameter.default_value,
+      }
+    }
+    return existentBuildParameter
+  })
+}
+
+const isValidValue = (
+  templateParam: TemplateVersionParameter,
+  buildParam: WorkspaceBuildParameter,
+) => {
+  if (templateParam.options.length > 0) {
+    const validValues = templateParam.options.map((option) => option.value)
+    return validValues.includes(buildParam.value)
   }
 
-  templateParameters.forEach((parameter) => {
-    let parameterValue = parameter.default_value
-
-    if (parameter.options.length > 0) {
-      parameterValue = parameterValue ?? parameter.options[0].value
-      const validValues = parameter.options.map((option) => option.value)
-
-      if (buildParameters) {
-        const defaultBuildParameter = buildParameters.find(
-          (p) => p.name === parameter.name,
-        )
-
-        // We don't want invalid values from default parameters to be set
-        if (
-          defaultBuildParameter &&
-          validValues.includes(defaultBuildParameter.value)
-        ) {
-          parameterValue = defaultBuildParameter?.value
-        }
-      }
-
-      const buildParameter: WorkspaceBuildParameter = {
-        name: parameter.name,
-        value: parameterValue,
-      }
-      defaults.push(buildParameter)
-      return
-    }
-
-    if (parameter.ephemeral) {
-      parameterValue = parameter.default_value
-    }
-
-    if (buildParameters) {
-      const buildParameter = buildParameters.find(
-        (p) => p.name === parameter.name,
-      )
-
-      if (buildParameter) {
-        parameterValue = buildParameter?.value
-      }
-    }
-
-    const buildParameter: WorkspaceBuildParameter = {
-      name: parameter.name,
-      value: parameterValue || "",
-    }
-    defaults.push(buildParameter)
-  })
-  return defaults
+  return true
 }
 
 export const useValidationSchemaForRichParameters = (
