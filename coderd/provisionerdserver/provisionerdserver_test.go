@@ -1565,6 +1565,11 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					Slug: "a",
 				}},
 				ShutdownScript: "shutdown",
+				DisplayApps: &sdkproto.DisplayApps{
+					Vscode:               true,
+					PortForwardingHelper: true,
+					SshHelper:            true,
+				},
 			}},
 		})
 		require.NoError(t, err)
@@ -1587,6 +1592,63 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		got, err := agent.EnvironmentVariables.RawMessage.MarshalJSON()
 		require.NoError(t, err)
 		require.Equal(t, want, got)
+		require.ElementsMatch(t, []database.DisplayApp{
+			database.DisplayAppPortForwardingHelper,
+			database.DisplayAppSSHHelper,
+			database.DisplayAppVscode,
+		}, agent.DisplayApps)
+	})
+
+	t.Run("AllDisplayApps", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				DisplayApps: &sdkproto.DisplayApps{
+					Vscode:               true,
+					VscodeInsiders:       true,
+					SshHelper:            true,
+					PortForwardingHelper: true,
+					WebTerminal:          true,
+				},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		require.ElementsMatch(t, database.AllDisplayAppValues(), agent.DisplayApps)
+	})
+
+	t.Run("DisableDefaultApps", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		job := uuid.New()
+		err := insert(db, job, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				DisplayApps: &sdkproto.DisplayApps{},
+			}},
+		})
+		require.NoError(t, err)
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job)
+		require.NoError(t, err)
+		require.Len(t, resources, 1)
+		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
+		require.NoError(t, err)
+		require.Len(t, agents, 1)
+		agent := agents[0]
+		// An empty array (as opposed to nil) should be returned to indicate
+		// that all apps are disabled.
+		require.Equal(t, []database.DisplayApp{}, agent.DisplayApps)
 	})
 }
 

@@ -174,6 +174,97 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 		require.NotEmpty(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Reason)
 	})
+
+	t.Run("DisplayApps", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		authToken := uuid.NewString()
+		tmpDir := t.TempDir()
+		apps := &proto.DisplayApps{
+			Vscode:               true,
+			VscodeInsiders:       true,
+			WebTerminal:          true,
+			PortForwardingHelper: true,
+			SshHelper:            true,
+		}
+
+		echoResp := &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Name: "example",
+								Type: "aws_instance",
+								Agents: []*proto.Agent{
+									{
+										Id:        uuid.NewString(),
+										Directory: tmpDir,
+										Auth: &proto.Agent_Token{
+											Token: authToken,
+										},
+										DisplayApps: apps,
+									},
+								},
+							},
+						},
+					},
+				},
+			}},
+		}
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResp)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		workspace, err := client.Workspace(ctx, workspace.ID)
+		require.NoError(t, err)
+		agent, err := client.WorkspaceAgent(ctx, workspace.LatestBuild.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		expectedApps := []codersdk.DisplayApp{
+			codersdk.DisplayAppPortForward,
+			codersdk.DisplayAppSSH,
+			codersdk.DisplayAppVSCodeDesktop,
+			codersdk.DisplayAppVSCodeInsiders,
+			codersdk.DisplayAppWebTerminal,
+		}
+		require.ElementsMatch(t, expectedApps, agent.DisplayApps)
+
+		// Flips all the apps to false.
+		apps.PortForwardingHelper = false
+		apps.Vscode = false
+		apps.VscodeInsiders = false
+		apps.SshHelper = false
+		apps.WebTerminal = false
+
+		version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResp,
+			func(req *codersdk.CreateTemplateVersionRequest) {
+				req.TemplateID = template.ID
+			})
+
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		// Creating another workspace is just easier.
+		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.NoError(t, err)
+		agent, err = client.WorkspaceAgent(ctx, build.Resources[0].Agents[0].ID)
+		require.NoError(t, err)
+		require.Len(t, agent.DisplayApps, 0)
+	})
 }
 
 func TestWorkspaceAgentStartupLogs(t *testing.T) {

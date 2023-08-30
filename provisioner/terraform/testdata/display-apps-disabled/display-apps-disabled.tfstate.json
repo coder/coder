@@ -5,32 +5,6 @@
     "root_module": {
       "resources": [
         {
-          "address": "data.coder_git_auth.github",
-          "mode": "data",
-          "type": "coder_git_auth",
-          "name": "github",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "access_token": "",
-            "id": "github"
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "data.coder_git_auth.gitlab",
-          "mode": "data",
-          "type": "coder_git_auth",
-          "name": "gitlab",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
-          "values": {
-            "access_token": "",
-            "id": "gitlab"
-          },
-          "sensitive_values": {}
-        },
-        {
           "address": "coder_agent.main",
           "mode": "managed",
           "type": "coder_agent",
@@ -42,20 +16,35 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": false,
+                "ssh_helper": false,
+                "vscode": false,
+                "vscode_insiders": false,
+                "web_terminal": false
+              }
+            ],
             "env": null,
-            "id": "a8139f31-219b-4ee5-9e64-60d8dd94be27",
+            "id": "ba0faeb0-5a14-4908-946e-360329a8c852",
             "init_script": "",
             "login_before_ready": true,
+            "metadata": [],
             "motd_file": null,
             "os": "linux",
             "shutdown_script": null,
             "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
             "startup_script_timeout": 300,
-            "token": "20cdf0ee-2da9-432e-a3ad-674b900ed3c1",
+            "token": "010c13b9-95aa-4b66-a2ad-5937e467134a",
             "troubleshooting_url": null
           },
           "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": [],
             "token": true
           }
         },
@@ -67,7 +56,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "8246789295692160686",
+            "id": "7220106781059326067",
             "triggers": null
           },
           "sensitive_values": {},

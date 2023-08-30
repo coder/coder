@@ -16,30 +16,39 @@
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
+            "display_apps": [
+              {
+                "port_forwarding_helper": false,
+                "ssh_helper": false,
+                "vscode": false,
+                "vscode_insiders": false,
+                "web_terminal": false
+              }
+            ],
             "env": null,
+            "login_before_ready": true,
+            "metadata": [],
+            "motd_file": null,
             "os": "linux",
+            "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
             "troubleshooting_url": null
           },
-          "sensitive_values": {}
+          "sensitive_values": {
+            "display_apps": [
+              {}
+            ],
+            "metadata": []
+          }
         },
         {
-          "address": "null_resource.a",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
-          "provider_name": "registry.terraform.io/hashicorp/null",
-          "schema_version": 0,
-          "values": {
-            "triggers": null
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "null_resource.b",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "b",
+          "name": "dev",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -67,48 +76,51 @@
           "auth": "token",
           "connection_timeout": 120,
           "dir": null,
+          "display_apps": [
+            {
+              "port_forwarding_helper": false,
+              "ssh_helper": false,
+              "vscode": false,
+              "vscode_insiders": false,
+              "web_terminal": false
+            }
+          ],
           "env": null,
+          "login_before_ready": true,
+          "metadata": [],
+          "motd_file": null,
           "os": "linux",
+          "shutdown_script": null,
+          "shutdown_script_timeout": 300,
           "startup_script": null,
+          "startup_script_behavior": null,
+          "startup_script_timeout": 300,
           "troubleshooting_url": null
         },
         "after_unknown": {
+          "display_apps": [
+            {}
+          ],
           "id": true,
           "init_script": true,
+          "metadata": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
+          "display_apps": [
+            {}
+          ],
+          "metadata": [],
           "token": true
         }
       }
     },
     {
-      "address": "null_resource.a",
+      "address": "null_resource.dev",
       "mode": "managed",
       "type": "null_resource",
-      "name": "a",
-      "provider_name": "registry.terraform.io/hashicorp/null",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "triggers": null
-        },
-        "after_unknown": {
-          "id": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {}
-      }
-    },
-    {
-      "address": "null_resource.b",
-      "mode": "managed",
-      "type": "null_resource",
-      "name": "b",
+      "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -131,7 +143,7 @@
       "coder": {
         "name": "coder",
         "full_name": "registry.terraform.io/coder/coder",
-        "version_constraint": "0.6.1"
+        "version_constraint": "0.11.2"
       },
       "null": {
         "name": "null",
@@ -150,6 +162,25 @@
             "arch": {
               "constant_value": "amd64"
             },
+            "display_apps": [
+              {
+                "port_forwarding_helper": {
+                  "constant_value": false
+                },
+                "ssh_helper": {
+                  "constant_value": false
+                },
+                "vscode": {
+                  "constant_value": false
+                },
+                "vscode_insiders": {
+                  "constant_value": false
+                },
+                "web_terminal": {
+                  "constant_value": false
+                }
+              }
+            ],
             "os": {
               "constant_value": "linux"
             }
@@ -157,21 +188,10 @@
           "schema_version": 0
         },
         {
-          "address": "null_resource.a",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "a",
-          "provider_config_key": "null",
-          "schema_version": 0,
-          "depends_on": [
-            "null_resource.b"
-          ]
-        },
-        {
-          "address": "null_resource.b",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "b",
+          "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
@@ -181,5 +201,5 @@
       ]
     }
   },
-  "timestamp": "2023-08-30T19:25:02Z"
+  "timestamp": "2023-08-30T19:25:10Z"
 }

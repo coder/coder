@@ -281,6 +281,73 @@ func AllBuildReasonValues() []BuildReason {
 	}
 }
 
+type DisplayApp string
+
+const (
+	DisplayAppVscode               DisplayApp = "vscode"
+	DisplayAppVscodeInsiders       DisplayApp = "vscode_insiders"
+	DisplayAppWebTerminal          DisplayApp = "web_terminal"
+	DisplayAppSSHHelper            DisplayApp = "ssh_helper"
+	DisplayAppPortForwardingHelper DisplayApp = "port_forwarding_helper"
+)
+
+func (e *DisplayApp) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = DisplayApp(s)
+	case string:
+		*e = DisplayApp(s)
+	default:
+		return fmt.Errorf("unsupported scan type for DisplayApp: %T", src)
+	}
+	return nil
+}
+
+type NullDisplayApp struct {
+	DisplayApp DisplayApp `json:"display_app"`
+	Valid      bool       `json:"valid"` // Valid is true if DisplayApp is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullDisplayApp) Scan(value interface{}) error {
+	if value == nil {
+		ns.DisplayApp, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.DisplayApp.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullDisplayApp) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.DisplayApp), nil
+}
+
+func (e DisplayApp) Valid() bool {
+	switch e {
+	case DisplayAppVscode,
+		DisplayAppVscodeInsiders,
+		DisplayAppWebTerminal,
+		DisplayAppSSHHelper,
+		DisplayAppPortForwardingHelper:
+		return true
+	}
+	return false
+}
+
+func AllDisplayAppValues() []DisplayApp {
+	return []DisplayApp{
+		DisplayAppVscode,
+		DisplayAppVscodeInsiders,
+		DisplayAppWebTerminal,
+		DisplayAppSSHHelper,
+		DisplayAppPortForwardingHelper,
+	}
+}
+
 type GroupSource string
 
 const (
@@ -1953,8 +2020,9 @@ type WorkspaceAgent struct {
 	// The time the agent entered the starting lifecycle state
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// The time the agent entered the ready or start_error lifecycle state
-	ReadyAt    sql.NullTime              `db:"ready_at" json:"ready_at"`
-	Subsystems []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
+	ReadyAt     sql.NullTime              `db:"ready_at" json:"ready_at"`
+	Subsystems  []WorkspaceAgentSubsystem `db:"subsystems" json:"subsystems"`
+	DisplayApps []DisplayApp              `db:"display_apps" json:"display_apps"`
 }
 
 type WorkspaceAgentLog struct {

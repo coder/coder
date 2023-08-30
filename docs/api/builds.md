@@ -82,6 +82,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -244,6 +245,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -545,6 +547,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
+        "display_apps": ["vscode"],
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -643,6 +646,7 @@ Status Code **200**
 | `»» created_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» directory`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» display_apps`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`           | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -802,6 +806,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -969,6 +974,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1103,6 +1109,7 @@ Status Code **200**
 | `»»» created_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» directory`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» disconnected_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_apps`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» environment_variables`           | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1315,6 +1322,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"

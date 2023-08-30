@@ -50,10 +50,11 @@ INSERT INTO
 		startup_script_behavior,
 		startup_script_timeout_seconds,
 		shutdown_script,
-		shutdown_script_timeout_seconds
+		shutdown_script_timeout_seconds,
+		display_apps
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE

@@ -219,14 +219,17 @@ export const AgentRow: FC<AgentRowProps> = ({
           <div className={styles.agentButtons}>
             {shouldDisplayApps && (
               <>
-                {!hideVSCodeDesktopButton && (
-                  <VSCodeDesktopButton
-                    userName={workspace.owner_name}
-                    workspaceName={workspace.name}
-                    agentName={agent.name}
-                    folderPath={agent.expanded_directory}
-                  />
-                )}
+                {(agent.display_apps.includes("vscode") ||
+                  agent.display_apps.includes("vscode_insiders")) &&
+                  !hideVSCodeDesktopButton && (
+                    <VSCodeDesktopButton
+                      userName={workspace.owner_name}
+                      workspaceName={workspace.name}
+                      agentName={agent.name}
+                      folderPath={agent.expanded_directory}
+                      displayApps={agent.display_apps}
+                    />
+                  )}
                 {agent.apps.map((app) => (
                   <AppLink
                     key={app.slug}
@@ -240,20 +243,24 @@ export const AgentRow: FC<AgentRowProps> = ({
 
             {showBuiltinApps && (
               <>
-                <TerminalLink
-                  workspaceName={workspace.name}
-                  agentName={agent.name}
-                  userName={workspace.owner_name}
-                />
-                {!hideSSHButton && (
-                  <SSHButton
+                {agent.display_apps.includes("web_terminal") && (
+                  <TerminalLink
                     workspaceName={workspace.name}
                     agentName={agent.name}
-                    sshPrefix={sshPrefix}
+                    userName={workspace.owner_name}
                   />
                 )}
+                {!hideSSHButton &&
+                  agent.display_apps.includes("ssh_helper") && (
+                    <SSHButton
+                      workspaceName={workspace.name}
+                      agentName={agent.name}
+                      sshPrefix={sshPrefix}
+                    />
+                  )}
                 {proxy.preferredWildcardHostname &&
-                  proxy.preferredWildcardHostname !== "" && (
+                  proxy.preferredWildcardHostname !== "" &&
+                  agent.display_apps.includes("port_forwarding_helper") && (
                     <PortForwardButton
                       host={proxy.preferredWildcardHostname}
                       workspaceName={workspace.name}

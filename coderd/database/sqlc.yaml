@@ -71,6 +71,7 @@ overrides:
       eof: EOF
       template_ids: TemplateIDs
       active_user_ids: ActiveUserIDs
+      display_app_ssh_helper: DisplayAppSSHHelper
 
 sql:
   - schema: "./dump.sql"

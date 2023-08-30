@@ -15,6 +15,7 @@ import (
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -40,12 +41,21 @@ type agentAttributes struct {
 	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
 	MOTDFile                 string            `mapstructure:"motd_file"`
 	// Deprecated, but remains here for backwards compatibility.
-	LoginBeforeReady             bool            `mapstructure:"login_before_ready"`
-	StartupScriptBehavior        string          `mapstructure:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds  int32           `mapstructure:"startup_script_timeout"`
-	ShutdownScript               string          `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32           `mapstructure:"shutdown_script_timeout"`
-	Metadata                     []agentMetadata `mapstructure:"metadata"`
+	LoginBeforeReady             bool                         `mapstructure:"login_before_ready"`
+	StartupScriptBehavior        string                       `mapstructure:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds  int32                        `mapstructure:"startup_script_timeout"`
+	ShutdownScript               string                       `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32                        `mapstructure:"shutdown_script_timeout"`
+	Metadata                     []agentMetadata              `mapstructure:"metadata"`
+	DisplayApps                  []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+}
+
+type agentDisplayAppsAttributes struct {
+	VSCode               bool `mapstructure:"vscode"`
+	VSCodeInsiders       bool `mapstructure:"vscode_insiders"`
+	WebTerminal          bool `mapstructure:"web_terminal"`
+	SSHHelper            bool `mapstructure:"ssh_helper"`
+	PortForwardingHelper bool `mapstructure:"port_forwarding_helper"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -181,6 +191,20 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				})
 			}
 
+			// If a user doesn't specify 'display_apps' then they default
+			// into all apps except VSCode Insiders.
+			displayApps := provisionersdk.DefaultDisplayApps()
+
+			if len(attrs.DisplayApps) != 0 {
+				displayApps = &proto.DisplayApps{
+					Vscode:               attrs.DisplayApps[0].VSCode,
+					VscodeInsiders:       attrs.DisplayApps[0].VSCodeInsiders,
+					WebTerminal:          attrs.DisplayApps[0].WebTerminal,
+					PortForwardingHelper: attrs.DisplayApps[0].PortForwardingHelper,
+					SshHelper:            attrs.DisplayApps[0].SSHHelper,
+				}
+			}
+
 			agent := &proto.Agent{
 				Name:                         tfResource.Name,
 				Id:                           attrs.ID,
@@ -197,6 +221,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				ShutdownScript:               attrs.ShutdownScript,
 				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
 				Metadata:                     metadata,
+				DisplayApps:                  displayApps,
 			}
 			switch attrs.Auth {
 			case "token":

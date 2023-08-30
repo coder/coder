@@ -16,6 +16,9 @@ test("web terminal", async ({ context, page }) => {
               agents: [
                 {
                   token,
+                  displayApps: {
+                    webTerminal: true,
+                  },
                 },
               ],
             },

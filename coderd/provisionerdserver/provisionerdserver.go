@@ -1274,6 +1274,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Valid:  prAgent.ShutdownScript != "",
 			},
 			ShutdownScriptTimeoutSeconds: prAgent.GetShutdownScriptTimeoutSeconds(),
+			DisplayApps:                  convertDisplayApps(prAgent.GetDisplayApps()),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -1610,4 +1611,29 @@ func redactTemplateVariable(templateVariable *sdkproto.TemplateVariable) *sdkpro
 		maybeRedacted.DefaultValue = "*redacted*"
 	}
 	return maybeRedacted
+}
+
+func convertDisplayApps(apps *sdkproto.DisplayApps) []database.DisplayApp {
+	// This shouldn't happen but let's avoid panicking. It also makes
+	// writing tests a bit easier.
+	if apps == nil {
+		return nil
+	}
+	dapps := make([]database.DisplayApp, 0, 5)
+	if apps.Vscode {
+		dapps = append(dapps, database.DisplayAppVscode)
+	}
+	if apps.VscodeInsiders {
+		dapps = append(dapps, database.DisplayAppVscodeInsiders)
+	}
+	if apps.SshHelper {
+		dapps = append(dapps, database.DisplayAppSSHHelper)
+	}
+	if apps.PortForwardingHelper {
+		dapps = append(dapps, database.DisplayAppPortForwardingHelper)
+	}
+	if apps.WebTerminal {
+		dapps = append(dapps, database.DisplayAppWebTerminal)
+	}
+	return dapps
 }

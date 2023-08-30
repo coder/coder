@@ -8068,6 +8068,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DisplayApp": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "vscode_insiders",
+                "web_terminal",
+                "port_forwarding_helper",
+                "ssh_helper"
+            ],
+            "x-enum-varnames": [
+                "DisplayAppVSCodeDesktop",
+                "DisplayAppVSCodeInsiders",
+                "DisplayAppWebTerminal",
+                "DisplayAppPortForward",
+                "DisplayAppSSH"
+            ]
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -10610,6 +10627,12 @@ const docTemplate = `{
                 "disconnected_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "display_apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DisplayApp"
+                    }
                 },
                 "environment_variables": {
                     "type": "object",
