@@ -25,9 +25,12 @@ import { TTLHelperText } from "./TTLHelperText"
 import { docs } from "utils/docs"
 import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import MenuItem from "@mui/material/MenuItem"
-import { AutostopRequirementDaysHelperText, AutostopRequirementWeeksHelperText, calculateAutostopRequirementDaysValue, convertAutostopRequirementDaysValue } from "./AutostopRequirementHelperText"
-
-import { withFormikDevtools } from "formik-devtools-extension"
+import {
+  AutostopRequirementDaysHelperText,
+  AutostopRequirementWeeksHelperText,
+  calculateAutostopRequirementDaysValue,
+  convertAutostopRequirementDaysValue,
+} from "./AutostopRequirementHelperText"
 
 const MS_HOUR_CONVERSION = 3600000
 const MS_DAY_CONVERSION = 86400000
@@ -81,15 +84,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         : 0,
 
       autostop_requirement_days_of_week: allowAutostopRequirement
-          ? convertAutostopRequirementDaysValue(template.autostop_requirement.days_of_week)
-          : "off",
+        ? convertAutostopRequirementDaysValue(
+            template.autostop_requirement.days_of_week,
+          )
+        : "off",
       autostop_requirement_weeks: allowAutostopRequirement
-          ? (
-              template.autostop_requirement.weeks > 0
-              ? template.autostop_requirement.weeks
-              : 1
-            )
-          : 1,
+        ? template.autostop_requirement.weeks > 0
+          ? template.autostop_requirement.weeks
+          : 1
+        : 1,
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -132,7 +135,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     },
     initialTouched,
   })
-  withFormikDevtools(form)
 
   const getFieldHelpers = getFormHelpers<TemplateScheduleFormValues>(
     form,
@@ -181,10 +183,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     useState<boolean>(false)
 
   const submitValues = () => {
-    const autostop_requirement_weeks =
-      ["saturday", "sunday"].includes(form.values.autostop_requirement_days_of_week)
-        ? form.values.autostop_requirement_weeks
-        : 1
+    const autostop_requirement_weeks = ["saturday", "sunday"].includes(
+      form.values.autostop_requirement_days_of_week,
+    )
+      ? form.values.autostop_requirement_weeks
+      : 1
 
     // on submit, convert from hours => ms
     onSubmit({
@@ -205,8 +208,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         : undefined,
 
       autostop_requirement: {
-          days_of_week: calculateAutostopRequirementDaysValue(form.values.autostop_requirement_days_of_week),
-          weeks: autostop_requirement_weeks,
+        days_of_week: calculateAutostopRequirementDaysValue(
+          form.values.autostop_requirement_days_of_week,
+        ),
+        weeks: autostop_requirement_weeks,
       },
 
       allow_user_autostart: form.values.allow_user_autostart,
@@ -217,10 +222,21 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   }
 
   // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
-  // "daily".
+  // "daily". Technically you can set weeks to a different value in the backend
+  // and it will work, but this is a UX decision so users don't set days=daily
+  // and weeks=2 and get confused when workspaces only restart daily during
+  // every second week.
+  //
+  // We want to set the value to 1 when the user selects "off" or "daily"
+  // because the input gets disabled so they can't change it to 1 themselves.
   const { values: currentValues, setValues } = form
   useEffect(() => {
-    if (!(["saturday", "sunday"].includes(currentValues.autostop_requirement_days_of_week)) && currentValues.autostop_requirement_weeks !== 1) {
+    if (
+      !["saturday", "sunday"].includes(
+        currentValues.autostop_requirement_days_of_week,
+      ) &&
+      currentValues.autostop_requirement_weeks !== 1
+    ) {
       // This is async but we don't really need to await the value.
       void setValues({
         ...currentValues,
@@ -323,7 +339,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 ) : (
                   <>
                     {commonT("licenseFieldTextHelper")}{" "}
-                    <Link href={docs("/enterprise")}>{commonT("learnMore")}</Link>
+                    <Link href={docs("/enterprise")}>
+                      {commonT("learnMore")}
+                    </Link>
                     .
                   </>
                 ),
@@ -379,7 +397,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   weeks={form.values.autostop_requirement_weeks}
                 />,
               )}
-              disabled={isSubmitting || (!["saturday", "sunday"].includes(form.values.autostop_requirement_days_of_week || ""))}
+              disabled={
+                isSubmitting ||
+                !["saturday", "sunday"].includes(
+                  form.values.autostop_requirement_days_of_week || "",
+                )
+              }
               fullWidth
               inputProps={{ min: 1, max: 16, step: 1 }}
               label={t("autostopRequirementWeeksLabel")}

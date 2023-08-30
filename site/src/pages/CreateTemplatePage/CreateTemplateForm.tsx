@@ -40,7 +40,10 @@ import camelCase from "lodash/camelCase"
 import capitalize from "lodash/capitalize"
 import { VariableInput } from "./VariableInput"
 import { docs } from "utils/docs"
-import { AutostopRequirementDaysHelperText, AutostopRequirementWeeksHelperText } from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
+import {
+  AutostopRequirementDaysHelperText,
+  AutostopRequirementWeeksHelperText,
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
 import MenuItem from "@mui/material/MenuItem"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128
@@ -92,7 +95,7 @@ const validationSchema = Yup.object({
       "Please enter a limit that is less than or equal to 720 hours (30 days).",
     ),
   autostop_requirement_days_of_week: Yup.string().required(),
-  autostop_requirement_weeks: Yup.number().required().min(1).max(16)
+  autostop_requirement_weeks: Yup.number().required().min(1).max(16),
 })
 
 const defaultInitialValues: CreateTemplateData = {
@@ -238,10 +241,19 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   }, [logs, jobError])
 
   // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
-  // "daily".
-  const { values: { autostop_requirement_days_of_week }, setFieldValue } = form
+  // "daily". Technically you can set weeks to a different value in the backend
+  // and it will work, but this is a UX decision so users don't set days=daily
+  // and weeks=2 and get confused when workspaces only restart daily during
+  // every second week.
+  //
+  // We want to set the value to 1 when the user selects "off" or "daily"
+  // because the input gets disabled so they can't change it to 1 themselves.
+  const {
+    values: { autostop_requirement_days_of_week },
+    setFieldValue,
+  } = form
   useEffect(() => {
-    if (!(["saturday", "sunday"].includes(autostop_requirement_days_of_week))) {
+    if (!["saturday", "sunday"].includes(autostop_requirement_days_of_week)) {
       // This is async but we don't really need to await the value.
       void setFieldValue("autostop_requirement_weeks", 1)
     }
@@ -364,49 +376,54 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
           </Stack>
 
           {allowAutostopRequirement && (
-              <Stack direction="row" className={styles.ttlFields}>
-                <TextField
-                  {...getFieldHelpers(
-                    "autostop_requirement_days_of_week",
-                    <AutostopRequirementDaysHelperText
-                      days={form.values.autostop_requirement_days_of_week}
-                    />,
-                  )}
-                  disabled={isSubmitting}
-                  fullWidth
-                  select
-                  value={form.values.autostop_requirement_days_of_week}
-                  label={t("form.fields.autostopRequirementDays")}
-                >
-                  <MenuItem key="off" value="off">
-                    {t("form.fields.autostopRequirementDays_off")}
-                  </MenuItem>
-                  <MenuItem key="daily" value="daily">
-                    {t("form.fields.autostopRequirementDays_daily")}
-                  </MenuItem>
-                  <MenuItem key="saturday" value="saturday">
-                    {t("form.fields.autostopRequirementDays_saturday")}
-                  </MenuItem>
-                  <MenuItem key="sunday" value="sunday">
-                    {t("form.fields.autostopRequirementDays_sunday")}
-                  </MenuItem>
-                </TextField>
+            <Stack direction="row" className={styles.ttlFields}>
+              <TextField
+                {...getFieldHelpers(
+                  "autostop_requirement_days_of_week",
+                  <AutostopRequirementDaysHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                  />,
+                )}
+                disabled={isSubmitting}
+                fullWidth
+                select
+                value={form.values.autostop_requirement_days_of_week}
+                label={t("form.fields.autostopRequirementDays")}
+              >
+                <MenuItem key="off" value="off">
+                  {t("form.fields.autostopRequirementDays_off")}
+                </MenuItem>
+                <MenuItem key="daily" value="daily">
+                  {t("form.fields.autostopRequirementDays_daily")}
+                </MenuItem>
+                <MenuItem key="saturday" value="saturday">
+                  {t("form.fields.autostopRequirementDays_saturday")}
+                </MenuItem>
+                <MenuItem key="sunday" value="sunday">
+                  {t("form.fields.autostopRequirementDays_sunday")}
+                </MenuItem>
+              </TextField>
 
-                <TextField
-                  {...getFieldHelpers(
-                    "autostop_requirement_weeks",
-                    <AutostopRequirementWeeksHelperText
-                      days={form.values.autostop_requirement_days_of_week}
-                      weeks={form.values.autostop_requirement_weeks}
-                    />,
-                  )}
-                  disabled={isSubmitting || (!["saturday", "sunday"].includes(form.values.autostop_requirement_days_of_week || ""))}
-                  fullWidth
-                  inputProps={{ min: 1, max: 16, step: 1 }}
-                  label={t("form.fields.autostopRequirementWeeks")}
-                  type="number"
-                />
-              </Stack>
+              <TextField
+                {...getFieldHelpers(
+                  "autostop_requirement_weeks",
+                  <AutostopRequirementWeeksHelperText
+                    days={form.values.autostop_requirement_days_of_week}
+                    weeks={form.values.autostop_requirement_weeks}
+                  />,
+                )}
+                disabled={
+                  isSubmitting ||
+                  !["saturday", "sunday"].includes(
+                    form.values.autostop_requirement_days_of_week || "",
+                  )
+                }
+                fullWidth
+                inputProps={{ min: 1, max: 16, step: 1 }}
+                label={t("form.fields.autostopRequirementWeeks")}
+                type="number"
+              />
+            </Stack>
           )}
 
           <Stack direction="column">

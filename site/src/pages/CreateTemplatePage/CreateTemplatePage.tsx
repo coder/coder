@@ -43,8 +43,9 @@ const CreateTemplatePage: FC = () => {
   // means no one can access.
   const allowDisableEveryoneAccess =
     entitlements.features["template_rbac"].enabled
-  const allowAutostopRequirement = experiments.includes("template_autostop_requirement")
-
+  const allowAutostopRequirement = experiments.includes(
+    "template_autostop_requirement",
+  )
 
   const onCancel = () => {
     navigate(-1)

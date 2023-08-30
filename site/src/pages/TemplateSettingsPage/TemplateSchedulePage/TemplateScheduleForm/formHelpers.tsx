@@ -3,7 +3,8 @@ import * as Yup from "yup"
 import i18next from "i18next"
 import { TemplateAutostopRequirementDaysValue } from "./AutostopRequirementHelperText"
 
-export interface TemplateScheduleFormValues extends Omit<UpdateTemplateMeta, "autostop_requirement"> {
+export interface TemplateScheduleFormValues
+  extends Omit<UpdateTemplateMeta, "autostop_requirement"> {
   autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue
   autostop_requirement_weeks: number
   failure_cleanup_enabled: boolean
@@ -85,5 +86,5 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
     allow_user_autostop: Yup.boolean(),
 
     autostop_requirement_days_of_week: Yup.string().required(),
-    autostop_requirement_weeks: Yup.number().required().min(1).max(16)
+    autostop_requirement_weeks: Yup.number().required().min(1).max(16),
   })

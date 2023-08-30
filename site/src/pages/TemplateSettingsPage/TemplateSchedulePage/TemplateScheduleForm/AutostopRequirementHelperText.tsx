@@ -1,14 +1,20 @@
 import { Template } from "api/typesGenerated"
 import { useTranslation } from "react-i18next"
 
-export type TemplateAutostopRequirementDaysValue = "off" | "daily" | "saturday" | "sunday"
+export type TemplateAutostopRequirementDaysValue =
+  | "off"
+  | "daily"
+  | "saturday"
+  | "sunday"
 
-export const convertAutostopRequirementDaysValue = (days?: Template["autostop_requirement"]["days_of_week"]): TemplateAutostopRequirementDaysValue => {
-  if (days?.length === 7) {
+export const convertAutostopRequirementDaysValue = (
+  days: Template["autostop_requirement"]["days_of_week"],
+): TemplateAutostopRequirementDaysValue => {
+  if (days.length === 7) {
     return "daily"
-  } else if (days?.length === 1 && days[0] === "saturday") {
+  } else if (days.length === 1 && days[0] === "saturday") {
     return "saturday"
-  } else if (days?.length === 1 && days[0] === "sunday") {
+  } else if (days.length === 1 && days[0] === "sunday") {
     return "sunday"
   }
 
@@ -16,10 +22,20 @@ export const convertAutostopRequirementDaysValue = (days?: Template["autostop_re
   return "off"
 }
 
-export const calculateAutostopRequirementDaysValue = (value: TemplateAutostopRequirementDaysValue): Template["autostop_requirement"]["days_of_week"] => {
+export const calculateAutostopRequirementDaysValue = (
+  value: TemplateAutostopRequirementDaysValue,
+): Template["autostop_requirement"]["days_of_week"] => {
   switch (value) {
     case "daily":
-      return ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+      return [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+      ]
     case "saturday":
       return ["saturday"]
     case "sunday":
@@ -32,7 +48,7 @@ export const calculateAutostopRequirementDaysValue = (value: TemplateAutostopReq
 export const AutostopRequirementDaysHelperText = ({
   days,
 }: {
-  days?: TemplateAutostopRequirementDaysValue
+  days: TemplateAutostopRequirementDaysValue
 }) => {
   const { t } = useTranslation("templateSettingsPage")
 
@@ -41,19 +57,15 @@ export const AutostopRequirementDaysHelperText = ({
     str = days
   }
 
-  return (
-    <span>
-      {t("autostopRequirementDaysHelperText_" + str)}
-    </span>
-  )
+  return <span>{t("autostopRequirementDaysHelperText_" + str)}</span>
 }
 
 export const AutostopRequirementWeeksHelperText = ({
   days,
   weeks,
 }: {
-  days?: TemplateAutostopRequirementDaysValue
-  weeks?: number
+  days: TemplateAutostopRequirementDaysValue
+  weeks: number
 }) => {
   const { t } = useTranslation("templateSettingsPage")
 

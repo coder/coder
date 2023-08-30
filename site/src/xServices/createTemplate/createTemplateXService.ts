@@ -20,7 +20,10 @@ import {
   VariableValue,
 } from "api/typesGenerated"
 import { displayError } from "components/GlobalSnackbar/utils"
-import { TemplateAutostopRequirementDaysValue, calculateAutostopRequirementDaysValue } from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
+import {
+  TemplateAutostopRequirementDaysValue,
+  calculateAutostopRequirementDaysValue,
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
 import { delay } from "utils/delay"
 import { assign, createMachine } from "xstate"
 
@@ -474,14 +477,17 @@ export const createTemplateMachine =
 
           return createTemplate(organizationId, {
             ...safeTemplateData,
-            disable_everyone_group_access: !templateData.allow_everyone_group_access,
+            disable_everyone_group_access:
+              !templateData.allow_everyone_group_access,
             default_ttl_ms: templateData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             max_ttl_ms: templateData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
             template_version_id: version.id,
             autostop_requirement: {
-              days_of_week: calculateAutostopRequirementDaysValue(templateData.autostop_requirement_days_of_week),
+              days_of_week: calculateAutostopRequirementDaysValue(
+                templateData.autostop_requirement_days_of_week,
+              ),
               weeks: templateData.autostop_requirement_weeks,
-            }
+            },
           })
         },
         loadVersionLogs: ({ version }) => {

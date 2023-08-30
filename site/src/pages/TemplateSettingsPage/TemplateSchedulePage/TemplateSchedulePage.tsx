@@ -21,7 +21,9 @@ const TemplateSchedulePage: FC = () => {
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions")
-  const allowAutostopRequirement = experiments.includes("template_autostop_requirement")
+  const allowAutostopRequirement = experiments.includes(
+    "template_autostop_requirement",
+  )
   const { clearLocal } = useLocalStorage()
 
   const {
