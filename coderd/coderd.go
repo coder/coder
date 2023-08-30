@@ -1098,8 +1098,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 
 	mux := drpcmux.New()
-
-	err = proto.DRPCRegisterProvisionerDaemon(mux, provisionerdserver.NewServer(
+	srv, err := provisionerdserver.NewServer(
 		api.AccessURL,
 		daemon.ID,
 		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
@@ -1119,7 +1118,11 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 			OIDCConfig:     api.OIDCConfig,
 			GitAuthConfigs: api.GitAuthConfigs,
 		},
-	))
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		return nil, err
 	}

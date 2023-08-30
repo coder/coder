@@ -61,7 +61,7 @@ func TestAcquireJob(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
 		ps := pubsub.NewInMemory()
-		srv := provisionerdserver.NewServer(
+		srv, err := provisionerdserver.NewServer(
 			&url.URL{},
 			uuid.New(),
 			slogtest.Make(t, nil),
@@ -79,6 +79,7 @@ func TestAcquireJob(t *testing.T) {
 			time.Hour,
 			provisionerdserver.Options{},
 		)
+		require.NoError(t, err)
 		job, err := srv.AcquireJob(context.Background(), nil)
 		require.NoError(t, err)
 		require.Equal(t, &proto.AcquiredJob{}, job)
@@ -1641,7 +1642,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		}
 	}
 
-	return provisionerdserver.NewServer(
+	srv, err := provisionerdserver.NewServer(
 		&url.URL{},
 		srvID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
@@ -1663,7 +1664,9 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			TimeNowFn:      timeNowFn,
 			OIDCConfig:     &oauth2.Config{},
 		},
-	), db, ps
+	)
+	require.NoError(t, err)
+	return srv, db, ps
 }
 
 func must[T any](value T, err error) T {

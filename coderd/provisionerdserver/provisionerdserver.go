@@ -95,22 +95,22 @@ func NewServer(
 	deploymentValues *codersdk.DeploymentValues,
 	acquireJobDebounce time.Duration,
 	options Options,
-) proto.DRPCProvisionerDaemonServer {
+) (proto.DRPCProvisionerDaemonServer, error) {
 	// Panic early if pointers are nil
 	if quotaCommitter == nil {
-		panic("quotaCommitter is nil")
+		return nil, xerrors.New("quotaCommitter is nil")
 	}
 	if auditor == nil {
-		panic("auditor is nil")
+		return nil, xerrors.New("auditor is nil")
 	}
 	if templateScheduleStore == nil {
-		panic("templateScheduleStore is nil")
+		return nil, xerrors.New("templateScheduleStore is nil")
 	}
 	if userQuietHoursScheduleStore == nil {
-		panic("userQuietHoursScheduleStore is nil")
+		return nil, xerrors.New("userQuietHoursScheduleStore is nil")
 	}
 	if deploymentValues == nil {
-		panic("deploymentValues is nil")
+		return nil, xerrors.New("deploymentValues is nil")
 	}
 	return &server{
 		AccessURL:                   accessURL,
@@ -131,7 +131,7 @@ func NewServer(
 		AcquireJobDebounce:          acquireJobDebounce,
 		OIDCConfig:                  options.OIDCConfig,
 		TimeNowFn:                   options.TimeNowFn,
-	}
+	}, nil
 }
 
 // timeNow should be used when trying to get the current time for math

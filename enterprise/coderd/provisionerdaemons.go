@@ -245,7 +245,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 	mux := drpcmux.New()
 	debounce := time.Second
-	err = proto.DRPCRegisterProvisionerDaemon(mux, provisionerdserver.NewServer(
+	srv, err := provisionerdserver.NewServer(
 		api.AccessURL,
 		daemon.ID,
 		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
@@ -265,7 +265,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			GitAuthConfigs: api.GitAuthConfigs,
 			OIDCConfig:     api.OIDCConfig,
 		},
-	))
+	)
+	if err != nil {
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
+		return
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return
