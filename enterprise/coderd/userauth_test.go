@@ -372,7 +372,6 @@ func TestUserOIDC(t *testing.T) {
 				},
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
-					cfg.UserRoleField = "roles"
 				},
 			})
 
@@ -383,12 +382,16 @@ func TestUserOIDC(t *testing.T) {
 			client, resp := runner.Login(t, claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
+			// Expire the token, cause a refresh
 			runner.ExpireOauthToken(t, client)
+
+			// This should fail because the oauth token refresh should fail.
 			_, err := client.User(context.Background(), codersdk.Me)
 			require.Error(t, err)
 			var apiError *codersdk.Error
 			require.ErrorAs(t, err, &apiError)
 			require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
+			require.ErrorContains(t, apiError, "refresh")
 		})
 	})
 }
