@@ -23,10 +23,7 @@ export const RequireAuth: FC = () => {
         // 401 Unauthorized
         // If we encountered an authentication error, then our token is probably
         // invalid and we should update the auth state to reflect that.
-        if (
-          error.response.status === 401 &&
-          getErrorDetail(error)?.startsWith("API key expired")
-        ) {
+        if (error.response.status === 401) {
           authSend("SIGN_OUT")
         }
 
