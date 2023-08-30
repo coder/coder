@@ -636,6 +636,26 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getDBCryptSentinelValue = `-- name: GetDBCryptSentinelValue :one
+SELECT val FROM dbcrypt_sentinel LIMIT 1
+`
+
+func (q *sqlQuerier) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getDBCryptSentinelValue)
+	var val string
+	err := row.Scan(&val)
+	return val, err
+}
+
+const setDBCryptSentinelValue = `-- name: SetDBCryptSentinelValue :exec
+INSERT INTO dbcrypt_sentinel (val) VALUES ($1) ON CONFLICT (only_one) DO UPDATE SET val = excluded.val
+`
+
+func (q *sqlQuerier) SetDBCryptSentinelValue(ctx context.Context, val string) error {
+	_, err := q.db.ExecContext(ctx, setDBCryptSentinelValue, val)
+	return err
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id
@@ -821,6 +841,41 @@ func (q *sqlQuerier) GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParam
 		&i.OAuthExpiry,
 	)
 	return i, err
+}
+
+const getGitAuthLinksByUserID = `-- name: GetGitAuthLinksByUserID :many
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry FROM git_auth_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]GitAuthLink, error) {
+	rows, err := q.db.QueryContext(ctx, getGitAuthLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GitAuthLink
+	for rows.Next() {
+		var i GitAuthLink
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertGitAuthLink = `-- name: InsertGitAuthLink :one
@@ -5497,6 +5552,40 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 	)
 	return i, err
+}
+
+const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry FROM user_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
+	rows, err := q.db.QueryContext(ctx, getUserLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserLink
+	for rows.Next() {
+		var i UserLink
+		if err := rows.Scan(
+			&i.UserID,
+			&i.LoginType,
+			&i.LinkedID,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertUserLink = `-- name: InsertUserLink :one

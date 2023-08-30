@@ -267,6 +267,17 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE dbcrypt_sentinel (
+    only_one integer GENERATED ALWAYS AS (1) STORED,
+    val text DEFAULT ''::text NOT NULL
+);
+
+COMMENT ON TABLE dbcrypt_sentinel IS 'A table used to determine if the database is encrypted';
+
+COMMENT ON COLUMN dbcrypt_sentinel.only_one IS 'Ensures that only one row exists in the table.';
+
+COMMENT ON COLUMN dbcrypt_sentinel.val IS 'Used to determine if the database is encrypted.';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1027,6 +1038,9 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY dbcrypt_sentinel
+    ADD CONSTRAINT dbcrypt_sentinel_only_one_key UNIQUE (only_one);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);

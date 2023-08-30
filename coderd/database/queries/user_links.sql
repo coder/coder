@@ -14,6 +14,9 @@ FROM
 WHERE
 	user_id = $1 AND login_type = $2;
 
+-- name: GetUserLinksByUserID :many
+SELECT * FROM user_links WHERE user_id = $1;
+
 -- name: InsertUserLink :one
 INSERT INTO
 	user_links (

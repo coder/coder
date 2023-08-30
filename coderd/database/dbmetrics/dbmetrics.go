@@ -279,6 +279,13 @@ func (m metricsStore) GetAuthorizationUserRoles(ctx context.Context, userID uuid
 	return row, err
 }
 
+func (m metricsStore) GetDBCryptSentinelValue(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetDBCryptSentinelValue(ctx)
+	m.queryLatencies.WithLabelValues("GetDBCryptSentinelValue").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetDERPMeshKey(ctx context.Context) (string, error) {
 	start := time.Now()
 	key, err := m.s.GetDERPMeshKey(ctx)
@@ -347,6 +354,13 @@ func (m metricsStore) GetGitAuthLink(ctx context.Context, arg database.GetGitAut
 	link, err := m.s.GetGitAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetGitAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m metricsStore) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetGitAuthLinksByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetGitAuthLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -772,6 +786,13 @@ func (m metricsStore) GetUserLinkByUserIDLoginType(ctx context.Context, arg data
 	link, err := m.s.GetUserLinkByUserIDLoginType(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserLinkByUserIDLoginType").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m metricsStore) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserLinksByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetUserLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m metricsStore) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
@@ -1318,6 +1339,13 @@ func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.R
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("RegisterWorkspaceProxy").Observe(time.Since(start).Seconds())
 	return proxy, err
+}
+
+func (m metricsStore) SetDBCryptSentinelValue(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.SetDBCryptSentinelValue(ctx, value)
+	m.queryLatencies.WithLabelValues("SetDBCryptSentinelValue").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error) {

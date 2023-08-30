@@ -473,7 +473,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		LoginType:         takeFirst(orig.LoginType, database.LoginTypeGithub),
 		LinkedID:          takeFirst(orig.LinkedID),
 		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthRefreshToken: takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthExpiry:       takeFirst(orig.OAuthExpiry, database.Now().Add(time.Hour*24)),
 	})
 
@@ -486,7 +486,7 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 		ProviderID:        takeFirst(orig.ProviderID, uuid.New().String()),
 		UserID:            takeFirst(orig.UserID, uuid.New()),
 		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthRefreshToken: takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthExpiry:       takeFirst(orig.OAuthExpiry, database.Now().Add(time.Hour*24)),
 		CreatedAt:         takeFirst(orig.CreatedAt, database.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, database.Now()),
