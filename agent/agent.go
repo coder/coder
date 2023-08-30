@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
@@ -50,6 +52,8 @@ const (
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
 )
+
+const EnvProcMemNice = "CODER_PROC_MEMNICE_ENABLE"
 
 type Options struct {
 	Filesystem                   afero.Fs
@@ -68,6 +72,7 @@ type Options struct {
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
+	Syscaller                    agentproc.Syscaller
 }
 
 type Client interface {
@@ -197,6 +202,7 @@ type agent struct {
 
 	prometheusRegistry *prometheus.Registry
 	metrics            *agentMetrics
+	syscaller          agentproc.Syscaller
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -225,6 +231,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
 	go a.fetchServiceBannerLoop(ctx)
+	go a.manageProcessPriorityLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -1249,6 +1256,84 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 		}); err != nil {
 			a.logger.Debug(ctx, "report stats goroutine", slog.Error(err))
 			_ = cl.Close()
+		}
+	}
+}
+
+var exemptProcesses = []string{"coder"}
+
+func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	const (
+		procDir     = agentproc.DefaultProcDir
+		niceness    = 10
+		oomScoreAdj = -1000
+	)
+
+	if val := a.envVars[EnvProcMemNice]; val == "" || runtime.GOOS != "linux" {
+		a.logger.Info(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
+			slog.F("env_var", EnvProcMemNice),
+			slog.F("value", val),
+			slog.F("goos", runtime.GOOS),
+		)
+		return
+	}
+
+	for {
+		select {
+		case <-ticker.C:
+			procs, err := agentproc.List(a.filesystem, agentproc.DefaultProcDir)
+			if err != nil {
+				a.logger.Error(ctx, "failed to list procs",
+					slog.F("dir", agentproc.DefaultProcDir),
+					slog.Error(err),
+				)
+				continue
+			}
+			for _, proc := range procs {
+				// Trim off the path e.g. "./coder" -> "coder"
+				name := filepath.Base(proc.Name())
+				if slices.Contains(exemptProcesses, name) {
+					a.logger.Debug(ctx, "skipping exempt process",
+						slog.F("name", proc.Name()),
+						slog.F("pid", proc.PID),
+					)
+					continue
+				}
+
+				err := proc.SetNiceness(a.syscaller, niceness)
+				if err != nil {
+					a.logger.Error(ctx, "unable to set proc niceness",
+						slog.F("name", proc.Name()),
+						slog.F("pid", proc.PID),
+						slog.F("niceness", niceness),
+						slog.Error(err),
+					)
+					continue
+				}
+
+				err = proc.SetOOMAdj(oomScoreAdj)
+				if err != nil {
+					a.logger.Error(ctx, "unable to set proc oom_score_adj",
+						slog.F("name", proc.Name()),
+						slog.F("pid", proc.PID),
+						slog.F("oom_score_adj", oomScoreAdj),
+						slog.Error(err),
+					)
+					continue
+				}
+
+				a.logger.Debug(ctx, "deprioritized process",
+					slog.F("name", proc.Name()),
+					slog.F("pid", proc.PID),
+					slog.F("niceness", niceness),
+					slog.F("oom_score_adj", oomScoreAdj),
+				)
+			}
+		case <-ctx.Done():
+			return
 		}
 	}
 }
