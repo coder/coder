@@ -6,7 +6,6 @@ import { embedRedirect } from "../../utils/redirect"
 import { FullScreenLoader } from "../Loader/FullScreenLoader"
 import { DashboardProvider } from "components/Dashboard/DashboardProvider"
 import { ProxyProvider } from "contexts/ProxyContext"
-import { getErrorDetail } from "api/errors"
 
 export const RequireAuth: FC = () => {
   const [authState, authSend] = useAuth()
