@@ -9,13 +9,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionerd"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -210,6 +217,107 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		daemons, err := client.ProvisionerDaemons(ctx)
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
+	})
+
+	t.Run("PSK_daily_cost", func(t *testing.T) {
+		t.Parallel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			UserWorkspaceQuota: 10,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureTemplateRBAC:               1,
+				},
+			},
+			ProvisionerDaemonPSK: "provisionersftw",
+		})
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		terraformClient, terraformServer := provisionersdk.MemTransportPipe()
+		go func() {
+			<-ctx.Done()
+			_ = terraformClient.Close()
+			_ = terraformServer.Close()
+		}()
+
+		tempDir := t.TempDir()
+		errCh := make(chan error)
+		go func() {
+			err := echo.Serve(ctx, &provisionersdk.ServeOptions{
+				Listener:      terraformServer,
+				Logger:        logger.Named("echo"),
+				WorkDirectory: tempDir,
+			})
+			errCh <- err
+		}()
+
+		provisioners := provisionerd.Provisioners{
+			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(terraformClient),
+		}
+		another := codersdk.New(client.URL)
+		pd := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
+			return another.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+				Organization: user.OrganizationID,
+				Provisioners: []codersdk.ProvisionerType{
+					codersdk.ProvisionerTypeEcho,
+				},
+				Tags: map[string]string{
+					provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				},
+				PreSharedKey: "provisionersftw",
+			})
+		}, &provisionerd.Options{
+			Logger:       logger.Named("provisionerd"),
+			Provisioners: provisioners,
+		})
+		defer pd.Close()
+
+		// Patch the 'Everyone' group to give the user quota to build their workspace.
+		_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+			QuotaAllowance: ptr.Ref(1),
+		})
+		require.NoError(t, err)
+
+		authToken := uuid.NewString()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{{
+							Name:      "example",
+							Type:      "aws_instance",
+							DailyCost: 1,
+							Agents: []*proto.Agent{{
+								Id:   uuid.NewString(),
+								Name: "example",
+								Auth: &proto.Agent_Token{
+									Token: authToken,
+								},
+							}},
+						}},
+					},
+				},
+			}},
+		})
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		err = pd.Shutdown(ctx)
+		require.NoError(t, err)
+		err = terraformServer.Close()
+		require.NoError(t, err)
+		select {
+		case <-ctx.Done():
+			t.Error("timeout waiting for server to shut down")
+		case err := <-errCh:
+			require.NoError(t, err)
+		}
 	})
 
 	t.Run("BadPSK", func(t *testing.T) {

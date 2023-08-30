@@ -308,6 +308,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	lastAcquireMutex.RLock()
 	if !lastAcquire.IsZero() && time.Since(lastAcquire) < p.opts.JobPollDebounce {
 		lastAcquireMutex.RUnlock()
+		p.opts.Logger.Debug(ctx, "debounce acquire job")
 		return
 	}
 	lastAcquireMutex.RUnlock()
@@ -319,6 +320,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	}
 
 	job, err := client.AcquireJob(ctx, &proto.Empty{})
+	p.opts.Logger.Debug(ctx, "called AcquireJob on client", slog.F("job_id", job.GetJobId()), slog.Error(err))
 	if err != nil {
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, yamux.ErrSessionShutdown) ||
