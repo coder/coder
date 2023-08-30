@@ -256,8 +256,8 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	if s.DisablePathApps {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusUnauthorized,
-			Title:        "Unauthorized",
+			Status:       http.StatusForbidden,
+			Title:        "Forbidden",
 			Description:  "Path-based applications are disabled on this Coder deployment by the administrator.",
 			RetryEnabled: false,
 			DashboardURL: s.DashboardURL.String(),
