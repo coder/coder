@@ -296,7 +296,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}).Token()
 			if err != nil {
 				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Could not refresh expired Oauth token.",
+					Message: "Could not refresh expired Oauth token. Try re-authenticating to resolve this issue.",
 					Detail:  err.Error(),
 				})
 			}
