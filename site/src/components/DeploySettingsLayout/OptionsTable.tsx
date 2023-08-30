@@ -12,7 +12,6 @@ import {
   OptionValue,
 } from "components/DeploySettingsLayout/Option"
 import { FC } from "react"
-import { DisabledBadge } from "./Badges"
 import { intervalToDuration, formatDuration } from "date-fns"
 
 const OptionsTable: FC<{
