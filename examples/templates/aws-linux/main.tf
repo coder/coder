@@ -249,7 +249,7 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = local.user_data_start
+  user_data = local.user_data
   tags = {
     Name = "coder-${data.coder_workspace.me.owner}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README
