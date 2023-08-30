@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/url"
@@ -18,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
 
@@ -67,6 +69,25 @@ func (r *RootCmd) server() *clibase.Cmd {
 			ProxyHealthInterval:       options.DeploymentValues.ProxyHealthStatusInterval.Value(),
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
+		}
+
+		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
+			if len(encKeys) > 2 {
+				return nil, nil, xerrors.Errorf("only 2 external-token-encryption-keys are supported")
+			}
+			cs := make([]dbcrypt.Cipher, 0, len(encKeys))
+			for idx, ek := range encKeys {
+				dk, err := base64.StdEncoding.DecodeString(ek)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("decode external-token-encryption-key %d: %w", idx, err)
+				}
+				c, err := dbcrypt.CipherAES256(dk)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("create external-token-encryption-key cipher %d: %w", idx, err)
+				}
+				cs = append(cs, c)
+			}
+			o.ExternalTokenEncryption = dbcrypt.NewCiphers(cs...)
 		}
 
 		api, err := coderd.New(ctx, o)

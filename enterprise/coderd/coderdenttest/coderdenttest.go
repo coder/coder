@@ -21,10 +21,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 )
 
 const (
-	testKeyID = "enterprise-test"
+	testKeyID         = "enterprise-test"
+	testEncryptionKey = "coder-coder-coder-coder-coder-1!" // nolint:gosec
 )
 
 var (
@@ -56,6 +58,7 @@ type Options struct {
 	DontAddLicense              bool
 	DontAddFirstUser            bool
 	ReplicaSyncUpdateInterval   time.Duration
+	ExternalTokenEncryption     *dbcrypt.Ciphers
 	ProvisionerDaemonPSK        string
 }
 
@@ -82,6 +85,11 @@ func NewWithAPI(t *testing.T, options *Options) (
 		err := oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Set("0 0 * * *")
 		require.NoError(t, err)
 	}
+	if options.ExternalTokenEncryption == nil {
+		c, err := dbcrypt.CipherAES256([]byte(testEncryptionKey))
+		require.NoError(t, err)
+		options.ExternalTokenEncryption = dbcrypt.NewCiphers(c)
+	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,
 		AuditLogging:               options.AuditLogging,
@@ -92,10 +100,11 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys:                       Keys,
+		LicenseKeys:                Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
+		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

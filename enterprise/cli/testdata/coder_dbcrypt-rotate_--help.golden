@@ -1,0 +1,24 @@
+Usage: coder dbcrypt-rotate [flags] --postgres-url <postgres_url> --external-token-encryption-keys <new-key>,<old-key>
+
+Rotate database encryption keys
+
+[1mOptions[0m
+      --postgres-url string, $CODER_PG_CONNECTION_URL
+          URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
+          downloaded from Maven (https://repo1.maven.org/maven2) and store all
+          data in the config root. Access the built-in database with "coder
+          server postgres-builtin-url".
+
+[1mEnterprise Options[0m 
+These options are only available in the Enterprise Edition.
+
+      --external-token-encryption-keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS
+          Encrypt OIDC and Git authentication tokens with AES-256-GCM in the
+          database. The value must be a comma-separated list of base64-encoded
+          keys. A maximum of two keys may be provided. Each key, when
+          base64-decoded, must be exactly 32 bytes in length. The first key will
+          be used to encrypt new values. Subsequent keys will be used as a
+          fallback when decrypting.
+
+---
+Run `coder --help` for a list of global options.

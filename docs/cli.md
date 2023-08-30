@@ -27,6 +27,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
 | [<code>config-ssh</code>](./cli/config-ssh.md)         | Add an SSH Host entry for your workspaces "ssh coder.workspace"                                       |
 | [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                    |
+| [<code>dbcrypt-rotate</code>](./cli/dbcrypt-rotate.md) | Rotate database encryption keys                                                                       |
 | [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |

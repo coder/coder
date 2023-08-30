@@ -26,6 +26,7 @@ func TestDeploymentValues(t *testing.T) {
 	cfg.OIDC.EmailField.Set("some_random_field_you_never_expected")
 	cfg.PostgresURL.Set(hi)
 	cfg.SCIMAPIKey.Set(hi)
+	cfg.ExternalTokenEncryptionKeys.Set("the_random_key_we_never_expected,an_other_key_we_never_unexpected")
 
 	client := coderdtest.New(t, &coderdtest.Options{
 		DeploymentValues: cfg,
@@ -44,6 +45,7 @@ func TestDeploymentValues(t *testing.T) {
 	require.Empty(t, scrubbed.Values.OIDC.ClientSecret.Value())
 	require.Empty(t, scrubbed.Values.PostgresURL.Value())
 	require.Empty(t, scrubbed.Values.SCIMAPIKey.Value())
+	require.Empty(t, scrubbed.Values.ExternalTokenEncryptionKeys.Value())
 }
 
 func TestDeploymentStats(t *testing.T) {
