@@ -4,27 +4,27 @@ and macOS.
 
 To install, run:
 
-```console
+```shell
 # This is will automatically use supported package managers when available
 curl -fsSL https://coder.com/install.sh | sh
 ```
 
 To install without using a system package manager:
 
-```console
+```shell
 curl -fsSL https://coder.com/install.sh | sh -s -- --method standalone
 ```
 
 You can preview what occurs during the install process:
 
-```console
+```shell
 curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
 ```
 
 You can modify the installation process by including flags. Run the help command
 for reference:
 
-```console
+```shell
 curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ```
 
