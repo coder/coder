@@ -48,4 +48,6 @@ class CoderReporter implements Reporter {
     console.log(`Finished the run: ${result.status}`)
   }
 }
+
+// eslint-disable-next-line no-unused-vars -- Playwright config uses it
 export default CoderReporter

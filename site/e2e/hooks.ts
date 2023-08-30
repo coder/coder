@@ -24,9 +24,18 @@ export const beforeCoderTest = async (page: Page) => {
     const shouldLogResponse =
       !response.url().endsWith("/api/v2/deployment/config") &&
       !response.url().endsWith("/api/v2/debug/health")
-    const responseText = shouldLogResponse
-      ? await response.text()
-      : "skipped..."
+
+    let responseText = ""
+    try {
+      if (shouldLogResponse) {
+        const buffer = await response.body() // Read the response as a buffer
+        responseText = buffer.toString("utf-8") // Convert the buffer to text
+      } else {
+        responseText = "skipped..."
+      }
+    } catch (error) {
+      responseText = "not_available"
+    }
 
     // eslint-disable-next-line no-console -- Log HTTP requests for debugging purposes
     console.log(
