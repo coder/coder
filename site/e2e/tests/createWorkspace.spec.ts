@@ -1,4 +1,4 @@
-import { test, Page } from "@playwright/test"
+import { test } from "@playwright/test"
 import {
   createTemplate,
   createWorkspace,
@@ -16,11 +16,9 @@ import {
   sixthParameter,
 } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
+import { beforeCoderTest } from "../hooks"
 
-test.beforeEach(async ({ page }: { page: Page }) => {
-  // eslint-disable-next-line no-console -- For debugging purposes
-  page.on("console", (msg) => console.log("Console: " + msg.text()))
-})
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("create workspace", async ({ page }) => {
   const template = await createTemplate(page, {

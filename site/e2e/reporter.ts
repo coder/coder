@@ -1,10 +1,10 @@
 import type {
-  Reporter,
   FullConfig,
   Suite,
   TestCase,
   TestResult,
   FullResult,
+  Reporter,
 } from "@playwright/test/reporter"
 
 class CoderReporter implements Reporter {
