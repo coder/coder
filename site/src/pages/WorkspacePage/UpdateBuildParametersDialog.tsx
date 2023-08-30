@@ -32,11 +32,9 @@ export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
   const styles = useStyles()
-  const initialRichParameterValues =
-    getInitialRichParameterValues(missedParameters)
   const form = useFormik({
     initialValues: {
-      rich_parameter_values: initialRichParameterValues,
+      rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(

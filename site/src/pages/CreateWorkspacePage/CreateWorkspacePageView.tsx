@@ -54,10 +54,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const initialRichParameterValues = getInitialRichParameterValues(
-    parameters,
-    defaultBuildParameters,
-  )
   const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
   const [owner, setOwner] = useState(defaultOwner)
@@ -67,7 +63,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       initialValues: {
         name: defaultName,
         template_id: template.id,
-        rich_parameter_values: initialRichParameterValues,
+        rich_parameter_values: getInitialRichParameterValues(
+          parameters,
+          defaultBuildParameters,
+        ),
       },
       validationSchema: Yup.object({
         name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
