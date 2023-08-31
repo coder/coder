@@ -289,6 +289,8 @@ resource "docker_container" "workspace" {
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "CODER_SESSION_TOKEN=${data.coder_workspace.me.owner_session_token}",
+    "CODER_URL=${data.coder_workspace.me.access_url}",
   ]
   host {
     host = "host.docker.internal"
