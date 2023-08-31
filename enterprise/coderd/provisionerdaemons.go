@@ -203,7 +203,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		Tags:         tags,
 	})
 	if err != nil {
-		log.Error(ctx, "write provisioner daemon", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "write provisioner daemon", slog.Error(err))
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error writing provisioner daemon.",
 			Detail:  err.Error(),
@@ -213,7 +215,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	rawTags, err := json.Marshal(daemon.Tags)
 	if err != nil {
-		log.Error(ctx, "marshal provisioner tags", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "marshal provisioner tags", slog.Error(err))
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error marshaling daemon tags.",
 			Detail:  err.Error(),
@@ -231,7 +235,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
-		log.Error(ctx, "accept provisioner websocket conn", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "accept provisioner websocket conn", slog.Error(err))
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Internal error accepting websocket connection.",
 			Detail:  err.Error(),
@@ -277,7 +283,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		},
 	)
 	if err != nil {
-		log.Error(ctx, "create provisioner daemon server", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "create provisioner daemon server", slog.Error(err))
+		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
 		return
 	}
