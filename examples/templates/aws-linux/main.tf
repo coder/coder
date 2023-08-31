@@ -158,7 +158,8 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
-resource "coder_agent" "main" {
+resource "coder_agent" "dev" {
+  count                  = data.coder_workspace.me.start_count
   arch                   = "amd64"
   auth                   = "aws-instance-identity"
   os                     = "linux"
@@ -195,7 +196,8 @@ resource "coder_agent" "main" {
 }
 
 resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
+  count        = data.coder_workspace.me.start_count
+  agent_id     = coder_agent.dev[0].id
   slug         = "code-server"
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
@@ -211,9 +213,8 @@ resource "coder_app" "code-server" {
 }
 
 locals {
-  linux_user = "coder" # Ensure this user/group does not exist in your VM image
-  # User data is used to run the init_script
-  user_data = <<EOT
+  linux_user = "coder"
+  user_data = data.coder_workspace.me.start_count > 0 ? trimspace(<<EOT
 Content-Type: multipart/mixed; boundary="//"
 MIME-Version: 1.0
 
@@ -239,9 +240,10 @@ Content-Transfer-Encoding: 7bit
 Content-Disposition: attachment; filename="userdata.txt"
 
 #!/bin/bash
-sudo -u ${local.linux_user} sh -c '${coder_agent.main.init_script}'
+sudo -u ${local.linux_user} sh -c '${coder_agent.dev[0].init_script}'
 --//--
 EOT
+  ) : ""
 }
 
 resource "aws_instance" "dev" {
