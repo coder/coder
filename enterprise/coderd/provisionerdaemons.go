@@ -117,7 +117,14 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	if p.psk != "" {
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
-			return provisionerdserver.MutateTags(uuid.Nil, tags), true
+			if len(tags) == 0 {
+				// Directly scope to organization if no tags are provided.
+				// MutateTags is only meant for scoping based on users.
+				tags = map[string]string{
+					provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
+				}
+			}
+			return tags, true
 		}
 	}
 	return nil, false
