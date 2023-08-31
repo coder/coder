@@ -316,16 +316,20 @@ export const startAgentWithCommand = async (
       CODER_AGENT_TOKEN: token,
     },
   })
-  let buffer = Buffer.of()
-  cp.stderr.on("data", (data: Buffer) => {
-    buffer = Buffer.concat([buffer, data])
+  cp.stdout.on("data", (data: Buffer) => {
+    // eslint-disable-next-line no-console -- Log agent activity
+    console.log(
+      `[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
+    )
   })
-  try {
-    await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The error is a string
-  } catch (ex: any) {
-    throw new Error(ex.toString() + "\n" + buffer.toString())
-  }
+  cp.stderr.on("data", (data: Buffer) => {
+    // eslint-disable-next-line no-console -- Log agent activity
+    console.log(
+      `[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
+    )
+  })
+
+  await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
 }
 
 const coderMainPath = (): string => {
