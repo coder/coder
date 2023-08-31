@@ -59,7 +59,7 @@ type Config struct {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
-// It returns the token and a bool indicating if the token was refreshed.
+// It returns the token and a bool indicating if the token is valid.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
