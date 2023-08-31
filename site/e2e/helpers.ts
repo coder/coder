@@ -314,18 +314,24 @@ export const startAgentWithCommand = async (
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
+      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:2114",
+      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:6061",
     },
   })
-  let buffer = Buffer.of()
-  cp.stderr.on("data", (data: Buffer) => {
-    buffer = Buffer.concat([buffer, data])
+  cp.stdout.on("data", (data: Buffer) => {
+    // eslint-disable-next-line no-console -- Log agent activity
+    console.log(
+      `[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
+    )
   })
-  try {
-    await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The error is a string
-  } catch (ex: any) {
-    throw new Error(ex.toString() + "\n" + buffer.toString())
-  }
+  cp.stderr.on("data", (data: Buffer) => {
+    // eslint-disable-next-line no-console -- Log agent activity
+    console.log(
+      `[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
+    )
+  })
+
+  await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
 }
 
 const coderMainPath = (): string => {
