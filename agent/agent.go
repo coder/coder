@@ -1260,7 +1260,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	}
 }
 
-var exemptProcesses = []string{"coder"}
+var prioritizedProcs = []string{"coder"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
@@ -1269,7 +1269,7 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	const (
 		procDir     = agentproc.DefaultProcDir
 		niceness    = 10
-		oomScoreAdj = -1000
+		oomScoreAdj = 100
 	)
 
 	if val := a.envVars[EnvProcMemNice]; val == "" || runtime.GOOS != "linux" {
@@ -1284,7 +1284,7 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			procs, err := agentproc.List(a.filesystem, agentproc.DefaultProcDir)
+			procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
 			if err != nil {
 				a.logger.Error(ctx, "failed to list procs",
 					slog.F("dir", agentproc.DefaultProcDir),
@@ -1295,15 +1295,47 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 			for _, proc := range procs {
 				// Trim off the path e.g. "./coder" -> "coder"
 				name := filepath.Base(proc.Name())
-				if slices.Contains(exemptProcesses, name) {
-					a.logger.Debug(ctx, "skipping exempt process",
+				// If the process is prioritized we should adjust
+				// it's oom_score_adj and avoid lowering its niceness.
+				if slices.Contains(prioritizedProcs, name) {
+					err = proc.SetOOMAdj(oomScoreAdj)
+					if err != nil {
+						a.logger.Error(ctx, "unable to set proc oom_score_adj",
+							slog.F("name", proc.Name()),
+							slog.F("pid", proc.PID),
+							slog.F("oom_score_adj", oomScoreAdj),
+							slog.Error(err),
+						)
+						continue
+					}
+
+					a.logger.Debug(ctx, "decreased process oom_score",
 						slog.F("name", proc.Name()),
 						slog.F("pid", proc.PID),
+						slog.F("oom_score_adj", oomScoreAdj),
 					)
 					continue
 				}
 
-				err := proc.SetNiceness(a.syscaller, niceness)
+				score, err := proc.Nice(a.syscaller)
+				if err != nil {
+					a.logger.Error(ctx, "unable to get proc niceness",
+						slog.F("name", proc.Name()),
+						slog.F("pid", proc.PID),
+						slog.Error(err),
+					)
+					continue
+				}
+				if score != 20 {
+					a.logger.Error(ctx, "skipping process due to custom niceness",
+						slog.F("name", proc.Name()),
+						slog.F("pid", proc.PID),
+						slog.F("niceness", score),
+					)
+					continue
+				}
+
+				err = proc.SetNiceness(a.syscaller, niceness)
 				if err != nil {
 					a.logger.Error(ctx, "unable to set proc niceness",
 						slog.F("name", proc.Name()),
@@ -1314,22 +1346,10 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 					continue
 				}
 
-				err = proc.SetOOMAdj(oomScoreAdj)
-				if err != nil {
-					a.logger.Error(ctx, "unable to set proc oom_score_adj",
-						slog.F("name", proc.Name()),
-						slog.F("pid", proc.PID),
-						slog.F("oom_score_adj", oomScoreAdj),
-						slog.Error(err),
-					)
-					continue
-				}
-
 				a.logger.Debug(ctx, "deprioritized process",
 					slog.F("name", proc.Name()),
 					slog.F("pid", proc.PID),
 					slog.F("niceness", niceness),
-					slog.F("oom_score_adj", oomScoreAdj),
 				)
 			}
 		case <-ctx.Done():

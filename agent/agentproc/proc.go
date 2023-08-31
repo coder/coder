@@ -15,6 +15,8 @@ const DefaultProcDir = "/proc"
 
 type Syscaller interface {
 	SetPriority(pid int32, priority int) error
+	GetPriority(pid int32) (int, error)
+	Kill(pid int32, sig syscall.Signal) error
 }
 
 type UnixSyscaller struct{}
@@ -24,6 +26,23 @@ func (UnixSyscaller) SetPriority(pid int32, nice int) error {
 	if err != nil {
 		return xerrors.Errorf("set priority: %w", err)
 	}
+	return nil
+}
+
+func (UnixSyscaller) GetPriority(pid int32) (int, error) {
+	nice, err := unix.Getpriority(0, int(pid))
+	if err != nil {
+		return 0, xerrors.Errorf("get priority: %w", err)
+	}
+	return nice, nil
+}
+
+func (UnixSyscaller) Kill(pid int, sig syscall.Signal) error {
+	err := syscall.Kill(pid, sig)
+	if err != nil {
+		return xerrors.Errorf("kill: %w", err)
+	}
+
 	return nil
 }
 
@@ -56,13 +75,21 @@ func (p *Process) SetNiceness(sc Syscaller, score int) error {
 	return nil
 }
 
+func (p *Process) Nice(sc Syscaller) (int, error) {
+	nice, err := sc.GetPriority(p.PID)
+	if err != nil {
+		return 0, xerrors.Errorf("get priority for %q: %w", p.CmdLine, err)
+	}
+	return nice, nil
+}
+
 func (p *Process) Name() string {
 	args := strings.Split(p.CmdLine, "\x00")
 	// Split will always return at least one element.
 	return args[0]
 }
 
-func List(fs afero.Fs, dir string) ([]*Process, error) {
+func List(fs afero.Fs, syscaller Syscaller, dir string) ([]*Process, error) {
 	d, err := fs.Open(dir)
 	if err != nil {
 		return nil, xerrors.Errorf("open dir %q: %w", dir, err)
@@ -79,6 +106,16 @@ func List(fs afero.Fs, dir string) ([]*Process, error) {
 		if err != nil {
 			continue
 		}
+
+		// Check that the process still exists.
+		exists, err := isProcessExist(syscaller, int32(pid), syscall.Signal(0))
+		if err != nil {
+			return nil, xerrors.Errorf("check process exists: %w", err)
+		}
+		if !exists {
+			continue
+		}
+
 		cmdline, err := afero.ReadFile(fs, filepath.Join(dir, entry, "cmdline"))
 		if err != nil {
 			var errNo syscall.Errno
@@ -96,4 +133,27 @@ func List(fs afero.Fs, dir string) ([]*Process, error) {
 	}
 
 	return processes, nil
+}
+
+func isProcessExist(syscaller Syscaller, pid int32, sig syscall.Signal) (bool, error) {
+	err := syscaller.Kill(pid, sig)
+	if err == nil {
+		return true, nil
+	}
+	if err.Error() == "os: process already finished" {
+		return false, nil
+	}
+
+	errno, ok := err.(syscall.Errno)
+	if !ok {
+		return false, err
+	}
+	switch errno {
+	case syscall.ESRCH:
+		return false, nil
+	case syscall.EPERM:
+		return true, nil
+	}
+
+	return false, xerrors.Errorf("kill: %w", err)
 }
