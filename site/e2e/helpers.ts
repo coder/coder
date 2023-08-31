@@ -314,6 +314,8 @@ export const startAgentWithCommand = async (
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
+      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:2114",
+      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:6061",
     },
   })
   cp.stdout.on("data", (data: Buffer) => {
