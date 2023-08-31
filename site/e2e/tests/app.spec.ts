@@ -1,7 +1,12 @@
 import { test } from "@playwright/test"
 import { randomUUID } from "crypto"
 import * as http from "http"
-import { createTemplate, createWorkspace, startAgent } from "../helpers"
+import {
+  createTemplate,
+  createWorkspace,
+  startAgent,
+  stopWorkspace,
+} from "../helpers"
 import { beforeCoderTest } from "../hooks"
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page))
@@ -43,7 +48,7 @@ test("app", async ({ context, page }) => {
       },
     ],
   })
-  await createWorkspace(page, template)
+  const workspaceName = await createWorkspace(page, template)
   await startAgent(page, token)
 
   // Wait for the web terminal to open in a new tab
@@ -52,4 +57,6 @@ test("app", async ({ context, page }) => {
   const app = await pagePromise
   await app.waitForLoadState("domcontentloaded")
   await app.getByText(appContent).isVisible()
+
+  await stopWorkspace(page, workspaceName)
 })
