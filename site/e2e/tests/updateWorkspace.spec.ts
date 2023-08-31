@@ -127,6 +127,7 @@ test("update workspace with ephemeral parameter enabled", async ({ page }) => {
   )
 
   // Verify that parameter values are default.
+  // WIP
   await verifyParameters(page, workspaceName, richParameters, [
     { name: firstParameter.name, value: firstParameter.defaultValue },
     { name: secondBuildOption.name, value: secondBuildOption.defaultValue },
