@@ -520,7 +520,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		}, testutil.WaitMedium, testutil.IntervalFast)
 	})
 
-	t.Run("InvalidSpecifiesTemplateAndTemplateVersion", func(t *testing.T) {
+	t.Run("InvalidCombinationOfTemplateAndTemplateVersion", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
