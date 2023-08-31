@@ -41,7 +41,7 @@ import (
 type FakeIDP struct {
 	issuer   string
 	key      *rsa.PrivateKey
-	provider providerJSON
+	provider ProviderJSON
 	handler  http.Handler
 	cfg      *oauth2.Config
 
@@ -181,6 +181,10 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 	return idp
 }
 
+func (f *FakeIDP) WellknownConfig() ProviderJSON {
+	return f.provider
+}
+
 func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	t.Helper()
 
@@ -188,9 +192,9 @@ func (f *FakeIDP) updateIssuerURL(t testing.TB, issuer string) {
 	require.NoError(t, err, "invalid issuer URL")
 
 	f.issuer = issuer
-	// providerJSON is the JSON representation of the OpenID Connect provider
+	// ProviderJSON is the JSON representation of the OpenID Connect provider
 	// These are all the urls that the IDP will respond to.
-	f.provider = providerJSON{
+	f.provider = ProviderJSON{
 		Issuer:      issuer,
 		AuthURL:     u.ResolveReference(&url.URL{Path: authorizePath}).String(),
 		TokenURL:    u.ResolveReference(&url.URL{Path: tokenPath}).String(),
@@ -218,6 +222,15 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 
 	f.updateIssuerURL(t, srv.URL)
 	return srv
+}
+
+// GenerateAuthenticatedToken skips all oauth2 flows, and just generates a
+// valid token for some given claims.
+func (f *FakeIDP) GenerateAuthenticatedToken(claims jwt.MapClaims) (*oauth2.Token, error) {
+	state := uuid.NewString()
+	f.stateToIDTokenClaims.Store(state, claims)
+	code := f.newCode(state)
+	return f.cfg.Exchange(oidc.ClientContext(context.Background(), f.HTTPClient(nil)), code)
 }
 
 // Login does the full OIDC flow starting at the "LoginButton".
@@ -333,7 +346,8 @@ func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.Map
 	return resp, nil
 }
 
-type providerJSON struct {
+// ProviderJSON is the .well-known/configuration JSON
+type ProviderJSON struct {
 	Issuer      string   `json:"issuer"`
 	AuthURL     string   `json:"authorization_endpoint"`
 	TokenURL    string   `json:"token_endpoint"`

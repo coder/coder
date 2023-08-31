@@ -8,6 +8,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
+
+	"github.com/google/uuid"
+
+	"github.com/coreos/go-oidc/v3/oidc"
+
+	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
@@ -22,16 +30,81 @@ import (
 
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
-	t.Run("FalseIfNoRefresh", func(t *testing.T) {
+	const providerID = "test-idp"
+	expired := time.Now().Add(time.Hour * -1)
+	t.Run("NoRefreshExpired", func(t *testing.T) {
 		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t,
+			// The IDP should not be contacted since the token is expired. An expired
+			// token with 'NoRefresh' should early abort.
+			oidctest.WithRefreshHook(func(_ string) error {
+				t.Error("refresh on the IDP was called, but NoRefresh was set")
+				return xerrors.New("should not be called")
+			}),
+			oidctest.WithDynamicUserInfo(func(_ string) jwt.MapClaims {
+				t.Error("token was validated, but it was expired and this should never have happened.")
+				return nil
+			}),
+		)
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
 		config := &gitauth.Config{
-			NoRefresh: true,
+			ID:           providerID,
+			OAuth2Config: fake.OIDCConfig(t, nil),
+			NoRefresh:    true,
+			ValidateURL:  fake.WellknownConfig().UserInfoURL,
 		}
-		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
-			OAuthExpiry: time.Time{},
+		_, refreshed, err := config.RefreshToken(ctx, nil, database.GitAuthLink{
+			ProviderID:        providerID,
+			UserID:            uuid.New(),
+			OAuthAccessToken:  uuid.NewString(),
+			OAuthRefreshToken: uuid.NewString(),
+			OAuthExpiry:       expired,
 		})
 		require.NoError(t, err)
 		require.False(t, refreshed)
+	})
+	t.Run("NoRefreshNoExpiry", func(t *testing.T) {
+		t.Parallel()
+
+		validated := false
+		fake := oidctest.NewFakeIDP(t,
+			// The IDP should not be contacted since the token is expired. An expired
+			// token with 'NoRefresh' should early abort.
+			oidctest.WithRefreshHook(func(_ string) error {
+				t.Error("refresh on the IDP was called, but NoRefresh was set")
+				return xerrors.New("should not be called")
+			}),
+			oidctest.WithDynamicUserInfo(func(_ string) jwt.MapClaims {
+				validated = true
+				return jwt.MapClaims{}
+			}),
+		)
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		config := &gitauth.Config{
+			ID:           providerID,
+			OAuth2Config: fake.OIDCConfig(t, nil),
+			NoRefresh:    true,
+			ValidateURL:  fake.WellknownConfig().UserInfoURL,
+		}
+
+		token, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{})
+		require.NoError(t, err)
+
+		_, refreshed, err := config.RefreshToken(ctx, nil, database.GitAuthLink{
+			ProviderID:       providerID,
+			UserID:           uuid.New(),
+			OAuthAccessToken: token.AccessToken,
+			// Pass a refresh token, but this should be ignored in this test!
+			OAuthRefreshToken: token.RefreshToken,
+			// Zero time used
+			OAuthExpiry: time.Time{},
+		})
+		require.NoError(t, err)
+		require.True(t, refreshed, "token without expiry is always valid")
+		require.True(t, validated, "token should have been validated")
 	})
 	t.Run("FalseIfTokenSourceFails", func(t *testing.T) {
 		t.Parallel()
@@ -42,7 +115,9 @@ func TestRefreshToken(t *testing.T) {
 				},
 			},
 		}
-		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+			OAuthExpiry: expired,
+		})
 		require.NoError(t, err)
 		require.False(t, refreshed)
 	})
@@ -56,7 +131,9 @@ func TestRefreshToken(t *testing.T) {
 			OAuth2Config: &testutil.OAuth2Config{},
 			ValidateURL:  srv.URL,
 		}
-		_, _, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		_, _, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+			OAuthExpiry: expired,
+		})
 		require.ErrorContains(t, err, "Failure")
 	})
 	t.Run("ValidateFailure", func(t *testing.T) {
@@ -69,7 +146,9 @@ func TestRefreshToken(t *testing.T) {
 			OAuth2Config: &testutil.OAuth2Config{},
 			ValidateURL:  srv.URL,
 		}
-		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{})
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+			OAuthExpiry: expired,
+		})
 		require.NoError(t, err)
 		require.False(t, refreshed)
 	})
@@ -100,6 +179,7 @@ func TestRefreshToken(t *testing.T) {
 		link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
 			ProviderID:       config.ID,
 			OAuthAccessToken: "initial",
+			OAuthExpiry:      expired,
 		})
 		_, refreshed, err := config.RefreshToken(context.Background(), db, link)
 		require.NoError(t, err)
@@ -124,6 +204,7 @@ func TestRefreshToken(t *testing.T) {
 		}
 		_, valid, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
 			OAuthAccessToken: accessToken,
+			OAuthExpiry:      expired,
 		})
 		require.NoError(t, err)
 		require.True(t, valid)
@@ -143,6 +224,7 @@ func TestRefreshToken(t *testing.T) {
 		link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
 			ProviderID:       config.ID,
 			OAuthAccessToken: "initial",
+			OAuthExpiry:      expired,
 		})
 		_, valid, err := config.RefreshToken(context.Background(), db, link)
 		require.NoError(t, err)
