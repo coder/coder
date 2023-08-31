@@ -1317,7 +1317,7 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 					continue
 				}
 
-				score, err := proc.Nice(a.syscaller)
+				score, err := proc.Niceness(a.syscaller)
 				if err != nil {
 					a.logger.Error(ctx, "unable to get proc niceness",
 						slog.F("name", proc.Name()),
