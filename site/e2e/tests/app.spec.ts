@@ -50,6 +50,6 @@ test("app", async ({ context, page }) => {
   const pagePromise = context.waitForEvent("page")
   await page.getByText(appName).click()
   const app = await pagePromise
-  await app.waitForLoadState("networkidle")
+  await app.waitForLoadState("domcontentloaded")
   await app.getByText(appContent).isVisible()
 })

@@ -34,7 +34,7 @@ test("web terminal", async ({ context, page }) => {
   const pagePromise = context.waitForEvent("page")
   await page.getByTestId("terminal").click()
   const terminal = await pagePromise
-  await terminal.waitForLoadState("networkidle")
+  await terminal.waitForLoadState("domcontentloaded")
 
   // Ensure that we can type in it
   await terminal.keyboard.type("echo hello")

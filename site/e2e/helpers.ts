@@ -29,7 +29,7 @@ export const createWorkspace = async (
   buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   await expect(page).toHaveURL("/templates/" + templateName + "/workspace")
 
@@ -57,7 +57,7 @@ export const verifyParameters = async (
   expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   await expect(page).toHaveURL(
     "/@admin/" + workspaceName + "/settings/parameters",
@@ -120,7 +120,7 @@ export const createTemplate = async (
     content: "window.playwright = true",
   })
 
-  await page.goto("/templates/new", { waitUntil: "networkidle" })
+  await page.goto("/templates/new", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveURL("/templates/new")
 
   await page.getByTestId("file-upload").setInputFiles({
