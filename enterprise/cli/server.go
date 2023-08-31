@@ -50,7 +50,9 @@ func (r *RootCmd) server() *clibase.Cmd {
 			}
 		}
 		options.DERPServer.SetMeshKey(meshKey)
-		options.Auditor = audit.NewAuditor(audit.DefaultFilter,
+		options.Auditor = audit.NewAuditor(
+			options.Database,
+			audit.DefaultFilter,
 			backends.NewPostgres(options.Database, true),
 			backends.NewSlog(options.Logger),
 		)
