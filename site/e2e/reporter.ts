@@ -41,6 +41,10 @@ class CoderReporter implements Reporter {
   onTestEnd(test: TestCase, result: TestResult) {
     // eslint-disable-next-line no-console -- Helpful for debugging
     console.log(`Finished test ${test.title}: ${result.status}`)
+    if (result.status !== "passed") {
+      // eslint-disable-next-line no-console -- Helpful for debugging
+      console.log("errors", result.errors, "attachments", result.attachments)
+    }
   }
 
   onEnd(result: FullResult) {
