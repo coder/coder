@@ -42,6 +42,7 @@ const CreateWorkspacePage: FC = () => {
       defaultBuildParameters,
       defaultName:
         mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "",
+      versionId: searchParams.get("version") ?? undefined,
     },
     actions: {
       onCreateWorkspace: (_, event) => {
