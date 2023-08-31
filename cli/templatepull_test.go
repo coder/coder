@@ -13,8 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -55,10 +53,8 @@ func TestTemplatePull_NoName(t *testing.T) {
 func TestTemplatePull_Stdout(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
-		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -78,7 +74,8 @@ func TestTemplatePull_Stdout(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 	clitest.SetupConfig(t, client, root)
@@ -97,10 +94,8 @@ func TestTemplatePull_Stdout(t *testing.T) {
 func TestTemplatePull_ToDir(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
-		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -120,7 +115,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 
@@ -148,10 +144,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 // and writes it to a directory with the name of the template if the path is not implicitly supplied.
 // nolint: paralleltest
 func TestTemplatePull_ToImplicit(t *testing.T) {
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
-		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -171,7 +165,8 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	// create a tempdir and change the working directory to it for the duration of the test (cannot run in parallel)
 	dir := t.TempDir()
@@ -210,10 +205,8 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 func TestTemplatePull_FolderConflict(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
-		Logger:                   &logger,
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
@@ -233,7 +226,8 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 
