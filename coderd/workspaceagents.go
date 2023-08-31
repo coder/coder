@@ -1841,7 +1841,10 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		ReadyAt:        readyAt,
 	})
 	if err != nil {
-		logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			// not an error if we are canceled
+			logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
