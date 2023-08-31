@@ -36,6 +36,7 @@ export default defineConfig({
     video: "retain-on-failure",
   },
   webServer: {
+    url: `http://localhost:${port}/api/v2/deployment/config`,
     command:
       `go run -tags embed ${coderMain} server ` +
       `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
@@ -88,7 +89,6 @@ export default defineConfig({
         gitAuth.validatePath,
       ),
     },
-    port,
     reuseExistingServer: false,
   },
 })
