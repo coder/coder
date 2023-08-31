@@ -810,7 +810,7 @@ func (f *FakeIDP) OIDCConfig(t testing.TB, scopes []string, opts ...func(cfg *co
 
 func httpErrorCode(defaultCode int, err error) int {
 	var stautsErr statusHookError
-	var status = defaultCode
+	status := defaultCode
 	if errors.As(err, &stautsErr) {
 		status = stautsErr.HTTPStatusCode
 	}
