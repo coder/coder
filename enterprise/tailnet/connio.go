@@ -18,14 +18,13 @@ import (
 // uuid.Nil.  It reads node updates via its decoder, then pushes them onto the bindings channel.  It receives mappings
 // via its updates TrackedConn, which then writes them.
 type connIO struct {
-	pCtx          context.Context
-	ctx           context.Context
-	cancel        context.CancelFunc
-	logger        slog.Logger
-	subscriptions []uuid.UUID
-	decoder       *json.Decoder
-	updates       *agpl.TrackedConn
-	bindings      chan<- binding
+	pCtx     context.Context
+	ctx      context.Context
+	cancel   context.CancelFunc
+	logger   slog.Logger
+	decoder  *json.Decoder
+	updates  *agpl.TrackedConn
+	bindings chan<- binding
 }
 
 func newConnIO(pCtx context.Context,
@@ -33,25 +32,23 @@ func newConnIO(pCtx context.Context,
 	bindings chan<- binding,
 	conn net.Conn,
 	id uuid.UUID,
-	subs []uuid.UUID,
 	name string,
 	kind agpl.QueueKind,
-) *connIO {
+) (*connIO, error) {
 	ctx, cancel := context.WithCancel(pCtx)
 	c := &connIO{
-		pCtx:          pCtx,
-		ctx:           ctx,
-		cancel:        cancel,
-		logger:        logger,
-		subscriptions: subs,
-		decoder:       json.NewDecoder(conn),
-		updates:       agpl.NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, kind),
-		bindings:      bindings,
+		pCtx:     pCtx,
+		ctx:      ctx,
+		cancel:   cancel,
+		logger:   logger,
+		decoder:  json.NewDecoder(conn),
+		updates:  agpl.NewTrackedConn(ctx, cancel, conn, id, logger, name, 0, kind),
+		bindings: bindings,
 	}
 	go c.recvLoop()
 	go c.updates.SendUpdates()
 	logger.Info(ctx, "serving connection")
-	return c
+	return c, nil
 }
 
 func (c *connIO) recvLoop() {
@@ -90,8 +87,7 @@ func (c *connIO) recvLoop() {
 				id:   c.UniqueID(),
 				kind: c.Kind(),
 			},
-			subscriptions: c.subscriptions,
-			node:          &node,
+			node: &node,
 		}
 		if err := sendCtx(c.ctx, c.bindings, b); err != nil {
 			c.logger.Debug(c.ctx, "recvLoop ctx expired", slog.Error(err))

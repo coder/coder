@@ -4138,6 +4138,32 @@ func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetC
 	return i, err
 }
 
+const deleteTailnetClientSubscription = `-- name: DeleteTailnetClientSubscription :one
+DELETE
+FROM tailnet_client_subscriptions
+WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3
+RETURNING client_id, agent_id, coordinator_id
+`
+
+type DeleteTailnetClientSubscriptionParams struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+}
+
+type DeleteTailnetClientSubscriptionRow struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+}
+
+func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) (DeleteTailnetClientSubscriptionRow, error) {
+	row := q.db.QueryRowContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
+	var i DeleteTailnetClientSubscriptionRow
+	err := row.Scan(&i.ClientID, &i.AgentID, &i.CoordinatorID)
+	return i, err
+}
+
 const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many
 SELECT id, coordinator_id, updated_at, node
 FROM tailnet_agents
@@ -4172,24 +4198,31 @@ func (q *sqlQuerier) GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, e
 }
 
 const getAllTailnetClients = `-- name: GetAllTailnetClients :many
-SELECT id, coordinator_id, updated_at, node, agent_ids
+SELECT tailnet_clients.id, tailnet_clients.coordinator_id, tailnet_clients.updated_at, tailnet_clients.node, array_agg(tailnet_client_subscriptions.agent_id)::uuid[] as agent_ids
 FROM tailnet_clients
+LEFT JOIN tailnet_client_subscriptions
+ON tailnet_clients.id = tailnet_client_subscriptions.client_id
 `
 
-func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]TailnetClient, error) {
+type GetAllTailnetClientsRow struct {
+	TailnetClient TailnetClient `db:"tailnet_client" json:"tailnet_client"`
+	AgentIds      []uuid.UUID   `db:"agent_ids" json:"agent_ids"`
+}
+
+func (q *sqlQuerier) GetAllTailnetClients(ctx context.Context) ([]GetAllTailnetClientsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getAllTailnetClients)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []TailnetClient
+	var items []GetAllTailnetClientsRow
 	for rows.Next() {
-		var i TailnetClient
+		var i GetAllTailnetClientsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.CoordinatorID,
-			&i.UpdatedAt,
-			&i.Node,
+			&i.TailnetClient.ID,
+			&i.TailnetClient.CoordinatorID,
+			&i.TailnetClient.UpdatedAt,
+			&i.TailnetClient.Node,
 			pq.Array(&i.AgentIds),
 		); err != nil {
 			return nil, err
@@ -4240,13 +4273,17 @@ func (q *sqlQuerier) GetTailnetAgents(ctx context.Context, id uuid.UUID) ([]Tail
 }
 
 const getTailnetClientsForAgent = `-- name: GetTailnetClientsForAgent :many
-SELECT id, coordinator_id, updated_at, node, agent_ids
+SELECT id, coordinator_id, updated_at, node
 FROM tailnet_clients
-WHERE $1::uuid = ANY(agent_ids)
+WHERE id IN (
+	SELECT tailnet_client_subscriptions.client_id
+	FROM tailnet_client_subscriptions
+	WHERE tailnet_client_subscriptions.agent_id = $1
+)
 `
 
-func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, dollar_1 uuid.UUID) ([]TailnetClient, error) {
-	rows, err := q.db.QueryContext(ctx, getTailnetClientsForAgent, dollar_1)
+func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UUID) ([]TailnetClient, error) {
+	rows, err := q.db.QueryContext(ctx, getTailnetClientsForAgent, agentID)
 	if err != nil {
 		return nil, err
 	}
@@ -4259,7 +4296,6 @@ func (q *sqlQuerier) GetTailnetClientsForAgent(ctx context.Context, dollar_1 uui
 			&i.CoordinatorID,
 			&i.UpdatedAt,
 			&i.Node,
-			pq.Array(&i.AgentIds),
 		); err != nil {
 			return nil, err
 		}
@@ -4316,45 +4352,65 @@ INSERT INTO
 	tailnet_clients (
 	id,
 	coordinator_id,
-	agent_ids,
 	node,
 	updated_at
 )
 VALUES
-	($1, $2, $3, $4, now() at time zone 'utc')
+	($1, $2, $3, now() at time zone 'utc')
 ON CONFLICT (id, coordinator_id)
 DO UPDATE SET
 	id = $1,
 	coordinator_id = $2,
-	agent_ids = $3,
-	node = $4,
+	node = $3,
 	updated_at = now() at time zone 'utc'
-RETURNING id, coordinator_id, updated_at, node, agent_ids
+RETURNING id, coordinator_id, updated_at, node
 `
 
 type UpsertTailnetClientParams struct {
 	ID            uuid.UUID       `db:"id" json:"id"`
 	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	AgentIds      []uuid.UUID     `db:"agent_ids" json:"agent_ids"`
 	Node          json.RawMessage `db:"node" json:"node"`
 }
 
 func (q *sqlQuerier) UpsertTailnetClient(ctx context.Context, arg UpsertTailnetClientParams) (TailnetClient, error) {
-	row := q.db.QueryRowContext(ctx, upsertTailnetClient,
-		arg.ID,
-		arg.CoordinatorID,
-		pq.Array(arg.AgentIds),
-		arg.Node,
-	)
+	row := q.db.QueryRowContext(ctx, upsertTailnetClient, arg.ID, arg.CoordinatorID, arg.Node)
 	var i TailnetClient
 	err := row.Scan(
 		&i.ID,
 		&i.CoordinatorID,
 		&i.UpdatedAt,
 		&i.Node,
-		pq.Array(&i.AgentIds),
 	)
 	return i, err
+}
+
+const upsertTailnetClientSubscription = `-- name: UpsertTailnetClientSubscription :exec
+INSERT INTO
+	tailnet_client_subscriptions (
+	client_id,
+	coordinator_id,
+	agent_id,
+	updated_at
+)
+VALUES
+	($1, $2, $3, now() at time zone 'utc')
+ON CONFLICT (client_id, coordinator_id, agent_id)
+DO UPDATE SET
+	client_id = $1,
+	coordinator_id = $2,
+	agent_id = $3,
+	updated_at = now() at time zone 'utc'
+`
+
+type UpsertTailnetClientSubscriptionParams struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+func (q *sqlQuerier) UpsertTailnetClientSubscription(ctx context.Context, arg UpsertTailnetClientSubscriptionParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTailnetClientSubscription, arg.ClientID, arg.CoordinatorID, arg.AgentID)
+	return err
 }
 
 const upsertTailnetCoordinator = `-- name: UpsertTailnetCoordinator :one
