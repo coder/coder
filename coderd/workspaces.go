@@ -352,6 +352,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 				Message: "Internal error fetching template version.",
 				Detail:  err.Error(),
 			})
+			return
 		}
 
 		templateID = templateVersion.TemplateID.UUID
