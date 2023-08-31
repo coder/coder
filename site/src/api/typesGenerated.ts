@@ -273,6 +273,7 @@ export interface CreateWorkspaceProxyRequest {
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
   readonly template_id: string
+  readonly template_version_id: string
   readonly name: string
   readonly autostart_schedule?: string
   readonly ttl_ms?: number

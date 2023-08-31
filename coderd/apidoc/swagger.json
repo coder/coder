@@ -6872,7 +6872,7 @@
     },
     "codersdk.CreateWorkspaceRequest": {
       "type": "object",
-      "required": ["name", "template_id"],
+      "required": ["name"],
       "properties": {
         "autostart_schedule": {
           "type": "string"
@@ -6888,6 +6888,10 @@
           }
         },
         "template_id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "template_version_id": {
           "type": "string",
           "format": "uuid"
         },

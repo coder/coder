@@ -7715,8 +7715,7 @@ const docTemplate = `{
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
-                "name",
-                "template_id"
+                "name"
             ],
             "properties": {
                 "autostart_schedule": {
@@ -7733,6 +7732,10 @@ const docTemplate = `{
                     }
                 },
                 "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_id": {
                     "type": "string",
                     "format": "uuid"
                 },
