@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
@@ -65,6 +66,23 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if len(tags) != 0 {
+				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")
+				logger.Info(ctx, "see https://github.com/coder/coder/issues/6442 for details")
+			}
+
+			// When authorizing with a PSK, we automatically scope the provisionerd
+			// to organization. Scoping to user with PSK auth is not a valid configuration.
+			if preSharedKey != "" {
+				logger.Info(ctx, "psk auth automatically sets tag "+provisionerdserver.TagScope+"="+provisionerdserver.ScopeOrganization)
+				tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+			}
+
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
@@ -82,7 +100,6 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				_ = terraformServer.Close()
 			}()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
