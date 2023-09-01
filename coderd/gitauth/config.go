@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v43/github"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
@@ -63,7 +64,7 @@ type Config struct {
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
-	if c.NoRefresh && gitAuthLink.OAuthExpiry.Before(database.Now()) {
+	if c.NoRefresh && gitAuthLink.OAuthExpiry.Before(dbtime.Now()) {
 		return gitAuthLink, false, nil
 	}
 
@@ -106,7 +107,7 @@ validate:
 		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        c.ID,
 			UserID:            gitAuthLink.UserID,
-			UpdatedAt:         database.Now(),
+			UpdatedAt:         dbtime.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,

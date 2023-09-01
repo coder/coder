@@ -24,6 +24,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 const (
@@ -77,7 +78,7 @@ func New(options Options) (Reporter, error) {
 		options:       options,
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
-		startedAt:     database.Now(),
+		startedAt:     dbtime.Now(),
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
@@ -150,7 +151,7 @@ func (r *remoteReporter) Close() {
 		return
 	}
 	close(r.closed)
-	now := database.Now()
+	now := dbtime.Now()
 	r.shutdownAt = &now
 	// Report a final collection of telemetry prior to close!
 	// This could indicate final actions a user has taken, and
@@ -289,7 +290,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		ctx = r.ctx
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = database.Now().Add(-1 * time.Hour)
+		createdAfter = dbtime.Now().Add(-1 * time.Hour)
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,

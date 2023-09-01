@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -199,7 +200,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	)
 	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
+		CreatedAt:    dbtime.Now(),
 		Name:         name,
 		Provisioners: provisioners,
 		Tags:         tags,

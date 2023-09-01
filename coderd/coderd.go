@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -1081,7 +1082,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	// nolint:gocritic // Inserting a provisioner daemon is a system function.
 	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
+		CreatedAt:    dbtime.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 		Tags: database.StringMap{

@@ -21,6 +21,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
@@ -300,7 +301,7 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 	switch {
 	case !dbAgent.FirstConnectedAt.Valid:
 		switch {
-		case connectionTimeout > 0 && database.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && dbtime.Now().Sub(dbAgent.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			status = "timeout"
@@ -313,7 +314,7 @@ func mapAgentStatus(dbAgent database.WorkspaceAgent, agentInactiveDisconnectTime
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		status = "disconnected"
-	case database.Now().Sub(dbAgent.LastConnectedAt.Time) > time.Duration(agentInactiveDisconnectTimeoutSeconds)*time.Second:
+	case dbtime.Now().Sub(dbAgent.LastConnectedAt.Time) > time.Duration(agentInactiveDisconnectTimeoutSeconds)*time.Second:
 		// The connection died without updating the last connected.
 		status = "disconnected"
 	case dbAgent.LastConnectedAt.Valid:
@@ -4784,7 +4785,7 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 			p.WildcardHostname = arg.WildcardHostname
 			p.DerpEnabled = arg.DerpEnabled
 			p.DerpOnly = arg.DerpOnly
-			p.UpdatedAt = database.Now()
+			p.UpdatedAt = dbtime.Now()
 			q.workspaceProxies[i] = p
 			return p, nil
 		}
@@ -5099,7 +5100,7 @@ func (q *FakeQuerier) UpdateTemplateMetaByID(_ context.Context, arg database.Upd
 		if tpl.ID != arg.ID {
 			continue
 		}
-		tpl.UpdatedAt = database.Now()
+		tpl.UpdatedAt = dbtime.Now()
 		tpl.Name = arg.Name
 		tpl.DisplayName = arg.DisplayName
 		tpl.Description = arg.Description
@@ -5125,7 +5126,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		}
 		tpl.AllowUserAutostart = arg.AllowUserAutostart
 		tpl.AllowUserAutostop = arg.AllowUserAutostop
-		tpl.UpdatedAt = database.Now()
+		tpl.UpdatedAt = dbtime.Now()
 		tpl.DefaultTTL = arg.DefaultTTL
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
@@ -5712,7 +5713,7 @@ func (q *FakeQuerier) UpdateWorkspaceDormantDeletingAt(_ context.Context, arg da
 		}
 		workspace.DormantAt = arg.DormantAt
 		if workspace.DormantAt.Time.IsZero() {
-			workspace.LastUsedAt = database.Now()
+			workspace.LastUsedAt = dbtime.Now()
 			workspace.DeletingAt = sql.NullTime{}
 		}
 		if !workspace.DormantAt.Time.IsZero() {
@@ -5791,7 +5792,7 @@ func (q *FakeQuerier) UpdateWorkspaceProxyDeleted(_ context.Context, arg databas
 	for i, p := range q.workspaceProxies {
 		if p.ID == arg.ID {
 			p.Deleted = arg.Deleted
-			p.UpdatedAt = database.Now()
+			p.UpdatedAt = dbtime.Now()
 			q.workspaceProxies[i] = p
 			return nil
 		}

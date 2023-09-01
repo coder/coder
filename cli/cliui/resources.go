@@ -9,8 +9,7 @@ import (
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/mod/semver"
 
-	"github.com/coder/coder/v2/coderd/database"
-
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -122,15 +121,15 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
 	switch agent.Status {
 	case codersdk.WorkspaceAgentConnecting:
-		since := database.Now().Sub(agent.CreatedAt)
+		since := dbtime.Now().Sub(agent.CreatedAt)
 		return DefaultStyles.Warn.Render("⦾ connecting") + " " +
 			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentDisconnected:
-		since := database.Now().Sub(*agent.DisconnectedAt)
+		since := dbtime.Now().Sub(*agent.DisconnectedAt)
 		return DefaultStyles.Error.Render("⦾ disconnected") + " " +
 			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentTimeout:
-		since := database.Now().Sub(agent.CreatedAt)
+		since := dbtime.Now().Sub(agent.CreatedAt)
 		return fmt.Sprintf(
 			"%s %s",
 			DefaultStyles.Warn.Render("⦾ timeout"),

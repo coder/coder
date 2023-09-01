@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -236,7 +237,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	var (
 		link database.UserLink
-		now  = database.Now()
+		now  = dbtime.Now()
 		// Tracks if the API key has properties updated
 		changed = false
 	)
@@ -384,8 +385,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// nolint:gocritic
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
-			LastSeenAt: database.Now(),
-			UpdatedAt:  database.Now(),
+			LastSeenAt: dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
@@ -413,7 +414,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        key.UserID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{

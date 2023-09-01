@@ -43,7 +43,7 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -880,7 +880,7 @@ func (c *Conn) selfNode() *Node {
 
 	node := &Node{
 		ID:                  c.netMap.SelfNode.ID,
-		AsOf:                database.Now(),
+		AsOf:                dbtime.Now(),
 		Key:                 c.netMap.SelfNode.Key,
 		Addresses:           c.netMap.SelfNode.Addresses,
 		AllowedIPs:          c.netMap.SelfNode.AllowedIPs,

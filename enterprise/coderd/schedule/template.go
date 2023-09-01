@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -31,7 +32,7 @@ type EnterpriseTemplateScheduleStore struct {
 	// update.
 	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
 
-	// Custom time.Now() function to use in tests. Defaults to database.Now().
+	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
 	TimeNowFn func() time.Time
 }
 
@@ -47,7 +48,7 @@ func (s *EnterpriseTemplateScheduleStore) now() time.Time {
 	if s.TimeNowFn != nil {
 		return s.TimeNowFn()
 	}
-	return database.Now()
+	return dbtime.Now()
 }
 
 // Get implements agpl.TemplateScheduleStore.
@@ -146,7 +147,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		var dormantAt time.Time
 		if opts.UpdateWorkspaceDormantAt {
-			dormantAt = database.Now()
+			dormantAt = dbtime.Now()
 		}
 
 		// If we updated the time_til_dormant_autodelete we need to update all the workspaces deleting_at
@@ -165,7 +166,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		if opts.UpdateWorkspaceLastUsedAt {
 			err = tx.UpdateTemplateWorkspacesLastUsedAt(ctx, database.UpdateTemplateWorkspacesLastUsedAtParams{
 				TemplateID: tpl.ID,
-				LastUsedAt: database.Now(),
+				LastUsedAt: dbtime.Now(),
 			})
 			if err != nil {
 				return xerrors.Errorf("update template workspaces last_used_at: %w", err)
