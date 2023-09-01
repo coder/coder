@@ -56,5 +56,5 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
   })
 
   await stopWorkspace(page, workspaceName)
-  await stopAgent(agent)
+  await stopAgent(agent, false)
 })

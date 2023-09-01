@@ -339,8 +339,8 @@ export const startAgentWithCommand = async (
   return cp
 }
 
-export const stopAgent = async (cp: ChildProcess) => {
-  exec(`pkill -P ${cp.pid}`, (error) => {
+export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
+  exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
     if (error) {
       throw new Error(`exec error: ${JSON.stringify(error)}`)
     }
