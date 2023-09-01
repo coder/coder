@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -138,9 +139,9 @@ func NewServer(
 // calculations regarding workspace start and stop time.
 func (s *server) timeNow() time.Time {
 	if s.TimeNowFn != nil {
-		return database.Time(s.TimeNowFn())
+		return dbtime.Time(s.TimeNowFn())
 	}
-	return database.Now()
+	return dbtime.Now()
 }
 
 // AcquireJob queries the database to lock a job.
@@ -162,7 +163,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	// This marks the job as locked in the database.
 	job, err := s.Database.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		},
 		WorkerID: uuid.NullUUID{
@@ -176,7 +177,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 		// The provisioner daemon assumes no jobs are available if
 		// an empty struct is returned.
 		lastAcquireMutex.Lock()
-		lastAcquire = database.Now()
+		lastAcquire = dbtime.Now()
 		lastAcquireMutex.Unlock()
 		return &proto.AcquiredJob{}, nil
 	}
@@ -190,7 +191,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: job.ID,
 			CompletedAt: sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			},
 			Error: sql.NullString{
@@ -533,7 +534,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 	err = s.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update job: %w", err)
@@ -590,7 +591,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		err := s.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
 			JobID:     job.ID,
 			Readme:    string(request.Readme),
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)
@@ -679,7 +680,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		return nil, xerrors.Errorf("job already completed")
 	}
 	job.CompletedAt = sql.NullTime{
-		Time:  database.Now(),
+		Time:  dbtime.Now(),
 		Valid: true,
 	}
 	job.Error = sql.NullString{
@@ -694,7 +695,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
-		UpdatedAt:   database.Now(),
+		UpdatedAt:   dbtime.Now(),
 		Error:       job.Error,
 		ErrorCode:   job.ErrorCode,
 	})
@@ -723,7 +724,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			if jobType.WorkspaceBuild.State != nil {
 				err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 					ID:               input.WorkspaceBuildID,
-					UpdatedAt:        database.Now(),
+					UpdatedAt:        dbtime.Now(),
 					ProvisionerState: jobType.WorkspaceBuild.State,
 					Deadline:         build.Deadline,
 					MaxDeadline:      build.MaxDeadline,
@@ -929,7 +930,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
 			JobID:            jobID,
 			GitAuthProviders: jobType.TemplateImport.GitAuthProviders,
-			UpdatedAt:        database.Now(),
+			UpdatedAt:        dbtime.Now(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version git auth providers: %w", err)
@@ -937,9 +938,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 			CompletedAt: sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			},
 			Error: completedError,
@@ -994,9 +995,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID:        jobID,
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 				CompletedAt: sql.NullTime{
-					Time:  database.Now(),
+					Time:  dbtime.Now(),
 					Valid: true,
 				},
 			})
@@ -1044,7 +1045,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 						slog.F("workspace_build_id", workspaceBuild.ID),
 						slog.F("timeout", d),
 					)
-					// Agents are inserted with `database.Now()`, this triggers a
+					// Agents are inserted with `dbtime.Now()`, this triggers a
 					// workspace event approximately after created + timeout seconds.
 					updates = append(updates, time.After(d))
 				}
@@ -1143,9 +1144,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 			CompletedAt: sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			},
 		})
@@ -1188,7 +1189,7 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
-		CreatedAt:  database.Now(),
+		CreatedAt:  dbtime.Now(),
 		JobID:      jobID,
 		Transition: transition,
 		Type:       protoResource.Type,
@@ -1250,8 +1251,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                   agentID,
-			CreatedAt:            database.Now(),
-			UpdatedAt:            database.Now(),
+			CreatedAt:            dbtime.Now(),
+			UpdatedAt:            dbtime.Now(),
 			ResourceID:           resource.ID,
 			Name:                 prAgent.Name,
 			AuthToken:            authToken,
@@ -1327,7 +1328,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:          uuid.New(),
-				CreatedAt:   database.Now(),
+				CreatedAt:   dbtime.Now(),
 				AgentID:     dbAgent.ID,
 				Slug:        slug,
 				DisplayName: app.DisplayName,
@@ -1449,7 +1450,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig ht
 		return "", xerrors.Errorf("get owner oidc link: %w", err)
 	}
 
-	if link.OAuthExpiry.Before(database.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
+	if link.OAuthExpiry.Before(dbtime.Now()) && !link.OAuthExpiry.IsZero() && link.OAuthRefreshToken != "" {
 		token, err := oidcConfig.TokenSource(ctx, &oauth2.Token{
 			AccessToken:  link.OAuthAccessToken,
 			RefreshToken: link.OAuthRefreshToken,

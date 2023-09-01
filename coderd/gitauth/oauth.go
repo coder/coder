@@ -12,7 +12,7 @@ import (
 	"golang.org/x/oauth2/github"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -182,7 +182,7 @@ func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) 
 	return &oauth2.Token{
 		AccessToken:  body.AccessToken,
 		RefreshToken: body.RefreshToken,
-		Expiry:       database.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+		Expiry:       dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
 	}, nil
 }
 

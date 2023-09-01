@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -178,7 +179,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 	err := db.InTx(func(db database.Store) error {
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:         tpl.ID,
-			UpdatedAt:  database.Now(),
+			UpdatedAt:  dbtime.Now(),
 			DefaultTTL: int64(opts.DefaultTTL),
 			// Don't allow changing these settings, but keep the value in the DB (to
 			// avoid clearing settings if the license has an issue).

@@ -10,6 +10,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 const (
@@ -44,12 +45,12 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db d
 			}
 
 			startTime := time.Now()
-			lastSeenAfter := database.Now().Add(-dormancyPeriod)
+			lastSeenAfter := dbtime.Now().Add(-dormancyPeriod)
 			logger.Debug(ctx, "check inactive user accounts", slog.F("dormancy_period", dormancyPeriod), slog.F("last_seen_after", lastSeenAfter))
 
 			updatedUsers, err := db.UpdateInactiveUsersToDormant(ctx, database.UpdateInactiveUsersToDormantParams{
 				LastSeenAfter: lastSeenAfter,
-				UpdatedAt:     database.Now(),
+				UpdatedAt:     dbtime.Now(),
 			})
 			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				logger.Error(ctx, "can't mark inactive users as dormant", slog.Error(err))

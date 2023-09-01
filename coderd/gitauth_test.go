@@ -17,7 +17,7 @@ import (
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
@@ -371,7 +371,7 @@ func TestGitAuthCallback(t *testing.T) {
 					Token: &oauth2.Token{
 						AccessToken:  "token",
 						RefreshToken: "something",
-						Expiry:       database.Now().Add(-time.Hour),
+						Expiry:       dbtime.Now().Add(-time.Hour),
 					},
 				},
 				ID:        "github",

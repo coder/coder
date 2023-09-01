@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -124,8 +125,8 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 		_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
 			ProviderID:        config.ID,
 			UserID:            apiKey.UserID,
-			CreatedAt:         database.Now(),
-			UpdatedAt:         database.Now(),
+			CreatedAt:         dbtime.Now(),
+			UpdatedAt:         dbtime.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
@@ -141,7 +142,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 		_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        config.ID,
 			UserID:            apiKey.UserID,
-			UpdatedAt:         database.Now(),
+			UpdatedAt:         dbtime.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
@@ -212,8 +213,8 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
-				CreatedAt:         database.Now(),
-				UpdatedAt:         database.Now(),
+				CreatedAt:         dbtime.Now(),
+				UpdatedAt:         dbtime.Now(),
 				OAuthAccessToken:  state.Token.AccessToken,
 				OAuthRefreshToken: state.Token.RefreshToken,
 				OAuthExpiry:       state.Token.Expiry,
@@ -229,7 +230,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
-				UpdatedAt:         database.Now(),
+				UpdatedAt:         dbtime.Now(),
 				OAuthAccessToken:  state.Token.AccessToken,
 				OAuthRefreshToken: state.Token.RefreshToken,
 				OAuthExpiry:       state.Token.Expiry,
