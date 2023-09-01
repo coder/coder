@@ -118,7 +118,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 }
 
 func (r *RootCmd) AGPL() []*clibase.Cmd {
-	all := append(r.Core(), r.Server( /* Do not import coderd here. */ ))
+	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 

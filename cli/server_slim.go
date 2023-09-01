@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 )
 
-func (r *RootCmd) Server() *clibase.Cmd {
+func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 	root := &clibase.Cmd{
 		Use:   "server",
 		Short: "Start a Coder server",
