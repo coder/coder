@@ -99,10 +99,12 @@ ldflags=(
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
 
+# We use ts_omit_aws here because on Linux it prevents Tailscale from importing
+# github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
 if [[ "$slim" == 0 ]]; then
-	build_args+=(-tags embed)
+	build_args+=(-tags "embed,ts_omit_aws")
 else
-	build_args+=(-tags slim)
+	build_args+=(-tags "slim,ts_omit_aws")
 fi
 if [[ "$agpl" == 1 ]]; then
 	# We don't use a tag to control AGPL because we don't want code to depend on

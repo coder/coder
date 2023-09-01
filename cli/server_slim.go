@@ -3,17 +3,15 @@
 package cli
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd"
 )
 
-func (r *RootCmd) Server(_ func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 	root := &clibase.Cmd{
 		Use:   "server",
 		Short: "Start a Coder server",
