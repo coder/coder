@@ -37,8 +37,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -523,7 +522,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	report := agentsdk.PostLifecycleRequest{
 		State:     state,
-		ChangedAt: database.Now(),
+		ChangedAt: time.Now().UTC(), // Like `database.Now()`, but avoid importing coderd/database.
 	}
 
 	a.lifecycleMu.Lock()
