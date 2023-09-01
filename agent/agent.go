@@ -73,7 +73,8 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	Syscaller                    agentproc.Syscaller
-	ProcessManagementInterval    time.Duration
+	ProcessManagementTick        <-chan time.Time
+	ModifiedProcesses            chan []*agentproc.Process
 }
 
 type Client interface {
@@ -130,10 +131,6 @@ func New(options Options) Agent {
 		options.Syscaller = agentproc.UnixSyscaller{}
 	}
 
-	if options.ProcessManagementInterval == 0 {
-		options.ProcessManagementInterval = time.Second
-	}
-
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:            options.TailnetListenPort,
@@ -158,7 +155,8 @@ func New(options Options) Agent {
 		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
 		syscaller:                    options.Syscaller,
-		processManagementInterval:    options.ProcessManagementInterval,
+		processManagementTick:        options.ProcessManagementTick,
+		modifiedProcs:                options.ModifiedProcesses,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -211,10 +209,11 @@ type agent struct {
 
 	connCountReconnectingPTY atomic.Int64
 
-	prometheusRegistry        *prometheus.Registry
-	metrics                   *agentMetrics
-	processManagementInterval time.Duration
-	syscaller                 agentproc.Syscaller
+	prometheusRegistry    *prometheus.Registry
+	metrics               *agentMetrics
+	processManagementTick <-chan time.Time
+	modifiedProcs         chan []*agentproc.Process
+	syscaller             agentproc.Syscaller
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1275,9 +1274,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 var prioritizedProcs = []string{"coder"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
-	ticker := time.NewTicker(a.processManagementInterval)
-	defer ticker.Stop()
-
 	if val := a.envVars[EnvProcMemNice]; val == "" || runtime.GOOS != "linux" {
 		a.logger.Info(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
 			slog.F("env_var", EnvProcMemNice),
@@ -1287,42 +1283,45 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 		return
 	}
 
-	// Do once before falling into loop.
-	if err := a.manageProcessPriority(ctx); err != nil {
-		a.logger.Error(ctx, "manage process priority",
-			slog.F("dir", agentproc.DefaultProcDir),
-			slog.Error(err),
-		)
+	manage := func() {
+		// Do once before falling into loop.
+		procs, err := a.manageProcessPriority(ctx)
+		if err != nil {
+			a.logger.Error(ctx, "manage process priority",
+				slog.F("dir", agentproc.DefaultProcDir),
+				slog.Error(err),
+			)
+		}
+		if a.modifiedProcs != nil {
+			a.modifiedProcs <- procs
+		}
 	}
+
+	manage()
 
 	for {
 		select {
-		case <-ticker.C:
-			if err := a.manageProcessPriority(ctx); err != nil {
-				a.logger.Error(ctx, "manage process priority",
-					slog.F("dir", agentproc.DefaultProcDir),
-					slog.Error(err),
-				)
-			}
-
+		case <-a.processManagementTick:
+			manage()
 		case <-ctx.Done():
 			return
 		}
 	}
 }
 
-func (a *agent) manageProcessPriority(ctx context.Context) error {
+func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
 	const (
 		procDir     = agentproc.DefaultProcDir
 		niceness    = 10
-		oomScoreAdj = 100
+		oomScoreAdj = -1000
 	)
 
 	procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
 	if err != nil {
-		return xerrors.Errorf("list: %w", err)
+		return nil, xerrors.Errorf("list: %w", err)
 	}
 
+	modProcs := []*agentproc.Process{}
 	for _, proc := range procs {
 		// Trim off the path e.g. "./coder" -> "coder"
 		name := filepath.Base(proc.Name())
@@ -1339,6 +1338,7 @@ func (a *agent) manageProcessPriority(ctx context.Context) error {
 				)
 				continue
 			}
+			modProcs = append(modProcs, proc)
 
 			a.logger.Debug(ctx, "decreased process oom_score",
 				slog.F("name", proc.Name()),
@@ -1382,8 +1382,9 @@ func (a *agent) manageProcessPriority(ctx context.Context) error {
 			slog.F("pid", proc.PID),
 			slog.F("niceness", niceness),
 		)
+		modProcs = append(modProcs, proc)
 	}
-	return nil
+	return modProcs, nil
 }
 
 // isClosed returns whether the API is closed or not.

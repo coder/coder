@@ -11,13 +11,10 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-func GenerateProcess(t *testing.T, fs afero.Fs, dir string) agentproc.Process {
+func GenerateProcess(t *testing.T, fs afero.Fs, dir string, muts ...func(*agentproc.Process)) agentproc.Process {
 	t.Helper()
 
 	pid, err := cryptorand.Intn(1<<31 - 1)
-	require.NoError(t, err)
-
-	err = fs.MkdirAll(fmt.Sprintf("/%s/%d", dir, pid), 0555)
 	require.NoError(t, err)
 
 	arg1, err := cryptorand.String(5)
@@ -31,13 +28,26 @@ func GenerateProcess(t *testing.T, fs afero.Fs, dir string) agentproc.Process {
 
 	cmdline := fmt.Sprintf("%s\x00%s\x00%s", arg1, arg2, arg3)
 
-	err = afero.WriteFile(fs, fmt.Sprintf("/%s/%d/cmdline", dir, pid), []byte(cmdline), 0444)
-	require.NoError(t, err)
-
-	return agentproc.Process{
-		PID:     int32(pid),
+	process := agentproc.Process{
 		CmdLine: cmdline,
-		Dir:     fmt.Sprintf("%s/%d", dir, pid),
+		PID:     int32(pid),
 		FS:      fs,
 	}
+
+	for _, mut := range muts {
+		mut(&process)
+	}
+
+	process.Dir = fmt.Sprintf("%s/%d", dir, process.PID)
+
+	err = fs.MkdirAll(process.Dir, 0555)
+	require.NoError(t, err)
+
+	err = afero.WriteFile(fs, fmt.Sprintf("%s/cmdline", process.Dir), []byte(process.CmdLine), 0444)
+	require.NoError(t, err)
+
+	err = afero.WriteFile(fs, fmt.Sprintf("%s/oom_score_adj", process.Dir), []byte("0"), 0444)
+	require.NoError(t, err)
+
+	return process
 }

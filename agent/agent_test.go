@@ -21,10 +21,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	scp "github.com/bramvdbogaerde/go-scp"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
@@ -44,6 +46,8 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -2398,6 +2402,66 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 
 func TestAgent_ManageProcessPriority(t *testing.T) {
 	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedProcs = map[int32]agentproc.Process{}
+			fs            = afero.NewMemMapFs()
+			ticker        = make(chan time.Time)
+			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			modProcs      = make(chan []*agentproc.Process)
+			logger        = slog.Make(sloghuman.Sink(io.Discard))
+		)
+
+		// Create some processes.
+		for i := 0; i < 4; i++ {
+			// Create a prioritized process.
+			var proc agentproc.Process
+			if i == 0 {
+				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir,
+					func(p *agentproc.Process) {
+						p.CmdLine = "./coder\x00agent\x00--no-reap"
+						p.PID = 1
+					},
+				)
+			} else {
+				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
+				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
+				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+			}
+			syscaller.EXPECT().
+				Kill(proc.PID, syscall.Signal(0)).
+				Return(nil)
+
+			expectedProcs[proc.PID] = proc
+		}
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.ProcessManagementTick = ticker
+			o.Syscaller = syscaller
+			o.ModifiedProcesses = modProcs
+			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+			o.Filesystem = fs
+			o.Logger = logger
+		})
+		actualProcs := <-modProcs
+		require.Len(t, actualProcs, 4)
+
+		for _, actual := range actualProcs {
+			expectedScore := "0"
+			expected, ok := expectedProcs[actual.PID]
+			require.True(t, ok)
+			if expected.PID == 1 {
+				expectedScore = "-1000"
+			}
+
+			score, err := afero.ReadFile(fs, filepath.Join(actual.Dir, "oom_score_adj"))
+			require.NoError(t, err)
+			require.Equal(t, expectedScore, strings.TrimSpace(string(score)))
+		}
+	})
 
 	t.Run("DisabledByDefault", func(t *testing.T) {
 		t.Parallel()

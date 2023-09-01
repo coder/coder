@@ -23,7 +23,7 @@ func TestList(t *testing.T) {
 
 		var (
 			fs            = afero.NewMemMapFs()
-			sc            = NewMockSyscaller(gomock.NewController(t))
+			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
 			rootDir       = agentproc.DefaultProcDir
 		)
@@ -54,7 +54,7 @@ func TestList(t *testing.T) {
 
 		var (
 			fs            = afero.NewMemMapFs()
-			sc            = NewMockSyscaller(gomock.NewController(t))
+			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
 			rootDir       = agentproc.DefaultProcDir
 		)
@@ -92,7 +92,7 @@ func TestList(t *testing.T) {
 
 		var (
 			fs            = afero.NewMemMapFs()
-			sc            = NewMockSyscaller(gomock.NewController(t))
+			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
 			rootDir       = agentproc.DefaultProcDir
 		)
@@ -153,7 +153,7 @@ func TestProcess(t *testing.T) {
 		t.Parallel()
 
 		var (
-			sc   = NewMockSyscaller(gomock.NewController(t))
+			sc   = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			proc = &agentproc.Process{
 				PID: 32,
 			}
