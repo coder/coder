@@ -101,10 +101,11 @@ ldflags=(
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
+TS_EXTRA_SMALL="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube"
 if [[ "$slim" == 0 ]]; then
-	build_args+=(-tags "embed,ts_omit_aws")
+	build_args+=(-tags "embed,$TS_EXTRA_SMALL")
 else
-	build_args+=(-tags "slim,ts_omit_aws")
+	build_args+=(-tags "slim,$TS_EXTRA_SMALL")
 fi
 if [[ "$agpl" == 1 ]]; then
 	# We don't use a tag to control AGPL because we don't want code to depend on
