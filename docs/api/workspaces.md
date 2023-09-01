@@ -27,6 +27,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     }
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "ttl_ms": 0
 }
 ```

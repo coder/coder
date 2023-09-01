@@ -333,10 +333,35 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, createWorkspace.TemplateID)
+	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
+	templateID := createWorkspace.TemplateID
+	if templateID == uuid.Nil {
+		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createWorkspace.TemplateVersionID)
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
+				Validations: []codersdk.ValidationError{{
+					Field:  "template_version_id",
+					Detail: "template not found",
+				}},
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		templateID = templateVersion.TemplateID.UUID
+	}
+
+	template, err := api.Database.GetTemplateByID(ctx, templateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q doesn't exist.", createWorkspace.TemplateID.String()),
+			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
 			Validations: []codersdk.ValidationError{{
 				Field:  "template_id",
 				Detail: "template not found",
@@ -454,6 +479,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Initiator(apiKey.UserID).
 			ActiveVersion().
 			RichParameterValues(createWorkspace.RichParameterValues)
+		if createWorkspace.TemplateVersionID != uuid.Nil {
+			builder = builder.VersionID(createWorkspace.TemplateVersionID)
+		}
+
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx, db, func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)

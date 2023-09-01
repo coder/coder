@@ -1757,19 +1757,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "ttl_ms": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                     |
-| `name`                  | string                                                                        | true     |              |                                                                                                     |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision. |
-| `template_id`           | string                                                                        | true     |              |                                                                                                     |
-| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                     |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                         |
+| `name`                  | string                                                                        | true     |              |                                                                                                         |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
+| `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
 
 ## codersdk.DAUEntry
 

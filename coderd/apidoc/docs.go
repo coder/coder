@@ -7715,8 +7715,7 @@ const docTemplate = `{
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
-                "name",
-                "template_id"
+                "name"
             ],
             "properties": {
                 "autostart_schedule": {
@@ -7726,13 +7725,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rich_parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
+                    "description": "RichParameterValues allows for additional parameters to be provided\nduring the initial provision.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
                 "template_id": {
+                    "description": "TemplateID specifies which template should be used for creating the workspace.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_id": {
+                    "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
                     "type": "string",
                     "format": "uuid"
                 },
