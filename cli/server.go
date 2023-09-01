@@ -305,7 +305,15 @@ func enablePrometheus(
 	), nil
 }
 
-func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+func (r *RootCmd) Server(optionalNewAPI ...func(context.Context, *coderd.Options) (*coderd.API, io.Closer, error)) *clibase.Cmd {
+	if len(optionalNewAPI) == 0 {
+		optionalNewAPI = append(optionalNewAPI, func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
+			api := coderd.New(o)
+			return api, api, nil
+		})
+	}
+	newAPI := optionalNewAPI[0]
+
 	var (
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
