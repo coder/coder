@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -106,15 +107,15 @@ func TestServerCreateAdminUser(t *testing.T) {
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:        org1ID,
 			Name:      org1Name,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		_, err = db.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:        org2ID,
 			Name:      org2Name,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 

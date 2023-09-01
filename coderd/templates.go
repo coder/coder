@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -87,7 +88,7 @@ func (api *API) deleteTemplate(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 		ID:        template.ID,
 		Deleted:   true,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -301,7 +302,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		defaultsGroups[organization.ID.String()] = []rbac.Action{rbac.ActionRead}
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
-		now := database.Now()
+		now := dbtime.Now()
 		id := uuid.New()
 		err = tx.InsertTemplate(ctx, database.InsertTemplateParams{
 			ID:                           id,
@@ -356,7 +357,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 				UUID:  dbTemplate.ID,
 				Valid: true,
 			},
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 			Name:      templateVersion.Name,
 			Message:   templateVersion.Message,
 		})
@@ -585,7 +586,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		var err error
 		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
-			UpdatedAt:                    database.Now(),
+			UpdatedAt:                    dbtime.Now(),
 			Name:                         name,
 			DisplayName:                  req.DisplayName,
 			Description:                  req.Description,

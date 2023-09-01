@@ -17,7 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -82,21 +82,21 @@ func main() {
 		Handler: func(inv *clibase.Invocation) error {
 			job := codersdk.ProvisionerJob{
 				Status:    codersdk.ProvisionerJobPending,
-				CreatedAt: database.Now(),
+				CreatedAt: dbtime.Now(),
 			}
 			go func() {
 				time.Sleep(time.Second)
 				if job.Status != codersdk.ProvisionerJobPending {
 					return
 				}
-				started := database.Now()
+				started := dbtime.Now()
 				job.StartedAt = &started
 				job.Status = codersdk.ProvisionerJobRunning
 				time.Sleep(3 * time.Second)
 				if job.Status != codersdk.ProvisionerJobRunning {
 					return
 				}
-				completed := database.Now()
+				completed := dbtime.Now()
 				job.CompletedAt = &completed
 				job.Status = codersdk.ProvisionerJobSucceeded
 			}()
@@ -154,7 +154,7 @@ func main() {
 					job.Status = codersdk.ProvisionerJobCanceling
 					time.Sleep(time.Second)
 					job.Status = codersdk.ProvisionerJobCanceled
-					completed := database.Now()
+					completed := dbtime.Now()
 					job.CompletedAt = &completed
 					return nil
 				},
@@ -236,7 +236,7 @@ func main() {
 								time.Sleep(144 * time.Millisecond)
 							}
 							agent.LifecycleState = codersdk.WorkspaceAgentLifecycleReady
-							readyAt := database.Now()
+							readyAt := dbtime.Now()
 							agent.ReadyAt = &readyAt
 						}()
 					} else {
@@ -258,7 +258,7 @@ func main() {
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "resources",
 		Handler: func(inv *clibase.Invocation) error {
-			disconnected := database.Now().Add(-4 * time.Second)
+			disconnected := dbtime.Now().Add(-4 * time.Second)
 			return cliui.WorkspaceResources(inv.Stdout, []codersdk.WorkspaceResource{{
 				Transition: codersdk.WorkspaceTransitionStart,
 				Type:       "google_compute_disk",
@@ -272,7 +272,7 @@ func main() {
 				Type:       "google_compute_instance",
 				Name:       "dev",
 				Agents: []codersdk.WorkspaceAgent{{
-					CreatedAt:       database.Now().Add(-10 * time.Second),
+					CreatedAt:       dbtime.Now().Add(-10 * time.Second),
 					Status:          codersdk.WorkspaceAgentConnecting,
 					LifecycleState:  codersdk.WorkspaceAgentLifecycleCreated,
 					Name:            "dev",

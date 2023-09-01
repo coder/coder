@@ -19,7 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -600,7 +600,7 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	s.collectStats(report)
 	defer func() {
 		// We must use defer here because ServeHTTP may panic.
-		report.SessionEndedAt = database.Now()
+		report.SessionEndedAt = dbtime.Now()
 		s.collectStats(report)
 	}()
 
@@ -700,7 +700,7 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	report := newStatsReportFromSignedToken(*appToken)
 	s.collectStats(report)
 	defer func() {
-		report.SessionEndedAt = database.Now()
+		report.SessionEndedAt = dbtime.Now()
 		s.collectStats(report)
 	}()
 

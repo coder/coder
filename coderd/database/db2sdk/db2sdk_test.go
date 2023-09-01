@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -27,7 +28,7 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceling",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 			},
@@ -37,11 +38,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceled",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 			},
@@ -51,11 +52,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceled_failed",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 				Error: sql.NullString{String: "badness", Valid: true},
@@ -71,11 +72,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "succeeded",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 			},
@@ -85,11 +86,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "completed_failed",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 				Error: sql.NullString{String: "badness", Valid: true},
@@ -100,10 +101,10 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "updated",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 			},
 			status: codersdk.ProvisionerJobRunning,
 		},

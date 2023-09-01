@@ -33,6 +33,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -1082,12 +1083,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	firstConnectedAt := workspaceAgent.FirstConnectedAt
 	if !firstConnectedAt.Valid {
 		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		}
 	}
 	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
+		Time:  dbtime.Now(),
 		Valid: true,
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
@@ -1098,7 +1099,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
-			UpdatedAt:        database.Now(),
+			UpdatedAt:        dbtime.Now(),
 			LastConnectedReplicaID: uuid.NullUUID{
 				UUID:  api.ID,
 				Valid: true,
@@ -1126,7 +1127,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		// Only update timestamp if the disconnect is new.
 		if !disconnectedAt.Valid {
 			disconnectedAt = sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			}
 		}
@@ -1191,7 +1192,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if !disconnectedAt.Valid {
 				connectionStatusChanged = true
 				disconnectedAt = sql.NullTime{
-					Time:  database.Now(),
+					Time:  dbtime.Now(),
 					Valid: true,
 				}
 			}
@@ -1200,7 +1201,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
 			disconnectedAt = sql.NullTime{}
 			lastConnectedAt = sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			}
 		}
@@ -1480,7 +1481,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 	}
 
-	now := database.Now()
+	now := dbtime.Now()
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
@@ -1820,7 +1821,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 
 	if req.ChangedAt.IsZero() {
 		// Backwards compatibility with older agents.
-		req.ChangedAt = database.Now()
+		req.ChangedAt = dbtime.Now()
 	}
 	changedAt := sql.NullTime{Time: req.ChangedAt, Valid: true}
 
@@ -2083,7 +2084,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			// to expire.
 			// See
 			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
-			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
+			if gitAuthLink.OAuthExpiry.Before(dbtime.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
 			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)

@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -159,7 +160,7 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 	user, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
 		ID:        user.ID,
 		Status:    database.UserStatusActive,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err)
 
@@ -167,8 +168,8 @@ func addUser(t *testing.T, db database.Store, roles ...string) (database.User, s
 		ID:           id,
 		UserID:       user.ID,
 		HashedSecret: hashed[:],
-		LastUsed:     database.Now(),
-		ExpiresAt:    database.Now().Add(time.Minute),
+		LastUsed:     dbtime.Now(),
+		ExpiresAt:    dbtime.Now().Add(time.Minute),
 		LoginType:    database.LoginTypePassword,
 		Scope:        database.APIKeyScopeAll,
 		IPAddress: pqtype.Inet{

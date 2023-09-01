@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 const (
@@ -43,7 +44,7 @@ func newStatsReportFromSignedToken(token SignedToken) StatsReport {
 		AccessMethod:     token.AccessMethod,
 		SlugOrPort:       token.AppSlugOrPort,
 		SessionID:        uuid.New(),
-		SessionStartedAt: database.Now(),
+		SessionStartedAt: dbtime.Now(),
 		Requests:         1,
 	}
 }
@@ -294,7 +295,7 @@ func (sc *StatsCollector) rollup(now time.Time) []StatsReport {
 				// Report an end time for incomplete sessions, it will
 				// be updated later. This ensures that data in the DB
 				// will have an end time even if the service is stopped.
-				r.SessionEndedAt = now.UTC() // Use UTC like database.Now().
+				r.SessionEndedAt = now.UTC() // Use UTC like dbtime.Now().
 			}
 			report = append(report, r) // Report it (ended or incomplete).
 			if stat.SessionEndedAt.IsZero() {
