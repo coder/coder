@@ -6,6 +6,7 @@ import {
   downloadCoderVersion,
   sshIntoWorkspace,
   startAgentWithCommand,
+  stopAgent,
   stopWorkspace,
 } from "../helpers"
 import { beforeCoderTest } from "../hooks"
@@ -35,7 +36,7 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
   })
   const workspaceName = await createWorkspace(page, template)
   const binaryPath = await downloadCoderVersion(agentVersion)
-  await startAgentWithCommand(page, token, binaryPath)
+  const agent = await startAgentWithCommand(page, token, binaryPath)
 
   const client = await sshIntoWorkspace(page, workspaceName)
   await new Promise<void>((resolve, reject) => {
@@ -55,4 +56,5 @@ test("ssh with agent " + agentVersion, async ({ page }) => {
   })
 
   await stopWorkspace(page, workspaceName)
+  await stopAgent(agent)
 })

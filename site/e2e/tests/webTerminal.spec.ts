@@ -1,5 +1,10 @@
 import { test } from "@playwright/test"
-import { createTemplate, createWorkspace, startAgent } from "../helpers"
+import {
+  createTemplate,
+  createWorkspace,
+  startAgent,
+  stopAgent,
+} from "../helpers"
 import { randomUUID } from "crypto"
 import { beforeCoderTest } from "../hooks"
 
@@ -28,7 +33,7 @@ test("web terminal", async ({ context, page }) => {
     ],
   })
   await createWorkspace(page, template)
-  await startAgent(page, token)
+  const agent = await startAgent(page, token)
 
   // Wait for the web terminal to open in a new tab
   const pagePromise = context.waitForEvent("page")
@@ -50,4 +55,5 @@ test("web terminal", async ({ context, page }) => {
     }
     await new Promise((r) => setTimeout(r, 250))
   }
+  await stopAgent(agent)
 })

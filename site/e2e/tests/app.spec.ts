@@ -5,6 +5,7 @@ import {
   createTemplate,
   createWorkspace,
   startAgent,
+  stopAgent,
   stopWorkspace,
 } from "../helpers"
 import { beforeCoderTest } from "../hooks"
@@ -49,7 +50,7 @@ test("app", async ({ context, page }) => {
     ],
   })
   const workspaceName = await createWorkspace(page, template)
-  await startAgent(page, token)
+  const agent = await startAgent(page, token)
 
   // Wait for the web terminal to open in a new tab
   const pagePromise = context.waitForEvent("page")
@@ -59,4 +60,5 @@ test("app", async ({ context, page }) => {
   await app.getByText(appContent).isVisible()
 
   await stopWorkspace(page, workspaceName)
+  await stopAgent(agent)
 })
