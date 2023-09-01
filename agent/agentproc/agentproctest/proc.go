@@ -40,5 +40,4 @@ func GenerateProcess(t *testing.T, fs afero.Fs, dir string) agentproc.Process {
 		Dir:     fmt.Sprintf("%s/%d", dir, pid),
 		FS:      fs,
 	}
-
 }

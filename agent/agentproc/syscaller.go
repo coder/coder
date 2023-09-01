@@ -31,8 +31,8 @@ func (UnixSyscaller) GetPriority(pid int32) (int, error) {
 	return nice, nil
 }
 
-func (UnixSyscaller) Kill(pid int, sig syscall.Signal) error {
-	err := syscall.Kill(pid, sig)
+func (UnixSyscaller) Kill(pid int32, sig syscall.Signal) error {
+	err := syscall.Kill(int(pid), sig)
 	if err != nil {
 		return xerrors.Errorf("kill: %w", err)
 	}

@@ -41,6 +41,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -2393,6 +2394,48 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	_ = stdin.Close()
 	err = session.Wait()
 	require.NoError(t, err)
+}
+
+func TestAgent_ManageProcessPriority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DisabledByDefault", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
+		var buf bytes.Buffer
+		log := slog.Make(sloghuman.Sink(&buf))
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Logger = log
+		})
+
+		require.Eventually(t, func() bool {
+			return strings.Contains(buf.String(), "process priority not enabled")
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("DisabledForNonLinux", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "linux" {
+			t.Skip("Skipping linux environment")
+		}
+
+		var buf bytes.Buffer
+		log := slog.Make(sloghuman.Sink(&buf))
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Logger = log
+			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+		})
+		require.Eventually(t, func() bool {
+			return strings.Contains(buf.String(), "process priority not enabled")
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
 }
 
 func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []*promgo.MetricFamily) bool {

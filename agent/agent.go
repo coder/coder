@@ -73,6 +73,7 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	Syscaller                    agentproc.Syscaller
+	ProcessManagementInterval    time.Duration
 }
 
 type Client interface {
@@ -125,6 +126,14 @@ func New(options Options) Agent {
 		prometheusRegistry = prometheus.NewRegistry()
 	}
 
+	if options.Syscaller == nil {
+		options.Syscaller = agentproc.UnixSyscaller{}
+	}
+
+	if options.ProcessManagementInterval == 0 {
+		options.ProcessManagementInterval = time.Second
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:            options.TailnetListenPort,
@@ -148,6 +157,8 @@ func New(options Options) Agent {
 		sshMaxTimeout:                options.SSHMaxTimeout,
 		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
+		syscaller:                    options.Syscaller,
+		processManagementInterval:    options.ProcessManagementInterval,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -200,9 +211,10 @@ type agent struct {
 
 	connCountReconnectingPTY atomic.Int64
 
-	prometheusRegistry *prometheus.Registry
-	metrics            *agentMetrics
-	syscaller          agentproc.Syscaller
+	prometheusRegistry        *prometheus.Registry
+	metrics                   *agentMetrics
+	processManagementInterval time.Duration
+	syscaller                 agentproc.Syscaller
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1263,14 +1275,8 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 var prioritizedProcs = []string{"coder"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(a.processManagementInterval)
 	defer ticker.Stop()
-
-	const (
-		procDir     = agentproc.DefaultProcDir
-		niceness    = 10
-		oomScoreAdj = 100
-	)
 
 	if val := a.envVars[EnvProcMemNice]; val == "" || runtime.GOOS != "linux" {
 		a.logger.Info(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
@@ -1281,81 +1287,103 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 		return
 	}
 
+	// Do once before falling into loop.
+	if err := a.manageProcessPriority(ctx); err != nil {
+		a.logger.Error(ctx, "manage process priority",
+			slog.F("dir", agentproc.DefaultProcDir),
+			slog.Error(err),
+		)
+	}
+
 	for {
 		select {
 		case <-ticker.C:
-			procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
-			if err != nil {
-				a.logger.Error(ctx, "failed to list procs",
+			if err := a.manageProcessPriority(ctx); err != nil {
+				a.logger.Error(ctx, "manage process priority",
 					slog.F("dir", agentproc.DefaultProcDir),
 					slog.Error(err),
 				)
-				continue
 			}
-			for _, proc := range procs {
-				// Trim off the path e.g. "./coder" -> "coder"
-				name := filepath.Base(proc.Name())
-				// If the process is prioritized we should adjust
-				// it's oom_score_adj and avoid lowering its niceness.
-				if slices.Contains(prioritizedProcs, name) {
-					err = proc.SetOOMAdj(oomScoreAdj)
-					if err != nil {
-						a.logger.Error(ctx, "unable to set proc oom_score_adj",
-							slog.F("name", proc.Name()),
-							slog.F("pid", proc.PID),
-							slog.F("oom_score_adj", oomScoreAdj),
-							slog.Error(err),
-						)
-						continue
-					}
 
-					a.logger.Debug(ctx, "decreased process oom_score",
-						slog.F("name", proc.Name()),
-						slog.F("pid", proc.PID),
-						slog.F("oom_score_adj", oomScoreAdj),
-					)
-					continue
-				}
-
-				score, err := proc.Niceness(a.syscaller)
-				if err != nil {
-					a.logger.Error(ctx, "unable to get proc niceness",
-						slog.F("name", proc.Name()),
-						slog.F("pid", proc.PID),
-						slog.Error(err),
-					)
-					continue
-				}
-				if score != 20 {
-					a.logger.Error(ctx, "skipping process due to custom niceness",
-						slog.F("name", proc.Name()),
-						slog.F("pid", proc.PID),
-						slog.F("niceness", score),
-					)
-					continue
-				}
-
-				err = proc.SetNiceness(a.syscaller, niceness)
-				if err != nil {
-					a.logger.Error(ctx, "unable to set proc niceness",
-						slog.F("name", proc.Name()),
-						slog.F("pid", proc.PID),
-						slog.F("niceness", niceness),
-						slog.Error(err),
-					)
-					continue
-				}
-
-				a.logger.Debug(ctx, "deprioritized process",
-					slog.F("name", proc.Name()),
-					slog.F("pid", proc.PID),
-					slog.F("niceness", niceness),
-				)
-			}
 		case <-ctx.Done():
 			return
 		}
 	}
+}
+
+func (a *agent) manageProcessPriority(ctx context.Context) error {
+	const (
+		procDir     = agentproc.DefaultProcDir
+		niceness    = 10
+		oomScoreAdj = 100
+	)
+
+	procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
+	if err != nil {
+		return xerrors.Errorf("list: %w", err)
+	}
+
+	for _, proc := range procs {
+		// Trim off the path e.g. "./coder" -> "coder"
+		name := filepath.Base(proc.Name())
+		// If the process is prioritized we should adjust
+		// it's oom_score_adj and avoid lowering its niceness.
+		if slices.Contains(prioritizedProcs, name) {
+			err = proc.SetOOMAdj(oomScoreAdj)
+			if err != nil {
+				a.logger.Error(ctx, "unable to set proc oom_score_adj",
+					slog.F("name", proc.Name()),
+					slog.F("pid", proc.PID),
+					slog.F("oom_score_adj", oomScoreAdj),
+					slog.Error(err),
+				)
+				continue
+			}
+
+			a.logger.Debug(ctx, "decreased process oom_score",
+				slog.F("name", proc.Name()),
+				slog.F("pid", proc.PID),
+				slog.F("oom_score_adj", oomScoreAdj),
+			)
+			continue
+		}
+
+		score, err := proc.Niceness(a.syscaller)
+		if err != nil {
+			a.logger.Error(ctx, "unable to get proc niceness",
+				slog.F("name", proc.Name()),
+				slog.F("pid", proc.PID),
+				slog.Error(err),
+			)
+			continue
+		}
+		if score != 20 {
+			a.logger.Error(ctx, "skipping process due to custom niceness",
+				slog.F("name", proc.Name()),
+				slog.F("pid", proc.PID),
+				slog.F("niceness", score),
+			)
+			continue
+		}
+
+		err = proc.SetNiceness(a.syscaller, niceness)
+		if err != nil {
+			a.logger.Error(ctx, "unable to set proc niceness",
+				slog.F("name", proc.Name()),
+				slog.F("pid", proc.PID),
+				slog.F("niceness", niceness),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		a.logger.Debug(ctx, "deprioritized process",
+			slog.F("name", proc.Name()),
+			slog.F("pid", proc.PID),
+			slog.F("niceness", niceness),
+		)
+	}
+	return nil
 }
 
 // isClosed returns whether the API is closed or not.
