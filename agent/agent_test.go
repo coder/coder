@@ -2463,6 +2463,49 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 	})
 
+	t.Run("IgnoreCustomNice", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			expectedProcs = map[int32]agentproc.Process{}
+			fs            = afero.NewMemMapFs()
+			ticker        = make(chan time.Time)
+			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			modProcs      = make(chan []*agentproc.Process)
+			logger        = slog.Make(sloghuman.Sink(io.Discard))
+		)
+
+		// Create some processes.
+		for i := 0; i < 2; i++ {
+			// Create a prioritized process.
+			proc := agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
+			syscaller.EXPECT().
+				Kill(proc.PID, syscall.Signal(0)).
+				Return(nil)
+
+			if i == 0 {
+				syscaller.EXPECT().GetPriority(proc.PID).Return(25, nil)
+			} else {
+				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
+			}
+
+			expectedProcs[proc.PID] = proc
+		}
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.ProcessManagementTick = ticker
+			o.Syscaller = syscaller
+			o.ModifiedProcesses = modProcs
+			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+			o.Filesystem = fs
+			o.Logger = logger
+		})
+		actualProcs := <-modProcs
+		// We should ignore the process with a custom nice score.
+		require.Len(t, actualProcs, 1)
+	})
+
 	t.Run("DisabledByDefault", func(t *testing.T) {
 		t.Parallel()
 
