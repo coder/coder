@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -33,12 +34,14 @@ type Request[T Auditable] struct {
 	Old T
 	New T
 
-	// This optional field can be passed in when the userID cannot be determined from the API Key
-	// such as in the case of login, when the audit log is created prior the API Key's existence.
+	// UserID is an optional field can be passed in when the userID cannot be
+	// determined from the API Key such as in the case of login, when the audit
+	// log is created prior the API Key's existence.
 	UserID uuid.UUID
 
-	// This optional field can be passed in if the AuditAction must be overridden
-	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	// Action is an optional field can be passed in if the AuditAction must be
+	// overridden such as in the case of new user authentication when the Audit
+	// Action is 'register', not 'login'.
 	Action database.AuditAction
 }
 
@@ -217,7 +220,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
-			Time:             database.Now(),
+			Time:             dbtime.Now(),
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
@@ -262,7 +265,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             database.Now(),
+		Time:             dbtime.Now(),
 		UserID:           p.UserID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},

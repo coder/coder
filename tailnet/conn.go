@@ -43,7 +43,7 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/cryptorand"
 )
 
@@ -520,6 +520,10 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		if time.Since(peerStatus.LastHandshake) < 5*time.Minute {
 			continue
 		}
+
+		c.logger.Debug(context.Background(), "removing peer, last handshake >5m ago",
+			slog.F("peer", peer.Key), slog.F("last_handshake", peerStatus.LastHandshake),
+		)
 		delete(c.peerMap, peer.ID)
 	}
 
@@ -531,6 +535,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
+		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
 			Created:    time.Now(),
@@ -541,6 +546,16 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   (&tailcfg.Hostinfo{}).View(),
+			// Starting KeepAlive messages at the initialization of a connection
+			// causes a race condition. If we handshake before the peer has our
+			// node, we'll have wait for 5 seconds before trying again. Ideally,
+			// the first handshake starts when the user first initiates a
+			// connection to the peer. After a successful connection we enable
+			// keep alives to persist the connection and keep it from becoming
+			// idle. SSH connections don't send send packets while idle, so we
+			// use keep alives to avoid random hangs while we set up the
+			// connection again after inactivity.
+			KeepAlive: ok && peerStatus.Active,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -865,7 +880,7 @@ func (c *Conn) selfNode() *Node {
 
 	node := &Node{
 		ID:                  c.netMap.SelfNode.ID,
-		AsOf:                database.Now(),
+		AsOf:                dbtime.Now(),
 		Key:                 c.netMap.SelfNode.Key,
 		Addresses:           c.netMap.SelfNode.Addresses,
 		AllowedIPs:          c.netMap.SelfNode.AllowedIPs,

@@ -44,11 +44,11 @@ export interface WorkspacesPageViewProps {
   filterProps: ComponentProps<typeof WorkspacesFilter>
   page: number
   limit: number
-  isWorkspaceBatchActionsEnabled?: boolean
   onPageChange: (page: number) => void
   onUpdateWorkspace: (workspace: Workspace) => void
   onCheckChange: (checkedWorkspaces: Workspace[]) => void
   onDeleteAll: () => void
+  canCheckWorkspaces: boolean
 }
 
 export const WorkspacesPageView: FC<
@@ -64,9 +64,9 @@ export const WorkspacesPageView: FC<
   onUpdateWorkspace,
   page,
   checkedWorkspaces,
-  isWorkspaceBatchActionsEnabled,
   onCheckChange,
   onDeleteAll,
+  canCheckWorkspaces,
 }) => {
   const { saveLocal } = useLocalStorage()
 
@@ -131,7 +131,7 @@ export const WorkspacesPageView: FC<
                 startIcon={<DeleteOutlined />}
                 onClick={onDeleteAll}
               >
-                Delete all
+                Delete selected
               </Button>
             </Box>
           </>
@@ -151,7 +151,7 @@ export const WorkspacesPageView: FC<
         onUpdateWorkspace={onUpdateWorkspace}
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={onCheckChange}
-        isWorkspaceBatchActionsEnabled={isWorkspaceBatchActionsEnabled}
+        canCheckWorkspaces={canCheckWorkspaces}
       />
       {count !== undefined && (
         <PaginationWidgetBase

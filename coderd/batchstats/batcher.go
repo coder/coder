@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
@@ -137,7 +138,7 @@ func (b *Batcher) Add(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	now = database.Time(now)
+	now = dbtime.Time(now)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)

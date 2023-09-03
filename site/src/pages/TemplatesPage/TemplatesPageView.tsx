@@ -24,7 +24,10 @@ import {
   PageHeaderTitle,
 } from "../../components/PageHeader/PageHeader"
 import { Stack } from "../../components/Stack/Stack"
-import { TableLoaderSkeleton } from "../../components/TableLoader/TableLoader"
+import {
+  TableLoaderSkeleton,
+  TableRowSkeleton,
+} from "../../components/TableLoader/TableLoader"
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -42,6 +45,9 @@ import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
 import { Avatar } from "components/Avatar/Avatar"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { docs } from "utils/docs"
+import Skeleton from "@mui/material/Skeleton"
+import { Box } from "@mui/system"
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
 
 export const Language = {
   developerCount: (activeCount: number): string => {
@@ -196,7 +202,7 @@ export const TemplatesPageView: FC<
               </TableHead>
               <TableBody>
                 <Maybe condition={isLoading}>
-                  <TableLoaderSkeleton columns={5} useAvatarData />
+                  <TableLoader />
                 </Maybe>
 
                 <ChooseOne>
@@ -219,6 +225,32 @@ export const TemplatesPageView: FC<
         </Cond>
       </ChooseOne>
     </Margins>
+  )
+}
+
+const TableLoader = () => {
+  return (
+    <TableLoaderSkeleton>
+      <TableRowSkeleton>
+        <TableCell>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <AvatarDataSkeleton />
+          </Box>
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+        <TableCell>
+          <Skeleton variant="text" width="25%" />
+        </TableCell>
+      </TableRowSkeleton>
+    </TableLoaderSkeleton>
   )
 }
 

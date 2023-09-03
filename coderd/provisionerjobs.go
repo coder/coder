@@ -402,7 +402,7 @@ func (f *logFollower) follow() {
 				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
 					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
-					err = f.conn.Close(websocket.StatusInternalError, err.Error())
+					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
 					if err != nil {
 						f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
 					}

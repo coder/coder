@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -43,9 +44,9 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 	// set.
 	if params.ExpiresAt.IsZero() {
 		if params.LifetimeSeconds != 0 {
-			params.ExpiresAt = database.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
+			params.ExpiresAt = dbtime.Now().Add(time.Duration(params.LifetimeSeconds) * time.Second)
 		} else {
-			params.ExpiresAt = database.Now().Add(params.DeploymentValues.SessionDuration.Value())
+			params.ExpiresAt = dbtime.Now().Add(params.DeploymentValues.SessionDuration.Value())
 			params.LifetimeSeconds = int64(params.DeploymentValues.SessionDuration.Value().Seconds())
 		}
 	}
@@ -85,8 +86,8 @@ func Generate(params CreateParams) (database.InsertAPIKeyParams, string, error) 
 		},
 		// Make sure in UTC time for common time zone
 		ExpiresAt:    params.ExpiresAt.UTC(),
-		CreatedAt:    database.Now(),
-		UpdatedAt:    database.Now(),
+		CreatedAt:    dbtime.Now(),
+		UpdatedAt:    dbtime.Now(),
 		HashedSecret: hashed[:],
 		LoginType:    params.LoginType,
 		Scope:        scope,

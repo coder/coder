@@ -10,7 +10,10 @@ import * as TypesGen from "../../api/typesGenerated"
 import { combineClasses } from "../../utils/combineClasses"
 import { AvatarData } from "../AvatarData/AvatarData"
 import { EmptyState } from "../EmptyState/EmptyState"
-import { TableLoaderSkeleton } from "../TableLoader/TableLoader"
+import {
+  TableLoaderSkeleton,
+  TableRowSkeleton,
+} from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
 import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
@@ -23,6 +26,8 @@ import GitHub from "@mui/icons-material/GitHub"
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined"
 import relativeTime from "dayjs/plugin/relativeTime"
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined"
+import Skeleton from "@mui/material/Skeleton"
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
 
 dayjs.extend(relativeTime)
 
@@ -91,7 +96,29 @@ export const UsersTableBody: FC<
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
-        <TableLoaderSkeleton columns={canEditUsers ? 5 : 4} useAvatarData />
+        <TableLoaderSkeleton>
+          <TableRowSkeleton>
+            <TableCell>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <AvatarDataSkeleton />
+              </Box>
+            </TableCell>
+            <TableCell>
+              <Skeleton variant="text" width="25%" />
+            </TableCell>
+            <TableCell>
+              <Skeleton variant="text" width="25%" />
+            </TableCell>
+            <TableCell>
+              <Skeleton variant="text" width="25%" />
+            </TableCell>
+            {canEditUsers && (
+              <TableCell>
+                <Skeleton variant="text" width="25%" />
+              </TableCell>
+            )}
+          </TableRowSkeleton>
+        </TableLoaderSkeleton>
       </Cond>
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>

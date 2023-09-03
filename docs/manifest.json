@@ -32,6 +32,11 @@
           "path": "./install/packages.md"
         },
         {
+          "title": "macOS",
+          "description": "Install Coder using our Homebrew tap",
+          "path": "./install/macos.md"
+        },
+        {
           "title": "Kubernetes",
           "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"
@@ -793,11 +798,6 @@
           "title": "templates list",
           "description": "List all the templates available for the organization",
           "path": "cli/templates_list.md"
-        },
-        {
-          "title": "templates plan",
-          "description": "Plan a template push from the current directory",
-          "path": "cli/templates_plan.md"
         },
         {
           "title": "templates pull",

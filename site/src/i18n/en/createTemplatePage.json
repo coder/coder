@@ -28,12 +28,18 @@
       "icon": "Icon",
       "autostop": "Default autostop (hours)",
       "maxTTL": "Max lifetime (hours)",
-      "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs"
+      "allowUsersToCancel": "Allow users to cancel in-progress workspace jobs",
+      "autostopRequirementDays": "Days with required stop",
+      "autostopRequirementDays_off": "Off",
+      "autostopRequirementDays_daily": "Daily",
+      "autostopRequirementDays_saturday": "Saturday",
+      "autostopRequirementDays_sunday": "Sunday",
+      "autostopRequirementWeeks": "Weeks between required stops"
     },
     "helperText": {
       "defaultTTLHelperText_zero": "Workspaces will run until stopped manually.",
-      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
-      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours. If Coder detects workspace connection activity, the autostop timer is bumped up one hour.",
+      "defaultTTLHelperText_one": "Workspaces will default to stopping after {{count}} hour. If Coder detects workspace connection activity, the autostop timer is bumped by this value.",
+      "defaultTTLHelperText_other": "Workspaces will default to stopping after {{count}} hours. If Coder detects workspace connection activity, the autostop timer is bumped by this value.",
       "maxTTLHelperText_zero": "Workspaces may run indefinitely.",
       "maxTTLHelperText_one": "Workspaces must stop within 1 hour of starting, regardless of any active connections.",
       "maxTTLHelperText_other": "Workspaces must stop within {{count}} hours of starting, regardless of any active connections.",

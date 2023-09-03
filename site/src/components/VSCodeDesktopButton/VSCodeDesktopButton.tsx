@@ -8,12 +8,14 @@ import ButtonGroup from "@mui/material/ButtonGroup"
 import { useLocalStorage } from "hooks"
 import Menu from "@mui/material/Menu"
 import MenuItem from "@mui/material/MenuItem"
+import { DisplayApp } from "api/typesGenerated"
 
 export interface VSCodeDesktopButtonProps {
   userName: string
   workspaceName: string
   agentName?: string
   folderPath?: string
+  displayApps: DisplayApp[]
 }
 
 type VSCodeVariant = "vscode" | "vscode-insiders"
@@ -40,13 +42,16 @@ export const VSCodeDesktopButton: FC<
     setIsVariantMenuOpen(false)
   }
 
-  return (
+  const includesVSCodeDesktop = props.displayApps.includes("vscode")
+  const includesVSCodeInsiders = props.displayApps.includes("vscode_insiders")
+
+  return includesVSCodeDesktop && includesVSCodeInsiders ? (
     <div>
       <ButtonGroup
         ref={menuAnchorRef}
         variant="outlined"
         sx={{
-          // Workaround to make the border transitions smmothly on button groups
+          // Workaround to make the border transitions smoothly on button groups
           "& > button:hover + button": {
             borderLeft: "1px solid #FFF",
           },
@@ -105,6 +110,10 @@ export const VSCodeDesktopButton: FC<
         </MenuItem>
       </Menu>
     </div>
+  ) : includesVSCodeDesktop ? (
+    <VSCodeButton {...props} />
+  ) : (
+    <VSCodeInsidersButton {...props} />
   )
 }
 

@@ -2,6 +2,9 @@ import { test } from "@playwright/test"
 import { randomUUID } from "crypto"
 import * as http from "http"
 import { createTemplate, createWorkspace, startAgent } from "../helpers"
+import { beforeCoderTest } from "../hooks"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("app", async ({ context, page }) => {
   const appContent = "Hello World"

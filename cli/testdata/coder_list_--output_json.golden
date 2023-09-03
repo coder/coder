@@ -11,6 +11,7 @@
     "template_display_name": "",
     "template_icon": "",
     "template_allow_user_cancel_workspace_jobs": false,
+    "template_active_version_id": "[version ID]",
     "latest_build": {
       "id": "[workspace build ID]",
       "created_at": "[timestamp]",

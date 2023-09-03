@@ -279,10 +279,15 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 	return false
 }
 
+func execTmpl(tmpl *template.Template, state htmlState) ([]byte, error) {
+	var buf bytes.Buffer
+	err := tmpl.Execute(&buf, state)
+	return buf.Bytes(), err
+}
+
 // renderWithState will render the file using the given nonce if the file exists
 // as a template. If it does not, it will return an error.
 func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state htmlState) ([]byte, error) {
-	var buf bytes.Buffer
 	if filePath == "" {
 		filePath = "index.html"
 	}
@@ -307,96 +312,94 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		RedirectToLogin:             false,
 		SessionTokenFunc:            nil,
 	})
-	if ok && apiKey != nil && actor != nil {
-		ctx := dbauthz.As(r.Context(), actor.Actor)
+	if !ok || apiKey == nil || actor == nil {
+		return execTmpl(tmpl, state)
+	}
 
-		var eg errgroup.Group
-		var user database.User
-		orgIDs := []uuid.UUID{}
-		eg.Go(func() error {
-			var err error
-			user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
-			return err
-		})
-		eg.Go(func() error {
-			memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
-			if errors.Is(err, sql.ErrNoRows) || len(memberIDs) == 0 {
-				return nil
+	ctx := dbauthz.As(r.Context(), actor.Actor)
+
+	var eg errgroup.Group
+	var user database.User
+	orgIDs := []uuid.UUID{}
+	eg.Go(func() error {
+		var err error
+		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
+		return err
+	})
+	eg.Go(func() error {
+		memberIDs, err := h.opts.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{apiKey.UserID})
+		if errors.Is(err, sql.ErrNoRows) || len(memberIDs) == 0 {
+			return nil
+		}
+		if err != nil {
+			return nil
+		}
+		orgIDs = memberIDs[0].OrganizationIDs
+		return err
+	})
+	err := eg.Wait()
+	if err == nil {
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			user, err := json.Marshal(db2sdk.User(user, orgIDs))
+			if err == nil {
+				state.User = html.EscapeString(string(user))
 			}
-			if err != nil {
-				return nil
-			}
-			orgIDs = memberIDs[0].OrganizationIDs
-			return err
-		})
-		err := eg.Wait()
-		if err == nil {
-			var wg sync.WaitGroup
+		}()
+		entitlements := h.Entitlements.Load()
+		if entitlements != nil {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				user, err := json.Marshal(db2sdk.User(user, orgIDs))
+				entitlements, err := json.Marshal(entitlements)
 				if err == nil {
-					state.User = html.EscapeString(string(user))
+					state.Entitlements = html.EscapeString(string(entitlements))
 				}
 			}()
-			entitlements := h.Entitlements.Load()
-			if entitlements != nil {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					entitlements, err := json.Marshal(entitlements)
-					if err == nil {
-						state.Entitlements = html.EscapeString(string(entitlements))
-					}
-				}()
-			}
-			if h.AppearanceFetcher != nil {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					cfg, err := h.AppearanceFetcher(ctx)
-					if err == nil {
-						appearance, err := json.Marshal(cfg)
-						if err == nil {
-							state.Appearance = html.EscapeString(string(appearance))
-						}
-					}
-				}()
-			}
-			if h.RegionsFetcher != nil {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					regions, err := h.RegionsFetcher(ctx)
-					if err == nil {
-						regions, err := json.Marshal(regions)
-						if err == nil {
-							state.Regions = html.EscapeString(string(regions))
-						}
-					}
-				}()
-			}
-			experiments := h.Experiments.Load()
-			if experiments != nil {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					experiments, err := json.Marshal(experiments)
-					if err == nil {
-						state.Experiments = html.EscapeString(string(experiments))
-					}
-				}()
-			}
-			wg.Wait()
 		}
+		if h.AppearanceFetcher != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				cfg, err := h.AppearanceFetcher(ctx)
+				if err == nil {
+					appearance, err := json.Marshal(cfg)
+					if err == nil {
+						state.Appearance = html.EscapeString(string(appearance))
+					}
+				}
+			}()
+		}
+		if h.RegionsFetcher != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				regions, err := h.RegionsFetcher(ctx)
+				if err == nil {
+					regions, err := json.Marshal(regions)
+					if err == nil {
+						state.Regions = html.EscapeString(string(regions))
+					}
+				}
+			}()
+		}
+		experiments := h.Experiments.Load()
+		if experiments != nil {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				experiments, err := json.Marshal(experiments)
+				if err == nil {
+					state.Experiments = html.EscapeString(string(experiments))
+				}
+			}()
+		}
+		wg.Wait()
 	}
 
-	err := tmpl.Execute(&buf, state)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return execTmpl(tmpl, state)
 }
 
 // noopResponseWriter is a response writer that does nothing.

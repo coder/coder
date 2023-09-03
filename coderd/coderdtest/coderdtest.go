@@ -329,7 +329,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(stunCleanup)
 		stunAddresses = []string{stunAddr.String()}
 		options.DeploymentValues.DERP.Server.STUNAddresses = stunAddresses
-	} else if dvStunAddresses[0] != "disable" {
+	} else if dvStunAddresses[0] != tailnet.DisableSTUN {
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 

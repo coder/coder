@@ -19,4 +19,11 @@ Default.args = {
   userName: MockWorkspace.owner_name,
   workspaceName: MockWorkspace.name,
   agentName: MockWorkspaceAgent.name,
+  displayApps: [
+    "vscode",
+    "port_forwarding_helper",
+    "ssh_helper",
+    "vscode_insiders",
+    "web_terminal",
+  ],
 }

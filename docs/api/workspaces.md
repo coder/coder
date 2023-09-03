@@ -27,6 +27,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
     }
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "ttl_ms": 0
 }
 ```
@@ -111,6 +112,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -188,6 +190,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
@@ -299,6 +302,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -376,6 +380,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
@@ -486,6 +491,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
+                "display_apps": ["vscode"],
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
@@ -563,6 +569,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
       "template_icon": "string",
@@ -675,6 +682,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -752,6 +760,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
@@ -943,6 +952,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1020,6 +1030,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",

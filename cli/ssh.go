@@ -40,7 +40,6 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-//nolint:gocyclo
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool

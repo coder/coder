@@ -27,6 +27,17 @@ func TestConvertResources(t *testing.T) {
 		parameters       []*proto.RichParameter
 		gitAuthProviders []string
 	}
+
+	// If a user doesn't specify 'display_apps' then they default
+	// into all apps except VSCode Insiders.
+	displayApps := proto.DisplayApps{
+		Vscode:               true,
+		VscodeInsiders:       false,
+		WebTerminal:          true,
+		PortForwardingHelper: true,
+		SshHelper:            true,
+	}
+
 	// nolint:paralleltest
 	for folderName, expected := range map[string]testCase{
 		// When a resource depends on another, the shortest route
@@ -45,6 +56,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -62,6 +74,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}, {
 				Name: "second",
@@ -80,6 +93,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_InstanceId{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -96,6 +110,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -114,6 +129,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptBehavior:        "non-blocking",
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps:                  &displayApps,
 				}, {
 					Name:                         "dev2",
 					OperatingSystem:              "darwin",
@@ -125,6 +141,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptTimeoutSeconds:  30,
 					ShutdownScript:               "echo bye bye",
 					ShutdownScriptTimeoutSeconds: 30,
+					DisplayApps:                  &displayApps,
 				}, {
 					Name:                         "dev3",
 					OperatingSystem:              "windows",
@@ -135,6 +152,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptBehavior:        "blocking",
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps:                  &displayApps,
 				}, {
 					Name:                         "dev4",
 					OperatingSystem:              "linux",
@@ -144,6 +162,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptBehavior:        "blocking",
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 		},
@@ -182,6 +201,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -206,6 +226,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -246,6 +267,7 @@ func TestConvertResources(t *testing.T) {
 					StartupScriptTimeoutSeconds:  300,
 					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 		},
@@ -297,6 +319,7 @@ func TestConvertResources(t *testing.T) {
 						Auth:                     &proto.Agent_Token{},
 						StartupScriptBehavior:    "non-blocking",
 						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
 					}},
 				},
 			},
@@ -314,6 +337,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                         &proto.Agent_Token{},
 					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -395,6 +419,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                         &proto.Agent_Token{},
 					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -423,6 +448,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                         &proto.Agent_Token{},
 					StartupScriptBehavior:        "non-blocking",
 					ConnectionTimeoutSeconds:     120,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -478,9 +504,47 @@ func TestConvertResources(t *testing.T) {
 					ConnectionTimeoutSeconds:     120,
 					StartupScriptTimeoutSeconds:  300,
 					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps:                  &displayApps,
 				}},
 			}},
 			gitAuthProviders: []string{"github", "gitlab"},
+		},
+		"display-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "main",
+					OperatingSystem:              "linux",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					StartupScriptBehavior:        "non-blocking",
+					ConnectionTimeoutSeconds:     120,
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps: &proto.DisplayApps{
+						VscodeInsiders: true,
+						WebTerminal:    true,
+					},
+				}},
+			}},
+		},
+		"display-apps-disabled": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                         "main",
+					OperatingSystem:              "linux",
+					Architecture:                 "amd64",
+					Auth:                         &proto.Agent_Token{},
+					StartupScriptBehavior:        "non-blocking",
+					ConnectionTimeoutSeconds:     120,
+					StartupScriptTimeoutSeconds:  300,
+					ShutdownScriptTimeoutSeconds: 300,
+					DisplayApps:                  &proto.DisplayApps{},
+				}},
+			}},
 		},
 	} {
 		folderName := folderName

@@ -35,19 +35,20 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                  FeatureName = "user_limit"
-	FeatureAuditLog                   FeatureName = "audit_log"
-	FeatureBrowserOnly                FeatureName = "browser_only"
-	FeatureSCIM                       FeatureName = "scim"
-	FeatureTemplateRBAC               FeatureName = "template_rbac"
-	FeatureUserRoleManagement         FeatureName = "user_role_management"
-	FeatureHighAvailability           FeatureName = "high_availability"
-	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
-	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                 FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
-	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
-	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureUserLimit                   FeatureName = "user_limit"
+	FeatureAuditLog                    FeatureName = "audit_log"
+	FeatureBrowserOnly                 FeatureName = "browser_only"
+	FeatureSCIM                        FeatureName = "scim"
+	FeatureTemplateRBAC                FeatureName = "template_rbac"
+	FeatureUserRoleManagement          FeatureName = "user_role_management"
+	FeatureHighAvailability            FeatureName = "high_availability"
+	FeatureMultipleGitAuth             FeatureName = "multiple_git_auth"
+	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                  FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
+	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
+	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
+	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -64,6 +65,7 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureWorkspaceBatchActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -310,6 +312,7 @@ type TraceConfig struct {
 	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
+	DataDog         clibase.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -1237,6 +1240,22 @@ when required by your organization's security policy.`,
 			YAML:        "captureLogs",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		{
+			Name:        "Send Go runtime traces to DataDog",
+			Description: "Enables sending Go runtime traces to the local DataDog agent.",
+			Flag:        "trace-datadog",
+			Env:         "CODER_TRACE_DATADOG",
+			Value:       &c.Trace.DataDog,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "dataDog",
+			// Hidden until an external user asks for it. For the time being,
+			// it's used to detect leaks in dogfood.
+			Hidden: true,
+			// Default is false because datadog creates a bunch of goroutines that
+			// don't get cleaned up and trip the leak detector.
+			Default:     "false",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
 		// Provisioner settings
 		{
 			Name:        "Provisioner Daemons",
@@ -1924,23 +1943,22 @@ const (
 	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
-	// ExperimentTemplateRestartRequirement allows template admins to have more
+	// ExperimentTemplateAutostopRequirement allows template admins to have more
 	// control over when workspaces created on a template are required to
-	// restart, and allows users to ensure these restarts never happen during
-	// their business hours.
+	// stop, and allows users to ensure these restarts never happen during their
+	// business hours.
+	//
+	// This will replace the MaxTTL setting on templates.
 	//
 	// Enables:
 	// - User quiet hours schedule settings
-	// - Template restart requirement settings
-	// - Changes the max_deadline algorithm to use restart requirement and user
+	// - Template autostop requirement settings
+	// - Changes the max_deadline algorithm to use autostop requirement and user
 	//   quiet hours instead of max_ttl.
-	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
+	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
 
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
-
-	// Workspaces batch actions
-	ExperimentWorkspacesBatchActions Experiment = "workspaces_batch_actions"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1952,7 +1970,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentWorkspacesBatchActions,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

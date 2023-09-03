@@ -16,6 +16,9 @@ import {
   sixthParameter,
 } from "../parameters"
 import { RichParameter } from "../provisionerGenerated"
+import { beforeCoderTest } from "../hooks"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("create workspace", async ({ page }) => {
   const template = await createTemplate(page, {
@@ -107,6 +110,7 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
     page,
     echoResponsesWithParameters(richParameters),
   )
+
   const workspaceName = await createWorkspace(
     page,
     template,

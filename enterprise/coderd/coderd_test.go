@@ -7,10 +7,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/rbac"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -18,6 +14,10 @@ import (
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -113,8 +113,8 @@ func TestEntitlements(t *testing.T) {
 		//nolint:gocritic // unit test
 		ctx := testDBAuthzRole(context.Background())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAuditLog: 1,
@@ -143,8 +143,8 @@ func TestEntitlements(t *testing.T) {
 		ctx := context.Background()
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAuditLog: 1,
@@ -155,18 +155,18 @@ func TestEntitlements(t *testing.T) {
 		// Expired
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(-1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(-1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				ExpiresAt: database.Now().AddDate(-1, 0, 0),
+				ExpiresAt: dbtime.Now().AddDate(-1, 0, 0),
 			}),
 		})
 		require.NoError(t, err)
 		// Invalid
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT:        "invalid",
 		})
 		require.NoError(t, err)
@@ -185,7 +185,7 @@ func TestAuditLogging(t *testing.T) {
 		_, _, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			AuditLogging: true,
 			Options: &coderdtest.Options{
-				Auditor: audit.NewAuditor(audit.DefaultFilter),
+				Auditor: audit.NewAuditor(dbfake.New(), audit.DefaultFilter),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -194,7 +194,7 @@ func TestAuditLogging(t *testing.T) {
 			},
 		})
 		auditor := *api.AGPL.Auditor.Load()
-		ea := audit.NewAuditor(audit.DefaultFilter)
+		ea := audit.NewAuditor(dbfake.New(), audit.DefaultFilter)
 		t.Logf("%T = %T", auditor, ea)
 		assert.EqualValues(t, reflect.ValueOf(ea).Type(), reflect.ValueOf(auditor).Type())
 	})

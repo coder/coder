@@ -34,7 +34,6 @@ export const MutableTemplateParametersSection: FC<
                 parameter.mutable && (
                   <RichParameterInput
                     {...getInputProps(parameter, index)}
-                    index={index}
                     key={parameter.name}
                     parameter={parameter}
                   />
@@ -73,7 +72,6 @@ export const ImmutableTemplateParametersSection: FC<
                 !parameter.mutable && (
                   <RichParameterInput
                     {...getInputProps(parameter, index)}
-                    index={index}
                     key={parameter.name}
                     parameter={parameter}
                   />

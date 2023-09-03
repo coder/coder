@@ -17,13 +17,10 @@ import {
   TemplateParametersSectionProps,
 } from "components/TemplateParameters/TemplateParameters"
 import { useClipboard } from "hooks/useClipboard"
-import { FC, useState } from "react"
+import { FC, useEffect, useState } from "react"
 import { Helmet } from "react-helmet-async"
 import { pageTitle } from "utils/page"
-import {
-  selectInitialRichParametersValues,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
+import { getInitialRichParameterValues } from "utils/richParameters"
 import { paramsUsedToCreateWorkspace } from "utils/workspace"
 
 type ButtonValues = Record<string, string>
@@ -54,31 +51,23 @@ export const TemplateEmbedPageView: FC<{
   template: Template
   templateParameters?: TemplateVersionParameter[]
 }> = ({ template, templateParameters }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues>({
-    mode: "manual",
-  })
-  const initialRichParametersValues = templateParameters
-    ? selectInitialRichParametersValues(templateParameters)
-    : undefined
+  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
+    undefined,
+  )
   const deploymentUrl = `${window.location.protocol}//${window.location.host}`
   const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`
   const createWorkspaceParams = new URLSearchParams(buttonValues)
   const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`
   const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`
   const clipboard = useClipboard(buttonMkdCode)
-
   const getInputProps: TemplateParametersSectionProps["getInputProps"] = (
     parameter,
   ) => {
-    if (!initialRichParametersValues) {
-      throw new Error("initialRichParametersValues is undefined")
+    if (!buttonValues) {
+      throw new Error("buttonValues is undefined")
     }
     return {
-      id: parameter.name,
-      initialValue: workspaceBuildParameterValue(
-        initialRichParametersValues,
-        parameter,
-      ),
+      value: buttonValues[`param.${parameter.name}`] ?? "",
       onChange: (value) => {
         setButtonValues((buttonValues) => ({
           ...buttonValues,
@@ -88,12 +77,28 @@ export const TemplateEmbedPageView: FC<{
     }
   }
 
+  // template parameters is async so we need to initialize the values after it
+  // is loaded
+  useEffect(() => {
+    if (templateParameters && !buttonValues) {
+      const buttonValues: ButtonValues = {
+        mode: "manual",
+      }
+      for (const parameter of getInitialRichParameterValues(
+        templateParameters,
+      )) {
+        buttonValues[`param.${parameter.name}`] = parameter.value
+      }
+      setButtonValues(buttonValues)
+    }
+  }, [buttonValues, templateParameters])
+
   return (
     <>
       <Helmet>
         <title>{pageTitle(`${template.name} · Embed`)}</title>
       </Helmet>
-      {!templateParameters ? (
+      {!buttonValues || !templateParameters ? (
         <Loader />
       ) : (
         <Box display="flex" alignItems="flex-start" gap={6}>

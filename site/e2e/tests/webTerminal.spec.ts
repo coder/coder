@@ -1,6 +1,9 @@
 import { test } from "@playwright/test"
 import { createTemplate, createWorkspace, startAgent } from "../helpers"
 import { randomUUID } from "crypto"
+import { beforeCoderTest } from "../hooks"
+
+test.beforeEach(async ({ page }) => await beforeCoderTest(page))
 
 test("web terminal", async ({ context, page }) => {
   const token = randomUUID()
@@ -13,6 +16,9 @@ test("web terminal", async ({ context, page }) => {
               agents: [
                 {
                   token,
+                  displayApps: {
+                    webTerminal: true,
+                  },
                 },
               ],
             },

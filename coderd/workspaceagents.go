@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -32,6 +33,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -477,6 +479,15 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace by agent id.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	api.WebsocketWaitMutex.Lock()
 	api.WebsocketWaitGroup.Add(1)
 	api.WebsocketWaitMutex.Unlock()
@@ -559,8 +570,10 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer close(bufferedLogs)
+
 		var msg agentsdk.LogsNotifyMessage
-		for {
+		keepGoing := true
+		for keepGoing {
 			select {
 			case <-ctx.Done():
 				return
@@ -568,6 +581,18 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			case msg = <-notifyCh:
 				t.Reset(recheckInterval)
 			}
+
+			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					return
+				}
+				logger.Warn(ctx, "failed to get workspace agents in latest build", slog.Error(err))
+				continue
+			}
+			// If the agent is no longer in the latest build, we can stop after
+			// checking once.
+			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == workspaceAgent.ID })
 
 			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID:      workspaceAgent.ID,
@@ -927,13 +952,15 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	nconn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+	ctx, nconn := websocketNetConn(ctx, ws, websocket.MessageBinary)
 	defer nconn.Close()
 
 	// Slurp all packets from the connection into io.Discard so pongs get sent
-	// by the websocket package.
+	// by the websocket package. We don't do any reads ourselves so this is
+	// necessary.
 	go func() {
 		_, _ = io.Copy(io.Discard, nconn)
+		_ = nconn.Close()
 	}()
 
 	go func(ctx context.Context) {
@@ -948,13 +975,11 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// We don't need a context that times out here because the ping will
-			// eventually go through. If the context times out, then other
-			// websocket read operations will receive an error, obfuscating the
-			// actual problem.
+			ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			err := ws.Ping(ctx)
+			cancel()
 			if err != nil {
-				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				_ = nconn.Close()
 				return
 			}
 		}
@@ -969,7 +994,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
 			err := json.NewEncoder(nconn).Encode(derpMap)
 			if err != nil {
-				_ = ws.Close(websocket.StatusInternalError, err.Error())
+				_ = nconn.Close()
 				return
 			}
 			lastDERPMap = derpMap
@@ -1108,12 +1133,12 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 	firstConnectedAt := workspaceAgent.FirstConnectedAt
 	if !firstConnectedAt.Valid {
 		firstConnectedAt = sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		}
 	}
 	lastConnectedAt := sql.NullTime{
-		Time:  database.Now(),
+		Time:  dbtime.Now(),
 		Valid: true,
 	}
 	disconnectedAt := workspaceAgent.DisconnectedAt
@@ -1124,7 +1149,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			FirstConnectedAt: firstConnectedAt,
 			LastConnectedAt:  lastConnectedAt,
 			DisconnectedAt:   disconnectedAt,
-			UpdatedAt:        database.Now(),
+			UpdatedAt:        dbtime.Now(),
 			LastConnectedReplicaID: uuid.NullUUID{
 				UUID:  api.ID,
 				Valid: true,
@@ -1152,7 +1177,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 		// Only update timestamp if the disconnect is new.
 		if !disconnectedAt.Valid {
 			disconnectedAt = sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			}
 		}
@@ -1217,7 +1242,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			if !disconnectedAt.Valid {
 				connectionStatusChanged = true
 				disconnectedAt = sql.NullTime{
-					Time:  database.Now(),
+					Time:  dbtime.Now(),
 					Valid: true,
 				}
 			}
@@ -1226,7 +1251,7 @@ func (api *API) workspaceAgentCoordinate(rw http.ResponseWriter, r *http.Request
 			// TODO(mafredri): Should we update it here or allow lastConnectedAt to shadow it?
 			disconnectedAt = sql.NullTime{}
 			lastConnectedAt = sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			}
 		}
@@ -1386,6 +1411,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		ShutdownScript:               dbAgent.ShutdownScript.String,
 		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
 		Subsystems:                   subsystems,
+		DisplayApps:                  convertDisplayApps(dbAgent.DisplayApps),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -1447,6 +1473,18 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 	return workspaceAgent, nil
 }
 
+func convertDisplayApps(apps []database.DisplayApp) []codersdk.DisplayApp {
+	dapps := make([]codersdk.DisplayApp, 0, len(apps))
+	for _, app := range apps {
+		switch codersdk.DisplayApp(app) {
+		case codersdk.DisplayAppVSCodeDesktop, codersdk.DisplayAppVSCodeInsiders, codersdk.DisplayAppPortForward, codersdk.DisplayAppWebTerminal, codersdk.DisplayAppSSH:
+			dapps = append(dapps, codersdk.DisplayApp(app))
+		}
+	}
+
+	return dapps
+}
+
 // @Summary Submit workspace agent stats
 // @ID submit-workspace-agent-stats
 // @Security CoderSessionToken
@@ -1493,7 +1531,7 @@ func (api *API) workspaceAgentReportStats(rw http.ResponseWriter, r *http.Reques
 		activityBumpWorkspace(ctx, api.Logger.Named("activity_bump"), api.Database, workspace.ID)
 	}
 
-	now := database.Now()
+	now := dbtime.Now()
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
@@ -1833,7 +1871,7 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 
 	if req.ChangedAt.IsZero() {
 		// Backwards compatibility with older agents.
-		req.ChangedAt = database.Now()
+		req.ChangedAt = dbtime.Now()
 	}
 	changedAt := sql.NullTime{Time: req.ChangedAt, Valid: true}
 
@@ -1854,7 +1892,10 @@ func (api *API) workspaceAgentReportLifecycle(rw http.ResponseWriter, r *http.Re
 		ReadyAt:        readyAt,
 	})
 	if err != nil {
-		logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
+		if !xerrors.Is(err, context.Canceled) {
+			// not an error if we are canceled
+			logger.Error(ctx, "failed to update lifecycle state", slog.Error(err))
+		}
 		httpapi.InternalServerError(rw, err)
 		return
 	}
@@ -2022,8 +2063,17 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		gitAuthConfig = gitAuth
 	}
 	if gitAuthConfig == nil {
+		detail := "No git providers are configured."
+		if len(api.GitAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.GitAuthConfigs))
+			for _, gitAuth := range api.GitAuthConfigs {
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.Regex.String()))
+			}
+			detail = fmt.Sprintf("The configured git provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
+		}
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No git provider found for URL %q", gitURL),
+			Message: fmt.Sprintf("No matching git provider found in Coder for the url %q.", gitURL),
+			Detail:  detail,
 		})
 		return
 	}
@@ -2084,7 +2134,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			// to expire.
 			// See
 			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
-			if gitAuthLink.OAuthExpiry.Before(database.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
+			if gitAuthLink.OAuthExpiry.Before(dbtime.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
 			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)

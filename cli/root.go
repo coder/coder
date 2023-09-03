@@ -35,8 +35,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -119,10 +118,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 }
 
 func (r *RootCmd) AGPL() []*clibase.Cmd {
-	all := append(r.Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
-		api := coderd.New(o)
-		return api, api, nil
-	}))
+	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
@@ -829,6 +825,13 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 		}
 	}
 	return nil
+}
+
+// Verbosef logs a message if verbose mode is enabled.
+func (r *RootCmd) Verbosef(inv *clibase.Invocation, fmtStr string, args ...interface{}) {
+	if r.verbose {
+		cliui.Infof(inv.Stdout, fmtStr, args...)
+	}
 }
 
 type headerTransport struct {

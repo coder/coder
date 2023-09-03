@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -26,7 +27,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	ctx := context.Background()
 
 	// deadline allows you to forcibly set a max_deadline on the build. This
-	// doesn't use template restart requirements and instead edits the
+	// doesn't use template autostop requirements and instead edits the
 	// max_deadline on the build directly in the database.
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
 		const ttl = time.Minute
@@ -49,7 +50,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 						UserAutostopEnabled: true,
 						DefaultTTL:          ttl,
 						// We set max_deadline manually below.
-						RestartRequirement: schedule.TemplateRestartRequirement{},
+						AutostopRequirement: schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 			},
@@ -77,10 +78,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspace.LatestBuild.ID,
-				UpdatedAt:        database.Now(),
+				UpdatedAt:        dbtime.Now(),
 				ProvisionerState: dbBuild.ProvisionerState,
 				Deadline:         dbBuild.Deadline,
-				MaxDeadline:      database.Now().Add(maxTTL),
+				MaxDeadline:      dbtime.Now().Add(maxTTL),
 			})
 			require.NoError(t, err)
 		}
@@ -146,11 +147,11 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 			// If the workspace has a max deadline, the deadline must not exceed
 			// it.
-			if maxTTL != 0 && database.Now().Add(ttl).After(workspace.LatestBuild.MaxDeadline.Time) {
+			if maxTTL != 0 && dbtime.Now().Add(ttl).After(workspace.LatestBuild.MaxDeadline.Time) {
 				require.Equal(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
 				return
 			}
-			require.WithinDuration(t, database.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
+			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 
