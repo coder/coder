@@ -271,13 +271,26 @@ func (r *RootCmd) login() *clibase.Cmd {
 				// Don't use filepath.Join, we don't want to use the os separator
 				// for a url.
 				authURL.Path = path.Join(serverURL.Path, "/cli-auth")
+
+				validationFunc := func(token string) error {
+					client.SetSessionToken(token)
+					_, err := client.User(ctx, codersdk.Me)
+					if err != nil {
+						return xerrors.New("That's not a valid token!")
+					}
+					return err
+				}
+
+				server, servErr := getServer(authURL)
+
 				if err := openURL(inv, authURL.String()); err != nil {
 					_, _ = fmt.Fprintf(inv.Stdout, "Open the following in your browser:\n\n\t%s\n\n", authURL.String())
 				} else {
 					_, _ = fmt.Fprintf(inv.Stdout, "Your browser has been opened to visit:\n\n\t%s\n\n", authURL.String())
 				}
 
-				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
+				if servErr != nil {
+					sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
 					Text: "Paste your token here:",
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
@@ -288,9 +301,25 @@ func (r *RootCmd) login() *clibase.Cmd {
 						return err
 					},
 				})
-				if err != nil {
-					return xerrors.Errorf("paste token prompt: %w", err)
+					if err != nil {
+						return xerrors.Errorf("paste token prompt: %w", err)
+					}
+				} else {
+					result := <-server.resultChan
+
+					if result.err != nil {
+						return xerrors.Errorf("authorization error: %w", result.err)
+					}
+
+					err = validationFunc(sessionToken)
+
+					if err != nil {
+						return xerrors.Errorf("authorization error: %w", err)
+					}
+
+					sessionToken = result.token
 				}
+
 			} else if !useTokenForSession {
 				// If a session token is provided on the cli, use it to generate
 				// a new one. This is because the cli `--token` flag provides

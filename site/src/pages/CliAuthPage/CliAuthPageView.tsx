@@ -1,21 +1,47 @@
-import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
-import { CodeExample } from "components/CodeExample/CodeExample";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
-import { Welcome } from "components/Welcome/Welcome";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles"
+import { CodeExample } from "components/CodeExample/CodeExample"
+import { SignInLayout } from "components/SignInLayout/SignInLayout"
+import { Welcome } from "components/Welcome/Welcome"
+import { FC } from "react"
+import { Link as RouterLink, useSearchParams } from "react-router-dom"
+import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
 
 export interface CliAuthPageViewProps {
   sessionToken: string | null;
 }
 
+const validateCallbackURL = (callbackUrl: string): boolean => {
+  return callbackUrl.startsWith("http://127.0.0.1")
+}
+
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
-  const styles = useStyles();
+  const styles = useStyles()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  let callbackUrl = searchParams.get("callback")
+
 
   if (!sessionToken) {
     return <FullScreenLoader />;
+  }
+
+  if (callbackUrl && validateCallbackURL(callbackUrl)) {
+    return (
+      <SignInLayout>
+        <Welcome message="Authorization request" />
+
+        <p className={styles.text}>
+          An application or device requested access to Coder.{" "}
+        </p>
+
+        <div className={styles.links}>
+          <Button href={`${callbackUrl}?token=${sessionToken}`} fullWidth>
+            Authorize access to Coder
+          </Button>
+        </div>
+      </SignInLayout>
+    )
   }
 
   return (
