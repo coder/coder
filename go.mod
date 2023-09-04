@@ -156,7 +156,7 @@ require (
 	github.com/sqlc-dev/pqtype v0.2.0
 	github.com/stretchr/testify v1.8.4
 	github.com/swaggo/http-swagger/v2 v2.0.1
-	github.com/swaggo/swag v1.8.6
+	github.com/swaggo/swag v1.16.2
 	github.com/u-root/u-root v0.11.0
 	github.com/unrolled/secure v1.13.0
 	github.com/valyala/fasthttp v1.49.0
