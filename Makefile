@@ -516,6 +516,9 @@ coderd/database/dump.sql: coderd/database/gen/dump/main.go $(wildcard coderd/dat
 coderd/database/querier.go: coderd/database/sqlc.yaml coderd/database/dump.sql $(wildcard coderd/database/queries/*.sql)
 	./coderd/database/generate.sh
 
+coderd/database/dbresetpw/users_resetpw.sql.go: coderd/database/querier.go coderd/database/dbresetpw/sqlc.yaml
+	sqlc generate -f ./coderd/database/dbresetpw/sqlc.yaml
+
 coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.go
 	go generate ./coderd/database/dbmock/
 

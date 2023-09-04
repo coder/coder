@@ -1,0 +1,13 @@
+# This sqlc.yaml file is used by sqlc to generate a subset of the coderd
+# database interface that can be used for the reset-password command.
+version: "2"
+
+sql:
+  - schema: "../dump.sql"
+    queries: "../queries/users_resetpw.sql"
+    engine: "postgresql"
+    gen:
+      go:
+        package: "dbresetpw"
+        out: "."
+        omit_unused_structs: true

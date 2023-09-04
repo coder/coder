@@ -29,17 +29,6 @@ LIMIT
 -- for another user, then be deleted... we still want them to appear!
 SELECT * FROM users WHERE id = ANY(@ids :: uuid [ ]);
 
--- name: GetUserByEmailOrUsername :one
-SELECT
-	*
-FROM
-	users
-WHERE
-	(LOWER(username) = LOWER(@username) OR LOWER(email) = LOWER(@email)) AND
-	deleted = false
-LIMIT
-	1;
-
 -- name: GetUserCount :one
 SELECT
 	COUNT(*)
@@ -91,14 +80,6 @@ SET
 WHERE
 	id = @id
 RETURNING *;
-
--- name: UpdateUserHashedPassword :exec
-UPDATE
-	users
-SET
-	hashed_password = $2
-WHERE
-	id = $1;
 
 -- name: UpdateUserDeletedByID :exec
 UPDATE

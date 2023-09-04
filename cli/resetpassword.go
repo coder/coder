@@ -8,7 +8,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbresetpw"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/userpassword"
 )
@@ -37,9 +37,9 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("database needs migration: %w", err)
 			}
-			db := database.New(sqlDB)
+			db := dbresetpw.New(sqlDB)
 
-			user, err := db.GetUserByEmailOrUsername(inv.Context(), database.GetUserByEmailOrUsernameParams{
+			user, err := db.GetUserByEmailOrUsername(inv.Context(), dbresetpw.GetUserByEmailOrUsernameParams{
 				Username: username,
 			})
 			if err != nil {
@@ -73,7 +73,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 				return xerrors.Errorf("hash password: %w", err)
 			}
 
-			err = db.UpdateUserHashedPassword(inv.Context(), database.UpdateUserHashedPasswordParams{
+			err = db.UpdateUserHashedPassword(inv.Context(), dbresetpw.UpdateUserHashedPasswordParams{
 				ID:             user.ID,
 				HashedPassword: []byte(hashedPassword),
 			})

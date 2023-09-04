@@ -5690,44 +5690,6 @@ func (q *sqlQuerier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.
 	return i, err
 }
 
-const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
-SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
-FROM
-	users
-WHERE
-	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND
-	deleted = false
-LIMIT
-	1
-`
-
-type GetUserByEmailOrUsernameParams struct {
-	Username string `db:"username" json:"username"`
-	Email    string `db:"email" json:"email"`
-}
-
-func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
-	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
-	var i User
-	err := row.Scan(
-		&i.ID,
-		&i.Email,
-		&i.Username,
-		&i.HashedPassword,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.Status,
-		&i.RBACRoles,
-		&i.LoginType,
-		&i.AvatarURL,
-		&i.Deleted,
-		&i.LastSeenAt,
-		&i.QuietHoursSchedule,
-	)
-	return i, err
-}
-
 const getUserByID = `-- name: GetUserByID :one
 SELECT
 	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
@@ -6092,25 +6054,6 @@ func (q *sqlQuerier) UpdateUserDeletedByID(ctx context.Context, arg UpdateUserDe
 	return err
 }
 
-const updateUserHashedPassword = `-- name: UpdateUserHashedPassword :exec
-UPDATE
-	users
-SET
-	hashed_password = $2
-WHERE
-	id = $1
-`
-
-type UpdateUserHashedPasswordParams struct {
-	ID             uuid.UUID `db:"id" json:"id"`
-	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
-}
-
-func (q *sqlQuerier) UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error {
-	_, err := q.db.ExecContext(ctx, updateUserHashedPassword, arg.ID, arg.HashedPassword)
-	return err
-}
-
 const updateUserLastSeenAt = `-- name: UpdateUserLastSeenAt :one
 UPDATE
 	users
@@ -6345,6 +6288,68 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.QuietHoursSchedule,
 	)
 	return i, err
+}
+
+const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
+/*
+	This file contains a subset of users.sql queries used by the
+	dbresetpw package.
+*/
+
+SELECT
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule
+FROM
+	users
+WHERE
+	(LOWER(username) = LOWER($1) OR LOWER(email) = LOWER($2)) AND
+	deleted = false
+LIMIT
+	1
+`
+
+type GetUserByEmailOrUsernameParams struct {
+	Username string `db:"username" json:"username"`
+	Email    string `db:"email" json:"email"`
+}
+
+func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserByEmailOrUsernameParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByEmailOrUsername, arg.Username, arg.Email)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Username,
+		&i.HashedPassword,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Status,
+		&i.RBACRoles,
+		&i.LoginType,
+		&i.AvatarURL,
+		&i.Deleted,
+		&i.LastSeenAt,
+		&i.QuietHoursSchedule,
+	)
+	return i, err
+}
+
+const updateUserHashedPassword = `-- name: UpdateUserHashedPassword :exec
+UPDATE
+	users
+SET
+	hashed_password = $2
+WHERE
+	id = $1
+`
+
+type UpdateUserHashedPasswordParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	HashedPassword []byte    `db:"hashed_password" json:"hashed_password"`
+}
+
+func (q *sqlQuerier) UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserHashedPassword, arg.ID, arg.HashedPassword)
+	return err
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
