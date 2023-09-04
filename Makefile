@@ -611,7 +611,7 @@ site/.prettierrc.yaml: .prettierrc.yaml
 	# - ./ -> ../
 	# - ./site -> ./
 	yq \
-		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./"))' \
+		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./") | sub("../!"; "!../"))' \
 		"$<" >> "$@"
 
 # Combine .gitignore with .prettierignore.include to generate .prettierignore.
