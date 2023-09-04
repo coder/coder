@@ -9,5 +9,6 @@ const (
 	//
 	// coderd/database/no_slim_slim.go:7:2: _DO_NOT_IMPORT_THIS_PACKAGE_IN_SLIM_BUILDS redeclared in this block
 	// 	coderd/database/no_slim.go:4:2: other declaration of _DO_NOT_IMPORT_THIS_PACKAGE_IN_SLIM_BUILDS
+	//nolint:revive
 	_DO_NOT_IMPORT_THIS_PACKAGE_IN_SLIM_BUILDS = "DO_NOT_IMPORT_THIS_PACKAGE_IN_SLIM_BUILDS"
 )
