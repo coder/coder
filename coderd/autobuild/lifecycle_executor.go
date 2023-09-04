@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -306,7 +307,7 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	sched, err := schedule.Weekly(ws.AutostartSchedule.String)
+	sched, err := cron.Weekly(ws.AutostartSchedule.String)
 	if err != nil {
 		return false
 	}

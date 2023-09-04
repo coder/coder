@@ -3,6 +3,7 @@
 package cli
 
 import (
+	agplcli "github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clibase"
 )
 
@@ -15,7 +16,7 @@ func (r *RootCmd) proxyServer() *clibase.Cmd {
 		RawArgs: true,
 		Hidden:  true,
 		Handler: func(inv *clibase.Invocation) error {
-			slimUnsupported(inv.Stderr, "workspace-proxy server")
+			agplcli.SlimUnsupported(inv.Stderr, "workspace-proxy server")
 			return nil
 		},
 	}

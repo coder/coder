@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -1330,7 +1331,7 @@ func TestCompleteJob(t *testing.T) {
 							}, nil
 						}
 
-						sched, err := schedule.Daily(c.userQuietHoursSchedule)
+						sched, err := cron.Daily(c.userQuietHoursSchedule)
 						if !assert.NoError(t, err) {
 							return schedule.UserQuietHoursScheduleOptions{}, err
 						}

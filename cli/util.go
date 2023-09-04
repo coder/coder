@@ -8,7 +8,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/tz"
 )
 
@@ -74,7 +74,7 @@ func relative(d time.Duration) string {
 }
 
 // parseCLISchedule parses a schedule in the format HH:MM{AM|PM} [DOW] [LOCATION]
-func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
+func parseCLISchedule(parts ...string) (*cron.Schedule, error) {
 	// If the user was careful and quoted the schedule, un-quote it.
 	// In the case that only time was specified, this will be a no-op.
 	if len(parts) == 1 {
@@ -121,7 +121,7 @@ func parseCLISchedule(parts ...string) (*schedule.Schedule, error) {
 		}
 	}
 
-	sched, err := schedule.Weekly(fmt.Sprintf(
+	sched, err := cron.Weekly(fmt.Sprintf(
 		"CRON_TZ=%s %d %d * * %s",
 		loc.String(),
 		minute,
