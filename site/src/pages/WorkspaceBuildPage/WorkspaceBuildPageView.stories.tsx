@@ -36,7 +36,7 @@ export const LoadingBuildLogs: Story = {
 
 const failedBuild = {
   ...MockFailedWorkspaceBuild("delete"),
-  build_number: new Date().getDate(),
+  build_number: 123123123123,
 }
 
 export const FailedDelete: Story = {
