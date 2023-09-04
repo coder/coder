@@ -1,7 +1,7 @@
 // package schedule provides utilities for managing template and workspace
 // autostart and autostop schedules. This includes utilities for parsing and
 // deserializing cron-style expressions.
-package schedule
+package cron
 
 import (
 	"fmt"
@@ -30,11 +30,11 @@ var defaultParser = cron.NewParser(parserFormat)
 //
 // Example Usage:
 //
-//	local_sched, _ := schedule.Weekly("59 23 *")
+//	local_sched, _ := cron.Weekly("59 23 *")
 //	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //	// Output: 2022-04-04T23:59:00Z
 //
-//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
+//	us_sched, _ := cron.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //	// Output: 2022-04-04T14:30:00Z
 func Weekly(raw string) (*Schedule, error) {
@@ -56,11 +56,11 @@ func Weekly(raw string) (*Schedule, error) {
 //
 // Example Usage:
 //
-//	local_sched, _ := schedule.Weekly("59 23 * * *")
+//	local_sched, _ := cron.Weekly("59 23 * * *")
 //	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //	// Output: 2022-04-04T23:59:00Z
 //
-//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 * * *")
+//	us_sched, _ := cron.Weekly("CRON_TZ=US/Central 30 9 * * *")
 //	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //	// Output: 2022-04-04T14:30:00Z
 func Daily(raw string) (*Schedule, error) {

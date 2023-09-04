@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -432,7 +433,7 @@ func TestCalculateAutoStop(t *testing.T) {
 						}, nil
 					}
 
-					sched, err := schedule.Daily(c.userQuietHoursSchedule)
+					sched, err := cron.Daily(c.userQuietHoursSchedule)
 					if !assert.NoError(t, err) {
 						return schedule.UserQuietHoursScheduleOptions{}, err
 					}
