@@ -15,6 +15,7 @@ import {
   Resource,
   RichParameter,
 } from "./provisionerGenerated"
+import { prometheusPort, pprofPort } from "./constants"
 import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
@@ -318,8 +319,8 @@ export const startAgentWithCommand = async (
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
-      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:6061",
-      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:2114",
+      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + pprofPort,
+      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
     },
   })
   cp.stdout.on("data", (data: Buffer) => {
@@ -345,7 +346,7 @@ export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
       throw new Error(`exec error: ${JSON.stringify(error)}`)
     }
   })
-  await waitUntilUrlIsNotResponding("http://127.0.0.1:2114")
+  await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort)
 }
 
 const waitUntilUrlIsNotResponding = async (url: string) => {
