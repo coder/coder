@@ -40,6 +40,7 @@ overrides:
       api_key_scope_application_connect: APIKeyScopeApplicationConnect
       avatar_url: AvatarURL
       created_by_avatar_url: CreatedByAvatarURL
+      dbcrypt_key: DBCryptKey
       session_count_vscode: SessionCountVSCode
       session_count_jetbrains: SessionCountJetBrains
       session_count_reconnecting_pty: SessionCountReconnectingPTY
@@ -47,9 +48,11 @@ overrides:
       connection_median_latency_ms: ConnectionMedianLatencyMS
       login_type_oidc: LoginTypeOIDC
       oauth_access_token: OAuthAccessToken
+      oauth_access_token_key_id: OAuthAccessTokenKeyID
       oauth_expiry: OAuthExpiry
       oauth_id_token: OAuthIDToken
       oauth_refresh_token: OAuthRefreshToken
+      oauth_refresh_token_key_id: OAuthRefreshTokenKeyID
       parameter_type_system_hcl: ParameterTypeSystemHCL
       userstatus: UserStatus
       gitsshkey: GitSSHKey

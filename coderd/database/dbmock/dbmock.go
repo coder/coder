@@ -506,6 +506,21 @@ func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 interf
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
 }
 
+// GetDBCryptKeys mocks base method.
+func (m *MockStore) GetDBCryptKeys(arg0 context.Context) ([]database.DBCryptKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDBCryptKeys", arg0)
+	ret0, _ := ret[0].([]database.DBCryptKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDBCryptKeys indicates an expected call of GetDBCryptKeys.
+func (mr *MockStoreMockRecorder) GetDBCryptKeys(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDBCryptKeys", reflect.TypeOf((*MockStore)(nil).GetDBCryptKeys), arg0)
+}
+
 // GetDERPMeshKey mocks base method.
 func (m *MockStore) GetDERPMeshKey(arg0 context.Context) (string, error) {
 	m.ctrl.T.Helper()
@@ -654,6 +669,21 @@ func (m *MockStore) GetGitAuthLink(arg0 context.Context, arg1 database.GetGitAut
 func (mr *MockStoreMockRecorder) GetGitAuthLink(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLink", reflect.TypeOf((*MockStore)(nil).GetGitAuthLink), arg0, arg1)
+}
+
+// GetGitAuthLinksByUserID mocks base method.
+func (m *MockStore) GetGitAuthLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.GitAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGitAuthLinksByUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GitAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGitAuthLinksByUserID indicates an expected call of GetGitAuthLinksByUserID.
+func (mr *MockStoreMockRecorder) GetGitAuthLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetGitAuthLinksByUserID), arg0, arg1)
 }
 
 // GetGitSSHKey mocks base method.
@@ -1601,6 +1631,21 @@ func (mr *MockStoreMockRecorder) GetUserLinkByUserIDLoginType(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinkByUserIDLoginType", reflect.TypeOf((*MockStore)(nil).GetUserLinkByUserIDLoginType), arg0, arg1)
 }
 
+// GetUserLinksByUserID mocks base method.
+func (m *MockStore) GetUserLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.UserLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserLinksByUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.UserLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserLinksByUserID indicates an expected call of GetUserLinksByUserID.
+func (mr *MockStoreMockRecorder) GetUserLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetUserLinksByUserID), arg0, arg1)
+}
+
 // GetUsers mocks base method.
 func (m *MockStore) GetUsers(arg0 context.Context, arg1 database.GetUsersParams) ([]database.GetUsersRow, error) {
 	m.ctrl.T.Helper()
@@ -2245,6 +2290,20 @@ func (mr *MockStoreMockRecorder) InsertAuditLog(arg0, arg1 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAuditLog", reflect.TypeOf((*MockStore)(nil).InsertAuditLog), arg0, arg1)
 }
 
+// InsertDBCryptKey mocks base method.
+func (m *MockStore) InsertDBCryptKey(arg0 context.Context, arg1 database.InsertDBCryptKeyParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertDBCryptKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertDBCryptKey indicates an expected call of InsertDBCryptKey.
+func (mr *MockStoreMockRecorder) InsertDBCryptKey(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDBCryptKey", reflect.TypeOf((*MockStore)(nil).InsertDBCryptKey), arg0, arg1)
+}
+
 // InsertDERPMeshKey mocks base method.
 func (m *MockStore) InsertDERPMeshKey(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -2787,6 +2846,20 @@ func (m *MockStore) RegisterWorkspaceProxy(arg0 context.Context, arg1 database.R
 func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), arg0, arg1)
+}
+
+// RevokeDBCryptKey mocks base method.
+func (m *MockStore) RevokeDBCryptKey(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeDBCryptKey", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeDBCryptKey indicates an expected call of RevokeDBCryptKey.
+func (mr *MockStoreMockRecorder) RevokeDBCryptKey(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), arg0, arg1)
 }
 
 // TryAcquireLock mocks base method.

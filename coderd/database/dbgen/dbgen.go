@@ -470,12 +470,14 @@ func File(t testing.TB, db database.Store, orig database.File) database.File {
 
 func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.UserLink {
 	link, err := db.InsertUserLink(genCtx, database.InsertUserLinkParams{
-		UserID:            takeFirst(orig.UserID, uuid.New()),
-		LoginType:         takeFirst(orig.LoginType, database.LoginTypeGithub),
-		LinkedID:          takeFirst(orig.LinkedID),
-		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthExpiry:       takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
+		UserID:                 takeFirst(orig.UserID, uuid.New()),
+		LoginType:              takeFirst(orig.LoginType, database.LoginTypeGithub),
+		LinkedID:               takeFirst(orig.LinkedID),
+		OAuthAccessToken:       takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthAccessTokenKeyID:  takeFirst(orig.OAuthAccessTokenKeyID, sql.NullString{}),
+		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
+		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
+		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 	})
 
 	require.NoError(t, err, "insert link")
@@ -484,13 +486,15 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 
 func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
 	link, err := db.InsertGitAuthLink(genCtx, database.InsertGitAuthLinkParams{
-		ProviderID:        takeFirst(orig.ProviderID, uuid.New().String()),
-		UserID:            takeFirst(orig.UserID, uuid.New()),
-		OAuthAccessToken:  takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthRefreshToken: takeFirst(orig.OAuthAccessToken, uuid.NewString()),
-		OAuthExpiry:       takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
-		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ProviderID:             takeFirst(orig.ProviderID, uuid.New().String()),
+		UserID:                 takeFirst(orig.UserID, uuid.New()),
+		OAuthAccessToken:       takeFirst(orig.OAuthAccessToken, uuid.NewString()),
+		OAuthAccessTokenKeyID:  takeFirst(orig.OAuthAccessTokenKeyID, sql.NullString{}),
+		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
+		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
+		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
+		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
 
 	require.NoError(t, err, "insert git auth link")
