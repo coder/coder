@@ -139,7 +139,8 @@ you can configure the server by setting the following variables in
 CODER_ACCESS_URL=https://coder.example.com
 
 # String. Address to serve the API and dashboard.
-CODER_HTTP_ADDRESS=127.0.0.1:3000
+# Use 0.0.0.0:3000 for non-local connections
+CODER_HTTP_ADDRESS=127.0.0.1:3000 
 
 # String. The URL of a PostgreSQL database to connect to. If empty, PostgreSQL binaries
 # will be downloaded from Maven (https://repo1.maven.org/maven2) and store all
@@ -148,6 +149,9 @@ CODER_PG_CONNECTION_URL=
 
 # Boolean. Specifies if TLS will be enabled.
 CODER_TLS_ENABLE=
+
+# If TLS_ENABLE=true && Opening access to outside or want to change TLS port:
+CODER_TLS_ADDRESS=0.0.0.0:3443
 
 # String. Specifies the path to the certificate for TLS. It requires a PEM-encoded file.
 # To configure the listener to use a CA certificate, concatenate the primary
