@@ -176,7 +176,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 
 			var dotfiles []string
 			for _, f := range files {
-				// make sure we do not copy `.git*` files except .gitconfig
+				// make sure we do not copy `.git*` files except `.gitconfig`
 				if strings.HasPrefix(f.Name(), ".") && (!strings.HasPrefix(f.Name(), ".git") || f.Name() == ".gitconfig") {
 					dotfiles = append(dotfiles, f.Name())
 				}
