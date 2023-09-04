@@ -1,4 +1,4 @@
-package healthcheck_test
+package derphealth_test
 
 import (
 	"context"
@@ -17,7 +17,7 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -38,9 +38,9 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx        = context.Background()
-			report     = healthcheck.DERPReport{}
+			report     = derphealth.Report{}
 			derpURL, _ = url.Parse(srv.URL)
-			opts       = &healthcheck.DERPReportOptions{
+			opts       = &derphealth.ReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,
@@ -95,8 +95,8 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx    = context.Background()
-			report = healthcheck.DERPReport{}
-			opts   = &healthcheck.DERPReportOptions{
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
 				DERPMap: tsDERPMap(ctx, t),
 			}
 		)
@@ -145,9 +145,9 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx        = context.Background()
-			report     = healthcheck.DERPReport{}
+			report     = derphealth.Report{}
 			derpURL, _ = url.Parse(srv.URL)
-			opts       = &healthcheck.DERPReportOptions{
+			opts       = &derphealth.ReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,
@@ -195,8 +195,8 @@ func TestDERP(t *testing.T) {
 
 		var (
 			ctx    = context.Background()
-			report = healthcheck.DERPReport{}
-			opts   = &healthcheck.DERPReportOptions{
+			report = derphealth.Report{}
+			opts   = &derphealth.ReportOptions{
 				DERPMap: &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{
 					1: {
 						EmbeddedRelay: true,

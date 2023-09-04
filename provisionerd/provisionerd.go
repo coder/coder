@@ -29,12 +29,6 @@ import (
 	"github.com/coder/retry"
 )
 
-// IsMissingParameterErrorCode returns whether the error is a missing parameter error.
-// This can indicate to consumers that they should check parameters.
-func IsMissingParameterErrorCode(code string) bool {
-	return code == runner.MissingParameterErrorCode
-}
-
 // Dialer represents the function to create a daemon client connection.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
