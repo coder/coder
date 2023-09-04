@@ -1,4 +1,4 @@
-package healthcheck
+package derphealth
 
 import (
 	"context"
@@ -24,11 +24,11 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
-// @typescript-generate DERPReport
-type DERPReport struct {
+// @typescript-generate Report
+type Report struct {
 	Healthy bool `json:"healthy"`
 
-	Regions map[int]*DERPRegionReport `json:"regions"`
+	Regions map[int]*RegionReport `json:"regions"`
 
 	Netcheck     *netcheck.Report `json:"netcheck"`
 	NetcheckErr  *string          `json:"netcheck_err"`
@@ -37,18 +37,18 @@ type DERPReport struct {
 	Error *string `json:"error"`
 }
 
-// @typescript-generate DERPRegionReport
-type DERPRegionReport struct {
+// @typescript-generate RegionReport
+type RegionReport struct {
 	mu      sync.Mutex
 	Healthy bool `json:"healthy"`
 
 	Region      *tailcfg.DERPRegion `json:"region"`
-	NodeReports []*DERPNodeReport   `json:"node_reports"`
+	NodeReports []*NodeReport       `json:"node_reports"`
 	Error       *string             `json:"error"`
 }
 
-// @typescript-generate DERPNodeReport
-type DERPNodeReport struct {
+// @typescript-generate NodeReport
+type NodeReport struct {
 	mu            sync.Mutex
 	clientCounter int
 
@@ -64,23 +64,23 @@ type DERPNodeReport struct {
 	ClientErrs          [][]string             `json:"client_errs"`
 	Error               *string                `json:"error"`
 
-	STUN DERPStunReport `json:"stun"`
+	STUN StunReport `json:"stun"`
 }
 
-// @typescript-generate DERPStunReport
-type DERPStunReport struct {
+// @typescript-generate StunReport
+type StunReport struct {
 	Enabled bool
 	CanSTUN bool
 	Error   *string
 }
 
-type DERPReportOptions struct {
+type ReportOptions struct {
 	DERPMap *tailcfg.DERPMap
 }
 
-func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
+func (r *Report) Run(ctx context.Context, opts *ReportOptions) {
 	r.Healthy = true
-	r.Regions = map[int]*DERPRegionReport{}
+	r.Regions = map[int]*RegionReport{}
 
 	wg := &sync.WaitGroup{}
 	mu := sync.Mutex{}
@@ -89,7 +89,7 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	for _, region := range opts.DERPMap.Regions {
 		var (
 			region       = region
-			regionReport = DERPRegionReport{
+			regionReport = RegionReport{
 				Region: region,
 			}
 		)
@@ -128,9 +128,9 @@ func (r *DERPReport) Run(ctx context.Context, opts *DERPReportOptions) {
 	wg.Wait()
 }
 
-func (r *DERPRegionReport) Run(ctx context.Context) {
+func (r *RegionReport) Run(ctx context.Context) {
 	r.Healthy = true
-	r.NodeReports = []*DERPNodeReport{}
+	r.NodeReports = []*NodeReport{}
 
 	wg := &sync.WaitGroup{}
 
@@ -138,7 +138,7 @@ func (r *DERPRegionReport) Run(ctx context.Context) {
 	for _, node := range r.Region.Nodes {
 		var (
 			node       = node
-			nodeReport = DERPNodeReport{
+			nodeReport = NodeReport{
 				Node:    node,
 				Healthy: true,
 			}
@@ -166,7 +166,7 @@ func (r *DERPRegionReport) Run(ctx context.Context) {
 	wg.Wait()
 }
 
-func (r *DERPNodeReport) derpURL() *url.URL {
+func (r *NodeReport) derpURL() *url.URL {
 	derpURL := &url.URL{
 		Scheme: "https",
 		Host:   r.Node.HostName,
@@ -185,7 +185,7 @@ func (r *DERPNodeReport) derpURL() *url.URL {
 	return derpURL
 }
 
-func (r *DERPNodeReport) Run(ctx context.Context) {
+func (r *NodeReport) Run(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -218,7 +218,7 @@ func (r *DERPNodeReport) Run(ctx context.Context) {
 	}
 }
 
-func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
+func (r *NodeReport) doExchangeMessage(ctx context.Context) {
 	if r.Node.STUNOnly {
 		return
 	}
@@ -299,7 +299,7 @@ func (r *DERPNodeReport) doExchangeMessage(ctx context.Context) {
 	wg.Wait()
 }
 
-func (r *DERPNodeReport) doSTUNTest(ctx context.Context) {
+func (r *NodeReport) doSTUNTest(ctx context.Context) {
 	if r.Node.STUNPort == -1 {
 		return
 	}
@@ -331,7 +331,7 @@ func (r *DERPNodeReport) doSTUNTest(ctx context.Context) {
 	r.mu.Unlock()
 }
 
-func (r *DERPNodeReport) stunAddr(ctx context.Context) (string, int, error) {
+func (r *NodeReport) stunAddr(ctx context.Context) (string, int, error) {
 	port := r.Node.STUNPort
 	if port == 0 {
 		port = 3478
@@ -387,13 +387,13 @@ func (r *DERPNodeReport) stunAddr(ctx context.Context) (string, int, error) {
 	return "", 0, xerrors.New("no stun ips provided")
 }
 
-func (r *DERPNodeReport) writeClientErr(clientID int, err error) {
+func (r *NodeReport) writeClientErr(clientID int, err error) {
 	r.mu.Lock()
 	r.ClientErrs[clientID] = append(r.ClientErrs[clientID], err.Error())
 	r.mu.Unlock()
 }
 
-func (r *DERPNodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphttp.Client, int, error) {
+func (r *NodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*derphttp.Client, int, error) {
 	r.mu.Lock()
 	id := r.clientCounter
 	r.clientCounter++
@@ -440,7 +440,7 @@ func (r *DERPNodeReport) derpClient(ctx context.Context, derpURL *url.URL) (*der
 	return client, id, nil
 }
 
-func (r *DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
+func (r *NodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket, error) {
 	for {
 		msg, err := client.Recv()
 		if err != nil {
@@ -458,4 +458,12 @@ func (r *DERPNodeReport) recvData(client *derphttp.Client) (derp.ReceivedPacket,
 			// Drop all others!
 		}
 	}
+}
+
+func convertError(err error) *string {
+	if err != nil {
+		return ptr.Ref(err.Error())
+	}
+
+	return nil
 }
