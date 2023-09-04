@@ -1019,3 +1019,14 @@ func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...
 		),
 	)
 }
+
+//nolint:unused
+func SlimUnsupported(w io.Writer, cmd string) {
+	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.DefaultStyles.Code.Render(cmd))
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
+	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
+
+	//nolint:revive
+	os.Exit(1)
+}
