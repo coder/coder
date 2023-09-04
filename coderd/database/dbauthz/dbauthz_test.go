@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
@@ -863,8 +864,8 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(u.ID).Asserts(u, rbac.ActionRead).Returns(u)
 	}))
 	s.Run("GetUsersByIDs", s.Subtest(func(db database.Store, check *expects) {
-		a := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now().Add(-time.Hour)})
-		b := dbgen.User(s.T(), db, database.User{CreatedAt: database.Now()})
+		a := dbgen.User(s.T(), db, database.User{CreatedAt: dbtime.Now().Add(-time.Hour)})
+		b := dbgen.User(s.T(), db, database.User{CreatedAt: dbtime.Now()})
 		check.Args([]uuid.UUID{a.ID, b.ID}).
 			Asserts(a, rbac.ActionRead, b, rbac.ActionRead).
 			Returns(slice.New(a, b))

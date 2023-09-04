@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -171,7 +172,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 
 		// Test since
 		builds, err = client.WorkspaceBuilds(ctx,
-			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(time.Minute)},
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: dbtime.Now().Add(time.Minute)},
 		)
 		require.NoError(t, err)
 		require.Len(t, builds, 0)
@@ -179,7 +180,7 @@ func TestWorkspaceBuilds(t *testing.T) {
 		require.NotNil(t, builds)
 
 		builds, err = client.WorkspaceBuilds(ctx,
-			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: database.Now().Add(-time.Hour)},
+			codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID, Since: dbtime.Now().Add(-time.Hour)},
 		)
 		require.NoError(t, err)
 		require.Len(t, builds, 1)

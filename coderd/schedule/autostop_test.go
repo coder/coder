@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -455,7 +456,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			})
 			err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 				ID:                            template.ID,
-				UpdatedAt:                     database.Now(),
+				UpdatedAt:                     dbtime.Now(),
 				AllowUserAutostart:            c.templateAllowAutostop,
 				AutostopRequirementDaysOfWeek: int16(c.templateAutostopRequirement.DaysOfWeek),
 				AutostopRequirementWeeks:      c.templateAutostopRequirement.Weeks,

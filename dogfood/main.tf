@@ -90,6 +90,8 @@ resource "coder_agent" "dev" {
   env = {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
+    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
+    CODER_DEPLOYMENT_URL : data.coder_workspace.me.access_url
   }
   startup_script_behavior = "blocking"
 
@@ -202,6 +204,15 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
+
+    # Automatically authenticate the user if they are not
+    # logged in to another deployment
+    if ! coder list >/dev/null 2>&1; then
+      set +x; coder login --token=$CODER_USER_TOKEN --url=$CODER_DEPLOYMENT_URL
+    else
+      echo "You are already authenticated with coder"
+    fi
+
   EOT
 }
 

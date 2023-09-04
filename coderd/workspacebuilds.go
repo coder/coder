@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -151,7 +152,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			AfterID:     paginationParams.AfterID,
 			OffsetOpt:   int32(paginationParams.Offset),
 			LimitOpt:    int32(paginationParams.Limit),
-			Since:       database.Time(since),
+			Since:       dbtime.Time(since),
 		}
 		workspaceBuilds, err = store.GetWorkspaceBuildsByWorkspaceID(ctx, req)
 		if xerrors.Is(err, sql.ErrNoRows) {
@@ -469,11 +470,11 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 	err = api.Database.UpdateProvisionerJobWithCancelByID(ctx, database.UpdateProvisionerJobWithCancelByIDParams{
 		ID: job.ID,
 		CanceledAt: sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		},
 		CompletedAt: sql.NullTime{
-			Time: database.Now(),
+			Time: dbtime.Now(),
 			// If the job is running, don't mark it completed!
 			Valid: !job.WorkerID.Valid,
 		},

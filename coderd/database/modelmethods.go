@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/exp/maps"
 
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
 
@@ -289,7 +290,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 	switch {
 	case !a.FirstConnectedAt.Valid:
 		switch {
-		case connectionTimeout > 0 && Now().Sub(a.CreatedAt) > connectionTimeout:
+		case connectionTimeout > 0 && dbtime.Now().Sub(a.CreatedAt) > connectionTimeout:
 			// If the agent took too long to connect the first time,
 			// mark it as timed out.
 			status.Status = WorkspaceAgentStatusTimeout
@@ -304,7 +305,7 @@ func (a WorkspaceAgent) Status(inactiveTimeout time.Duration) WorkspaceAgentConn
 		// If we've disconnected after our last connection, we know the
 		// agent is no longer connected.
 		status.Status = WorkspaceAgentStatusDisconnected
-	case Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
+	case dbtime.Now().Sub(a.LastConnectedAt.Time) > inactiveTimeout:
 		// The connection died without updating the last connected.
 		status.Status = WorkspaceAgentStatusDisconnected
 		// Client code needs an accurate disconnected at if the agent has been inactive.

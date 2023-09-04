@@ -13,7 +13,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -63,7 +63,7 @@ func TestStatsCollector(t *testing.T) {
 	someUUID := uuid.New()
 
 	rollupWindow := time.Minute
-	start := database.Now().Truncate(time.Minute).UTC()
+	start := dbtime.Now().Truncate(time.Minute).UTC()
 	end := start.Add(10 * time.Second)
 
 	tests := []struct {
@@ -351,7 +351,7 @@ func TestStatsCollector_backlog(t *testing.T) {
 	rollupWindow := time.Minute
 	flush := make(chan chan<- struct{}, 1)
 
-	start := database.Now().Truncate(time.Minute).UTC()
+	start := dbtime.Now().Truncate(time.Minute).UTC()
 	var now atomic.Pointer[time.Time]
 	now.Store(&start)
 
@@ -414,8 +414,8 @@ func TestStatsCollector_Close(t *testing.T) {
 
 	collector.Collect(workspaceapps.StatsReport{
 		SessionID:        uuid.New(),
-		SessionStartedAt: database.Now(),
-		SessionEndedAt:   database.Now(),
+		SessionStartedAt: dbtime.Now(),
+		SessionEndedAt:   dbtime.Now(),
 		Requests:         1,
 	})
 

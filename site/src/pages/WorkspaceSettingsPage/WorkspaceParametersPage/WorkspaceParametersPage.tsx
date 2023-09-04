@@ -14,19 +14,20 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import { FC } from "react"
 import { isApiValidationError } from "api/errors"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { WorkspaceBuildParameter } from "api/typesGenerated"
 
 const WorkspaceParametersPage = () => {
   const { workspace } = useWorkspaceSettingsContext()
-  const query = useQuery({
+  const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),
   })
   const navigate = useNavigate()
-  const mutation = useMutation({
-    mutationFn: (formValues: WorkspaceParametersFormValues) =>
+  const updateParameters = useMutation({
+    mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
       postWorkspaceBuild(workspace.id, {
         transition: "start",
-        rich_parameter_values: formValues.rich_parameter_values,
+        rich_parameter_values: buildParameters,
       }),
     onSuccess: () => {
       navigate(`/${workspace.owner_name}/${workspace.name}`)
@@ -40,10 +41,20 @@ const WorkspaceParametersPage = () => {
       </Helmet>
 
       <WorkspaceParametersPageView
-        data={query.data}
-        submitError={mutation.error}
-        isSubmitting={mutation.isLoading}
-        onSubmit={mutation.mutate}
+        data={parameters.data}
+        submitError={updateParameters.error}
+        isSubmitting={updateParameters.isLoading}
+        onSubmit={(values) => {
+          // When updating the parameters, the API does not accept immutable
+          // values so we need to filter them
+          const onlyMultableValues = parameters
+            .data!.templateVersionRichParameters.filter((p) => p.mutable)
+            .map(
+              (p) =>
+                values.rich_parameter_values.find((v) => v.name === p.name)!,
+            )
+          updateParameters.mutate(onlyMultableValues)
+        }}
         onCancel={() => {
           navigate("../..")
         }}

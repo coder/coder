@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
@@ -219,7 +220,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
-			Time:             database.Now(),
+			Time:             dbtime.Now(),
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
@@ -264,7 +265,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             database.Now(),
+		Time:             dbtime.Now(),
 		UserID:           p.UserID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},

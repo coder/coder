@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/cli/gitauth"
 )
 
 func TestOverrideVSCodeConfigs(t *testing.T) {

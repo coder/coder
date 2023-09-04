@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/moby/moby/pkg/namesgenerator"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -87,7 +86,7 @@ func TestCheckInactiveUsers(t *testing.T) {
 func setupUser(ctx context.Context, t *testing.T, db database.Store, email string, status database.UserStatus, lastSeenAt time.Time) database.User {
 	t.Helper()
 
-	user, err := db.InsertUser(ctx, database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, Username: namesgenerator.GetRandomName(8), Email: email})
+	user, err := db.InsertUser(ctx, database.InsertUserParams{ID: uuid.New(), LoginType: database.LoginTypePassword, Username: uuid.NewString()[:8], Email: email})
 	require.NoError(t, err)
 	// At the beginning of the test all users are marked as active
 	user, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{ID: user.ID, Status: status})

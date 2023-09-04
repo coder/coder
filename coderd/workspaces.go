@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -454,7 +455,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspaceBuild *database.WorkspaceBuild
 	)
 	err = api.Database.InTx(func(db database.Store) error {
-		now := database.Now()
+		now := dbtime.Now()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:                uuid.New(),
@@ -468,7 +469,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
-			LastUsedAt: database.Now(),
+			LastUsedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
@@ -825,7 +826,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		Valid: req.Dormant,
 	}
 	if req.Dormant {
-		dormantAt.Time = database.Now()
+		dormantAt.Time = dbtime.Now()
 	}
 
 	workspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{

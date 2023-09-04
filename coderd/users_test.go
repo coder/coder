@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -565,7 +566,7 @@ func TestPostUsers(t *testing.T) {
 		// should be Never since they haven't performed a request.
 		for _, user := range allUsersRes.Users {
 			if user.ID == firstUser.ID {
-				require.WithinDuration(t, firstUser.LastSeenAt, database.Now(), testutil.WaitShort)
+				require.WithinDuration(t, firstUser.LastSeenAt, dbtime.Now(), testutil.WaitShort)
 			} else {
 				require.Zero(t, user.LastSeenAt)
 			}
