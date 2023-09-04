@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/parameter"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -1869,7 +1870,7 @@ func TestWorkspaceUpdateAutostart(t *testing.T) {
 
 			require.EqualValues(t, *testCase.schedule, *updated.AutostartSchedule, "expected autostart schedule to equal requested")
 
-			sched, err := schedule.Weekly(*updated.AutostartSchedule)
+			sched, err := cron.Weekly(*updated.AutostartSchedule)
 			require.NoError(t, err, "parse returned schedule")
 
 			next := sched.Next(testCase.at)
