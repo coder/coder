@@ -256,7 +256,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		Message:            args.Message,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
-		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
+		Provisioner:        args.Provisioner,
 		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
