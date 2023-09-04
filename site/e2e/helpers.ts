@@ -341,6 +341,9 @@ export const startAgentWithCommand = async (
 }
 
 export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
+  // When the web server is started with `go run`, it spawns a child process with coder server.
+  // `pkill -P` terminates child processes belonging the same group as `go run`.
+  // The command `kill` is used to terminate a web server started as a standalone binary.
   exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
     if (error) {
       throw new Error(`exec error: ${JSON.stringify(error)}`)
