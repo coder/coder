@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/derpmesh"
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/tailnet"
@@ -47,8 +48,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.EntitlementsUpdateInterval == 0 {
 		options.EntitlementsUpdateInterval = 10 * time.Minute
 	}
-	if options.Keys == nil {
-		options.Keys = Keys
+	if options.LicenseKeys == nil {
+		options.LicenseKeys = Keys
 	}
 	if options.Options == nil {
 		options.Options = &coderd.Options{}
@@ -61,10 +62,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	api := &API{
-		ctx:    ctx,
-		cancel: cancelFunc,
 
+	if options.ExternalTokenEncryption != nil {
+		cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
+		if err != nil {
+			cancelFunc()
+			// If we fail to initialize the database, it's likely that the
+			// database is encrypted with an unknown external token encryption key.
+			// This is a fatal error.
+			var derr *dbcrypt.DecryptFailedError
+			if xerrors.As(err, &derr) {
+				panic(`Coder has shut down to prevent data corruption: your configured database is encrypted with an unknown external token encryption key. Please check your configuration and try again.`)
+			}
+			return nil, xerrors.Errorf("init dbcrypt: %w", err)
+		}
+		options.Database = cryptDB
+	}
+
+	api := &API{
+		ctx:     ctx,
+		cancel:  cancelFunc,
 		AGPL:    coderd.New(options.Options),
 		Options: options,
 		provisionerDaemonAuth: &provisionerDaemonAuth{
@@ -364,6 +381,8 @@ type Options struct {
 	BrowserOnly bool
 	SCIMAPIKey  []byte
 
+	ExternalTokenEncryption []dbcrypt.Cipher
+
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	DERPServerRelayAddress    string
@@ -374,7 +393,7 @@ type Options struct {
 
 	EntitlementsUpdateInterval time.Duration
 	ProxyHealthInterval        time.Duration
-	Keys                       map[string]ed25519.PublicKey
+	LicenseKeys                map[string]ed25519.PublicKey
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
@@ -429,13 +448,14 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.AllPrimary()), len(api.GitAuthConfigs), api.Keys, map[codersdk.FeatureName]bool{
+		api.Logger, len(api.replicaManager.AllPrimary()), len(api.GitAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
+			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateAutostopRequirement depends on

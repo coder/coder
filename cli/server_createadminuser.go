@@ -63,7 +63,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				newUserDBURL = url
 			}
 
-			sqlDB, err := connectToPostgres(ctx, logger, "postgres", newUserDBURL)
+			sqlDB, err := ConnectToPostgres(ctx, logger, "postgres", newUserDBURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

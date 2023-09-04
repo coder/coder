@@ -10,6 +10,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
      [40m [0m[91;40m$ coder templates init[0m[40m [0m
 
 [1mSubcommands[0m
+    dbcrypt-rotate     Rotate database encryption keys
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses

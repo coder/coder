@@ -48,25 +48,27 @@ func TestEntitlements(t *testing.T) {
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
+		// Enable all features
+		features := make(license.Features)
+		for _, feature := range codersdk.FeatureNames {
+			features[feature] = 1
+		}
+		features[codersdk.FeatureUserLimit] = 100
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureUserLimit:                  100,
-				codersdk.FeatureAuditLog:                   1,
-				codersdk.FeatureTemplateRBAC:               1,
-				codersdk.FeatureExternalProvisionerDaemons: 1,
-				codersdk.FeatureAdvancedTemplateScheduling: 1,
-				codersdk.FeatureWorkspaceProxy:             1,
-				codersdk.FeatureUserRoleManagement:         1,
-			},
-			GraceAt: time.Now().Add(59 * 24 * time.Hour),
+			Features: features,
+			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
 		ul := res.Features[codersdk.FeatureUserLimit]
 		assert.Equal(t, codersdk.EntitlementEntitled, ul.Entitlement)
-		assert.Equal(t, int64(100), *ul.Limit)
-		assert.Equal(t, int64(1), *ul.Actual)
+		if assert.NotNil(t, ul.Limit) {
+			assert.Equal(t, int64(100), *ul.Limit)
+		}
+		if assert.NotNil(t, ul.Actual) {
+			assert.Equal(t, int64(1), *ul.Actual)
+		}
 		assert.True(t, ul.Enabled)
 		al := res.Features[codersdk.FeatureAuditLog]
 		assert.Equal(t, codersdk.EntitlementEntitled, al.Entitlement)
