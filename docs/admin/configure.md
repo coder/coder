@@ -150,7 +150,7 @@ CODER_PG_CONNECTION_URL=
 # Boolean. Specifies if TLS will be enabled.
 CODER_TLS_ENABLE=
 
-# If TLS_ENABLE=true && Opening access to outside or want to change TLS port:
+# If CODER_TLS_ENABLE=true && Opening access to outside or want to change TLS port:
 CODER_TLS_ADDRESS=0.0.0.0:3443
 
 # String. Specifies the path to the certificate for TLS. It requires a PEM-encoded file.
