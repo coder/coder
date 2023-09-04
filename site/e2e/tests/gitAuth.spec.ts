@@ -47,7 +47,7 @@ test("git auth device", async ({ page }) => {
   })
 
   await page.goto(`/gitauth/${gitAuth.deviceProvider}`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   await page.getByText(device.user_code).isVisible()
   await sentPending.wait()
@@ -75,7 +75,7 @@ test("git auth web", async ({ baseURL, page }) => {
     )
   })
   await page.goto(`/gitauth/${gitAuth.webProvider}`, {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   // This endpoint doesn't have the installations URL set intentionally!
   await page.waitForSelector("text=You've authenticated with GitHub!")

@@ -567,6 +567,14 @@ jobs:
           path: ./site/test-results/**/*.webm
           retention-days: 7
 
+      - name: Upload pprof dumps
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-pprof-dumps
+          path: ./site/test-results/**/debug-pprof-*.txt
+          retention-days: 7
+
   chromatic:
     # REMARK: this is only used to build storybook and deploy it to Chromatic.
     runs-on: ubuntu-latest

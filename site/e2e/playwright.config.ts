@@ -46,7 +46,8 @@ export default defineConfig({
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
-      `--provisioner-daemon-poll-interval 50ms`,
+      `--provisioner-daemon-poll-interval 50ms ` +
+      `--pprof-enable`,
     env: {
       ...process.env,
 

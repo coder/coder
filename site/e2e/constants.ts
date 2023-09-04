@@ -1,5 +1,7 @@
 // Default port from the server
 export const defaultPort = 3000
+export const prometheusPort = 2114
+export const pprofPort = 6061
 
 // Credentials for the first user
 export const username = "admin"
