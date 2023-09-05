@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -84,7 +85,7 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		UserID:           user.ID,
 		LoginType:        database.LoginTypeToken,
 		DeploymentValues: api.DeploymentValues,
-		ExpiresAt:        database.Now().Add(lifeTime),
+		ExpiresAt:        dbtime.Now().Add(lifeTime),
 		Scope:            scope,
 		LifetimeSeconds:  int64(lifeTime.Seconds()),
 		TokenName:        tokenName,
@@ -132,7 +133,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		RemoteAddr:       r.RemoteAddr,
 		// All api generated keys will last 1 week. Browser login tokens have
 		// a shorter life.
-		ExpiresAt:       database.Now().Add(lifeTime),
+		ExpiresAt:       dbtime.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if err != nil {

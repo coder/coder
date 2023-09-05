@@ -12,6 +12,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -269,7 +270,7 @@ func TestEntitlements(t *testing.T) {
 		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
 			ID:        activeUser1.ID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		activeUser2, err := db.InsertUser(context.Background(), database.InsertUserParams{
@@ -281,7 +282,7 @@ func TestEntitlements(t *testing.T) {
 		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
 			ID:        activeUser2.ID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		_, err = db.InsertUser(context.Background(), database.InsertUserParams{

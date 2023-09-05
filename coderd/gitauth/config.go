@@ -16,6 +16,7 @@ import (
 	"github.com/google/go-github/v43/github"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
@@ -119,7 +120,7 @@ validate:
 		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 			ProviderID:        c.ID,
 			UserID:            gitAuthLink.UserID,
-			UpdatedAt:         database.Now(),
+			UpdatedAt:         dbtime.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,

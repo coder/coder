@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -42,8 +43,8 @@ func TestWorkspaceParam(t *testing.T) {
 			Email:          "testaccount@coder.com",
 			HashedPassword: hashed[:],
 			Username:       username,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			LoginType:      database.LoginTypePassword,
 		})
 		require.NoError(t, err)
@@ -51,7 +52,7 @@ func TestWorkspaceParam(t *testing.T) {
 		user, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 
@@ -59,8 +60,8 @@ func TestWorkspaceParam(t *testing.T) {
 			ID:           id,
 			UserID:       user.ID,
 			HashedSecret: hashed[:],
-			LastUsed:     database.Now(),
-			ExpiresAt:    database.Now().Add(time.Minute),
+			LastUsed:     dbtime.Now(),
+			ExpiresAt:    dbtime.Now().Add(time.Minute),
 			LoginType:    database.LoginTypePassword,
 			Scope:        database.APIKeyScopeAll,
 		})

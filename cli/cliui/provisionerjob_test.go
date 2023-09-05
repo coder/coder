@@ -13,7 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -29,13 +29,13 @@ func TestProvisionerJob(t *testing.T) {
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobRunning
-			now := database.Now()
+			now := dbtime.Now()
 			test.Job.StartedAt = &now
 			test.JobMutex.Unlock()
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobSucceeded
-			now = database.Now()
+			now = dbtime.Now()
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
@@ -56,17 +56,17 @@ func TestProvisionerJob(t *testing.T) {
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobRunning
-			now := database.Now()
+			now := dbtime.Now()
 			test.Job.StartedAt = &now
 			test.Logs <- codersdk.ProvisionerJobLog{
-				CreatedAt: database.Now(),
+				CreatedAt: dbtime.Now(),
 				Stage:     "Something",
 			}
 			test.JobMutex.Unlock()
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobSucceeded
-			now = database.Now()
+			now = dbtime.Now()
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
@@ -99,7 +99,7 @@ func TestProvisionerJob(t *testing.T) {
 			<-test.Next
 			test.JobMutex.Lock()
 			test.Job.Status = codersdk.ProvisionerJobCanceled
-			now := database.Now()
+			now := dbtime.Now()
 			test.Job.CompletedAt = &now
 			close(test.Logs)
 			test.JobMutex.Unlock()
@@ -123,7 +123,7 @@ type provisionerJobTest struct {
 func newProvisionerJob(t *testing.T) provisionerJobTest {
 	job := &codersdk.ProvisionerJob{
 		Status:    codersdk.ProvisionerJobPending,
-		CreatedAt: database.Now(),
+		CreatedAt: dbtime.Now(),
 	}
 	jobLock := sync.Mutex{}
 	logs := make(chan codersdk.ProvisionerJobLog, 1)

@@ -23,7 +23,9 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
+	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 const (
@@ -77,7 +79,7 @@ func New(options Options) (Reporter, error) {
 		options:       options,
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
-		startedAt:     database.Now(),
+		startedAt:     dbtime.Now(),
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
@@ -150,7 +152,7 @@ func (r *remoteReporter) Close() {
 		return
 	}
 	close(r.closed)
-	now := database.Now()
+	now := dbtime.Now()
 	r.shutdownAt = &now
 	// Report a final collection of telemetry prior to close!
 	// This could indicate final actions a user has taken, and
@@ -289,7 +291,7 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		ctx = r.ctx
 		// For resources that grow in size very quickly (like workspace builds),
 		// we only report events that occurred within the past hour.
-		createdAfter = database.Now().Add(-1 * time.Hour)
+		createdAfter = dbtime.Now().Add(-1 * time.Hour)
 		eg           errgroup.Group
 		snapshot     = &Snapshot{
 			DeploymentID: r.options.DeploymentID,
@@ -713,7 +715,7 @@ type Snapshot struct {
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
-	CLIInvocations            []CLIInvocation             `json:"cli_invocations"`
+	CLIInvocations            []clitelemetry.Invocation   `json:"cli_invocations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -887,18 +889,6 @@ type ParameterSchema struct {
 type License struct {
 	UploadedAt time.Time `json:"uploaded_at"`
 	UUID       uuid.UUID `json:"uuid"`
-}
-
-type CLIOption struct {
-	Name        string `json:"name"`
-	ValueSource string `json:"value_source"`
-}
-
-type CLIInvocation struct {
-	Command string      `json:"command"`
-	Options []CLIOption `json:"options"`
-	// InvokedAt is provided for deduplication purposes.
-	InvokedAt time.Time `json:"invoked_at"`
 }
 
 type WorkspaceProxy struct {

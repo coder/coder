@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -307,11 +308,11 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "testing",
 				},
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "testing2",
 				},
 			},
@@ -371,7 +372,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "testing",
 				},
 			},
@@ -405,7 +406,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "testing2",
 				},
 			},
@@ -458,7 +459,7 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{{
-				CreatedAt: database.Now(),
+				CreatedAt: dbtime.Now(),
 				Output:    strings.Repeat("a", (1<<20)+1),
 			}},
 		})

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
@@ -27,7 +27,7 @@ func TestNetcheck(t *testing.T) {
 
 	b := out.Bytes()
 	t.Log(string(b))
-	var report healthcheck.DERPReport
+	var report derphealth.Report
 	require.NoError(t, json.Unmarshal(b, &report))
 
 	assert.True(t, report.Healthy)

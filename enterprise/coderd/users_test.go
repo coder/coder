@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -22,14 +22,14 @@ func TestUserQuietHours(t *testing.T) {
 		t.Parallel()
 
 		defaultQuietHoursSchedule := "CRON_TZ=America/Chicago 0 0 * * *"
-		defaultScheduleParsed, err := schedule.Daily(defaultQuietHoursSchedule)
+		defaultScheduleParsed, err := cron.Daily(defaultQuietHoursSchedule)
 		require.NoError(t, err)
 		nextTime := defaultScheduleParsed.Next(time.Now().In(defaultScheduleParsed.Location()))
 		if time.Until(nextTime) < time.Hour {
 			// Use a different default schedule instead, because we want to avoid
 			// the schedule "ticking over" during this test run.
 			defaultQuietHoursSchedule = "CRON_TZ=America/Chicago 0 12 * * *"
-			defaultScheduleParsed, err = schedule.Daily(defaultQuietHoursSchedule)
+			defaultScheduleParsed, err = cron.Daily(defaultQuietHoursSchedule)
 			require.NoError(t, err)
 		}
 
@@ -61,14 +61,14 @@ func TestUserQuietHours(t *testing.T) {
 
 		// Set their quiet hours.
 		customQuietHoursSchedule := "CRON_TZ=Australia/Sydney 0 0 * * *"
-		customScheduleParsed, err := schedule.Daily(customQuietHoursSchedule)
+		customScheduleParsed, err := cron.Daily(customQuietHoursSchedule)
 		require.NoError(t, err)
 		nextTime = customScheduleParsed.Next(time.Now().In(customScheduleParsed.Location()))
 		if time.Until(nextTime) < time.Hour {
 			// Use a different default schedule instead, because we want to avoid
 			// the schedule "ticking over" during this test run.
 			customQuietHoursSchedule = "CRON_TZ=Australia/Sydney 0 12 * * *"
-			customScheduleParsed, err = schedule.Daily(customQuietHoursSchedule)
+			customScheduleParsed, err = cron.Daily(customQuietHoursSchedule)
 			require.NoError(t, err)
 		}
 

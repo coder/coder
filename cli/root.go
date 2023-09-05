@@ -35,9 +35,8 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/gitauth"
-	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -119,10 +118,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 }
 
 func (r *RootCmd) AGPL() []*clibase.Cmd {
-	all := append(r.Core(), r.Server(func(_ context.Context, o *coderd.Options) (*coderd.API, io.Closer, error) {
-		api := coderd.New(o)
-		return api, api, nil
-	}))
+	all := append(r.Core(), r.Server( /* Do not import coderd here. */ nil))
 	return all
 }
 
@@ -471,17 +467,17 @@ func addTelemetryHeader(client *codersdk.Client, inv *clibase.Invocation) {
 		client.HTTPClient.Transport = transport
 	}
 
-	var topts []telemetry.CLIOption
+	var topts []telemetry.Option
 	for _, opt := range inv.Command.FullOptions() {
 		if opt.ValueSource == clibase.ValueSourceNone || opt.ValueSource == clibase.ValueSourceDefault {
 			continue
 		}
-		topts = append(topts, telemetry.CLIOption{
+		topts = append(topts, telemetry.Option{
 			Name:        opt.Name,
 			ValueSource: string(opt.ValueSource),
 		})
 	}
-	ti := telemetry.CLIInvocation{
+	ti := telemetry.Invocation{
 		Command:   inv.Command.FullName(),
 		Options:   topts,
 		InvokedAt: time.Now(),
@@ -1022,4 +1018,15 @@ func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...
 			s,
 		),
 	)
+}
+
+//nolint:unused
+func SlimUnsupported(w io.Writer, cmd string) {
+	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.DefaultStyles.Code.Render(cmd))
+	_, _ = fmt.Fprintln(w, "")
+	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
+	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")
+
+	//nolint:revive
+	os.Exit(1)
 }

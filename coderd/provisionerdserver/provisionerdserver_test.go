@@ -22,10 +22,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -136,7 +138,7 @@ func TestAcquireJob(t *testing.T) {
 		link := dbgen.UserLink(t, db, database.UserLink{
 			LoginType:        database.LoginTypeOIDC,
 			UserID:           user.ID,
-			OAuthExpiry:      database.Now().Add(time.Hour),
+			OAuthExpiry:      dbtime.Now().Add(time.Hour),
 			OAuthAccessToken: "access-token",
 		})
 		dbgen.GitAuthLink(t, db, database.GitAuthLink{
@@ -159,7 +161,7 @@ func TestAcquireJob(t *testing.T) {
 		err := db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
 			JobID:            version.JobID,
 			GitAuthProviders: []string{gitAuthProvider},
-			UpdatedAt:        database.Now(),
+			UpdatedAt:        dbtime.Now(),
 		})
 		require.NoError(t, err)
 		// Import version job
@@ -743,7 +745,7 @@ func TestFailJob(t *testing.T) {
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: job.ID,
 			CompletedAt: sql.NullTime{
-				Time:  database.Now(),
+				Time:  dbtime.Now(),
 				Valid: true,
 			},
 		})
@@ -1108,7 +1110,7 @@ func TestCompleteJob(t *testing.T) {
 				})
 				err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                 template.ID,
-					UpdatedAt:          database.Now(),
+					UpdatedAt:          dbtime.Now(),
 					AllowUserAutostart: c.templateAllowAutostop,
 					DefaultTTL:         int64(c.templateDefaultTTL),
 					MaxTTL:             int64(c.templateMaxTTL),
@@ -1329,7 +1331,7 @@ func TestCompleteJob(t *testing.T) {
 							}, nil
 						}
 
-						sched, err := schedule.Daily(c.userQuietHoursSchedule)
+						sched, err := cron.Daily(c.userQuietHoursSchedule)
 						if !assert.NoError(t, err) {
 							return schedule.UserQuietHoursScheduleOptions{}, err
 						}
@@ -1351,7 +1353,7 @@ func TestCompleteJob(t *testing.T) {
 				})
 				err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 					ID:                            template.ID,
-					UpdatedAt:                     database.Now(),
+					UpdatedAt:                     dbtime.Now(),
 					AllowUserAutostart:            false,
 					AllowUserAutostop:             true,
 					DefaultTTL:                    0,

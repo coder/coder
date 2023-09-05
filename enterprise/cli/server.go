@@ -25,8 +25,8 @@ import (
 	agplcoderd "github.com/coder/coder/v2/coderd"
 )
 
-func (r *RootCmd) server() *clibase.Cmd {
-	cmd := r.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
+func (r *RootCmd) Server(_ func()) *clibase.Cmd {
+	cmd := r.RootCmd.Server(func(ctx context.Context, options *agplcoderd.Options) (*agplcoderd.API, io.Closer, error) {
 		if options.DeploymentValues.DERP.Server.RelayURL.String() != "" {
 			_, err := url.Parse(options.DeploymentValues.DERP.Server.RelayURL.String())
 			if err != nil {

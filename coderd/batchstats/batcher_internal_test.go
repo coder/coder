@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -46,7 +47,7 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: no data points are added for workspace
 	// When: it becomes time to report stats
-	t1 := database.Now()
+	t1 := dbtime.Now()
 	// Signal a tick and wait for a flush to complete.
 	tick <- t1
 	f := <-flushed

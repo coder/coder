@@ -13,6 +13,8 @@ import {
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
   MockWorkspaceBuild,
+  MockTemplateVersionParameter4,
+  MockWorkspaceBuildParameter4,
 } from "testHelpers/entities"
 
 test("Submit the workspace settings page successfully", async () => {
@@ -20,18 +22,18 @@ test("Submit the workspace settings page successfully", async () => {
   jest
     .spyOn(api, "getWorkspaceByOwnerAndName")
     .mockResolvedValueOnce(MockWorkspace)
-  jest
-    .spyOn(api, "getTemplateVersionRichParameters")
-    .mockResolvedValueOnce([
-      MockTemplateVersionParameter1,
-      MockTemplateVersionParameter2,
-    ])
-  jest
-    .spyOn(api, "getWorkspaceBuildParameters")
-    .mockResolvedValueOnce([
-      MockWorkspaceBuildParameter1,
-      MockWorkspaceBuildParameter2,
-    ])
+  jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+    MockTemplateVersionParameter1,
+    MockTemplateVersionParameter2,
+    // Immutable parameters
+    MockTemplateVersionParameter4,
+  ])
+  jest.spyOn(api, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+    MockWorkspaceBuildParameter1,
+    MockWorkspaceBuildParameter2,
+    // Immutable value
+    MockWorkspaceBuildParameter4,
+  ])
   // Mock the API calls that submit data
   const postWorkspaceBuildSpy = jest
     .spyOn(api, "postWorkspaceBuild")
