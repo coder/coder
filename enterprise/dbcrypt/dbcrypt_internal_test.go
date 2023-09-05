@@ -494,11 +494,11 @@ func TestNew(t *testing.T) {
 
 		gomock.InOrder(
 			// First try: we get a serialization error.
-			expectTx(mockDB),
+			expectInTx(mockDB),
 			mockDB.EXPECT().GetDBCryptKeys(gomock.Any()).Times(1).Return([]database.DBCryptKey{}, nil),
 			mockDB.EXPECT().InsertDBCryptKey(gomock.Any(), gomock.Any()).Times(1).Return(&pq.Error{Code: "40001"}),
 			// Second try: we get the key we wanted to insert initially.
-			expectTx(mockDB),
+			expectInTx(mockDB),
 			mockDB.EXPECT().GetDBCryptKeys(gomock.Any()).Times(1).Return([]database.DBCryptKey{key}, nil),
 		)
 
@@ -507,7 +507,7 @@ func TestNew(t *testing.T) {
 	})
 }
 
-func expectTx(mdb *dbmock.MockStore) *gomock.Call {
+func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(f func(store database.Store) error, _ *sql.TxOptions) error {
 			return f(mdb)
@@ -553,12 +553,4 @@ func fakeBase64RandomData(t *testing.T, n int) string {
 	_, err := io.ReadFull(rand.Reader, b)
 	require.NoError(t, err)
 	return base64.StdEncoding.EncodeToString(b)
-}
-
-func withInTx(mTx *dbmock.MockStore) {
-	mTx.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(f func(store database.Store) error, _ *sql.TxOptions) error {
-			return f(mTx)
-		},
-	)
 }
