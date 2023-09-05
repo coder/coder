@@ -185,7 +185,7 @@ To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
 (e.g. `http_proxy`) are also respected in this case.
 
-## Configuring Coder behinf a revrese proxy
+## Configuring Coder behind a reverse proxy
 
 To configure Coder behind a revres proxy, see our
 [web-server](https://github.com/RaineAllDay/coder/tree/main/examples/web-server)
