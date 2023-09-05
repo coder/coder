@@ -68,7 +68,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 		// If the time is set to 0, then it should never expire.
 		// This is true for github, which has no expiry.
 		!gitAuthLink.OAuthExpiry.IsZero() &&
-		gitAuthLink.OAuthExpiry.Before(database.Now()) {
+		gitAuthLink.OAuthExpiry.Before(dbtime.Now()) {
 		return gitAuthLink, false, nil
 	}
 
