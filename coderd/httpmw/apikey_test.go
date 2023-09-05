@@ -153,6 +153,34 @@ func TestAPIKey(t *testing.T) {
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
 	})
 
+	t.Run("UserLinkNotFound", func(t *testing.T) {
+		t.Parallel()
+		var (
+			db   = dbfake.New()
+			r    = httptest.NewRequest("GET", "/", nil)
+			rw   = httptest.NewRecorder()
+			user = dbgen.User(t, db, database.User{
+				LoginType: database.LoginTypeGithub,
+			})
+			// Intentionally not inserting any user link
+			_, token = dbgen.APIKey(t, db, database.APIKey{
+				UserID:    user.ID,
+				LoginType: user.LoginType,
+			})
+		)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+		var resp codersdk.Response
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&resp))
+		require.Equal(t, resp.Message, httpmw.SignedOutErrorMessage)
+	})
+
 	t.Run("InvalidSecret", func(t *testing.T) {
 		t.Parallel()
 		var (
