@@ -102,15 +102,10 @@ if [[ "$sign_darwin" == 1 ]]; then
 fi
 
 ldflags=(
+	-s
 	-w
 	-X "'github.com/coder/coder/v2/buildinfo.tag=$version'"
 )
-
-# For boringcrypto we want to leave the symbols so we can verify it was build correctly for
-# FIPS compliance.  This adds a few MiB to the binary.
-if [[ "$boringcrypto" == 0 ]]; then
-	ldflags+=(-s)
-fi
 
 # We use ts_omit_aws here because on Linux it prevents Tailscale from importing
 # github.com/aws/aws-sdk-go-v2/aws, which adds 7 MB to the binary.
