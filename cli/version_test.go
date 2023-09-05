@@ -34,8 +34,7 @@ Full build of Coder, supports the [40m [0m[91;40mserver[0m[40m [0m subcomm
   "build_time": "0001-01-01T00:00:00Z",
   "external_url": "https://github.com/coder/coder",
   "slim": false,
-  "agpl": false,
-  "boring_crypto": false
+  "agpl": false
 }
 `
 	for _, tt := range []struct {

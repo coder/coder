@@ -87,10 +87,6 @@ func IsAGPL() bool {
 	return strings.Contains(agpl, "t")
 }
 
-func IsBoringCrypto() bool {
-	return boringcrypto
-}
-
 // ExternalURL returns a URL referencing the current Coder version.
 // For production builds, this will link directly to a release.
 // For development builds, this will link to a commit.
