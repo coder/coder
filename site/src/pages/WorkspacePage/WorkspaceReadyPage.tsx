@@ -212,7 +212,7 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <UpdateBuildParametersDialog
-        missedParameters={missedParameters}
+        missedParameters={missedParameters ?? []}
         open={workspaceState.matches(
           "ready.build.askingForMissedBuildParameters",
         )}

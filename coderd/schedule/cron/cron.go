@@ -1,23 +1,23 @@
 // package schedule provides utilities for managing template and workspace
 // autostart and autostop schedules. This includes utilities for parsing and
 // deserializing cron-style expressions.
-package schedule
+package cron
 
 import (
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/robfig/cron/v3"
+	rbcron "github.com/robfig/cron/v3"
 	"golang.org/x/xerrors"
 )
 
 // For the purposes of this library, we only need minute, hour, and
 // day-of-week. However to ensure interoperability we will use the standard
 // five-valued cron format. Descriptors are not supported.
-const parserFormat = cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow
+const parserFormat = rbcron.Minute | rbcron.Hour | rbcron.Dom | rbcron.Month | rbcron.Dow
 
-var defaultParser = cron.NewParser(parserFormat)
+var defaultParser = rbcron.NewParser(parserFormat)
 
 // Weekly parses a Schedule from spec scoped to a recurring weekly event.
 // Spec consists of the following space-delimited fields, in the following order:
@@ -30,11 +30,11 @@ var defaultParser = cron.NewParser(parserFormat)
 //
 // Example Usage:
 //
-//	local_sched, _ := schedule.Weekly("59 23 *")
+//	local_sched, _ := cron.Weekly("59 23 *")
 //	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //	// Output: 2022-04-04T23:59:00Z
 //
-//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 1-5")
+//	us_sched, _ := cron.Weekly("CRON_TZ=US/Central 30 9 1-5")
 //	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //	// Output: 2022-04-04T14:30:00Z
 func Weekly(raw string) (*Schedule, error) {
@@ -56,11 +56,11 @@ func Weekly(raw string) (*Schedule, error) {
 //
 // Example Usage:
 //
-//	local_sched, _ := schedule.Weekly("59 23 * * *")
+//	local_sched, _ := cron.Weekly("59 23 * * *")
 //	fmt.Println(sched.Next(time.Now().Format(time.RFC3339)))
 //	// Output: 2022-04-04T23:59:00Z
 //
-//	us_sched, _ := schedule.Weekly("CRON_TZ=US/Central 30 9 * * *")
+//	us_sched, _ := cron.Weekly("CRON_TZ=US/Central 30 9 * * *")
 //	fmt.Println(sched.Next(time.Now()).Format(time.RFC3339))
 //	// Output: 2022-04-04T14:30:00Z
 func Daily(raw string) (*Schedule, error) {
@@ -83,7 +83,7 @@ func parse(raw string) (*Schedule, error) {
 		return nil, xerrors.Errorf("parse schedule: %w", err)
 	}
 
-	schedule, ok := specSched.(*cron.SpecSchedule)
+	schedule, ok := specSched.(*rbcron.SpecSchedule)
 	if !ok {
 		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", specSched)
 	}
@@ -110,7 +110,7 @@ func parse(raw string) (*Schedule, error) {
 // It's essentially a wrapper for robfig/cron/v3 that has additional
 // convenience methods.
 type Schedule struct {
-	sched *cron.SpecSchedule
+	sched *rbcron.SpecSchedule
 	// XXX: there isn't any nice way for robfig/cron to serialize
 	cronStr string
 }

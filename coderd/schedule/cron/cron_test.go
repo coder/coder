@@ -1,4 +1,4 @@
-package schedule_test
+package cron_test
 
 import (
 	"testing"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
 
 func Test_Weekly(t *testing.T) {
@@ -144,7 +144,7 @@ func Test_Weekly(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
-			actual, err := schedule.Weekly(testCase.spec)
+			actual, err := cron.Weekly(testCase.spec)
 			if testCase.expectedError == "" {
 				nextTime := actual.Next(testCase.at)
 				require.NoError(t, err)

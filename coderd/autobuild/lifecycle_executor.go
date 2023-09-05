@@ -15,7 +15,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -181,7 +183,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 						ID: ws.ID,
 						DormantAt: sql.NullTime{
-							Time:  database.Now(),
+							Time:  dbtime.Now(),
 							Valid: true,
 						},
 					})
@@ -305,7 +307,7 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	sched, err := schedule.Weekly(ws.AutostartSchedule.String)
+	sched, err := cron.Weekly(ws.AutostartSchedule.String)
 	if err != nil {
 		return false
 	}

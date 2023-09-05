@@ -10,7 +10,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/tz"
 	"github.com/coder/coder/v2/codersdk"
@@ -255,7 +255,7 @@ func displaySchedule(workspace codersdk.Workspace, out io.Writer) error {
 		schedNextStop  = "-"
 	)
 	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
-		sched, err := schedule.Weekly(ptr.NilToEmpty(workspace.AutostartSchedule))
+		sched, err := cron.Weekly(ptr.NilToEmpty(workspace.AutostartSchedule))
 		if err != nil {
 			// This should never happen.
 			_, _ = fmt.Fprintf(out, "Invalid autostart schedule %q for workspace %s: %s\n", *workspace.AutostartSchedule, workspace.Name, err.Error())

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/cli/gitauth"
 )
 
 func TestCheckCommand(t *testing.T) {

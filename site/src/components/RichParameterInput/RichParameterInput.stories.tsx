@@ -35,7 +35,7 @@ const createTemplateVersionParameter = (
 
 export const Basic: Story = {
   args: {
-    initialValue: "initial-value",
+    value: "initial-value",
     id: "project_name",
     parameter: createTemplateVersionParameter({
       name: "project_name",
@@ -47,7 +47,7 @@ export const Basic: Story = {
 
 export const NumberType: Story = {
   args: {
-    initialValue: "4",
+    value: "4",
     id: "number_parameter",
     parameter: createTemplateVersionParameter({
       name: "number_parameter",
@@ -59,7 +59,7 @@ export const NumberType: Story = {
 
 export const BooleanType: Story = {
   args: {
-    initialValue: "false",
+    value: "false",
     id: "bool_parameter",
     parameter: createTemplateVersionParameter({
       name: "bool_parameter",
@@ -71,7 +71,7 @@ export const BooleanType: Story = {
 
 export const OptionsType: Story = {
   args: {
-    initialValue: "first_option",
+    value: "first_option",
     id: "options_parameter",
     parameter: createTemplateVersionParameter({
       name: "options_parameter",
@@ -103,7 +103,7 @@ export const OptionsType: Story = {
 
 export const ListStringType: Story = {
   args: {
-    initialValue: JSON.stringify(["first", "second", "third"]),
+    value: JSON.stringify(["first", "second", "third"]),
     id: "list_string_parameter",
     parameter: createTemplateVersionParameter({
       name: "list_string_parameter",
@@ -115,7 +115,7 @@ export const ListStringType: Story = {
 
 export const IconLabel: Story = {
   args: {
-    initialValue: "initial-value",
+    value: "initial-value",
     id: "project_name",
     parameter: createTemplateVersionParameter({
       name: "project_name",
@@ -128,7 +128,7 @@ export const IconLabel: Story = {
 
 export const NoDescription: Story = {
   args: {
-    initialValue: "",
+    value: "",
     id: "region",
     parameter: createTemplateVersionParameter({
       name: "Region",
@@ -164,7 +164,7 @@ export const NoDescription: Story = {
 
 export const DescriptionWithLinks: Story = {
   args: {
-    initialValue: "",
+    value: "",
     id: "coder-repository-directory",
     parameter: createTemplateVersionParameter({
       name: "Coder Repository Directory",
@@ -183,7 +183,7 @@ export const DescriptionWithLinks: Story = {
 
 export const BasicWithDisplayName: Story = {
   args: {
-    initialValue: "initial-value",
+    value: "initial-value",
     id: "project_name",
     parameter: createTemplateVersionParameter({
       name: "project_name",

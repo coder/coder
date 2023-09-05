@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
 	"github.com/coder/coder/v2/codersdk"
@@ -295,8 +295,8 @@ resourceLoop:
 				}
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				report := healthcheck.DERPReport{}
-				report.Run(ctx, &healthcheck.DERPReportOptions{
+				report := derphealth.Report{}
+				report.Run(ctx, &derphealth.ReportOptions{
 					DERPMap: derpMap,
 				})
 

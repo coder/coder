@@ -16,6 +16,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -300,7 +301,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	}
 	tags := provisionerdserver.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
 
-	now := database.Now()
+	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
 		ID:             uuid.New(),
 		CreatedAt:      now,

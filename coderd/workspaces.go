@@ -18,10 +18,11 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -333,10 +334,35 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	template, err := api.Database.GetTemplateByID(ctx, createWorkspace.TemplateID)
+	// If we were given a `TemplateVersionID`, we need to determine the `TemplateID` from it.
+	templateID := createWorkspace.TemplateID
+	if templateID == uuid.Nil {
+		templateVersion, err := api.Database.GetTemplateVersionByID(ctx, createWorkspace.TemplateVersionID)
+		if errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Template version %q doesn't exist.", templateID.String()),
+				Validations: []codersdk.ValidationError{{
+					Field:  "template_version_id",
+					Detail: "template not found",
+				}},
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		templateID = templateVersion.TemplateID.UUID
+	}
+
+	template, err := api.Database.GetTemplateByID(ctx, templateID)
 	if errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template %q doesn't exist.", createWorkspace.TemplateID.String()),
+			Message: fmt.Sprintf("Template %q doesn't exist.", templateID.String()),
 			Validations: []codersdk.ValidationError{{
 				Field:  "template_id",
 				Detail: "template not found",
@@ -359,7 +385,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 
 	if organization.ID != template.OrganizationID {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: fmt.Sprintf("Template is not in organization %q.", organization.Name),
 		})
 		return
@@ -429,7 +455,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspaceBuild *database.WorkspaceBuild
 	)
 	err = api.Database.InTx(func(db database.Store) error {
-		now := database.Now()
+		now := dbtime.Now()
 		// Workspaces are created without any versions.
 		workspace, err = db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:                uuid.New(),
@@ -443,7 +469,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
-			LastUsedAt: database.Now(),
+			LastUsedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
@@ -454,6 +480,10 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Initiator(apiKey.UserID).
 			ActiveVersion().
 			RichParameterValues(createWorkspace.RichParameterValues)
+		if createWorkspace.TemplateVersionID != uuid.Nil {
+			builder = builder.VersionID(createWorkspace.TemplateVersionID)
+		}
+
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx, db, func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
@@ -796,7 +826,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		Valid: req.Dormant,
 	}
 	if req.Dormant {
-		dormantAt.Time = database.Now()
+		dormantAt.Time = dbtime.Now()
 	}
 
 	workspace, err := api.Database.UpdateWorkspaceDormantDeletingAt(ctx, database.UpdateWorkspaceDormantDeletingAtParams{
@@ -1276,7 +1306,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 		return sql.NullString{}, nil
 	}
 
-	_, err := schedule.Weekly(*s)
+	_, err := cron.Weekly(*s)
 	if err != nil {
 		return sql.NullString{}, err
 	}

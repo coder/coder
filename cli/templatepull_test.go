@@ -53,7 +53,9 @@ func TestTemplatePull_NoName(t *testing.T) {
 func TestTemplatePull_Stdout(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create an initial template bundle.
@@ -72,7 +74,8 @@ func TestTemplatePull_Stdout(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 	clitest.SetupConfig(t, client, root)
@@ -91,7 +94,9 @@ func TestTemplatePull_Stdout(t *testing.T) {
 func TestTemplatePull_ToDir(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create an initial template bundle.
@@ -110,7 +115,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 
@@ -138,7 +144,9 @@ func TestTemplatePull_ToDir(t *testing.T) {
 // and writes it to a directory with the name of the template if the path is not implicitly supplied.
 // nolint: paralleltest
 func TestTemplatePull_ToImplicit(t *testing.T) {
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create an initial template bundle.
@@ -157,7 +165,8 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	// create a tempdir and change the working directory to it for the duration of the test (cannot run in parallel)
 	dir := t.TempDir()
@@ -196,7 +205,9 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 func TestTemplatePull_FolderConflict(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create an initial template bundle.
@@ -215,7 +226,8 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	_ = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 

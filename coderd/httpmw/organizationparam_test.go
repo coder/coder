@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -113,8 +114,8 @@ func TestOrganizationParam(t *testing.T) {
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      "test",
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())

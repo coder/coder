@@ -227,7 +227,7 @@ describe("WorkspacePage", () => {
       name: "Cancel",
     })
 
-    await userEvent.setup().click(cancelButton)
+    await userEvent.click(cancelButton)
 
     expect(cancelWorkspaceMock).toBeCalled()
   })

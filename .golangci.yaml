@@ -131,7 +131,8 @@ linters-settings:
       - trialer
 
   nestif:
-    min-complexity: 4 # Min complexity of if statements (def 5, goal 4)
+    # goal: 10
+    min-complexity: 20
 
   revive:
     # see https://github.com/mgechev/revive#available-rules for details.
@@ -237,6 +238,7 @@ linters:
     # create a good culture around cognitive complexity.
     # - gocyclo
     - gocognit
+    - nestif
     - goimports
     - gomodguard
     - gosec

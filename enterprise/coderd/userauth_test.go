@@ -1,12 +1,14 @@
 package coderd_test
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -357,6 +359,40 @@ func TestUserOIDC(t *testing.T) {
 				runner.ForceRefresh(t, client, claims)
 			}
 		})
+
+		t.Run("FailedRefresh", func(t *testing.T) {
+			t.Parallel()
+
+			runner := setupOIDCTest(t, oidcTestConfig{
+				FakeOpts: []oidctest.FakeIDPOpt{
+					oidctest.WithRefreshHook(func(_ string) error {
+						// Always "expired" refresh token.
+						return xerrors.New("refresh token is expired")
+					}),
+				},
+				Config: func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = true
+				},
+			})
+
+			claims := jwt.MapClaims{
+				"email": "alice@coder.com",
+			}
+			// Login a new client that signs up
+			client, resp := runner.Login(t, claims)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			// Expire the token, cause a refresh
+			runner.ExpireOauthToken(t, client)
+
+			// This should fail because the oauth token refresh should fail.
+			_, err := client.User(context.Background(), codersdk.Me)
+			require.Error(t, err)
+			var apiError *codersdk.Error
+			require.ErrorAs(t, err, &apiError)
+			require.Equal(t, http.StatusUnauthorized, apiError.StatusCode())
+			require.ErrorContains(t, apiError, "refresh")
+		})
 	})
 }
 
@@ -576,14 +612,16 @@ type oidcTestRunner struct {
 	// ForceRefresh will use an authenticated codersdk.Client, and force their
 	// OIDC token to be expired and require a refresh. The refresh will use the claims provided.
 	// It just calls the /users/me endpoint to trigger the refresh.
-	ForceRefresh func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
+	ForceRefresh     func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims)
+	ExpireOauthToken func(t *testing.T, client *codersdk.Client)
 }
 
 type oidcTestConfig struct {
 	Userinfo jwt.MapClaims
 
 	// Config allows modifying the Coderd OIDC configuration.
-	Config func(cfg *coderd.OIDCConfig)
+	Config   func(cfg *coderd.OIDCConfig)
+	FakeOpts []oidctest.FakeIDPOpt
 }
 
 func (r *oidcTestRunner) AssertRoles(t *testing.T, userIdent string, roles []string) {
@@ -633,10 +671,12 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	t.Helper()
 
 	fake := oidctest.NewFakeIDP(t,
-		oidctest.WithStaticUserInfo(settings.Userinfo),
-		oidctest.WithLogging(t, nil),
-		// Run fake IDP on a real webserver
-		oidctest.WithServing(),
+		append([]oidctest.FakeIDPOpt{
+			oidctest.WithStaticUserInfo(settings.Userinfo),
+			oidctest.WithLogging(t, nil),
+			// Run fake IDP on a real webserver
+			oidctest.WithServing(),
+		}, settings.FakeOpts...)...,
 	)
 
 	ctx := testutil.Context(t, testutil.WaitMedium)
@@ -664,6 +704,9 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 		Login:       helper.Login,
 		ForceRefresh: func(t *testing.T, client *codersdk.Client, idToken jwt.MapClaims) {
 			helper.ForceRefresh(t, api.Database, client, idToken)
+		},
+		ExpireOauthToken: func(t *testing.T, client *codersdk.Client) {
+			helper.ExpireOauthToken(t, api.Database, client)
 		},
 	}
 }

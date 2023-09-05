@@ -1757,19 +1757,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "ttl_ms": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                     |
-| `name`                  | string                                                                        | true     |              |                                                                                                     |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision. |
-| `template_id`           | string                                                                        | true     |              |                                                                                                     |
-| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                     |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                         |
+| `name`                  | string                                                                        | true     |              |                                                                                                         |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
+| `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
 
 ## codersdk.DAUEntry
 
@@ -6696,31 +6698,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
 | Zero means unspecified. There might be a limit, but the client need not try to respect it. |
 
-## healthcheck.AccessURLReport
-
-```json
-{
-  "access_url": "string",
-  "error": "string",
-  "healthy": true,
-  "healthz_response": "string",
-  "reachable": true,
-  "status_code": 0
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `access_url`       | string  | false    |              |             |
-| `error`            | string  | false    |              |             |
-| `healthy`          | boolean | false    |              |             |
-| `healthz_response` | string  | false    |              |             |
-| `reachable`        | boolean | false    |              |             |
-| `status_code`      | integer | false    |              |             |
-
-## healthcheck.DERPNodeReport
+## derphealth.NodeReport
 
 ```json
 {
@@ -6761,21 +6739,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                                     | Required | Restrictions | Description |
-| ----------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
-| `can_exchange_messages` | boolean                                                  | false    |              |             |
-| `client_errs`           | array of array                                           | false    |              |             |
-| `client_logs`           | array of array                                           | false    |              |             |
-| `error`                 | string                                                   | false    |              |             |
-| `healthy`               | boolean                                                  | false    |              |             |
-| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
-| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
-| `round_trip_ping`       | string                                                   | false    |              |             |
-| `round_trip_ping_ms`    | integer                                                  | false    |              |             |
-| `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
-| `uses_websocket`        | boolean                                                  | false    |              |             |
+| Name                    | Type                                             | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `can_exchange_messages` | boolean                                          | false    |              |             |
+| `client_errs`           | array of array                                   | false    |              |             |
+| `client_logs`           | array of array                                   | false    |              |             |
+| `error`                 | string                                           | false    |              |             |
+| `healthy`               | boolean                                          | false    |              |             |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |             |
+| `round_trip_ping`       | string                                           | false    |              |             |
+| `round_trip_ping_ms`    | integer                                          | false    |              |             |
+| `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
+| `uses_websocket`        | boolean                                          | false    |              |             |
 
-## healthcheck.DERPRegionReport
+## derphealth.RegionReport
 
 ```json
 {
@@ -6846,14 +6824,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type                                                              | Required | Restrictions | Description |
-| -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | string                                                            | false    |              |             |
-| `healthy`      | boolean                                                           | false    |              |             |
-| `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
-| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
+| Name           | Type                                                    | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`        | string                                                  | false    |              |             |
+| `healthy`      | boolean                                                 | false    |              |             |
+| `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
 
-## healthcheck.DERPReport
+## derphealth.Report
 
 ```json
 {
@@ -7026,17 +7004,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `error`            | string                                                       | false    |              |             |
-| `healthy`          | boolean                                                      | false    |              |             |
-| `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
-| `netcheck_err`     | string                                                       | false    |              |             |
-| `netcheck_logs`    | array of string                                              | false    |              |             |
-| `regions`          | object                                                       | false    |              |             |
-| » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
+| Name               | Type                                               | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`            | string                                             | false    |              |             |
+| `healthy`          | boolean                                            | false    |              |             |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |             |
+| `netcheck_err`     | string                                             | false    |              |             |
+| `netcheck_logs`    | array of string                                    | false    |              |             |
+| `regions`          | object                                             | false    |              |             |
+| » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
 
-## healthcheck.DERPStunReport
+## derphealth.StunReport
 
 ```json
 {
@@ -7053,6 +7031,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canSTUN` | boolean | false    |              |             |
 | `enabled` | boolean | false    |              |             |
 | `error`   | string  | false    |              |             |
+
+## healthcheck.AccessURLReport
+
+```json
+{
+  "access_url": "string",
+  "error": "string",
+  "healthy": true,
+  "healthz_response": "string",
+  "reachable": true,
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `access_url`       | string  | false    |              |             |
+| `error`            | string  | false    |              |             |
+| `healthy`          | boolean | false    |              |             |
+| `healthz_response` | string  | false    |              |             |
+| `reachable`        | boolean | false    |              |             |
+| `status_code`      | integer | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -7281,7 +7283,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
 | `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
 | `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
-| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                                            |
+| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                            |
 | `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
 | `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
 | `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |

@@ -30,7 +30,7 @@ func (b *postgresBackend) Decision() audit.FilterDecision {
 	return audit.FilterDecisionExport
 }
 
-func (b *postgresBackend) Export(ctx context.Context, alog database.AuditLog) error {
+func (b *postgresBackend) Export(ctx context.Context, alog database.AuditLog, _ audit.BackendDetails) error {
 	_, err := b.db.InsertAuditLog(ctx, database.InsertAuditLogParams(alog))
 	if err != nil {
 		return xerrors.Errorf("insert audit log: %w", err)

@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -158,10 +157,10 @@ func (p *QueryParamParser) Strings(vals url.Values, def []string, queryParam str
 	})
 }
 
-// ValidEnum parses enum query params. Add more to the list as needed.
+// ValidEnum represents an enum that can be parsed and validated.
 type ValidEnum interface {
-	database.ResourceType | database.AuditAction | database.BuildReason | database.UserStatus |
-		database.WorkspaceStatus
+	// Add more types as needed (avoid importing large dependency trees).
+	~string
 
 	// Valid is required on the enum type to be used with ParseEnum.
 	Valid() bool
