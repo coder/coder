@@ -270,7 +270,10 @@ func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	}
 
 	if field == nil {
-		return nil
+		return xerrors.Errorf("developer error: encryptField called with nil field")
+	}
+	if digest == nil {
+		return xerrors.Errorf("developer error: encryptField called with nil digest")
 	}
 
 	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt([]byte(*field))
