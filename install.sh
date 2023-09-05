@@ -67,8 +67,8 @@ The detection method works as follows:
   - Debian, Ubuntu, Raspbian: install the deb package from GitHub.
   - Fedora, CentOS, RHEL, openSUSE: install the rpm package from GitHub.
   - Alpine: install the apk package from GitHub.
-  - macOS: install the release from GitHub.
-  - All others: install the release from GitHub.
+  - macOS:  if \`brew\` is available, install from the coder/coder Homebrew tap.
+  - Otherwise, download from GitHub and install into \`--prefix\`.
 
 We build releases on GitHub for amd64, armv7, and arm64 on Windows, Linux, and macOS.
 
@@ -114,6 +114,26 @@ EOF
 	cath <<EOF
 Run Coder:
   $STANDALONE_BINARY_NAME server
+
+EOF
+}
+
+echo_brew_postinstall() {
+	if [ "${DRY_RUN-}" ]; then
+		echo_dryrun_postinstall
+		return
+	fi
+
+	cath <<EOF
+brew formula has been installed.
+
+To run a Coder server:
+
+  $ coder server
+
+To connect to a Coder deployment:
+
+  $ coder login <deployment url>
 
 EOF
 }
@@ -303,9 +323,7 @@ main() {
 	DISTRO=${DISTRO:-$(distro)}
 
 	case $DISTRO in
-	# macOS uses the standalone installation for now.
-	# Homebrew support is planned. See: https://github.com/coder/coder/issues/1925
-	macos) install_standalone ;;
+	darwin) install_macos ;;
 	# The .deb and .rpm files are pulled from GitHub.
 	debian) install_deb ;;
 	fedora | opensuse) install_rpm ;;
@@ -406,6 +424,23 @@ with_terraform() {
 
 	# Copy the binary to the correct location.
 	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
+}
+
+install_macos() {
+	# If there is no `brew` binary available, just default to installing standalone
+	if command_exists brew; then
+		echoh "Installing v$VERSION of the coder formula from coder/coder."
+		echoh
+
+		sh_c brew install coder/coder/coder
+
+		echo_brew_postinstall
+		return
+	fi
+
+	echoh "Homebrew is not available."
+	echoh "Falling back to standalone installation."
+	install_standalone
 }
 
 install_deb() {

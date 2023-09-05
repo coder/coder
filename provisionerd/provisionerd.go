@@ -29,12 +29,6 @@ import (
 	"github.com/coder/retry"
 )
 
-// IsMissingParameterErrorCode returns whether the error is a missing parameter error.
-// This can indicate to consumers that they should check parameters.
-func IsMissingParameterErrorCode(code string) bool {
-	return code == runner.MissingParameterErrorCode
-}
-
 // Dialer represents the function to create a daemon client connection.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
@@ -308,6 +302,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	lastAcquireMutex.RLock()
 	if !lastAcquire.IsZero() && time.Since(lastAcquire) < p.opts.JobPollDebounce {
 		lastAcquireMutex.RUnlock()
+		p.opts.Logger.Debug(ctx, "debounce acquire job")
 		return
 	}
 	lastAcquireMutex.RUnlock()
@@ -319,6 +314,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	}
 
 	job, err := client.AcquireJob(ctx, &proto.Empty{})
+	p.opts.Logger.Debug(ctx, "called AcquireJob on client", slog.F("job_id", job.GetJobId()), slog.Error(err))
 	if err != nil {
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, yamux.ErrSessionShutdown) ||

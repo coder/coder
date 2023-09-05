@@ -436,7 +436,7 @@ export const MockTemplate: TypesGen.Template = {
   description: "This is a test description.",
   default_ttl_ms: 24 * 60 * 60 * 1000,
   max_ttl_ms: 2 * 24 * 60 * 60 * 1000,
-  restart_requirement: {
+  autostop_requirement: {
     days_of_week: [],
     weeks: 1,
   },
@@ -567,6 +567,13 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   health: {
     healthy: true,
   },
+  display_apps: [
+    "ssh_helper",
+    "port_forwarding_helper",
+    "vscode",
+    "vscode_insiders",
+    "web_terminal",
+  ],
 }
 
 export const MockWorkspaceAgentDisconnected: TypesGen.WorkspaceAgent = {
@@ -1757,7 +1764,12 @@ export const MockEntitlements: TypesGen.Entitlements = {
   errors: [],
   warnings: [],
   has_license: false,
-  features: withDefaultFeatures({}),
+  features: withDefaultFeatures({
+    workspace_batch_actions: {
+      enabled: true,
+      entitlement: "entitled",
+    },
+  }),
   require_telemetry: false,
   trial: false,
   refreshed_at: "2022-05-20T16:45:57.122Z",
@@ -1821,7 +1833,6 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
 export const MockExperiments: TypesGen.Experiment[] = [
   "workspace_actions",
   "moons",
-  "workspaces_batch_actions",
 ]
 
 export const MockAuditLog: TypesGen.AuditLog = {
@@ -2065,6 +2076,11 @@ export const MockWorkspaceBuildParameter2: TypesGen.WorkspaceBuildParameter = {
 export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter3.name,
   value: "my-database",
+}
+
+export const MockWorkspaceBuildParameter4: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter4.name,
+  value: "immutable-value",
 }
 
 export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {

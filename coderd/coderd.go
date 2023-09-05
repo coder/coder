@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -1081,7 +1082,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	// nolint:gocritic // Inserting a provisioner daemon is a system function.
 	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
 		ID:           uuid.New(),
-		CreatedAt:    database.Now(),
+		CreatedAt:    dbtime.Now(),
 		Name:         name,
 		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
 		Tags: database.StringMap{
@@ -1098,26 +1099,31 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	}
 
 	mux := drpcmux.New()
-
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:                   api.AccessURL,
-		ID:                          daemon.ID,
-		OIDCConfig:                  api.OIDCConfig,
-		Database:                    api.Database,
-		Pubsub:                      api.Pubsub,
-		Provisioners:                daemon.Provisioners,
-		GitAuthConfigs:              api.GitAuthConfigs,
-		Telemetry:                   api.Telemetry,
-		Tracer:                      tracer,
-		Tags:                        tags,
-		QuotaCommitter:              &api.QuotaCommitter,
-		Auditor:                     &api.Auditor,
-		TemplateScheduleStore:       api.TemplateScheduleStore,
-		UserQuietHoursScheduleStore: api.UserQuietHoursScheduleStore,
-		AcquireJobDebounce:          debounce,
-		Logger:                      api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		DeploymentValues:            api.DeploymentValues,
-	})
+	srv, err := provisionerdserver.NewServer(
+		api.AccessURL,
+		daemon.ID,
+		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
+		daemon.Provisioners,
+		tags,
+		api.Database,
+		api.Pubsub,
+		api.Telemetry,
+		tracer,
+		&api.QuotaCommitter,
+		&api.Auditor,
+		api.TemplateScheduleStore,
+		api.UserQuietHoursScheduleStore,
+		api.DeploymentValues,
+		debounce,
+		provisionerdserver.Options{
+			OIDCConfig:     api.OIDCConfig,
+			GitAuthConfigs: api.GitAuthConfigs,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		return nil, err
 	}

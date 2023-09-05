@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -43,7 +44,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCountVSCode:        1,
 		})
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.Now().Add(-time.Hour))
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
@@ -62,7 +63,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 		db := database.New(sqlDB)
 		ctx := context.Background()
 		agentID := uuid.New()
-		insertTime := database.Now()
+		insertTime := dbtime.Now()
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			CreatedAt:                 insertTime.Add(-time.Second),
 			AgentID:                   agentID,
@@ -80,7 +81,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCountVSCode:        1,
 		})
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.Now().Add(-time.Hour))
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
@@ -113,7 +114,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	})
 	logs, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:   agent.ID,
-		CreatedAt: []time.Time{database.Now()},
+		CreatedAt: []time.Time{dbtime.Now()},
 		Output:    []string{"first"},
 		Level:     []database.LogLevel{database.LogLevelInfo},
 		Source:    []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
@@ -125,7 +126,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 
 	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      agent.ID,
-		CreatedAt:    []time.Time{database.Now()},
+		CreatedAt:    []time.Time{dbtime.Now()},
 		Output:       []string{"second"},
 		Level:        []database.LogLevel{database.LogLevelInfo},
 		Source:       []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
@@ -360,7 +361,7 @@ func TestQueuePosition(t *testing.T) {
 
 	job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		},
 		Types: database.AllProvisionerTypeValues(),
@@ -402,7 +403,7 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		db := database.New(sqlDB)
 		ctx := context.Background()
-		now := database.Now()
+		now := dbtime.Now()
 
 		yesterday := dbgen.User(t, db, database.User{
 			LastSeenAt: now.Add(time.Hour * -25),

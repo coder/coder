@@ -30,11 +30,13 @@ export default defineConfig({
       timeout: 60000,
     },
   ],
+  reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
   },
   webServer: {
+    url: `http://localhost:${port}/api/v2/deployment/config`,
     command:
       `go run -tags embed ${coderMain} server ` +
       `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
@@ -44,7 +46,8 @@ export default defineConfig({
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
-      `--provisioner-daemon-poll-interval 50ms`,
+      `--provisioner-daemon-poll-interval 50ms ` +
+      `--pprof-enable`,
     env: {
       ...process.env,
 
@@ -87,7 +90,6 @@ export default defineConfig({
         gitAuth.validatePath,
       ),
     },
-    port,
     reuseExistingServer: false,
   },
 })

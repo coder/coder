@@ -32,6 +32,11 @@
           "path": "./install/packages.md"
         },
         {
+          "title": "macOS",
+          "description": "Install Coder using our Homebrew tap",
+          "path": "./install/macos.md"
+        },
+        {
           "title": "Kubernetes",
           "description": "Install Coder with Kubernetes via Helm",
           "path": "./install/kubernetes.md"

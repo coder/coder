@@ -84,11 +84,11 @@ type CreateTemplateRequest struct {
 	// DefaultTTLMillis allows optionally specifying the default TTL
 	// for all workspaces created from this template.
 	DefaultTTLMillis *int64 `json:"default_ttl_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis *int64 `json:"max_ttl_ms,omitempty"`
-	// RestartRequirement allows optionally specifying the restart requirement
+	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
-	RestartRequirement *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
+	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".
@@ -124,12 +124,16 @@ type CreateTemplateRequest struct {
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
+// Either TemplateID or TemplateVersionID must be specified. They cannot both be present.
 type CreateWorkspaceRequest struct {
-	TemplateID        uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	// TemplateID specifies which template should be used for creating the workspace.
+	TemplateID uuid.UUID `json:"template_id,omitempty" validate:"required_without=TemplateVersionID,excluded_with=TemplateVersionID" format:"uuid"`
+	// TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
+	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
 	Name              string    `json:"name" validate:"workspace_name,required"`
 	AutostartSchedule *string   `json:"autostart_schedule"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
-	// ParameterValues allows for additional parameters to be provided
+	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
 }

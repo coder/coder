@@ -1365,6 +1365,9 @@ func (h *heartbeats) sendBeats() {
 
 func (h *heartbeats) sendBeat() {
 	_, err := h.store.UpsertTailnetCoordinator(h.ctx, h.self)
+	if xerrors.Is(err, context.Canceled) {
+		return
+	}
 	if err != nil {
 		h.logger.Error(h.ctx, "failed to send heartbeat", slog.Error(err))
 		h.failedHeartbeats++

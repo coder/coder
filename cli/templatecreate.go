@@ -16,10 +16,8 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/provisionerd"
 )
 
 func (r *RootCmd) templateCreate() *clibase.Cmd {
@@ -111,7 +109,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				Message:         message,
 				Client:          client,
 				Organization:    organization,
-				Provisioner:     database.ProvisionerType(provisioner),
+				Provisioner:     codersdk.ProvisionerType(provisioner),
 				FileID:          resp.ID,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
@@ -224,7 +222,7 @@ type createValidTemplateVersionArgs struct {
 	Message      string
 	Client       *codersdk.Client
 	Organization codersdk.Organization
-	Provisioner  database.ProvisionerType
+	Provisioner  codersdk.ProvisionerType
 	FileID       uuid.UUID
 
 	VariablesFile string
@@ -258,7 +256,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		Message:            args.Message,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
-		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
+		Provisioner:        args.Provisioner,
 		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
@@ -284,7 +282,10 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	})
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
-		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
+		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+			return nil, err
+		}
+		if err != nil {
 			return nil, err
 		}
 	}

@@ -4,7 +4,7 @@ import { STORAGE_STATE } from "./playwright.config"
 import { Language } from "../src/components/CreateUserForm/CreateUserForm"
 
 test("create first user", async ({ page }) => {
-  await page.goto("/", { waitUntil: "networkidle" })
+  await page.goto("/", { waitUntil: "domcontentloaded" })
 
   await page.getByLabel(Language.usernameLabel).fill(constants.username)
   await page.getByLabel(Language.emailLabel).fill(constants.email)

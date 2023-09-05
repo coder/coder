@@ -120,6 +120,7 @@ export interface Agent {
   shutdownScriptTimeoutSeconds: number
   metadata: Agent_Metadata[]
   startupScriptBehavior: string
+  displayApps: DisplayApps | undefined
 }
 
 export interface Agent_Metadata {
@@ -133,6 +134,14 @@ export interface Agent_Metadata {
 export interface Agent_EnvEntry {
   key: string
   value: string
+}
+
+export interface DisplayApps {
+  vscode: boolean
+  vscodeInsiders: boolean
+  webTerminal: boolean
+  sshHelper: boolean
+  portForwardingHelper: boolean
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -505,6 +514,12 @@ export const Agent = {
     if (message.startupScriptBehavior !== "") {
       writer.uint32(154).string(message.startupScriptBehavior)
     }
+    if (message.displayApps !== undefined) {
+      DisplayApps.encode(
+        message.displayApps,
+        writer.uint32(162).fork(),
+      ).ldelim()
+    }
     return writer
   },
 }
@@ -543,6 +558,30 @@ export const Agent_EnvEntry = {
     }
     if (message.value !== "") {
       writer.uint32(18).string(message.value)
+    }
+    return writer
+  },
+}
+
+export const DisplayApps = {
+  encode(
+    message: DisplayApps,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.vscode === true) {
+      writer.uint32(8).bool(message.vscode)
+    }
+    if (message.vscodeInsiders === true) {
+      writer.uint32(16).bool(message.vscodeInsiders)
+    }
+    if (message.webTerminal === true) {
+      writer.uint32(24).bool(message.webTerminal)
+    }
+    if (message.sshHelper === true) {
+      writer.uint32(32).bool(message.sshHelper)
+    }
+    if (message.portForwardingHelper === true) {
+      writer.uint32(40).bool(message.portForwardingHelper)
     }
     return writer
   },

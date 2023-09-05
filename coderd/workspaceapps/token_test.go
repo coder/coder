@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -467,7 +467,7 @@ func TestAPIKeyEncryption(t *testing.T) {
 			key := genAPIKey(t)
 			encrypted, err := coderdtest.AppSecurityKey.EncryptAPIKey(workspaceapps.EncryptedAPIKeyPayload{
 				APIKey:    key,
-				ExpiresAt: database.Now().Add(-1 * time.Hour),
+				ExpiresAt: dbtime.Now().Add(-1 * time.Hour),
 			})
 			require.NoError(t, err)
 

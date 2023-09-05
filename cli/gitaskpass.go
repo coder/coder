@@ -11,7 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/cli/gitauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
@@ -44,7 +44,13 @@ func (r *RootCmd) gitAskpass() *clibase.Cmd {
 				if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
 					// This prevents the "Run 'coder --help' for usage"
 					// message from occurring.
-					cliui.Errorf(inv.Stderr, "%s\n", apiError.Message)
+					lines := []string{apiError.Message}
+					if apiError.Detail != "" {
+						lines = append(lines, apiError.Detail)
+					}
+					cliui.Warn(inv.Stderr, "Coder was unable to handle this git request. The default git behavior will be used instead.",
+						lines...,
+					)
 					return cliui.Canceled
 				}
 				return xerrors.Errorf("get git token: %w", err)

@@ -265,7 +265,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 		r.Route("/users/{user}/quiet-hours", func(r chi.Router) {
 			r.Use(
-				api.restartRequirementEnabledMW,
+				api.autostopRequirementEnabledMW,
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database, false),
 			)
@@ -378,6 +378,8 @@ type Options struct {
 
 	// optional pre-shared key for authentication of external provisioner daemons
 	ProvisionerDaemonPSK string
+
+	CheckInactiveUsersCancelFunc func()
 }
 
 type API struct {
@@ -414,6 +416,10 @@ func (api *API) Close() error {
 	if api.derpMesh != nil {
 		_ = api.derpMesh.Close()
 	}
+
+	if api.Options.CheckInactiveUsersCancelFunc != nil {
+		api.Options.CheckInactiveUsersCancelFunc()
+	}
 	return api.AGPL.Close()
 }
 
@@ -432,11 +438,11 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
-			// FeatureTemplateRestartRequirement depends on
+			// FeatureTemplateAutostopRequirement depends on
 			// FeatureAdvancedTemplateScheduling.
-			codersdk.FeatureTemplateRestartRequirement: api.DefaultQuietHoursSchedule != "",
-			codersdk.FeatureWorkspaceProxy:             true,
-			codersdk.FeatureUserRoleManagement:         true,
+			codersdk.FeatureTemplateAutostopRequirement: api.DefaultQuietHoursSchedule != "",
+			codersdk.FeatureWorkspaceProxy:              true,
+			codersdk.FeatureUserRoleManagement:          true,
 		})
 	if err != nil {
 		return err
@@ -455,15 +461,15 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		return nil
 	}
 
-	if entitlements.Features[codersdk.FeatureTemplateRestartRequirement].Enabled && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
+	if entitlements.Features[codersdk.FeatureTemplateAutostopRequirement].Enabled && !entitlements.Features[codersdk.FeatureAdvancedTemplateScheduling].Enabled {
 		api.entitlements.Errors = []string{
-			`Your license is entitled to the feature "template restart ` +
+			`Your license is entitled to the feature "template autostop ` +
 				`requirement" (and you have it enabled by setting the ` +
 				"default quiet hours schedule), but you are not entitled to " +
 				`the dependency feature "advanced template scheduling". ` +
 				"Please contact support for a new license.",
 		}
-		api.Logger.Error(ctx, "license is entitled to template restart requirement but not advanced template scheduling")
+		api.Logger.Error(ctx, "license is entitled to template autostop requirement but not advanced template scheduling")
 		return nil
 	}
 
@@ -524,30 +530,30 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 		}
 	}
 
-	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRestartRequirement); shouldUpdate(initial, changed, enabled) {
+	if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateAutostopRequirement); shouldUpdate(initial, changed, enabled) {
 		if enabled {
 			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
 			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
 			if !ok {
-				api.Logger.Error(ctx, "unable to set up enterprise template schedule store, template restart requirements will not be applied to workspace builds")
+				api.Logger.Error(ctx, "unable to set up enterprise template schedule store, template autostop requirements will not be applied to workspace builds")
 			}
-			enterpriseTemplateStore.UseRestartRequirement.Store(true)
+			enterpriseTemplateStore.UseAutostopRequirement.Store(true)
 
 			quietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(api.DefaultQuietHoursSchedule)
 			if err != nil {
-				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template restart requirements will not be applied to workspace builds", slog.Error(err))
+				api.Logger.Error(ctx, "unable to set up enterprise user quiet hours schedule store, template autostop requirements will not be applied to workspace builds", slog.Error(err))
 			} else {
 				api.AGPL.UserQuietHoursScheduleStore.Store(&quietHoursStore)
 			}
 		} else {
 			if api.DefaultQuietHoursSchedule != "" {
-				api.Logger.Warn(ctx, "template restart requirements are not enabled (due to setting default quiet hours schedule) as your license is not entitled to this feature")
+				api.Logger.Warn(ctx, "template autostop requirements are not enabled (due to setting default quiet hours schedule) as your license is not entitled to this feature")
 			}
 
 			templateStore := *(api.AGPL.TemplateScheduleStore.Load())
 			enterpriseTemplateStore, ok := templateStore.(*schedule.EnterpriseTemplateScheduleStore)
 			if ok {
-				enterpriseTemplateStore.UseRestartRequirement.Store(false)
+				enterpriseTemplateStore.UseAutostopRequirement.Store(false)
 			}
 
 			quietHoursStore := agplschedule.NewAGPLUserQuietHoursScheduleStore()

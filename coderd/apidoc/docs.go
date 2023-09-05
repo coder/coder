@@ -7390,6 +7390,14 @@ const docTemplate = `{
                     "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
                     "type": "boolean"
                 },
+                "autostop_requirement": {
+                    "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
                 "default_ttl_ms": {
                     "description": "DefaultTTLMillis allows optionally specifying the default TTL\nfor all workspaces created from this template.",
                     "type": "integer"
@@ -7423,20 +7431,12 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
                     "description": "Name is the name of the template.",
                     "type": "string"
-                },
-                "restart_requirement": {
-                    "description": "RestartRequirement allows optionally specifying the restart requirement\nfor workspaces created from this template. This is an enterprise feature.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
-                        }
-                    ]
                 },
                 "template_version_id": {
                     "description": "VersionID is an in-progress or completed job to use as an initial version\nof the template.\n\nThis is required on creation to enable a user-flow of validating a\ntemplate works. There is no reason the data-model cannot support empty\ntemplates, but it doesn't make sense for users.",
@@ -7715,8 +7715,7 @@ const docTemplate = `{
         "codersdk.CreateWorkspaceRequest": {
             "type": "object",
             "required": [
-                "name",
-                "template_id"
+                "name"
             ],
             "properties": {
                 "autostart_schedule": {
@@ -7726,13 +7725,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "rich_parameter_values": {
-                    "description": "ParameterValues allows for additional parameters to be provided\nduring the initial provision.",
+                    "description": "RichParameterValues allows for additional parameters to be provided\nduring the initial provision.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
                     }
                 },
                 "template_id": {
+                    "description": "TemplateID specifies which template should be used for creating the workspace.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_id": {
+                    "description": "TemplateVersionID can be used to specify a specific version of a template for creating the workspace.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -8068,6 +8073,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.DisplayApp": {
+            "type": "string",
+            "enum": [
+                "vscode",
+                "vscode_insiders",
+                "web_terminal",
+                "port_forwarding_helper",
+                "ssh_helper"
+            ],
+            "x-enum-varnames": [
+                "DisplayAppVSCodeDesktop",
+                "DisplayAppVSCodeInsiders",
+                "DisplayAppWebTerminal",
+                "DisplayAppPortForward",
+                "DisplayAppSSH"
+            ]
+        },
         "codersdk.Entitlement": {
             "type": "string",
             "enum": [
@@ -8124,18 +8146,16 @@ const docTemplate = `{
                 "workspace_actions",
                 "tailnet_pg_coordinator",
                 "single_tailnet",
-                "template_restart_requirement",
-                "deployment_health_page",
-                "workspaces_batch_actions"
+                "template_autostop_requirement",
+                "deployment_health_page"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentWorkspaceActions",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
-                "ExperimentTemplateRestartRequirement",
-                "ExperimentDeploymentHealthPage",
-                "ExperimentWorkspacesBatchActions"
+                "ExperimentTemplateAutostopRequirement",
+                "ExperimentDeploymentHealthPage"
             ]
         },
         "codersdk.Feature": {
@@ -9516,6 +9536,14 @@ const docTemplate = `{
                 "allow_user_cancel_workspace_jobs": {
                     "type": "boolean"
                 },
+                "autostop_requirement": {
+                    "description": "AutostopRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
+                        }
+                    ]
+                },
                 "build_time_stats": {
                     "$ref": "#/definitions/codersdk.TemplateBuildTimeStats"
                 },
@@ -9551,7 +9579,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "max_ttl_ms": {
-                    "description": "TODO(@dean): remove max_ttl once restart_requirement is matured",
+                    "description": "TODO(@dean): remove max_ttl once autostop_requirement is matured",
                     "type": "integer"
                 },
                 "name": {
@@ -9565,14 +9593,6 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform"
-                    ]
-                },
-                "restart_requirement": {
-                    "description": "RestartRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.TemplateRestartRequirement"
-                        }
                     ]
                 },
                 "time_til_dormant_autodelete_ms": {
@@ -9632,6 +9652,31 @@ const docTemplate = `{
                 "TemplateAppsTypeBuiltin",
                 "TemplateAppsTypeApp"
             ]
+        },
+        "codersdk.TemplateAutostopRequirement": {
+            "type": "object",
+            "properties": {
+                "days_of_week": {
+                    "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "monday",
+                            "tuesday",
+                            "wednesday",
+                            "thursday",
+                            "friday",
+                            "saturday",
+                            "sunday"
+                        ]
+                    }
+                },
+                "weeks": {
+                    "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.TemplateBuildTimeStats": {
             "type": "object",
@@ -9790,31 +9835,6 @@ const docTemplate = `{
                 },
                 "value": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.TemplateRestartRequirement": {
-            "type": "object",
-            "properties": {
-                "days_of_week": {
-                    "description": "DaysOfWeek is a list of days of the week on which restarts are required.\nRestarts happen within the user's quiet hours (in their configured\ntimezone). If no days are specified, restarts are not required. Weekdays\ncannot be specified twice.\n\nRestarts will only happen on weekdays in this list on weeks which line up\nwith Weeks.",
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "monday",
-                            "tuesday",
-                            "wednesday",
-                            "thursday",
-                            "friday",
-                            "saturday",
-                            "sunday"
-                        ]
-                    }
-                },
-                "weeks": {
-                    "description": "Weeks is the number of weeks between required restarts. Weeks are synced\nacross all workspaces (and Coder deployments) using modulo math on a\nhardcoded epoch week of January 2nd, 2023 (the first Monday of 2023).\nValues of 0 or 1 indicate weekly restarts. Values of 2 indicate\nfortnightly restarts, etc.",
-                    "type": "integer"
                 }
             }
         },
@@ -10108,6 +10128,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "capture_logs": {
+                    "type": "boolean"
+                },
+                "data_dog": {
                     "type": "boolean"
                 },
                 "enable": {
@@ -10609,6 +10632,12 @@ const docTemplate = `{
                 "disconnected_at": {
                     "type": "string",
                     "format": "date-time"
+                },
+                "display_apps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.DisplayApp"
+                    }
                 },
                 "environment_variables": {
                     "type": "object",
@@ -11371,30 +11400,7 @@ const docTemplate = `{
                 }
             }
         },
-        "healthcheck.AccessURLReport": {
-            "type": "object",
-            "properties": {
-                "access_url": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "healthz_response": {
-                    "type": "string"
-                },
-                "reachable": {
-                    "type": "boolean"
-                },
-                "status_code": {
-                    "type": "integer"
-                }
-            }
-        },
-        "healthcheck.DERPNodeReport": {
+        "derphealth.NodeReport": {
             "type": "object",
             "properties": {
                 "can_exchange_messages": {
@@ -11437,14 +11443,14 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stun": {
-                    "$ref": "#/definitions/healthcheck.DERPStunReport"
+                    "$ref": "#/definitions/derphealth.StunReport"
                 },
                 "uses_websocket": {
                     "type": "boolean"
                 }
             }
         },
-        "healthcheck.DERPRegionReport": {
+        "derphealth.RegionReport": {
             "type": "object",
             "properties": {
                 "error": {
@@ -11456,7 +11462,7 @@ const docTemplate = `{
                 "node_reports": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/healthcheck.DERPNodeReport"
+                        "$ref": "#/definitions/derphealth.NodeReport"
                     }
                 },
                 "region": {
@@ -11464,7 +11470,7 @@ const docTemplate = `{
                 }
             }
         },
-        "healthcheck.DERPReport": {
+        "derphealth.Report": {
             "type": "object",
             "properties": {
                 "error": {
@@ -11488,12 +11494,12 @@ const docTemplate = `{
                 "regions": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/healthcheck.DERPRegionReport"
+                        "$ref": "#/definitions/derphealth.RegionReport"
                     }
                 }
             }
         },
-        "healthcheck.DERPStunReport": {
+        "derphealth.StunReport": {
             "type": "object",
             "properties": {
                 "canSTUN": {
@@ -11504,6 +11510,29 @@ const docTemplate = `{
                 },
                 "error": {
                     "type": "string"
+                }
+            }
+        },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthz_response": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "status_code": {
+                    "type": "integer"
                 }
             }
         },
@@ -11541,7 +11570,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
-                    "$ref": "#/definitions/healthcheck.DERPReport"
+                    "$ref": "#/definitions/derphealth.Report"
                 },
                 "failing_sections": {
                     "description": "FailingSections is a list of sections that have failed their healthcheck.",

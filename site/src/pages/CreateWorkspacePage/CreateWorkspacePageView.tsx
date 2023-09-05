@@ -16,9 +16,8 @@ import {
 } from "components/Form/Form"
 import { makeStyles } from "@mui/styles"
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
 } from "utils/richParameters"
 import {
   ImmutableTemplateParametersSection,
@@ -55,10 +54,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const initialRichParameterValues = selectInitialRichParametersValues(
-    parameters,
-    defaultBuildParameters,
-  )
   const { t } = useTranslation("createWorkspacePage")
   const styles = useStyles()
   const [owner, setOwner] = useState(defaultOwner)
@@ -68,7 +63,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       initialValues: {
         name: defaultName,
         template_id: template.id,
-        rich_parameter_values: initialRichParameterValues,
+        rich_parameter_values: getInitialRichParameterValues(
+          parameters,
+          defaultBuildParameters,
+        ),
       },
       validationSchema: Yup.object({
         name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
@@ -173,10 +171,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     })
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
                   disabled: form.isSubmitting,
                 }
               }}
@@ -195,10 +189,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     })
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
                   disabled: form.isSubmitting,
                 }
               }}

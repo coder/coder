@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.8
+        uses: crate-ci/typos@v1.16.10
         with:
           config: .github/workflows/typos.toml
 
@@ -554,7 +554,7 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test
+      - run: pnpm playwright:test --workers 1
         env:
           DEBUG: pw:api
         working-directory: site
@@ -565,6 +565,14 @@ jobs:
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
+          retention-days: 7
+
+      - name: Upload pprof dumps
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-pprof-dumps
+          path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
   chromatic:

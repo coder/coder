@@ -119,12 +119,21 @@ message Agent {
     int32 shutdown_script_timeout_seconds = 17;
     repeated Metadata metadata = 18;
     string startup_script_behavior = 19;
+    DisplayApps display_apps = 20;
 }
 
 enum AppSharingLevel {
     OWNER = 0;
     AUTHENTICATED = 1;
     PUBLIC = 2;
+}
+
+message DisplayApps {
+    bool vscode = 1;
+    bool vscode_insiders = 2;
+    bool web_terminal = 3;
+    bool ssh_helper = 4;
+    bool port_forwarding_helper = 5;
 }
 
 // App represents a dev-accessible application on the workspace.

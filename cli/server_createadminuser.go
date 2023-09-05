@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -180,8 +181,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 					Email:          newUserEmail,
 					Username:       newUserUsername,
 					HashedPassword: []byte(hashedPassword),
-					CreatedAt:      database.Now(),
-					UpdatedAt:      database.Now(),
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
 					RBACRoles:      []string{rbac.RoleOwner()},
 					LoginType:      database.LoginTypePassword,
 				})
@@ -196,8 +197,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 					UserID:     newUser.ID,
-					CreatedAt:  database.Now(),
-					UpdatedAt:  database.Now(),
+					CreatedAt:  dbtime.Now(),
+					UpdatedAt:  dbtime.Now(),
 					PrivateKey: privateKey,
 					PublicKey:  publicKey,
 				})
@@ -210,8 +211,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
-						CreatedAt:      database.Now(),
-						UpdatedAt:      database.Now(),
+						CreatedAt:      dbtime.Now(),
+						UpdatedAt:      dbtime.Now(),
 						Roles:          []string{rbac.RoleOrgAdmin(org.ID)},
 					})
 					if err != nil {

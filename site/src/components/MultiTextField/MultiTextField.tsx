@@ -5,12 +5,14 @@ import { FC } from "react"
 
 export type MultiTextFieldProps = {
   label: string
+  id?: string
   values: string[]
   onChange: (values: string[]) => void
 }
 
 export const MultiTextField: FC<MultiTextFieldProps> = ({
   label,
+  id,
   values,
   onChange,
 }) => {
@@ -30,6 +32,7 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
           />
         ))}
         <input
+          id={id}
           aria-label={label}
           className={styles.input}
           onKeyDown={(event) => {

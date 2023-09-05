@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -121,8 +122,8 @@ func TestGenerate(t *testing.T) {
 			assert.ElementsMatch(t, hashed, key.HashedSecret[:])
 
 			assert.Equal(t, tc.params.UserID, key.UserID)
-			assert.WithinDuration(t, database.Now(), key.CreatedAt, time.Second*5)
-			assert.WithinDuration(t, database.Now(), key.UpdatedAt, time.Second*5)
+			assert.WithinDuration(t, dbtime.Now(), key.CreatedAt, time.Second*5)
+			assert.WithinDuration(t, dbtime.Now(), key.UpdatedAt, time.Second*5)
 
 			if tc.params.LifetimeSeconds > 0 {
 				assert.Equal(t, tc.params.LifetimeSeconds, key.LifetimeSeconds)
@@ -136,9 +137,9 @@ func TestGenerate(t *testing.T) {
 			if !tc.params.ExpiresAt.IsZero() {
 				assert.Equal(t, tc.params.ExpiresAt.UTC(), key.ExpiresAt)
 			} else if tc.params.LifetimeSeconds > 0 {
-				assert.WithinDuration(t, database.Now().Add(time.Duration(tc.params.LifetimeSeconds)), key.ExpiresAt, time.Second*5)
+				assert.WithinDuration(t, dbtime.Now().Add(time.Duration(tc.params.LifetimeSeconds)), key.ExpiresAt, time.Second*5)
 			} else {
-				assert.WithinDuration(t, database.Now().Add(tc.params.DeploymentValues.SessionDuration.Value()), key.ExpiresAt, time.Second*5)
+				assert.WithinDuration(t, dbtime.Now().Add(tc.params.DeploymentValues.SessionDuration.Value()), key.ExpiresAt, time.Second*5)
 			}
 
 			if tc.params.RemoteAddr != "" {

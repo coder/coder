@@ -447,7 +447,7 @@ describe("UsersPage", () => {
         server.use(
           rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
             return res(
-              ctx.status(401),
+              ctx.status(400),
               ctx.json({ message: "message from the backend" }),
             )
           }),

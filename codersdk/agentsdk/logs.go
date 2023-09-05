@@ -41,7 +41,7 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 			w.buf.Reset()
 		}
 		err := w.send(w.ctx, Log{
-			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
+			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    string(partial) + string(p[:nl-cr]),
 			Source:    w.source,
@@ -64,7 +64,7 @@ func (w *startupLogsWriter) Close() error {
 	if w.buf.Len() > 0 {
 		defer w.buf.Reset()
 		return w.send(w.ctx, Log{
-			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
+			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    w.buf.String(),
 			Source:    w.source,

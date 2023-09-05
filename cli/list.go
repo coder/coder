@@ -9,7 +9,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -39,7 +39,7 @@ func workspaceListRowFromWorkspace(now time.Time, usersByID map[uuid.UUID]coders
 	lastBuilt := now.UTC().Sub(workspace.LatestBuild.Job.CreatedAt).Truncate(time.Second)
 	autostartDisplay := "-"
 	if !ptr.NilOrEmpty(workspace.AutostartSchedule) {
-		if sched, err := schedule.Weekly(*workspace.AutostartSchedule); err == nil {
+		if sched, err := cron.Weekly(*workspace.AutostartSchedule); err == nil {
 			autostartDisplay = fmt.Sprintf("%s %s (%s)", sched.Time(), sched.DaysOfWeek(), sched.Location())
 		}
 	}

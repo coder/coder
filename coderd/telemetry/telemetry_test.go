@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -76,9 +77,9 @@ func TestTelemetry(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
+			UploadedAt: dbtime.Now(),
 			JWT:        "",
-			Exp:        database.Now().Add(time.Hour),
+			Exp:        dbtime.Now().Add(time.Hour),
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)

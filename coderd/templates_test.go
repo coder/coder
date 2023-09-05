@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -246,7 +247,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("RestartRequirement", func(t *testing.T) {
+	t.Run("AutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("None", func(t *testing.T) {
@@ -257,21 +258,21 @@ func TestPostTemplateByOrganization(t *testing.T) {
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
-						assert.Zero(t, options.RestartRequirement.DaysOfWeek)
-						assert.Zero(t, options.RestartRequirement.Weeks)
+						assert.Zero(t, options.AutostopRequirement.DaysOfWeek)
+						assert.Zero(t, options.AutostopRequirement.Weeks)
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                           template.ID,
-							UpdatedAt:                    database.Now(),
-							AllowUserAutostart:           options.UserAutostartEnabled,
-							AllowUserAutostop:            options.UserAutostopEnabled,
-							DefaultTTL:                   int64(options.DefaultTTL),
-							MaxTTL:                       int64(options.MaxTTL),
-							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
-							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
-							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:               int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
+							ID:                            template.ID,
+							UpdatedAt:                     dbtime.Now(),
+							AllowUserAutostart:            options.UserAutostartEnabled,
+							AllowUserAutostop:             options.UserAutostopEnabled,
+							DefaultTTL:                    int64(options.DefaultTTL),
+							MaxTTL:                        int64(options.MaxTTL),
+							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
+							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
+							FailureTTL:                    int64(options.FailureTTL),
+							TimeTilDormant:                int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -288,15 +289,15 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			defer cancel()
 
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
-				Name:               "testing",
-				VersionID:          version.ID,
-				RestartRequirement: nil,
+				Name:                "testing",
+				VersionID:           version.ID,
+				AutostopRequirement: nil,
 			})
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.Empty(t, got.RestartRequirement.DaysOfWeek)
-			require.Zero(t, got.RestartRequirement.Weeks)
+			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 
 		t.Run("OK", func(t *testing.T) {
@@ -307,21 +308,21 @@ func TestPostTemplateByOrganization(t *testing.T) {
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						atomic.AddInt64(&setCalled, 1)
-						assert.EqualValues(t, 0b00110000, options.RestartRequirement.DaysOfWeek)
-						assert.EqualValues(t, 2, options.RestartRequirement.Weeks)
+						assert.EqualValues(t, 0b00110000, options.AutostopRequirement.DaysOfWeek)
+						assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                           template.ID,
-							UpdatedAt:                    database.Now(),
-							AllowUserAutostart:           options.UserAutostartEnabled,
-							AllowUserAutostop:            options.UserAutostopEnabled,
-							DefaultTTL:                   int64(options.DefaultTTL),
-							MaxTTL:                       int64(options.MaxTTL),
-							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
-							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
-							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:               int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
+							ID:                            template.ID,
+							UpdatedAt:                     dbtime.Now(),
+							AllowUserAutostart:            options.UserAutostartEnabled,
+							AllowUserAutostop:             options.UserAutostopEnabled,
+							DefaultTTL:                    int64(options.DefaultTTL),
+							MaxTTL:                        int64(options.MaxTTL),
+							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
+							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
+							FailureTTL:                    int64(options.FailureTTL),
+							TimeTilDormant:                int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -340,7 +341,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:      "testing",
 				VersionID: version.ID,
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					// wrong order
 					DaysOfWeek: []string{"saturday", "friday"},
 					Weeks:      2,
@@ -349,13 +350,13 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			require.NoError(t, err)
 
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.Equal(t, []string{"friday", "saturday"}, got.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 2, got.RestartRequirement.Weeks)
+			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 
 			got, err = client.Template(ctx, got.ID)
 			require.NoError(t, err)
-			require.Equal(t, []string{"friday", "saturday"}, got.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 2, got.RestartRequirement.Weeks)
+			require.Equal(t, []string{"friday", "saturday"}, got.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 2, got.AutostopRequirement.Weeks)
 		})
 
 		t.Run("IgnoredUnlicensed", func(t *testing.T) {
@@ -371,15 +372,15 @@ func TestPostTemplateByOrganization(t *testing.T) {
 			got, err := client.CreateTemplate(ctx, user.OrganizationID, codersdk.CreateTemplateRequest{
 				Name:      "testing",
 				VersionID: version.ID,
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: []string{"friday", "saturday"},
 					Weeks:      2,
 				},
 			})
 			require.NoError(t, err)
 			// ignored and use AGPL defaults
-			require.Empty(t, got.RestartRequirement.DaysOfWeek)
-			require.Zero(t, got.RestartRequirement.Weeks)
+			require.Empty(t, got.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, got.AutostopRequirement.Weeks)
 		})
 	})
 }
@@ -589,17 +590,17 @@ func TestPatchTemplateMeta(t *testing.T) {
 						}
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                           template.ID,
-							UpdatedAt:                    database.Now(),
-							AllowUserAutostart:           options.UserAutostartEnabled,
-							AllowUserAutostop:            options.UserAutostopEnabled,
-							DefaultTTL:                   int64(options.DefaultTTL),
-							MaxTTL:                       int64(options.MaxTTL),
-							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
-							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
-							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:               int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
+							ID:                            template.ID,
+							UpdatedAt:                     dbtime.Now(),
+							AllowUserAutostart:            options.UserAutostartEnabled,
+							AllowUserAutostop:             options.UserAutostopEnabled,
+							DefaultTTL:                    int64(options.DefaultTTL),
+							MaxTTL:                        int64(options.MaxTTL),
+							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
+							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
+							FailureTTL:                    int64(options.FailureTTL),
+							TimeTilDormant:                int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -738,7 +739,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                    template.Description,
 				Icon:                           template.Icon,
 				DefaultTTLMillis:               0,
-				RestartRequirement:             &template.RestartRequirement,
+				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:               failureTTL.Milliseconds(),
 				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
@@ -773,7 +774,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                    template.Description,
 				Icon:                           template.Icon,
 				DefaultTTLMillis:               template.DefaultTTLMillis,
-				RestartRequirement:             &template.RestartRequirement,
+				AutostopRequirement:            &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
 				FailureTTLMillis:               failureTTL.Milliseconds(),
 				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
@@ -832,7 +833,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Description:                  template.Description,
 				Icon:                         template.Icon,
 				DefaultTTLMillis:             template.DefaultTTLMillis,
-				RestartRequirement:           &template.RestartRequirement,
+				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowAutostart.Load(),
 				AllowUserAutostop:            allowAutostop.Load(),
@@ -864,7 +865,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Icon:        template.Icon,
 				// Increase the default TTL to avoid error "not modified".
 				DefaultTTLMillis:             template.DefaultTTLMillis + 1,
-				RestartRequirement:           &template.RestartRequirement,
+				AutostopRequirement:          &template.AutostopRequirement,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           false,
 				AllowUserAutostop:            false,
@@ -891,13 +892,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 		defer cancel()
 
 		req := codersdk.UpdateTemplateMeta{
-			Name:               template.Name,
-			Description:        template.Description,
-			Icon:               template.Icon,
-			DefaultTTLMillis:   template.DefaultTTLMillis,
-			RestartRequirement: nil,
-			AllowUserAutostart: template.AllowUserAutostart,
-			AllowUserAutostop:  template.AllowUserAutostop,
+			Name:                template.Name,
+			Description:         template.Description,
+			Icon:                template.Icon,
+			DefaultTTLMillis:    template.DefaultTTLMillis,
+			AutostopRequirement: nil,
+			AllowUserAutostart:  template.AllowUserAutostart,
+			AllowUserAutostop:   template.AllowUserAutostop,
 		}
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 		require.ErrorContains(t, err, "not modified")
@@ -964,7 +965,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		assert.Equal(t, updated.Icon, "")
 	})
 
-	t.Run("RestartRequirement", func(t *testing.T) {
+	t.Run("AutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("OK", func(t *testing.T) {
@@ -975,22 +976,22 @@ func TestPatchTemplateMeta(t *testing.T) {
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
-							assert.EqualValues(t, 0b0110000, options.RestartRequirement.DaysOfWeek)
-							assert.EqualValues(t, 2, options.RestartRequirement.Weeks)
+							assert.EqualValues(t, 0b0110000, options.AutostopRequirement.DaysOfWeek)
+							assert.EqualValues(t, 2, options.AutostopRequirement.Weeks)
 						}
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                           template.ID,
-							UpdatedAt:                    database.Now(),
-							AllowUserAutostart:           options.UserAutostartEnabled,
-							AllowUserAutostop:            options.UserAutostopEnabled,
-							DefaultTTL:                   int64(options.DefaultTTL),
-							MaxTTL:                       int64(options.MaxTTL),
-							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
-							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
-							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:               int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
+							ID:                            template.ID,
+							UpdatedAt:                     dbtime.Now(),
+							AllowUserAutostart:            options.UserAutostartEnabled,
+							AllowUserAutostop:             options.UserAutostopEnabled,
+							DefaultTTL:                    int64(options.DefaultTTL),
+							MaxTTL:                        int64(options.MaxTTL),
+							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
+							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
+							FailureTTL:                    int64(options.FailureTTL),
+							TimeTilDormant:                int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -1005,8 +1006,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.Empty(t, template.RestartRequirement.DaysOfWeek)
-			require.Zero(t, template.RestartRequirement.Weeks)
+			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -1014,7 +1015,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Icon:                         template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					// wrong order
 					DaysOfWeek: []string{"saturday", "friday"},
 					Weeks:      2,
@@ -1027,13 +1028,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.Equal(t, []string{"friday", "saturday"}, updated.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 2, updated.RestartRequirement.Weeks)
+			require.Equal(t, []string{"friday", "saturday"}, updated.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 2, updated.AutostopRequirement.Weeks)
 
 			template, err = client.Template(ctx, template.ID)
 			require.NoError(t, err)
-			require.Equal(t, []string{"friday", "saturday"}, template.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 2, template.RestartRequirement.Weeks)
+			require.Equal(t, []string{"friday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
 		})
 
 		t.Run("Unset", func(t *testing.T) {
@@ -1044,22 +1045,22 @@ func TestPatchTemplateMeta(t *testing.T) {
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
 					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
 						if atomic.AddInt64(&setCalled, 1) == 2 {
-							assert.EqualValues(t, 0, options.RestartRequirement.DaysOfWeek)
-							assert.EqualValues(t, 0, options.RestartRequirement.Weeks)
+							assert.EqualValues(t, 0, options.AutostopRequirement.DaysOfWeek)
+							assert.EqualValues(t, 1, options.AutostopRequirement.Weeks)
 						}
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-							ID:                           template.ID,
-							UpdatedAt:                    database.Now(),
-							AllowUserAutostart:           options.UserAutostartEnabled,
-							AllowUserAutostop:            options.UserAutostopEnabled,
-							DefaultTTL:                   int64(options.DefaultTTL),
-							MaxTTL:                       int64(options.MaxTTL),
-							RestartRequirementDaysOfWeek: int16(options.RestartRequirement.DaysOfWeek),
-							RestartRequirementWeeks:      options.RestartRequirement.Weeks,
-							FailureTTL:                   int64(options.FailureTTL),
-							TimeTilDormant:               int64(options.TimeTilDormant),
-							TimeTilDormantAutoDelete:     int64(options.TimeTilDormantAutoDelete),
+							ID:                            template.ID,
+							UpdatedAt:                     dbtime.Now(),
+							AllowUserAutostart:            options.UserAutostartEnabled,
+							AllowUserAutostop:             options.UserAutostopEnabled,
+							DefaultTTL:                    int64(options.DefaultTTL),
+							MaxTTL:                        int64(options.MaxTTL),
+							AutostopRequirementDaysOfWeek: int16(options.AutostopRequirement.DaysOfWeek),
+							AutostopRequirementWeeks:      options.AutostopRequirement.Weeks,
+							FailureTTL:                    int64(options.FailureTTL),
+							TimeTilDormant:                int64(options.TimeTilDormant),
+							TimeTilDormantAutoDelete:      int64(options.TimeTilDormantAutoDelete),
 						})
 						if !assert.NoError(t, err) {
 							return database.Template{}, err
@@ -1073,15 +1074,15 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-				ctr.RestartRequirement = &codersdk.TemplateRestartRequirement{
+				ctr.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
 					// wrong order
 					DaysOfWeek: []string{"sunday", "saturday", "friday", "thursday", "wednesday", "tuesday", "monday"},
 					Weeks:      2,
 				}
 			})
 			require.EqualValues(t, 1, atomic.LoadInt64(&setCalled))
-			require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 2, template.RestartRequirement.Weeks)
+			require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 2, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -1089,7 +1090,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Icon:                         template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: []string{},
 					Weeks:      0,
 				},
@@ -1101,13 +1102,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
 			require.EqualValues(t, 2, atomic.LoadInt64(&setCalled))
-			require.Empty(t, updated.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 0, updated.RestartRequirement.Weeks)
+			require.Empty(t, updated.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, updated.AutostopRequirement.Weeks)
 
 			template, err = client.Template(ctx, template.ID)
 			require.NoError(t, err)
-			require.Empty(t, template.RestartRequirement.DaysOfWeek)
-			require.EqualValues(t, 0, template.RestartRequirement.Weeks)
+			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 		})
 
 		t.Run("EnterpriseOnly", func(t *testing.T) {
@@ -1117,8 +1118,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-			require.Empty(t, template.RestartRequirement.DaysOfWeek)
-			require.Zero(t, template.RestartRequirement.Weeks)
+			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 			req := codersdk.UpdateTemplateMeta{
 				Name:                         template.Name,
 				DisplayName:                  template.DisplayName,
@@ -1126,7 +1127,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				Icon:                         template.Icon,
 				AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 				DefaultTTLMillis:             time.Hour.Milliseconds(),
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: []string{"monday"},
 					Weeks:      2,
 				},
@@ -1137,13 +1138,13 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, req)
 			require.NoError(t, err)
-			require.Empty(t, updated.RestartRequirement.DaysOfWeek)
-			require.Zero(t, updated.RestartRequirement.Weeks)
+			require.Empty(t, updated.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, updated.AutostopRequirement.Weeks)
 
 			template, err = client.Template(ctx, template.ID)
 			require.NoError(t, err)
-			require.Empty(t, template.RestartRequirement.DaysOfWeek)
-			require.Zero(t, template.RestartRequirement.Weeks)
+			require.Empty(t, template.AutostopRequirement.DaysOfWeek)
+			require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 		})
 	})
 }
@@ -1288,6 +1289,6 @@ func TestTemplateMetrics(t *testing.T) {
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
+		dbtime.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
 }
