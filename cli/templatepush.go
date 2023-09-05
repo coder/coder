@@ -13,7 +13,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 )
@@ -216,7 +215,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				Message:         message,
 				Client:          client,
 				Organization:    organization,
-				Provisioner:     database.ProvisionerType(provisioner),
+				Provisioner:     codersdk.ProvisionerType(provisioner),
 				FileID:          resp.ID,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,

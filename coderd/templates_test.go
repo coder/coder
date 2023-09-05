@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -262,7 +263,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -312,7 +313,7 @@ func TestPostTemplateByOrganization(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -590,7 +591,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -981,7 +982,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -1050,7 +1051,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 						err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 							ID:                            template.ID,
-							UpdatedAt:                     database.Now(),
+							UpdatedAt:                     dbtime.Now(),
 							AllowUserAutostart:            options.UserAutostartEnabled,
 							AllowUserAutostop:             options.UserAutostopEnabled,
 							DefaultTTL:                    int64(options.DefaultTTL),
@@ -1288,6 +1289,6 @@ func TestTemplateMetrics(t *testing.T) {
 	res, err = client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err)
 	assert.WithinDuration(t,
-		database.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
+		dbtime.Now(), res.Workspaces[0].LastUsedAt, time.Minute,
 	)
 }

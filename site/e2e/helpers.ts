@@ -1,5 +1,5 @@
 import { expect, Page } from "@playwright/test"
-import { spawn } from "child_process"
+import { ChildProcess, exec, spawn } from "child_process"
 import { randomUUID } from "crypto"
 import path from "path"
 import express from "express"
@@ -15,10 +15,12 @@ import {
   Resource,
   RichParameter,
 } from "./provisionerGenerated"
+import { prometheusPort, pprofPort } from "./constants"
 import { port } from "./playwright.config"
 import * as ssh from "ssh2"
 import { Duplex } from "stream"
 import { WorkspaceBuildParameter } from "api/typesGenerated"
+import axios from "axios"
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -29,7 +31,7 @@ export const createWorkspace = async (
   buildParameters: WorkspaceBuildParameter[] = [],
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   await expect(page).toHaveURL("/templates/" + templateName + "/workspace")
 
@@ -57,7 +59,7 @@ export const verifyParameters = async (
   expectedBuildParameters: WorkspaceBuildParameter[],
 ) => {
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
-    waitUntil: "networkidle",
+    waitUntil: "domcontentloaded",
   })
   await expect(page).toHaveURL(
     "/@admin/" + workspaceName + "/settings/parameters",
@@ -120,7 +122,7 @@ export const createTemplate = async (
     content: "window.playwright = true",
   })
 
-  await page.goto("/templates/new", { waitUntil: "networkidle" })
+  await page.goto("/templates/new", { waitUntil: "domcontentloaded" })
   await expect(page).toHaveURL("/templates/new")
 
   await page.getByTestId("file-upload").setInputFiles({
@@ -229,7 +231,10 @@ export const buildWorkspaceWithParameters = async (
 
 // startAgent runs the coder agent with the provided token.
 // It awaits the agent to be ready before returning.
-export const startAgent = async (page: Page, token: string): Promise<void> => {
+export const startAgent = async (
+  page: Page,
+  token: string,
+): Promise<ChildProcess> => {
   return startAgentWithCommand(page, token, "go", "run", coderMainPath())
 }
 
@@ -308,14 +313,14 @@ export const startAgentWithCommand = async (
   token: string,
   command: string,
   ...args: string[]
-): Promise<void> => {
+): Promise<ChildProcess> => {
   const cp = spawn(command, [...args, "agent", "--no-reap"], {
     env: {
       ...process.env,
       CODER_AGENT_URL: "http://localhost:" + port,
       CODER_AGENT_TOKEN: token,
-      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:2114",
-      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:6061",
+      CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + pprofPort,
+      CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
     },
   })
   cp.stdout.on("data", (data: Buffer) => {
@@ -332,6 +337,39 @@ export const startAgentWithCommand = async (
   })
 
   await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
+  return cp
+}
+
+export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
+  // When the web server is started with `go run`, it spawns a child process with coder server.
+  // `pkill -P` terminates child processes belonging the same group as `go run`.
+  // The command `kill` is used to terminate a web server started as a standalone binary.
+  exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+    if (error) {
+      throw new Error(`exec error: ${JSON.stringify(error)}`)
+    }
+  })
+  await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort)
+}
+
+const waitUntilUrlIsNotResponding = async (url: string) => {
+  const maxRetries = 30
+  const retryIntervalMs = 1000
+  let retries = 0
+
+  while (retries < maxRetries) {
+    try {
+      await axios.get(url)
+    } catch (error) {
+      return
+    }
+
+    retries++
+    await new Promise((resolve) => setTimeout(resolve, retryIntervalMs))
+  }
+  throw new Error(
+    `URL ${url} is still responding after ${maxRetries * retryIntervalMs}ms`,
+  )
 }
 
 const coderMainPath = (): string => {

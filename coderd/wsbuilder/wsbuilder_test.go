@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -649,9 +650,9 @@ func withActiveVersion(params []database.TemplateVersionParameter) func(mTx *dbm
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},
 			FileID:      activeFileID,
-			StartedAt:   sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:   time.Now(),
-			CompletedAt: sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), activeVersionID).
 			Times(1)
@@ -689,9 +690,9 @@ func withInactiveVersion(params []database.TemplateVersionParameter) func(mTx *d
 				provisionerdserver.TagScope: provisionerdserver.ScopeUser,
 			},
 			FileID:      inactiveFileID,
-			StartedAt:   sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:   sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:   time.Now(),
-			CompletedAt: sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 		paramsCall := mTx.EXPECT().GetTemplateVersionParameters(gomock.Any(), inactiveVersionID).
 			Times(1)
@@ -728,9 +729,9 @@ func withLastBuildFound(mTx *dbmock.MockStore) {
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			FileID:         inactiveFileID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			StartedAt:      sql.NullTime{Time: database.Now(), Valid: true},
+			StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
 			UpdatedAt:      time.Now(),
-			CompletedAt:    sql.NullTime{Time: database.Now(), Valid: true},
+			CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}, nil)
 }
 

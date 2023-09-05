@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -77,10 +78,10 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
 				ID:               workspace.LatestBuild.ID,
-				UpdatedAt:        database.Now(),
+				UpdatedAt:        dbtime.Now(),
 				ProvisionerState: dbBuild.ProvisionerState,
 				Deadline:         dbBuild.Deadline,
-				MaxDeadline:      database.Now().Add(maxTTL),
+				MaxDeadline:      dbtime.Now().Add(maxTTL),
 			})
 			require.NoError(t, err)
 		}
@@ -146,11 +147,11 @@ func TestWorkspaceActivityBump(t *testing.T) {
 
 			// If the workspace has a max deadline, the deadline must not exceed
 			// it.
-			if maxTTL != 0 && database.Now().Add(ttl).After(workspace.LatestBuild.MaxDeadline.Time) {
+			if maxTTL != 0 && dbtime.Now().Add(ttl).After(workspace.LatestBuild.MaxDeadline.Time) {
 				require.Equal(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
 				return
 			}
-			require.WithinDuration(t, database.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
+			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
 		}
 	}
 

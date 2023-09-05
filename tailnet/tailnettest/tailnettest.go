@@ -21,7 +21,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
-//go:generate mockgen -destination ./multiagentmock.go -package tailnettest github.com/coder/coder/tailnet MultiAgentConn
+//go:generate mockgen -destination ./multiagentmock.go -package tailnettest github.com/coder/coder/v2/tailnet MultiAgentConn
 
 // RunDERPAndSTUN creates a DERP mapping for tests.
 func RunDERPAndSTUN(t *testing.T) (*tailcfg.DERPMap, *derp.Server) {

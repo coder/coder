@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -784,9 +785,9 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 
-func mustSchedule(t *testing.T, s string) *schedule.Schedule {
+func mustSchedule(t *testing.T, s string) *cron.Schedule {
 	t.Helper()
-	sched, err := schedule.Weekly(s)
+	sched, err := cron.Weekly(s)
 	require.NoError(t, err)
 	return sched
 }

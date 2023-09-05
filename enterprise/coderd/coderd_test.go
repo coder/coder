@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/audit"
@@ -112,8 +113,8 @@ func TestEntitlements(t *testing.T) {
 		//nolint:gocritic // unit test
 		ctx := testDBAuthzRole(context.Background())
 		_, err = api.Database.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAuditLog: 1,
@@ -142,8 +143,8 @@ func TestEntitlements(t *testing.T) {
 		ctx := context.Background()
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureAuditLog: 1,
@@ -154,18 +155,18 @@ func TestEntitlements(t *testing.T) {
 		// Expired
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(-1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(-1, 0, 0),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
-				ExpiresAt: database.Now().AddDate(-1, 0, 0),
+				ExpiresAt: dbtime.Now().AddDate(-1, 0, 0),
 			}),
 		})
 		require.NoError(t, err)
 		// Invalid
 		//nolint:gocritic // unit test
 		_, err = api.Database.InsertLicense(testDBAuthzRole(ctx), database.InsertLicenseParams{
-			UploadedAt: database.Now(),
-			Exp:        database.Now().AddDate(1, 0, 0),
+			UploadedAt: dbtime.Now(),
+			Exp:        dbtime.Now().AddDate(1, 0, 0),
 			JWT:        "invalid",
 		})
 		require.NoError(t, err)

@@ -11400,30 +11400,7 @@ const docTemplate = `{
                 }
             }
         },
-        "healthcheck.AccessURLReport": {
-            "type": "object",
-            "properties": {
-                "access_url": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "healthy": {
-                    "type": "boolean"
-                },
-                "healthz_response": {
-                    "type": "string"
-                },
-                "reachable": {
-                    "type": "boolean"
-                },
-                "status_code": {
-                    "type": "integer"
-                }
-            }
-        },
-        "healthcheck.DERPNodeReport": {
+        "derphealth.NodeReport": {
             "type": "object",
             "properties": {
                 "can_exchange_messages": {
@@ -11466,14 +11443,14 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stun": {
-                    "$ref": "#/definitions/healthcheck.DERPStunReport"
+                    "$ref": "#/definitions/derphealth.StunReport"
                 },
                 "uses_websocket": {
                     "type": "boolean"
                 }
             }
         },
-        "healthcheck.DERPRegionReport": {
+        "derphealth.RegionReport": {
             "type": "object",
             "properties": {
                 "error": {
@@ -11485,7 +11462,7 @@ const docTemplate = `{
                 "node_reports": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/healthcheck.DERPNodeReport"
+                        "$ref": "#/definitions/derphealth.NodeReport"
                     }
                 },
                 "region": {
@@ -11493,7 +11470,7 @@ const docTemplate = `{
                 }
             }
         },
-        "healthcheck.DERPReport": {
+        "derphealth.Report": {
             "type": "object",
             "properties": {
                 "error": {
@@ -11517,12 +11494,12 @@ const docTemplate = `{
                 "regions": {
                     "type": "object",
                     "additionalProperties": {
-                        "$ref": "#/definitions/healthcheck.DERPRegionReport"
+                        "$ref": "#/definitions/derphealth.RegionReport"
                     }
                 }
             }
         },
-        "healthcheck.DERPStunReport": {
+        "derphealth.StunReport": {
             "type": "object",
             "properties": {
                 "canSTUN": {
@@ -11533,6 +11510,29 @@ const docTemplate = `{
                 },
                 "error": {
                     "type": "string"
+                }
+            }
+        },
+        "healthcheck.AccessURLReport": {
+            "type": "object",
+            "properties": {
+                "access_url": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "healthy": {
+                    "type": "boolean"
+                },
+                "healthz_response": {
+                    "type": "string"
+                },
+                "reachable": {
+                    "type": "boolean"
+                },
+                "status_code": {
+                    "type": "integer"
                 }
             }
         },
@@ -11570,7 +11570,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/healthcheck.DatabaseReport"
                 },
                 "derp": {
-                    "$ref": "#/definitions/healthcheck.DERPReport"
+                    "$ref": "#/definitions/derphealth.Report"
                 },
                 "failing_sections": {
                     "description": "FailingSections is a list of sections that have failed their healthcheck.",
