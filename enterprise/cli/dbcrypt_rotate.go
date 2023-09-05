@@ -93,7 +93,7 @@ func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("get users: %w", err)
 			}
-			logger.Info(ctx, "encrypting user tokens", slog.F("count", len(users)))
+			logger.Info(ctx, "encrypting user tokens", slog.F("user_count", len(users)))
 			for idx, usr := range users {
 				err := cryptDB.InTx(func(tx database.Store) error {
 					userLinks, err := tx.GetUserLinksByUserID(ctx, usr.ID)
