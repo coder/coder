@@ -173,6 +173,19 @@ func (s Schedule) Min() time.Duration {
 	return durMin
 }
 
+// TimeParsed returns the parsed time.Time of the minute and hour fields. If the
+// time cannot be represented in a valid time.Time, a zero time is returned.
+func (s Schedule) TimeParsed() time.Time {
+	minute := strings.Fields(s.cronStr)[0]
+	hour := strings.Fields(s.cronStr)[1]
+	maybeTime := fmt.Sprintf("%s:%s", hour, minute)
+	t, err := time.ParseInLocation("15:4", maybeTime, s.sched.Location)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
 // Time returns a humanized form of the minute and hour fields.
 func (s Schedule) Time() string {
 	minute := strings.Fields(s.cronStr)[0]

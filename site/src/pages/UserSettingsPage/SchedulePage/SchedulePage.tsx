@@ -1,57 +1,60 @@
 import { FC, useEffect, useState } from "react"
 import { Section } from "../../../components/SettingsLayout/Section"
-import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
-import { useAuth } from "components/AuthProvider/AuthProvider"
+import { ScheduleForm } from "./ScheduleForm"
 import { useMe } from "hooks/useMe"
-import { usePermissions } from "hooks/usePermissions"
-import { UserQuietHoursScheduleResponse } from "api/typesGenerated"
+import { UpdateUserQuietHoursScheduleRequest, UserQuietHoursScheduleResponse } from "api/typesGenerated"
 import * as API from "api/api"
+import { Loader } from "components/Loader/Loader"
 
 export const SchedulePage: FC = () => {
-  const [authState, authSend] = useAuth()
   const me = useMe()
-  const permissions = usePermissions()
-  const { updateProfileError } = authState.context
-  const canEditUsers = permissions && permissions.updateUsers
 
   const [quietHoursSchedule, setQuietHoursSchedule] = useState<UserQuietHoursScheduleResponse | undefined>(undefined)
-  const [quietHoursScheduleError, setQuietHoursScheduleError] = useState<string>("")
+  const [quietHoursSubmitting, setQuietHoursSubmitting] = useState<boolean>(false)
+  const [quietHoursScheduleError, setQuietHoursScheduleError] = useState<unknown>("")
 
   useEffect(() => {
     setQuietHoursSchedule(undefined)
+    setQuietHoursScheduleError(undefined)
     API.getUserQuietHoursSchedule(me.id)
       .then(response => {
         setQuietHoursSchedule(response)
-        setQuietHoursScheduleError("")
+        setQuietHoursScheduleError(undefined)
       })
       .catch(error => {
         setQuietHoursSchedule(undefined)
-        setQuietHoursScheduleError(error.message)
+        setQuietHoursScheduleError(error)
       })
   }, [me.id])
 
+  const onSubmit = async (data: UpdateUserQuietHoursScheduleRequest) => {
+    setQuietHoursSubmitting(true)
+    API.updateUserQuietHoursSchedule(me.id, data)
+      .then(response => {
+        setQuietHoursSchedule(response)
+        setQuietHoursSubmitting(false)
+        setQuietHoursScheduleError(undefined)
+      })
+      .catch(error => {
+        setQuietHoursSubmitting(false)
+        setQuietHoursScheduleError(error)
+      })
+  }
+
   return (
     <Section title="Schedule" description="Manage your quiet hours schedule">
-      <pre>
-        {JSON.stringify(quietHoursSchedule, null, 2)}
+      { quietHoursSchedule === undefined && (
+        <Loader />
+      )}
 
-        {quietHoursScheduleError}
-      </pre>
-      <AccountForm
-        editable={Boolean(canEditUsers)}
-        email={me.email}
-        updateProfileError={updateProfileError}
-        isLoading={authState.matches("signedIn.profile.updatingProfile")}
-        initialValues={{
-          username: me.username,
-        }}
-        onSubmit={(data) => {
-          authSend({
-            type: "UPDATE_PROFILE",
-            data,
-          })
-        }}
-      />
+      { quietHoursSchedule !== undefined && (
+        <ScheduleForm
+          submitting={quietHoursSubmitting}
+          initialValues={quietHoursSchedule}
+          updateErr={quietHoursScheduleError}
+          onSubmit={onSubmit}
+        />
+      )}
     </Section>
   )
 }
