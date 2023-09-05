@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	baseDirs = [...]string{"./codersdk", "./coderd/healthcheck"}
+	baseDirs = [...]string{"./codersdk", "./coderd/healthcheck", "./coderd/healthcheck/derphealth"}
 	indent   = "  "
 )
 

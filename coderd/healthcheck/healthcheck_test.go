@@ -7,16 +7,17 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 )
 
 type testChecker struct {
-	DERPReport      healthcheck.DERPReport
+	DERPReport      derphealth.Report
 	AccessURLReport healthcheck.AccessURLReport
 	WebsocketReport healthcheck.WebsocketReport
 	DatabaseReport  healthcheck.DatabaseReport
 }
 
-func (c *testChecker) DERP(context.Context, *healthcheck.DERPReportOptions) healthcheck.DERPReport {
+func (c *testChecker) DERP(context.Context, *derphealth.ReportOptions) derphealth.Report {
 	return c.DERPReport
 }
 
@@ -43,7 +44,7 @@ func TestHealthcheck(t *testing.T) {
 	}{{
 		name: "OK",
 		checker: &testChecker{
-			DERPReport: healthcheck.DERPReport{
+			DERPReport: derphealth.Report{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -61,7 +62,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "DERPFail",
 		checker: &testChecker{
-			DERPReport: healthcheck.DERPReport{
+			DERPReport: derphealth.Report{
 				Healthy: false,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -79,7 +80,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "AccessURLFail",
 		checker: &testChecker{
-			DERPReport: healthcheck.DERPReport{
+			DERPReport: derphealth.Report{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -97,7 +98,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "WebsocketFail",
 		checker: &testChecker{
-			DERPReport: healthcheck.DERPReport{
+			DERPReport: derphealth.Report{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{
@@ -115,7 +116,7 @@ func TestHealthcheck(t *testing.T) {
 	}, {
 		name: "DatabaseFail",
 		checker: &testChecker{
-			DERPReport: healthcheck.DERPReport{
+			DERPReport: derphealth.Report{
 				Healthy: true,
 			},
 			AccessURLReport: healthcheck.AccessURLReport{

@@ -17,6 +17,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 )
@@ -36,8 +37,16 @@ type NotAuthorizedError struct {
 	Err error
 }
 
+// Ensure we implement the IsUnauthorized interface.
+var _ httpapiconstraints.IsUnauthorizedError = (*NotAuthorizedError)(nil)
+
 func (e NotAuthorizedError) Error() string {
 	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
+}
+
+// IsUnauthorized implements the IsUnauthorized interface.
+func (NotAuthorizedError) IsUnauthorized() bool {
+	return true
 }
 
 // Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.

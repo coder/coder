@@ -2078,6 +2078,11 @@ export const MockWorkspaceBuildParameter3: TypesGen.WorkspaceBuildParameter = {
   value: "my-database",
 }
 
+export const MockWorkspaceBuildParameter4: TypesGen.WorkspaceBuildParameter = {
+  name: MockTemplateVersionParameter4.name,
+  value: "immutable-value",
+}
+
 export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   name: MockTemplateVersionParameter5.name,
   value: "5",

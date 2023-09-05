@@ -17,6 +17,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
 	"github.com/coder/coder/v2/provisionersdk"
 )
 
@@ -71,6 +72,12 @@ type JobErrorCode string
 const (
 	RequiredTemplateVariables JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
 )
+
+// JobIsMissingParameterErrorCode returns whether the error is a missing parameter error.
+// This can indicate to consumers that they should check parameters.
+func JobIsMissingParameterErrorCode(code JobErrorCode) bool {
+	return string(code) == runner.MissingParameterErrorCode
+}
 
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {

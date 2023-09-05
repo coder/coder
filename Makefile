@@ -471,7 +471,8 @@ gen: \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
 	site/.eslintignore \
-	site/e2e/provisionerGenerated.ts
+	site/e2e/provisionerGenerated.ts \
+	examples/examples.gen.json
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -494,6 +495,7 @@ gen/mark-fresh:
 		site/.prettierignore \
 		site/.eslintignore \
 		site/e2e/provisionerGenerated.ts \
+		examples/examples.gen.json \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -545,6 +547,10 @@ site/e2e/provisionerGenerated.ts:
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
+
+examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
+	go run ./scripts/examplegen/main.go > examples/examples.gen.json
+
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
 
@@ -552,7 +558,7 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	go run scripts/metricsdocgen/main.go
 	pnpm run format:write:only ./docs/admin/prometheus.md
 
-docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
+docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	BASE_PATH="." go run ./scripts/clidocgen
 	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
@@ -605,7 +611,7 @@ site/.prettierrc.yaml: .prettierrc.yaml
 	# - ./ -> ../
 	# - ./site -> ./
 	yq \
-		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./"))' \
+		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./") | sub("../!"; "!../"))' \
 		"$<" >> "$@"
 
 # Combine .gitignore with .prettierignore.include to generate .prettierignore.
