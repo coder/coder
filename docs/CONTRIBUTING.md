@@ -113,7 +113,7 @@ this:
 > Note: PR deployment will be re-deployed automatically when the PR is updated.
 > It will use the last values automatically for redeployment.
 
-> You need to be a member or collaborator of the of [coder](github.com/coder)
+> You need to be a member or collaborator of the of [coder](https://github.com/coder)
 > GitHub organization to be able to deploy a PR.
 
 Once the deployment is finished, a unique link and credentials will be posted in
