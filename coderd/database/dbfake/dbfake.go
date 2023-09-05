@@ -672,26 +672,6 @@ func (q *FakeQuerier) isEveryoneGroup(id uuid.UUID) bool {
 	return false
 }
 
-func (q *FakeQuerier) insertDBCryptKeyNoLock(_ context.Context, arg database.InsertDBCryptKeyParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	for _, key := range q.dbcryptKeys {
-		if key.Number == arg.Number {
-			return errDuplicateKey
-		}
-	}
-
-	q.dbcryptKeys = append(q.dbcryptKeys, database.DBCryptKey{
-		Number:          arg.Number,
-		ActiveKeyDigest: sql.NullString{String: arg.ActiveKeyDigest, Valid: true},
-		Test:            arg.Test,
-	})
-	return nil
-}
-
 func (q *FakeQuerier) GetActiveDBCryptKeys(_ context.Context) ([]database.DBCryptKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3918,9 +3898,24 @@ func (q *FakeQuerier) InsertAuditLog(_ context.Context, arg database.InsertAudit
 	return alog, nil
 }
 
-func (q *FakeQuerier) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
-	// This only ever gets called inside a transaction, so we need to not lock.
-	return q.insertDBCryptKeyNoLock(ctx, arg)
+func (q *FakeQuerier) InsertDBCryptKey(_ context.Context, arg database.InsertDBCryptKeyParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for _, key := range q.dbcryptKeys {
+		if key.Number == arg.Number {
+			return errDuplicateKey
+		}
+	}
+
+	q.dbcryptKeys = append(q.dbcryptKeys, database.DBCryptKey{
+		Number:          arg.Number,
+		ActiveKeyDigest: sql.NullString{String: arg.ActiveKeyDigest, Valid: true},
+		Test:            arg.Test,
+	})
+	return nil
 }
 
 func (q *FakeQuerier) InsertDERPMeshKey(_ context.Context, id string) error {
