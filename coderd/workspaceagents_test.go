@@ -519,12 +519,12 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 		err := agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
 			Logs: []agentsdk.Log{
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "startup",
 					Source:    codersdk.WorkspaceAgentLogSourceStartupScript,
 				},
 				{
-					CreatedAt: database.Now(),
+					CreatedAt: dbtime.Now(),
 					Output:    "envbuilder",
 					Source:    codersdk.WorkspaceAgentLogSourceEnvbuilder,
 				},
