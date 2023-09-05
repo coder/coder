@@ -185,12 +185,6 @@ To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
 (e.g. `http_proxy`) are also respected in this case.
 
-## Configuring Coder behind a reverse proxy
-
-To configure Coder behind a revres proxy, see our
-[reverse-proxy](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
-example docs.
-
 ## Up Next
 
 - [Learn how to upgrade Coder](./upgrade.md).
