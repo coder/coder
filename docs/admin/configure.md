@@ -188,7 +188,7 @@ To configure Coder behind a corporate proxy, set the environment variables
 ## Configuring Coder behind a reverse proxy
 
 To configure Coder behind a revres proxy, see our
-[web-server](https://github.com/RaineAllDay/coder/tree/main/examples/web-server)
+[reverse-proxy](https://coder.com/docs/v2/latest/admin/configure#tls--reverse-proxy)
 example docs.
 
 ## Up Next
