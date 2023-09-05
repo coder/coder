@@ -446,6 +446,30 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err, "no error should be returned")
 		require.Empty(t, keys, "no keys should be present")
 	})
+
+	t.Run("PrimaryRevoked", func(t *testing.T) {
+		t.Parallel()
+		// Given: a cipher is loaded
+		cipher := initCipher(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		rawDB, _ := dbtestutil.NewDB(t)
+
+		// And: the cipher is revoked before we init the crypt db
+		err := rawDB.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+			Number:          1,
+			ActiveKeyDigest: cipher.HexDigest(),
+			Test:            fakeBase64RandomData(t, 32),
+		})
+		require.NoError(t, err, "no error should be returned")
+		err = rawDB.RevokeDBCryptKey(ctx, cipher.HexDigest())
+		require.NoError(t, err, "no error should be returned")
+
+		// Then: when we init the crypt db, we error because the key is revoked
+		_, err = New(ctx, rawDB, cipher)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "has been revoked")
+	})
 }
 
 func requireEncryptedEquals(t *testing.T, c Cipher, value, expected string) {

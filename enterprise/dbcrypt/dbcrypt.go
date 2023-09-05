@@ -343,14 +343,24 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 		}
 
 		var highestNumber int32
+		var activeCipherFound bool
 		for _, k := range ks {
-			if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == db.primaryCipherDigest {
-				// This is our currently active key. We don't need to do anything further.
-				return nil
+			// If our primary key has been revoked, then we can't do anything.
+			if k.RevokedKeyDigest.Valid && k.RevokedKeyDigest.String == db.primaryCipherDigest {
+				return xerrors.Errorf("primary encryption key %q has been revoked", db.primaryCipherDigest)
 			}
+
+			if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == db.primaryCipherDigest {
+				activeCipherFound = true
+			}
+
 			if k.Number > highestNumber {
 				highestNumber = k.Number
 			}
+		}
+
+		if activeCipherFound {
+			return nil
 		}
 
 		// If we get here, then we have a new key that we need to insert.
