@@ -105,6 +105,17 @@ CODER_ARCH_IMAGE_PREREQUISITES := \
 	build/coder_$(VERSION)_%.tar.gz
 endif
 
+# used to decide if we can build with boringcrypto
+ifeq ($(OS),Windows_NT)
+	local_os:=Windows
+	local_arch:="" #ignored, no boringcrypto support for Windows
+else
+	local_os:=$(shell uname -s)
+	local_arch:=$(shell uname -m)
+endif
+ifeq ($(local_arch),x86_64)
+	local_arch:=amd64
+endif
 
 clean:
 	rm -rf build site/out
@@ -220,6 +231,12 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 	)
 	if [ "$$mode" == "slim" ]; then
 		build_args+=(--slim)
+	fi
+
+	# boringcrypto is only supported on Linux
+	# boringcrypto uses CGO, which isn't supported when cross compiling architectures
+	if [[ "$$os" == "linux" ]] && [[ "${local_os}" == "Linux" ]] && [[ "$$arch" == "${local_arch}" ]]; then
+		build_args+=(--boringcrypto)
 	fi
 
 	./scripts/build_go.sh "$${build_args[@]}"

@@ -151,6 +151,22 @@ jobs:
           AC_APIKEY_ID: ${{ secrets.AC_APIKEY_ID }}
           AC_APIKEY_FILE: /tmp/apple_apikey.p8
 
+      - name: Check Boring Crypto
+        run: |
+          set -euo pipefail
+
+          version="$(./scripts/version.sh)"
+          go tool nm build/coder_"$version"_linux_amd64 | grep "_Cfunc__goboringcrypto_" &>/dev/null
+          if [[ "$?" == "1" ]]; then
+            echo "build/coder_${version}_linux_amd64 is not built with Boring Crypto"
+            exit 1
+          fi
+          go tool nm build/coder-slim_"$version"_linux_amd64 | grep "_Cfunc__goboringcrypto_" &>/dev/null
+          if [[ "$?" == "1" ]]; then
+            echo "build/coder-slim_${version}_linux_amd64 is not built with Boring Crypto"
+            exit 1
+          fi
+
       - name: Delete Apple Developer certificate and API key
         run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
 
