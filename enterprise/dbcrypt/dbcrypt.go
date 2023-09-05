@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 
-	"github.com/lib/pq"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 
@@ -49,7 +47,8 @@ func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.St
 		Store:               db,
 	}
 	// nolint: gocritic // This is allowed.
-	if err := dbc.ensureEncrypted(dbauthz.AsSystemRestricted(ctx)); err != nil {
+	authCtx := dbauthz.AsSystemRestricted(ctx)
+	if err := dbc.ensureEncryptedWithRetry(authCtx); err != nil {
 		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)
 	}
 	return dbc, nil
@@ -271,7 +270,10 @@ func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	}
 
 	if field == nil {
-		return nil
+		return xerrors.Errorf("developer error: encryptField called with nil field")
+	}
+	if digest == nil {
+		return xerrors.Errorf("developer error: encryptField called with nil digest")
 	}
 
 	encrypted, err := db.ciphers[db.primaryCipherDigest].Encrypt([]byte(*field))
@@ -334,6 +336,23 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	return nil
 }
 
+func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
+	var err error
+	for i := 0; i < 3; i++ {
+		err = db.ensureEncrypted(ctx)
+		if err == nil {
+			return nil
+		}
+		// If we get a serialization error, then we need to retry.
+		if !database.IsSerializedError(err) {
+			return err
+		}
+		// otherwise, retry
+	}
+	// If we get here, then we ran out of retries
+	return err
+}
+
 func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 	return db.InTx(func(s database.Store) error {
 		// Attempt to read the encrypted test fields of the currently active keys.
@@ -343,32 +362,31 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 		}
 
 		var highestNumber int32
+		var activeCipherFound bool
 		for _, k := range ks {
-			if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == db.primaryCipherDigest {
-				// This is our currently active key. We don't need to do anything further.
-				return nil
+			// If our primary key has been revoked, then we can't do anything.
+			if k.RevokedKeyDigest.Valid && k.RevokedKeyDigest.String == db.primaryCipherDigest {
+				return xerrors.Errorf("primary encryption key %q has been revoked", db.primaryCipherDigest)
 			}
+
+			if k.ActiveKeyDigest.Valid && k.ActiveKeyDigest.String == db.primaryCipherDigest {
+				activeCipherFound = true
+			}
+
 			if k.Number > highestNumber {
 				highestNumber = k.Number
 			}
 		}
 
+		if activeCipherFound {
+			return nil
+		}
+
 		// If we get here, then we have a new key that we need to insert.
-		// If this conflicts with another transaction, we do not need to retry as
-		// the other transaction will have inserted the key for us.
-		if err := db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
 			Number:          highestNumber + 1,
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
-		}); err != nil {
-			var pqErr *pq.Error
-			if xerrors.As(err, &pqErr) && pqErr.Code == "23505" {
-				// Unique constraint violation -> another transaction has inserted the key for us.
-				return nil
-			}
-			return err
-		}
-
-		return nil
+		})
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }

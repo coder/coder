@@ -8,10 +8,13 @@ import (
 	"io"
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 )
 
@@ -446,6 +449,70 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err, "no error should be returned")
 		require.Empty(t, keys, "no keys should be present")
 	})
+
+	t.Run("PrimaryRevoked", func(t *testing.T) {
+		t.Parallel()
+		// Given: a cipher is loaded
+		cipher := initCipher(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		rawDB, _ := dbtestutil.NewDB(t)
+
+		// And: the cipher is revoked before we init the crypt db
+		err := rawDB.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+			Number:          1,
+			ActiveKeyDigest: cipher.HexDigest(),
+			Test:            fakeBase64RandomData(t, 32),
+		})
+		require.NoError(t, err, "no error should be returned")
+		err = rawDB.RevokeDBCryptKey(ctx, cipher.HexDigest())
+		require.NoError(t, err, "no error should be returned")
+
+		// Then: when we init the crypt db, we error because the key is revoked
+		_, err = New(ctx, rawDB, cipher)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "has been revoked")
+	})
+
+	t.Run("Retry", func(t *testing.T) {
+		t.Parallel()
+		// Given: a cipher is loaded
+		cipher := initCipher(t)
+		ctx, cancel := context.WithCancel(context.Background())
+		testVal, err := cipher.Encrypt([]byte("coder"))
+		key := database.DBCryptKey{
+			Number:          1,
+			ActiveKeyDigest: sql.NullString{String: cipher.HexDigest(), Valid: true},
+			Test:            b64encode(testVal),
+		}
+		require.NoError(t, err)
+		t.Cleanup(cancel)
+
+		// And: a database that returns an error once when we try to serialize a key
+		ctrl := gomock.NewController(t)
+		mockDB := dbmock.NewMockStore(ctrl)
+
+		gomock.InOrder(
+			// First try: we get a serialization error.
+			expectInTx(mockDB),
+			mockDB.EXPECT().GetDBCryptKeys(gomock.Any()).Times(1).Return([]database.DBCryptKey{}, nil),
+			mockDB.EXPECT().InsertDBCryptKey(gomock.Any(), gomock.Any()).Times(1).Return(&pq.Error{Code: "40001"}),
+			// Second try: we get the key we wanted to insert initially.
+			expectInTx(mockDB),
+			mockDB.EXPECT().GetDBCryptKeys(gomock.Any()).Times(1).Return([]database.DBCryptKey{key}, nil),
+		)
+
+		_, err = New(ctx, mockDB, cipher)
+		require.NoError(t, err)
+	})
+}
+
+func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
+	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
+		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+			return f(mdb)
+		},
+	)
 }
 
 func requireEncryptedEquals(t *testing.T, c Cipher, value, expected string) {
