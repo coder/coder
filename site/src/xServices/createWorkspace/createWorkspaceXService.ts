@@ -173,7 +173,7 @@ export const createWorkspaceMachine =
           defaultBuildParameters,
           defaultName,
         }) => {
-          var templateVersionParameters
+          let templateVersionParameters
           if (versionId) {
             templateVersionParameters = { template_version_id: versionId }
           } else {
