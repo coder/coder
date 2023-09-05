@@ -49,7 +49,8 @@ func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.St
 		Store:               db,
 	}
 	// nolint: gocritic // This is allowed.
-	if err := dbc.ensureEncrypted(dbauthz.AsSystemRestricted(ctx)); err != nil {
+	authCtx := dbauthz.AsSystemRestricted(ctx)
+	if err := dbc.ensureEncryptedWithRetry(authCtx); err != nil {
 		return nil, xerrors.Errorf("ensure encrypted database fields: %w", err)
 	}
 	return dbc, nil
@@ -334,6 +335,22 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	return nil
 }
 
+func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
+	err := db.ensureEncrypted(ctx)
+	if err == nil {
+		return nil
+	}
+	// If we get a serialization error, then we need to retry.
+	var pqerr *pq.Error
+	if !xerrors.As(err, &pqerr) {
+		return err
+	}
+	if pqerr.Code != "40001" { // serialization_failure
+		return err
+	}
+	return db.ensureEncrypted(ctx)
+}
+
 func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 	return db.InTx(func(s database.Store) error {
 		// Attempt to read the encrypted test fields of the currently active keys.
@@ -364,21 +381,10 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 		}
 
 		// If we get here, then we have a new key that we need to insert.
-		// If this conflicts with another transaction, we do not need to retry as
-		// the other transaction will have inserted the key for us.
-		if err := db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+		return db.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
 			Number:          highestNumber + 1,
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
-		}); err != nil {
-			var pqErr *pq.Error
-			if xerrors.As(err, &pqErr) && pqErr.Code == "23505" {
-				// Unique constraint violation -> another transaction has inserted the key for us.
-				return nil
-			}
-			return err
-		}
-
-		return nil
+		})
 	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 }
