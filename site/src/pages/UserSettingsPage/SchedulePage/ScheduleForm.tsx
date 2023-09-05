@@ -2,13 +2,14 @@ import TextField from "@mui/material/TextField"
 import { FormikContextType, useFormik } from "formik"
 import { FC, useEffect, useState } from "react"
 import * as Yup from "yup"
-import {
-  getFormHelpers,
-} from "utils/formUtils"
+import { getFormHelpers } from "utils/formUtils"
 import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
-import { UpdateUserQuietHoursScheduleRequest, UserQuietHoursScheduleResponse } from "api/typesGenerated"
+import {
+  UpdateUserQuietHoursScheduleRequest,
+  UserQuietHoursScheduleResponse,
+} from "api/typesGenerated"
 import cronParser from "cron-parser"
 import MenuItem from "@mui/material/MenuItem"
 import Stack from "@mui/material/Stack"
@@ -50,13 +51,13 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   now,
 }) => {
   // Force a re-render every 15 seconds to update the "Next occurrence" field.
-  const [_, setTime] = useState<number>(Date.now());
+  const [_, setTime] = useState<number>(Date.now())
   useEffect(() => {
-    const interval = setInterval(() => setTime(Date.now()), 15000);
+    const interval = setInterval(() => setTime(Date.now()), 15000)
     return () => {
-      clearInterval(interval);
-    };
-  }, []);
+      clearInterval(interval)
+    }
+  }, [])
 
   const formInitialValues = {
     hours: 0,
@@ -79,32 +80,27 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         })
       },
     })
-  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(
-    form,
-    updateErr,
-  )
+  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, updateErr)
 
   return (
     <>
       <Form onSubmit={form.handleSubmit}>
         <FormFields>
-          {Boolean(updateErr) && (
-            <ErrorAlert error={updateErr} />
-          )}
+          {Boolean(updateErr) && <ErrorAlert error={updateErr} />}
 
           <p>
             Workspaces will only be turned off for updates (due to settings{" "}
             configured by template admins) when your configured quiet hours{" "}
-            start. Workspaces may still be automatically stopped at any{" "}
-            other time due to inactivity.
+            start. Workspaces may still be automatically stopped at any other
+            time due to inactivity.
           </p>
 
           {!initialValues.user_set && (
             <p>
-              You are currently using the default quiet hours schedule,{" "}
-              which is every day at <code>{initialValues.time}</code> in{" "}
-              <code>{initialValues.timezone}</code>. You can set a custom{" "}
-              quiet hours schedule below.
+              You are currently using the default quiet hours schedule, which is
+              every day at <code>{initialValues.time}</code> in{" "}
+              <code>{initialValues.timezone}</code>. You can set a custom quiet
+              hours schedule below.
             </p>
           )}
 
@@ -148,14 +144,23 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
             disabled
             fullWidth
             label="Cron schedule"
-            value={timeToCron(form.values.hours, form.values.minutes, form.values.timezone)}
+            value={timeToCron(
+              form.values.hours,
+              form.values.minutes,
+              form.values.timezone,
+            )}
           />
 
           <TextField
             disabled
             fullWidth
             label="Next occurrence"
-            value={formatNextRun(form.values.hours, form.values.minutes, form.values.timezone, now)}
+            value={formatNextRun(
+              form.values.hours,
+              form.values.minutes,
+              form.values.timezone,
+              now,
+            )}
           />
 
           <div>
@@ -551,7 +556,12 @@ const timeToCron = (hours: number, minutes: number, tz: string) => {
 }
 
 // evaluateNextRun returns a Date object of the next cron run time.
-const evaluateNextRun = (hours: number, minutes: number, tz: string, now: Date | undefined): Date => {
+const evaluateNextRun = (
+  hours: number,
+  minutes: number,
+  tz: string,
+  now: Date | undefined,
+): Date => {
   // The cron-parser package doesn't accept a timezone in the cron string, but
   // accepts it as an option.
   const cron = timeToCron(hours, minutes, "")
@@ -565,7 +575,12 @@ const evaluateNextRun = (hours: number, minutes: number, tz: string, now: Date |
   return parsed.next().toDate()
 }
 
-const formatNextRun = (hours: number, minutes: number, tz: string, now: Date | undefined): string => {
+const formatNextRun = (
+  hours: number,
+  minutes: number,
+  tz: string,
+  now: Date | undefined,
+): string => {
   const nowDjs = dayjs(now).tz(tz)
   const djs = dayjs(evaluateNextRun(hours, minutes, tz, now)).tz(tz)
   let str = djs.format("h:mm A")

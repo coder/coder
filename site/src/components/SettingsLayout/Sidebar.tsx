@@ -44,7 +44,8 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles()
   const { entitlements } = useDashboard()
-  const allowAutostopRequirement = entitlements.features.template_autostop_requirement.enabled
+  const allowAutostopRequirement =
+    entitlements.features.template_autostop_requirement.enabled
 
   return (
     <nav className={styles.sidebar}>
