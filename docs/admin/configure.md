@@ -187,7 +187,9 @@ To configure Coder behind a corporate proxy, set the environment variables
 
 ## Configuring Coder behinf a revrese proxy
 
-To configure Coder behind a revres proxy, see our [web-server](https://github.com/RaineAllDay/coder/tree/main/examples/web-server) example docs.
+To configure Coder behind a revres proxy, see our
+[web-server](https://github.com/RaineAllDay/coder/tree/main/examples/web-server)
+example docs.
 
 ## Up Next
 
