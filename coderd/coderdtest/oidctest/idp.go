@@ -104,9 +104,9 @@ func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeID
 	}
 }
 
-// WithRefreshHook is called when a refresh token is used. The email is
+// WithRefresh is called when a refresh token is used. The email is
 // the email of the user that is being refreshed assuming the claims are correct.
-func WithRefreshHook(hook func(email string) error) func(*FakeIDP) {
+func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookOnRefresh = hook
 	}

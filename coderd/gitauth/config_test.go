@@ -33,7 +33,7 @@ func TestRefreshToken(t *testing.T) {
 		t.Parallel()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but NoRefresh was set")
 					return xerrors.New("should not be called")
 				}),
@@ -66,7 +66,7 @@ func TestRefreshToken(t *testing.T) {
 		validated := false
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but NoRefresh was set")
 					return xerrors.New("should not be called")
 				}),
@@ -163,7 +163,7 @@ func TestRefreshToken(t *testing.T) {
 		validateCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but the token is not expired")
 					return xerrors.New("should not be called")
 				}),
@@ -197,7 +197,7 @@ func TestRefreshToken(t *testing.T) {
 		validateCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					t.Error("refresh on the IDP was called, but the token is not expired")
 					return xerrors.New("should not be called")
 				}),
@@ -228,7 +228,7 @@ func TestRefreshToken(t *testing.T) {
 		refreshCalls := 0
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithRefreshHook(func(_ string) error {
+				oidctest.WithRefresh(func(_ string) error {
 					refreshCalls++
 					return nil
 				}),
