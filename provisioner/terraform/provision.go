@@ -89,6 +89,8 @@ func (s *server) Plan(
 		}
 	}
 
+	// TODO Clean stale TF files
+
 	s.logger.Debug(ctx, "running initialization")
 	err := e.init(ctx, killCtx, sess)
 	if err != nil {

@@ -35,6 +35,9 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		stream: stream,
 		server: p.server,
 	}
+
+	// TODO Clean stale sessions in WorkDir
+
 	sessDir := fmt.Sprintf("Session%s", sessID)
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessDir)
 	err := os.MkdirAll(s.WorkDirectory, 0o700)
