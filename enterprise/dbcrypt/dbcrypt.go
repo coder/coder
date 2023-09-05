@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 
-	"github.com/lib/pq"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 
@@ -336,19 +334,20 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 }
 
 func (db *dbCrypt) ensureEncryptedWithRetry(ctx context.Context) error {
-	err := db.ensureEncrypted(ctx)
-	if err == nil {
-		return nil
+	var err error
+	for i := 0; i < 3; i++ {
+		err = db.ensureEncrypted(ctx)
+		if err == nil {
+			return nil
+		}
+		// If we get a serialization error, then we need to retry.
+		if !database.IsSerializedError(err) {
+			return err
+		}
+		// otherwise, retry
 	}
-	// If we get a serialization error, then we need to retry.
-	var pqerr *pq.Error
-	if !xerrors.As(err, &pqerr) {
-		return err
-	}
-	if pqerr.Code != "40001" { // serialization_failure
-		return err
-	}
-	return db.ensureEncrypted(ctx)
+	// If we get here, then we ran out of retries
+	return err
 }
 
 func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
