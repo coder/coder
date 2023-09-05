@@ -455,7 +455,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
-			codersdk.FeatureExternalTokenEncryption:    api.ExternalTokenEncryption != nil,
+			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) != 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateAutostopRequirement depends on
