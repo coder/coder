@@ -661,7 +661,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 // @Param workspaceagent path string true "Workspace agent ID" format(uuid)
 // @Param source query codersdk.WorkspaceAgentLogSource true "Log source"
 // @Success 204
-// @Router /workspaceagents/{workspaceagent}/logs [delete]
+// @Router /workspaceagents/me/logs [delete]
 func (api *API) deleteWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
