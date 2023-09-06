@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react"
-import { MockUser2 } from "../../testHelpers/entities"
-import { render } from "../../testHelpers/renderHelpers"
+import { MockUser2 } from "../../../../testHelpers/entities"
+import { render } from "../../../../testHelpers/renderHelpers"
 import { AccountForm, AccountFormValues } from "./SettingsAccountForm"
 
 // NOTE: it does not matter what the role props of MockUser are set to,

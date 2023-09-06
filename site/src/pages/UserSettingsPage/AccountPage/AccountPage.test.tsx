@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 import * as API from "../../../api/api"
-import * as AccountForm from "../../../components/SettingsAccountForm/SettingsAccountForm"
+import * as AccountForm from "./SettingsAccountForm/SettingsAccountForm"
 import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import * as AuthXService from "../../../xServices/auth/authXService"
 import { AccountPage } from "./AccountPage"

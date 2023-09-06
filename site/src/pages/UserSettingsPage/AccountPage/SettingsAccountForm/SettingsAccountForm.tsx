@@ -6,8 +6,8 @@ import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
-} from "../../utils/formUtils"
-import { LoadingButton } from "../LoadingButton/LoadingButton"
+} from "../../../../utils/formUtils"
+import { LoadingButton } from "../../../../components/LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
 
