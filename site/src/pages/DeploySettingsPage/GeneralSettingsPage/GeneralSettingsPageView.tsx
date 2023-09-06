@@ -6,7 +6,7 @@ import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
-import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
+import { WorkspaceSection } from "pages/DeploySettingsPage/GeneralSettingsPage/WorkspaceSection/WorkspaceSection"
 import { useDeploymentOptions } from "utils/deployOptions"
 import { docs } from "utils/docs"
 

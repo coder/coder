@@ -1,7 +1,7 @@
 import Paper from "@mui/material/Paper"
 import { makeStyles } from "@mui/styles"
 import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
-import { combineClasses } from "../../utils/combineClasses"
+import { combineClasses } from "../../../../utils/combineClasses"
 
 export interface WorkspaceSectionProps {
   /**
