@@ -6,10 +6,7 @@ import {
   MockEntitlementsWithScheduling,
   MockExperiments,
 } from "testHelpers/entities"
-import {
-  WorkspaceStats,
-  WorkspaceStatsProps,
-} from "../WorkspaceStats/WorkspaceStats"
+import { WorkspaceStats, WorkspaceStatsProps } from "./WorkspaceStats"
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
 
 export default {

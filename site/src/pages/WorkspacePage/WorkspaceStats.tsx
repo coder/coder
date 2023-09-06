@@ -8,7 +8,7 @@ import {
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
 } from "utils/workspace"
-import { Workspace } from "../../api/typesGenerated"
+import { Workspace } from "../../../api/typesGenerated"
 import { Stats, StatsItem } from "components/Stats/Stats"
 import upperFirst from "lodash/upperFirst"
 import { autostartDisplay, autostopDisplay } from "utils/schedule"
