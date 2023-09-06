@@ -14,6 +14,7 @@ overrides:
       - ../README.md
       - ../docs/api/**/*.md
       - ../docs/cli/**/*.md
+      - ../docs/changelogs/*.md
       - ../.github/**/*.{yaml,yml,toml}
       - ../scripts/**/*.{yaml,yml,toml}
     options:
