@@ -3,11 +3,14 @@ package terraform
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"cdr.dev/slog"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -253,9 +256,49 @@ func logTerraformEnvVars(sink logSink) {
 // Sample cachePath: /Users/<username>/Library/Caches/coder/provisioner-<N>/tf
 func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.Time, logger slog.Logger) error {
 	// Review cached Terraform plugins
-	// TODO
+
+	// Filter directory trees matching pattern: <repositoryURL>/<company>/<plugin>/<version>/<distribution>
+	filterFunc := func(path string, info os.FileInfo) bool {
+		if !info.IsDir() {
+			return false
+		}
+
+		relativePath, err := filepath.Rel(cachePath, path)
+		if err != nil {
+			logger.Error(ctx, "unable to evaluate a relative path (base: %s, target: %s): %w", cachePath, path, err)
+			return false
+		}
+
+		parts := strings.Split(relativePath, string(filepath.Separator))
+		if len(parts) >= 5 {
+			return false
+		}
+		return true
+	}
+
+	var pluginPaths []string
+	err := filepath.Walk(cachePath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if !filterFunc(path, info) {
+			return nil
+		}
+
+		logger.Debug(ctx, "Plugin directory discovered: %s", path)
+		pluginPaths = append(pluginPaths, path)
+		return nil
+	})
+	if err != nil {
+		return xerrors.Errorf("unable to walk through cache directory %q: %w", cachePath, err)
+	}
 
 	// Identify stale plugins
+	var stalePlugins []string
+	for _, pluginPath := range pluginPaths {
+
+	}
 	// TODO
 
 	// Remove stale plugins
