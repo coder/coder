@@ -3,7 +3,10 @@ Usage: coder server dbcrypt
 Manage database encryption.
 
 [1mSubcommands[0m
-    rotate    Rotate database encryption keys.
+    decrypt    Decrypt a previously encrypted database.
+    delete     Delete all encrypted data from the database. THIS IS A
+               DESTRUCTIVE OPERATION.
+    rotate     Rotate database encryption keys.
 
 ---
 Run `coder --help` for a list of global options.
