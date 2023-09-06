@@ -1,9 +1,9 @@
 import Paper from "@mui/material/Paper"
 import { makeStyles } from "@mui/styles"
 import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
-import { combineClasses } from "../../../../utils/combineClasses"
+import { combineClasses } from "utils/combineClasses"
 
-export interface WorkspaceSectionProps {
+export interface ChartSectionProps {
   /**
    * action appears in the top right of the section card
    */
@@ -12,7 +12,7 @@ export interface WorkspaceSectionProps {
   title?: string | JSX.Element
 }
 
-export const WorkspaceSection: FC<PropsWithChildren<WorkspaceSectionProps>> = ({
+export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
   action,
   children,
   contentsProps,
