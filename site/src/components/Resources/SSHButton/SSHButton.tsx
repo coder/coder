@@ -2,13 +2,13 @@ import Popover from "@mui/material/Popover"
 import { makeStyles } from "@mui/styles"
 import { SecondaryAgentButton } from "components/Resources/AgentButton"
 import { useRef, useState } from "react"
-import { CodeExample } from "../CodeExample/CodeExample"
-import { Stack } from "../Stack/Stack"
+import { CodeExample } from "../../CodeExample/CodeExample"
+import { Stack } from "../../Stack/Stack"
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
-} from "../Tooltips/HelpTooltip"
+} from "../../Tooltips/HelpTooltip"
 import { docs } from "utils/docs"
 
 export interface SSHButtonProps {
