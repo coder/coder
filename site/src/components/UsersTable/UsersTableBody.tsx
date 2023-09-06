@@ -15,7 +15,7 @@ import {
   TableRowSkeleton,
 } from "../TableLoader/TableLoader"
 import { TableRowMenu } from "../TableRowMenu/TableRowMenu"
-import { EditRolesButton } from "components/EditRolesButton/EditRolesButton"
+import { EditRolesButton } from "components/UsersTable/EditRolesButton/EditRolesButton"
 import { Stack } from "components/Stack/Stack"
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
 import dayjs from "dayjs"
