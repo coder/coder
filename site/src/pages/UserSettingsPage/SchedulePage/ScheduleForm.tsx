@@ -51,6 +51,8 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   now,
 }) => {
   // Force a re-render every 15 seconds to update the "Next occurrence" field.
+  // The app re-renders by itself occasionally but this is just to be sure it
+  // doesn't get stale.
   const [_, setTime] = useState<number>(Date.now())
   useEffect(() => {
     const interval = setInterval(() => setTime(Date.now()), 15000)
@@ -59,10 +61,22 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
     }
   }, [])
 
+  const preferredTimezone = getPreferredTimezone()
+  const allTimezones = getAllTimezones()
+  if (!allTimezones.includes(initialValues.timezone)) {
+    allTimezones.push(initialValues.timezone)
+  }
+  if (!allTimezones.includes(preferredTimezone)) {
+    allTimezones.push(preferredTimezone)
+  }
+  allTimezones.sort()
+
+  // If the user has a custom schedule, use that as the initial values.
+  // Otherwise, use midnight in their preferred timezone.
   const formInitialValues = {
     hours: 0,
     minutes: 0,
-    timezone: getPreferredTimezone(),
+    timezone: preferredTimezone,
   }
   if (initialValues.user_set) {
     formInitialValues.hours = parseInt(initialValues.time.split(":")[0], 10)
@@ -133,7 +147,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
             label="Timezone"
             select
           >
-            {getAllTimezones().map((tz) => (
+            {allTimezones.map((tz) => (
               <MenuItem key={tz} value={tz}>
                 {tz}
               </MenuItem>
@@ -538,13 +552,7 @@ const getAllTimezones = () => {
 }
 
 const getPreferredTimezone = () => {
-  const current = Intl.DateTimeFormat().resolvedOptions().timeZone
-  const all = getAllTimezones()
-  if (current !== "" && all.includes(current)) {
-    return current
-  }
-
-  return all[0]
+  return Intl.DateTimeFormat().resolvedOptions().timeZone
 }
 
 const timeToCron = (hours: number, minutes: number, tz: string) => {

@@ -8,6 +8,7 @@ import {
 } from "api/typesGenerated"
 import * as API from "api/api"
 import { Loader } from "components/Loader/Loader"
+import { displaySuccess } from "components/GlobalSnackbar/utils"
 
 export const SchedulePage: FC = () => {
   const me = useMe()
@@ -41,6 +42,7 @@ export const SchedulePage: FC = () => {
         setQuietHoursSchedule(response)
         setQuietHoursSubmitting(false)
         setQuietHoursScheduleError(undefined)
+        displaySuccess("Schedule updated successfully")
       })
       .catch((error) => {
         setQuietHoursSubmitting(false)
