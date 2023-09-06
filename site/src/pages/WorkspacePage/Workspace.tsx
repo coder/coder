@@ -15,7 +15,7 @@ import { BuildsTable } from "./BuildsTable/BuildsTable"
 import { Margins } from "components/Margins/Margins"
 import { Resources } from "components/Resources/Resources"
 import { Stack } from "components/Stack/Stack"
-import { WorkspaceActions } from "components/WorkspaceActions/WorkspaceActions"
+import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions"
 import { WorkspaceDeletedBanner } from "components/WorkspaceDeletedBanner/WorkspaceDeletedBanner"
 import { WorkspaceStats } from "components/WorkspaceStats/WorkspaceStats"
 import {

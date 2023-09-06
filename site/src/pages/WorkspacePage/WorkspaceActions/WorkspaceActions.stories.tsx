@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { Story } from "@storybook/react"
-import * as Mocks from "../../testHelpers/entities"
+import * as Mocks from "../../../testHelpers/entities"
 import { WorkspaceActions, WorkspaceActionsProps } from "./WorkspaceActions"
 
 export default {
