@@ -1309,7 +1309,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
-	provisioners := provisionerd.Provisioners{}
+	connector := provisionerd.LocalProvisioners{}
 	if cfg.Provisioner.DaemonsEcho {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		wg.Add(1)
@@ -1336,7 +1336,7 @@ func newProvisionerDaemon(
 				}
 			}
 		}()
-		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+		connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	} else {
 		tfDir := filepath.Join(cacheDir, "tf")
 		err = os.MkdirAll(tfDir, 0o700)
@@ -1375,7 +1375,7 @@ func newProvisionerDaemon(
 			}
 		}()
 
-		provisioners[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
 
 	debounce := time.Second
@@ -1390,7 +1390,7 @@ func newProvisionerDaemon(
 		JobPollDebounce:     debounce,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
-		Provisioners:        provisioners,
+		Connector:           connector,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
