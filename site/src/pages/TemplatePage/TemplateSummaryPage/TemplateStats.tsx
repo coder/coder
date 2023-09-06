@@ -6,7 +6,7 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates"
-import { Template, TemplateVersion } from "../../api/typesGenerated"
+import { Template, TemplateVersion } from "api/typesGenerated"
 
 const Language = {
   usedByLabel: "Used by",

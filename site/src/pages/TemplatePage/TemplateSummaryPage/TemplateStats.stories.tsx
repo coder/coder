@@ -1,9 +1,6 @@
 import { Story } from "@storybook/react"
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities"
-import {
-  TemplateStats,
-  TemplateStatsProps,
-} from "../TemplateStats/TemplateStats"
+import { TemplateStats, TemplateStatsProps } from "./TemplateStats"
 
 export default {
   title: "components/TemplateStats",
