@@ -197,7 +197,7 @@ require (
 )
 
 require (
-	github.com/djherbis/atime v1.1.0
+	github.com/djherbis/times v1.5.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
 )
 

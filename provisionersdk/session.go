@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/djherbis/atime"
+	"github.com/djherbis/times"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -343,8 +343,8 @@ func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time
 				return xerrors.Errorf("can't read %q directory info: %w", sessionDirPath, err)
 			}
 
-			lastAccessTime := atime.Get(fi)
-			if lastAccessTime.Add(staleSessionDaysThreshold).After(now) {
+			timeSpec := times.Get(fi)
+			if timeSpec.AccessTime().Add(staleSessionDaysThreshold).After(now) {
 				continue
 			}
 
