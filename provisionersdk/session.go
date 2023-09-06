@@ -43,7 +43,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 
 	err := cleanStaleSessions(s.Context(), p.opts.WorkDirectory, time.Now(), s.Logger)
 	if err != nil {
-		return xerrors.Errorf("clean state sessions %q: %w", s.WorkDirectory, err)
+		return xerrors.Errorf("clean stale sessions %q: %w", s.WorkDirectory, err)
 	}
 
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessionDir(sessID))
@@ -340,7 +340,7 @@ func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time
 			sessionDirPath := filepath.Join(workDirectory, dirName)
 			fi, err := entry.Info()
 			if err != nil {
-				return xerrors.Errorf("can't read %q directory info", sessionDirPath)
+				return xerrors.Errorf("can't read %q directory info: %w", sessionDirPath, err)
 			}
 
 			lastAccessTime := atime.Get(fi)
@@ -351,7 +351,7 @@ func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time
 			logger.Info(ctx, "remove stale session directory: %s", sessionDirPath)
 			err = os.RemoveAll(sessionDirPath)
 			if err != nil {
-				return xerrors.Errorf("can't remove %q directory", sessionDirPath)
+				return xerrors.Errorf("can't remove %q directory: %w", sessionDirPath, err)
 			}
 		}
 	}
