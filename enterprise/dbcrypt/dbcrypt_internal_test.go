@@ -71,6 +71,7 @@ func TestUserLinks(t *testing.T) {
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
 		t.Parallel()
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, crypt, database.User{})
 			link := dbgen.UserLink(t, crypt, database.UserLink{
@@ -168,6 +169,7 @@ func TestUserLinks(t *testing.T) {
 	t.Run("GetUserLinkByUserIDLoginType", func(t *testing.T) {
 		t.Parallel()
 		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, crypt, database.User{})
 			link := dbgen.UserLink(t, crypt, database.UserLink{
@@ -196,6 +198,7 @@ func TestUserLinks(t *testing.T) {
 		})
 
 		t.Run("DecryptErr", func(t *testing.T) {
+			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, db, database.User{})
 			link := dbgen.UserLink(t, db, database.UserLink{
@@ -394,12 +397,18 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err, "no error should be returned")
 		require.Len(t, keys, 1, "one key should be present")
 
+		// When: we init the crypt db with no keys
+		_, err = New(ctx, rawDB)
+		// Then: we error because we don't know how to decrypt the existing key
+		require.Error(t, err, "expected an error")
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr, "expected a decrypt error")
+
 		// When: we init the crypt db with key 2
 		_, err = New(ctx, rawDB, cipher2)
 
 		// Then: we error because the key is not revoked and we don't know how to decrypt it
-		require.Error(t, err)
-		var derr *DecryptFailedError
+		require.Error(t, err, "expected an error")
 		require.ErrorAs(t, err, &derr, "expected a decrypt error")
 
 		// When: the existing key is marked as having been revoked
@@ -426,7 +435,7 @@ func TestNew(t *testing.T) {
 		requireEncryptedEquals(t, cipher2, keys[1].Test, "coder")
 	})
 
-	t.Run("NoCipher", func(t *testing.T) {
+	t.Run("NoKeys", func(t *testing.T) {
 		t.Parallel()
 		// Given: no cipher is loaded
 		ctx, cancel := context.WithCancel(context.Background())
@@ -438,16 +447,30 @@ func TestNew(t *testing.T) {
 		require.Empty(t, keys, "no keys should be present")
 
 		// When: we init the crypt db with no ciphers
-		cs := make([]Cipher, 0)
-		_, err = New(ctx, rawDB, cs...)
+		_, err = New(ctx, rawDB)
 
-		// Then: an error is returned
-		require.ErrorContains(t, err, "no ciphers configured")
+		// Then: it should succeed.
+		require.NoError(t, err, "dbcrypt.New should work with no keys against an unencrypted database")
 
 		// Assert invariant: no keys are inserted
 		keys, err = rawDB.GetDBCryptKeys(ctx)
 		require.NoError(t, err, "no error should be returned")
 		require.Empty(t, keys, "no keys should be present")
+
+		// Insert a key
+		require.NoError(t, rawDB.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
+			Number:          1,
+			ActiveKeyDigest: "whatever",
+			Test:            fakeBase64RandomData(t, 32),
+		}))
+
+		// This should fail as we do not know how to decrypt the key:
+		_, err = New(ctx, rawDB)
+		require.Error(t, err)
+		// Until we revoke the key:
+		require.NoError(t, rawDB.RevokeDBCryptKey(ctx, "whatever"))
+		_, err = New(ctx, rawDB)
+		require.NoError(t, err, "the above should still hold if the key is revoked")
 	})
 
 	t.Run("PrimaryRevoked", func(t *testing.T) {
@@ -507,6 +530,92 @@ func TestNew(t *testing.T) {
 	})
 }
 
+func TestEncryptDecryptField(t *testing.T) {
+	t.Parallel()
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, ciphers := setup(t)
+		field := "coder"
+		digest := sql.NullString{}
+		require.NoError(t, cryptDB.encryptField(&field, &digest))
+		require.Equal(t, ciphers[0].HexDigest(), digest.String)
+		requireEncryptedEquals(t, ciphers[0], field, "coder")
+		require.NoError(t, cryptDB.decryptField(&field, digest))
+		require.Equal(t, "coder", field)
+	})
+
+	t.Run("NoKeys", func(t *testing.T) {
+		t.Parallel()
+		// With no keys, encryption and decryption are both no-ops.
+		_, cryptDB := setupNoCiphers(t)
+		field := "coder"
+		digest := sql.NullString{}
+		require.NoError(t, cryptDB.encryptField(&field, &digest))
+		require.Empty(t, digest.String)
+		require.Equal(t, "coder", field)
+		require.NoError(t, cryptDB.decryptField(&field, digest))
+		require.Equal(t, "coder", field)
+	})
+
+	t.Run("MissingKey", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, ciphers := setup(t)
+		field := "coder"
+		digest := sql.NullString{}
+		err := cryptDB.encryptField(&field, &digest)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], field, "coder")
+		require.Equal(t, ciphers[0].HexDigest(), digest.String)
+		require.True(t, digest.Valid)
+
+		digest = sql.NullString{String: "missing", Valid: true}
+		var derr *DecryptFailedError
+		err = cryptDB.decryptField(&field, digest)
+		require.Error(t, err)
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("CantEncryptOrDecryptNil", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, _ := setup(t)
+		require.ErrorContains(t, cryptDB.encryptField(nil, nil), "developer error")
+		require.ErrorContains(t, cryptDB.decryptField(nil, sql.NullString{}), "developer error")
+	})
+
+	t.Run("EncryptEmptyString", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, ciphers := setup(t)
+		field := ""
+		digest := sql.NullString{}
+		require.NoError(t, cryptDB.encryptField(&field, &digest))
+		requireEncryptedEquals(t, ciphers[0], field, "")
+		require.Equal(t, ciphers[0].HexDigest(), digest.String)
+		require.NoError(t, cryptDB.decryptField(&field, digest))
+		require.Empty(t, field)
+	})
+
+	t.Run("DecryptEmptyString", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, ciphers := setup(t)
+		field := ""
+		digest := sql.NullString{String: ciphers[0].HexDigest(), Valid: true}
+		err := cryptDB.decryptField(&field, digest)
+		// Currently this has to fail because the ciphertext must at least
+		// have a nonce. This may need to be changed depending on future
+		// ciphers.
+		require.ErrorContains(t, err, "ciphertext too short")
+	})
+
+	t.Run("InvalidBase64", func(t *testing.T) {
+		t.Parallel()
+		_, cryptDB, ciphers := setup(t)
+		field := "not valid base64"
+		digest := sql.NullString{String: ciphers[0].HexDigest(), Valid: true}
+		err := cryptDB.decryptField(&field, digest)
+		require.ErrorContains(t, err, "illegal base64 data")
+	})
+}
+
 func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
 		func(f func(store database.Store) error, _ *sql.TxOptions) error {
@@ -534,17 +643,25 @@ func initCipher(t *testing.T) *aes256 {
 	return c
 }
 
-func setup(t *testing.T) (db, cryptodb database.Store, cs []Cipher) {
+func setup(t *testing.T) (db database.Store, cryptDB *dbCrypt, cs []Cipher) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	rawDB, _ := dbtestutil.NewDB(t)
-
 	cs = append(cs, initCipher(t))
-	cryptDB, err := New(ctx, rawDB, cs...)
+	cdb, err := New(context.Background(), rawDB, cs...)
 	require.NoError(t, err)
-
+	cryptDB, ok := cdb.(*dbCrypt)
+	require.True(t, ok)
 	return rawDB, cryptDB, cs
+}
+
+func setupNoCiphers(t *testing.T) (db database.Store, cryptodb *dbCrypt) {
+	t.Helper()
+	rawDB, _ := dbtestutil.NewDB(t)
+	cdb, err := New(context.Background(), rawDB)
+	require.NoError(t, err)
+	cryptDB, ok := cdb.(*dbCrypt)
+	require.True(t, ok)
+	return rawDB, cryptDB
 }
 
 func fakeBase64RandomData(t *testing.T, n int) string {

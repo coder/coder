@@ -357,7 +357,7 @@ jobs:
           cd "$temp_dir"
 
           # Download checksums
-          checksums_url="$(gh release view --repo coder/coder v2.1.4 --json assets \
+          checksums_url="$(gh release view --repo coder/coder "v$coder_version" --json assets \
             | jq -r ".assets | map(.url) | .[]" \
             | grep -e ".checksums.txt\$")"
           wget "$checksums_url" -O checksums.txt

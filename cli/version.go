@@ -13,11 +13,12 @@ import (
 // versionInfo wraps the stuff we get from buildinfo so that it's
 // easier to emit in different formats.
 type versionInfo struct {
-	Version     string    `json:"version"`
-	BuildTime   time.Time `json:"build_time"`
-	ExternalURL string    `json:"external_url"`
-	Slim        bool      `json:"slim"`
-	AGPL        bool      `json:"agpl"`
+	Version      string    `json:"version"`
+	BuildTime    time.Time `json:"build_time"`
+	ExternalURL  string    `json:"external_url"`
+	Slim         bool      `json:"slim"`
+	AGPL         bool      `json:"agpl"`
+	BoringCrypto bool      `json:"boring_crypto"`
 }
 
 // String() implements Stringer
@@ -28,6 +29,9 @@ func (vi versionInfo) String() string {
 		_, _ = str.WriteString("(AGPL) ")
 	}
 	_, _ = str.WriteString(vi.Version)
+	if vi.BoringCrypto {
+		_, _ = str.WriteString(" BoringCrypto")
+	}
 
 	if !vi.BuildTime.IsZero() {
 		_, _ = str.WriteString(" " + vi.BuildTime.Format(time.UnixDate))
@@ -45,11 +49,12 @@ func (vi versionInfo) String() string {
 func defaultVersionInfo() *versionInfo {
 	buildTime, _ := buildinfo.Time()
 	return &versionInfo{
-		Version:     buildinfo.Version(),
-		BuildTime:   buildTime,
-		ExternalURL: buildinfo.ExternalURL(),
-		Slim:        buildinfo.IsSlim(),
-		AGPL:        buildinfo.IsAGPL(),
+		Version:      buildinfo.Version(),
+		BuildTime:    buildTime,
+		ExternalURL:  buildinfo.ExternalURL(),
+		Slim:         buildinfo.IsSlim(),
+		AGPL:         buildinfo.IsAGPL(),
+		BoringCrypto: buildinfo.IsBoringCrypto(),
 	}
 }
 

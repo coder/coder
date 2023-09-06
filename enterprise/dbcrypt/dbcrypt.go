@@ -17,9 +17,8 @@ import (
 const testValue = "coder"
 
 var (
-	ErrNotEnabled = xerrors.New("encryption is not enabled")
-	b64encode     = base64.StdEncoding.EncodeToString
-	b64decode     = base64.StdEncoding.DecodeString
+	b64encode = base64.StdEncoding.EncodeToString
+	b64decode = base64.StdEncoding.DecodeString
 )
 
 // DecryptFailedError is returned when decryption fails.
@@ -34,17 +33,16 @@ func (e *DecryptFailedError) Error() string {
 // New creates a database.Store wrapper that encrypts/decrypts values
 // stored at rest in the database.
 func New(ctx context.Context, db database.Store, ciphers ...Cipher) (database.Store, error) {
-	if len(ciphers) == 0 {
-		return nil, xerrors.Errorf("no ciphers configured")
-	}
 	cm := make(map[string]Cipher)
 	for _, c := range ciphers {
 		cm[c.HexDigest()] = c
 	}
 	dbc := &dbCrypt{
-		primaryCipherDigest: ciphers[0].HexDigest(),
-		ciphers:             cm,
-		Store:               db,
+		ciphers: cm,
+		Store:   db,
+	}
+	if len(ciphers) > 0 {
+		dbc.primaryCipherDigest = ciphers[0].HexDigest()
 	}
 	// nolint: gocritic // This is allowed.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
@@ -266,7 +264,7 @@ func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.Update
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
-		return ErrNotEnabled
+		return nil
 	}
 
 	if field == nil {
@@ -289,29 +287,13 @@ func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 // decryptFields decrypts the given field using the key with the given digest.
 // If the value fails to decrypt, sql.ErrNoRows will be returned.
 func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
-	if db.ciphers == nil {
-		return ErrNotEnabled
+	if field == nil {
+		return xerrors.Errorf("developer error: decryptField called with nil field")
 	}
 
 	if !digest.Valid || digest.String == "" {
 		// This field is not encrypted.
 		return nil
-	}
-
-	if field == nil || len(*field) == 0 {
-		// We've been asked to decrypt a field that is empty.
-		// There is a digest present, so it should have been encrypted,
-		// which would have produced a non-empty value.
-		// If we return sql.ErrNoRows, then the caller will assume that
-		// the value is not present in the database, which is not true.
-		// Return a DecryptFailedError to indicate that there is a value
-		// present, but it could not be decrypted.
-		// Unfortunately the only real way to fix this is to mark this
-		// field as not encrypted in the database. We do not want to
-		// silently do this, as it would mask a real problem.
-		return &DecryptFailedError{
-			Inner: xerrors.Errorf("unexpected empty encrypted field with digest %q", digest.String),
-		}
 	}
 
 	key, ok := db.ciphers[digest.String]
@@ -378,7 +360,7 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			}
 		}
 
-		if activeCipherFound {
+		if activeCipherFound || len(db.ciphers) == 0 {
 			return nil
 		}
 

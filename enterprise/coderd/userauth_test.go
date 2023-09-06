@@ -365,7 +365,7 @@ func TestUserOIDC(t *testing.T) {
 
 			runner := setupOIDCTest(t, oidcTestConfig{
 				FakeOpts: []oidctest.FakeIDPOpt{
-					oidctest.WithRefreshHook(func(_ string) error {
+					oidctest.WithRefresh(func(_ string) error {
 						// Always "expired" refresh token.
 						return xerrors.New("refresh token is expired")
 					}),
