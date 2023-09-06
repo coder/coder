@@ -120,10 +120,7 @@ const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
 const TemplateVersionEditorPage = lazy(
-  () =>
-    import(
-      "./pages/TemplateVersionPage/TemplateVersionEditorPage/TemplateVersionEditorPage"
-    ),
+  () => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
 )
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),

@@ -7,7 +7,7 @@ import {
   MockTemplateVersion,
   MockWorkspaceBuildLogs,
 } from "testHelpers/entities"
-import { Language } from "../../../components/TemplateVersionEditor/PublishTemplateVersionDialog"
+import { Language } from "./TemplateVersionEditor/PublishTemplateVersionDialog"
 
 // For some reason this component in Jest is throwing a MUI style warning so,
 // since we don't need it for this test, we can mock it out

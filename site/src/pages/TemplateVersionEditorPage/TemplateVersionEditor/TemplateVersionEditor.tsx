@@ -20,7 +20,7 @@ import { Avatar } from "components/Avatar/Avatar"
 import { AvatarData } from "components/AvatarData/AvatarData"
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
+import { PublishVersionData } from "pages/TemplateVersionEditorPage/types"
 import { FC, useCallback, useEffect, useRef, useState } from "react"
 import {
   createFile,

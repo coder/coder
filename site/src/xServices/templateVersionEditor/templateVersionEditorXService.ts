@@ -12,7 +12,7 @@ import * as API from "api/api"
 import { FileTree, traverse } from "utils/filetree"
 import { isAllowedFile } from "utils/templateVersion"
 import { TarReader, TarWriter } from "utils/tar"
-import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
+import { PublishVersionData } from "pages/TemplateVersionEditorPage/types"
 
 export interface TemplateVersionEditorMachineContext {
   orgId: string
