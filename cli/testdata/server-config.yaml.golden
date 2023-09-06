@@ -323,7 +323,7 @@ oidc:
   # The text to show on the OpenID Connect sign in button.
   # (default: OpenID Connect, type: string)
   signInText: OpenID Connect
-  # URL pointing to the icon to use on the OepnID Connect login button.
+  # URL pointing to the icon to use on the OpenID Connect login button.
   # (default: <unset>, type: url)
   iconURL:
 # Telemetry is critical to our ability to improve Coder. We strip all personal

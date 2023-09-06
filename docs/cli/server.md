@@ -623,7 +623,7 @@ The text to show on the OpenID Connect sign in button.
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 | YAML        | <code>oidc.iconURL</code>         |
 
-URL pointing to the icon to use on the OepnID Connect login button.
+URL pointing to the icon to use on the OpenID Connect login button.
 
 ### --provisioner-daemon-poll-interval
 

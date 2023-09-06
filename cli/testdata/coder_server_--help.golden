@@ -380,7 +380,7 @@ can safely ignore these settings.
           The text to show on the OpenID Connect sign in button.
 
       --oidc-icon-url url, $CODER_OIDC_ICON_URL
-          URL pointing to the icon to use on the OepnID Connect login button.
+          URL pointing to the icon to use on the OpenID Connect login button.
 
 [1mProvisioning Options[0m 
 Tune the behavior of the provisioner, which is responsible for creating,
