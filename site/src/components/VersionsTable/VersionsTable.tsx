@@ -29,13 +29,27 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
   onPromoteClick,
   activeVersionId,
 }) => {
+  const latestVersionId = versions?.reduce(
+    (latestSoFar, against) => {
+      if (!latestSoFar) {
+        return against
+      }
+
+      return new Date(against.updated_at).getTime() >
+        new Date(latestSoFar.updated_at).getTime()
+        ? against
+        : latestSoFar
+    },
+    undefined as TypesGen.TemplateVersion | undefined,
+  )?.id
+
   return (
     <TableContainer>
       <Table data-testid="versions-table">
         <TableBody>
           {versions ? (
             <Timeline
-              items={versions.slice().reverse()}
+              items={[...versions].reverse()}
               getDate={(version) => new Date(version.created_at)}
               row={(version) => (
                 <VersionRow
@@ -43,6 +57,7 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
                   version={version}
                   key={version.id}
                   isActive={activeVersionId === version.id}
+                  isLatest={latestVersionId === version.id}
                 />
               )}
             />
