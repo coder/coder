@@ -34,7 +34,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../../components/Tooltips/HelpTooltip/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { EmptyTemplates } from "./EmptyTemplates"
 import { TemplatesContext } from "xServices/templates/templatesXService"
 import { useClickableTableRow } from "hooks/useClickableTableRow"

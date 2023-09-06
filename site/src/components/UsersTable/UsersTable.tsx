@@ -7,7 +7,7 @@ import TableRow from "@mui/material/TableRow"
 import { FC } from "react"
 import * as TypesGen from "../../api/typesGenerated"
 import { Stack } from "../Stack/Stack"
-import { UserRoleHelpTooltip } from "../Tooltips"
+import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip"
 import { UsersTableBody } from "./UsersTableBody"
 
 export const Language = {

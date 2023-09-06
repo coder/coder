@@ -8,7 +8,7 @@ import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
-} from "../../Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { docs } from "utils/docs"
 
 export interface SSHButtonProps {

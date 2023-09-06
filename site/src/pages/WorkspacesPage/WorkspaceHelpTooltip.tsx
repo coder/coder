@@ -5,7 +5,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "./HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { docs } from "utils/docs"
 
 const Language = {

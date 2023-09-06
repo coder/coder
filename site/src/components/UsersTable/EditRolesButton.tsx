@@ -12,7 +12,7 @@ import {
   HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { Maybe } from "components/Conditionals/Maybe"
 
 const Option: React.FC<{

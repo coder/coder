@@ -17,7 +17,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { useFormik } from "formik"
 import { useRef, useState } from "react"
 import { docs } from "utils/docs"

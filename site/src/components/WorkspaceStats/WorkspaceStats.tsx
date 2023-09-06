@@ -1,5 +1,5 @@
 import Link from "@mui/material/Link"
-import { WorkspaceOutdatedTooltip } from "components/Tooltips"
+import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip"
 import { FC, useRef, useState } from "react"
 import { Link as RouterLink } from "react-router-dom"
 import { createDayString } from "utils/createDayString"

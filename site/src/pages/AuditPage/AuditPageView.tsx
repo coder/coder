@@ -16,7 +16,7 @@ import {
 import { Stack } from "components/Stack/Stack"
 import { TableLoader } from "components/TableLoader/TableLoader"
 import { Timeline } from "components/Timeline/Timeline"
-import { AuditHelpTooltip } from "components/Tooltips"
+import { AuditHelpTooltip } from "./AuditHelpTooltip"
 import { ComponentProps, FC } from "react"
 import { useTranslation } from "react-i18next"
 import { AuditPaywall } from "./AuditPaywall"

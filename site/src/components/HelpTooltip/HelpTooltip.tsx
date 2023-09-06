@@ -12,7 +12,7 @@ import {
   PropsWithChildren,
 } from "react"
 import { combineClasses } from "utils/combineClasses"
-import { Stack } from "../../Stack/Stack"
+import { Stack } from "components/Stack/Stack"
 import Box, { BoxProps } from "@mui/material/Box"
 
 type Icon = typeof HelpIcon

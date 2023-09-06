@@ -6,7 +6,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "./HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import InfoIcon from "@mui/icons-material/InfoOutlined"
 import { makeStyles } from "@mui/styles"
 import { colors } from "theme/colors"

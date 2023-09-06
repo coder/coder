@@ -5,7 +5,7 @@ import {
   HelpTooltipText,
   HelpPopover,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { Stack } from "components/Stack/Stack"
 import { WorkspaceAgent, DERPRegion } from "api/typesGenerated"
 import { getLatencyColor } from "utils/latency"

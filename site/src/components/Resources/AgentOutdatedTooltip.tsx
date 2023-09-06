@@ -8,7 +8,7 @@ import {
   HelpTooltipAction,
   HelpTooltipLinksGroup,
   HelpTooltipContext,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { Stack } from "components/Stack/Stack"
 import { useTranslation } from "react-i18next"
