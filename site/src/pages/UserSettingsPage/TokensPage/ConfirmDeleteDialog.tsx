@@ -1,7 +1,7 @@
 import { FC } from "react"
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { useTranslation, Trans } from "react-i18next"
-import { useDeleteToken } from "../hooks"
+import { useDeleteToken } from "./hooks"
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
 import { getErrorMessage } from "api/errors"
 import { APIKeyWithOwner } from "api/typesGenerated"
