@@ -1,6 +1,6 @@
 import { ComponentMeta, Story } from "@storybook/react"
 import { LogLevel } from "api/typesGenerated"
-import { MockWorkspaceBuildLogs } from "../../testHelpers/entities"
+import { MockWorkspaceBuildLogs } from "../../../testHelpers/entities"
 import { Logs, LogsProps } from "./Logs"
 
 export default {

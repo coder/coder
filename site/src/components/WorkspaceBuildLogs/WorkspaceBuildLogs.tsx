@@ -3,7 +3,7 @@ import dayjs from "dayjs"
 import { ComponentProps, FC, Fragment } from "react"
 import { ProvisionerJobLog } from "../../api/typesGenerated"
 import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { Logs } from "../Logs/Logs"
+import { Logs } from "./Logs/Logs"
 import Box from "@mui/material/Box"
 import { combineClasses } from "utils/combineClasses"
 
