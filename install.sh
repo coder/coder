@@ -135,6 +135,13 @@ echo_brew_postinstall() {
 		return
 	fi
 
+	CODER_COMMAND="$(command -v "coder")"
+	BREW_PREFIX="$(brew --prefix)"
+
+	if [ "$CODER_COMMAND" != "$BREW_PREFIX/bin/coder" ]; then
+		echo_path_conflict "$CODER_COMMAND" "$BREW_PREFIX"
+	fi
+
 	cath <<EOF
 Homebrew formula has been installed.
 
