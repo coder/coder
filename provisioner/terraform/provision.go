@@ -89,10 +89,13 @@ func (s *server) Plan(
 		}
 	}
 
-	// TODO Clean stale TF files
+	err := cleanStaleTerraformPlugins(sess.Context(), s.cachePath, time.Now(), s.logger)
+	if err != nil {
+		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
+	}
 
 	s.logger.Debug(ctx, "running initialization")
-	err := e.init(ctx, killCtx, sess)
+	err = e.init(ctx, killCtx, sess)
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
@@ -240,4 +243,26 @@ func logTerraformEnvVars(sink logSink) {
 			)
 		}
 	}
+}
+
+// cleanStaleTerraformPlugins browses the Terraform cache directory
+// and remove stale plugins that haven't been used for a while.
+//
+// Additionally, it sweeps empty, old directory trees.
+//
+// Sample cachePath: /Users/<username>/Library/Caches/coder/provisioner-<N>/tf
+func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.Time, logger slog.Logger) error {
+	// Review cached Terraform plugins
+	// TODO
+
+	// Identify stale plugins
+	// TODO
+
+	// Remove stale plugins
+	// TODO
+
+	// Maintain the directory tree
+	// TODO
+
+	return nil
 }

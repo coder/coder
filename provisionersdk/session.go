@@ -43,7 +43,7 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 
 	err := cleanStaleSessions(s.Context(), p.opts.WorkDirectory, time.Now(), s.Logger)
 	if err != nil {
-		return xerrors.Errorf("clean stale sessions %q: %w", s.WorkDirectory, err)
+		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
 	}
 
 	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessionDir(sessID))
@@ -327,6 +327,9 @@ func (r *request[R, C]) do() (C, error) {
 	}
 }
 
+// cleanStaleSessions browses the work directory searching for stale session
+// directories. Coder provisioner is supposed to remove them once after finishing the provisioning,
+// but there is a risk of keeping them in case of a failure.
 func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time, logger slog.Logger) error {
 	entries, err := os.ReadDir(workDirectory)
 	if err != nil {
