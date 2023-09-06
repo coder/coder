@@ -348,7 +348,7 @@ func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time
 				continue
 			}
 
-			logger.Info(ctx, "Remove stale session directory: %s", sessionDirPath)
+			logger.Info(ctx, "remove stale session directory: %s", sessionDirPath)
 			err = os.RemoveAll(sessionDirPath)
 			if err != nil {
 				return xerrors.Errorf("can't remove %q directory", sessionDirPath)
