@@ -2,15 +2,11 @@ import TextField from "@mui/material/TextField"
 import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import * as TypesGen from "../../../api/typesGenerated"
-import {
-  getFormHelpers,
-  nameValidator,
-  onChangeTrimmed,
-} from "../../../utils/formUtils"
-import { FormFooter } from "../../../components/FormFooter/FormFooter"
-import { FullPageForm } from "../../../components/FullPageForm/FullPageForm"
-import { Stack } from "../../../components/Stack/Stack"
+import * as TypesGen from "api/typesGenerated"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
+import { FormFooter } from "components/FormFooter/FormFooter"
+import { FullPageForm } from "components/FullPageForm/FullPageForm"
+import { Stack } from "components/Stack/Stack"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { hasApiFieldErrors, isApiError } from "api/errors"
 import MenuItem from "@mui/material/MenuItem"

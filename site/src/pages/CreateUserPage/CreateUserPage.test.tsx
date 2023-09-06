@@ -1,14 +1,14 @@
 import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
-import { Language as FormLanguage } from "./CreateUserForm/CreateUserForm"
-import { Language as FooterLanguage } from "../../components/FormFooter/FormFooter"
+import { Language as FormLanguage } from "./CreateUserForm"
+import { Language as FooterLanguage } from "components/FormFooter/FormFooter"
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
-} from "../../testHelpers/renderHelpers"
-import { server } from "../../testHelpers/server"
-import { Language as CreateUserLanguage } from "../../xServices/users/createUserXService"
+} from "testHelpers/renderHelpers"
+import { server } from "testHelpers/server"
+import { Language as CreateUserLanguage } from "xServices/users/createUserXService"
 import { CreateUserPage } from "./CreateUserPage"
 
 const renderCreateUserPage = async () => {
