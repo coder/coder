@@ -1,8 +1,8 @@
 import { makeStyles } from "@mui/styles"
 import { FC } from "react"
 import * as TypesGen from "../../../api/typesGenerated"
-import { CodeExample } from "../../CodeExample/CodeExample"
-import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
+import { CodeExample } from "../../../components/CodeExample/CodeExample"
+import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog"
 
 export interface ResetPasswordDialogProps {
   open: boolean
