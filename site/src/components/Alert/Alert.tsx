@@ -8,14 +8,12 @@ import Box from "@mui/material/Box";
 export type AlertProps = MuiAlertProps & {
   actions?: ReactNode;
   dismissible?: boolean;
-  onRetry?: () => void;
   onDismiss?: () => void;
 };
 
 export const Alert: FC<AlertProps> = ({
   children,
   actions,
-  onRetry,
   dismissible,
   severity,
   onDismiss,
@@ -33,13 +31,6 @@ export const Alert: FC<AlertProps> = ({
           <>
             {/* CTAs passed in by the consumer */}
             {actions}
-
-            {/* retry CTA */}
-            {onRetry && (
-              <Button variant="text" size="small" onClick={onRetry}>
-                Retry
-              </Button>
-            )}
 
             {/* close CTA */}
             {dismissible && (
