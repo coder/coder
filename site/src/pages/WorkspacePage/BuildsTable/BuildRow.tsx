@@ -11,7 +11,7 @@ import {
   displayWorkspaceBuildDuration,
   getDisplayWorkspaceBuildInitiatedBy,
 } from "utils/workspace"
-import { BuildAvatar } from "./BuildAvatar"
+import { BuildAvatar } from "components/BuildAvatar/BuildAvatar"
 
 export interface BuildRowProps {
   build: WorkspaceBuild

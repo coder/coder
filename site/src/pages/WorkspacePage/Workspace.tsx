@@ -9,15 +9,15 @@ import {
 import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
-import * as TypesGen from "../../api/typesGenerated"
-import { Alert, AlertDetail } from "../Alert/Alert"
+import * as TypesGen from "api/typesGenerated"
+import { Alert, AlertDetail } from "components/Alert/Alert"
 import { BuildsTable } from "./BuildsTable/BuildsTable"
-import { Margins } from "../Margins/Margins"
-import { Resources } from "../Resources/Resources"
-import { Stack } from "../Stack/Stack"
-import { WorkspaceActions } from "../WorkspaceActions/WorkspaceActions"
-import { WorkspaceDeletedBanner } from "../WorkspaceDeletedBanner/WorkspaceDeletedBanner"
-import { WorkspaceStats } from "../WorkspaceStats/WorkspaceStats"
+import { Margins } from "components/Margins/Margins"
+import { Resources } from "components/Resources/Resources"
+import { Stack } from "components/Stack/Stack"
+import { WorkspaceActions } from "components/WorkspaceActions/WorkspaceActions"
+import { WorkspaceDeletedBanner } from "components/WorkspaceDeletedBanner/WorkspaceDeletedBanner"
+import { WorkspaceStats } from "components/WorkspaceStats/WorkspaceStats"
 import {
   FullWidthPageHeader,
   PageHeaderActions,

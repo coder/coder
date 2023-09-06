@@ -15,10 +15,7 @@ import {
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
 import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
-import {
-  Workspace,
-  WorkspaceErrors,
-} from "../../components/Workspace/Workspace"
+import { Workspace, WorkspaceErrors } from "./Workspace"
 import { pageTitle } from "../../utils/page"
 import { getFaviconByStatus, hasJobError } from "../../utils/workspace"
 import {
