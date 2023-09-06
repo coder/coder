@@ -457,13 +457,17 @@ func TestNew(t *testing.T) {
 		require.NoError(t, err, "no error should be returned")
 		require.Empty(t, keys, "no keys should be present")
 
-		// Now let's say we had encryption enabled but we've since disabled it
-		// and revoked the key. We should still be able to init the crypt db without needing that key.
+		// Insert a key
 		require.NoError(t, rawDB.InsertDBCryptKey(ctx, database.InsertDBCryptKeyParams{
 			Number:          1,
 			ActiveKeyDigest: "whatever",
 			Test:            fakeBase64RandomData(t, 32),
 		}))
+
+		// This should fail as we do not know how to decrypt the key:
+		_, err = New(ctx, rawDB)
+		require.Error(t, err)
+		// Until we revoke the key:
 		require.NoError(t, rawDB.RevokeDBCryptKey(ctx, "whatever"))
 		_, err = New(ctx, rawDB)
 		require.NoError(t, err, "the above should still hold if the key is revoked")
