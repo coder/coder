@@ -1,5 +1,5 @@
 import { makeStyles } from "@mui/styles"
-import { AppPreviewLink } from "components/AppLink/AppPreviewLink"
+import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink"
 import { Maybe } from "components/Conditionals/Maybe"
 import { FC } from "react"
 import { useTranslation } from "react-i18next"

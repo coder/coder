@@ -34,7 +34,7 @@ import {
   WorkspaceAgent,
   WorkspaceAgentMetadata,
 } from "../../api/typesGenerated"
-import { AppLink } from "../AppLink/AppLink"
+import { AppLink } from "./AppLink/AppLink"
 import { SSHButton } from "../SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
