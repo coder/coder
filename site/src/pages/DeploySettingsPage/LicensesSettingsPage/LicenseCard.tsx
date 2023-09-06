@@ -1,21 +1,21 @@
-import Button from "@mui/material/Button"
-import Paper from "@mui/material/Paper"
-import { makeStyles } from "@mui/styles"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Stack } from "components/Stack/Stack"
-import dayjs from "dayjs"
-import { useState } from "react"
-import { Pill } from "components/Pill/Pill"
-import { compareAsc } from "date-fns"
-import { GetLicensesResponse } from "api/api"
+import Button from "@mui/material/Button";
+import Paper from "@mui/material/Paper";
+import { makeStyles } from "@mui/styles";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import { useState } from "react";
+import { Pill } from "components/Pill/Pill";
+import { compareAsc } from "date-fns";
+import { GetLicensesResponse } from "api/api";
 
 type LicenseCardProps = {
-  license: GetLicensesResponse
-  userLimitActual?: number
-  userLimitLimit?: number
-  onRemove: (licenseId: number) => void
-  isRemoving: boolean
-}
+  license: GetLicensesResponse;
+  userLimitActual?: number;
+  userLimitLimit?: number;
+  onRemove: (licenseId: number) => void;
+  isRemoving: boolean;
+};
 
 export const LicenseCard = ({
   license,
@@ -24,14 +24,14 @@ export const LicenseCard = ({
   onRemove,
   isRemoving,
 }: LicenseCardProps) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   const [licenseIDMarkedForRemoval, setLicenseIDMarkedForRemoval] = useState<
     number | undefined
-  >(undefined)
+  >(undefined);
 
   const currentUserLimit =
-    license.claims.features["user_limit"] || userLimitLimit
+    license.claims.features["user_limit"] || userLimitLimit;
 
   return (
     <Paper key={license.id} elevation={2} className={styles.licenseCard}>
@@ -41,10 +41,10 @@ export const LicenseCard = ({
         open={licenseIDMarkedForRemoval !== undefined}
         onConfirm={() => {
           if (!licenseIDMarkedForRemoval) {
-            return
+            return;
           }
-          onRemove(licenseIDMarkedForRemoval)
-          setLicenseIDMarkedForRemoval(undefined)
+          onRemove(licenseIDMarkedForRemoval);
+          setLicenseIDMarkedForRemoval(undefined);
         }}
         onClose={() => setLicenseIDMarkedForRemoval(undefined)}
         title="Confirm License Removal"
@@ -115,8 +115,8 @@ export const LicenseCard = ({
         </Stack>
       </Stack>
     </Paper>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   userLimit: {
@@ -157,4 +157,4 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: "transparent",
     },
   },
-}))
+}));

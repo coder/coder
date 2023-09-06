@@ -1,15 +1,15 @@
-import Paper from "@mui/material/Paper"
-import { makeStyles } from "@mui/styles"
-import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react"
-import { combineClasses } from "utils/combineClasses"
+import Paper from "@mui/material/Paper";
+import { makeStyles } from "@mui/styles";
+import { HTMLProps, ReactNode, FC, PropsWithChildren } from "react";
+import { combineClasses } from "utils/combineClasses";
 
 export interface ChartSectionProps {
   /**
    * action appears in the top right of the section card
    */
-  action?: ReactNode
-  contentsProps?: HTMLProps<HTMLDivElement>
-  title?: string | JSX.Element
+  action?: ReactNode;
+  contentsProps?: HTMLProps<HTMLDivElement>;
+  title?: string | JSX.Element;
 }
 
 export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
@@ -18,7 +18,7 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
   contentsProps,
   title,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Paper className={styles.root} elevation={0}>
@@ -36,8 +36,8 @@ export const ChartSection: FC<PropsWithChildren<ChartSectionProps>> = ({
         {children}
       </div>
     </Paper>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -58,4 +58,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     fontWeight: 600,
   },
-}))
+}));

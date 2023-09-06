@@ -1,10 +1,10 @@
-import { Component, ReactNode, PropsWithChildren } from "react"
-import { RuntimeErrorState } from "./RuntimeErrorState/RuntimeErrorState"
+import { Component, ReactNode, PropsWithChildren } from "react";
+import { RuntimeErrorState } from "./RuntimeErrorState/RuntimeErrorState";
 
-type ErrorBoundaryProps = PropsWithChildren<unknown>
+type ErrorBoundaryProps = PropsWithChildren<unknown>;
 
 interface ErrorBoundaryState {
-  error: Error | null
+  error: Error | null;
 }
 
 /**
@@ -16,19 +16,19 @@ export class ErrorBoundary extends Component<
   ErrorBoundaryState
 > {
   constructor(props: ErrorBoundaryProps) {
-    super(props)
-    this.state = { error: null }
+    super(props);
+    this.state = { error: null };
   }
 
   static getDerivedStateFromError(error: Error): { error: Error } {
-    return { error }
+    return { error };
   }
 
   render(): ReactNode {
     if (this.state.error) {
-      return <RuntimeErrorState error={this.state.error} />
+      return <RuntimeErrorState error={this.state.error} />;
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

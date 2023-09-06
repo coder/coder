@@ -1,28 +1,28 @@
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { FC, memo } from "react"
-import ReactMarkdown from "react-markdown"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import gfm from "remark-gfm"
-import { colors } from "theme/colors"
-import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
-import { combineClasses } from "utils/combineClasses"
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { FC, memo } from "react";
+import ReactMarkdown from "react-markdown";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import gfm from "remark-gfm";
+import { colors } from "theme/colors";
+import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
+import { combineClasses } from "utils/combineClasses";
 
 export interface MarkdownProps {
-  children: string
+  children: string;
 }
 
 export const Markdown: FC<{ children: string; className?: string }> = ({
   children,
   className,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <ReactMarkdown
@@ -36,17 +36,17 @@ export const Markdown: FC<{ children: string; className?: string }> = ({
         ),
 
         pre: ({ node, children }) => {
-          const firstChild = node.children[0]
+          const firstChild = node.children[0];
           // When pre is wrapping a code, the SyntaxHighlighter is already going
           // to wrap it with a pre so we don't need it
           if (firstChild.type === "element" && firstChild.tagName === "code") {
-            return <>{children}</>
+            return <>{children}</>;
           }
-          return <pre>{children}</pre>
+          return <pre>{children}</pre>;
         },
 
         code: ({ node, inline, className, children, style, ...props }) => {
-          const match = /language-(\w+)/.exec(className || "")
+          const match = /language-(\w+)/.exec(className || "");
 
           return !inline && match ? (
             <SyntaxHighlighter
@@ -65,7 +65,7 @@ export const Markdown: FC<{ children: string; className?: string }> = ({
             <code className={styles.codeWithoutLanguage} {...props}>
               {children}
             </code>
-          )
+          );
         },
 
         table: ({ children }) => {
@@ -73,36 +73,36 @@ export const Markdown: FC<{ children: string; className?: string }> = ({
             <TableContainer>
               <Table>{children}</Table>
             </TableContainer>
-          )
+          );
         },
 
         tr: ({ children }) => {
-          return <TableRow>{children}</TableRow>
+          return <TableRow>{children}</TableRow>;
         },
 
         thead: ({ children }) => {
-          return <TableHead>{children}</TableHead>
+          return <TableHead>{children}</TableHead>;
         },
 
         tbody: ({ children }) => {
-          return <TableBody>{children}</TableBody>
+          return <TableBody>{children}</TableBody>;
         },
 
         td: ({ children }) => {
-          return <TableCell>{children}</TableCell>
+          return <TableCell>{children}</TableCell>;
         },
 
         th: ({ children }) => {
-          return <TableCell>{children}</TableCell>
+          return <TableCell>{children}</TableCell>;
         },
       }}
     >
       {children}
     </ReactMarkdown>
-  )
-}
+  );
+};
 
-export const MemoizedMarkdown = memo(Markdown)
+export const MemoizedMarkdown = memo(Markdown);
 
 const useStyles = makeStyles((theme) => ({
   markdown: {
@@ -167,4 +167,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     fontSize: 14,
   },
-}))
+}));

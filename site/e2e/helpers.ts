@@ -1,9 +1,9 @@
-import { expect, Page } from "@playwright/test"
-import { ChildProcess, exec, spawn } from "child_process"
-import { randomUUID } from "crypto"
-import path from "path"
-import express from "express"
-import { TarWriter } from "utils/tar"
+import { expect, Page } from "@playwright/test";
+import { ChildProcess, exec, spawn } from "child_process";
+import { randomUUID } from "crypto";
+import path from "path";
+import express from "express";
+import { TarWriter } from "utils/tar";
 import {
   Agent,
   App,
@@ -14,13 +14,13 @@ import {
   ApplyComplete,
   Resource,
   RichParameter,
-} from "./provisionerGenerated"
-import { prometheusPort, pprofPort } from "./constants"
-import { port } from "./playwright.config"
-import * as ssh from "ssh2"
-import { Duplex } from "stream"
-import { WorkspaceBuildParameter } from "api/typesGenerated"
-import axios from "axios"
+} from "./provisionerGenerated";
+import { prometheusPort, pprofPort } from "./constants";
+import { port } from "./playwright.config";
+import * as ssh from "ssh2";
+import { Duplex } from "stream";
+import { WorkspaceBuildParameter } from "api/typesGenerated";
+import axios from "axios";
 
 // createWorkspace creates a workspace for a template.
 // It does not wait for it to be running, but it does navigate to the page.
@@ -32,25 +32,25 @@ export const createWorkspace = async (
 ): Promise<string> => {
   await page.goto("/templates/" + templateName + "/workspace", {
     waitUntil: "domcontentloaded",
-  })
-  await expect(page).toHaveURL("/templates/" + templateName + "/workspace")
+  });
+  await expect(page).toHaveURL("/templates/" + templateName + "/workspace");
 
-  const name = randomName()
-  await page.getByLabel("name").fill(name)
+  const name = randomName();
+  await page.getByLabel("name").fill(name);
 
-  await fillParameters(page, richParameters, buildParameters)
-  await page.getByTestId("form-submit").click()
+  await fillParameters(page, richParameters, buildParameters);
+  await page.getByTestId("form-submit").click();
 
-  await expect(page).toHaveURL("/@admin/" + name)
+  await expect(page).toHaveURL("/@admin/" + name);
 
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
       state: "visible",
     },
-  )
-  return name
-}
+  );
+  return name;
+};
 
 export const verifyParameters = async (
   page: Page,
@@ -60,56 +60,56 @@ export const verifyParameters = async (
 ) => {
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
     waitUntil: "domcontentloaded",
-  })
+  });
   await expect(page).toHaveURL(
     "/@admin/" + workspaceName + "/settings/parameters",
-  )
+  );
 
   for (const buildParameter of expectedBuildParameters) {
     const richParameter = richParameters.find(
       (richParam) => richParam.name === buildParameter.name,
-    )
+    );
     if (!richParameter) {
       throw new Error(
         "build parameter is expected to be present in rich parameter schema",
-      )
+      );
     }
 
     const parameterLabel = await page.waitForSelector(
       "[data-testid='parameter-field-" + richParameter.name + "']",
       { state: "visible" },
-    )
+    );
 
-    const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled"
+    const muiDisabled = richParameter.mutable ? "" : ".Mui-disabled";
 
     if (richParameter.type === "bool") {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-bool'] .MuiRadio-root.Mui-checked" +
           muiDisabled +
           " input",
-      )
-      const value = await parameterField.inputValue()
-      expect(value).toEqual(buildParameter.value)
+      );
+      const value = await parameterField.inputValue();
+      expect(value).toEqual(buildParameter.value);
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-options'] .MuiRadio-root.Mui-checked" +
           muiDisabled +
           " input",
-      )
-      const value = await parameterField.inputValue()
-      expect(value).toEqual(buildParameter.value)
+      );
+      const value = await parameterField.inputValue();
+      expect(value).toEqual(buildParameter.value);
     } else if (richParameter.type === "list(string)") {
-      throw new Error("not implemented yet") // FIXME
+      throw new Error("not implemented yet"); // FIXME
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-text'] input" + muiDisabled,
-      )
-      const value = await parameterField.inputValue()
-      expect(value).toEqual(buildParameter.value)
+      );
+      const value = await parameterField.inputValue();
+      expect(value).toEqual(buildParameter.value);
     }
   }
-}
+};
 
 // createTemplate navigates to the /templates/new page and uploads a template
 // with the resources provided in the responses argument.
@@ -120,24 +120,24 @@ export const createTemplate = async (
   // Required to have templates submit their provisioner type as echo!
   await page.addInitScript({
     content: "window.playwright = true",
-  })
+  });
 
-  await page.goto("/templates/new", { waitUntil: "domcontentloaded" })
-  await expect(page).toHaveURL("/templates/new")
+  await page.goto("/templates/new", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL("/templates/new");
 
   await page.getByTestId("file-upload").setInputFiles({
     buffer: await createTemplateVersionTar(responses),
     mimeType: "application/x-tar",
     name: "template.tar",
-  })
-  const name = randomName()
-  await page.getByLabel("Name *").fill(name)
-  await page.getByTestId("form-submit").click()
+  });
+  const name = randomName();
+  await page.getByLabel("Name *").fill(name);
+  await page.getByTestId("form-submit").click();
   await expect(page).toHaveURL("/templates/" + name, {
     timeout: 30000,
-  })
-  return name
-}
+  });
+  return name;
+};
 
 // sshIntoWorkspace spawns a Coder SSH process and a client connected to it.
 export const sshIntoWorkspace = async (
@@ -147,9 +147,9 @@ export const sshIntoWorkspace = async (
   binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
   if (binaryPath === "go") {
-    binaryArgs = ["run", coderMainPath()]
+    binaryArgs = ["run", coderMainPath()];
   }
-  const sessionToken = await findSessionToken(page)
+  const sessionToken = await findSessionToken(page);
   return new Promise<ssh.Client>((resolve, reject) => {
     const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
       env: {
@@ -157,49 +157,49 @@ export const sshIntoWorkspace = async (
         CODER_SESSION_TOKEN: sessionToken,
         CODER_URL: "http://localhost:3000",
       },
-    })
-    cp.on("error", (err) => reject(err))
+    });
+    cp.on("error", (err) => reject(err));
     const proxyStream = new Duplex({
       read: (size) => {
-        return cp.stdout.read(Math.min(size, cp.stdout.readableLength))
+        return cp.stdout.read(Math.min(size, cp.stdout.readableLength));
       },
       write: cp.stdin.write.bind(cp.stdin),
-    })
+    });
     // eslint-disable-next-line no-console -- Helpful for debugging
-    cp.stderr.on("data", (data) => console.log(data.toString()))
+    cp.stderr.on("data", (data) => console.log(data.toString()));
     cp.stdout.on("readable", (...args) => {
-      proxyStream.emit("readable", ...args)
+      proxyStream.emit("readable", ...args);
       if (cp.stdout.readableLength > 0) {
-        proxyStream.emit("data", cp.stdout.read())
+        proxyStream.emit("data", cp.stdout.read());
       }
-    })
-    const client = new ssh.Client()
+    });
+    const client = new ssh.Client();
     client.connect({
       sock: proxyStream,
       username: "coder",
-    })
-    client.on("error", (err) => reject(err))
+    });
+    client.on("error", (err) => reject(err));
     client.on("ready", () => {
-      resolve(client)
-    })
-  })
-}
+      resolve(client);
+    });
+  });
+};
 
 export const stopWorkspace = async (page: Page, workspaceName: string) => {
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
-  })
-  await expect(page).toHaveURL("/@admin/" + workspaceName)
+  });
+  await expect(page).toHaveURL("/@admin/" + workspaceName);
 
-  await page.getByTestId("workspace-stop-button").click()
+  await page.getByTestId("workspace-stop-button").click();
 
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Stopped",
     {
       state: "visible",
     },
-  )
-}
+  );
+};
 
 export const buildWorkspaceWithParameters = async (
   page: Page,
@@ -210,15 +210,15 @@ export const buildWorkspaceWithParameters = async (
 ) => {
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
-  })
-  await expect(page).toHaveURL("/@admin/" + workspaceName)
+  });
+  await expect(page).toHaveURL("/@admin/" + workspaceName);
 
-  await page.getByTestId("build-parameters-button").click()
+  await page.getByTestId("build-parameters-button").click();
 
-  await fillParameters(page, richParameters, buildParameters)
-  await page.getByTestId("build-parameters-submit").click()
+  await fillParameters(page, richParameters, buildParameters);
+  await page.getByTestId("build-parameters-submit").click();
   if (confirm) {
-    await page.getByTestId("confirm-button").click()
+    await page.getByTestId("confirm-button").click();
   }
 
   await page.waitForSelector(
@@ -226,8 +226,8 @@ export const buildWorkspaceWithParameters = async (
     {
       state: "visible",
     },
-  )
-}
+  );
+};
 
 // startAgent runs the coder agent with the provided token.
 // It awaits the agent to be ready before returning.
@@ -235,8 +235,8 @@ export const startAgent = async (
   page: Page,
   token: string,
 ): Promise<ChildProcess> => {
-  return startAgentWithCommand(page, token, "go", "run", coderMainPath())
-}
+  return startAgentWithCommand(page, token, "go", "run", coderMainPath());
+};
 
 // downloadCoderVersion downloads the version provided into a temporary dir and
 // caches it so subsequent calls are fast.
@@ -244,23 +244,23 @@ export const downloadCoderVersion = async (
   version: string,
 ): Promise<string> => {
   if (version.startsWith("v")) {
-    version = version.slice(1)
+    version = version.slice(1);
   }
 
-  const binaryName = "coder-e2e-" + version
-  const tempDir = "/tmp/coder-e2e-cache"
+  const binaryName = "coder-e2e-" + version;
+  const tempDir = "/tmp/coder-e2e-cache";
   // The install script adds `./bin` automatically to the path :shrug:
-  const binaryPath = path.join(tempDir, "bin", binaryName)
+  const binaryPath = path.join(tempDir, "bin", binaryName);
 
   const exists = await new Promise<boolean>((resolve) => {
-    const cp = spawn(binaryPath, ["version"])
+    const cp = spawn(binaryPath, ["version"]);
     cp.on("close", (code) => {
-      resolve(code === 0)
-    })
-    cp.on("error", () => resolve(false))
-  })
+      resolve(code === 0);
+    });
+    cp.on("error", () => resolve(false));
+  });
   if (exists) {
-    return binaryPath
+    return binaryPath;
   }
 
   // Runs our public install script using our options to
@@ -294,19 +294,19 @@ export const downloadCoderVersion = async (
           XDG_CACHE_HOME: "/tmp/coder-e2e-cache",
         },
       },
-    )
+    );
     // eslint-disable-next-line no-console -- Needed for debugging
-    cp.stderr.on("data", (data) => console.log(data.toString()))
+    cp.stderr.on("data", (data) => console.log(data.toString()));
     cp.on("close", (code) => {
       if (code === 0) {
-        resolve()
+        resolve();
       } else {
-        reject(new Error("curl failed with code " + code))
+        reject(new Error("curl failed with code " + code));
       }
-    })
-  })
-  return binaryPath
-}
+    });
+  });
+  return binaryPath;
+};
 
 export const startAgentWithCommand = async (
   page: Page,
@@ -322,23 +322,23 @@ export const startAgentWithCommand = async (
       CODER_AGENT_PPROF_ADDRESS: "127.0.0.1:" + pprofPort,
       CODER_AGENT_PROMETHEUS_ADDRESS: "127.0.0.1:" + prometheusPort,
     },
-  })
+  });
   cp.stdout.on("data", (data: Buffer) => {
     // eslint-disable-next-line no-console -- Log agent activity
     console.log(
       `[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
-    )
-  })
+    );
+  });
   cp.stderr.on("data", (data: Buffer) => {
     // eslint-disable-next-line no-console -- Log agent activity
     console.log(
       `[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
-    )
-  })
+    );
+  });
 
-  await page.getByTestId("agent-status-ready").waitFor({ state: "visible" })
-  return cp
-}
+  await page.getByTestId("agent-status-ready").waitFor({ state: "visible" });
+  return cp;
+};
 
 export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
   // When the web server is started with `go run`, it spawns a child process with coder server.
@@ -346,31 +346,31 @@ export const stopAgent = async (cp: ChildProcess, goRun: boolean = true) => {
   // The command `kill` is used to terminate a web server started as a standalone binary.
   exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
     if (error) {
-      throw new Error(`exec error: ${JSON.stringify(error)}`)
+      throw new Error(`exec error: ${JSON.stringify(error)}`);
     }
-  })
-  await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort)
-}
+  });
+  await waitUntilUrlIsNotResponding("http://localhost:" + prometheusPort);
+};
 
 const waitUntilUrlIsNotResponding = async (url: string) => {
-  const maxRetries = 30
-  const retryIntervalMs = 1000
-  let retries = 0
+  const maxRetries = 30;
+  const retryIntervalMs = 1000;
+  let retries = 0;
 
   while (retries < maxRetries) {
     try {
-      await axios.get(url)
+      await axios.get(url);
     } catch (error) {
-      return
+      return;
     }
 
-    retries++
-    await new Promise((resolve) => setTimeout(resolve, retryIntervalMs))
+    retries++;
+    await new Promise((resolve) => setTimeout(resolve, retryIntervalMs));
   }
   throw new Error(
     `URL ${url} is still responding after ${maxRetries * retryIntervalMs}ms`,
-  )
-}
+  );
+};
 
 const coderMainPath = (): string => {
   return path.join(
@@ -381,8 +381,8 @@ const coderMainPath = (): string => {
     "cmd",
     "coder",
     "main.go",
-  )
-}
+  );
+};
 
 // Allows users to more easily define properties they want for agents and resources!
 type RecursivePartial<T> = {
@@ -390,16 +390,16 @@ type RecursivePartial<T> = {
     ? RecursivePartial<U>[]
     : T[P] extends object | undefined
     ? RecursivePartial<T[P]>
-    : T[P]
-}
+    : T[P];
+};
 
 interface EchoProvisionerResponses {
   // parse is for observing any Terraform variables
-  parse?: RecursivePartial<Response>[]
+  parse?: RecursivePartial<Response>[];
   // plan occurs when the template is imported
-  plan?: RecursivePartial<Response>[]
+  plan?: RecursivePartial<Response>[];
   // apply occurs when the workspace is built
-  apply?: RecursivePartial<Response>[]
+  apply?: RecursivePartial<Response>[];
 }
 
 // createTemplateVersionTar consumes a series of echo provisioner protobufs and
@@ -408,26 +408,26 @@ const createTemplateVersionTar = async (
   responses?: EchoProvisionerResponses,
 ): Promise<Buffer> => {
   if (!responses) {
-    responses = {}
+    responses = {};
   }
   if (!responses.parse) {
     responses.parse = [
       {
         parse: {},
       },
-    ]
+    ];
   }
   if (!responses.apply) {
     responses.apply = [
       {
         apply: {},
       },
-    ]
+    ];
   }
   if (!responses.plan) {
     responses.plan = responses.apply.map((response) => {
       if (response.log) {
-        return response
+        return response;
       }
       return {
         plan: {
@@ -436,23 +436,23 @@ const createTemplateVersionTar = async (
           parameters: response.apply?.parameters ?? [],
           gitAuthProviders: response.apply?.gitAuthProviders ?? [],
         },
-      }
-    })
+      };
+    });
   }
 
-  const tar = new TarWriter()
+  const tar = new TarWriter();
   responses.parse.forEach((response, index) => {
     response.parse = {
       templateVariables: [],
       error: "",
       readme: new Uint8Array(),
       ...response.parse,
-    } as ParseComplete
+    } as ParseComplete;
     tar.addFile(
       `${index}.parse.protobuf`,
       Response.encode(response as Response).finish(),
-    )
-  })
+    );
+  });
 
   const fillResource = (resource: RecursivePartial<Resource>) => {
     if (resource.agents) {
@@ -470,8 +470,8 @@ const createTemplateVersionTar = async (
                 subdomain: false,
                 url: "",
                 ...app,
-              } as App
-            })
+              } as App;
+            });
           }
           return {
             apps: [],
@@ -492,9 +492,9 @@ const createTemplateVersionTar = async (
             troubleshootingUrl: "",
             token: randomUUID(),
             ...agent,
-          } as Agent
+          } as Agent;
         },
-      )
+      );
     }
     return {
       agents: [],
@@ -506,8 +506,8 @@ const createTemplateVersionTar = async (
       name: "dev",
       type: "echo",
       ...resource,
-    } as Resource
-  }
+    } as Resource;
+  };
 
   responses.apply.forEach((response, index) => {
     response.apply = {
@@ -517,14 +517,14 @@ const createTemplateVersionTar = async (
       parameters: [],
       gitAuthProviders: [],
       ...response.apply,
-    } as ApplyComplete
-    response.apply.resources = response.apply.resources?.map(fillResource)
+    } as ApplyComplete;
+    response.apply.resources = response.apply.resources?.map(fillResource);
 
     tar.addFile(
       `${index}.apply.protobuf`,
       Response.encode(response as Response).finish(),
-    )
-  })
+    );
+  });
   responses.plan.forEach((response, index) => {
     response.plan = {
       error: "",
@@ -532,63 +532,63 @@ const createTemplateVersionTar = async (
       parameters: [],
       gitAuthProviders: [],
       ...response.plan,
-    } as PlanComplete
-    response.plan.resources = response.plan.resources?.map(fillResource)
+    } as PlanComplete;
+    response.plan.resources = response.plan.resources?.map(fillResource);
 
     tar.addFile(
       `${index}.plan.protobuf`,
       Response.encode(response as Response).finish(),
-    )
-  })
-  const tarFile = await tar.write()
+    );
+  });
+  const tarFile = await tar.write();
   return Buffer.from(
     tarFile instanceof Blob ? await tarFile.arrayBuffer() : tarFile,
-  )
-}
+  );
+};
 
 const randomName = () => {
-  return randomUUID().slice(0, 8)
-}
+  return randomUUID().slice(0, 8);
+};
 
 // Awaiter is a helper that allows you to wait for a callback to be called.
 // It is useful for waiting for events to occur.
 export class Awaiter {
-  private promise: Promise<void>
-  private callback?: () => void
+  private promise: Promise<void>;
+  private callback?: () => void;
 
   constructor() {
-    this.promise = new Promise((r) => (this.callback = r))
+    this.promise = new Promise((r) => (this.callback = r));
   }
 
   public done(): void {
     if (this.callback) {
-      this.callback()
+      this.callback();
     } else {
-      this.promise = Promise.resolve()
+      this.promise = Promise.resolve();
     }
   }
 
   public wait(): Promise<void> {
-    return this.promise
+    return this.promise;
   }
 }
 
 export const createServer = async (
   port: number,
 ): Promise<ReturnType<typeof express>> => {
-  const e = express()
-  await new Promise<void>((r) => e.listen(port, r))
-  return e
-}
+  const e = express();
+  await new Promise<void>((r) => e.listen(port, r));
+  return e;
+};
 
 const findSessionToken = async (page: Page): Promise<string> => {
-  const cookies = await page.context().cookies()
-  const sessionCookie = cookies.find((c) => c.name === "coder_session_token")
+  const cookies = await page.context().cookies();
+  const sessionCookie = cookies.find((c) => c.name === "coder_session_token");
   if (!sessionCookie) {
-    throw new Error("session token not found")
+    throw new Error("session token not found");
   }
-  return sessionCookie.value
-}
+  return sessionCookie.value;
+};
 
 export const echoResponsesWithParameters = (
   richParameters: RichParameter[],
@@ -617,8 +617,8 @@ export const echoResponsesWithParameters = (
         },
       },
     ],
-  }
-}
+  };
+};
 
 export const fillParameters = async (
   page: Page,
@@ -628,52 +628,52 @@ export const fillParameters = async (
   for (const buildParameter of buildParameters) {
     const richParameter = richParameters.find(
       (richParam) => richParam.name === buildParameter.name,
-    )
+    );
     if (!richParameter) {
       throw new Error(
         "build parameter is expected to be present in rich parameter schema",
-      )
+      );
     }
 
     const parameterLabel = await page.waitForSelector(
       "[data-testid='parameter-field-" + richParameter.name + "']",
       { state: "visible" },
-    )
+    );
 
     if (richParameter.type === "bool") {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-bool'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
-      )
-      await parameterField.check()
+      );
+      await parameterField.check();
     } else if (richParameter.options.length > 0) {
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-options'] .MuiRadio-root input[value='" +
           buildParameter.value +
           "']",
-      )
-      await parameterField.check()
+      );
+      await parameterField.check();
     } else if (richParameter.type === "list(string)") {
-      throw new Error("not implemented yet") // FIXME
+      throw new Error("not implemented yet"); // FIXME
     } else {
       // text or number
       const parameterField = await parameterLabel.waitForSelector(
         "[data-testid='parameter-field-text'] input",
-      )
-      await parameterField.fill(buildParameter.value)
+      );
+      await parameterField.fill(buildParameter.value);
     }
   }
-}
+};
 
 export const updateTemplate = async (
   page: Page,
   templateName: string,
   responses?: EchoProvisionerResponses,
 ) => {
-  const tarball = await createTemplateVersionTar(responses)
+  const tarball = await createTemplateVersionTar(responses);
 
-  const sessionToken = await findSessionToken(page)
+  const sessionToken = await findSessionToken(page);
   const child = spawn(
     "go",
     [
@@ -695,23 +695,23 @@ export const updateTemplate = async (
         CODER_URL: "http://localhost:3000",
       },
     },
-  )
+  );
 
-  const uploaded = new Awaiter()
+  const uploaded = new Awaiter();
   child.on("exit", (code) => {
     if (code === 0) {
-      uploaded.done()
-      return
+      uploaded.done();
+      return;
     }
 
-    throw new Error(`coder templates push failed with code ${code}`)
-  })
+    throw new Error(`coder templates push failed with code ${code}`);
+  });
 
-  child.stdin.write(tarball)
-  child.stdin.end()
+  child.stdin.write(tarball);
+  child.stdin.end();
 
-  await uploaded.wait()
-}
+  await uploaded.wait();
+};
 
 export const updateWorkspace = async (
   page: Page,
@@ -721,22 +721,22 @@ export const updateWorkspace = async (
 ) => {
   await page.goto("/@admin/" + workspaceName, {
     waitUntil: "domcontentloaded",
-  })
-  await expect(page).toHaveURL("/@admin/" + workspaceName)
+  });
+  await expect(page).toHaveURL("/@admin/" + workspaceName);
 
-  await page.getByTestId("workspace-update-button").click()
-  await page.getByTestId("confirm-button").click()
+  await page.getByTestId("workspace-update-button").click();
+  await page.getByTestId("confirm-button").click();
 
-  await fillParameters(page, richParameters, buildParameters)
-  await page.getByTestId("form-submit").click()
+  await fillParameters(page, richParameters, buildParameters);
+  await page.getByTestId("form-submit").click();
 
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
       state: "visible",
     },
-  )
-}
+  );
+};
 
 export const updateWorkspaceParameters = async (
   page: Page,
@@ -746,18 +746,18 @@ export const updateWorkspaceParameters = async (
 ) => {
   await page.goto("/@admin/" + workspaceName + "/settings/parameters", {
     waitUntil: "domcontentloaded",
-  })
+  });
   await expect(page).toHaveURL(
     "/@admin/" + workspaceName + "/settings/parameters",
-  )
+  );
 
-  await fillParameters(page, richParameters, buildParameters)
-  await page.getByTestId("form-submit").click()
+  await fillParameters(page, richParameters, buildParameters);
+  await page.getByTestId("form-submit").click();
 
   await page.waitForSelector(
     "span[data-testid='build-status'] >> text=Running",
     {
       state: "visible",
     },
-  )
-}
+  );
+};

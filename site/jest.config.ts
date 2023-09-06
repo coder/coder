@@ -67,4 +67,4 @@ module.exports = {
     "!<rootDir>/out/**/*.*",
     "!<rootDir>/storybook-static/**/*.*",
   ],
-}
+};

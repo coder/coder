@@ -1,34 +1,34 @@
-import { getGroup, patchGroup } from "api/api"
-import { getErrorMessage } from "api/errors"
-import { Group } from "api/typesGenerated"
-import { displayError } from "components/GlobalSnackbar/utils"
-import { assign, createMachine } from "xstate"
+import { getGroup, patchGroup } from "api/api";
+import { getErrorMessage } from "api/errors";
+import { Group } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { assign, createMachine } from "xstate";
 
 export const editGroupMachine = createMachine(
   {
     id: "editGroup",
     schema: {
       context: {} as {
-        groupId: string
-        group?: Group
-        error?: unknown
+        groupId: string;
+        group?: Group;
+        error?: unknown;
       },
       services: {} as {
         loadGroup: {
-          data: Group
-        }
+          data: Group;
+        };
         updateGroup: {
-          data: Group
-        }
+          data: Group;
+        };
       },
       events: {} as {
-        type: "UPDATE"
+        type: "UPDATE";
         data: {
-          display_name: string
-          name: string
-          avatar_url: string
-          quota_allowance: number
-        }
+          display_name: string;
+          name: string;
+          avatar_url: string;
+          quota_allowance: number;
+        };
       },
     },
     tsTypes: {} as import("./editGroupXService.typegen").Typegen0,
@@ -74,14 +74,14 @@ export const editGroupMachine = createMachine(
 
       updateGroup: ({ group }, { data }) => {
         if (!group) {
-          throw new Error("Group not defined.")
+          throw new Error("Group not defined.");
         }
 
         return patchGroup(group.id, {
           ...data,
           add_users: [],
           remove_users: [],
-        })
+        });
       },
     },
     actions: {
@@ -89,12 +89,12 @@ export const editGroupMachine = createMachine(
         group: (_, { data }) => data,
       }),
       displayLoadGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to the group.")
-        displayError(message)
+        const message = getErrorMessage(data, "Failed to the group.");
+        displayError(message);
       },
       assignError: assign({
         error: (_, event) => event.data,
       }),
     },
   },
-)
+);

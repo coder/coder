@@ -1,29 +1,29 @@
-import { DialogProps } from "components/Dialogs/Dialog"
-import { FC } from "react"
-import { getFormHelpers } from "utils/formUtils"
-import { FormFields } from "components/Form/Form"
-import { useFormik } from "formik"
-import * as Yup from "yup"
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types"
-import TextField from "@mui/material/TextField"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import Checkbox from "@mui/material/Checkbox"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import { Stack } from "components/Stack/Stack"
+import { DialogProps } from "components/Dialogs/Dialog";
+import { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
+import { FormFields } from "components/Form/Form";
+import { useFormik } from "formik";
+import * as Yup from "yup";
+import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import TextField from "@mui/material/TextField";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import { Stack } from "components/Stack/Stack";
 
 export const Language = {
   versionNameLabel: "Version name",
   messagePlaceholder: "Write a short message about the changes you made...",
   defaultCheckboxLabel: "Promote to default version",
-}
+};
 
 export type PublishTemplateVersionDialogProps = DialogProps & {
-  defaultName: string
-  isPublishing: boolean
-  publishingError?: unknown
-  onClose: () => void
-  onConfirm: (data: PublishVersionData) => void
-}
+  defaultName: string;
+  isPublishing: boolean;
+  publishingError?: unknown;
+  onClose: () => void;
+  onConfirm: (data: PublishVersionData) => void;
+};
 
 export const PublishTemplateVersionDialog: FC<
   PublishTemplateVersionDialogProps
@@ -47,12 +47,12 @@ export const PublishTemplateVersionDialog: FC<
       isActiveVersion: Yup.boolean(),
     }),
     onSubmit: onConfirm,
-  })
-  const getFieldHelpers = getFormHelpers(form, publishingError)
+  });
+  const getFieldHelpers = getFormHelpers(form, publishingError);
   const handleClose = () => {
-    form.resetForm()
-    onClose()
-  }
+    form.resetForm();
+    onClose();
+  };
 
   return (
     <ConfirmDialog
@@ -60,7 +60,7 @@ export const PublishTemplateVersionDialog: FC<
       confirmLoading={isPublishing}
       onClose={handleClose}
       onConfirm={async () => {
-        await form.submitForm()
+        await form.submitForm();
       }}
       hideCancel={false}
       type="success"
@@ -98,7 +98,7 @@ export const PublishTemplateVersionDialog: FC<
                     await form.setFieldValue(
                       "isActiveVersion",
                       e.target.checked,
-                    )
+                    );
                   }}
                   name="isActiveVersion"
                 />
@@ -108,5 +108,5 @@ export const PublishTemplateVersionDialog: FC<
         </Stack>
       }
     />
-  )
-}
+  );
+};

@@ -10,14 +10,14 @@ export const dispatchCustomEvent = <D = unknown>(
   detail?: D,
   target: EventTarget = window,
 ): CustomEvent<D> => {
-  const event = new CustomEvent<D>(eventType, { detail })
+  const event = new CustomEvent<D>(eventType, { detail });
 
-  target.dispatchEvent(event)
+  target.dispatchEvent(event);
 
-  return event
-}
+  return event;
+};
 /** Annotates a custom event listener with descriptive type information. */
-export type CustomEventListener<D = unknown> = (event: CustomEvent<D>) => void
+export type CustomEventListener<D = unknown> = (event: CustomEvent<D>) => void;
 
 /**
  * Determines if an Event object is a CustomEvent.
@@ -28,5 +28,5 @@ export type CustomEventListener<D = unknown> = (event: CustomEvent<D>) => void
 export const isCustomEvent = <D = unknown>(
   event: CustomEvent<D> | Event,
 ): event is CustomEvent<D> => {
-  return Boolean((event as CustomEvent).detail)
-}
+  return Boolean((event as CustomEvent).detail);
+};

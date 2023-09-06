@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const CloseIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 31 31">
@@ -9,4 +9,4 @@ export const CloseIcon = (props: SvgIconProps) => (
       strokeLinecap="square"
     />
   </SvgIcon>
-)
+);

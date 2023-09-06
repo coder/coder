@@ -1,27 +1,27 @@
-import { useMachine } from "@xstate/react"
-import { User } from "api/typesGenerated"
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { useMachine } from "@xstate/react";
+import { User } from "api/typesGenerated";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
   getPaginationContext,
   nonInitialPage,
-} from "components/PaginationWidget/utils"
-import { useMe } from "hooks/useMe"
-import { usePermissions } from "hooks/usePermissions"
-import { FC, ReactNode, useEffect } from "react"
-import { Helmet } from "react-helmet-async"
-import { useSearchParams, useNavigate } from "react-router-dom"
-import { siteRolesMachine } from "xServices/roles/siteRolesXService"
-import { usersMachine } from "xServices/users/usersXService"
-import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { ResetPasswordDialog } from "./ResetPasswordDialog"
-import { pageTitle } from "../../utils/page"
-import { UsersPageView } from "./UsersPageView"
-import { useStatusFilterMenu } from "./UsersFilter"
-import { useFilter } from "components/Filter/filter"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine"
-import { useQuery } from "@tanstack/react-query"
-import { getAuthMethods } from "api/api"
+} from "components/PaginationWidget/utils";
+import { useMe } from "hooks/useMe";
+import { usePermissions } from "hooks/usePermissions";
+import { FC, ReactNode, useEffect } from "react";
+import { Helmet } from "react-helmet-async";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { siteRolesMachine } from "xServices/roles/siteRolesXService";
+import { usersMachine } from "xServices/users/usersXService";
+import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { ResetPasswordDialog } from "./ResetPasswordDialog";
+import { pageTitle } from "../../utils/page";
+import { UsersPageView } from "./UsersPageView";
+import { useStatusFilterMenu } from "./UsersFilter";
+import { useFilter } from "components/Filter/filter";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine";
+import { useQuery } from "@tanstack/react-query";
+import { getAuthMethods } from "api/api";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -30,17 +30,17 @@ export const Language = {
   activateDialogTitle: "Activate user",
   activateDialogAction: "Activate",
   activateDialogMessagePrefix: "Do you want to activate the user",
-}
+};
 
 const getSelectedUser = (id: string, users?: User[]) =>
-  users?.find((u) => u.id === id)
+  users?.find((u) => u.id === id);
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
-  const navigate = useNavigate()
-  const searchParamsResult = useSearchParams()
-  const { entitlements } = useDashboard()
-  const [searchParams, setSearchParams] = searchParamsResult
-  const filter = searchParams.get("filter") ?? ""
+  const navigate = useNavigate();
+  const searchParamsResult = useSearchParams();
+  const { entitlements } = useDashboard();
+  const [searchParams, setSearchParams] = searchParamsResult;
+  const filter = searchParams.get("filter") ?? "";
   const [usersState, usersSend] = useMachine(usersMachine, {
     context: {
       filter,
@@ -50,7 +50,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       updateURL: (context, event) =>
         setSearchParams({ page: event.page, filter: context.filter }),
     },
-  })
+  });
   const {
     users,
     getUsersError,
@@ -61,35 +61,35 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     newUserPassword,
     paginationRef,
     count,
-  } = usersState.context
+  } = usersState.context;
 
-  const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions()
+  const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const [rolesState] = useMachine(siteRolesMachine, {
     context: {
       hasPermission: canEditUsers,
     },
-  })
-  const { roles } = rolesState.context
+  });
+  const { roles } = rolesState.context;
 
   // Ideally this only runs if 'canViewDeployment' is true.
   // TODO: Prevent api call if the user does not have the perms.
-  const [state] = useMachine(deploymentConfigMachine)
-  const { deploymentValues } = state.context
+  const [state] = useMachine(deploymentConfigMachine);
+  const { deploymentValues } = state.context;
   // Indicates if oidc roles are synced from the oidc idp.
   // Assign 'false' if unknown.
   const oidcRoleSyncEnabled =
     viewDeploymentValues &&
-    deploymentValues?.config.oidc?.user_role_field !== ""
-  const me = useMe()
+    deploymentValues?.config.oidc?.user_role_field !== "";
+  const me = useMe();
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: () => {
-      usersSend({ type: "UPDATE_PAGE", page: "1" })
+      usersSend({ type: "UPDATE_PAGE", page: "1" });
     },
-  })
+  });
   useEffect(() => {
-    usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query })
-  }, [useFilterResult.query, usersSend])
+    usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query });
+  }, [useFilterResult.query, usersSend]);
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -97,20 +97,20 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         ...useFilterResult.values,
         status: option?.value,
       }),
-  })
+  });
   const authMethods = useQuery({
     queryKey: ["authMethods"],
     queryFn: () => {
-      return getAuthMethods()
+      return getAuthMethods();
     },
-  })
+  });
   // Is loading if
   // - users are loading or
   // - the user can edit the users but the roles are loading
   const isLoading =
     usersState.matches("gettingUsers") ||
     (canEditUsers && rolesState.matches("gettingRoles")) ||
-    authMethods.isLoading
+    authMethods.isLoading;
 
   return (
     <>
@@ -127,43 +127,43 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           navigate(
             "/workspaces?filter=" +
               encodeURIComponent(`owner:${user.username}`),
-          )
+          );
         }}
         onViewActivity={(user) => {
           navigate(
             "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
-          )
+          );
         }}
         onDeleteUser={(user) => {
           usersSend({
             type: "DELETE_USER",
             userId: user.id,
             username: user.username,
-          })
+          });
         }}
         onSuspendUser={(user) => {
           usersSend({
             type: "SUSPEND_USER",
             userId: user.id,
             username: user.username,
-          })
+          });
         }}
         onActivateUser={(user) => {
           usersSend({
             type: "ACTIVATE_USER",
             userId: user.id,
             username: user.username,
-          })
+          });
         }}
         onResetUserPassword={(user) => {
-          usersSend({ type: "RESET_USER_PASSWORD", userId: user.id })
+          usersSend({ type: "RESET_USER_PASSWORD", userId: user.id });
         }}
         onUpdateUserRoles={(user, roles) => {
           usersSend({
             type: "UPDATE_USER_ROLES",
             userId: user.id,
             roles,
-          })
+          });
         }}
         isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
         isLoading={isLoading}
@@ -191,10 +191,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         name={usernameToDelete ?? ""}
         entity="user"
         onConfirm={() => {
-          usersSend("CONFIRM_USER_DELETE")
+          usersSend("CONFIRM_USER_DELETE");
         }}
         onCancel={() => {
-          usersSend("CANCEL_USER_DELETE")
+          usersSend("CANCEL_USER_DELETE");
         }}
       />
 
@@ -209,10 +209,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         title={Language.suspendDialogTitle}
         confirmText={Language.suspendDialogAction}
         onConfirm={() => {
-          usersSend("CONFIRM_USER_SUSPENSION")
+          usersSend("CONFIRM_USER_SUSPENSION");
         }}
         onClose={() => {
-          usersSend("CANCEL_USER_SUSPENSION")
+          usersSend("CANCEL_USER_SUSPENSION");
         }}
         description={
           <>
@@ -234,10 +234,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         title={Language.activateDialogTitle}
         confirmText={Language.activateDialogAction}
         onConfirm={() => {
-          usersSend("CONFIRM_USER_ACTIVATION")
+          usersSend("CONFIRM_USER_ACTIVATION");
         }}
         onClose={() => {
-          usersSend("CANCEL_USER_ACTIVATION")
+          usersSend("CANCEL_USER_ACTIVATION");
         }}
         description={
           <>
@@ -258,15 +258,15 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           user={getSelectedUser(userIdToResetPassword, users)}
           newPassword={newUserPassword}
           onClose={() => {
-            usersSend("CANCEL_USER_PASSWORD_RESET")
+            usersSend("CANCEL_USER_PASSWORD_RESET");
           }}
           onConfirm={() => {
-            usersSend("CONFIRM_USER_PASSWORD_RESET")
+            usersSend("CONFIRM_USER_PASSWORD_RESET");
           }}
         />
       )}
     </>
-  )
-}
+  );
+};
 
-export default UsersPage
+export default UsersPage;

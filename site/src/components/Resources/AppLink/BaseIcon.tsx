@@ -1,6 +1,6 @@
-import { WorkspaceApp } from "api/typesGenerated"
-import { FC } from "react"
-import ComputerIcon from "@mui/icons-material/Computer"
+import { WorkspaceApp } from "api/typesGenerated";
+import { FC } from "react";
+import ComputerIcon from "@mui/icons-material/Computer";
 
 export const BaseIcon: FC<{ app: WorkspaceApp }> = ({ app }) => {
   return app.icon ? (
@@ -13,5 +13,5 @@ export const BaseIcon: FC<{ app: WorkspaceApp }> = ({ app }) => {
     />
   ) : (
     <ComputerIcon />
-  )
-}
+  );
+};

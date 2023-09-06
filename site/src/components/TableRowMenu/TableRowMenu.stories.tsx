@@ -1,20 +1,20 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { TableRowMenu, TableRowMenuProps } from "./TableRowMenu"
+import { ComponentMeta, Story } from "@storybook/react";
+import { TableRowMenu, TableRowMenuProps } from "./TableRowMenu";
 
 export default {
   title: "components/TableRowMenu",
   component: TableRowMenu,
-} as ComponentMeta<typeof TableRowMenu>
+} as ComponentMeta<typeof TableRowMenu>;
 
 type DataType = {
-  id: string
-}
+  id: string;
+};
 
 const Template: Story<TableRowMenuProps<DataType>> = (args) => (
   <TableRowMenu {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   data: { id: "123" },
   menuItems: [
@@ -23,4 +23,4 @@ Example.args = {
     { label: "Delete", onClick: (data) => alert(data.id), disabled: false },
     { label: "Explode", onClick: (data) => alert(data.id), disabled: true },
   ],
-}
+};

@@ -1,54 +1,54 @@
-import { makeStyles } from "@mui/styles"
-import { Stack } from "components/Stack/Stack"
-import { FC, DragEvent, useRef, ReactNode } from "react"
-import UploadIcon from "@mui/icons-material/CloudUploadOutlined"
-import { useClickable } from "hooks/useClickable"
-import CircularProgress from "@mui/material/CircularProgress"
-import { combineClasses } from "utils/combineClasses"
-import IconButton from "@mui/material/IconButton"
-import RemoveIcon from "@mui/icons-material/DeleteOutline"
-import FileIcon from "@mui/icons-material/FolderOutlined"
+import { makeStyles } from "@mui/styles";
+import { Stack } from "components/Stack/Stack";
+import { FC, DragEvent, useRef, ReactNode } from "react";
+import UploadIcon from "@mui/icons-material/CloudUploadOutlined";
+import { useClickable } from "hooks/useClickable";
+import CircularProgress from "@mui/material/CircularProgress";
+import { combineClasses } from "utils/combineClasses";
+import IconButton from "@mui/material/IconButton";
+import RemoveIcon from "@mui/icons-material/DeleteOutline";
+import FileIcon from "@mui/icons-material/FolderOutlined";
 
 const useFileDrop = (
   callback: (file: File) => void,
   fileTypeRequired?: string,
 ): {
-  onDragOver: (e: DragEvent<HTMLDivElement>) => void
-  onDrop: (e: DragEvent<HTMLDivElement>) => void
+  onDragOver: (e: DragEvent<HTMLDivElement>) => void;
+  onDrop: (e: DragEvent<HTMLDivElement>) => void;
 } => {
   const onDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-  }
+    e.preventDefault();
+  };
 
   const onDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    const file = e.dataTransfer.files[0]
+    e.preventDefault();
+    const file = e.dataTransfer.files[0];
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- file can be undefined
     if (!file) {
-      return
+      return;
     }
     if (fileTypeRequired && file.type !== fileTypeRequired) {
-      return
+      return;
     }
-    callback(file)
-  }
+    callback(file);
+  };
 
   return {
     onDragOver,
     onDrop,
-  }
-}
+  };
+};
 
 export interface FileUploadProps {
-  isUploading: boolean
-  onUpload: (file: File) => void
-  onRemove?: () => void
-  file?: File
-  removeLabel: string
-  title: string
-  description?: ReactNode
-  extension?: string
-  fileTypeRequired?: string
+  isUploading: boolean;
+  onUpload: (file: File) => void;
+  onRemove?: () => void;
+  file?: File;
+  removeLabel: string;
+  title: string;
+  description?: ReactNode;
+  extension?: string;
+  fileTypeRequired?: string;
 }
 
 export const FileUpload: FC<FileUploadProps> = ({
@@ -62,14 +62,14 @@ export const FileUpload: FC<FileUploadProps> = ({
   extension,
   fileTypeRequired,
 }) => {
-  const styles = useStyles()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const tarDrop = useFileDrop(onUpload, fileTypeRequired)
+  const styles = useStyles();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const tarDrop = useFileDrop(onUpload, fileTypeRequired);
   const clickable = useClickable(() => {
     if (inputRef.current) {
-      inputRef.current.click()
+      inputRef.current.click();
     }
-  })
+  });
 
   if (!isUploading && file) {
     return (
@@ -88,7 +88,7 @@ export const FileUpload: FC<FileUploadProps> = ({
           <RemoveIcon />
         </IconButton>
       </Stack>
-    )
+    );
   }
 
   return (
@@ -122,15 +122,15 @@ export const FileUpload: FC<FileUploadProps> = ({
         className={styles.input}
         accept={extension}
         onChange={(event) => {
-          const file = event.currentTarget.files?.[0]
+          const file = event.currentTarget.files?.[0];
           if (file) {
-            onUpload(file)
+            onUpload(file);
           }
         }}
       />
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -176,4 +176,4 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(2),
     background: theme.palette.background.paper,
   },
-}))
+}));

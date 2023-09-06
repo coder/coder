@@ -1,17 +1,17 @@
-import { ActorRefFrom, createMachine, sendParent, assign } from "xstate"
+import { ActorRefFrom, createMachine, sendParent, assign } from "xstate";
 
 export interface PaginationContext {
-  page: number
-  limit: number
+  page: number;
+  limit: number;
 }
 
 export type PaginationEvent =
   | { type: "NEXT_PAGE" }
   | { type: "PREVIOUS_PAGE" }
   | { type: "GO_TO_PAGE"; page: number }
-  | { type: "RESET_PAGE" }
+  | { type: "RESET_PAGE" };
 
-export type PaginationMachineRef = ActorRefFrom<typeof paginationMachine>
+export type PaginationMachineRef = ActorRefFrom<typeof paginationMachine>;
 
 export const paginationMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QAcCGUCWA7VAXDA9lgLKoDGAFtmAMQByAogBoAqA+gAoCCA4gwNoAGALqIUBWBnxExIAB6IATADZBAOgAcGgCwBWDYMEHBAdm2KANCACeiEwEZ7axboCcbkw8-3XGgL5+VmiYONIk5FRYtBwASgwAagCSAPIAqgDKnLwCIrLIElKEWLIKCAC09hrKarq6AMwarsraGormuiYaVrYIDk4u7q7e3r4BQejYeEWklNQ0PMlsLIvcfEKiSCD5kmElduq69vrKyiaCjqfu3YgauupatYp1eia+o4FbE6HTEXNx6Qx2KschtxDsintyvZqlVzmdGs0tIpbtcENplIoanV7M8jrpFCZntoAh8sAQIHA8l8pkQZpEwGoAE5gVAQHpgwoyTalZSuNTuV6CFzabSCFqdVFmdTPMU+dHnZrKMafEI08KzKJ5Aq7blKJwC1xC3QisUaCU2RDKQ5qGXaOWqaHokl+IA */
@@ -63,4 +63,4 @@ export const paginationMachine =
         }),
       },
     },
-  )
+  );

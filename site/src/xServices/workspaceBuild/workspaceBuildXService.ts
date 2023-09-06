@@ -1,34 +1,34 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated";
 
 type LogsContext = {
   // Build
-  username: string
-  workspaceName: string
-  buildNumber: number
-  buildId: string
+  username: string;
+  workspaceName: string;
+  buildNumber: number;
+  buildId: string;
   // Used to reference logs before + after.
-  timeCursor: Date
-  build?: WorkspaceBuild
-  getBuildError?: unknown
+  timeCursor: Date;
+  build?: WorkspaceBuild;
+  getBuildError?: unknown;
   // Logs
-  logs?: ProvisionerJobLog[]
-}
+  logs?: ProvisionerJobLog[];
+};
 
 type LogsEvent =
   | {
-      type: "ADD_LOG"
-      log: ProvisionerJobLog
+      type: "ADD_LOG";
+      log: ProvisionerJobLog;
     }
   | {
-      type: "BUILD_DONE"
+      type: "BUILD_DONE";
     }
   | {
-      type: "RESET"
-      buildNumber: number
-      timeCursor: Date
-    }
+      type: "RESET";
+      buildNumber: number;
+      timeCursor: Date;
+    };
 
 export const workspaceBuildMachine = createMachine(
   {
@@ -40,11 +40,11 @@ export const workspaceBuildMachine = createMachine(
       events: {} as LogsEvent,
       services: {} as {
         getWorkspaceBuild: {
-          data: WorkspaceBuild
-        }
+          data: WorkspaceBuild;
+        };
         getLogs: {
-          data: ProvisionerJobLog[]
-        }
+          data: ProvisionerJobLog[];
+        };
       },
     },
     initial: "gettingBuild",
@@ -132,8 +132,8 @@ export const workspaceBuildMachine = createMachine(
       }),
       addLog: assign({
         logs: (context, event) => {
-          const previousLogs = context.logs ?? []
-          return [...previousLogs, event.log]
+          const previousLogs = context.logs ?? [];
+          return [...previousLogs, event.log];
         },
       }),
     },
@@ -148,26 +148,26 @@ export const workspaceBuildMachine = createMachine(
         API.getWorkspaceBuildLogs(ctx.buildId, ctx.timeCursor),
       streamWorkspaceBuildLogs: (ctx) => async (callback) => {
         if (!ctx.logs) {
-          throw new Error("logs must be set")
+          throw new Error("logs must be set");
         }
         const after =
-          ctx.logs.length > 0 ? ctx.logs[ctx.logs.length - 1].id : undefined
+          ctx.logs.length > 0 ? ctx.logs[ctx.logs.length - 1].id : undefined;
         const socket = API.watchBuildLogsByBuildId(ctx.buildId, {
           after,
           onMessage: (log) => {
-            callback({ type: "ADD_LOG", log })
+            callback({ type: "ADD_LOG", log });
           },
           onDone: () => {
-            callback({ type: "BUILD_DONE" })
+            callback({ type: "BUILD_DONE" });
           },
           onError: (err) => {
-            console.error(err)
+            console.error(err);
           },
-        })
+        });
         return () => {
-          socket.close()
-        }
+          socket.close();
+        };
       },
     },
   },
-)
+);

@@ -1,35 +1,39 @@
-import TextField from "@mui/material/TextField"
-import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC } from "react"
-import * as Yup from "yup"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Form, FormFields } from "components/Form/Form"
+import TextField from "@mui/material/TextField";
+import { FormikContextType, FormikTouched, useFormik } from "formik";
+import { FC } from "react";
+import * as Yup from "yup";
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Form, FormFields } from "components/Form/Form";
 
 export interface AccountFormValues {
-  username: string
+  username: string;
 }
 
 export const Language = {
   usernameLabel: "Username",
   emailLabel: "Email",
   updateSettings: "Update account",
-}
+};
 
 const validationSchema = Yup.object({
   username: nameValidator(Language.usernameLabel),
-})
+});
 
 export interface AccountFormProps {
-  editable: boolean
-  email: string
-  isLoading: boolean
-  initialValues: AccountFormValues
-  onSubmit: (values: AccountFormValues) => void
-  updateProfileError?: unknown
+  editable: boolean;
+  email: string;
+  isLoading: boolean;
+  initialValues: AccountFormValues;
+  onSubmit: (values: AccountFormValues) => void;
+  updateProfileError?: unknown;
   // initialTouched is only used for testing the error state of the form.
-  initialTouched?: FormikTouched<AccountFormValues>
+  initialTouched?: FormikTouched<AccountFormValues>;
 }
 
 export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
@@ -47,11 +51,11 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
       validationSchema,
       onSubmit,
       initialTouched,
-    })
+    });
   const getFieldHelpers = getFormHelpers<AccountFormValues>(
     form,
     updateProfileError,
-  )
+  );
 
   return (
     <>
@@ -90,5 +94,5 @@ export const AccountForm: FC<React.PropsWithChildren<AccountFormProps>> = ({
         </FormFields>
       </Form>
     </>
-  )
-}
+  );
+};

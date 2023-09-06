@@ -1,21 +1,21 @@
-import Popover from "@mui/material/Popover"
-import { makeStyles } from "@mui/styles"
-import { SecondaryAgentButton } from "components/Resources/AgentButton"
-import { useRef, useState } from "react"
-import { CodeExample } from "../../CodeExample/CodeExample"
-import { Stack } from "../../Stack/Stack"
+import Popover from "@mui/material/Popover";
+import { makeStyles } from "@mui/styles";
+import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { useRef, useState } from "react";
+import { CodeExample } from "../../CodeExample/CodeExample";
+import { Stack } from "../../Stack/Stack";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip"
-import { docs } from "utils/docs"
+} from "components/HelpTooltip/HelpTooltip";
+import { docs } from "utils/docs";
 
 export interface SSHButtonProps {
-  workspaceName: string
-  agentName: string
-  defaultIsOpen?: boolean
-  sshPrefix?: string
+  workspaceName: string;
+  agentName: string;
+  defaultIsOpen?: boolean;
+  sshPrefix?: string;
 }
 
 export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
@@ -24,21 +24,21 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   defaultIsOpen = false,
   sshPrefix,
 }) => {
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(defaultIsOpen)
-  const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(defaultIsOpen);
+  const id = isOpen ? "schedule-popover" : undefined;
+  const styles = useStyles();
 
   const onClose = () => {
-    setIsOpen(false)
-  }
+    setIsOpen(false);
+  };
 
   return (
     <>
       <SecondaryAgentButton
         ref={anchorRef}
         onClick={() => {
-          setIsOpen(true)
+          setIsOpen(true);
         }}
       >
         SSH
@@ -101,8 +101,8 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
         </HelpTooltipLinksGroup>
       </Popover>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
@@ -123,4 +123,4 @@ const useStyles = makeStyles((theme) => ({
   textHelper: {
     fontWeight: 400,
   },
-}))
+}));

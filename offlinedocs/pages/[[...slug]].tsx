@@ -24,57 +24,57 @@ import {
   Tr,
   UnorderedList,
   useDisclosure,
-} from "@chakra-ui/react"
-import fm from "front-matter"
-import { readFileSync } from "fs"
-import _ from "lodash"
-import { GetStaticPaths, GetStaticProps, NextPage } from "next"
-import Head from "next/head"
-import NextLink from "next/link"
-import { useRouter } from "next/router"
-import path from "path"
-import { MdMenu } from "react-icons/md"
-import ReactMarkdown from "react-markdown"
-import rehypeRaw from "rehype-raw"
-import remarkGfm from "remark-gfm"
+} from "@chakra-ui/react";
+import fm from "front-matter";
+import { readFileSync } from "fs";
+import _ from "lodash";
+import { GetStaticPaths, GetStaticProps, NextPage } from "next";
+import Head from "next/head";
+import NextLink from "next/link";
+import { useRouter } from "next/router";
+import path from "path";
+import { MdMenu } from "react-icons/md";
+import ReactMarkdown from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 
-type FilePath = string
-type UrlPath = string
+type FilePath = string;
+type UrlPath = string;
 type Route = {
-  path: FilePath
-  title: string
-  description?: string
-  children?: Route[]
-}
-type Manifest = { versions: string[]; routes: Route[] }
-type NavItem = { title: string; path: UrlPath; children?: NavItem[] }
-type Nav = NavItem[]
+  path: FilePath;
+  title: string;
+  description?: string;
+  children?: Route[];
+};
+type Manifest = { versions: string[]; routes: Route[] };
+type NavItem = { title: string; path: UrlPath; children?: NavItem[] };
+type Nav = NavItem[];
 
 const readContentFile = (filePath: string) => {
-  const baseDir = process.cwd()
-  const docsPath = path.join(baseDir, "..", "docs")
-  return readFileSync(path.join(docsPath, filePath), { encoding: "utf-8" })
-}
+  const baseDir = process.cwd();
+  const docsPath = path.join(baseDir, "..", "docs");
+  return readFileSync(path.join(docsPath, filePath), { encoding: "utf-8" });
+};
 
-const removeTrailingSlash = (path: string) => path.replace(/\/+$/, "")
+const removeTrailingSlash = (path: string) => path.replace(/\/+$/, "");
 
-const removeMkdExtension = (path: string) => path.replace(/\.md/g, "")
+const removeMkdExtension = (path: string) => path.replace(/\.md/g, "");
 
 const removeIndexFilename = (path: string) => {
   if (path.endsWith("index")) {
-    path = path.replace("index", "")
+    path = path.replace("index", "");
   }
 
-  return path
-}
+  return path;
+};
 
 const removeREADMEName = (path: string) => {
   if (path.startsWith("README")) {
-    path = path.replace("README", "")
+    path = path.replace("README", "");
   }
 
-  return path
-}
+  return path;
+};
 
 // transformLinkUri converts the links in the markdown file to
 // href html links. All index page routes are the directory name, and all
@@ -87,142 +87,142 @@ const removeREADMEName = (path: string) => {
 // file.md -> ../file-next-to-file = ../file-next-to-file
 const transformLinkUriSource = (sourceFile: string) => {
   return (href = "") => {
-    const isExternal = href.startsWith("http") || href.startsWith("https")
+    const isExternal = href.startsWith("http") || href.startsWith("https");
     if (!isExternal) {
       // Remove .md form the path
-      href = removeMkdExtension(href)
+      href = removeMkdExtension(href);
 
       // Add the extra '..' if not an index file.
-      sourceFile = removeMkdExtension(sourceFile)
+      sourceFile = removeMkdExtension(sourceFile);
       if (!sourceFile.endsWith("index")) {
-        href = "../" + href
+        href = "../" + href;
       }
 
       // Remove the index path
-      href = removeIndexFilename(href)
-      href = removeREADMEName(href)
+      href = removeIndexFilename(href);
+      href = removeREADMEName(href);
     }
-    return href
-  }
-}
+    return href;
+  };
+};
 
 const transformFilePathToUrlPath = (filePath: string) => {
   // Remove markdown extension
-  let urlPath = removeMkdExtension(filePath)
+  let urlPath = removeMkdExtension(filePath);
 
   // Remove relative path
   if (urlPath.startsWith("./")) {
-    urlPath = urlPath.replace("./", "")
+    urlPath = urlPath.replace("./", "");
   }
 
   // Remove index from the root file
-  urlPath = removeIndexFilename(urlPath)
-  urlPath = removeREADMEName(urlPath)
+  urlPath = removeIndexFilename(urlPath);
+  urlPath = removeREADMEName(urlPath);
 
   // Remove trailing slash
   if (urlPath.endsWith("/")) {
-    urlPath = removeTrailingSlash(urlPath)
+    urlPath = removeTrailingSlash(urlPath);
   }
 
-  return urlPath
-}
+  return urlPath;
+};
 
 const mapRoutes = (manifest: Manifest): Record<UrlPath, Route> => {
-  const paths: Record<UrlPath, Route> = {}
+  const paths: Record<UrlPath, Route> = {};
 
   const addPaths = (routes: Route[]) => {
     for (const route of routes) {
-      paths[transformFilePathToUrlPath(route.path)] = route
+      paths[transformFilePathToUrlPath(route.path)] = route;
 
       if (route.children) {
-        addPaths(route.children)
+        addPaths(route.children);
       }
     }
-  }
+  };
 
-  addPaths(manifest.routes)
+  addPaths(manifest.routes);
 
-  return paths
-}
+  return paths;
+};
 
-let manifest: Manifest | undefined
+let manifest: Manifest | undefined;
 
 const getManifest = () => {
   if (manifest) {
-    return manifest
+    return manifest;
   }
 
-  const manifestContent = readContentFile("manifest.json")
-  manifest = JSON.parse(manifestContent) as Manifest
-  return manifest
-}
+  const manifestContent = readContentFile("manifest.json");
+  manifest = JSON.parse(manifestContent) as Manifest;
+  return manifest;
+};
 
-let navigation: Nav | undefined
+let navigation: Nav | undefined;
 
 const getNavigation = (manifest: Manifest): Nav => {
   if (navigation) {
-    return navigation
+    return navigation;
   }
 
   const getNavItem = (route: Route, parentPath?: UrlPath): NavItem => {
     const path = parentPath
       ? `${parentPath}/${transformFilePathToUrlPath(route.path)}`
-      : transformFilePathToUrlPath(route.path)
+      : transformFilePathToUrlPath(route.path);
     const navItem: NavItem = {
       title: route.title,
       path,
-    }
+    };
 
     if (route.children) {
-      navItem.children = []
+      navItem.children = [];
 
       for (const childRoute of route.children) {
-        navItem.children.push(getNavItem(childRoute))
+        navItem.children.push(getNavItem(childRoute));
       }
     }
 
-    return navItem
-  }
+    return navItem;
+  };
 
-  navigation = []
+  navigation = [];
 
   for (const route of manifest.routes) {
-    navigation.push(getNavItem(route))
+    navigation.push(getNavItem(route));
   }
 
-  return navigation
-}
+  return navigation;
+};
 
 const removeHtmlComments = (string: string) => {
-  return string.replace(/<!--[\s\S]*?-->/g, "")
-}
+  return string.replace(/<!--[\s\S]*?-->/g, "");
+};
 
 export const getStaticPaths: GetStaticPaths = () => {
-  const manifest = getManifest()
-  const routes = mapRoutes(manifest)
+  const manifest = getManifest();
+  const routes = mapRoutes(manifest);
   const paths = Object.keys(routes).map((urlPath) => ({
     params: { slug: urlPath.split("/") },
-  }))
+  }));
 
   return {
     paths,
     fallback: false,
-  }
-}
+  };
+};
 
 export const getStaticProps: GetStaticProps = (context) => {
   // When it is home page, the slug is undefined because there is no url path
   // so we make it an empty string to work good with the mapRoutes
-  const { slug = [""] } = context.params as { slug: string[] }
-  const manifest = getManifest()
-  const routes = mapRoutes(manifest)
-  const urlPath = slug.join("/")
-  const route = routes[urlPath]
-  const { body } = fm(readContentFile(route.path))
+  const { slug = [""] } = context.params as { slug: string[] };
+  const manifest = getManifest();
+  const routes = mapRoutes(manifest);
+  const urlPath = slug.join("/");
+  const route = routes[urlPath];
+  const { body } = fm(readContentFile(route.path));
   // Serialize MDX to support custom components
-  const content = removeHtmlComments(body)
-  const navigation = getNavigation(manifest)
-  const version = manifest.versions[0]
+  const content = removeHtmlComments(body);
+  const navigation = getNavigation(manifest);
+  const version = manifest.versions[0];
 
   return {
     props: {
@@ -231,25 +231,26 @@ export const getStaticProps: GetStaticProps = (context) => {
       route,
       version,
     },
-  }
-}
+  };
+};
 
 const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
   item,
   nav,
 }) => {
-  const router = useRouter()
-  let isActive = router.asPath.startsWith(`/${item.path}`)
+  const router = useRouter();
+  let isActive = router.asPath.startsWith(`/${item.path}`);
 
   // Special case to handle the home path
   if (item.path === "") {
-    isActive = router.asPath === "/"
+    isActive = router.asPath === "/";
 
     // Special case to handle the home path children
-    const homeNav = nav.find((navItem) => navItem.path === "") as NavItem
-    const homeNavPaths = homeNav.children?.map((item) => `/${item.path}/`) ?? []
+    const homeNav = nav.find((navItem) => navItem.path === "") as NavItem;
+    const homeNavPaths =
+      homeNav.children?.map((item) => `/${item.path}/`) ?? [];
     if (homeNavPaths.includes(router.asPath)) {
-      isActive = true
+      isActive = true;
     }
   }
 
@@ -280,8 +281,8 @@ const SidebarNavItem: React.FC<{ item: NavItem; nav: Nav }> = ({
         </Grid>
       )}
     </Box>
-  )
-}
+  );
+};
 
 const SidebarNav: React.FC<{ nav: Nav; version: string } & GridProps> = ({
   nav,
@@ -312,14 +313,14 @@ const SidebarNav: React.FC<{ nav: Nav; version: string } & GridProps> = ({
         <SidebarNavItem key={navItem.path} item={navItem} nav={nav} />
       ))}
     </Grid>
-  )
-}
+  );
+};
 
 const MobileNavbar: React.FC<{ nav: Nav; version: string }> = ({
   nav,
   version,
 }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure()
+  const { isOpen, onOpen, onClose } = useDisclosure();
 
   return (
     <>
@@ -347,26 +348,26 @@ const MobileNavbar: React.FC<{ nav: Nav; version: string }> = ({
         </DrawerContent>
       </Drawer>
     </>
-  )
-}
+  );
+};
 
 const slugifyTitle = (title: string) => {
-  return _.kebabCase(title.toLowerCase())
-}
+  return _.kebabCase(title.toLowerCase());
+};
 
 const getImageUrl = (src: string | undefined) => {
   if (src === undefined) {
-    return ""
+    return "";
   }
-  const assetPath = src.split("images/")[1]
-  return `/images/${assetPath}`
-}
+  const assetPath = src.split("images/")[1];
+  return `/images/${assetPath}`;
+};
 
 const DocsPage: NextPage<{
-  content: string
-  navigation: Nav
-  route: Route
-  version: string
+  content: string;
+  navigation: Nav;
+  route: Route;
+  version: string;
 }> = ({ content, navigation, route, version }) => {
   return (
     <>
@@ -486,7 +487,7 @@ const DocsPage: NextPage<{
                   ),
                   a: ({ children, href = "" }) => {
                     const isExternal =
-                      href.startsWith("http") || href.startsWith("https")
+                      href.startsWith("http") || href.startsWith("https");
 
                     return (
                       <Link
@@ -497,7 +498,7 @@ const DocsPage: NextPage<{
                       >
                         {children}
                       </Link>
-                    )
+                    );
                   },
                   code: ({ node, ...props }) => (
                     <Code {...props} bgColor="gray.100" />
@@ -538,7 +539,7 @@ const DocsPage: NextPage<{
         </Box>
       </Box>
     </>
-  )
-}
+  );
+};
 
-export default DocsPage
+export default DocsPage;

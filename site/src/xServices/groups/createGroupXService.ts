@@ -1,23 +1,23 @@
-import { createGroup } from "api/api"
-import { CreateGroupRequest, Group } from "api/typesGenerated"
-import { createMachine, assign } from "xstate"
+import { createGroup } from "api/api";
+import { CreateGroupRequest, Group } from "api/typesGenerated";
+import { createMachine, assign } from "xstate";
 
 export const createGroupMachine = createMachine(
   {
     id: "createGroupMachine",
     schema: {
       context: {} as {
-        organizationId: string
-        error?: unknown
+        organizationId: string;
+        error?: unknown;
       },
       services: {} as {
         createGroup: {
-          data: Group
-        }
+          data: Group;
+        };
       },
       events: {} as {
-        type: "CREATE"
-        data: CreateGroupRequest
+        type: "CREATE";
+        data: CreateGroupRequest;
       },
     },
     tsTypes: {} as import("./createGroupXService.typegen").Typegen0,
@@ -56,4 +56,4 @@ export const createGroupMachine = createMachine(
       }),
     },
   },
-)
+);

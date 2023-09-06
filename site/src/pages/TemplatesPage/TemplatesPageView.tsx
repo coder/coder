@@ -1,59 +1,59 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import AddIcon from "@mui/icons-material/AddOutlined"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Maybe } from "components/Conditionals/Maybe"
-import { FC } from "react"
-import { useNavigate, Link as RouterLink } from "react-router-dom"
-import { createDayString } from "utils/createDayString"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Maybe } from "components/Conditionals/Maybe";
+import { FC } from "react";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { createDayString } from "utils/createDayString";
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
-} from "utils/templates"
-import { AvatarData } from "../../components/AvatarData/AvatarData"
-import { Margins } from "../../components/Margins/Margins"
+} from "utils/templates";
+import { AvatarData } from "../../components/AvatarData/AvatarData";
+import { Margins } from "../../components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "../../components/PageHeader/PageHeader"
-import { Stack } from "../../components/Stack/Stack"
+} from "../../components/PageHeader/PageHeader";
+import { Stack } from "../../components/Stack/Stack";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "../../components/TableLoader/TableLoader"
+} from "../../components/TableLoader/TableLoader";
 import {
   HelpTooltip,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import { EmptyTemplates } from "./EmptyTemplates"
-import { TemplatesContext } from "xServices/templates/templatesXService"
-import { useClickableTableRow } from "hooks/useClickableTableRow"
-import { Template } from "api/typesGenerated"
-import { combineClasses } from "utils/combineClasses"
-import { colors } from "theme/colors"
-import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined"
-import { Avatar } from "components/Avatar/Avatar"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { docs } from "utils/docs"
-import Skeleton from "@mui/material/Skeleton"
-import { Box } from "@mui/system"
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
+} from "components/HelpTooltip/HelpTooltip";
+import { EmptyTemplates } from "./EmptyTemplates";
+import { TemplatesContext } from "xServices/templates/templatesXService";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { Template } from "api/typesGenerated";
+import { combineClasses } from "utils/combineClasses";
+import { colors } from "theme/colors";
+import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
+import { Avatar } from "components/Avatar/Avatar";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { docs } from "utils/docs";
+import Skeleton from "@mui/material/Skeleton";
+import { Box } from "@mui/system";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
 export const Language = {
   developerCount: (activeCount: number): string => {
     return `${formatTemplateActiveDevelopers(activeCount)} developer${
       activeCount !== 1 ? "s" : ""
-    }`
+    }`;
   },
   nameLabel: "Name",
   buildTimeLabel: "Build time",
@@ -63,7 +63,7 @@ export const Language = {
   templateTooltipText:
     "With templates you can create a common configuration for your workspaces using Terraform.",
   templateTooltipLink: "Manage templates",
-}
+};
 
 const TemplateHelpTooltip: React.FC = () => {
   return (
@@ -76,18 +76,18 @@ const TemplateHelpTooltip: React.FC = () => {
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
-  )
-}
+  );
+};
 
 const TemplateRow: FC<{ template: Template }> = ({ template }) => {
-  const templatePageLink = `/templates/${template.name}`
-  const hasIcon = template.icon && template.icon !== ""
-  const navigate = useNavigate()
-  const styles = useStyles()
+  const templatePageLink = `/templates/${template.name}`;
+  const hasIcon = template.icon && template.icon !== "";
+  const navigate = useNavigate();
+  const styles = useStyles();
   const { className: clickableClassName, ...clickableRow } =
     useClickableTableRow(() => {
-      navigate(templatePageLink)
-    })
+      navigate(templatePageLink);
+    });
 
   return (
     <TableRow
@@ -129,27 +129,27 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
           startIcon={<ArrowForwardOutlined />}
           title={`Create a workspace using the ${template.display_name} template`}
           onClick={(e) => {
-            e.stopPropagation()
-            navigate(`/templates/${template.name}/workspace`)
+            e.stopPropagation();
+            navigate(`/templates/${template.name}/workspace`);
           }}
         >
           Create Workspace
         </Button>
       </TableCell>
     </TableRow>
-  )
-}
+  );
+};
 
 export interface TemplatesPageViewProps {
-  context: TemplatesContext
+  context: TemplatesContext;
 }
 
 export const TemplatesPageView: FC<
   React.PropsWithChildren<TemplatesPageViewProps>
 > = ({ context }) => {
-  const { templates, error, examples, permissions } = context
-  const isLoading = !templates
-  const isEmpty = Boolean(templates && templates.length === 0)
+  const { templates, error, examples, permissions } = context;
+  const isLoading = !templates;
+  const isEmpty = Boolean(templates && templates.length === 0);
 
   return (
     <Margins>
@@ -225,8 +225,8 @@ export const TemplatesPageView: FC<
         </Cond>
       </ChooseOne>
     </Margins>
-  )
-}
+  );
+};
 
 const TableLoader = () => {
   return (
@@ -251,8 +251,8 @@ const TableLoader = () => {
         </TableCell>
       </TableRowSkeleton>
     </TableLoaderSkeleton>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   templateIconWrapper: {
@@ -284,4 +284,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     transition: "none",
   },
-}))
+}));

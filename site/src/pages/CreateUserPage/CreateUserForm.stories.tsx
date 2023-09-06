@@ -1,7 +1,7 @@
-import { action } from "@storybook/addon-actions"
-import { StoryObj, Meta } from "@storybook/react"
-import { CreateUserForm } from "./CreateUserForm"
-import { mockApiError } from "testHelpers/entities"
+import { action } from "@storybook/addon-actions";
+import { StoryObj, Meta } from "@storybook/react";
+import { CreateUserForm } from "./CreateUserForm";
+import { mockApiError } from "testHelpers/entities";
 
 const meta: Meta<typeof CreateUserForm> = {
   title: "components/CreateUserForm",
@@ -11,12 +11,12 @@ const meta: Meta<typeof CreateUserForm> = {
     onSubmit: action("submit"),
     isLoading: false,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof CreateUserForm>
+export default meta;
+type Story = StoryObj<typeof CreateUserForm>;
 
-export const Ready: Story = {}
+export const Ready: Story = {};
 
 export const FormError: Story = {
   args: {
@@ -24,7 +24,7 @@ export const FormError: Story = {
       validations: [{ field: "username", detail: "Username taken" }],
     }),
   },
-}
+};
 
 export const GeneralError: Story = {
   args: {
@@ -32,10 +32,10 @@ export const GeneralError: Story = {
       message: "User already exists",
     }),
   },
-}
+};
 
 export const Loading: Story = {
   args: {
     isLoading: true,
   },
-}
+};

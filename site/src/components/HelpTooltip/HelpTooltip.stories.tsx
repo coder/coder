@@ -1,4 +1,4 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -6,12 +6,12 @@ import {
   HelpTooltipProps,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "./HelpTooltip"
+} from "./HelpTooltip";
 
 export default {
   title: "components/HelpTooltip",
   component: HelpTooltip,
-} as ComponentMeta<typeof HelpTooltip>
+} as ComponentMeta<typeof HelpTooltip>;
 
 const Template: Story<HelpTooltipProps> = (args) => (
   <HelpTooltip {...args}>
@@ -28,11 +28,11 @@ const Template: Story<HelpTooltipProps> = (args) => (
       </HelpTooltipLink>
     </HelpTooltipLinksGroup>
   </HelpTooltip>
-)
+);
 
-export const Close = Template.bind({})
+export const Close = Template.bind({});
 
-export const Open = Template.bind({})
+export const Open = Template.bind({});
 Open.args = {
   open: true,
-}
+};

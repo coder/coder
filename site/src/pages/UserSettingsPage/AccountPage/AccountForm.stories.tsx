@@ -1,6 +1,6 @@
-import { Story } from "@storybook/react"
-import { AccountForm, AccountFormProps } from "./AccountForm"
-import { mockApiError } from "testHelpers/entities"
+import { Story } from "@storybook/react";
+import { AccountForm, AccountFormProps } from "./AccountForm";
+import { mockApiError } from "testHelpers/entities";
 
 export default {
   title: "components/AccountForm",
@@ -8,13 +8,13 @@ export default {
   argTypes: {
     onSubmit: { action: "Submit" },
   },
-}
+};
 
 const Template: Story<AccountFormProps> = (args: AccountFormProps) => (
   <AccountForm {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   email: "test-user@org.com",
   isLoading: false,
@@ -23,17 +23,17 @@ Example.args = {
   },
   updateProfileError: undefined,
   onSubmit: () => {
-    return Promise.resolve()
+    return Promise.resolve();
   },
-}
+};
 
-export const Loading = Template.bind({})
+export const Loading = Template.bind({});
 Loading.args = {
   ...Example.args,
   isLoading: true,
-}
+};
 
-export const WithError = Template.bind({})
+export const WithError = Template.bind({});
 WithError.args = {
   ...Example.args,
   updateProfileError: mockApiError({
@@ -48,4 +48,4 @@ WithError.args = {
   initialTouched: {
     username: true,
   },
-}
+};

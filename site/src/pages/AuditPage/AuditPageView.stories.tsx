@@ -1,11 +1,14 @@
-import { Meta, StoryObj } from "@storybook/react"
-import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities"
-import { AuditPageView } from "./AuditPageView"
-import { WorkspacesPageView } from "pages/WorkspacesPage/WorkspacesPageView"
-import { ComponentProps } from "react"
-import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
+import { Meta, StoryObj } from "@storybook/react";
+import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
+import { AuditPageView } from "./AuditPageView";
+import { WorkspacesPageView } from "pages/WorkspacesPage/WorkspacesPageView";
+import { ComponentProps } from "react";
+import {
+  MockMenu,
+  getDefaultFilterProps,
+} from "components/Filter/storyHelpers";
 
-type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"]
+type FilterProps = ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
   query: `owner:me`,
@@ -19,7 +22,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
     action: MockMenu,
     resourceType: MockMenu,
   },
-})
+});
 
 const meta: Meta<typeof AuditPageView> = {
   title: "pages/AuditPageView",
@@ -32,12 +35,12 @@ const meta: Meta<typeof AuditPageView> = {
     isAuditLogVisible: true,
     filterProps: defaultFilterProps,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof WorkspacesPageView>
+export default meta;
+type Story = StoryObj<typeof WorkspacesPageView>;
 
-export const AuditPage: Story = {}
+export const AuditPage: Story = {};
 
 export const Loading = {
   args: {
@@ -45,14 +48,14 @@ export const Loading = {
     count: undefined,
     isNonInitialPage: false,
   },
-}
+};
 
 export const EmptyPage = {
   args: {
     auditLogs: [],
     isNonInitialPage: true,
   },
-}
+};
 
 export const NoLogs = {
   args: {
@@ -60,16 +63,16 @@ export const NoLogs = {
     count: 0,
     isNonInitialPage: false,
   },
-}
+};
 
 export const NotVisible = {
   args: {
     isAuditLogVisible: false,
   },
-}
+};
 
 export const AuditPageSmallViewport = {
   parameters: {
     chromatic: { viewports: [600] },
   },
-}
+};

@@ -1,5 +1,5 @@
-import Button, { ButtonProps } from "@mui/material/Button"
-import { FC, forwardRef } from "react"
+import Button, { ButtonProps } from "@mui/material/Button";
+import { FC, forwardRef } from "react";
 
 export const PrimaryAgentButton: FC<ButtonProps> = ({
   className,
@@ -23,12 +23,12 @@ export const PrimaryAgentButton: FC<ButtonProps> = ({
         ...props.sx,
       }}
     />
-  )
-}
+  );
+};
 
 // eslint-disable-next-line react/display-name -- Name is inferred from variable name
 export const SecondaryAgentButton = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, ...props }, ref) => {
-    return <Button ref={ref} className={className} {...props} />
+    return <Button ref={ref} className={className} {...props} />;
   },
-)
+);

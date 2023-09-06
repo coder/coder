@@ -1,18 +1,22 @@
-import TextField from "@mui/material/TextField"
-import { FormikContextType, useFormik } from "formik"
-import { FC } from "react"
-import * as Yup from "yup"
-import * as TypesGen from "api/typesGenerated"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
-import { FormFooter } from "components/FormFooter/FormFooter"
-import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { Stack } from "components/Stack/Stack"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { hasApiFieldErrors, isApiError } from "api/errors"
-import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/styles"
-import { Theme } from "@mui/material/styles"
-import Link from "@mui/material/Link"
+import TextField from "@mui/material/TextField";
+import { FormikContextType, useFormik } from "formik";
+import { FC } from "react";
+import * as Yup from "yup";
+import * as TypesGen from "api/typesGenerated";
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import { FormFooter } from "components/FormFooter/FormFooter";
+import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Stack } from "components/Stack/Stack";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { hasApiFieldErrors, isApiError } from "api/errors";
+import MenuItem from "@mui/material/MenuItem";
+import { makeStyles } from "@mui/styles";
+import { Theme } from "@mui/material/styles";
+import Link from "@mui/material/Link";
 
 export const Language = {
   emailLabel: "Email",
@@ -23,7 +27,7 @@ export const Language = {
   passwordRequired: "Please enter a password.",
   createUser: "Create",
   cancel: "Cancel",
-}
+};
 
 export const authMethodLanguage = {
   password: {
@@ -54,15 +58,15 @@ export const authMethodLanguage = {
       </>
     ),
   },
-}
+};
 
 export interface CreateUserFormProps {
-  onSubmit: (user: TypesGen.CreateUserRequest) => void
-  onCancel: () => void
-  error?: unknown
-  isLoading: boolean
-  myOrgId: string
-  authMethods?: TypesGen.AuthMethods
+  onSubmit: (user: TypesGen.CreateUserRequest) => void;
+  onCancel: () => void;
+  error?: unknown;
+  isLoading: boolean;
+  myOrgId: string;
+  authMethods?: TypesGen.AuthMethods;
 }
 
 const validationSchema = Yup.object({
@@ -77,7 +81,7 @@ const validationSchema = Yup.object({
   }),
   username: nameValidator(Language.usernameLabel),
   login_type: Yup.string().oneOf(Object.keys(authMethodLanguage)),
-})
+});
 
 export const CreateUserForm: FC<
   React.PropsWithChildren<CreateUserFormProps>
@@ -94,20 +98,20 @@ export const CreateUserForm: FC<
       },
       validationSchema,
       onSubmit,
-    })
+    });
   const getFieldHelpers = getFormHelpers<TypesGen.CreateUserRequest>(
     form,
     error,
-  )
+  );
 
-  const styles = useStyles()
+  const styles = useStyles();
 
   const methods = [
     authMethods?.password.enabled && "password",
     authMethods?.oidc.enabled && "oidc",
     authMethods?.github.enabled && "github",
     "none",
-  ].filter(Boolean) as Array<keyof typeof authMethodLanguage>
+  ].filter(Boolean) as Array<keyof typeof authMethodLanguage>;
 
   return (
     <FullPageForm title="Create user">
@@ -143,9 +147,9 @@ export const CreateUserForm: FC<
             label="Login Type"
             onChange={async (e) => {
               if (e.target.value !== "password") {
-                await form.setFieldValue("password", "")
+                await form.setFieldValue("password", "");
               }
-              await form.setFieldValue("login_type", e.target.value)
+              await form.setFieldValue("login_type", e.target.value);
             }}
             SelectProps={{
               renderValue: (selected: unknown) =>
@@ -154,7 +158,7 @@ export const CreateUserForm: FC<
             }}
           >
             {methods.map((value) => {
-              const language = authMethodLanguage[value]
+              const language = authMethodLanguage[value];
               return (
                 <MenuItem key={value} id={"item-" + value} value={value}>
                   <Stack spacing={0} maxWidth={400}>
@@ -164,7 +168,7 @@ export const CreateUserForm: FC<
                     </span>
                   </Stack>
                 </MenuItem>
-              )
+              );
             })}
           </TextField>
           <TextField
@@ -186,8 +190,8 @@ export const CreateUserForm: FC<
         <FormFooter onCancel={onCancel} isLoading={isLoading} />
       </form>
     </FullPageForm>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<Theme>((theme) => ({
   labelDescription: {
@@ -196,4 +200,4 @@ const useStyles = makeStyles<Theme>((theme) => ({
     wordWrap: "normal",
     whiteSpace: "break-spaces",
   },
-}))
+}));

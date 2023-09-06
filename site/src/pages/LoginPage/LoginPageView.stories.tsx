@@ -1,18 +1,18 @@
-import { action } from "@storybook/addon-actions"
-import { ComponentMeta, Story } from "@storybook/react"
-import { MockAuthMethods } from "testHelpers/entities"
-import { LoginPageView, LoginPageViewProps } from "./LoginPageView"
+import { action } from "@storybook/addon-actions";
+import { ComponentMeta, Story } from "@storybook/react";
+import { MockAuthMethods } from "testHelpers/entities";
+import { LoginPageView, LoginPageViewProps } from "./LoginPageView";
 
 export default {
   title: "pages/LoginPageView",
   component: LoginPageView,
-} as ComponentMeta<typeof LoginPageView>
+} as ComponentMeta<typeof LoginPageView>;
 
 const Template: Story<LoginPageViewProps> = (args) => (
   <LoginPageView {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
@@ -22,11 +22,11 @@ Example.args = {
       hasFirstUser: false,
     },
   },
-}
+};
 
-const err = new Error("Username or email are wrong.")
+const err = new Error("Username or email are wrong.");
 
-export const AuthError = Template.bind({})
+export const AuthError = Template.bind({});
 AuthError.args = {
   isLoading: false,
   onSignIn: action("onSignIn"),
@@ -37,16 +37,16 @@ AuthError.args = {
       hasFirstUser: false,
     },
   },
-}
+};
 
-export const LoadingInitialData = Template.bind({})
+export const LoadingInitialData = Template.bind({});
 LoadingInitialData.args = {
   isLoading: true,
   onSignIn: action("onSignIn"),
   context: {},
-}
+};
 
-export const SigningIn = Template.bind({})
+export const SigningIn = Template.bind({});
 SigningIn.args = {
   isSigningIn: true,
   onSignIn: action("onSignIn"),
@@ -56,4 +56,4 @@ SigningIn.args = {
       hasFirstUser: false,
     },
   },
-}
+};

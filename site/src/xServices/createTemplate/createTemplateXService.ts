@@ -7,7 +7,7 @@ import {
   getTemplateVersionLogs,
   getTemplateVersionVariables,
   getTemplateByName,
-} from "api/api"
+} from "api/api";
 import {
   ProvisionerJob,
   ProvisionerJobLog,
@@ -18,14 +18,14 @@ import {
   TemplateVersionVariable,
   UploadResponse,
   VariableValue,
-} from "api/typesGenerated"
-import { displayError } from "components/GlobalSnackbar/utils"
+} from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
 import {
   TemplateAutostopRequirementDaysValue,
   calculateAutostopRequirementDaysValue,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
-import { delay } from "utils/delay"
-import { assign, createMachine } from "xstate"
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText";
+import { delay } from "utils/delay";
+import { assign, createMachine } from "xstate";
 
 // for creating a new template:
 // 1. upload template tar or use the example ID
@@ -40,41 +40,41 @@ import { assign, createMachine } from "xstate"
 
 const provisioner: ProvisionerType =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
-  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform"
+  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
 
 export interface CreateTemplateData {
-  name: string
-  display_name: string
-  description: string
-  icon: string
-  default_ttl_hours: number
-  max_ttl_hours: number
-  autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue
-  autostop_requirement_weeks: number
-  allow_user_autostart: boolean
-  allow_user_autostop: boolean
-  allow_user_cancel_workspace_jobs: boolean
-  parameter_values_by_name?: Record<string, string>
-  user_variable_values?: VariableValue[]
-  allow_everyone_group_access: boolean
+  name: string;
+  display_name: string;
+  description: string;
+  icon: string;
+  default_ttl_hours: number;
+  max_ttl_hours: number;
+  autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
+  autostop_requirement_weeks: number;
+  allow_user_autostart: boolean;
+  allow_user_autostop: boolean;
+  allow_user_cancel_workspace_jobs: boolean;
+  parameter_values_by_name?: Record<string, string>;
+  user_variable_values?: VariableValue[];
+  allow_everyone_group_access: boolean;
 }
 interface CreateTemplateContext {
-  organizationId: string
-  error?: unknown
-  jobError?: string
-  jobLogs?: ProvisionerJobLog[]
-  starterTemplate?: TemplateExample
-  exampleId?: string | null // It can be null because it is being passed from query string
-  version?: TemplateVersion
-  templateData?: CreateTemplateData
-  variables?: TemplateVersionVariable[]
+  organizationId: string;
+  error?: unknown;
+  jobError?: string;
+  jobLogs?: ProvisionerJobLog[];
+  starterTemplate?: TemplateExample;
+  exampleId?: string | null; // It can be null because it is being passed from query string
+  version?: TemplateVersion;
+  templateData?: CreateTemplateData;
+  variables?: TemplateVersionVariable[];
   // file is used in the FE to show the filename and some other visual stuff
   // uploadedFile is the response from the server to use in the API
-  file?: File
-  uploadResponse?: UploadResponse
+  file?: File;
+  uploadResponse?: UploadResponse;
   // When wanting to duplicate a Template
-  templateNameToCopy: string | null // It can be null because it is passed from query string
-  copiedTemplate?: Template
+  templateNameToCopy: string | null; // It can be null because it is passed from query string
+  copiedTemplate?: Template;
 }
 
 export const createTemplateMachine =
@@ -91,38 +91,38 @@ export const createTemplateMachine =
           | { type: "REMOVE_FILE" },
         services: {} as {
           uploadFile: {
-            data: UploadResponse
-          }
+            data: UploadResponse;
+          };
           loadStarterTemplate: {
-            data: TemplateExample
-          }
+            data: TemplateExample;
+          };
           createFirstVersion: {
-            data: TemplateVersion
-          }
+            data: TemplateVersion;
+          };
           createVersionWithParametersAndVariables: {
-            data: TemplateVersion
-          }
+            data: TemplateVersion;
+          };
           waitForJobToBeCompleted: {
-            data: TemplateVersion
-          }
+            data: TemplateVersion;
+          };
           checkParametersAndVariables: {
             data: {
-              variables?: TemplateVersionVariable[]
-            }
-          }
+              variables?: TemplateVersionVariable[];
+            };
+          };
           createTemplate: {
-            data: Template
-          }
+            data: Template;
+          };
           loadVersionLogs: {
-            data: ProvisionerJobLog[]
-          }
+            data: ProvisionerJobLog[];
+          };
           copyTemplateData: {
             data: {
-              template: Template
-              version: TemplateVersion
-              variables: TemplateVersionVariable[]
-            }
-          }
+              template: Template;
+              version: TemplateVersion;
+              variables: TemplateVersionVariable[];
+            };
+          };
         },
       },
       tsTypes: {} as import("./createTemplateXService.typegen").Typegen0,
@@ -323,38 +323,38 @@ export const createTemplateMachine =
         uploadFile: (_, { file }) => uploadTemplateFile(file),
         loadStarterTemplate: async ({ organizationId, exampleId }) => {
           if (!exampleId) {
-            throw new Error(`Example ID is not defined.`)
+            throw new Error(`Example ID is not defined.`);
           }
-          const examples = await getTemplateExamples(organizationId)
+          const examples = await getTemplateExamples(organizationId);
           const starterTemplate = examples.find(
             (example) => example.id === exampleId,
-          )
+          );
           if (!starterTemplate) {
-            throw new Error(`Example ${exampleId} not found.`)
+            throw new Error(`Example ${exampleId} not found.`);
           }
-          return starterTemplate
+          return starterTemplate;
         },
         copyTemplateData: async ({ organizationId, templateNameToCopy }) => {
           if (!organizationId) {
-            throw new Error("No organization ID provided")
+            throw new Error("No organization ID provided");
           }
           if (!templateNameToCopy) {
-            throw new Error("No template name to copy provided")
+            throw new Error("No template name to copy provided");
           }
           const template = await getTemplateByName(
             organizationId,
             templateNameToCopy,
-          )
+          );
           const [version, variables] = await Promise.all([
             getTemplateVersion(template.active_version_id),
             getTemplateVersionVariables(template.active_version_id),
-          ])
+          ]);
 
           return {
             template,
             version,
             variables,
-          }
+          };
         },
         createFirstVersion: async ({
           organizationId,
@@ -369,14 +369,14 @@ export const createTemplateMachine =
               example_id: exampleId,
               provisioner: provisioner,
               tags: {},
-            })
+            });
           }
 
           if (templateNameToCopy) {
             if (!version) {
               throw new Error(
                 "Can't copy template due to a missing template version",
-              )
+              );
             }
 
             return createTemplateVersion(organizationId, {
@@ -384,7 +384,7 @@ export const createTemplateMachine =
               file_id: version.job.file_id,
               provisioner: provisioner,
               tags: {},
-            })
+            });
           }
 
           if (uploadResponse) {
@@ -393,10 +393,10 @@ export const createTemplateMachine =
               file_id: uploadResponse.hash,
               provisioner: provisioner,
               tags: {},
-            })
+            });
           }
 
-          throw new Error("No file or example provided")
+          throw new Error("No file or example provided");
         },
         createVersionWithParametersAndVariables: async ({
           organizationId,
@@ -404,10 +404,10 @@ export const createTemplateMachine =
           version,
         }) => {
           if (!version) {
-            throw new Error("No previous version found")
+            throw new Error("No previous version found");
           }
           if (!templateData) {
-            throw new Error("No template data defined")
+            throw new Error("No template data defined");
           }
 
           return createTemplateVersion(organizationId, {
@@ -416,53 +416,53 @@ export const createTemplateMachine =
             provisioner: provisioner,
             user_variable_values: templateData.user_variable_values,
             tags: {},
-          })
+          });
         },
         waitForJobToBeCompleted: async ({ version }) => {
           if (!version) {
-            throw new Error("Version not defined")
+            throw new Error("Version not defined");
           }
 
-          let job = version.job
+          let job = version.job;
           while (isPendingOrRunning(job)) {
-            version = await getTemplateVersion(version.id)
-            job = version.job
+            version = await getTemplateVersion(version.id);
+            job = version.job;
 
             // Delay the verification in two seconds to not overload the server
             // with too many requests Maybe at some point we could have a
             // websocket for template version Also, preferred doing this way to
             // avoid a new state since we don't need to reflect it on the UI
             if (isPendingOrRunning(job)) {
-              await delay(2_000)
+              await delay(2_000);
             }
           }
-          return version
+          return version;
         },
         checkParametersAndVariables: async ({ version }) => {
           if (!version) {
-            throw new Error("Version not defined")
+            throw new Error("Version not defined");
           }
 
           let promiseVariables: Promise<TemplateVersionVariable[]> | undefined =
-            undefined
+            undefined;
 
           if (isMissingVariables(version)) {
-            promiseVariables = getTemplateVersionVariables(version.id)
+            promiseVariables = getTemplateVersionVariables(version.id);
           }
 
-          const [variables] = await Promise.all([promiseVariables])
+          const [variables] = await Promise.all([promiseVariables]);
 
           return {
             variables,
-          }
+          };
         },
         createTemplate: async ({ organizationId, version, templateData }) => {
           if (!version) {
-            throw new Error("Version not defined")
+            throw new Error("Version not defined");
           }
 
           if (!templateData) {
-            throw new Error("Template data not defined")
+            throw new Error("Template data not defined");
           }
 
           const {
@@ -473,7 +473,7 @@ export const createTemplateMachine =
             autostop_requirement_days_of_week,
             autostop_requirement_weeks,
             ...safeTemplateData
-          } = templateData
+          } = templateData;
 
           return createTemplate(organizationId, {
             ...safeTemplateData,
@@ -488,21 +488,21 @@ export const createTemplateMachine =
               ),
               weeks: templateData.autostop_requirement_weeks,
             },
-          })
+          });
         },
         loadVersionLogs: ({ version }) => {
           if (!version) {
-            throw new Error("Version is not set")
+            throw new Error("Version is not set");
           }
 
-          return getTemplateVersionLogs(version.id)
+          return getTemplateVersionLogs(version.id);
         },
       },
       actions: {
         assignError: assign({ error: (_, { data }) => data }),
         assignJobError: assign({ jobError: (_, { data }) => data.job.error }),
         displayUploadError: () => {
-          displayError("Error on upload the file.")
+          displayError("Error on upload the file.");
         },
         assignStarterTemplate: assign({
           starterTemplate: (_, { data }) => data,
@@ -536,19 +536,19 @@ export const createTemplateMachine =
         hasNoParametersOrVariables: (_, { data }) =>
           data.variables === undefined,
         hasParametersOrVariables: (_, { data }) => {
-          return data.variables.length > 0
+          return data.variables.length > 0;
         },
       },
     },
-  )
+  );
 
 const isMissingVariables = (version: TemplateVersion) => {
   return Boolean(
     version.job.error_code &&
       version.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
-  )
-}
+  );
+};
 
 const isPendingOrRunning = (job: ProvisionerJob) => {
-  return job.status === "pending" || job.status === "running"
-}
+  return job.status === "pending" || job.status === "running";
+};

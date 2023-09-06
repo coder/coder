@@ -1,16 +1,16 @@
-import { Margins } from "components/Margins/Margins"
-import { FC, ReactNode } from "react"
+import { Margins } from "components/Margins/Margins";
+import { FC, ReactNode } from "react";
 import {
   PageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
-} from "components/PageHeader/PageHeader"
-import Button from "@mui/material/Button"
+} from "components/PageHeader/PageHeader";
+import Button from "@mui/material/Button";
 
 export interface FullPageHorizontalFormProps {
-  title: string
-  detail?: ReactNode
-  onCancel?: () => void
+  title: string;
+  detail?: ReactNode;
+  onCancel?: () => void;
 }
 
 export const FullPageHorizontalForm: FC<
@@ -33,5 +33,5 @@ export const FullPageHorizontalForm: FC<
 
       <main>{children}</main>
     </Margins>
-  )
-}
+  );
+};

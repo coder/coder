@@ -1,16 +1,16 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { Markdown, MarkdownProps } from "./Markdown"
+import { ComponentMeta, Story } from "@storybook/react";
+import { Markdown, MarkdownProps } from "./Markdown";
 
 export default {
   title: "components/Markdown",
   component: Markdown,
-} as ComponentMeta<typeof Markdown>
+} as ComponentMeta<typeof Markdown>;
 
 const Template: Story<MarkdownProps> = ({ children }) => (
   <Markdown>{children}</Markdown>
-)
+);
 
-export const WithCode = Template.bind({})
+export const WithCode = Template.bind({});
 WithCode.args = {
   children: `
   ## Required permissions / policy
@@ -64,12 +64,12 @@ WithCode.args = {
     ]
   }
   \`\`\``,
-}
+};
 
-export const WithTable = Template.bind({})
+export const WithTable = Template.bind({});
 WithTable.args = {
   children: `
   | heading | b  |  c |  d  |
   | - | :- | -: | :-: |
   | cell 1 | cell 2 | 3 | 4 | `,
-}
+};

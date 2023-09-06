@@ -1,93 +1,93 @@
-import { fireEvent, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { rest } from "msw"
-import { createMemoryRouter } from "react-router-dom"
-import { Language } from "./SignInForm/SignInForm"
+import { fireEvent, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { rest } from "msw";
+import { createMemoryRouter } from "react-router-dom";
+import { Language } from "./SignInForm/SignInForm";
 import {
   render,
   renderWithRouter,
   waitForLoaderToBeRemoved,
-} from "../../testHelpers/renderHelpers"
-import { server } from "../../testHelpers/server"
-import { LoginPage } from "./LoginPage"
-import * as TypesGen from "api/typesGenerated"
-import { i18n } from "i18n"
+} from "../../testHelpers/renderHelpers";
+import { server } from "../../testHelpers/server";
+import { LoginPage } from "./LoginPage";
+import * as TypesGen from "api/typesGenerated";
+import { i18n } from "i18n";
 
-const { t } = i18n
+const { t } = i18n;
 
 describe("LoginPage", () => {
   beforeEach(() => {
     // appear logged out
     server.use(
       rest.get("/api/v2/users/me", (req, res, ctx) => {
-        return res(ctx.status(401), ctx.json({ message: "no user here" }))
+        return res(ctx.status(401), ctx.json({ message: "no user here" }));
       }),
-    )
-  })
+    );
+  });
 
   it("renders the sign-in form", async () => {
     // When
-    render(<LoginPage />)
+    render(<LoginPage />);
 
     // Then
-    await screen.findByText(Language.passwordSignIn)
-  })
+    await screen.findByText(Language.passwordSignIn);
+  });
 
   it("shows an error message if SignIn fails", async () => {
     // Given
-    const apiErrorMessage = "Something wrong happened"
+    const apiErrorMessage = "Something wrong happened";
     server.use(
       // Make login fail
       rest.post("/api/v2/users/login", async (req, res, ctx) => {
-        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }))
+        return res(ctx.status(500), ctx.json({ message: apiErrorMessage }));
       }),
-    )
+    );
 
     // When
-    render(<LoginPage />)
-    await waitForLoaderToBeRemoved()
-    const email = screen.getByLabelText(Language.emailLabel)
-    const password = screen.getByLabelText(Language.passwordLabel)
-    await userEvent.type(email, "test@coder.com")
-    await userEvent.type(password, "password")
+    render(<LoginPage />);
+    await waitForLoaderToBeRemoved();
+    const email = screen.getByLabelText(Language.emailLabel);
+    const password = screen.getByLabelText(Language.passwordLabel);
+    await userEvent.type(email, "test@coder.com");
+    await userEvent.type(password, "password");
     // Click sign-in
-    const signInButton = await screen.findByText(Language.passwordSignIn)
-    fireEvent.click(signInButton)
+    const signInButton = await screen.findByText(Language.passwordSignIn);
+    fireEvent.click(signInButton);
 
     // Then
-    const errorMessage = await screen.findByText(apiErrorMessage)
-    expect(errorMessage).toBeDefined()
-  })
+    const errorMessage = await screen.findByText(apiErrorMessage);
+    expect(errorMessage).toBeDefined();
+  });
 
   it("shows github authentication when enabled", async () => {
     const authMethods: TypesGen.AuthMethods = {
       password: { enabled: true },
       github: { enabled: true },
       oidc: { enabled: true, signInText: "", iconUrl: "" },
-    }
+    };
 
     // Given
     server.use(
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(authMethods))
+        return res(ctx.status(200), ctx.json(authMethods));
       }),
-    )
+    );
 
     // When
-    render(<LoginPage />)
+    render(<LoginPage />);
 
     // Then
-    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
-    await screen.findByText(Language.githubSignIn)
-  })
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument();
+    await screen.findByText(Language.githubSignIn);
+  });
 
   it("redirects to the setup page if there is no first user", async () => {
     // Given
     server.use(
       rest.get("/api/v2/users/first", async (req, res, ctx) => {
-        return res(ctx.status(404))
+        return res(ctx.status(404));
       }),
-    )
+    );
 
     // When
     renderWithRouter(
@@ -104,38 +104,38 @@ describe("LoginPage", () => {
         ],
         { initialEntries: ["/login"] },
       ),
-    )
+    );
 
     // Then
-    await screen.findByText("Setup")
-  })
+    await screen.findByText("Setup");
+  });
 
   it("hides password authentication if OIDC/GitHub is enabled and displays on click", async () => {
     const authMethods: TypesGen.AuthMethods = {
       password: { enabled: true },
       github: { enabled: true },
       oidc: { enabled: true, signInText: "", iconUrl: "" },
-    }
+    };
 
     // Given
     server.use(
       rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(authMethods))
+        return res(ctx.status(200), ctx.json(authMethods));
       }),
-    )
+    );
 
     // When
-    render(<LoginPage />)
+    render(<LoginPage />);
 
     // Then
-    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument()
-    await screen.findByText(Language.githubSignIn)
+    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument();
+    await screen.findByText(Language.githubSignIn);
 
-    const showPasswordLabel = t("showPassword", { ns: "loginPage" })
-    const showPasswordAuthLink = screen.getByText(showPasswordLabel)
-    await userEvent.click(showPasswordAuthLink)
+    const showPasswordLabel = t("showPassword", { ns: "loginPage" });
+    const showPasswordAuthLink = screen.getByText(showPasswordLabel);
+    await userEvent.click(showPasswordAuthLink);
 
-    await screen.findByText(Language.passwordSignIn)
-    await screen.findByText(Language.githubSignIn)
-  })
-})
+    await screen.findByText(Language.passwordSignIn);
+    await screen.findByText(Language.githubSignIn);
+  });
+});

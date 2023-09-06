@@ -1,7 +1,7 @@
-import Box from "@mui/material/Box"
-import { Theme } from "@mui/material/styles"
-import useTheme from "@mui/styles/useTheme"
-import * as TypesGen from "api/typesGenerated"
+import Box from "@mui/material/Box";
+import { Theme } from "@mui/material/styles";
+import useTheme from "@mui/styles/useTheme";
+import * as TypesGen from "api/typesGenerated";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -13,16 +13,16 @@ import {
   TimeScale,
   Title,
   Tooltip,
-} from "chart.js"
-import "chartjs-adapter-date-fns"
+} from "chart.js";
+import "chartjs-adapter-date-fns";
 import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip"
-import dayjs from "dayjs"
-import { FC } from "react"
-import { Bar } from "react-chartjs-2"
+} from "components/HelpTooltip/HelpTooltip";
+import dayjs from "dayjs";
+import { FC } from "react";
+import { Bar } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
@@ -32,25 +32,25 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-)
+);
 
 export interface DAUChartProps {
-  daus: TypesGen.DAUsResponse
+  daus: TypesGen.DAUsResponse;
 }
 
 export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
-  const theme: Theme = useTheme()
+  const theme: Theme = useTheme();
 
   const labels = daus.entries.map((val) => {
-    return dayjs(val.date).format("YYYY-MM-DD")
-  })
+    return dayjs(val.date).format("YYYY-MM-DD");
+  });
 
   const data = daus.entries.map((val) => {
-    return val.amount
-  })
+    return val.amount;
+  });
 
-  defaults.font.family = theme.typography.fontFamily as string
-  defaults.color = theme.palette.text.secondary
+  defaults.font.family = theme.typography.fontFamily as string;
+  defaults.color = theme.palette.text.secondary;
 
   const options: ChartOptions<"bar"> = {
     responsive: true,
@@ -62,8 +62,8 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         displayColors: false,
         callbacks: {
           title: (context) => {
-            const date = new Date(context[0].parsed.x)
-            return date.toLocaleDateString()
+            const date = new Date(context[0].parsed.x);
+            return date.toLocaleDateString();
           },
         },
       },
@@ -86,7 +86,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       },
     },
     maintainAspectRatio: false,
-  }
+  };
 
   return (
     <Bar
@@ -108,8 +108,8 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       }}
       options={options}
     />
-  )
-}
+  );
+};
 
 export const DAUTitle = () => {
   return (
@@ -125,5 +125,5 @@ export const DAUTitle = () => {
         </HelpTooltipText>
       </HelpTooltip>
     </Box>
-  )
-}
+  );
+};

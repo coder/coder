@@ -1,13 +1,13 @@
-import LinearProgress from "@mui/material/LinearProgress"
-import makeStyles from "@mui/styles/makeStyles"
-import { TransitionStats, Template, Workspace } from "api/typesGenerated"
-import dayjs, { Dayjs } from "dayjs"
-import { FC, useEffect, useState } from "react"
-import capitalize from "lodash/capitalize"
+import LinearProgress from "@mui/material/LinearProgress";
+import makeStyles from "@mui/styles/makeStyles";
+import { TransitionStats, Template, Workspace } from "api/typesGenerated";
+import dayjs, { Dayjs } from "dayjs";
+import { FC, useEffect, useState } from "react";
+import capitalize from "lodash/capitalize";
 
-import duration from "dayjs/plugin/duration"
+import duration from "dayjs/plugin/duration";
 
-dayjs.extend(duration)
+dayjs.extend(duration);
 
 // ActiveTransition gets the build estimate for the workspace,
 // if it is in a transition state.
@@ -15,65 +15,65 @@ export const ActiveTransition = (
   template: Template,
   workspace: Workspace,
 ): TransitionStats | undefined => {
-  const status = workspace.latest_build.status
+  const status = workspace.latest_build.status;
 
   switch (status) {
     case "starting":
-      return template.build_time_stats.start
+      return template.build_time_stats.start;
     case "stopping":
-      return template.build_time_stats.stop
+      return template.build_time_stats.stop;
     case "deleting":
-      return template.build_time_stats.delete
+      return template.build_time_stats.delete;
     default:
-      return undefined
+      return undefined;
   }
-}
+};
 
 const estimateFinish = (
   startedAt: Dayjs,
   p50: number,
   p95: number,
 ): [number | undefined, string] => {
-  const sinceStart = dayjs().diff(startedAt)
+  const sinceStart = dayjs().diff(startedAt);
   const secondsLeft = (est: number) => {
     const max = Math.max(
       Math.ceil(dayjs.duration((1 - sinceStart / est) * est).asSeconds()),
       0,
-    )
-    return isNaN(max) ? 0 : max
-  }
+    );
+    return isNaN(max) ? 0 : max;
+  };
 
   // Under-promise, over-deliver with the 95th percentile estimate.
-  const highGuess = secondsLeft(p95)
+  const highGuess = secondsLeft(p95);
 
   const anyMomentNow: [number | undefined, string] = [
     undefined,
     "Any moment now...",
-  ]
+  ];
 
-  const p50percent = (sinceStart * 100) / p50
+  const p50percent = (sinceStart * 100) / p50;
   if (highGuess <= 0) {
-    return anyMomentNow
+    return anyMomentNow;
   }
 
-  return [p50percent, `Up to ${highGuess} seconds remaining...`]
-}
+  return [p50percent, `Up to ${highGuess} seconds remaining...`];
+};
 
 export interface WorkspaceBuildProgressProps {
-  workspace: Workspace
-  transitionStats: TransitionStats
+  workspace: Workspace;
+  transitionStats: TransitionStats;
 }
 
 export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
   workspace,
   transitionStats: transitionStats,
 }) => {
-  const styles = useStyles()
-  const job = workspace.latest_build.job
-  const [progressValue, setProgressValue] = useState<number | undefined>(0)
+  const styles = useStyles();
+  const job = workspace.latest_build.job;
+  const [progressValue, setProgressValue] = useState<number | undefined>(0);
   const [progressText, setProgressText] = useState<string | undefined>(
     "Finding ETA...",
-  )
+  );
 
   // By default workspace is updated every second, which can cause visual stutter
   // when the build estimate is a few seconds. The timer ensures no observable
@@ -85,26 +85,26 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
         transitionStats.P50 === undefined ||
         transitionStats.P95 === undefined
       ) {
-        setProgressValue(undefined)
-        setProgressText(undefined)
-        return
+        setProgressValue(undefined);
+        setProgressText(undefined);
+        return;
       }
 
       const [est, text] = estimateFinish(
         dayjs(job.started_at),
         transitionStats.P50,
         transitionStats.P95,
-      )
-      setProgressValue(est)
-      setProgressText(text)
-    }
-    setTimeout(updateProgress, 5)
-  }, [progressValue, job, transitionStats])
+      );
+      setProgressValue(est);
+      setProgressText(text);
+    };
+    setTimeout(updateProgress, 5);
+  }, [progressValue, job, transitionStats]);
 
   // HACK: the codersdk type generator doesn't support null values, but this
   // can be null when the template is new.
   if ((transitionStats.P50 as number | null) === null) {
-    return <></>
+    return <></>;
   }
   return (
     <div className={styles.stack}>
@@ -134,8 +134,8 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   stack: {
@@ -156,4 +156,4 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 600,
     color: theme.palette.text.secondary,
   },
-}))
+}));

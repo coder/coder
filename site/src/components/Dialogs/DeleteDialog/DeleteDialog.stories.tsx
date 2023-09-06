@@ -1,6 +1,6 @@
-import { action } from "@storybook/addon-actions"
-import { ComponentMeta, Story } from "@storybook/react"
-import { DeleteDialog, DeleteDialogProps } from "./DeleteDialog"
+import { action } from "@storybook/addon-actions";
+import { ComponentMeta, Story } from "@storybook/react";
+import { DeleteDialog, DeleteDialogProps } from "./DeleteDialog";
 
 export default {
   title: "Components/Dialogs/DeleteDialog",
@@ -18,11 +18,11 @@ export default {
     name: "MyFoo",
     info: "Here's some info about the foo so you know you're deleting the right one.",
   },
-} as ComponentMeta<typeof DeleteDialog>
+} as ComponentMeta<typeof DeleteDialog>;
 
-const Template: Story<DeleteDialogProps> = (args) => <DeleteDialog {...args} />
+const Template: Story<DeleteDialogProps> = (args) => <DeleteDialog {...args} />;
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   isOpen: true,
-}
+};

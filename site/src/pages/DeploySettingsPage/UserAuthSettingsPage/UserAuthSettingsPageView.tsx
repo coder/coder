@@ -1,31 +1,31 @@
-import { DeploymentOption } from "api/types"
+import { DeploymentOption } from "api/types";
 import {
   Badges,
   DisabledBadge,
   EnabledBadge,
-} from "components/DeploySettingsLayout/Badges"
-import { Header } from "components/DeploySettingsLayout/Header"
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
-import { Stack } from "components/Stack/Stack"
+} from "components/DeploySettingsLayout/Badges";
+import { Header } from "components/DeploySettingsLayout/Header";
+import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
+import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
-} from "utils/deployOptions"
-import { docs } from "utils/docs"
+} from "utils/deployOptions";
+import { docs } from "utils/docs";
 
 export type UserAuthSettingsPageViewProps = {
-  options: DeploymentOption[]
-}
+  options: DeploymentOption[];
+};
 
 export const UserAuthSettingsPageView = ({
   options,
 }: UserAuthSettingsPageViewProps): JSX.Element => {
   const oidcEnabled = Boolean(
     useDeploymentOptions(options, "OIDC Client ID")[0].value,
-  )
+  );
   const githubEnabled = Boolean(
     useDeploymentOptions(options, "OAuth2 GitHub Client ID")[0].value,
-  )
+  );
 
   return (
     <>
@@ -73,5 +73,5 @@ export const UserAuthSettingsPageView = ({
         </div>
       </Stack>
     </>
-  )
-}
+  );
+};

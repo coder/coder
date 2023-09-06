@@ -1,17 +1,17 @@
-import { makeStyles } from "@mui/styles"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
-import { FC } from "react"
-import { useLocation } from "react-router-dom"
-import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService"
-import { SignInForm } from "pages/LoginPage/SignInForm/SignInForm"
-import { retrieveRedirect } from "utils/redirect"
-import { CoderIcon } from "components/Icons/CoderIcon"
+import { makeStyles } from "@mui/styles";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { FC } from "react";
+import { useLocation } from "react-router-dom";
+import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService";
+import { SignInForm } from "pages/LoginPage/SignInForm/SignInForm";
+import { retrieveRedirect } from "utils/redirect";
+import { CoderIcon } from "components/Icons/CoderIcon";
 
 export interface LoginPageViewProps {
-  context: AuthContext
-  isLoading: boolean
-  isSigningIn: boolean
-  onSignIn: (credentials: { email: string; password: string }) => void
+  context: AuthContext;
+  isLoading: boolean;
+  isSigningIn: boolean;
+  onSignIn: (credentials: { email: string; password: string }) => void;
 }
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
@@ -20,14 +20,14 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   isSigningIn,
   onSignIn,
 }) => {
-  const location = useLocation()
-  const redirectTo = retrieveRedirect(location.search)
-  const { error } = context
-  const data = context.data as UnauthenticatedData
-  const styles = useStyles()
+  const location = useLocation();
+  const redirectTo = retrieveRedirect(location.search);
+  const { error } = context;
+  const data = context.data as UnauthenticatedData;
+  const styles = useStyles();
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
-  const info = new URLSearchParams(location.search).get("info") || undefined
+  const info = new URLSearchParams(location.search).get("info") || undefined;
 
   return isLoading ? (
     <FullScreenLoader />
@@ -48,8 +48,8 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
         </footer>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -79,4 +79,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(3),
   },
-}))
+}));

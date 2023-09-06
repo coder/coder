@@ -1,1 +1,1 @@
-export { AuditLogDescription } from "./AuditLogDescription"
+export { AuditLogDescription } from "./AuditLogDescription";

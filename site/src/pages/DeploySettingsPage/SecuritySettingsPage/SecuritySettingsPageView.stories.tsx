@@ -1,9 +1,9 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { DeploymentOption } from "api/types"
+import { ComponentMeta, Story } from "@storybook/react";
+import { DeploymentOption } from "api/types";
 import {
   SecuritySettingsPageView,
   SecuritySettingsPageViewProps,
-} from "./SecuritySettingsPageView"
+} from "./SecuritySettingsPageView";
 
 export default {
   title: "pages/SecuritySettingsPageView",
@@ -37,14 +37,14 @@ export default {
     featureAuditLogEnabled: true,
     featureBrowserOnlyEnabled: true,
   },
-} as ComponentMeta<typeof SecuritySettingsPageView>
+} as ComponentMeta<typeof SecuritySettingsPageView>;
 
 const Template: Story<SecuritySettingsPageViewProps> = (args) => (
   <SecuritySettingsPageView {...args} />
-)
-export const Page = Template.bind({})
+);
+export const Page = Template.bind({});
 
-export const NoTLS = Template.bind({})
+export const NoTLS = Template.bind({});
 NoTLS.args = {
   options: [
     {
@@ -60,4 +60,4 @@ NoTLS.args = {
       value: "1234",
     } as DeploymentOption,
   ],
-}
+};

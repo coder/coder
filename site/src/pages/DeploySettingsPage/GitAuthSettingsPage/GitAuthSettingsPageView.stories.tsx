@@ -1,8 +1,8 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   GitAuthSettingsPageView,
   GitAuthSettingsPageViewProps,
-} from "./GitAuthSettingsPageView"
+} from "./GitAuthSettingsPageView";
 
 export default {
   title: "pages/GitAuthSettingsPageView",
@@ -19,9 +19,9 @@ export default {
       ],
     },
   },
-} as ComponentMeta<typeof GitAuthSettingsPageView>
+} as ComponentMeta<typeof GitAuthSettingsPageView>;
 
 const Template: Story<GitAuthSettingsPageViewProps> = (args) => (
   <GitAuthSettingsPageView {...args} />
-)
-export const Page = Template.bind({})
+);
+export const Page = Template.bind({});

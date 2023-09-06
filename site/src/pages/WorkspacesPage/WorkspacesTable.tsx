@@ -1,51 +1,51 @@
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { Workspace } from "api/typesGenerated"
-import { FC, ReactNode } from "react"
-import { TableEmpty } from "components/TableEmpty/TableEmpty"
-import { useTranslation } from "react-i18next"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { Workspace } from "api/typesGenerated";
+import { FC, ReactNode } from "react";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { useTranslation } from "react-i18next";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "components/TableLoader/TableLoader"
-import AddOutlined from "@mui/icons-material/AddOutlined"
-import Button from "@mui/material/Button"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Link as RouterLink, useNavigate } from "react-router-dom"
-import { makeStyles } from "@mui/styles"
+} from "components/TableLoader/TableLoader";
+import AddOutlined from "@mui/icons-material/AddOutlined";
+import Button from "@mui/material/Button";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { makeStyles } from "@mui/styles";
 import {
   HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import InfoIcon from "@mui/icons-material/InfoOutlined"
-import { colors } from "theme/colors"
-import { useClickableTableRow } from "hooks/useClickableTableRow"
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
-import Box from "@mui/material/Box"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { Avatar } from "components/Avatar/Avatar"
-import { Stack } from "components/Stack/Stack"
-import { LastUsed } from "pages/WorkspacesPage/LastUsed"
-import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip"
-import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { getDisplayWorkspaceTemplateName } from "utils/workspace"
-import Checkbox from "@mui/material/Checkbox"
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
-import Skeleton from "@mui/material/Skeleton"
+} from "components/HelpTooltip/HelpTooltip";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { colors } from "theme/colors";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import Box from "@mui/material/Box";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { Stack } from "components/Stack/Stack";
+import { LastUsed } from "pages/WorkspacesPage/LastUsed";
+import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { getDisplayWorkspaceTemplateName } from "utils/workspace";
+import Checkbox from "@mui/material/Checkbox";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import Skeleton from "@mui/material/Skeleton";
 
 export interface WorkspacesTableProps {
-  workspaces?: Workspace[]
-  checkedWorkspaces: Workspace[]
-  error?: unknown
-  isUsingFilter: boolean
-  onUpdateWorkspace: (workspace: Workspace) => void
-  onCheckChange: (checkedWorkspaces: Workspace[]) => void
-  canCheckWorkspaces: boolean
+  workspaces?: Workspace[];
+  checkedWorkspaces: Workspace[];
+  error?: unknown;
+  isUsingFilter: boolean;
+  onUpdateWorkspace: (workspace: Workspace) => void;
+  onCheckChange: (checkedWorkspaces: Workspace[]) => void;
+  canCheckWorkspaces: boolean;
 }
 
 export const WorkspacesTable: FC<WorkspacesTableProps> = ({
@@ -56,8 +56,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   onCheckChange,
   canCheckWorkspaces,
 }) => {
-  const { t } = useTranslation("workspacesPage")
-  const styles = useStyles()
+  const { t } = useTranslation("workspacesPage");
+  const styles = useStyles();
 
   return (
     <TableContainer>
@@ -76,13 +76,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     size="small"
                     onChange={(_, checked) => {
                       if (!workspaces) {
-                        return
+                        return;
                       }
 
                       if (!checked) {
-                        onCheckChange([])
+                        onCheckChange([]);
                       } else {
-                        onCheckChange(workspaces)
+                        onCheckChange(workspaces);
                       }
                     }}
                   />
@@ -134,7 +134,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             workspaces.map((workspace) => {
               const checked = checkedWorkspaces.some(
                 (w) => w.id === workspace.id,
-              )
+              );
               return (
                 <WorkspacesRow
                   workspace={workspace}
@@ -153,17 +153,17 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                           disabled={cantBeChecked(workspace)}
                           checked={checked}
                           onClick={(e) => {
-                            e.stopPropagation()
+                            e.stopPropagation();
                           }}
                           onChange={(e) => {
                             if (e.currentTarget.checked) {
-                              onCheckChange([...checkedWorkspaces, workspace])
+                              onCheckChange([...checkedWorkspaces, workspace]);
                             } else {
                               onCheckChange(
                                 checkedWorkspaces.filter(
                                   (w) => w.id !== workspace.id,
                                 ),
-                              )
+                              );
                             }
                           }}
                         />
@@ -181,7 +181,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                                 templateName={workspace.template_name}
                                 templateId={workspace.template_id}
                                 onUpdateVersion={() => {
-                                  onUpdateWorkspace(workspace)
+                                  onUpdateWorkspace(workspace);
                                 }}
                               />
                             )}
@@ -236,24 +236,24 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     </Box>
                   </TableCell>
                 </WorkspacesRow>
-              )
+              );
             })}
         </TableBody>
       </Table>
     </TableContainer>
-  )
-}
+  );
+};
 
 const WorkspacesRow: FC<{
-  workspace: Workspace
-  children: ReactNode
-  checked: boolean
+  workspace: Workspace;
+  children: ReactNode;
+  checked: boolean;
 }> = ({ workspace, children, checked }) => {
-  const navigate = useNavigate()
-  const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`
+  const navigate = useNavigate();
+  const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
   const clickable = useClickableTableRow(() => {
-    navigate(workspacePageLink)
-  })
+    navigate(workspacePageLink);
+  });
 
   return (
     <TableRow
@@ -266,11 +266,11 @@ const WorkspacesRow: FC<{
     >
       {children}
     </TableRow>
-  )
-}
+  );
+};
 
 export const UnhealthyTooltip = () => {
-  const styles = useUnhealthyTooltipStyles()
+  const styles = useUnhealthyTooltipStyles();
 
   return (
     <HelpTooltip
@@ -284,13 +284,13 @@ export const UnhealthyTooltip = () => {
         Your workspace is running but some agents are unhealthy.
       </HelpTooltipText>
     </HelpTooltip>
-  )
-}
+  );
+};
 
 const TableLoader = ({
   canCheckWorkspaces,
 }: {
-  canCheckWorkspaces: boolean
+  canCheckWorkspaces: boolean;
 }) => {
   return (
     <TableLoaderSkeleton>
@@ -317,12 +317,12 @@ const TableLoader = ({
         </TableCell>
       </TableRowSkeleton>
     </TableLoaderSkeleton>
-  )
-}
+  );
+};
 
 const cantBeChecked = (workspace: Workspace) => {
-  return ["deleting", "pending"].includes(workspace.latest_build.status)
-}
+  return ["deleting", "pending"].includes(workspace.latest_build.status);
+};
 
 const useUnhealthyTooltipStyles = makeStyles(() => ({
   unhealthyIcon: {
@@ -336,7 +336,7 @@ const useUnhealthyTooltipStyles = makeStyles(() => ({
       opacity: 1,
     },
   },
-}))
+}));
 
 const useStyles = makeStyles((theme) => ({
   withImage: {
@@ -353,4 +353,4 @@ const useStyles = makeStyles((theme) => ({
       maxWidth: "100%",
     },
   },
-}))
+}));

@@ -1,12 +1,12 @@
-import { getTemplateExamples } from "api/api"
-import { TemplateExample } from "api/typesGenerated"
-import { assign, createMachine } from "xstate"
+import { getTemplateExamples } from "api/api";
+import { TemplateExample } from "api/typesGenerated";
+import { assign, createMachine } from "xstate";
 
 export interface StarterTemplateContext {
-  organizationId: string
-  exampleId: string
-  starterTemplate?: TemplateExample
-  error?: unknown
+  organizationId: string;
+  exampleId: string;
+  starterTemplate?: TemplateExample;
+  error?: unknown;
 }
 
 export const starterTemplateMachine = createMachine(
@@ -17,8 +17,8 @@ export const starterTemplateMachine = createMachine(
       context: {} as StarterTemplateContext,
       services: {} as {
         loadStarterTemplate: {
-          data: TemplateExample
-        }
+          data: TemplateExample;
+        };
       },
     },
     tsTypes: {} as import("./starterTemplateXService.typegen").Typegen0,
@@ -49,14 +49,14 @@ export const starterTemplateMachine = createMachine(
   {
     services: {
       loadStarterTemplate: async ({ organizationId, exampleId }) => {
-        const examples = await getTemplateExamples(organizationId)
+        const examples = await getTemplateExamples(organizationId);
         const starterTemplate = examples.find(
           (example) => example.id === exampleId,
-        )
+        );
         if (!starterTemplate) {
-          throw new Error(`Example ${exampleId} not found.`)
+          throw new Error(`Example ${exampleId} not found.`);
         }
-        return starterTemplate
+        return starterTemplate;
       },
     },
     actions: {
@@ -68,4 +68,4 @@ export const starterTemplateMachine = createMachine(
       }),
     },
   },
-)
+);

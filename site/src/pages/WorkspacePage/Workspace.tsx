@@ -1,37 +1,37 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import { Avatar } from "components/Avatar/Avatar"
-import { AgentRow } from "components/Resources/AgentRow"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import { Avatar } from "components/Avatar/Avatar";
+import { AgentRow } from "components/Resources/AgentRow";
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
-} from "./WorkspaceBuildProgress"
-import { FC, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
-import * as TypesGen from "api/typesGenerated"
-import { Alert, AlertDetail } from "components/Alert/Alert"
-import { BuildsTable } from "./BuildsTable"
-import { Margins } from "components/Margins/Margins"
-import { Resources } from "components/Resources/Resources"
-import { Stack } from "components/Stack/Stack"
-import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions"
-import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner"
-import { WorkspaceStats } from "./WorkspaceStats"
+} from "./WorkspaceBuildProgress";
+import { FC, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import * as TypesGen from "api/typesGenerated";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import { BuildsTable } from "./BuildsTable";
+import { Margins } from "components/Margins/Margins";
+import { Resources } from "components/Resources/Resources";
+import { Stack } from "components/Stack/Stack";
+import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
+import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
+import { WorkspaceStats } from "./WorkspaceStats";
 import {
   FullWidthPageHeader,
   PageHeaderActions,
   PageHeaderTitle,
   PageHeaderSubtitle,
-} from "components/PageHeader/FullWidthPageHeader"
-import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { DormantWorkspaceBanner } from "components/WorkspaceDeletion"
-import { useLocalStorage } from "hooks"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import AlertTitle from "@mui/material/AlertTitle"
-import { Maybe } from "components/Conditionals/Maybe"
-import dayjs from "dayjs"
+} from "components/PageHeader/FullWidthPageHeader";
+import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
+import { useLocalStorage } from "hooks";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import AlertTitle from "@mui/material/AlertTitle";
+import { Maybe } from "components/Conditionals/Maybe";
+import dayjs from "dayjs";
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -40,38 +40,38 @@ export enum WorkspaceErrors {
 }
 export interface WorkspaceProps {
   scheduleProps: {
-    onDeadlinePlus: (hours: number) => void
-    onDeadlineMinus: (hours: number) => void
-    maxDeadlineIncrease: number
-    maxDeadlineDecrease: number
-  }
-  handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
-  handleStop: () => void
-  handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void
-  handleDelete: () => void
-  handleUpdate: () => void
-  handleCancel: () => void
-  handleSettings: () => void
-  handleChangeVersion: () => void
-  handleDormantActivate: () => void
-  isUpdating: boolean
-  isRestarting: boolean
-  workspace: TypesGen.Workspace
-  resources?: TypesGen.WorkspaceResource[]
-  builds?: TypesGen.WorkspaceBuild[]
-  templateWarnings?: TypesGen.TemplateVersionWarning[]
-  canUpdateWorkspace: boolean
-  canRetryDebugMode: boolean
-  canChangeVersions: boolean
-  hideSSHButton?: boolean
-  hideVSCodeDesktopButton?: boolean
-  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>
-  buildInfo?: TypesGen.BuildInfoResponse
-  sshPrefix?: string
-  template?: TypesGen.Template
-  quota_budget?: number
-  handleBuildRetry: () => void
-  buildLogs?: React.ReactNode
+    onDeadlinePlus: (hours: number) => void;
+    onDeadlineMinus: (hours: number) => void;
+    maxDeadlineIncrease: number;
+    maxDeadlineDecrease: number;
+  };
+  handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleStop: () => void;
+  handleRestart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
+  handleDelete: () => void;
+  handleUpdate: () => void;
+  handleCancel: () => void;
+  handleSettings: () => void;
+  handleChangeVersion: () => void;
+  handleDormantActivate: () => void;
+  isUpdating: boolean;
+  isRestarting: boolean;
+  workspace: TypesGen.Workspace;
+  resources?: TypesGen.WorkspaceResource[];
+  builds?: TypesGen.WorkspaceBuild[];
+  templateWarnings?: TypesGen.TemplateVersionWarning[];
+  canUpdateWorkspace: boolean;
+  canRetryDebugMode: boolean;
+  canChangeVersions: boolean;
+  hideSSHButton?: boolean;
+  hideVSCodeDesktopButton?: boolean;
+  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>;
+  buildInfo?: TypesGen.BuildInfoResponse;
+  sshPrefix?: string;
+  template?: TypesGen.Template;
+  quota_budget?: number;
+  handleBuildRetry: () => void;
+  buildLogs?: React.ReactNode;
 }
 
 /**
@@ -107,18 +107,18 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   templateWarnings,
   buildLogs,
 }) => {
-  const styles = useStyles()
-  const navigate = useNavigate()
-  const serverVersion = buildInfo?.version || ""
-  const { t } = useTranslation("workspacePage")
-  const { saveLocal, getLocal } = useLocalStorage()
+  const styles = useStyles();
+  const navigate = useNavigate();
+  const serverVersion = buildInfo?.version || "";
+  const { t } = useTranslation("workspacePage");
+  const { saveLocal, getLocal } = useLocalStorage();
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
     <ErrorAlert
       error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
       dismissible
     />
-  )
+  );
 
   const cancellationError = Boolean(
     workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
@@ -127,44 +127,44 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
       error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
       dismissible
     />
-  )
+  );
 
-  let transitionStats: TypesGen.TransitionStats | undefined = undefined
+  let transitionStats: TypesGen.TransitionStats | undefined = undefined;
   if (template !== undefined) {
-    transitionStats = ActiveTransition(template, workspace)
+    transitionStats = ActiveTransition(template, workspace);
   }
 
-  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false)
-  const now = dayjs()
+  const [showAlertPendingInQueue, setShowAlertPendingInQueue] = useState(false);
+  const now = dayjs();
   useEffect(() => {
     if (
       workspace.latest_build.status !== "pending" ||
       workspace.latest_build.job.queue_size === 0
     ) {
       if (!showAlertPendingInQueue) {
-        return
+        return;
       }
 
       const hideTimer = setTimeout(() => {
-        setShowAlertPendingInQueue(false)
-      }, 250)
+        setShowAlertPendingInQueue(false);
+      }, 250);
       return () => {
-        clearTimeout(hideTimer)
-      }
+        clearTimeout(hideTimer);
+      };
     }
 
     const t = Math.max(
       0,
       5000 - dayjs().diff(dayjs(workspace.latest_build.created_at)),
-    )
+    );
     const showTimer = setTimeout(() => {
-      setShowAlertPendingInQueue(true)
-    }, t)
+      setShowAlertPendingInQueue(true);
+    }, t);
 
     return () => {
-      clearTimeout(showTimer)
-    }
-  }, [workspace, now, showAlertPendingInQueue])
+      clearTimeout(showTimer);
+    };
+  }, [workspace, now, showAlertPendingInQueue]);
   return (
     <>
       <FullWidthPageHeader>
@@ -233,7 +233,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                       variant="text"
                       size="small"
                       onClick={() => {
-                        handleRestart()
+                        handleRestart();
                       }}
                     >
                       Restart
@@ -350,10 +350,10 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         </Stack>
       </Margins>
     </>
-  )
-}
+  );
+};
 
-const spacerWidth = 300
+const spacerWidth = 300;
 
 export const useStyles = makeStyles((theme) => {
   return {
@@ -406,5 +406,5 @@ export const useStyles = makeStyles((theme) => {
     alertPendingInQueue: {
       marginBottom: 12,
     },
-  }
-})
+  };
+});

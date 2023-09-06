@@ -1,73 +1,73 @@
-import Checkbox from "@mui/material/Checkbox"
-import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
+import Checkbox from "@mui/material/Checkbox";
+import { makeStyles } from "@mui/styles";
+import TextField from "@mui/material/TextField";
 import {
   ProvisionerJobLog,
   Template,
   TemplateExample,
   TemplateVersionVariable,
-} from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
+} from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
 import {
   TemplateUpload,
   TemplateUploadProps,
-} from "pages/CreateTemplatePage/TemplateUpload"
-import { useFormik } from "formik"
-import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate"
-import { FC, useEffect } from "react"
-import { useTranslation } from "react-i18next"
+} from "pages/CreateTemplatePage/TemplateUpload";
+import { useFormik } from "formik";
+import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
+import { FC, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   nameValidator,
   getFormHelpers,
   onChangeTrimmed,
   templateDisplayNameValidator,
-} from "utils/formUtils"
-import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService"
-import * as Yup from "yup"
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
+} from "utils/formUtils";
+import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService";
+import * as Yup from "yup";
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
   HelpTooltip,
   HelpTooltipText,
-} from "components/HelpTooltip/HelpTooltip"
-import { LazyIconField } from "components/IconField/LazyIconField"
-import { Maybe } from "components/Conditionals/Maybe"
-import i18next from "i18next"
-import Link from "@mui/material/Link"
+} from "components/HelpTooltip/HelpTooltip";
+import { LazyIconField } from "components/IconField/LazyIconField";
+import { Maybe } from "components/Conditionals/Maybe";
+import i18next from "i18next";
+import Link from "@mui/material/Link";
 import {
   HorizontalForm,
   FormSection,
   FormFields,
   FormFooter,
-} from "components/Form/Form"
-import camelCase from "lodash/camelCase"
-import capitalize from "lodash/capitalize"
-import { VariableInput } from "./VariableInput"
-import { docs } from "utils/docs"
+} from "components/Form/Form";
+import camelCase from "lodash/camelCase";
+import capitalize from "lodash/capitalize";
+import { VariableInput } from "./VariableInput";
+import { docs } from "utils/docs";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText"
-import MenuItem from "@mui/material/MenuItem"
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText";
+import MenuItem from "@mui/material/MenuItem";
 
-const MAX_DESCRIPTION_CHAR_LIMIT = 128
-const MAX_TTL_DAYS = 30
+const MAX_DESCRIPTION_CHAR_LIMIT = 128;
+const MAX_TTL_DAYS = 30;
 
 const TTLHelperText = ({
   ttl,
   translationName,
 }: {
-  ttl?: number
-  translationName: string
+  ttl?: number;
+  translationName: string;
 }) => {
-  const { t } = useTranslation("createTemplatePage")
-  const count = typeof ttl !== "number" ? 0 : ttl
+  const { t } = useTranslation("createTemplatePage");
+  const count = typeof ttl !== "number" ? 0 : ttl;
   return (
     // no helper text if ttl is negative - error will show once field is considered touched
     <Maybe condition={count >= 0}>
       <span>{t(translationName, { count })}</span>
     </Maybe>
-  )
-}
+  );
+};
 
 const validationSchema = Yup.object({
   name: nameValidator(
@@ -99,7 +99,7 @@ const validationSchema = Yup.object({
     ),
   autostop_requirement_days_of_week: Yup.string().required(),
   autostop_requirement_weeks: Yup.number().required().min(1).max(16),
-})
+});
 
 const defaultInitialValues: CreateTemplateData = {
   name: "",
@@ -125,14 +125,14 @@ const defaultInitialValues: CreateTemplateData = {
   allow_user_autostart: false,
   allow_user_autostop: false,
   allow_everyone_group_access: true,
-}
+};
 
 type GetInitialValuesParams = {
-  fromExample?: TemplateExample
-  fromCopy?: Template
-  variables?: TemplateVersionVariable[]
-  allowAdvancedScheduling: boolean
-}
+  fromExample?: TemplateExample;
+  fromCopy?: Template;
+  variables?: TemplateVersionVariable[];
+  allowAdvancedScheduling: boolean;
+};
 
 const getInitialValues = ({
   fromExample,
@@ -140,13 +140,13 @@ const getInitialValues = ({
   allowAdvancedScheduling,
   variables,
 }: GetInitialValuesParams) => {
-  let initialValues = defaultInitialValues
+  let initialValues = defaultInitialValues;
 
   if (!allowAdvancedScheduling) {
     initialValues = {
       ...initialValues,
       max_ttl_hours: 0,
-    }
+    };
   }
 
   if (fromExample) {
@@ -156,7 +156,7 @@ const getInitialValues = ({
       display_name: fromExample.name,
       icon: fromExample.icon,
       description: fromExample.description,
-    }
+    };
   }
 
   if (fromCopy) {
@@ -167,38 +167,38 @@ const getInitialValues = ({
       display_name: fromCopy.display_name
         ? `Copy of ${fromCopy.display_name}`
         : "",
-    }
+    };
   }
 
   if (variables) {
     variables.forEach((variable) => {
       if (!initialValues.user_variable_values) {
-        initialValues.user_variable_values = []
+        initialValues.user_variable_values = [];
       }
       initialValues.user_variable_values.push({
         name: variable.name,
         value: variable.sensitive ? "" : variable.value,
-      })
-    })
+      });
+    });
   }
 
-  return initialValues
-}
+  return initialValues;
+};
 
 export interface CreateTemplateFormProps {
-  onCancel: () => void
-  onSubmit: (data: CreateTemplateData) => void
-  isSubmitting: boolean
-  upload: TemplateUploadProps
-  starterTemplate?: TemplateExample
-  variables?: TemplateVersionVariable[]
-  error?: unknown
-  jobError?: string
-  logs?: ProvisionerJobLog[]
-  allowAdvancedScheduling: boolean
-  copiedTemplate?: Template
-  allowDisableEveryoneAccess: boolean
-  allowAutostopRequirement: boolean
+  onCancel: () => void;
+  onSubmit: (data: CreateTemplateData) => void;
+  isSubmitting: boolean;
+  upload: TemplateUploadProps;
+  starterTemplate?: TemplateExample;
+  variables?: TemplateVersionVariable[];
+  error?: unknown;
+  jobError?: string;
+  logs?: ProvisionerJobLog[];
+  allowAdvancedScheduling: boolean;
+  copiedTemplate?: Template;
+  allowDisableEveryoneAccess: boolean;
+  allowAutostopRequirement: boolean;
 }
 
 export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
@@ -216,7 +216,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   allowDisableEveryoneAccess,
   allowAutostopRequirement,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
@@ -226,22 +226,22 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     }),
     validationSchema,
     onSubmit,
-  })
-  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error)
-  const { t } = useTranslation("createTemplatePage")
-  const { t: commonT } = useTranslation("common")
+  });
+  const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
+  const { t } = useTranslation("createTemplatePage");
+  const { t: commonT } = useTranslation("common");
 
   useEffect(() => {
     if (error) {
-      window.scrollTo(0, 0)
+      window.scrollTo(0, 0);
     }
-  }, [error])
+  }, [error]);
 
   useEffect(() => {
     if (jobError) {
-      window.scrollTo(0, document.body.scrollHeight)
+      window.scrollTo(0, document.body.scrollHeight);
     }
-  }, [logs, jobError])
+  }, [logs, jobError]);
 
   // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
   // "daily". Technically you can set weeks to a different value in the backend
@@ -254,13 +254,13 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
   const {
     values: { autostop_requirement_days_of_week },
     setFieldValue,
-  } = form
+  } = form;
   useEffect(() => {
     if (!["saturday", "sunday"].includes(autostop_requirement_days_of_week)) {
       // This is async but we don't really need to await the value.
-      void setFieldValue("autostop_requirement_weeks", 1)
+      void setFieldValue("autostop_requirement_weeks", 1);
     }
-  }, [autostop_requirement_days_of_week, setFieldValue])
+  }, [autostop_requirement_days_of_week, setFieldValue]);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -278,8 +278,8 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TemplateUpload
               {...upload}
               onUpload={async (file) => {
-                await fillNameAndDisplayWithFilename(file.name, form)
-                upload.onUpload(file)
+                await fillNameAndDisplayWithFilename(file.name, form);
+                upload.onUpload(file);
               }}
             />
           )}
@@ -439,7 +439,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   await form.setFieldValue(
                     "allow_user_autostart",
                     !form.values.allow_user_autostart,
-                  )
+                  );
                 }}
                 name="allow_user_autostart"
                 checked={form.values.allow_user_autostart}
@@ -459,7 +459,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   await form.setFieldValue(
                     "allow_user_autostop",
                     !form.values.allow_user_autostop,
-                  )
+                  );
                 }}
                 name="allow-user-autostop"
                 checked={form.values.allow_user_autostop}
@@ -582,7 +582,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   await form.setFieldValue("user_variable_values." + index, {
                     name: variable.name,
                     value,
-                  })
+                  });
                 }}
               />
             ))}
@@ -612,14 +612,14 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         submitLabel={jobError ? "Retry" : "Create template"}
       />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 const fillNameAndDisplayWithFilename = async (
   filename: string,
   form: ReturnType<typeof useFormik<CreateTemplateData>>,
 ) => {
-  const [name, _extension] = filename.split(".")
+  const [name, _extension] = filename.split(".");
   await Promise.all([
     form.setFieldValue(
       "name",
@@ -627,8 +627,8 @@ const fillNameAndDisplayWithFilename = async (
       camelCase(name).toLowerCase(),
     ),
     form.setFieldValue("display_name", capitalize(name)),
-  ])
-}
+  ]);
+};
 
 const useStyles = makeStyles((theme) => ({
   ttlFields: {
@@ -669,4 +669,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.error.light,
     fontSize: theme.spacing(2),
   },
-}))
+}));

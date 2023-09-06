@@ -2,10 +2,9 @@
 
 # This config file is used in conjunction with `.editorconfig` to specify
 # formatting for prettier-supported files. See `.editorconfig` and
-# `site/.editorconfig`for whitespace formatting options.
+# `site/.editorconfig` for whitespace formatting options.
 printWidth: 80
 proseWrap: always
-semi: false
 trailingComma: all
 useTabs: false
 tabWidth: 2

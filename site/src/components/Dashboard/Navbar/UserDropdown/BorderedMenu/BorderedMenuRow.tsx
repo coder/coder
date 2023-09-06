@@ -1,32 +1,32 @@
-import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/styles"
-import CheckIcon from "@mui/icons-material/Check"
-import { FC } from "react"
-import { NavLink } from "react-router-dom"
-import { ellipsizeText } from "../../../../../utils/ellipsizeText"
-import { Typography } from "../../../../Typography/Typography"
+import ListItem from "@mui/material/ListItem";
+import { makeStyles } from "@mui/styles";
+import CheckIcon from "@mui/icons-material/Check";
+import { FC } from "react";
+import { NavLink } from "react-router-dom";
+import { ellipsizeText } from "../../../../../utils/ellipsizeText";
+import { Typography } from "../../../../Typography/Typography";
 
-type BorderedMenuRowVariant = "narrow" | "wide"
+type BorderedMenuRowVariant = "narrow" | "wide";
 
 interface BorderedMenuRowProps {
   /** `true` indicates this row is currently selected */
-  active?: boolean
+  active?: boolean;
   /** Optional description that appears beneath the title */
-  description?: string
+  description?: string;
   /** URL path */
-  path: string
+  path: string;
   /** Required title of this row */
-  title: string
+  title: string;
   /** Defaults to `"wide"` */
-  variant?: BorderedMenuRowVariant
+  variant?: BorderedMenuRowVariant;
   /** Callback fired when this row is clicked */
-  onClick?: () => void
+  onClick?: () => void;
 }
 
 export const BorderedMenuRow: FC<
   React.PropsWithChildren<BorderedMenuRowProps>
 > = ({ active, description, path, title, variant, onClick }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <NavLink className={styles.link} to={path}>
@@ -54,10 +54,10 @@ export const BorderedMenuRow: FC<
         </div>
       </ListItem>
     </NavLink>
-  )
-}
+  );
+};
 
-const iconSize = 20
+const iconSize = 20;
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -127,4 +127,4 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: theme.spacing(4.5),
     marginTop: theme.spacing(0.5),
   },
-}))
+}));

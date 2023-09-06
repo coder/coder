@@ -1,14 +1,14 @@
-import { useMachine } from "@xstate/react"
-import { usePermissions } from "hooks/usePermissions"
-import { DeploymentBannerView } from "./DeploymentBannerView"
-import { deploymentStatsMachine } from "xServices/deploymentStats/deploymentStatsMachine"
+import { useMachine } from "@xstate/react";
+import { usePermissions } from "hooks/usePermissions";
+import { DeploymentBannerView } from "./DeploymentBannerView";
+import { deploymentStatsMachine } from "xServices/deploymentStats/deploymentStatsMachine";
 
 export const DeploymentBanner: React.FC = () => {
-  const permissions = usePermissions()
-  const [state, sendEvent] = useMachine(deploymentStatsMachine)
+  const permissions = usePermissions();
+  const [state, sendEvent] = useMachine(deploymentStatsMachine);
 
   if (!permissions.viewDeploymentValues || !state.context.deploymentStats) {
-    return null
+    return null;
   }
 
   return (
@@ -16,5 +16,5 @@ export const DeploymentBanner: React.FC = () => {
       stats={state.context.deploymentStats}
       fetchStats={() => sendEvent("RELOAD")}
     />
-  )
-}
+  );
+};

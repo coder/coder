@@ -1,6 +1,6 @@
-import { Story } from "@storybook/react"
-import { SecurityForm, SecurityFormProps } from "./SettingsSecurityForm"
-import { mockApiError } from "testHelpers/entities"
+import { Story } from "@storybook/react";
+import { SecurityForm, SecurityFormProps } from "./SettingsSecurityForm";
+import { mockApiError } from "testHelpers/entities";
 
 export default {
   title: "components/SettingsSecurityForm",
@@ -8,27 +8,27 @@ export default {
   argTypes: {
     onSubmit: { action: "Submit" },
   },
-}
+};
 
 const Template: Story<SecurityFormProps> = (args: SecurityFormProps) => (
   <SecurityForm {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   isLoading: false,
   onSubmit: () => {
-    return Promise.resolve()
+    return Promise.resolve();
   },
-}
+};
 
-export const Loading = Template.bind({})
+export const Loading = Template.bind({});
 Loading.args = {
   ...Example.args,
   isLoading: true,
-}
+};
 
-export const WithError = Template.bind({})
+export const WithError = Template.bind({});
 WithError.args = {
   ...Example.args,
   error: mockApiError({
@@ -40,4 +40,4 @@ WithError.args = {
       },
     ],
   }),
-}
+};
