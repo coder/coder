@@ -49,7 +49,7 @@ const CreateWorkspacePage: FC = () => {
         navigate(`/@${event.data.owner_name}/${event.data.name}`);
       },
     },
-  })
+  });
   const {
     template,
     error,
@@ -58,7 +58,7 @@ const CreateWorkspacePage: FC = () => {
     gitAuth,
     defaultName,
     versionId,
-  } = createWorkspaceState.context
+  } = createWorkspaceState.context;
   const title = createWorkspaceState.matches("autoCreating")
     ? "Creating workspace..."
     : "Create Workspace";

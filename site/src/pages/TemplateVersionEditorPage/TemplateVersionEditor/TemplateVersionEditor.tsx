@@ -51,27 +51,27 @@ import AlertTitle from "@mui/material/AlertTitle";
 import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 
 export interface TemplateVersionEditorProps {
-  template: Template
-  templateVersion: TemplateVersion
-  defaultFileTree: FileTree
-  buildLogs?: ProvisionerJobLog[]
-  resources?: WorkspaceResource[]
-  deploymentBannerVisible?: boolean
-  disablePreview: boolean
-  disableUpdate: boolean
-  onPreview: (files: FileTree) => void
-  onPublish: () => void
-  onConfirmPublish: (data: PublishVersionData) => void
-  onCancelPublish: () => void
-  publishingError: unknown
-  publishedVersion?: TemplateVersion
-  onCreateWorkspace: () => void
-  isAskingPublishParameters: boolean
-  isPromptingMissingVariables: boolean
-  isPublishing: boolean
-  missingVariables?: TemplateVersionVariable[]
-  onSubmitMissingVariableValues: (values: VariableValue[]) => void
-  onCancelSubmitMissingVariableValues: () => void
+  template: Template;
+  templateVersion: TemplateVersion;
+  defaultFileTree: FileTree;
+  buildLogs?: ProvisionerJobLog[];
+  resources?: WorkspaceResource[];
+  deploymentBannerVisible?: boolean;
+  disablePreview: boolean;
+  disableUpdate: boolean;
+  onPreview: (files: FileTree) => void;
+  onPublish: () => void;
+  onConfirmPublish: (data: PublishVersionData) => void;
+  onCancelPublish: () => void;
+  publishingError: unknown;
+  publishedVersion?: TemplateVersion;
+  onCreateWorkspace: () => void;
+  isAskingPublishParameters: boolean;
+  isPromptingMissingVariables: boolean;
+  isPublishing: boolean;
+  missingVariables?: TemplateVersionVariable[];
+  onSubmitMissingVariableValues: (values: VariableValue[]) => void;
+  onCancelSubmitMissingVariableValues: () => void;
 }
 
 const topbarHeight = 80;

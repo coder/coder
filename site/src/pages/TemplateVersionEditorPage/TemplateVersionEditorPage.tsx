@@ -78,15 +78,15 @@ export const TemplateVersionEditorPage: FC = () => {
           publishingError={editorState.context.publishingError}
           publishedVersion={editorState.context.lastSuccessfulPublishedVersion}
           onCreateWorkspace={() => {
-            const params = new URLSearchParams()
+            const params = new URLSearchParams();
             const publishedVersion =
-              editorState.context.lastSuccessfulPublishedVersion
+              editorState.context.lastSuccessfulPublishedVersion;
             if (publishedVersion) {
-              params.set("version", publishedVersion.id)
+              params.set("version", publishedVersion.id);
             }
             navigate(
               `/templates/${templateName}/workspace?${params.toString()}`,
-            )
+            );
           }}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={

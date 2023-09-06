@@ -26,25 +26,28 @@ import {
 import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
-} from "components/TemplateParameters/TemplateParameters"
-import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService"
-import { GitAuth } from "./GitAuth"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Stack } from "components/Stack/Stack"
+} from "components/TemplateParameters/TemplateParameters";
+import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
+import { GitAuth } from "./GitAuth";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Stack } from "components/Stack/Stack";
 
 export interface CreateWorkspacePageViewProps {
-  error: unknown
-  defaultName: string
-  defaultOwner: TypesGen.User
-  template: TypesGen.Template
-  versionId?: string
-  gitAuth: TypesGen.TemplateVersionGitAuth[]
-  parameters: TypesGen.TemplateVersionParameter[]
-  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[]
-  permissions: CreateWSPermissions
-  creatingWorkspace: boolean
-  onCancel: () => void
-  onSubmit: (req: TypesGen.CreateWorkspaceRequest, owner: TypesGen.User) => void
+  error: unknown;
+  defaultName: string;
+  defaultOwner: TypesGen.User;
+  template: TypesGen.Template;
+  versionId?: string;
+  gitAuth: TypesGen.TemplateVersionGitAuth[];
+  parameters: TypesGen.TemplateVersionParameter[];
+  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
+  permissions: CreateWSPermissions;
+  creatingWorkspace: boolean;
+  onCancel: () => void;
+  onSubmit: (
+    req: TypesGen.CreateWorkspaceRequest,
+    owner: TypesGen.User,
+  ) => void;
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({

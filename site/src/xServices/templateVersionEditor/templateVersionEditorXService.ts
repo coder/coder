@@ -15,18 +15,18 @@ import { TarReader, TarWriter } from "utils/tar";
 import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 
 export interface TemplateVersionEditorMachineContext {
-  orgId: string
-  templateId?: string
-  fileTree?: FileTree
-  uploadResponse?: UploadResponse
-  version?: TemplateVersion
-  resources?: WorkspaceResource[]
-  buildLogs?: ProvisionerJobLog[]
-  tarReader?: TarReader
-  publishingError?: unknown
-  lastSuccessfulPublishedVersion?: TemplateVersion
-  missingVariables?: TemplateVersionVariable[]
-  missingVariableValues?: VariableValue[]
+  orgId: string;
+  templateId?: string;
+  fileTree?: FileTree;
+  uploadResponse?: UploadResponse;
+  version?: TemplateVersion;
+  resources?: WorkspaceResource[];
+  buildLogs?: ProvisionerJobLog[];
+  tarReader?: TarReader;
+  publishingError?: unknown;
+  lastSuccessfulPublishedVersion?: TemplateVersion;
+  missingVariables?: TemplateVersionVariable[];
+  missingVariableValues?: VariableValue[];
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -69,8 +69,8 @@ export const templateVersionEditorMachine = createMachine(
           data: WorkspaceResource[];
         };
         publishingVersion: {
-          data: void
-        }
+          data: void;
+        };
         loadMissingVariables: {
           data: TemplateVersionVariable[];
         };
@@ -429,7 +429,7 @@ export const templateVersionEditorMachine = createMachine(
                 id: version.id,
               })
             : Promise.resolve(),
-        ])
+        ]);
       },
       loadMissingVariables: ({ version }) => {
         if (!version) {

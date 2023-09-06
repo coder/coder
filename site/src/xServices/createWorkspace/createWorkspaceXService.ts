@@ -21,14 +21,14 @@ import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
 export type CreateWorkspaceMode = "form" | "auto";
 
 type CreateWorkspaceContext = {
-  organizationId: string
-  templateName: string
-  mode: CreateWorkspaceMode
-  defaultName: string
+  organizationId: string;
+  templateName: string;
+  mode: CreateWorkspaceMode;
+  defaultName: string;
   // Not exposed in the form yet, but can be set as a search param to
   // create a workspace with a specific version of a template
-  versionId?: string
-  error?: unknown
+  versionId?: string;
+  error?: unknown;
   // Form
   template?: Template;
   parameters?: TemplateVersionParameter[];
@@ -161,10 +161,10 @@ export const createWorkspaceMachine =
               ...request,
               template_id: undefined,
               template_version_id: versionId,
-            }
+            };
           }
 
-          return createWorkspace(organizationId, owner.id, request)
+          return createWorkspace(organizationId, owner.id, request);
         },
         autoCreateWorkspace: async ({
           templateName,
@@ -173,15 +173,15 @@ export const createWorkspaceMachine =
           defaultBuildParameters,
           defaultName,
         }) => {
-          let templateVersionParameters
+          let templateVersionParameters;
           if (versionId) {
-            templateVersionParameters = { template_version_id: versionId }
+            templateVersionParameters = { template_version_id: versionId };
           } else {
             const template = await getTemplateByName(
               organizationId,
               templateName,
-            )
-            templateVersionParameters = { template_id: template.id }
+            );
+            templateVersionParameters = { template_id: template.id };
           }
           return createWorkspace(organizationId, "me", {
             ...templateVersionParameters,
