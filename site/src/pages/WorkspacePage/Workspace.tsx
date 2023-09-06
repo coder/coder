@@ -5,7 +5,7 @@ import { AgentRow } from "components/Resources/AgentRow"
 import {
   ActiveTransition,
   WorkspaceBuildProgress,
-} from "components/WorkspaceBuildProgress/WorkspaceBuildProgress"
+} from "./WorkspaceBuildProgress"
 import { FC, useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { useNavigate } from "react-router-dom"
