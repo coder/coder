@@ -175,7 +175,6 @@ To run a Coder server:
   # Or just run the server directly
   $ coder server
 
-  Default URL: http://127.0.0.1:3000
   Configuring Coder: https://coder.com/docs/v2/latest/admin/configure
 
 To connect to a Coder deployment:
@@ -196,13 +195,13 @@ EOF
 
 echo_path_conflict() {
 	cath <<EOF
-There is another binary in your PATH that conflicts with the binary we've installed:
+There is another binary in your PATH that conflicts with the binary we've installed.
 
   $1
 
-You'll need to update your PATH:
+This is likely because of an existing installation of Coder. See our documentation for suggests on how to resolve this.
 
-  $ PATH="$2/bin:\$PATH"
+	https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
 
 EOF
 }
