@@ -11,7 +11,7 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader"
 import { Stack } from "components/Stack/Stack"
-import { WorkspaceHelpTooltip } from "components/Tooltips"
+import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip"
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable"
 import { useLocalStorage } from "hooks"
 import { DormantWorkspaceBanner, Count } from "components/WorkspaceDeletion"

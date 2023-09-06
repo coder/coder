@@ -14,17 +14,14 @@ import {
 } from "utils/schedule"
 import { quotaMachine } from "xServices/quotas/quotasXService"
 import { StateFrom } from "xstate"
-import { DeleteDialog } from "../../components/Dialogs/DeleteDialog/DeleteDialog"
-import {
-  Workspace,
-  WorkspaceErrors,
-} from "../../components/Workspace/Workspace"
-import { pageTitle } from "../../utils/page"
-import { getFaviconByStatus, hasJobError } from "../../utils/workspace"
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+import { Workspace, WorkspaceErrors } from "./Workspace"
+import { pageTitle } from "utils/page"
+import { getFaviconByStatus, hasJobError } from "utils/workspace"
 import {
   WorkspaceEvent,
   workspaceMachine,
-} from "../../xServices/workspace/workspaceXService"
+} from "xServices/workspace/workspaceXService"
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog"
 import { ChangeVersionDialog } from "./ChangeVersionDialog"
 import { useMutation, useQuery } from "@tanstack/react-query"

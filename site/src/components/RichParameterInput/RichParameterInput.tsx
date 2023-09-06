@@ -8,7 +8,7 @@ import { FC } from "react"
 import { TemplateVersionParameter } from "../../api/typesGenerated"
 import { colors } from "theme/colors"
 import { MemoizedMarkdown } from "components/Markdown/Markdown"
-import { MultiTextField } from "components/MultiTextField/MultiTextField"
+import { MultiTextField } from "components/RichParameterInput/MultiTextField/MultiTextField"
 import Box from "@mui/material/Box"
 import { Theme } from "@mui/material/styles"
 

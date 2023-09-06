@@ -2,7 +2,7 @@ import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { rest } from "msw"
 import { createMemoryRouter } from "react-router-dom"
-import { Language } from "../../components/SignInForm/SignInForm"
+import { Language } from "./SignInForm/SignInForm"
 import {
   render,
   renderWithRouter,

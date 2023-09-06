@@ -24,7 +24,7 @@ import {
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters"
 import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService"
-import { GitAuth } from "components/GitAuth/GitAuth"
+import { GitAuth } from "./GitAuth"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 
 export interface CreateWorkspacePageViewProps {

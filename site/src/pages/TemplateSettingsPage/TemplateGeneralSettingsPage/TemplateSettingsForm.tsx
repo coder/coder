@@ -21,7 +21,10 @@ import {
 } from "components/Form/Form"
 import { Stack } from "components/Stack/Stack"
 import Checkbox from "@mui/material/Checkbox"
-import { HelpTooltip, HelpTooltipText } from "components/Tooltips/HelpTooltip"
+import {
+  HelpTooltip,
+  HelpTooltipText,
+} from "components/HelpTooltip/HelpTooltip"
 import { makeStyles } from "@mui/styles"
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128

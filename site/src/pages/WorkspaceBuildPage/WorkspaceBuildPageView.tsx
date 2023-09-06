@@ -1,4 +1,4 @@
-import { BuildAvatar } from "components/BuildsTable/BuildAvatar"
+import { BuildAvatar } from "components/BuildAvatar/BuildAvatar"
 import { FC } from "react"
 import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
 import { Loader } from "../../components/Loader/Loader"

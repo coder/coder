@@ -19,7 +19,7 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import dayjs from "dayjs"
 import { FC } from "react"
 import { Bar } from "react-chartjs-2"

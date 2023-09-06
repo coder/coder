@@ -3,6 +3,10 @@ import dayjs from "dayjs"
 import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { extractTimezone, stripTimezone } from "../../../utils/schedule"
+import { Autostop } from "./ttl"
+import { WorkspaceScheduleFormValues } from "./WorkspaceScheduleForm"
+import map from "lodash/map"
+import some from "lodash/some"
 
 // REMARK: timezone plugin depends on UTC
 //
@@ -89,3 +93,15 @@ export const scheduleToAutostart = (schedule?: string): Autostart => {
     return { autostartEnabled: false, ...emptySchedule }
   }
 }
+
+export const scheduleChanged = (
+  initialValues: Autostart | Autostop,
+  formValues: WorkspaceScheduleFormValues,
+): boolean =>
+  some(
+    map(
+      { ...initialValues },
+      (v: boolean | string, k: keyof typeof initialValues) =>
+        formValues[k] !== v,
+    ),
+  )

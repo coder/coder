@@ -21,7 +21,7 @@ import {
   HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import InfoIcon from "@mui/icons-material/InfoOutlined"
 import { colors } from "theme/colors"
 import { useClickableTableRow } from "hooks/useClickableTableRow"
@@ -31,7 +31,7 @@ import { AvatarData } from "components/AvatarData/AvatarData"
 import { Avatar } from "components/Avatar/Avatar"
 import { Stack } from "components/Stack/Stack"
 import { LastUsed } from "pages/WorkspacesPage/LastUsed"
-import { WorkspaceOutdatedTooltip } from "components/Tooltips"
+import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip"
 import { WorkspaceStatusBadge } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
 import { getDisplayWorkspaceTemplateName } from "utils/workspace"
 import Checkbox from "@mui/material/Checkbox"
