@@ -297,7 +297,10 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	// Identify stale plugins
 	var stalePlugins []string
 	for _, pluginPath := range pluginPaths {
-
+		accessTime, err := latestAccessTime(pluginPath)
+		if err != nil {
+			return xerrors.Errorf("unable to evaluate latest access time for directory %q: %w", pluginPath, err)
+		}
 	}
 	// TODO
 
@@ -308,4 +311,8 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	// TODO
 
 	return nil
+}
+
+func latestAccessTime(path string) (time.Time, error) {
+
 }
