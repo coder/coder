@@ -9,7 +9,7 @@ import {
 } from "components/DropdownArrows/DropdownArrows"
 import { LogLine, logLineHeight } from "components/WorkspaceBuildLogs/Logs/Logs"
 import { PortForwardButton } from "./PortForwardButton"
-import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
+import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton"
 import {
   FC,
   useCallback,
