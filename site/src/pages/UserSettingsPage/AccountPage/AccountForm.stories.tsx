@@ -1,9 +1,9 @@
 import { Story } from "@storybook/react"
-import { AccountForm, AccountFormProps } from "./SettingsAccountForm"
+import { AccountForm, AccountFormProps } from "./AccountForm"
 import { mockApiError } from "testHelpers/entities"
 
 export default {
-  title: "components/SettingsAccountForm",
+  title: "components/AccountForm",
   component: AccountForm,
   argTypes: {
     onSubmit: { action: "Submit" },

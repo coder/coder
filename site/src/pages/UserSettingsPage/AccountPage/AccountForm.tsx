@@ -2,12 +2,8 @@ import TextField from "@mui/material/TextField"
 import { FormikContextType, FormikTouched, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import {
-  getFormHelpers,
-  nameValidator,
-  onChangeTrimmed,
-} from "../../../../utils/formUtils"
-import { LoadingButton } from "../../../../components/LoadingButton/LoadingButton"
+import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
+import { LoadingButton } from "components/LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
 

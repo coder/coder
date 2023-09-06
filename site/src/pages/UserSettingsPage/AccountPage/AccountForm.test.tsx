@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react"
-import { MockUser2 } from "../../../../testHelpers/entities"
-import { render } from "../../../../testHelpers/renderHelpers"
-import { AccountForm, AccountFormValues } from "./SettingsAccountForm"
+import { MockUser2 } from "testHelpers/entities"
+import { render } from "testHelpers/renderHelpers"
+import { AccountForm, AccountFormValues } from "./AccountForm"
 
 // NOTE: it does not matter what the role props of MockUser are set to,
 //       only that editable is set to true or false. This is passed from
