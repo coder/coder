@@ -1,6 +1,6 @@
 import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
-import { DeploymentBanner } from "components/DeploymentBanner/DeploymentBanner"
+import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner"
 import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
 import { Loader } from "components/Loader/Loader"
 import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"

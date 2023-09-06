@@ -1,7 +1,7 @@
 import { useMachine } from "@xstate/react"
 import { usePermissions } from "hooks/usePermissions"
 import { DeploymentBannerView } from "./DeploymentBannerView"
-import { deploymentStatsMachine } from "../../xServices/deploymentStats/deploymentStatsMachine"
+import { deploymentStatsMachine } from "xServices/deploymentStats/deploymentStatsMachine"
 
 export const DeploymentBanner: React.FC = () => {
   const permissions = usePermissions()
