@@ -36,16 +36,14 @@ By default, the Coder server runs on `http://127.0.0.1:3000` and uses a
 
 ## `PATH` conflicts
 
-It's possible to end up in situations where you have multiple `coder`
-binaries in your `PATH`, and your system may use a version that you don't
-intend. Your `PATH` is a variable that tells your shell where to look for
-programs to run.
+It's possible to end up in situations where you have multiple `coder` binaries
+in your `PATH`, and your system may use a version that you don't intend. Your
+`PATH` is a variable that tells your shell where to look for programs to run.
 
 You can check where all of the versions are by running `which -a coder`.
 
-For example, a common conflict on macOS might be between a version
-installed by Homebrew, and a version installed manually to the /usr/local/bin
-directory.
+For example, a common conflict on macOS might be between a version installed by
+Homebrew, and a version installed manually to the /usr/local/bin directory.
 
 ```console
 $ which -a coder
@@ -53,7 +51,8 @@ $ which -a coder
 /opt/homebrew/bin/coder
 ```
 
-Whichever binary comes first in this list will be used when running `coder` commands.
+Whichever binary comes first in this list will be used when running `coder`
+commands.
 
 ### Reordering your `PATH`
 
@@ -71,8 +70,9 @@ If you use fish, you can update your `PATH` like this:
 fish_add_path "/opt/homebrew/bin"
 ```
 
-> ℹ If you ran install.sh with a `--prefix` flag, you can replace `/opt/homebrew`
-> with whatever value you used there. Make sure to leave the `/bin` at the end!
+> ℹ If you ran install.sh with a `--prefix` flag, you can replace
+> `/opt/homebrew` with whatever value you used there. Make sure to leave the
+> `/bin` at the end!
 
 Now we can observe that the order has changed:
 
@@ -84,8 +84,8 @@ $ which -a coder
 
 ### Removing unneeded binaries
 
-If you want to uninstall a version of `coder` that you installed with a package manager,
-you can run whichever one of these commands applies:
+If you want to uninstall a version of `coder` that you installed with a package
+manager, you can run whichever one of these commands applies:
 
 ```shell
 # On macOS, with Homebrew installed
@@ -107,8 +107,8 @@ sudo rpm -e coder
 sudo apk del coder
 ```
 
-If the conflicting binary is not installed by your system package manager,
-you can just delete it.
+If the conflicting binary is not installed by your system package manager, you
+can just delete it.
 
 ```shell
 # You might not need `sudo`, depending on the location
