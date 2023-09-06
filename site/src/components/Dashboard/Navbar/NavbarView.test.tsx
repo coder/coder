@@ -3,8 +3,8 @@ import {
   MockPrimaryWorkspaceProxy,
   MockUser,
   MockUser2,
-} from "../../testHelpers/entities"
-import { renderWithAuth } from "../../testHelpers/renderHelpers"
+} from "../../../testHelpers/entities"
+import { renderWithAuth } from "../../../testHelpers/renderHelpers"
 import { Language as navLanguage, NavbarView } from "./NavbarView"
 import { ProxyContextValue } from "contexts/ProxyContext"
 import { action } from "@storybook/addon-actions"

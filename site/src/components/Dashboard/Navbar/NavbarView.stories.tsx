@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { MockUser, MockUser2 } from "../../testHelpers/entities"
+import { MockUser, MockUser2 } from "../../../testHelpers/entities"
 import { NavbarView, NavbarViewProps } from "./NavbarView"
 
 export default {

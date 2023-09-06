@@ -3,8 +3,8 @@ import {
   MockBuildInfo,
   MockSupportLinks,
   MockUser,
-} from "../../../../testHelpers/entities"
-import { render } from "../../../../testHelpers/renderHelpers"
+} from "../../../../../testHelpers/entities"
+import { render } from "../../../../../testHelpers/renderHelpers"
 import { Language, UserDropdownContent } from "./UserDropdownContent"
 
 describe("UserDropdownContent", () => {

@@ -3,14 +3,14 @@ import MenuItem from "@mui/material/MenuItem"
 import { makeStyles } from "@mui/styles"
 import { useState, FC, PropsWithChildren, MouseEvent } from "react"
 import { colors } from "theme/colors"
-import * as TypesGen from "../../../api/typesGenerated"
-import { navHeight } from "../../../theme/constants"
+import * as TypesGen from "../../../../api/typesGenerated"
+import { navHeight } from "../../../../theme/constants"
 import { BorderedMenu } from "./BorderedMenu/BorderedMenu"
 import {
   CloseDropdown,
   OpenDropdown,
-} from "../../DropdownArrows/DropdownArrows"
-import { UserAvatar } from "../../UserAvatar/UserAvatar"
+} from "../../../DropdownArrows/DropdownArrows"
+import { UserAvatar } from "../../../UserAvatar/UserAvatar"
 import { UserDropdownContent } from "./UserDropdownContent/UserDropdownContent"
 import { BUTTON_SM_HEIGHT } from "theme/theme"
 
