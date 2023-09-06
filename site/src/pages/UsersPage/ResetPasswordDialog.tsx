@@ -1,16 +1,16 @@
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
-import * as TypesGen from "api/typesGenerated"
-import { CodeExample } from "components/CodeExample/CodeExample"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
+import * as TypesGen from "api/typesGenerated";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 
 export interface ResetPasswordDialogProps {
-  open: boolean
-  onClose: () => void
-  onConfirm: () => void
-  user?: TypesGen.User
-  newPassword?: string
-  loading: boolean
+  open: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+  user?: TypesGen.User;
+  newPassword?: string;
+  loading: boolean;
 }
 
 export const Language = {
@@ -21,19 +21,19 @@ export const Language = {
     </>
   ),
   confirmText: "Reset password",
-}
+};
 
 export const ResetPasswordDialog: FC<
   React.PropsWithChildren<ResetPasswordDialogProps>
 > = ({ open, onClose, onConfirm, user, newPassword, loading }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   const description = (
     <>
       <p>{Language.message(user?.username)}</p>
       <CodeExample code={newPassword ?? ""} className={styles.codeExample} />
     </>
-  )
+  );
 
   return (
     <ConfirmDialog
@@ -47,8 +47,8 @@ export const ResetPasswordDialog: FC<
       confirmText={Language.confirmText}
       description={description}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   codeExample: {
@@ -57,4 +57,4 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
     marginTop: theme.spacing(3),
   },
-}))
+}));

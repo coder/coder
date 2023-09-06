@@ -1,17 +1,17 @@
-import { makeStyles } from "@mui/styles"
-import { Sidebar } from "./Sidebar"
-import { Stack } from "components/Stack/Stack"
-import { FC, Suspense } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "../../utils/page"
-import { Margins } from "../Margins/Margins"
-import { useMe } from "hooks/useMe"
-import { Loader } from "components/Loader/Loader"
-import { Outlet } from "react-router-dom"
+import { makeStyles } from "@mui/styles";
+import { Sidebar } from "./Sidebar";
+import { Stack } from "components/Stack/Stack";
+import { FC, Suspense } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "../../utils/page";
+import { Margins } from "../Margins/Margins";
+import { useMe } from "hooks/useMe";
+import { Loader } from "components/Loader/Loader";
+import { Outlet } from "react-router-dom";
 
 export const SettingsLayout: FC = () => {
-  const styles = useStyles()
-  const me = useMe()
+  const styles = useStyles();
+  const me = useMe();
 
   return (
     <>
@@ -30,8 +30,8 @@ export const SettingsLayout: FC = () => {
         </Stack>
       </Margins>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
@@ -42,4 +42,4 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: 800,
     width: "100%",
   },
-}))
+}));

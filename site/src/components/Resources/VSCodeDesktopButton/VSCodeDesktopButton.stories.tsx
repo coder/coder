@@ -1,20 +1,20 @@
-import { Story } from "@storybook/react"
-import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities"
+import { Story } from "@storybook/react";
+import { MockWorkspace, MockWorkspaceAgent } from "testHelpers/entities";
 import {
   VSCodeDesktopButton,
   VSCodeDesktopButtonProps,
-} from "./VSCodeDesktopButton"
+} from "./VSCodeDesktopButton";
 
 export default {
   title: "components/VSCodeDesktopButton",
   component: VSCodeDesktopButton,
-}
+};
 
 const Template: Story<VSCodeDesktopButtonProps> = (args) => (
   <VSCodeDesktopButton {...args} />
-)
+);
 
-export const Default = Template.bind({})
+export const Default = Template.bind({});
 Default.args = {
   userName: MockWorkspace.owner_name,
   workspaceName: MockWorkspace.name,
@@ -26,4 +26,4 @@ Default.args = {
     "vscode_insiders",
     "web_terminal",
   ],
-}
+};

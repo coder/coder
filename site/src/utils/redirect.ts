@@ -8,7 +8,7 @@
 export const embedRedirect = (
   returnTo: string,
   navigateTo = "/login",
-): string => `${navigateTo}?redirect=${encodeURIComponent(returnTo)}`
+): string => `${navigateTo}?redirect=${encodeURIComponent(returnTo)}`;
 
 /**
  * Retrieves a url from the query string of the current URL
@@ -16,8 +16,8 @@ export const embedRedirect = (
  * @returns the URL to redirect to
  */
 export const retrieveRedirect = (search: string): string => {
-  const defaultRedirect = "/"
-  const searchParams = new URLSearchParams(search)
-  const redirect = searchParams.get("redirect")
-  return redirect ? redirect : defaultRedirect
-}
+  const defaultRedirect = "/";
+  const searchParams = new URLSearchParams(search);
+  const redirect = searchParams.get("redirect");
+  return redirect ? redirect : defaultRedirect;
+};

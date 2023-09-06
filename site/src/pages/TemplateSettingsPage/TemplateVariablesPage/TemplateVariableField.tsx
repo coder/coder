@@ -1,21 +1,21 @@
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Radio from "@mui/material/Radio"
-import RadioGroup from "@mui/material/RadioGroup"
-import TextField from "@mui/material/TextField"
-import { TemplateVersionVariable } from "api/typesGenerated"
-import { FC, useState } from "react"
-import { useTranslation } from "react-i18next"
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import TextField from "@mui/material/TextField";
+import { TemplateVersionVariable } from "api/typesGenerated";
+import { FC, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 export const SensitiveVariableHelperText = () => {
-  const { t } = useTranslation("templateVariablesPage")
-  return <span>{t("sensitiveVariableHelperText")}</span>
-}
+  const { t } = useTranslation("templateVariablesPage");
+  return <span>{t("sensitiveVariableHelperText")}</span>;
+};
 
 export interface TemplateVariableFieldProps {
-  templateVersionVariable: TemplateVersionVariable
-  initialValue: string
-  disabled: boolean
-  onChange: (value: string) => void
+  templateVersionVariable: TemplateVersionVariable;
+  initialValue: string;
+  disabled: boolean;
+  onChange: (value: string) => void;
 }
 
 export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
@@ -25,13 +25,13 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
   onChange,
   ...props
 }) => {
-  const [variableValue, setVariableValue] = useState(initialValue)
+  const [variableValue, setVariableValue] = useState(initialValue);
   if (isBoolean(templateVersionVariable)) {
     return (
       <RadioGroup
         defaultValue={variableValue}
         onChange={(event) => {
-          onChange(event.target.value)
+          onChange(event.target.value);
         }}
       >
         <FormControlLabel
@@ -47,7 +47,7 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
           label="False"
         />
       </RadioGroup>
-    )
+    );
   }
 
   return (
@@ -71,13 +71,13 @@ export const TemplateVariableField: FC<TemplateVariableFieldProps> = ({
           : templateVersionVariable.default_value
       }
       onChange={(event) => {
-        setVariableValue(event.target.value)
-        onChange(event.target.value)
+        setVariableValue(event.target.value);
+        onChange(event.target.value);
       }}
     />
-  )
-}
+  );
+};
 
 const isBoolean = (variable: TemplateVersionVariable) => {
-  return variable.type === "bool"
-}
+  return variable.type === "bool";
+};

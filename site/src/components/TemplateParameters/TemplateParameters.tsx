@@ -1,24 +1,24 @@
-import { TemplateVersionParameter } from "api/typesGenerated"
-import { FormSection, FormFields } from "components/Form/Form"
+import { TemplateVersionParameter } from "api/typesGenerated";
+import { FormSection, FormFields } from "components/Form/Form";
 import {
   RichParameterInput,
   RichParameterInputProps,
-} from "components/RichParameterInput/RichParameterInput"
-import { ComponentProps, FC } from "react"
+} from "components/RichParameterInput/RichParameterInput";
+import { ComponentProps, FC } from "react";
 
 export type TemplateParametersSectionProps = {
-  templateParameters: TemplateVersionParameter[]
+  templateParameters: TemplateVersionParameter[];
   getInputProps: (
     parameter: TemplateVersionParameter,
     index: number,
-  ) => Omit<RichParameterInputProps, "parameter" | "index">
-} & Pick<ComponentProps<typeof FormSection>, "classes">
+  ) => Omit<RichParameterInputProps, "parameter" | "index">;
+} & Pick<ComponentProps<typeof FormSection>, "classes">;
 
 export const MutableTemplateParametersSection: FC<
   TemplateParametersSectionProps
 > = ({ templateParameters, getInputProps, ...formSectionProps }) => {
   const hasMutableParameters =
-    templateParameters.filter((p) => p.mutable).length > 0
+    templateParameters.filter((p) => p.mutable).length > 0;
 
   return (
     <>
@@ -43,14 +43,14 @@ export const MutableTemplateParametersSection: FC<
         </FormSection>
       )}
     </>
-  )
-}
+  );
+};
 
 export const ImmutableTemplateParametersSection: FC<
   TemplateParametersSectionProps
 > = ({ templateParameters, getInputProps, ...formSectionProps }) => {
   const hasImmutableParameters =
-    templateParameters.filter((p) => !p.mutable).length > 0
+    templateParameters.filter((p) => !p.mutable).length > 0;
 
   return (
     <>
@@ -81,5 +81,5 @@ export const ImmutableTemplateParametersSection: FC<
         </FormSection>
       )}
     </>
-  )
-}
+  );
+};

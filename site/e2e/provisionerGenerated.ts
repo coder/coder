@@ -1,8 +1,8 @@
 /* eslint-disable */
-import * as _m0 from "protobufjs/minimal"
-import { Observable } from "rxjs"
+import * as _m0 from "protobufjs/minimal";
+import { Observable } from "rxjs";
 
-export const protobufPackage = "provisioner"
+export const protobufPackage = "provisioner";
 
 /** LogLevel represents severity of the log. */
 export enum LogLevel {
@@ -34,114 +34,114 @@ export interface Empty {}
 
 /** TemplateVariable represents a Terraform variable. */
 export interface TemplateVariable {
-  name: string
-  description: string
-  type: string
-  defaultValue: string
-  required: boolean
-  sensitive: boolean
+  name: string;
+  description: string;
+  type: string;
+  defaultValue: string;
+  required: boolean;
+  sensitive: boolean;
 }
 
 /** RichParameterOption represents a singular option that a parameter may expose. */
 export interface RichParameterOption {
-  name: string
-  description: string
-  value: string
-  icon: string
+  name: string;
+  description: string;
+  value: string;
+  icon: string;
 }
 
 /** RichParameter represents a variable that is exposed. */
 export interface RichParameter {
-  name: string
-  description: string
-  type: string
-  mutable: boolean
-  defaultValue: string
-  icon: string
-  options: RichParameterOption[]
-  validationRegex: string
-  validationError: string
-  validationMin?: number | undefined
-  validationMax?: number | undefined
-  validationMonotonic: string
-  required: boolean
+  name: string;
+  description: string;
+  type: string;
+  mutable: boolean;
+  defaultValue: string;
+  icon: string;
+  options: RichParameterOption[];
+  validationRegex: string;
+  validationError: string;
+  validationMin?: number | undefined;
+  validationMax?: number | undefined;
+  validationMonotonic: string;
+  required: boolean;
   /** legacy_variable_name was removed (= 14) */
-  displayName: string
-  order: number
-  ephemeral: boolean
+  displayName: string;
+  order: number;
+  ephemeral: boolean;
 }
 
 /** RichParameterValue holds the key/value mapping of a parameter. */
 export interface RichParameterValue {
-  name: string
-  value: string
+  name: string;
+  value: string;
 }
 
 /** VariableValue holds the key/value mapping of a Terraform variable. */
 export interface VariableValue {
-  name: string
-  value: string
-  sensitive: boolean
+  name: string;
+  value: string;
+  sensitive: boolean;
 }
 
 /** Log represents output from a request. */
 export interface Log {
-  level: LogLevel
-  output: string
+  level: LogLevel;
+  output: string;
 }
 
 export interface InstanceIdentityAuth {
-  instanceId: string
+  instanceId: string;
 }
 
 export interface GitAuthProvider {
-  id: string
-  accessToken: string
+  id: string;
+  accessToken: string;
 }
 
 /** Agent represents a running agent on the workspace. */
 export interface Agent {
-  id: string
-  name: string
-  env: { [key: string]: string }
-  startupScript: string
-  operatingSystem: string
-  architecture: string
-  directory: string
-  apps: App[]
-  token?: string | undefined
-  instanceId?: string | undefined
-  connectionTimeoutSeconds: number
-  troubleshootingUrl: string
-  motdFile: string
+  id: string;
+  name: string;
+  env: { [key: string]: string };
+  startupScript: string;
+  operatingSystem: string;
+  architecture: string;
+  directory: string;
+  apps: App[];
+  token?: string | undefined;
+  instanceId?: string | undefined;
+  connectionTimeoutSeconds: number;
+  troubleshootingUrl: string;
+  motdFile: string;
   /** Field 14 was bool login_before_ready = 14, now removed. */
-  startupScriptTimeoutSeconds: number
-  shutdownScript: string
-  shutdownScriptTimeoutSeconds: number
-  metadata: Agent_Metadata[]
-  startupScriptBehavior: string
-  displayApps: DisplayApps | undefined
+  startupScriptTimeoutSeconds: number;
+  shutdownScript: string;
+  shutdownScriptTimeoutSeconds: number;
+  metadata: Agent_Metadata[];
+  startupScriptBehavior: string;
+  displayApps: DisplayApps | undefined;
 }
 
 export interface Agent_Metadata {
-  key: string
-  displayName: string
-  script: string
-  interval: number
-  timeout: number
+  key: string;
+  displayName: string;
+  script: string;
+  interval: number;
+  timeout: number;
 }
 
 export interface Agent_EnvEntry {
-  key: string
-  value: string
+  key: string;
+  value: string;
 }
 
 export interface DisplayApps {
-  vscode: boolean
-  vscodeInsiders: boolean
-  webTerminal: boolean
-  sshHelper: boolean
-  portForwardingHelper: boolean
+  vscode: boolean;
+  vscodeInsiders: boolean;
+  webTerminal: boolean;
+  sshHelper: boolean;
+  portForwardingHelper: boolean;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -150,65 +150,65 @@ export interface App {
    * slug is the unique identifier for the app, usually the name from the
    * template. It must be URL-safe and hostname-safe.
    */
-  slug: string
-  displayName: string
-  command: string
-  url: string
-  icon: string
-  subdomain: boolean
-  healthcheck: Healthcheck | undefined
-  sharingLevel: AppSharingLevel
-  external: boolean
+  slug: string;
+  displayName: string;
+  command: string;
+  url: string;
+  icon: string;
+  subdomain: boolean;
+  healthcheck: Healthcheck | undefined;
+  sharingLevel: AppSharingLevel;
+  external: boolean;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
 export interface Healthcheck {
-  url: string
-  interval: number
-  threshold: number
+  url: string;
+  interval: number;
+  threshold: number;
 }
 
 /** Resource represents created infrastructure. */
 export interface Resource {
-  name: string
-  type: string
-  agents: Agent[]
-  metadata: Resource_Metadata[]
-  hide: boolean
-  icon: string
-  instanceType: string
-  dailyCost: number
+  name: string;
+  type: string;
+  agents: Agent[];
+  metadata: Resource_Metadata[];
+  hide: boolean;
+  icon: string;
+  instanceType: string;
+  dailyCost: number;
 }
 
 export interface Resource_Metadata {
-  key: string
-  value: string
-  sensitive: boolean
-  isNull: boolean
+  key: string;
+  value: string;
+  sensitive: boolean;
+  isNull: boolean;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
 export interface Metadata {
-  coderUrl: string
-  workspaceTransition: WorkspaceTransition
-  workspaceName: string
-  workspaceOwner: string
-  workspaceId: string
-  workspaceOwnerId: string
-  workspaceOwnerEmail: string
-  templateName: string
-  templateVersion: string
-  workspaceOwnerOidcAccessToken: string
-  workspaceOwnerSessionToken: string
+  coderUrl: string;
+  workspaceTransition: WorkspaceTransition;
+  workspaceName: string;
+  workspaceOwner: string;
+  workspaceId: string;
+  workspaceOwnerId: string;
+  workspaceOwnerEmail: string;
+  templateName: string;
+  templateVersion: string;
+  workspaceOwnerOidcAccessToken: string;
+  workspaceOwnerSessionToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
 export interface Config {
   /** template_source_archive is a tar of the template source files */
-  templateSourceArchive: Uint8Array
+  templateSourceArchive: Uint8Array;
   /** state is the provisioner state (if any) */
-  state: Uint8Array
-  provisionerLogLevel: string
+  state: Uint8Array;
+  provisionerLogLevel: string;
 }
 
 /** ParseRequest consumes source-code to produce inputs. */
@@ -216,25 +216,25 @@ export interface ParseRequest {}
 
 /** ParseComplete indicates a request to parse completed. */
 export interface ParseComplete {
-  error: string
-  templateVariables: TemplateVariable[]
-  readme: Uint8Array
+  error: string;
+  templateVariables: TemplateVariable[];
+  readme: Uint8Array;
 }
 
 /** PlanRequest asks the provisioner to plan what resources & parameters it will create */
 export interface PlanRequest {
-  metadata: Metadata | undefined
-  richParameterValues: RichParameterValue[]
-  variableValues: VariableValue[]
-  gitAuthProviders: GitAuthProvider[]
+  metadata: Metadata | undefined;
+  richParameterValues: RichParameterValue[];
+  variableValues: VariableValue[];
+  gitAuthProviders: GitAuthProvider[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
 export interface PlanComplete {
-  error: string
-  resources: Resource[]
-  parameters: RichParameter[]
-  gitAuthProviders: string[]
+  error: string;
+  resources: Resource[];
+  parameters: RichParameter[];
+  gitAuthProviders: string[];
 }
 
 /**
@@ -242,41 +242,41 @@ export interface PlanComplete {
  * in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
  */
 export interface ApplyRequest {
-  metadata: Metadata | undefined
+  metadata: Metadata | undefined;
 }
 
 /** ApplyComplete indicates a request to apply completed. */
 export interface ApplyComplete {
-  state: Uint8Array
-  error: string
-  resources: Resource[]
-  parameters: RichParameter[]
-  gitAuthProviders: string[]
+  state: Uint8Array;
+  error: string;
+  resources: Resource[];
+  parameters: RichParameter[];
+  gitAuthProviders: string[];
 }
 
 /** CancelRequest requests that the previous request be canceled gracefully. */
 export interface CancelRequest {}
 
 export interface Request {
-  config?: Config | undefined
-  parse?: ParseRequest | undefined
-  plan?: PlanRequest | undefined
-  apply?: ApplyRequest | undefined
-  cancel?: CancelRequest | undefined
+  config?: Config | undefined;
+  parse?: ParseRequest | undefined;
+  plan?: PlanRequest | undefined;
+  apply?: ApplyRequest | undefined;
+  cancel?: CancelRequest | undefined;
 }
 
 export interface Response {
-  log?: Log | undefined
-  parse?: ParseComplete | undefined
-  plan?: PlanComplete | undefined
-  apply?: ApplyComplete | undefined
+  log?: Log | undefined;
+  parse?: ParseComplete | undefined;
+  plan?: PlanComplete | undefined;
+  apply?: ApplyComplete | undefined;
 }
 
 export const Empty = {
   encode(_: Empty, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    return writer
+    return writer;
   },
-}
+};
 
 export const TemplateVariable = {
   encode(
@@ -284,26 +284,26 @@ export const TemplateVariable = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.description !== "") {
-      writer.uint32(18).string(message.description)
+      writer.uint32(18).string(message.description);
     }
     if (message.type !== "") {
-      writer.uint32(26).string(message.type)
+      writer.uint32(26).string(message.type);
     }
     if (message.defaultValue !== "") {
-      writer.uint32(34).string(message.defaultValue)
+      writer.uint32(34).string(message.defaultValue);
     }
     if (message.required === true) {
-      writer.uint32(40).bool(message.required)
+      writer.uint32(40).bool(message.required);
     }
     if (message.sensitive === true) {
-      writer.uint32(48).bool(message.sensitive)
+      writer.uint32(48).bool(message.sensitive);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const RichParameterOption = {
   encode(
@@ -311,20 +311,20 @@ export const RichParameterOption = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.description !== "") {
-      writer.uint32(18).string(message.description)
+      writer.uint32(18).string(message.description);
     }
     if (message.value !== "") {
-      writer.uint32(26).string(message.value)
+      writer.uint32(26).string(message.value);
     }
     if (message.icon !== "") {
-      writer.uint32(34).string(message.icon)
+      writer.uint32(34).string(message.icon);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const RichParameter = {
   encode(
@@ -332,56 +332,56 @@ export const RichParameter = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.description !== "") {
-      writer.uint32(18).string(message.description)
+      writer.uint32(18).string(message.description);
     }
     if (message.type !== "") {
-      writer.uint32(26).string(message.type)
+      writer.uint32(26).string(message.type);
     }
     if (message.mutable === true) {
-      writer.uint32(32).bool(message.mutable)
+      writer.uint32(32).bool(message.mutable);
     }
     if (message.defaultValue !== "") {
-      writer.uint32(42).string(message.defaultValue)
+      writer.uint32(42).string(message.defaultValue);
     }
     if (message.icon !== "") {
-      writer.uint32(50).string(message.icon)
+      writer.uint32(50).string(message.icon);
     }
     for (const v of message.options) {
-      RichParameterOption.encode(v!, writer.uint32(58).fork()).ldelim()
+      RichParameterOption.encode(v!, writer.uint32(58).fork()).ldelim();
     }
     if (message.validationRegex !== "") {
-      writer.uint32(66).string(message.validationRegex)
+      writer.uint32(66).string(message.validationRegex);
     }
     if (message.validationError !== "") {
-      writer.uint32(74).string(message.validationError)
+      writer.uint32(74).string(message.validationError);
     }
     if (message.validationMin !== undefined) {
-      writer.uint32(80).int32(message.validationMin)
+      writer.uint32(80).int32(message.validationMin);
     }
     if (message.validationMax !== undefined) {
-      writer.uint32(88).int32(message.validationMax)
+      writer.uint32(88).int32(message.validationMax);
     }
     if (message.validationMonotonic !== "") {
-      writer.uint32(98).string(message.validationMonotonic)
+      writer.uint32(98).string(message.validationMonotonic);
     }
     if (message.required === true) {
-      writer.uint32(104).bool(message.required)
+      writer.uint32(104).bool(message.required);
     }
     if (message.displayName !== "") {
-      writer.uint32(122).string(message.displayName)
+      writer.uint32(122).string(message.displayName);
     }
     if (message.order !== 0) {
-      writer.uint32(128).int32(message.order)
+      writer.uint32(128).int32(message.order);
     }
     if (message.ephemeral === true) {
-      writer.uint32(136).bool(message.ephemeral)
+      writer.uint32(136).bool(message.ephemeral);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const RichParameterValue = {
   encode(
@@ -389,14 +389,14 @@ export const RichParameterValue = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.value !== "") {
-      writer.uint32(18).string(message.value)
+      writer.uint32(18).string(message.value);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const VariableValue = {
   encode(
@@ -404,29 +404,29 @@ export const VariableValue = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.value !== "") {
-      writer.uint32(18).string(message.value)
+      writer.uint32(18).string(message.value);
     }
     if (message.sensitive === true) {
-      writer.uint32(24).bool(message.sensitive)
+      writer.uint32(24).bool(message.sensitive);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Log = {
   encode(message: Log, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.level !== 0) {
-      writer.uint32(8).int32(message.level)
+      writer.uint32(8).int32(message.level);
     }
     if (message.output !== "") {
-      writer.uint32(18).string(message.output)
+      writer.uint32(18).string(message.output);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const InstanceIdentityAuth = {
   encode(
@@ -434,11 +434,11 @@ export const InstanceIdentityAuth = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.instanceId !== "") {
-      writer.uint32(10).string(message.instanceId)
+      writer.uint32(10).string(message.instanceId);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const GitAuthProvider = {
   encode(
@@ -446,83 +446,83 @@ export const GitAuthProvider = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.id !== "") {
-      writer.uint32(10).string(message.id)
+      writer.uint32(10).string(message.id);
     }
     if (message.accessToken !== "") {
-      writer.uint32(18).string(message.accessToken)
+      writer.uint32(18).string(message.accessToken);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Agent = {
   encode(message: Agent, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.id !== "") {
-      writer.uint32(10).string(message.id)
+      writer.uint32(10).string(message.id);
     }
     if (message.name !== "") {
-      writer.uint32(18).string(message.name)
+      writer.uint32(18).string(message.name);
     }
     Object.entries(message.env).forEach(([key, value]) => {
       Agent_EnvEntry.encode(
         { key: key as any, value },
         writer.uint32(26).fork(),
-      ).ldelim()
-    })
+      ).ldelim();
+    });
     if (message.startupScript !== "") {
-      writer.uint32(34).string(message.startupScript)
+      writer.uint32(34).string(message.startupScript);
     }
     if (message.operatingSystem !== "") {
-      writer.uint32(42).string(message.operatingSystem)
+      writer.uint32(42).string(message.operatingSystem);
     }
     if (message.architecture !== "") {
-      writer.uint32(50).string(message.architecture)
+      writer.uint32(50).string(message.architecture);
     }
     if (message.directory !== "") {
-      writer.uint32(58).string(message.directory)
+      writer.uint32(58).string(message.directory);
     }
     for (const v of message.apps) {
-      App.encode(v!, writer.uint32(66).fork()).ldelim()
+      App.encode(v!, writer.uint32(66).fork()).ldelim();
     }
     if (message.token !== undefined) {
-      writer.uint32(74).string(message.token)
+      writer.uint32(74).string(message.token);
     }
     if (message.instanceId !== undefined) {
-      writer.uint32(82).string(message.instanceId)
+      writer.uint32(82).string(message.instanceId);
     }
     if (message.connectionTimeoutSeconds !== 0) {
-      writer.uint32(88).int32(message.connectionTimeoutSeconds)
+      writer.uint32(88).int32(message.connectionTimeoutSeconds);
     }
     if (message.troubleshootingUrl !== "") {
-      writer.uint32(98).string(message.troubleshootingUrl)
+      writer.uint32(98).string(message.troubleshootingUrl);
     }
     if (message.motdFile !== "") {
-      writer.uint32(106).string(message.motdFile)
+      writer.uint32(106).string(message.motdFile);
     }
     if (message.startupScriptTimeoutSeconds !== 0) {
-      writer.uint32(120).int32(message.startupScriptTimeoutSeconds)
+      writer.uint32(120).int32(message.startupScriptTimeoutSeconds);
     }
     if (message.shutdownScript !== "") {
-      writer.uint32(130).string(message.shutdownScript)
+      writer.uint32(130).string(message.shutdownScript);
     }
     if (message.shutdownScriptTimeoutSeconds !== 0) {
-      writer.uint32(136).int32(message.shutdownScriptTimeoutSeconds)
+      writer.uint32(136).int32(message.shutdownScriptTimeoutSeconds);
     }
     for (const v of message.metadata) {
-      Agent_Metadata.encode(v!, writer.uint32(146).fork()).ldelim()
+      Agent_Metadata.encode(v!, writer.uint32(146).fork()).ldelim();
     }
     if (message.startupScriptBehavior !== "") {
-      writer.uint32(154).string(message.startupScriptBehavior)
+      writer.uint32(154).string(message.startupScriptBehavior);
     }
     if (message.displayApps !== undefined) {
       DisplayApps.encode(
         message.displayApps,
         writer.uint32(162).fork(),
-      ).ldelim()
+      ).ldelim();
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Agent_Metadata = {
   encode(
@@ -530,23 +530,23 @@ export const Agent_Metadata = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.key !== "") {
-      writer.uint32(10).string(message.key)
+      writer.uint32(10).string(message.key);
     }
     if (message.displayName !== "") {
-      writer.uint32(18).string(message.displayName)
+      writer.uint32(18).string(message.displayName);
     }
     if (message.script !== "") {
-      writer.uint32(26).string(message.script)
+      writer.uint32(26).string(message.script);
     }
     if (message.interval !== 0) {
-      writer.uint32(32).int64(message.interval)
+      writer.uint32(32).int64(message.interval);
     }
     if (message.timeout !== 0) {
-      writer.uint32(40).int64(message.timeout)
+      writer.uint32(40).int64(message.timeout);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Agent_EnvEntry = {
   encode(
@@ -554,14 +554,14 @@ export const Agent_EnvEntry = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.key !== "") {
-      writer.uint32(10).string(message.key)
+      writer.uint32(10).string(message.key);
     }
     if (message.value !== "") {
-      writer.uint32(18).string(message.value)
+      writer.uint32(18).string(message.value);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const DisplayApps = {
   encode(
@@ -569,56 +569,59 @@ export const DisplayApps = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.vscode === true) {
-      writer.uint32(8).bool(message.vscode)
+      writer.uint32(8).bool(message.vscode);
     }
     if (message.vscodeInsiders === true) {
-      writer.uint32(16).bool(message.vscodeInsiders)
+      writer.uint32(16).bool(message.vscodeInsiders);
     }
     if (message.webTerminal === true) {
-      writer.uint32(24).bool(message.webTerminal)
+      writer.uint32(24).bool(message.webTerminal);
     }
     if (message.sshHelper === true) {
-      writer.uint32(32).bool(message.sshHelper)
+      writer.uint32(32).bool(message.sshHelper);
     }
     if (message.portForwardingHelper === true) {
-      writer.uint32(40).bool(message.portForwardingHelper)
+      writer.uint32(40).bool(message.portForwardingHelper);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const App = {
   encode(message: App, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.slug !== "") {
-      writer.uint32(10).string(message.slug)
+      writer.uint32(10).string(message.slug);
     }
     if (message.displayName !== "") {
-      writer.uint32(18).string(message.displayName)
+      writer.uint32(18).string(message.displayName);
     }
     if (message.command !== "") {
-      writer.uint32(26).string(message.command)
+      writer.uint32(26).string(message.command);
     }
     if (message.url !== "") {
-      writer.uint32(34).string(message.url)
+      writer.uint32(34).string(message.url);
     }
     if (message.icon !== "") {
-      writer.uint32(42).string(message.icon)
+      writer.uint32(42).string(message.icon);
     }
     if (message.subdomain === true) {
-      writer.uint32(48).bool(message.subdomain)
+      writer.uint32(48).bool(message.subdomain);
     }
     if (message.healthcheck !== undefined) {
-      Healthcheck.encode(message.healthcheck, writer.uint32(58).fork()).ldelim()
+      Healthcheck.encode(
+        message.healthcheck,
+        writer.uint32(58).fork(),
+      ).ldelim();
     }
     if (message.sharingLevel !== 0) {
-      writer.uint32(64).int32(message.sharingLevel)
+      writer.uint32(64).int32(message.sharingLevel);
     }
     if (message.external === true) {
-      writer.uint32(72).bool(message.external)
+      writer.uint32(72).bool(message.external);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Healthcheck = {
   encode(
@@ -626,17 +629,17 @@ export const Healthcheck = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.url !== "") {
-      writer.uint32(10).string(message.url)
+      writer.uint32(10).string(message.url);
     }
     if (message.interval !== 0) {
-      writer.uint32(16).int32(message.interval)
+      writer.uint32(16).int32(message.interval);
     }
     if (message.threshold !== 0) {
-      writer.uint32(24).int32(message.threshold)
+      writer.uint32(24).int32(message.threshold);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Resource = {
   encode(
@@ -644,32 +647,32 @@ export const Resource = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.name !== "") {
-      writer.uint32(10).string(message.name)
+      writer.uint32(10).string(message.name);
     }
     if (message.type !== "") {
-      writer.uint32(18).string(message.type)
+      writer.uint32(18).string(message.type);
     }
     for (const v of message.agents) {
-      Agent.encode(v!, writer.uint32(26).fork()).ldelim()
+      Agent.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.metadata) {
-      Resource_Metadata.encode(v!, writer.uint32(34).fork()).ldelim()
+      Resource_Metadata.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     if (message.hide === true) {
-      writer.uint32(40).bool(message.hide)
+      writer.uint32(40).bool(message.hide);
     }
     if (message.icon !== "") {
-      writer.uint32(50).string(message.icon)
+      writer.uint32(50).string(message.icon);
     }
     if (message.instanceType !== "") {
-      writer.uint32(58).string(message.instanceType)
+      writer.uint32(58).string(message.instanceType);
     }
     if (message.dailyCost !== 0) {
-      writer.uint32(64).int32(message.dailyCost)
+      writer.uint32(64).int32(message.dailyCost);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Resource_Metadata = {
   encode(
@@ -677,20 +680,20 @@ export const Resource_Metadata = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.key !== "") {
-      writer.uint32(10).string(message.key)
+      writer.uint32(10).string(message.key);
     }
     if (message.value !== "") {
-      writer.uint32(18).string(message.value)
+      writer.uint32(18).string(message.value);
     }
     if (message.sensitive === true) {
-      writer.uint32(24).bool(message.sensitive)
+      writer.uint32(24).bool(message.sensitive);
     }
     if (message.isNull === true) {
-      writer.uint32(32).bool(message.isNull)
+      writer.uint32(32).bool(message.isNull);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Metadata = {
   encode(
@@ -698,41 +701,41 @@ export const Metadata = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.coderUrl !== "") {
-      writer.uint32(10).string(message.coderUrl)
+      writer.uint32(10).string(message.coderUrl);
     }
     if (message.workspaceTransition !== 0) {
-      writer.uint32(16).int32(message.workspaceTransition)
+      writer.uint32(16).int32(message.workspaceTransition);
     }
     if (message.workspaceName !== "") {
-      writer.uint32(26).string(message.workspaceName)
+      writer.uint32(26).string(message.workspaceName);
     }
     if (message.workspaceOwner !== "") {
-      writer.uint32(34).string(message.workspaceOwner)
+      writer.uint32(34).string(message.workspaceOwner);
     }
     if (message.workspaceId !== "") {
-      writer.uint32(42).string(message.workspaceId)
+      writer.uint32(42).string(message.workspaceId);
     }
     if (message.workspaceOwnerId !== "") {
-      writer.uint32(50).string(message.workspaceOwnerId)
+      writer.uint32(50).string(message.workspaceOwnerId);
     }
     if (message.workspaceOwnerEmail !== "") {
-      writer.uint32(58).string(message.workspaceOwnerEmail)
+      writer.uint32(58).string(message.workspaceOwnerEmail);
     }
     if (message.templateName !== "") {
-      writer.uint32(66).string(message.templateName)
+      writer.uint32(66).string(message.templateName);
     }
     if (message.templateVersion !== "") {
-      writer.uint32(74).string(message.templateVersion)
+      writer.uint32(74).string(message.templateVersion);
     }
     if (message.workspaceOwnerOidcAccessToken !== "") {
-      writer.uint32(82).string(message.workspaceOwnerOidcAccessToken)
+      writer.uint32(82).string(message.workspaceOwnerOidcAccessToken);
     }
     if (message.workspaceOwnerSessionToken !== "") {
-      writer.uint32(90).string(message.workspaceOwnerSessionToken)
+      writer.uint32(90).string(message.workspaceOwnerSessionToken);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Config = {
   encode(
@@ -740,26 +743,26 @@ export const Config = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.templateSourceArchive.length !== 0) {
-      writer.uint32(10).bytes(message.templateSourceArchive)
+      writer.uint32(10).bytes(message.templateSourceArchive);
     }
     if (message.state.length !== 0) {
-      writer.uint32(18).bytes(message.state)
+      writer.uint32(18).bytes(message.state);
     }
     if (message.provisionerLogLevel !== "") {
-      writer.uint32(26).string(message.provisionerLogLevel)
+      writer.uint32(26).string(message.provisionerLogLevel);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const ParseRequest = {
   encode(
     _: ParseRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    return writer
+    return writer;
   },
-}
+};
 
 export const ParseComplete = {
   encode(
@@ -767,17 +770,17 @@ export const ParseComplete = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.error !== "") {
-      writer.uint32(10).string(message.error)
+      writer.uint32(10).string(message.error);
     }
     for (const v of message.templateVariables) {
-      TemplateVariable.encode(v!, writer.uint32(18).fork()).ldelim()
+      TemplateVariable.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     if (message.readme.length !== 0) {
-      writer.uint32(26).bytes(message.readme)
+      writer.uint32(26).bytes(message.readme);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const PlanRequest = {
   encode(
@@ -785,20 +788,20 @@ export const PlanRequest = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.metadata !== undefined) {
-      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim()
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
     }
     for (const v of message.richParameterValues) {
-      RichParameterValue.encode(v!, writer.uint32(18).fork()).ldelim()
+      RichParameterValue.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     for (const v of message.variableValues) {
-      VariableValue.encode(v!, writer.uint32(26).fork()).ldelim()
+      VariableValue.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.gitAuthProviders) {
-      GitAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim()
+      GitAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const PlanComplete = {
   encode(
@@ -806,20 +809,20 @@ export const PlanComplete = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.error !== "") {
-      writer.uint32(10).string(message.error)
+      writer.uint32(10).string(message.error);
     }
     for (const v of message.resources) {
-      Resource.encode(v!, writer.uint32(18).fork()).ldelim()
+      Resource.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     for (const v of message.parameters) {
-      RichParameter.encode(v!, writer.uint32(26).fork()).ldelim()
+      RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.gitAuthProviders) {
-      writer.uint32(34).string(v!)
+      writer.uint32(34).string(v!);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const ApplyRequest = {
   encode(
@@ -827,11 +830,11 @@ export const ApplyRequest = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.metadata !== undefined) {
-      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim()
+      Metadata.encode(message.metadata, writer.uint32(10).fork()).ldelim();
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const ApplyComplete = {
   encode(
@@ -839,32 +842,32 @@ export const ApplyComplete = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.state.length !== 0) {
-      writer.uint32(10).bytes(message.state)
+      writer.uint32(10).bytes(message.state);
     }
     if (message.error !== "") {
-      writer.uint32(18).string(message.error)
+      writer.uint32(18).string(message.error);
     }
     for (const v of message.resources) {
-      Resource.encode(v!, writer.uint32(26).fork()).ldelim()
+      Resource.encode(v!, writer.uint32(26).fork()).ldelim();
     }
     for (const v of message.parameters) {
-      RichParameter.encode(v!, writer.uint32(34).fork()).ldelim()
+      RichParameter.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     for (const v of message.gitAuthProviders) {
-      writer.uint32(42).string(v!)
+      writer.uint32(42).string(v!);
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const CancelRequest = {
   encode(
     _: CancelRequest,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
-    return writer
+    return writer;
   },
-}
+};
 
 export const Request = {
   encode(
@@ -872,23 +875,23 @@ export const Request = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.config !== undefined) {
-      Config.encode(message.config, writer.uint32(10).fork()).ldelim()
+      Config.encode(message.config, writer.uint32(10).fork()).ldelim();
     }
     if (message.parse !== undefined) {
-      ParseRequest.encode(message.parse, writer.uint32(18).fork()).ldelim()
+      ParseRequest.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
     if (message.plan !== undefined) {
-      PlanRequest.encode(message.plan, writer.uint32(26).fork()).ldelim()
+      PlanRequest.encode(message.plan, writer.uint32(26).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyRequest.encode(message.apply, writer.uint32(34).fork()).ldelim()
+      ApplyRequest.encode(message.apply, writer.uint32(34).fork()).ldelim();
     }
     if (message.cancel !== undefined) {
-      CancelRequest.encode(message.cancel, writer.uint32(42).fork()).ldelim()
+      CancelRequest.encode(message.cancel, writer.uint32(42).fork()).ldelim();
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export const Response = {
   encode(
@@ -896,20 +899,20 @@ export const Response = {
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.log !== undefined) {
-      Log.encode(message.log, writer.uint32(10).fork()).ldelim()
+      Log.encode(message.log, writer.uint32(10).fork()).ldelim();
     }
     if (message.parse !== undefined) {
-      ParseComplete.encode(message.parse, writer.uint32(18).fork()).ldelim()
+      ParseComplete.encode(message.parse, writer.uint32(18).fork()).ldelim();
     }
     if (message.plan !== undefined) {
-      PlanComplete.encode(message.plan, writer.uint32(26).fork()).ldelim()
+      PlanComplete.encode(message.plan, writer.uint32(26).fork()).ldelim();
     }
     if (message.apply !== undefined) {
-      ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim()
+      ApplyComplete.encode(message.apply, writer.uint32(34).fork()).ldelim();
     }
-    return writer
+    return writer;
   },
-}
+};
 
 export interface Provisioner {
   /**
@@ -924,5 +927,5 @@ export interface Provisioner {
    * PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
    * that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
    */
-  Session(request: Observable<Request>): Observable<Response>
+  Session(request: Observable<Request>): Observable<Response>;
 }

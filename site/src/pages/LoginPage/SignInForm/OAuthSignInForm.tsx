@@ -1,32 +1,32 @@
-import Link from "@mui/material/Link"
-import Button from "@mui/material/Button"
-import GitHubIcon from "@mui/icons-material/GitHub"
-import KeyIcon from "@mui/icons-material/VpnKey"
-import Box from "@mui/material/Box"
-import { Language } from "./SignInForm"
-import { AuthMethods } from "../../../api/typesGenerated"
-import { FC } from "react"
-import { makeStyles } from "@mui/styles"
+import Link from "@mui/material/Link";
+import Button from "@mui/material/Button";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import KeyIcon from "@mui/icons-material/VpnKey";
+import Box from "@mui/material/Box";
+import { Language } from "./SignInForm";
+import { AuthMethods } from "../../../api/typesGenerated";
+import { FC } from "react";
+import { makeStyles } from "@mui/styles";
 
 type OAuthSignInFormProps = {
-  isSigningIn: boolean
-  redirectTo: string
-  authMethods?: AuthMethods
-}
+  isSigningIn: boolean;
+  redirectTo: string;
+  authMethods?: AuthMethods;
+};
 
 const useStyles = makeStyles((theme) => ({
   buttonIcon: {
     width: theme.spacing(2),
     height: theme.spacing(2),
   },
-}))
+}));
 
 export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
   isSigningIn,
   redirectTo,
   authMethods,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Box display="grid" gap="16px">
@@ -76,5 +76,5 @@ export const OAuthSignInForm: FC<OAuthSignInFormProps> = ({
         </Link>
       )}
     </Box>
-  )
-}
+  );
+};

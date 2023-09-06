@@ -3,31 +3,31 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-} from "@tanstack/react-query"
-import { getWorkspaces, updateWorkspaceVersion } from "api/api"
-import { getErrorMessage } from "api/errors"
+} from "@tanstack/react-query";
+import { getWorkspaces, updateWorkspaceVersion } from "api/api";
+import { getErrorMessage } from "api/errors";
 import {
   Workspace,
   WorkspaceBuild,
   WorkspacesResponse,
-} from "api/typesGenerated"
-import { displayError } from "components/GlobalSnackbar/utils"
-import { useState } from "react"
-import { useTranslation } from "react-i18next"
+} from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type UseWorkspacesDataParams = {
-  page: number
-  limit: number
-  query: string
-}
+  page: number;
+  limit: number;
+  query: string;
+};
 
 export const useWorkspacesData = ({
   page,
   limit,
   query,
 }: UseWorkspacesDataParams) => {
-  const queryKey = ["workspaces", query, page]
-  const [shouldRefetch, setShouldRefetch] = useState(true)
+  const queryKey = ["workspaces", query, page];
+  const [shouldRefetch, setShouldRefetch] = useState(true);
   const result = useQuery({
     queryKey,
     queryFn: () =>
@@ -37,47 +37,47 @@ export const useWorkspacesData = ({
         offset: page <= 0 ? 0 : (page - 1) * limit,
       }),
     onSuccess: () => {
-      setShouldRefetch(true)
+      setShouldRefetch(true);
     },
     onError: () => {
-      setShouldRefetch(false)
+      setShouldRefetch(false);
     },
     refetchInterval: shouldRefetch ? 5_000 : undefined,
-  })
+  });
 
   return {
     ...result,
     queryKey,
-  }
-}
+  };
+};
 
 export const useWorkspaceUpdate = (queryKey: QueryKey) => {
-  const queryClient = useQueryClient()
-  const { t } = useTranslation("workspacesPage")
+  const queryClient = useQueryClient();
+  const { t } = useTranslation("workspacesPage");
 
   return useMutation({
     mutationFn: updateWorkspaceVersion,
     onMutate: async (workspace) => {
-      await queryClient.cancelQueries({ queryKey })
+      await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (oldResponse) => {
         if (oldResponse) {
-          return assignPendingStatus(oldResponse, workspace)
+          return assignPendingStatus(oldResponse, workspace);
         }
-      })
+      });
     },
     onSuccess: (workspaceBuild) => {
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (oldResponse) => {
         if (oldResponse) {
-          return assignLatestBuild(oldResponse, workspaceBuild)
+          return assignLatestBuild(oldResponse, workspaceBuild);
         }
-      })
+      });
     },
     onError: (error) => {
-      const message = getErrorMessage(error, t("updateVersionError"))
-      displayError(message)
+      const message = getErrorMessage(error, t("updateVersionError"));
+      displayError(message);
     },
-  })
-}
+  });
+};
 
 const assignLatestBuild = (
   oldResponse: WorkspacesResponse,
@@ -90,13 +90,13 @@ const assignLatestBuild = (
         return {
           ...workspace,
           latest_build: build,
-        }
+        };
       }
 
-      return workspace
+      return workspace;
     }),
-  }
-}
+  };
+};
 
 const assignPendingStatus = (
   oldResponse: WorkspacesResponse,
@@ -116,10 +116,10 @@ const assignPendingStatus = (
               status: "pending",
             },
           },
-        } as Workspace
+        } as Workspace;
       }
 
-      return workspaceItem
+      return workspaceItem;
     }),
-  }
-}
+  };
+};

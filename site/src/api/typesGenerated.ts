@@ -4,1564 +4,1564 @@
 
 // From codersdk/templates.go
 export interface ACLAvailable {
-  readonly users: User[]
-  readonly groups: Group[]
+  readonly users: User[];
+  readonly groups: Group[];
 }
 
 // From codersdk/apikey.go
 export interface APIKey {
-  readonly id: string
-  readonly user_id: string
-  readonly last_used: string
-  readonly expires_at: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly login_type: LoginType
-  readonly scope: APIKeyScope
-  readonly token_name: string
-  readonly lifetime_seconds: number
+  readonly id: string;
+  readonly user_id: string;
+  readonly last_used: string;
+  readonly expires_at: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly login_type: LoginType;
+  readonly scope: APIKeyScope;
+  readonly token_name: string;
+  readonly lifetime_seconds: number;
 }
 
 // From codersdk/apikey.go
 export interface APIKeyWithOwner extends APIKey {
-  readonly username: string
+  readonly username: string;
 }
 
 // From codersdk/licenses.go
 export interface AddLicenseRequest {
-  readonly license: string
+  readonly license: string;
 }
 
 // From codersdk/templates.go
 export interface AgentStatsReportResponse {
-  readonly num_comms: number
-  readonly rx_bytes: number
-  readonly tx_bytes: number
+  readonly num_comms: number;
+  readonly rx_bytes: number;
+  readonly tx_bytes: number;
 }
 
 // From codersdk/deployment.go
 export interface AppHostResponse {
-  readonly host: string
+  readonly host: string;
 }
 
 // From codersdk/deployment.go
 export interface AppearanceConfig {
-  readonly logo_url: string
-  readonly service_banner: ServiceBannerConfig
-  readonly support_links?: LinkConfig[]
+  readonly logo_url: string;
+  readonly service_banner: ServiceBannerConfig;
+  readonly support_links?: LinkConfig[];
 }
 
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
-  readonly assignable: boolean
+  readonly assignable: boolean;
 }
 
 // From codersdk/audit.go
-export type AuditDiff = Record<string, AuditDiffField>
+export type AuditDiff = Record<string, AuditDiffField>;
 
 // From codersdk/audit.go
 export interface AuditDiffField {
   // Empty interface{} type, cannot resolve the type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
-  readonly old?: any
+  readonly old?: any;
   // Empty interface{} type, cannot resolve the type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
-  readonly new?: any
-  readonly secret: boolean
+  readonly new?: any;
+  readonly secret: boolean;
 }
 
 // From codersdk/audit.go
 export interface AuditLog {
-  readonly id: string
-  readonly request_id: string
-  readonly time: string
-  readonly organization_id: string
+  readonly id: string;
+  readonly request_id: string;
+  readonly time: string;
+  readonly organization_id: string;
   // Named type "net/netip.Addr" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly ip: any
-  readonly user_agent: string
-  readonly resource_type: ResourceType
-  readonly resource_id: string
-  readonly resource_target: string
-  readonly resource_icon: string
-  readonly action: AuditAction
-  readonly diff: AuditDiff
-  readonly status_code: number
-  readonly additional_fields: Record<string, string>
-  readonly description: string
-  readonly resource_link: string
-  readonly is_deleted: boolean
-  readonly user?: User
+  readonly ip: any;
+  readonly user_agent: string;
+  readonly resource_type: ResourceType;
+  readonly resource_id: string;
+  readonly resource_target: string;
+  readonly resource_icon: string;
+  readonly action: AuditAction;
+  readonly diff: AuditDiff;
+  readonly status_code: number;
+  readonly additional_fields: Record<string, string>;
+  readonly description: string;
+  readonly resource_link: string;
+  readonly is_deleted: boolean;
+  readonly user?: User;
 }
 
 // From codersdk/audit.go
 export interface AuditLogResponse {
-  readonly audit_logs: AuditLog[]
-  readonly count: number
+  readonly audit_logs: AuditLog[];
+  readonly count: number;
 }
 
 // From codersdk/audit.go
 export interface AuditLogsRequest extends Pagination {
-  readonly q?: string
+  readonly q?: string;
 }
 
 // From codersdk/users.go
 export interface AuthMethod {
-  readonly enabled: boolean
+  readonly enabled: boolean;
 }
 
 // From codersdk/users.go
 export interface AuthMethods {
-  readonly password: AuthMethod
-  readonly github: AuthMethod
-  readonly oidc: OIDCAuthMethod
+  readonly password: AuthMethod;
+  readonly github: AuthMethod;
+  readonly oidc: OIDCAuthMethod;
 }
 
 // From codersdk/authorization.go
 export interface AuthorizationCheck {
-  readonly object: AuthorizationObject
-  readonly action: string
+  readonly object: AuthorizationObject;
+  readonly action: string;
 }
 
 // From codersdk/authorization.go
 export interface AuthorizationObject {
-  readonly resource_type: RBACResource
-  readonly owner_id?: string
-  readonly organization_id?: string
-  readonly resource_id?: string
+  readonly resource_type: RBACResource;
+  readonly owner_id?: string;
+  readonly organization_id?: string;
+  readonly resource_id?: string;
 }
 
 // From codersdk/authorization.go
 export interface AuthorizationRequest {
-  readonly checks: Record<string, AuthorizationCheck>
+  readonly checks: Record<string, AuthorizationCheck>;
 }
 
 // From codersdk/authorization.go
-export type AuthorizationResponse = Record<string, boolean>
+export type AuthorizationResponse = Record<string, boolean>;
 
 // From codersdk/deployment.go
 export interface BuildInfoResponse {
-  readonly external_url: string
-  readonly version: string
-  readonly dashboard_url: string
-  readonly workspace_proxy: boolean
+  readonly external_url: string;
+  readonly version: string;
+  readonly dashboard_url: string;
+  readonly workspace_proxy: boolean;
 }
 
 // From codersdk/insights.go
 export interface ConnectionLatency {
-  readonly p50: number
-  readonly p95: number
+  readonly p50: number;
+  readonly p95: number;
 }
 
 // From codersdk/users.go
 export interface ConvertLoginRequest {
-  readonly to_type: LoginType
-  readonly password: string
+  readonly to_type: LoginType;
+  readonly password: string;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserRequest {
-  readonly email: string
-  readonly username: string
-  readonly password: string
-  readonly trial: boolean
+  readonly email: string;
+  readonly username: string;
+  readonly password: string;
+  readonly trial: boolean;
 }
 
 // From codersdk/users.go
 export interface CreateFirstUserResponse {
-  readonly user_id: string
-  readonly organization_id: string
+  readonly user_id: string;
+  readonly organization_id: string;
 }
 
 // From codersdk/groups.go
 export interface CreateGroupRequest {
-  readonly name: string
-  readonly display_name: string
-  readonly avatar_url: string
-  readonly quota_allowance: number
+  readonly name: string;
+  readonly display_name: string;
+  readonly avatar_url: string;
+  readonly quota_allowance: number;
 }
 
 // From codersdk/users.go
 export interface CreateOrganizationRequest {
-  readonly name: string
+  readonly name: string;
 }
 
 // From codersdk/organizations.go
 export interface CreateTemplateRequest {
-  readonly name: string
-  readonly display_name?: string
-  readonly description?: string
-  readonly icon?: string
-  readonly template_version_id: string
-  readonly default_ttl_ms?: number
-  readonly max_ttl_ms?: number
-  readonly autostop_requirement?: TemplateAutostopRequirement
-  readonly allow_user_cancel_workspace_jobs?: boolean
-  readonly allow_user_autostart?: boolean
-  readonly allow_user_autostop?: boolean
-  readonly failure_ttl_ms?: number
-  readonly dormant_ttl_ms?: number
-  readonly delete_ttl_ms?: number
-  readonly disable_everyone_group_access: boolean
+  readonly name: string;
+  readonly display_name?: string;
+  readonly description?: string;
+  readonly icon?: string;
+  readonly template_version_id: string;
+  readonly default_ttl_ms?: number;
+  readonly max_ttl_ms?: number;
+  readonly autostop_requirement?: TemplateAutostopRequirement;
+  readonly allow_user_cancel_workspace_jobs?: boolean;
+  readonly allow_user_autostart?: boolean;
+  readonly allow_user_autostop?: boolean;
+  readonly failure_ttl_ms?: number;
+  readonly dormant_ttl_ms?: number;
+  readonly delete_ttl_ms?: number;
+  readonly disable_everyone_group_access: boolean;
 }
 
 // From codersdk/templateversions.go
 export interface CreateTemplateVersionDryRunRequest {
-  readonly workspace_name: string
-  readonly rich_parameter_values: WorkspaceBuildParameter[]
-  readonly user_variable_values?: VariableValue[]
+  readonly workspace_name: string;
+  readonly rich_parameter_values: WorkspaceBuildParameter[];
+  readonly user_variable_values?: VariableValue[];
 }
 
 // From codersdk/organizations.go
 export interface CreateTemplateVersionRequest {
-  readonly name?: string
-  readonly message?: string
-  readonly template_id?: string
-  readonly storage_method: ProvisionerStorageMethod
-  readonly file_id?: string
-  readonly example_id?: string
-  readonly provisioner: ProvisionerType
-  readonly tags: Record<string, string>
-  readonly user_variable_values?: VariableValue[]
+  readonly name?: string;
+  readonly message?: string;
+  readonly template_id?: string;
+  readonly storage_method: ProvisionerStorageMethod;
+  readonly file_id?: string;
+  readonly example_id?: string;
+  readonly provisioner: ProvisionerType;
+  readonly tags: Record<string, string>;
+  readonly user_variable_values?: VariableValue[];
 }
 
 // From codersdk/audit.go
 export interface CreateTestAuditLogRequest {
-  readonly action?: AuditAction
-  readonly resource_type?: ResourceType
-  readonly resource_id?: string
-  readonly additional_fields?: Record<string, string>
-  readonly time?: string
-  readonly build_reason?: BuildReason
+  readonly action?: AuditAction;
+  readonly resource_type?: ResourceType;
+  readonly resource_id?: string;
+  readonly additional_fields?: Record<string, string>;
+  readonly time?: string;
+  readonly build_reason?: BuildReason;
 }
 
 // From codersdk/apikey.go
 export interface CreateTokenRequest {
-  readonly lifetime: number
-  readonly scope: APIKeyScope
-  readonly token_name: string
+  readonly lifetime: number;
+  readonly scope: APIKeyScope;
+  readonly token_name: string;
 }
 
 // From codersdk/users.go
 export interface CreateUserRequest {
-  readonly email: string
-  readonly username: string
-  readonly password: string
-  readonly login_type: LoginType
-  readonly disable_login: boolean
-  readonly organization_id: string
+  readonly email: string;
+  readonly username: string;
+  readonly password: string;
+  readonly login_type: LoginType;
+  readonly disable_login: boolean;
+  readonly organization_id: string;
 }
 
 // From codersdk/workspaces.go
 export interface CreateWorkspaceBuildRequest {
-  readonly template_version_id?: string
-  readonly transition: WorkspaceTransition
-  readonly dry_run?: boolean
-  readonly state?: string
-  readonly orphan?: boolean
-  readonly rich_parameter_values?: WorkspaceBuildParameter[]
-  readonly log_level?: ProvisionerLogLevel
+  readonly template_version_id?: string;
+  readonly transition: WorkspaceTransition;
+  readonly dry_run?: boolean;
+  readonly state?: string;
+  readonly orphan?: boolean;
+  readonly rich_parameter_values?: WorkspaceBuildParameter[];
+  readonly log_level?: ProvisionerLogLevel;
 }
 
 // From codersdk/workspaceproxy.go
 export interface CreateWorkspaceProxyRequest {
-  readonly name: string
-  readonly display_name: string
-  readonly icon: string
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
 }
 
 // From codersdk/organizations.go
 export interface CreateWorkspaceRequest {
-  readonly template_id?: string
-  readonly template_version_id?: string
-  readonly name: string
-  readonly autostart_schedule?: string
-  readonly ttl_ms?: number
-  readonly rich_parameter_values?: WorkspaceBuildParameter[]
+  readonly template_id?: string;
+  readonly template_version_id?: string;
+  readonly name: string;
+  readonly autostart_schedule?: string;
+  readonly ttl_ms?: number;
+  readonly rich_parameter_values?: WorkspaceBuildParameter[];
 }
 
 // From codersdk/deployment.go
 export interface DAUEntry {
-  readonly date: string
-  readonly amount: number
+  readonly date: string;
+  readonly amount: number;
 }
 
 // From codersdk/deployment.go
 export interface DAURequest {
-  readonly TZHourOffset: number
+  readonly TZHourOffset: number;
 }
 
 // From codersdk/deployment.go
 export interface DAUsResponse {
-  readonly entries: DAUEntry[]
-  readonly tz_hour_offset: number
+  readonly entries: DAUEntry[];
+  readonly tz_hour_offset: number;
 }
 
 // From codersdk/deployment.go
 export interface DERP {
-  readonly server: DERPServerConfig
-  readonly config: DERPConfig
+  readonly server: DERPServerConfig;
+  readonly config: DERPConfig;
 }
 
 // From codersdk/deployment.go
 export interface DERPConfig {
-  readonly block_direct: boolean
-  readonly force_websockets: boolean
-  readonly url: string
-  readonly path: string
+  readonly block_direct: boolean;
+  readonly force_websockets: boolean;
+  readonly url: string;
+  readonly path: string;
 }
 
 // From codersdk/workspaceagents.go
 export interface DERPRegion {
-  readonly preferred: boolean
-  readonly latency_ms: number
+  readonly preferred: boolean;
+  readonly latency_ms: number;
 }
 
 // From codersdk/deployment.go
 export interface DERPServerConfig {
-  readonly enable: boolean
-  readonly region_id: number
-  readonly region_code: string
-  readonly region_name: string
+  readonly enable: boolean;
+  readonly region_id: number;
+  readonly region_code: string;
+  readonly region_name: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly stun_addresses: string[]
-  readonly relay_url: string
+  readonly stun_addresses: string[];
+  readonly relay_url: string;
 }
 
 // From codersdk/deployment.go
 export interface DangerousConfig {
-  readonly allow_path_app_sharing: boolean
-  readonly allow_path_app_site_owner_access: boolean
-  readonly allow_all_cors: boolean
+  readonly allow_path_app_sharing: boolean;
+  readonly allow_path_app_site_owner_access: boolean;
+  readonly allow_all_cors: boolean;
 }
 
 // From codersdk/deployment.go
 export interface DeploymentStats {
-  readonly aggregated_from: string
-  readonly collected_at: string
-  readonly next_update_at: string
-  readonly workspaces: WorkspaceDeploymentStats
-  readonly session_count: SessionCountDeploymentStats
+  readonly aggregated_from: string;
+  readonly collected_at: string;
+  readonly next_update_at: string;
+  readonly workspaces: WorkspaceDeploymentStats;
+  readonly session_count: SessionCountDeploymentStats;
 }
 
 // From codersdk/deployment.go
 export interface DeploymentValues {
-  readonly verbose?: boolean
-  readonly access_url?: string
-  readonly wildcard_access_url?: string
-  readonly docs_url?: string
-  readonly redirect_to_access_url?: boolean
-  readonly http_address?: string
-  readonly autobuild_poll_interval?: number
-  readonly job_hang_detector_interval?: number
-  readonly derp?: DERP
-  readonly prometheus?: PrometheusConfig
-  readonly pprof?: PprofConfig
+  readonly verbose?: boolean;
+  readonly access_url?: string;
+  readonly wildcard_access_url?: string;
+  readonly docs_url?: string;
+  readonly redirect_to_access_url?: boolean;
+  readonly http_address?: string;
+  readonly autobuild_poll_interval?: number;
+  readonly job_hang_detector_interval?: number;
+  readonly derp?: DERP;
+  readonly prometheus?: PrometheusConfig;
+  readonly pprof?: PprofConfig;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly proxy_trusted_headers?: string[]
+  readonly proxy_trusted_headers?: string[];
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly proxy_trusted_origins?: string[]
-  readonly cache_directory?: string
-  readonly in_memory_database?: boolean
-  readonly pg_connection_url?: string
-  readonly oauth2?: OAuth2Config
-  readonly oidc?: OIDCConfig
-  readonly telemetry?: TelemetryConfig
-  readonly tls?: TLSConfig
-  readonly trace?: TraceConfig
-  readonly secure_auth_cookie?: boolean
-  readonly strict_transport_security?: number
+  readonly proxy_trusted_origins?: string[];
+  readonly cache_directory?: string;
+  readonly in_memory_database?: boolean;
+  readonly pg_connection_url?: string;
+  readonly oauth2?: OAuth2Config;
+  readonly oidc?: OIDCConfig;
+  readonly telemetry?: TelemetryConfig;
+  readonly tls?: TLSConfig;
+  readonly trace?: TraceConfig;
+  readonly secure_auth_cookie?: boolean;
+  readonly strict_transport_security?: number;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly strict_transport_security_options?: string[]
-  readonly ssh_keygen_algorithm?: string
-  readonly metrics_cache_refresh_interval?: number
-  readonly agent_stat_refresh_interval?: number
-  readonly agent_fallback_troubleshooting_url?: string
-  readonly browser_only?: boolean
-  readonly scim_api_key?: string
-  readonly provisioner?: ProvisionerConfig
-  readonly rate_limit?: RateLimitConfig
+  readonly strict_transport_security_options?: string[];
+  readonly ssh_keygen_algorithm?: string;
+  readonly metrics_cache_refresh_interval?: number;
+  readonly agent_stat_refresh_interval?: number;
+  readonly agent_fallback_troubleshooting_url?: string;
+  readonly browser_only?: boolean;
+  readonly scim_api_key?: string;
+  readonly provisioner?: ProvisionerConfig;
+  readonly rate_limit?: RateLimitConfig;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly experiments?: string[]
-  readonly update_check?: boolean
-  readonly max_token_lifetime?: number
-  readonly swagger?: SwaggerConfig
-  readonly logging?: LoggingConfig
-  readonly dangerous?: DangerousConfig
-  readonly disable_path_apps?: boolean
-  readonly max_session_expiry?: number
-  readonly disable_session_expiry_refresh?: boolean
-  readonly disable_password_auth?: boolean
-  readonly support?: SupportConfig
+  readonly experiments?: string[];
+  readonly update_check?: boolean;
+  readonly max_token_lifetime?: number;
+  readonly swagger?: SwaggerConfig;
+  readonly logging?: LoggingConfig;
+  readonly dangerous?: DangerousConfig;
+  readonly disable_path_apps?: boolean;
+  readonly max_session_expiry?: number;
+  readonly disable_session_expiry_refresh?: boolean;
+  readonly disable_password_auth?: boolean;
+  readonly support?: SupportConfig;
   // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.GitAuthConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly git_auth?: any
-  readonly config_ssh?: SSHConfig
-  readonly wgtunnel_host?: string
-  readonly disable_owner_workspace_exec?: boolean
-  readonly proxy_health_status_interval?: number
-  readonly enable_terraform_debug_mode?: boolean
-  readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig
+  readonly git_auth?: any;
+  readonly config_ssh?: SSHConfig;
+  readonly wgtunnel_host?: string;
+  readonly disable_owner_workspace_exec?: boolean;
+  readonly proxy_health_status_interval?: number;
+  readonly enable_terraform_debug_mode?: boolean;
+  readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.YAMLConfigPath")
-  readonly config?: string
-  readonly write_config?: boolean
+  readonly config?: string;
+  readonly write_config?: boolean;
   // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address?: any
+  readonly address?: any;
 }
 
 // From codersdk/deployment.go
 export interface Entitlements {
-  readonly features: Record<FeatureName, Feature>
-  readonly warnings: string[]
-  readonly errors: string[]
-  readonly has_license: boolean
-  readonly trial: boolean
-  readonly require_telemetry: boolean
-  readonly refreshed_at: string
+  readonly features: Record<FeatureName, Feature>;
+  readonly warnings: string[];
+  readonly errors: string[];
+  readonly has_license: boolean;
+  readonly trial: boolean;
+  readonly require_telemetry: boolean;
+  readonly refreshed_at: string;
 }
 
 // From codersdk/deployment.go
-export type Experiments = Experiment[]
+export type Experiments = Experiment[];
 
 // From codersdk/deployment.go
 export interface Feature {
-  readonly entitlement: Entitlement
-  readonly enabled: boolean
-  readonly limit?: number
-  readonly actual?: number
+  readonly entitlement: Entitlement;
+  readonly enabled: boolean;
+  readonly limit?: number;
+  readonly actual?: number;
 }
 
 // From codersdk/apikey.go
 export interface GenerateAPIKeyResponse {
-  readonly key: string
+  readonly key: string;
 }
 
 // From codersdk/users.go
 export interface GetUsersResponse {
-  readonly users: User[]
-  readonly count: number
+  readonly users: User[];
+  readonly count: number;
 }
 
 // From codersdk/gitauth.go
 export interface GitAuth {
-  readonly authenticated: boolean
-  readonly device: boolean
-  readonly type: string
-  readonly user?: GitAuthUser
-  readonly app_installable: boolean
-  readonly installations: GitAuthAppInstallation[]
-  readonly app_install_url: string
+  readonly authenticated: boolean;
+  readonly device: boolean;
+  readonly type: string;
+  readonly user?: GitAuthUser;
+  readonly app_installable: boolean;
+  readonly installations: GitAuthAppInstallation[];
+  readonly app_install_url: string;
 }
 
 // From codersdk/gitauth.go
 export interface GitAuthAppInstallation {
-  readonly id: number
-  readonly account: GitAuthUser
-  readonly configure_url: string
+  readonly id: number;
+  readonly account: GitAuthUser;
+  readonly configure_url: string;
 }
 
 // From codersdk/deployment.go
 export interface GitAuthConfig {
-  readonly id: string
-  readonly type: string
-  readonly client_id: string
-  readonly auth_url: string
-  readonly token_url: string
-  readonly validate_url: string
-  readonly app_install_url: string
-  readonly app_installations_url: string
-  readonly regex: string
-  readonly no_refresh: boolean
-  readonly scopes: string[]
-  readonly device_flow: boolean
-  readonly device_code_url: string
+  readonly id: string;
+  readonly type: string;
+  readonly client_id: string;
+  readonly auth_url: string;
+  readonly token_url: string;
+  readonly validate_url: string;
+  readonly app_install_url: string;
+  readonly app_installations_url: string;
+  readonly regex: string;
+  readonly no_refresh: boolean;
+  readonly scopes: string[];
+  readonly device_flow: boolean;
+  readonly device_code_url: string;
 }
 
 // From codersdk/gitauth.go
 export interface GitAuthDevice {
-  readonly device_code: string
-  readonly user_code: string
-  readonly verification_uri: string
-  readonly expires_in: number
-  readonly interval: number
+  readonly device_code: string;
+  readonly user_code: string;
+  readonly verification_uri: string;
+  readonly expires_in: number;
+  readonly interval: number;
 }
 
 // From codersdk/gitauth.go
 export interface GitAuthDeviceExchange {
-  readonly device_code: string
+  readonly device_code: string;
 }
 
 // From codersdk/gitauth.go
 export interface GitAuthUser {
-  readonly login: string
-  readonly avatar_url: string
-  readonly profile_url: string
-  readonly name: string
+  readonly login: string;
+  readonly avatar_url: string;
+  readonly profile_url: string;
+  readonly name: string;
 }
 
 // From codersdk/gitsshkey.go
 export interface GitSSHKey {
-  readonly user_id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly public_key: string
+  readonly user_id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly public_key: string;
 }
 
 // From codersdk/groups.go
 export interface Group {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly organization_id: string
-  readonly members: User[]
-  readonly avatar_url: string
-  readonly quota_allowance: number
-  readonly source: GroupSource
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly organization_id: string;
+  readonly members: User[];
+  readonly avatar_url: string;
+  readonly quota_allowance: number;
+  readonly source: GroupSource;
 }
 
 // From codersdk/workspaceapps.go
 export interface Healthcheck {
-  readonly url: string
-  readonly interval: number
-  readonly threshold: number
+  readonly url: string;
+  readonly interval: number;
+  readonly threshold: number;
 }
 
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenRequest {
-  readonly url: string
-  readonly agentID: string
+  readonly url: string;
+  readonly agentID: string;
 }
 
 // From codersdk/workspaceagents.go
 export interface IssueReconnectingPTYSignedTokenResponse {
-  readonly signed_token: string
+  readonly signed_token: string;
 }
 
 // From codersdk/licenses.go
 export interface License {
-  readonly id: number
-  readonly uuid: string
-  readonly uploaded_at: string
+  readonly id: number;
+  readonly uuid: string;
+  readonly uploaded_at: string;
   // Empty interface{} type, cannot resolve the type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
-  readonly claims: Record<string, any>
+  readonly claims: Record<string, any>;
 }
 
 // From codersdk/deployment.go
 export interface LinkConfig {
-  readonly name: string
-  readonly target: string
-  readonly icon: string
+  readonly name: string;
+  readonly target: string;
+  readonly icon: string;
 }
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly log_filter: string[]
-  readonly human: string
-  readonly json: string
-  readonly stackdriver: string
+  readonly log_filter: string[];
+  readonly human: string;
+  readonly json: string;
+  readonly stackdriver: string;
 }
 
 // From codersdk/users.go
 export interface LoginWithPasswordRequest {
-  readonly email: string
-  readonly password: string
+  readonly email: string;
+  readonly password: string;
 }
 
 // From codersdk/users.go
 export interface LoginWithPasswordResponse {
-  readonly session_token: string
+  readonly session_token: string;
 }
 
 // From codersdk/users.go
 export interface MinimalUser {
-  readonly id: string
-  readonly username: string
-  readonly avatar_url: string
+  readonly id: string;
+  readonly username: string;
+  readonly avatar_url: string;
 }
 
 // From codersdk/deployment.go
 export interface OAuth2Config {
-  readonly github: OAuth2GithubConfig
+  readonly github: OAuth2GithubConfig;
 }
 
 // From codersdk/deployment.go
 export interface OAuth2GithubConfig {
-  readonly client_id: string
-  readonly client_secret: string
+  readonly client_id: string;
+  readonly client_secret: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly allowed_orgs: string[]
+  readonly allowed_orgs: string[];
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly allowed_teams: string[]
-  readonly allow_signups: boolean
-  readonly allow_everyone: boolean
-  readonly enterprise_base_url: string
+  readonly allowed_teams: string[];
+  readonly allow_signups: boolean;
+  readonly allow_everyone: boolean;
+  readonly enterprise_base_url: string;
 }
 
 // From codersdk/users.go
 export interface OAuthConversionResponse {
-  readonly state_string: string
-  readonly expires_at: string
-  readonly to_type: LoginType
-  readonly user_id: string
+  readonly state_string: string;
+  readonly expires_at: string;
+  readonly to_type: LoginType;
+  readonly user_id: string;
 }
 
 // From codersdk/users.go
 export interface OIDCAuthMethod extends AuthMethod {
-  readonly signInText: string
-  readonly iconUrl: string
+  readonly signInText: string;
+  readonly iconUrl: string;
 }
 
 // From codersdk/deployment.go
 export interface OIDCConfig {
-  readonly allow_signups: boolean
-  readonly client_id: string
-  readonly client_secret: string
-  readonly client_key_file: string
-  readonly client_cert_file: string
+  readonly allow_signups: boolean;
+  readonly client_id: string;
+  readonly client_secret: string;
+  readonly client_key_file: string;
+  readonly client_cert_file: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly email_domain: string[]
-  readonly issuer_url: string
+  readonly email_domain: string[];
+  readonly issuer_url: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly scopes: string[]
-  readonly ignore_email_verified: boolean
-  readonly username_field: string
-  readonly email_field: string
+  readonly scopes: string[];
+  readonly ignore_email_verified: boolean;
+  readonly username_field: string;
+  readonly email_field: string;
   // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly auth_url_params: any
-  readonly ignore_user_info: boolean
-  readonly group_auto_create: boolean
+  readonly auth_url_params: any;
+  readonly ignore_user_info: boolean;
+  readonly group_auto_create: boolean;
   // Named type "github.com/coder/coder/v2/cli/clibase.Regexp" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly group_regex_filter: any
-  readonly groups_field: string
+  readonly group_regex_filter: any;
+  readonly groups_field: string;
   // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly group_mapping: any
-  readonly user_role_field: string
+  readonly group_mapping: any;
+  readonly user_role_field: string;
   // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string][]string]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly user_role_mapping: any
+  readonly user_role_mapping: any;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly user_roles_default: string[]
-  readonly sign_in_text: string
-  readonly icon_url: string
+  readonly user_roles_default: string[];
+  readonly sign_in_text: string;
+  readonly icon_url: string;
 }
 
 // From codersdk/organizations.go
 export interface Organization {
-  readonly id: string
-  readonly name: string
-  readonly created_at: string
-  readonly updated_at: string
+  readonly id: string;
+  readonly name: string;
+  readonly created_at: string;
+  readonly updated_at: string;
 }
 
 // From codersdk/organizations.go
 export interface OrganizationMember {
-  readonly user_id: string
-  readonly organization_id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly roles: Role[]
+  readonly user_id: string;
+  readonly organization_id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly roles: Role[];
 }
 
 // From codersdk/pagination.go
 export interface Pagination {
-  readonly after_id?: string
-  readonly limit?: number
-  readonly offset?: number
+  readonly after_id?: string;
+  readonly limit?: number;
+  readonly offset?: number;
 }
 
 // From codersdk/groups.go
 export interface PatchGroupRequest {
-  readonly add_users: string[]
-  readonly remove_users: string[]
-  readonly name: string
-  readonly display_name?: string
-  readonly avatar_url?: string
-  readonly quota_allowance?: number
+  readonly add_users: string[];
+  readonly remove_users: string[];
+  readonly name: string;
+  readonly display_name?: string;
+  readonly avatar_url?: string;
+  readonly quota_allowance?: number;
 }
 
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
-  readonly name: string
-  readonly message?: string
+  readonly name: string;
+  readonly message?: string;
 }
 
 // From codersdk/workspaceproxy.go
 export interface PatchWorkspaceProxy {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly icon: string
-  readonly regenerate_token: boolean
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon: string;
+  readonly regenerate_token: boolean;
 }
 
 // From codersdk/deployment.go
 export interface PprofConfig {
-  readonly enable: boolean
+  readonly enable: boolean;
   // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any
+  readonly address: any;
 }
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
-  readonly enable: boolean
+  readonly enable: boolean;
   // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any
-  readonly collect_agent_stats: boolean
-  readonly collect_db_metrics: boolean
+  readonly address: any;
+  readonly collect_agent_stats: boolean;
+  readonly collect_db_metrics: boolean;
 }
 
 // From codersdk/deployment.go
 export interface ProvisionerConfig {
-  readonly daemons: number
-  readonly daemons_echo: boolean
-  readonly daemon_poll_interval: number
-  readonly daemon_poll_jitter: number
-  readonly force_cancel_interval: number
-  readonly daemon_psk: string
+  readonly daemons: number;
+  readonly daemons_echo: boolean;
+  readonly daemon_poll_interval: number;
+  readonly daemon_poll_jitter: number;
+  readonly force_cancel_interval: number;
+  readonly daemon_psk: string;
 }
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemon {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at?: string
-  readonly name: string
-  readonly provisioners: ProvisionerType[]
-  readonly tags: Record<string, string>
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at?: string;
+  readonly name: string;
+  readonly provisioners: ProvisionerType[];
+  readonly tags: Record<string, string>;
 }
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJob {
-  readonly id: string
-  readonly created_at: string
-  readonly started_at?: string
-  readonly completed_at?: string
-  readonly canceled_at?: string
-  readonly error?: string
-  readonly error_code?: JobErrorCode
-  readonly status: ProvisionerJobStatus
-  readonly worker_id?: string
-  readonly file_id: string
-  readonly tags: Record<string, string>
-  readonly queue_position: number
-  readonly queue_size: number
+  readonly id: string;
+  readonly created_at: string;
+  readonly started_at?: string;
+  readonly completed_at?: string;
+  readonly canceled_at?: string;
+  readonly error?: string;
+  readonly error_code?: JobErrorCode;
+  readonly status: ProvisionerJobStatus;
+  readonly worker_id?: string;
+  readonly file_id: string;
+  readonly tags: Record<string, string>;
+  readonly queue_position: number;
+  readonly queue_size: number;
 }
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerJobLog {
-  readonly id: number
-  readonly created_at: string
-  readonly log_source: LogSource
-  readonly log_level: LogLevel
-  readonly stage: string
-  readonly output: string
+  readonly id: number;
+  readonly created_at: string;
+  readonly log_source: LogSource;
+  readonly log_level: LogLevel;
+  readonly stage: string;
+  readonly output: string;
 }
 
 // From codersdk/workspaceproxy.go
 export interface ProxyHealthReport {
-  readonly errors: string[]
-  readonly warnings: string[]
+  readonly errors: string[];
+  readonly warnings: string[];
 }
 
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
-  readonly deadline: string
+  readonly deadline: string;
 }
 
 // From codersdk/deployment.go
 export interface RateLimitConfig {
-  readonly disable_all: boolean
-  readonly api: number
+  readonly disable_all: boolean;
+  readonly api: number;
 }
 
 // From codersdk/workspaceproxy.go
 export interface Region {
-  readonly id: string
-  readonly name: string
-  readonly display_name: string
-  readonly icon_url: string
-  readonly healthy: boolean
-  readonly path_app_url: string
-  readonly wildcard_hostname: string
+  readonly id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly icon_url: string;
+  readonly healthy: boolean;
+  readonly path_app_url: string;
+  readonly wildcard_hostname: string;
 }
 
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
-  readonly regions: R[]
+  readonly regions: R[];
 }
 
 // From codersdk/replicas.go
 export interface Replica {
-  readonly id: string
-  readonly hostname: string
-  readonly created_at: string
-  readonly relay_address: string
-  readonly region_id: number
-  readonly error: string
-  readonly database_latency: number
+  readonly id: string;
+  readonly hostname: string;
+  readonly created_at: string;
+  readonly relay_address: string;
+  readonly region_id: number;
+  readonly error: string;
+  readonly database_latency: number;
 }
 
 // From codersdk/client.go
 export interface Response {
-  readonly message: string
-  readonly detail?: string
-  readonly validations?: ValidationError[]
+  readonly message: string;
+  readonly detail?: string;
+  readonly validations?: ValidationError[];
 }
 
 // From codersdk/roles.go
 export interface Role {
-  readonly name: string
-  readonly display_name: string
+  readonly name: string;
+  readonly display_name: string;
 }
 
 // From codersdk/deployment.go
 export interface SSHConfig {
-  readonly DeploymentName: string
+  readonly DeploymentName: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly SSHConfigOptions: string[]
+  readonly SSHConfigOptions: string[];
 }
 
 // From codersdk/deployment.go
 export interface SSHConfigResponse {
-  readonly hostname_prefix: string
-  readonly ssh_config_options: Record<string, string>
+  readonly hostname_prefix: string;
+  readonly ssh_config_options: Record<string, string>;
 }
 
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
-  readonly type: ServerSentEventType
+  readonly type: ServerSentEventType;
   // Empty interface{} type, cannot resolve the type.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- interface{}
-  readonly data: any
+  readonly data: any;
 }
 
 // From codersdk/deployment.go
 export interface ServiceBannerConfig {
-  readonly enabled: boolean
-  readonly message?: string
-  readonly background_color?: string
+  readonly enabled: boolean;
+  readonly message?: string;
+  readonly background_color?: string;
 }
 
 // From codersdk/deployment.go
 export interface SessionCountDeploymentStats {
-  readonly vscode: number
-  readonly ssh: number
-  readonly jetbrains: number
-  readonly reconnecting_pty: number
+  readonly vscode: number;
+  readonly ssh: number;
+  readonly jetbrains: number;
+  readonly reconnecting_pty: number;
 }
 
 // From codersdk/deployment.go
 export interface SupportConfig {
   // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.LinkConfig]" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly links: any
+  readonly links: any;
 }
 
 // From codersdk/deployment.go
 export interface SwaggerConfig {
-  readonly enable: boolean
+  readonly enable: boolean;
 }
 
 // From codersdk/deployment.go
 export interface TLSConfig {
-  readonly enable: boolean
+  readonly enable: boolean;
   // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any
-  readonly redirect_http: boolean
+  readonly address: any;
+  readonly redirect_http: boolean;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly cert_file: string[]
-  readonly client_auth: string
-  readonly client_ca_file: string
+  readonly cert_file: string[];
+  readonly client_auth: string;
+  readonly client_ca_file: string;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly key_file: string[]
-  readonly min_version: string
-  readonly client_cert_file: string
-  readonly client_key_file: string
+  readonly key_file: string[];
+  readonly min_version: string;
+  readonly client_cert_file: string;
+  readonly client_key_file: string;
 }
 
 // From codersdk/deployment.go
 export interface TelemetryConfig {
-  readonly enable: boolean
-  readonly trace: boolean
-  readonly url: string
+  readonly enable: boolean;
+  readonly trace: boolean;
+  readonly url: string;
 }
 
 // From codersdk/templates.go
 export interface Template {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly organization_id: string
-  readonly name: string
-  readonly display_name: string
-  readonly provisioner: ProvisionerType
-  readonly active_version_id: string
-  readonly active_user_count: number
-  readonly build_time_stats: TemplateBuildTimeStats
-  readonly description: string
-  readonly icon: string
-  readonly default_ttl_ms: number
-  readonly max_ttl_ms: number
-  readonly autostop_requirement: TemplateAutostopRequirement
-  readonly created_by_id: string
-  readonly created_by_name: string
-  readonly allow_user_autostart: boolean
-  readonly allow_user_autostop: boolean
-  readonly allow_user_cancel_workspace_jobs: boolean
-  readonly failure_ttl_ms: number
-  readonly time_til_dormant_ms: number
-  readonly time_til_dormant_autodelete_ms: number
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly organization_id: string;
+  readonly name: string;
+  readonly display_name: string;
+  readonly provisioner: ProvisionerType;
+  readonly active_version_id: string;
+  readonly active_user_count: number;
+  readonly build_time_stats: TemplateBuildTimeStats;
+  readonly description: string;
+  readonly icon: string;
+  readonly default_ttl_ms: number;
+  readonly max_ttl_ms: number;
+  readonly autostop_requirement: TemplateAutostopRequirement;
+  readonly created_by_id: string;
+  readonly created_by_name: string;
+  readonly allow_user_autostart: boolean;
+  readonly allow_user_autostop: boolean;
+  readonly allow_user_cancel_workspace_jobs: boolean;
+  readonly failure_ttl_ms: number;
+  readonly time_til_dormant_ms: number;
+  readonly time_til_dormant_autodelete_ms: number;
 }
 
 // From codersdk/templates.go
 export interface TemplateACL {
-  readonly users: TemplateUser[]
-  readonly group: TemplateGroup[]
+  readonly users: TemplateUser[];
+  readonly group: TemplateGroup[];
 }
 
 // From codersdk/insights.go
 export interface TemplateAppUsage {
-  readonly template_ids: string[]
-  readonly type: TemplateAppsType
-  readonly display_name: string
-  readonly slug: string
-  readonly icon: string
-  readonly seconds: number
+  readonly template_ids: string[];
+  readonly type: TemplateAppsType;
+  readonly display_name: string;
+  readonly slug: string;
+  readonly icon: string;
+  readonly seconds: number;
 }
 
 // From codersdk/templates.go
 export interface TemplateAutostopRequirement {
-  readonly days_of_week: string[]
-  readonly weeks: number
+  readonly days_of_week: string[];
+  readonly weeks: number;
 }
 
 // From codersdk/templates.go
 export type TemplateBuildTimeStats = Record<
   WorkspaceTransition,
   TransitionStats
->
+>;
 
 // From codersdk/templates.go
 export interface TemplateExample {
-  readonly id: string
-  readonly url: string
-  readonly name: string
-  readonly description: string
-  readonly icon: string
-  readonly tags: string[]
-  readonly markdown: string
+  readonly id: string;
+  readonly url: string;
+  readonly name: string;
+  readonly description: string;
+  readonly icon: string;
+  readonly tags: string[];
+  readonly markdown: string;
 }
 
 // From codersdk/templates.go
 export interface TemplateGroup extends Group {
-  readonly role: TemplateRole
+  readonly role: TemplateRole;
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsIntervalReport {
-  readonly start_time: string
-  readonly end_time: string
-  readonly template_ids: string[]
-  readonly interval: InsightsReportInterval
-  readonly active_users: number
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly interval: InsightsReportInterval;
+  readonly active_users: number;
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsReport {
-  readonly start_time: string
-  readonly end_time: string
-  readonly template_ids: string[]
-  readonly active_users: number
-  readonly apps_usage: TemplateAppUsage[]
-  readonly parameters_usage: TemplateParameterUsage[]
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly active_users: number;
+  readonly apps_usage: TemplateAppUsage[];
+  readonly parameters_usage: TemplateParameterUsage[];
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsRequest {
-  readonly start_time: string
-  readonly end_time: string
-  readonly template_ids: string[]
-  readonly interval: InsightsReportInterval
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly interval: InsightsReportInterval;
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsResponse {
-  readonly report: TemplateInsightsReport
-  readonly interval_reports: TemplateInsightsIntervalReport[]
+  readonly report: TemplateInsightsReport;
+  readonly interval_reports: TemplateInsightsIntervalReport[];
 }
 
 // From codersdk/insights.go
 export interface TemplateParameterUsage {
-  readonly template_ids: string[]
-  readonly display_name: string
-  readonly name: string
-  readonly type: string
-  readonly description: string
-  readonly options?: TemplateVersionParameterOption[]
-  readonly values: TemplateParameterValue[]
+  readonly template_ids: string[];
+  readonly display_name: string;
+  readonly name: string;
+  readonly type: string;
+  readonly description: string;
+  readonly options?: TemplateVersionParameterOption[];
+  readonly values: TemplateParameterValue[];
 }
 
 // From codersdk/insights.go
 export interface TemplateParameterValue {
-  readonly value: string
-  readonly count: number
+  readonly value: string;
+  readonly count: number;
 }
 
 // From codersdk/templates.go
 export interface TemplateUser extends User {
-  readonly role: TemplateRole
+  readonly role: TemplateRole;
 }
 
 // From codersdk/templateversions.go
 export interface TemplateVersion {
-  readonly id: string
-  readonly template_id?: string
-  readonly organization_id?: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly name: string
-  readonly message: string
-  readonly job: ProvisionerJob
-  readonly readme: string
-  readonly created_by: MinimalUser
-  readonly warnings?: TemplateVersionWarning[]
+  readonly id: string;
+  readonly template_id?: string;
+  readonly organization_id?: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly name: string;
+  readonly message: string;
+  readonly job: ProvisionerJob;
+  readonly readme: string;
+  readonly created_by: MinimalUser;
+  readonly warnings?: TemplateVersionWarning[];
 }
 
 // From codersdk/templateversions.go
 export interface TemplateVersionGitAuth {
-  readonly id: string
-  readonly type: GitProvider
-  readonly authenticate_url: string
-  readonly authenticated: boolean
+  readonly id: string;
+  readonly type: GitProvider;
+  readonly authenticate_url: string;
+  readonly authenticated: boolean;
 }
 
 // From codersdk/templateversions.go
 export interface TemplateVersionParameter {
-  readonly name: string
-  readonly display_name?: string
-  readonly description: string
-  readonly description_plaintext: string
-  readonly type: string
-  readonly mutable: boolean
-  readonly default_value: string
-  readonly icon: string
-  readonly options: TemplateVersionParameterOption[]
-  readonly validation_error?: string
-  readonly validation_regex?: string
-  readonly validation_min?: number
-  readonly validation_max?: number
-  readonly validation_monotonic?: ValidationMonotonicOrder
-  readonly required: boolean
-  readonly ephemeral: boolean
+  readonly name: string;
+  readonly display_name?: string;
+  readonly description: string;
+  readonly description_plaintext: string;
+  readonly type: string;
+  readonly mutable: boolean;
+  readonly default_value: string;
+  readonly icon: string;
+  readonly options: TemplateVersionParameterOption[];
+  readonly validation_error?: string;
+  readonly validation_regex?: string;
+  readonly validation_min?: number;
+  readonly validation_max?: number;
+  readonly validation_monotonic?: ValidationMonotonicOrder;
+  readonly required: boolean;
+  readonly ephemeral: boolean;
 }
 
 // From codersdk/templateversions.go
 export interface TemplateVersionParameterOption {
-  readonly name: string
-  readonly description: string
-  readonly value: string
-  readonly icon: string
+  readonly name: string;
+  readonly description: string;
+  readonly value: string;
+  readonly icon: string;
 }
 
 // From codersdk/templateversions.go
 export interface TemplateVersionVariable {
-  readonly name: string
-  readonly description: string
-  readonly type: string
-  readonly value: string
-  readonly default_value: string
-  readonly required: boolean
-  readonly sensitive: boolean
+  readonly name: string;
+  readonly description: string;
+  readonly type: string;
+  readonly value: string;
+  readonly default_value: string;
+  readonly required: boolean;
+  readonly sensitive: boolean;
 }
 
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
-  readonly template_id: string
+  readonly template_id: string;
 }
 
 // From codersdk/apikey.go
 export interface TokenConfig {
-  readonly max_token_lifetime: number
+  readonly max_token_lifetime: number;
 }
 
 // From codersdk/apikey.go
 export interface TokensFilter {
-  readonly include_all: boolean
+  readonly include_all: boolean;
 }
 
 // From codersdk/deployment.go
 export interface TraceConfig {
-  readonly enable: boolean
-  readonly honeycomb_api_key: string
-  readonly capture_logs: boolean
-  readonly data_dog: boolean
+  readonly enable: boolean;
+  readonly honeycomb_api_key: string;
+  readonly capture_logs: boolean;
+  readonly data_dog: boolean;
 }
 
 // From codersdk/templates.go
 export interface TransitionStats {
-  readonly P50?: number
-  readonly P95?: number
+  readonly P50?: number;
+  readonly P95?: number;
 }
 
 // From codersdk/templates.go
 export interface UpdateActiveTemplateVersion {
-  readonly id: string
+  readonly id: string;
 }
 
 // From codersdk/deployment.go
 export interface UpdateAppearanceConfig {
-  readonly logo_url: string
-  readonly service_banner: ServiceBannerConfig
+  readonly logo_url: string;
+  readonly service_banner: ServiceBannerConfig;
 }
 
 // From codersdk/updatecheck.go
 export interface UpdateCheckResponse {
-  readonly current: boolean
-  readonly version: string
-  readonly url: string
+  readonly current: boolean;
+  readonly version: string;
+  readonly url: string;
 }
 
 // From codersdk/users.go
 export interface UpdateRoles {
-  readonly roles: string[]
+  readonly roles: string[];
 }
 
 // From codersdk/templates.go
 export interface UpdateTemplateACL {
-  readonly user_perms?: Record<string, TemplateRole>
-  readonly group_perms?: Record<string, TemplateRole>
+  readonly user_perms?: Record<string, TemplateRole>;
+  readonly group_perms?: Record<string, TemplateRole>;
 }
 
 // From codersdk/templates.go
 export interface UpdateTemplateMeta {
-  readonly name?: string
-  readonly display_name?: string
-  readonly description?: string
-  readonly icon?: string
-  readonly default_ttl_ms?: number
-  readonly max_ttl_ms?: number
-  readonly autostop_requirement?: TemplateAutostopRequirement
-  readonly allow_user_autostart?: boolean
-  readonly allow_user_autostop?: boolean
-  readonly allow_user_cancel_workspace_jobs?: boolean
-  readonly failure_ttl_ms?: number
-  readonly time_til_dormant_ms?: number
-  readonly time_til_dormant_autodelete_ms?: number
-  readonly update_workspace_last_used_at: boolean
-  readonly update_workspace_dormant_at: boolean
+  readonly name?: string;
+  readonly display_name?: string;
+  readonly description?: string;
+  readonly icon?: string;
+  readonly default_ttl_ms?: number;
+  readonly max_ttl_ms?: number;
+  readonly autostop_requirement?: TemplateAutostopRequirement;
+  readonly allow_user_autostart?: boolean;
+  readonly allow_user_autostop?: boolean;
+  readonly allow_user_cancel_workspace_jobs?: boolean;
+  readonly failure_ttl_ms?: number;
+  readonly time_til_dormant_ms?: number;
+  readonly time_til_dormant_autodelete_ms?: number;
+  readonly update_workspace_last_used_at: boolean;
+  readonly update_workspace_dormant_at: boolean;
 }
 
 // From codersdk/users.go
 export interface UpdateUserPasswordRequest {
-  readonly old_password: string
-  readonly password: string
+  readonly old_password: string;
+  readonly password: string;
 }
 
 // From codersdk/users.go
 export interface UpdateUserProfileRequest {
-  readonly username: string
+  readonly username: string;
 }
 
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
-  readonly schedule: string
+  readonly schedule: string;
 }
 
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
-  readonly schedule?: string
+  readonly schedule?: string;
 }
 
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceDormancy {
-  readonly dormant: boolean
+  readonly dormant: boolean;
 }
 
 // From codersdk/workspaceproxy.go
 export interface UpdateWorkspaceProxyResponse {
-  readonly proxy: WorkspaceProxy
-  readonly proxy_token: string
+  readonly proxy: WorkspaceProxy;
+  readonly proxy_token: string;
 }
 
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceRequest {
-  readonly name?: string
+  readonly name?: string;
 }
 
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceTTLRequest {
-  readonly ttl_ms?: number
+  readonly ttl_ms?: number;
 }
 
 // From codersdk/files.go
 export interface UploadResponse {
-  readonly hash: string
+  readonly hash: string;
 }
 
 // From codersdk/users.go
 export interface User {
-  readonly id: string
-  readonly username: string
-  readonly email: string
-  readonly created_at: string
-  readonly last_seen_at: string
-  readonly status: UserStatus
-  readonly organization_ids: string[]
-  readonly roles: Role[]
-  readonly avatar_url: string
-  readonly login_type: LoginType
+  readonly id: string;
+  readonly username: string;
+  readonly email: string;
+  readonly created_at: string;
+  readonly last_seen_at: string;
+  readonly status: UserStatus;
+  readonly organization_ids: string[];
+  readonly roles: Role[];
+  readonly avatar_url: string;
+  readonly login_type: LoginType;
 }
 
 // From codersdk/insights.go
 export interface UserLatency {
-  readonly template_ids: string[]
-  readonly user_id: string
-  readonly username: string
-  readonly avatar_url: string
-  readonly latency_ms: ConnectionLatency
+  readonly template_ids: string[];
+  readonly user_id: string;
+  readonly username: string;
+  readonly avatar_url: string;
+  readonly latency_ms: ConnectionLatency;
 }
 
 // From codersdk/insights.go
 export interface UserLatencyInsightsReport {
-  readonly start_time: string
-  readonly end_time: string
-  readonly template_ids: string[]
-  readonly users: UserLatency[]
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly users: UserLatency[];
 }
 
 // From codersdk/insights.go
 export interface UserLatencyInsightsRequest {
-  readonly start_time: string
-  readonly end_time: string
-  readonly template_ids: string[]
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
 }
 
 // From codersdk/insights.go
 export interface UserLatencyInsightsResponse {
-  readonly report: UserLatencyInsightsReport
+  readonly report: UserLatencyInsightsReport;
 }
 
 // From codersdk/users.go
 export interface UserLoginType {
-  readonly login_type: LoginType
+  readonly login_type: LoginType;
 }
 
 // From codersdk/deployment.go
 export interface UserQuietHoursScheduleConfig {
-  readonly default_schedule: string
+  readonly default_schedule: string;
 }
 
 // From codersdk/users.go
 export interface UserQuietHoursScheduleResponse {
-  readonly raw_schedule: string
-  readonly user_set: boolean
-  readonly time: string
-  readonly timezone: string
-  readonly next: string
+  readonly raw_schedule: string;
+  readonly user_set: boolean;
+  readonly time: string;
+  readonly timezone: string;
+  readonly next: string;
 }
 
 // From codersdk/users.go
 export interface UserRoles {
-  readonly roles: string[]
-  readonly organization_roles: Record<string, string[]>
+  readonly roles: string[];
+  readonly organization_roles: Record<string, string[]>;
 }
 
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {
-  readonly q?: string
+  readonly q?: string;
 }
 
 // From codersdk/client.go
 export interface ValidationError {
-  readonly field: string
-  readonly detail: string
+  readonly field: string;
+  readonly detail: string;
 }
 
 // From codersdk/organizations.go
 export interface VariableValue {
-  readonly name: string
-  readonly value: string
+  readonly name: string;
+  readonly value: string;
 }
 
 // From codersdk/workspaces.go
 export interface Workspace {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly owner_id: string
-  readonly owner_name: string
-  readonly organization_id: string
-  readonly template_id: string
-  readonly template_name: string
-  readonly template_display_name: string
-  readonly template_icon: string
-  readonly template_allow_user_cancel_workspace_jobs: boolean
-  readonly template_active_version_id: string
-  readonly latest_build: WorkspaceBuild
-  readonly outdated: boolean
-  readonly name: string
-  readonly autostart_schedule?: string
-  readonly ttl_ms?: number
-  readonly last_used_at: string
-  readonly deleting_at?: string
-  readonly dormant_at?: string
-  readonly health: WorkspaceHealth
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly owner_id: string;
+  readonly owner_name: string;
+  readonly organization_id: string;
+  readonly template_id: string;
+  readonly template_name: string;
+  readonly template_display_name: string;
+  readonly template_icon: string;
+  readonly template_allow_user_cancel_workspace_jobs: boolean;
+  readonly template_active_version_id: string;
+  readonly latest_build: WorkspaceBuild;
+  readonly outdated: boolean;
+  readonly name: string;
+  readonly autostart_schedule?: string;
+  readonly ttl_ms?: number;
+  readonly last_used_at: string;
+  readonly deleting_at?: string;
+  readonly dormant_at?: string;
+  readonly health: WorkspaceHealth;
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgent {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly first_connected_at?: string
-  readonly last_connected_at?: string
-  readonly disconnected_at?: string
-  readonly started_at?: string
-  readonly ready_at?: string
-  readonly status: WorkspaceAgentStatus
-  readonly lifecycle_state: WorkspaceAgentLifecycle
-  readonly name: string
-  readonly resource_id: string
-  readonly instance_id?: string
-  readonly architecture: string
-  readonly environment_variables: Record<string, string>
-  readonly operating_system: string
-  readonly startup_script?: string
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
-  readonly startup_script_timeout_seconds: number
-  readonly logs_length: number
-  readonly logs_overflowed: boolean
-  readonly directory?: string
-  readonly expanded_directory?: string
-  readonly version: string
-  readonly apps: WorkspaceApp[]
-  readonly latency?: Record<string, DERPRegion>
-  readonly connection_timeout_seconds: number
-  readonly troubleshooting_url: string
-  readonly login_before_ready: boolean
-  readonly shutdown_script?: string
-  readonly shutdown_script_timeout_seconds: number
-  readonly subsystems: AgentSubsystem[]
-  readonly health: WorkspaceAgentHealth
-  readonly display_apps: DisplayApp[]
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly first_connected_at?: string;
+  readonly last_connected_at?: string;
+  readonly disconnected_at?: string;
+  readonly started_at?: string;
+  readonly ready_at?: string;
+  readonly status: WorkspaceAgentStatus;
+  readonly lifecycle_state: WorkspaceAgentLifecycle;
+  readonly name: string;
+  readonly resource_id: string;
+  readonly instance_id?: string;
+  readonly architecture: string;
+  readonly environment_variables: Record<string, string>;
+  readonly operating_system: string;
+  readonly startup_script?: string;
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
+  readonly startup_script_timeout_seconds: number;
+  readonly logs_length: number;
+  readonly logs_overflowed: boolean;
+  readonly directory?: string;
+  readonly expanded_directory?: string;
+  readonly version: string;
+  readonly apps: WorkspaceApp[];
+  readonly latency?: Record<string, DERPRegion>;
+  readonly connection_timeout_seconds: number;
+  readonly troubleshooting_url: string;
+  readonly login_before_ready: boolean;
+  readonly shutdown_script?: string;
+  readonly shutdown_script_timeout_seconds: number;
+  readonly subsystems: AgentSubsystem[];
+  readonly health: WorkspaceAgentHealth;
+  readonly display_apps: DisplayApp[];
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
-  readonly healthy: boolean
-  readonly reason?: string
+  readonly healthy: boolean;
+  readonly reason?: string;
 }
 
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPort {
-  readonly process_name: string
-  readonly network: string
-  readonly port: number
+  readonly process_name: string;
+  readonly network: string;
+  readonly port: number;
 }
 
 // From codersdk/workspaceagentconn.go
 export interface WorkspaceAgentListeningPortsResponse {
-  readonly ports: WorkspaceAgentListeningPort[]
+  readonly ports: WorkspaceAgentListeningPort[];
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentLog {
-  readonly id: number
-  readonly created_at: string
-  readonly output: string
-  readonly level: LogLevel
+  readonly id: number;
+  readonly created_at: string;
+  readonly output: string;
+  readonly level: LogLevel;
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadata {
-  readonly result: WorkspaceAgentMetadataResult
-  readonly description: WorkspaceAgentMetadataDescription
+  readonly result: WorkspaceAgentMetadataResult;
+  readonly description: WorkspaceAgentMetadataDescription;
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadataDescription {
-  readonly display_name: string
-  readonly key: string
-  readonly script: string
-  readonly interval: number
-  readonly timeout: number
+  readonly display_name: string;
+  readonly key: string;
+  readonly script: string;
+  readonly interval: number;
+  readonly timeout: number;
 }
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadataResult {
-  readonly collected_at: string
-  readonly age: number
-  readonly value: string
-  readonly error: string
+  readonly collected_at: string;
+  readonly age: number;
+  readonly value: string;
+  readonly error: string;
 }
 
 // From codersdk/workspaceapps.go
 export interface WorkspaceApp {
-  readonly id: string
-  readonly url: string
-  readonly external: boolean
-  readonly slug: string
-  readonly display_name: string
-  readonly command?: string
-  readonly icon?: string
-  readonly subdomain: boolean
-  readonly sharing_level: WorkspaceAppSharingLevel
-  readonly healthcheck: Healthcheck
-  readonly health: WorkspaceAppHealth
+  readonly id: string;
+  readonly url: string;
+  readonly external: boolean;
+  readonly slug: string;
+  readonly display_name: string;
+  readonly command?: string;
+  readonly icon?: string;
+  readonly subdomain: boolean;
+  readonly sharing_level: WorkspaceAppSharingLevel;
+  readonly healthcheck: Healthcheck;
+  readonly health: WorkspaceAppHealth;
 }
 
 // From codersdk/workspacebuilds.go
 export interface WorkspaceBuild {
-  readonly id: string
-  readonly created_at: string
-  readonly updated_at: string
-  readonly workspace_id: string
-  readonly workspace_name: string
-  readonly workspace_owner_id: string
-  readonly workspace_owner_name: string
-  readonly template_version_id: string
-  readonly template_version_name: string
-  readonly build_number: number
-  readonly transition: WorkspaceTransition
-  readonly initiator_id: string
-  readonly initiator_name: string
-  readonly job: ProvisionerJob
-  readonly reason: BuildReason
-  readonly resources: WorkspaceResource[]
-  readonly deadline?: string
-  readonly max_deadline?: string
-  readonly status: WorkspaceStatus
-  readonly daily_cost: number
+  readonly id: string;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly workspace_id: string;
+  readonly workspace_name: string;
+  readonly workspace_owner_id: string;
+  readonly workspace_owner_name: string;
+  readonly template_version_id: string;
+  readonly template_version_name: string;
+  readonly build_number: number;
+  readonly transition: WorkspaceTransition;
+  readonly initiator_id: string;
+  readonly initiator_name: string;
+  readonly job: ProvisionerJob;
+  readonly reason: BuildReason;
+  readonly resources: WorkspaceResource[];
+  readonly deadline?: string;
+  readonly max_deadline?: string;
+  readonly status: WorkspaceStatus;
+  readonly daily_cost: number;
 }
 
 // From codersdk/workspacebuilds.go
 export interface WorkspaceBuildParameter {
-  readonly name: string
-  readonly value: string
+  readonly name: string;
+  readonly value: string;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
-  readonly WorkspaceID: string
-  readonly Since: string
+  readonly WorkspaceID: string;
+  readonly Since: string;
 }
 
 // From codersdk/deployment.go
 export interface WorkspaceConnectionLatencyMS {
-  readonly P50: number
-  readonly P95: number
+  readonly P50: number;
+  readonly P95: number;
 }
 
 // From codersdk/deployment.go
 export interface WorkspaceDeploymentStats {
-  readonly pending: number
-  readonly building: number
-  readonly running: number
-  readonly failed: number
-  readonly stopped: number
-  readonly connection_latency_ms: WorkspaceConnectionLatencyMS
-  readonly rx_bytes: number
-  readonly tx_bytes: number
+  readonly pending: number;
+  readonly building: number;
+  readonly running: number;
+  readonly failed: number;
+  readonly stopped: number;
+  readonly connection_latency_ms: WorkspaceConnectionLatencyMS;
+  readonly rx_bytes: number;
+  readonly tx_bytes: number;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspaceFilter {
-  readonly q?: string
+  readonly q?: string;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspaceHealth {
-  readonly healthy: boolean
-  readonly failing_agents: string[]
+  readonly healthy: boolean;
+  readonly failing_agents: string[];
 }
 
 // From codersdk/workspaces.go
 export interface WorkspaceOptions {
-  readonly include_deleted?: boolean
+  readonly include_deleted?: boolean;
 }
 
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxy extends Region {
-  readonly derp_enabled: boolean
-  readonly derp_only: boolean
-  readonly status?: WorkspaceProxyStatus
-  readonly created_at: string
-  readonly updated_at: string
-  readonly deleted: boolean
+  readonly derp_enabled: boolean;
+  readonly derp_only: boolean;
+  readonly status?: WorkspaceProxyStatus;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly deleted: boolean;
 }
 
 // From codersdk/deployment.go
 export interface WorkspaceProxyBuildInfo {
-  readonly workspace_proxy: boolean
-  readonly dashboard_url: string
+  readonly workspace_proxy: boolean;
+  readonly dashboard_url: string;
 }
 
 // From codersdk/workspaceproxy.go
 export interface WorkspaceProxyStatus {
-  readonly status: ProxyHealthStatus
-  readonly report?: ProxyHealthReport
-  readonly checked_at: string
+  readonly status: ProxyHealthStatus;
+  readonly report?: ProxyHealthReport;
+  readonly checked_at: string;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspaceQuota {
-  readonly credits_consumed: number
-  readonly budget: number
+  readonly credits_consumed: number;
+  readonly budget: number;
 }
 
 // From codersdk/workspacebuilds.go
 export interface WorkspaceResource {
-  readonly id: string
-  readonly created_at: string
-  readonly job_id: string
-  readonly workspace_transition: WorkspaceTransition
-  readonly type: string
-  readonly name: string
-  readonly hide: boolean
-  readonly icon: string
-  readonly agents?: WorkspaceAgent[]
-  readonly metadata?: WorkspaceResourceMetadata[]
-  readonly daily_cost: number
+  readonly id: string;
+  readonly created_at: string;
+  readonly job_id: string;
+  readonly workspace_transition: WorkspaceTransition;
+  readonly type: string;
+  readonly name: string;
+  readonly hide: boolean;
+  readonly icon: string;
+  readonly agents?: WorkspaceAgent[];
+  readonly metadata?: WorkspaceResourceMetadata[];
+  readonly daily_cost: number;
 }
 
 // From codersdk/workspacebuilds.go
 export interface WorkspaceResourceMetadata {
-  readonly key: string
-  readonly value: string
-  readonly sensitive: boolean
+  readonly key: string;
+  readonly value: string;
+  readonly sensitive: boolean;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspacesRequest extends Pagination {
-  readonly q?: string
+  readonly q?: string;
 }
 
 // From codersdk/workspaces.go
 export interface WorkspacesResponse {
-  readonly workspaces: Workspace[]
-  readonly count: number
+  readonly workspaces: Workspace[];
+  readonly count: number;
 }
 
 // From codersdk/apikey.go
-export type APIKeyScope = "all" | "application_connect"
-export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
+export type APIKeyScope = "all" | "application_connect";
+export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"];
 
 // From codersdk/workspaceagents.go
-export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
+export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace";
 export const AgentSubsystems: AgentSubsystem[] = [
   "envbox",
   "envbuilder",
   "exectrace",
-]
+];
 
 // From codersdk/audit.go
 export type AuditAction =
@@ -1572,7 +1572,7 @@ export type AuditAction =
   | "register"
   | "start"
   | "stop"
-  | "write"
+  | "write";
 export const AuditActions: AuditAction[] = [
   "create",
   "delete",
@@ -1582,15 +1582,15 @@ export const AuditActions: AuditAction[] = [
   "start",
   "stop",
   "write",
-]
+];
 
 // From codersdk/workspacebuilds.go
-export type BuildReason = "autostart" | "autostop" | "initiator"
+export type BuildReason = "autostart" | "autostop" | "initiator";
 export const BuildReasons: BuildReason[] = [
   "autostart",
   "autostop",
   "initiator",
-]
+];
 
 // From codersdk/workspaceagents.go
 export type DisplayApp =
@@ -1598,22 +1598,22 @@ export type DisplayApp =
   | "ssh_helper"
   | "vscode"
   | "vscode_insiders"
-  | "web_terminal"
+  | "web_terminal";
 export const DisplayApps: DisplayApp[] = [
   "port_forwarding_helper",
   "ssh_helper",
   "vscode",
   "vscode_insiders",
   "web_terminal",
-]
+];
 
 // From codersdk/deployment.go
-export type Entitlement = "entitled" | "grace_period" | "not_entitled"
+export type Entitlement = "entitled" | "grace_period" | "not_entitled";
 export const Entitlements: Entitlement[] = [
   "entitled",
   "grace_period",
   "not_entitled",
-]
+];
 
 // From codersdk/deployment.go
 export type Experiment =
@@ -1622,7 +1622,7 @@ export type Experiment =
   | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "template_autostop_requirement"
-  | "workspace_actions"
+  | "workspace_actions";
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
@@ -1630,7 +1630,7 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "workspace_actions",
-]
+];
 
 // From codersdk/deployment.go
 export type FeatureName =
@@ -1647,7 +1647,7 @@ export type FeatureName =
   | "user_limit"
   | "user_role_management"
   | "workspace_batch_actions"
-  | "workspace_proxy"
+  | "workspace_proxy";
 export const FeatureNames: FeatureName[] = [
   "advanced_template_scheduling",
   "appearance",
@@ -1663,39 +1663,45 @@ export const FeatureNames: FeatureName[] = [
   "user_role_management",
   "workspace_batch_actions",
   "workspace_proxy",
-]
+];
 
 // From codersdk/workspaceagents.go
-export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab"
+export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab";
 export const GitProviders: GitProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
-]
+];
 
 // From codersdk/groups.go
-export type GroupSource = "oidc" | "user"
-export const GroupSources: GroupSource[] = ["oidc", "user"]
+export type GroupSource = "oidc" | "user";
+export const GroupSources: GroupSource[] = ["oidc", "user"];
 
 // From codersdk/insights.go
-export type InsightsReportInterval = "day"
-export const InsightsReportIntervals: InsightsReportInterval[] = ["day"]
+export type InsightsReportInterval = "day";
+export const InsightsReportIntervals: InsightsReportInterval[] = ["day"];
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES"
-export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"]
+export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
+export const JobErrorCodes: JobErrorCode[] = ["REQUIRED_TEMPLATE_VARIABLES"];
 
 // From codersdk/provisionerdaemons.go
-export type LogLevel = "debug" | "error" | "info" | "trace" | "warn"
-export const LogLevels: LogLevel[] = ["debug", "error", "info", "trace", "warn"]
+export type LogLevel = "debug" | "error" | "info" | "trace" | "warn";
+export const LogLevels: LogLevel[] = [
+  "debug",
+  "error",
+  "info",
+  "trace",
+  "warn",
+];
 
 // From codersdk/provisionerdaemons.go
-export type LogSource = "provisioner" | "provisioner_daemon"
-export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"]
+export type LogSource = "provisioner" | "provisioner_daemon";
+export const LogSources: LogSource[] = ["provisioner", "provisioner_daemon"];
 
 // From codersdk/apikey.go
-export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token"
+export type LoginType = "" | "github" | "none" | "oidc" | "password" | "token";
 export const LoginTypes: LoginType[] = [
   "",
   "github",
@@ -1703,7 +1709,7 @@ export const LoginTypes: LoginType[] = [
   "oidc",
   "password",
   "token",
-]
+];
 
 // From codersdk/provisionerdaemons.go
 export type ProvisionerJobStatus =
@@ -1712,7 +1718,7 @@ export type ProvisionerJobStatus =
   | "failed"
   | "pending"
   | "running"
-  | "succeeded"
+  | "succeeded";
 export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "canceled",
   "canceling",
@@ -1720,32 +1726,32 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "pending",
   "running",
   "succeeded",
-]
+];
 
 // From codersdk/workspaces.go
-export type ProvisionerLogLevel = "debug"
-export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"]
+export type ProvisionerLogLevel = "debug";
+export const ProvisionerLogLevels: ProvisionerLogLevel[] = ["debug"];
 
 // From codersdk/organizations.go
-export type ProvisionerStorageMethod = "file"
-export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"]
+export type ProvisionerStorageMethod = "file";
+export const ProvisionerStorageMethods: ProvisionerStorageMethod[] = ["file"];
 
 // From codersdk/organizations.go
-export type ProvisionerType = "echo" | "terraform"
-export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"]
+export type ProvisionerType = "echo" | "terraform";
+export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
 
 // From codersdk/workspaceproxy.go
 export type ProxyHealthStatus =
   | "ok"
   | "unhealthy"
   | "unreachable"
-  | "unregistered"
+  | "unregistered";
 export const ProxyHealthStatuses: ProxyHealthStatus[] = [
   "ok",
   "unhealthy",
   "unreachable",
   "unregistered",
-]
+];
 
 // From codersdk/rbacresources.go
 export type RBACResource =
@@ -1770,7 +1776,7 @@ export type RBACResource =
   | "user_data"
   | "workspace"
   | "workspace_execution"
-  | "workspace_proxy"
+  | "workspace_proxy";
 export const RBACResources: RBACResource[] = [
   "api_key",
   "application_connect",
@@ -1794,7 +1800,7 @@ export const RBACResources: RBACResource[] = [
   "workspace",
   "workspace_execution",
   "workspace_proxy",
-]
+];
 
 // From codersdk/audit.go
 export type ResourceType =
@@ -1809,7 +1815,7 @@ export type ResourceType =
   | "user"
   | "workspace"
   | "workspace_build"
-  | "workspace_proxy"
+  | "workspace_proxy";
 export const ResourceTypes: ResourceType[] = [
   "api_key",
   "convert_login",
@@ -1823,40 +1829,40 @@ export const ResourceTypes: ResourceType[] = [
   "workspace",
   "workspace_build",
   "workspace_proxy",
-]
+];
 
 // From codersdk/serversentevents.go
-export type ServerSentEventType = "data" | "error" | "ping"
+export type ServerSentEventType = "data" | "error" | "ping";
 export const ServerSentEventTypes: ServerSentEventType[] = [
   "data",
   "error",
   "ping",
-]
+];
 
 // From codersdk/insights.go
-export type TemplateAppsType = "app" | "builtin"
-export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"]
+export type TemplateAppsType = "app" | "builtin";
+export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
 
 // From codersdk/templates.go
-export type TemplateRole = "" | "admin" | "use"
-export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
+export type TemplateRole = "" | "admin" | "use";
+export const TemplateRoles: TemplateRole[] = ["", "admin", "use"];
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES";
 export const TemplateVersionWarnings: TemplateVersionWarning[] = [
   "UNSUPPORTED_WORKSPACES",
-]
+];
 
 // From codersdk/users.go
-export type UserStatus = "active" | "dormant" | "suspended"
-export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"]
+export type UserStatus = "active" | "dormant" | "suspended";
+export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 
 // From codersdk/templateversions.go
-export type ValidationMonotonicOrder = "decreasing" | "increasing"
+export type ValidationMonotonicOrder = "decreasing" | "increasing";
 export const ValidationMonotonicOrders: ValidationMonotonicOrder[] = [
   "decreasing",
   "increasing",
-]
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLifecycle =
@@ -1868,7 +1874,7 @@ export type WorkspaceAgentLifecycle =
   | "shutting_down"
   | "start_error"
   | "start_timeout"
-  | "starting"
+  | "starting";
 export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "created",
   "off",
@@ -1879,7 +1885,7 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
-]
+];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentLogSource =
@@ -1888,7 +1894,7 @@ export type WorkspaceAgentLogSource =
   | "external"
   | "kubernetes"
   | "shutdown_script"
-  | "startup_script"
+  | "startup_script";
 export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
   "envbox",
   "envbuilder",
@@ -1896,46 +1902,46 @@ export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
   "kubernetes",
   "shutdown_script",
   "startup_script",
-]
+];
 
 // From codersdk/workspaceagents.go
-export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking"
+export type WorkspaceAgentStartupScriptBehavior = "blocking" | "non-blocking";
 export const WorkspaceAgentStartupScriptBehaviors: WorkspaceAgentStartupScriptBehavior[] =
-  ["blocking", "non-blocking"]
+  ["blocking", "non-blocking"];
 
 // From codersdk/workspaceagents.go
 export type WorkspaceAgentStatus =
   | "connected"
   | "connecting"
   | "disconnected"
-  | "timeout"
+  | "timeout";
 export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
   "connected",
   "connecting",
   "disconnected",
   "timeout",
-]
+];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth =
   | "disabled"
   | "healthy"
   | "initializing"
-  | "unhealthy"
+  | "unhealthy";
 export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
   "disabled",
   "healthy",
   "initializing",
   "unhealthy",
-]
+];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public"
+export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = [
   "authenticated",
   "owner",
   "public",
-]
+];
 
 // From codersdk/workspacebuilds.go
 export type WorkspaceStatus =
@@ -1948,7 +1954,7 @@ export type WorkspaceStatus =
   | "running"
   | "starting"
   | "stopped"
-  | "stopping"
+  | "stopping";
 export const WorkspaceStatuses: WorkspaceStatus[] = [
   "canceled",
   "canceling",
@@ -1960,108 +1966,108 @@ export const WorkspaceStatuses: WorkspaceStatus[] = [
   "starting",
   "stopped",
   "stopping",
-]
+];
 
 // From codersdk/workspacebuilds.go
-export type WorkspaceTransition = "delete" | "start" | "stop"
+export type WorkspaceTransition = "delete" | "start" | "stop";
 export const WorkspaceTransitions: WorkspaceTransition[] = [
   "delete",
   "start",
   "stop",
-]
+];
 
 // From codersdk/workspaceproxy.go
-export type RegionTypes = Region | WorkspaceProxy
+export type RegionTypes = Region | WorkspaceProxy;
 
 // The code below is generated from coderd/healthcheck.
 
 // From healthcheck/accessurl.go
 export interface HealthcheckAccessURLReport {
-  readonly access_url: string
-  readonly healthy: boolean
-  readonly reachable: boolean
-  readonly status_code: number
-  readonly healthz_response: string
-  readonly error?: string
+  readonly access_url: string;
+  readonly healthy: boolean;
+  readonly reachable: boolean;
+  readonly status_code: number;
+  readonly healthz_response: string;
+  readonly error?: string;
 }
 
 // From healthcheck/database.go
 export interface HealthcheckDatabaseReport {
-  readonly healthy: boolean
-  readonly reachable: boolean
-  readonly latency: string
-  readonly latency_ms: number
-  readonly error?: string
+  readonly healthy: boolean;
+  readonly reachable: boolean;
+  readonly latency: string;
+  readonly latency_ms: number;
+  readonly error?: string;
 }
 
 // From healthcheck/healthcheck.go
 export interface HealthcheckReport {
-  readonly time: string
-  readonly healthy: boolean
-  readonly failing_sections: string[]
+  readonly time: string;
+  readonly healthy: boolean;
+  readonly failing_sections: string[];
   // Named type "github.com/coder/coder/v2/coderd/healthcheck/derphealth.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly derp: any
-  readonly access_url: HealthcheckAccessURLReport
-  readonly websocket: HealthcheckWebsocketReport
-  readonly database: HealthcheckDatabaseReport
-  readonly coder_version: string
+  readonly derp: any;
+  readonly access_url: HealthcheckAccessURLReport;
+  readonly websocket: HealthcheckWebsocketReport;
+  readonly database: HealthcheckDatabaseReport;
+  readonly coder_version: string;
 }
 
 // From healthcheck/websocket.go
 export interface HealthcheckWebsocketReport {
-  readonly healthy: boolean
-  readonly body: string
-  readonly code: number
-  readonly error?: string
+  readonly healthy: boolean;
+  readonly body: string;
+  readonly code: number;
+  readonly error?: string;
 }
 
 // The code below is generated from coderd/healthcheck/derphealth.
 
 // From derphealth/derp.go
 export interface DerphealthNodeReport {
-  readonly healthy: boolean
+  readonly healthy: boolean;
   // Named type "tailscale.com/tailcfg.DERPNode" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly node?: any
+  readonly node?: any;
   // Named type "tailscale.com/derp.ServerInfoMessage" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly node_info: any
-  readonly can_exchange_messages: boolean
-  readonly round_trip_ping: string
-  readonly round_trip_ping_ms: number
-  readonly uses_websocket: boolean
-  readonly client_logs: string[][]
-  readonly client_errs: string[][]
-  readonly error?: string
-  readonly stun: DerphealthStunReport
+  readonly node_info: any;
+  readonly can_exchange_messages: boolean;
+  readonly round_trip_ping: string;
+  readonly round_trip_ping_ms: number;
+  readonly uses_websocket: boolean;
+  readonly client_logs: string[][];
+  readonly client_errs: string[][];
+  readonly error?: string;
+  readonly stun: DerphealthStunReport;
 }
 
 // From derphealth/derp.go
 export interface DerphealthRegionReport {
-  readonly healthy: boolean
+  readonly healthy: boolean;
   // Named type "tailscale.com/tailcfg.DERPRegion" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly region?: any
-  readonly node_reports: DerphealthNodeReport[]
-  readonly error?: string
+  readonly region?: any;
+  readonly node_reports: DerphealthNodeReport[];
+  readonly error?: string;
 }
 
 // From derphealth/derp.go
 export interface DerphealthReport {
-  readonly healthy: boolean
-  readonly regions: Record<number, DerphealthRegionReport>
+  readonly healthy: boolean;
+  readonly regions: Record<number, DerphealthRegionReport>;
   // Named type "tailscale.com/net/netcheck.Report" unknown, using "any"
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly netcheck?: any
-  readonly netcheck_err?: string
-  readonly netcheck_logs: string[]
-  readonly error?: string
+  readonly netcheck?: any;
+  readonly netcheck_err?: string;
+  readonly netcheck_logs: string[];
+  readonly error?: string;
 }
 
 // From derphealth/derp.go
 export interface DerphealthStunReport {
-  readonly Enabled: boolean
-  readonly CanSTUN: boolean
-  readonly Error?: string
+  readonly Enabled: boolean;
+  readonly CanSTUN: boolean;
+  readonly Error?: string;
 }

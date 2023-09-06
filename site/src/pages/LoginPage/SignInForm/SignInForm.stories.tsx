@@ -1,6 +1,6 @@
-import { Story } from "@storybook/react"
-import { mockApiError } from "testHelpers/entities"
-import { SignInForm, SignInFormProps } from "./SignInForm"
+import { Story } from "@storybook/react";
+import { mockApiError } from "testHelpers/entities";
+import { SignInForm, SignInFormProps } from "./SignInForm";
 
 export default {
   title: "components/SignInForm",
@@ -9,21 +9,21 @@ export default {
     isLoading: "boolean",
     onSubmit: { action: "Submit" },
   },
-}
+};
 
 const Template: Story<SignInFormProps> = (args: SignInFormProps) => (
   <SignInForm {...args} />
-)
+);
 
-export const SignedOut = Template.bind({})
+export const SignedOut = Template.bind({});
 SignedOut.args = {
   isSigningIn: false,
   onSubmit: () => {
-    return Promise.resolve()
+    return Promise.resolve();
   },
-}
+};
 
-export const SigningIn = Template.bind({})
+export const SigningIn = Template.bind({});
 SigningIn.args = {
   ...SignedOut.args,
   isSigningIn: true,
@@ -32,9 +32,9 @@ SigningIn.args = {
     github: { enabled: true },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
   },
-}
+};
 
-export const WithError = Template.bind({})
+export const WithError = Template.bind({});
 WithError.args = {
   ...SignedOut.args,
   error: mockApiError({
@@ -49,9 +49,9 @@ WithError.args = {
   initialTouched: {
     password: true,
   },
-}
+};
 
-export const WithGithub = Template.bind({})
+export const WithGithub = Template.bind({});
 WithGithub.args = {
   ...SignedOut.args,
   authMethods: {
@@ -59,9 +59,9 @@ WithGithub.args = {
     github: { enabled: true },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
   },
-}
+};
 
-export const WithOIDC = Template.bind({})
+export const WithOIDC = Template.bind({});
 WithOIDC.args = {
   ...SignedOut.args,
   authMethods: {
@@ -69,9 +69,9 @@ WithOIDC.args = {
     github: { enabled: false },
     oidc: { enabled: true, signInText: "", iconUrl: "" },
   },
-}
+};
 
-export const WithOIDCWithoutPassword = Template.bind({})
+export const WithOIDCWithoutPassword = Template.bind({});
 WithOIDCWithoutPassword.args = {
   ...SignedOut.args,
   authMethods: {
@@ -79,9 +79,9 @@ WithOIDCWithoutPassword.args = {
     github: { enabled: false },
     oidc: { enabled: true, signInText: "", iconUrl: "" },
   },
-}
+};
 
-export const WithoutAny = Template.bind({})
+export const WithoutAny = Template.bind({});
 WithoutAny.args = {
   ...SignedOut.args,
   authMethods: {
@@ -89,9 +89,9 @@ WithoutAny.args = {
     github: { enabled: false },
     oidc: { enabled: false, signInText: "", iconUrl: "" },
   },
-}
+};
 
-export const WithGithubAndOIDC = Template.bind({})
+export const WithGithubAndOIDC = Template.bind({});
 WithGithubAndOIDC.args = {
   ...SignedOut.args,
   authMethods: {
@@ -99,4 +99,4 @@ WithGithubAndOIDC.args = {
     github: { enabled: true },
     oidc: { enabled: true, signInText: "", iconUrl: "" },
   },
-}
+};

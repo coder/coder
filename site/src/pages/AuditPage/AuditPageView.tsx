@@ -1,47 +1,47 @@
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableRow from "@mui/material/TableRow"
-import { AuditLog } from "api/typesGenerated"
-import { AuditLogRow } from "pages/AuditPage/AuditLogRow/AuditLogRow"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { EmptyState } from "components/EmptyState/EmptyState"
-import { Margins } from "components/Margins/Margins"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableRow from "@mui/material/TableRow";
+import { AuditLog } from "api/typesGenerated";
+import { AuditLogRow } from "pages/AuditPage/AuditLogRow/AuditLogRow";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { TableLoader } from "components/TableLoader/TableLoader"
-import { Timeline } from "components/Timeline/Timeline"
-import { AuditHelpTooltip } from "./AuditHelpTooltip"
-import { ComponentProps, FC } from "react"
-import { useTranslation } from "react-i18next"
-import { AuditPaywall } from "./AuditPaywall"
-import { AuditFilter } from "./AuditFilter"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { Timeline } from "components/Timeline/Timeline";
+import { AuditHelpTooltip } from "./AuditHelpTooltip";
+import { ComponentProps, FC } from "react";
+import { useTranslation } from "react-i18next";
+import { AuditPaywall } from "./AuditPaywall";
+import { AuditFilter } from "./AuditFilter";
 import {
   PaginationStatus,
   TableToolbar,
-} from "components/TableToolbar/TableToolbar"
-import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase"
+} from "components/TableToolbar/TableToolbar";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 
 export const Language = {
   title: "Audit",
   subtitle: "View events in your audit log.",
-}
+};
 
 export interface AuditPageViewProps {
-  auditLogs?: AuditLog[]
-  count?: number
-  page: number
-  limit: number
-  onPageChange: (page: number) => void
-  isNonInitialPage: boolean
-  isAuditLogVisible: boolean
-  error?: unknown
-  filterProps: ComponentProps<typeof AuditFilter>
+  auditLogs?: AuditLog[];
+  count?: number;
+  page: number;
+  limit: number;
+  onPageChange: (page: number) => void;
+  isNonInitialPage: boolean;
+  isAuditLogVisible: boolean;
+  error?: unknown;
+  filterProps: ComponentProps<typeof AuditFilter>;
 }
 
 export const AuditPageView: FC<AuditPageViewProps> = ({
@@ -55,10 +55,10 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   error,
   filterProps,
 }) => {
-  const { t } = useTranslation("auditLog")
+  const { t } = useTranslation("auditLog");
 
-  const isLoading = (auditLogs === undefined || count === undefined) && !error
-  const isEmpty = !isLoading && auditLogs?.length === 0
+  const isLoading = (auditLogs === undefined || count === undefined) && !error;
+  const isEmpty = !isLoading && auditLogs?.length === 0;
 
   return (
     <Margins>
@@ -149,5 +149,5 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
         </Cond>
       </ChooseOne>
     </Margins>
-  )
-}
+  );
+};

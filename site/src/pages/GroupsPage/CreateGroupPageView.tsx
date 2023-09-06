@@ -1,31 +1,35 @@
-import TextField from "@mui/material/TextField"
-import { CreateGroupRequest } from "api/typesGenerated"
-import { FormFooter } from "components/FormFooter/FormFooter"
-import { FullPageForm } from "components/FullPageForm/FullPageForm"
-import { Margins } from "components/Margins/Margins"
-import { Stack } from "components/Stack/Stack"
-import { useFormik } from "formik"
-import { FC } from "react"
-import { useNavigate } from "react-router-dom"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
-import * as Yup from "yup"
+import TextField from "@mui/material/TextField";
+import { CreateGroupRequest } from "api/typesGenerated";
+import { FormFooter } from "components/FormFooter/FormFooter";
+import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
+import { FC } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import * as Yup from "yup";
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
-})
+});
 
 export type CreateGroupPageViewProps = {
-  onSubmit: (data: CreateGroupRequest) => void
-  formErrors?: unknown
-  isLoading: boolean
-}
+  onSubmit: (data: CreateGroupRequest) => void;
+  formErrors?: unknown;
+  isLoading: boolean;
+};
 
 export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
   onSubmit,
   formErrors,
   isLoading,
 }) => {
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const form = useFormik<CreateGroupRequest>({
     initialValues: {
       name: "",
@@ -35,9 +39,9 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
     },
     validationSchema,
     onSubmit,
-  })
-  const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, formErrors)
-  const onCancel = () => navigate("/groups")
+  });
+  const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, formErrors);
+  const onCancel = () => navigate("/groups");
 
   return (
     <Margins>
@@ -75,6 +79,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
         </form>
       </FullPageForm>
     </Margins>
-  )
-}
-export default CreateGroupPageView
+  );
+};
+export default CreateGroupPageView;

@@ -1,16 +1,16 @@
-import { FC } from "react"
-import { Section } from "components/SettingsLayout/Section"
-import { AccountForm } from "./AccountForm"
-import { useAuth } from "components/AuthProvider/AuthProvider"
-import { useMe } from "hooks/useMe"
-import { usePermissions } from "hooks/usePermissions"
+import { FC } from "react";
+import { Section } from "components/SettingsLayout/Section";
+import { AccountForm } from "./AccountForm";
+import { useAuth } from "components/AuthProvider/AuthProvider";
+import { useMe } from "hooks/useMe";
+import { usePermissions } from "hooks/usePermissions";
 
 export const AccountPage: FC = () => {
-  const [authState, authSend] = useAuth()
-  const me = useMe()
-  const permissions = usePermissions()
-  const { updateProfileError } = authState.context
-  const canEditUsers = permissions && permissions.updateUsers
+  const [authState, authSend] = useAuth();
+  const me = useMe();
+  const permissions = usePermissions();
+  const { updateProfileError } = authState.context;
+  const canEditUsers = permissions && permissions.updateUsers;
 
   return (
     <Section title="Account" description="Update your account info">
@@ -26,11 +26,11 @@ export const AccountPage: FC = () => {
           authSend({
             type: "UPDATE_PROFILE",
             data,
-          })
+          });
         }}
       />
     </Section>
-  )
-}
+  );
+};
 
-export default AccountPage
+export default AccountPage;

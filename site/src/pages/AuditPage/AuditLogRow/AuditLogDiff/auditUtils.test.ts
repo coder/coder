@@ -1,4 +1,4 @@
-import { determineGroupDiff } from "./auditUtils"
+import { determineGroupDiff } from "./auditUtils";
 
 const auditDiffForNewGroup = {
   id: {
@@ -15,7 +15,7 @@ const auditDiffForNewGroup = {
     new: "another-test-group",
     secret: false,
   },
-}
+};
 
 const auditDiffForAddedGroupMember = {
   members: {
@@ -28,7 +28,7 @@ const auditDiffForAddedGroupMember = {
     ],
     secret: false,
   },
-}
+};
 
 const auditDiffForRemovedGroupMember = {
   members: {
@@ -50,7 +50,7 @@ const auditDiffForRemovedGroupMember = {
     ],
     secret: false,
   },
-}
+};
 
 const AuditDiffForDeletedGroup = {
   id: {
@@ -72,15 +72,15 @@ const AuditDiffForDeletedGroup = {
     new: "",
     secret: false,
   },
-}
+};
 
 describe("determineAuditDiff", () => {
   it("auditDiffForNewGroup", () => {
     // there should be no change as members are not added when a group is created
     expect(determineGroupDiff(auditDiffForNewGroup)).toEqual(
       auditDiffForNewGroup,
-    )
-  })
+    );
+  });
 
   it("auditDiffForAddedGroupMember", () => {
     const result = {
@@ -88,10 +88,10 @@ describe("determineAuditDiff", () => {
         ...auditDiffForAddedGroupMember.members,
         new: ["cea4c2b0-6373-4858-b26a-df3cbfce8845"],
       },
-    }
+    };
 
-    expect(determineGroupDiff(auditDiffForAddedGroupMember)).toEqual(result)
-  })
+    expect(determineGroupDiff(auditDiffForAddedGroupMember)).toEqual(result);
+  });
 
   it("auditDiffForRemovedGroupMember", () => {
     const result = {
@@ -103,10 +103,10 @@ describe("determineAuditDiff", () => {
         ],
         new: ["84d1cd5a-17e1-4022-898c-52e64256e737"],
       },
-    }
+    };
 
-    expect(determineGroupDiff(auditDiffForRemovedGroupMember)).toEqual(result)
-  })
+    expect(determineGroupDiff(auditDiffForRemovedGroupMember)).toEqual(result);
+  });
 
   it("AuditDiffForDeletedGroup", () => {
     const result = {
@@ -115,8 +115,8 @@ describe("determineAuditDiff", () => {
         ...AuditDiffForDeletedGroup.members,
         old: ["84d1cd5a-17e1-4022-898c-52e64256e737"],
       },
-    }
+    };
 
-    expect(determineGroupDiff(AuditDiffForDeletedGroup)).toEqual(result)
-  })
-})
+    expect(determineGroupDiff(AuditDiffForDeletedGroup)).toEqual(result);
+  });
+});

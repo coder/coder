@@ -1,13 +1,13 @@
-import { Avatar } from "components/Avatar/Avatar"
-import { FC, PropsWithChildren } from "react"
-import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@mui/styles"
+import { Avatar } from "components/Avatar/Avatar";
+import { FC, PropsWithChildren } from "react";
+import { Stack } from "components/Stack/Stack";
+import { makeStyles } from "@mui/styles";
 
 export interface AvatarDataProps {
-  title: string | JSX.Element
-  subtitle?: string
-  src?: string
-  avatar?: React.ReactNode
+  title: string | JSX.Element;
+  subtitle?: string;
+  src?: string;
+  avatar?: React.ReactNode;
 }
 
 export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
@@ -16,10 +16,10 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
   src,
   avatar,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (!avatar) {
-    avatar = <Avatar src={src}>{title}</Avatar>
+    avatar = <Avatar src={src}>{title}</Avatar>;
   }
 
   return (
@@ -36,8 +36,8 @@ export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
         {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
       </Stack>
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -61,4 +61,4 @@ const useStyles = makeStyles((theme) => ({
     lineHeight: "150%",
     maxWidth: 540,
   },
-}))
+}));

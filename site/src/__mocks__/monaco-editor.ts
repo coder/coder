@@ -7,14 +7,14 @@ const editor = {
       dispose: () => {
         //
       },
-    }
+    };
   },
-}
+};
 
 const monaco = {
   editor,
-}
+};
 
-module.exports = monaco
+module.exports = monaco;
 
-export {}
+export {};

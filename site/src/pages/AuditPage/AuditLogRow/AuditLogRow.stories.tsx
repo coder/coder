@@ -1,23 +1,23 @@
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { ComponentMeta, Story } from "@storybook/react"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   MockAuditLog,
   MockAuditLog2,
   MockAuditLogWithWorkspaceBuild,
   MockAuditLogWithDeletedResource,
   MockAuditLogGitSSH,
-} from "testHelpers/entities"
-import { AuditLogRow, AuditLogRowProps } from "./AuditLogRow"
+} from "testHelpers/entities";
+import { AuditLogRow, AuditLogRowProps } from "./AuditLogRow";
 
 export default {
   title: "components/AuditLogRow",
   component: AuditLogRow,
-} as ComponentMeta<typeof AuditLogRow>
+} as ComponentMeta<typeof AuditLogRow>;
 
 const Template: Story<AuditLogRowProps> = (args) => (
   <TableContainer>
@@ -32,23 +32,23 @@ const Template: Story<AuditLogRowProps> = (args) => (
       </TableBody>
     </Table>
   </TableContainer>
-)
+);
 
-export const NoDiff = Template.bind({})
+export const NoDiff = Template.bind({});
 NoDiff.args = {
   auditLog: {
     ...MockAuditLog,
     diff: {},
   },
-}
+};
 
-export const WithDiff = Template.bind({})
+export const WithDiff = Template.bind({});
 WithDiff.args = {
   auditLog: MockAuditLog2,
   defaultIsDiffOpen: true,
-}
+};
 
-export const WithLongDiffRow = Template.bind({})
+export const WithLongDiffRow = Template.bind({});
 WithLongDiffRow.args = {
   auditLog: {
     ...MockAuditLog2,
@@ -62,39 +62,39 @@ WithLongDiffRow.args = {
     },
   },
   defaultIsDiffOpen: true,
-}
+};
 
-export const WithStoppedWorkspaceBuild = Template.bind({})
+export const WithStoppedWorkspaceBuild = Template.bind({});
 WithStoppedWorkspaceBuild.args = {
   auditLog: {
     ...MockAuditLogWithWorkspaceBuild,
     action: "stop",
   },
-}
+};
 
-export const WithStartedWorkspaceBuild = Template.bind({})
+export const WithStartedWorkspaceBuild = Template.bind({});
 WithStartedWorkspaceBuild.args = {
   auditLog: {
     ...MockAuditLogWithWorkspaceBuild,
     action: "start",
   },
-}
+};
 
-export const WithDeletedWorkspaceBuild = Template.bind({})
+export const WithDeletedWorkspaceBuild = Template.bind({});
 WithDeletedWorkspaceBuild.args = {
   auditLog: {
     ...MockAuditLogWithWorkspaceBuild,
     action: "delete",
     is_deleted: true,
   },
-}
+};
 
-export const DeletedResource = Template.bind({})
+export const DeletedResource = Template.bind({});
 DeletedResource.args = {
   auditLog: MockAuditLogWithDeletedResource,
-}
+};
 
-export const SecretDiffValue = Template.bind({})
+export const SecretDiffValue = Template.bind({});
 SecretDiffValue.args = {
   auditLog: MockAuditLogGitSSH,
-}
+};

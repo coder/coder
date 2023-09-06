@@ -1,8 +1,8 @@
-import { inspect } from "@xstate/inspect"
-import { createRoot } from "react-dom/client"
-import { Interpreter } from "xstate"
-import { App } from "./app"
-import "./i18n"
+import { inspect } from "@xstate/inspect";
+import { createRoot } from "react-dom/client";
+import { Interpreter } from "xstate";
+import { App } from "./app";
+import "./i18n";
 
 // if this is a development build and the developer wants to inspect
 // helpful to see realtime changes on the services
@@ -14,9 +14,9 @@ if (
   inspect({
     url: "https://stately.ai/viz?inspect",
     iframe: false,
-  })
+  });
   // configure all XServices to use the inspector
-  Interpreter.defaultOptions.devTools = true
+  Interpreter.defaultOptions.devTools = true;
 }
 
 // This is the entry point for the app - where everything start.
@@ -28,13 +28,13 @@ const main = () => {
  ▄▄██▀▀█▄▄▄  ██  ██      █▀▀█ ▐█▀▀██ ▄█▀▀█ █▀▀
 █▌   ▄▌   ▐█ █▌  ▀█▄▄▄█▌ █  █ ▐█  ██ ██▀▀  █
      ██████▀▄█    ▀▀▀▀   ▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀ ▀
-`)
-  const element = document.getElementById("root")
+`);
+  const element = document.getElementById("root");
   if (element === null) {
-    throw new Error("root element is null")
+    throw new Error("root element is null");
   }
-  const root = createRoot(element)
-  root.render(<App />)
-}
+  const root = createRoot(element);
+  root.render(<App />);
+};
 
-main()
+main();

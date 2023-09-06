@@ -1,86 +1,86 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import Tooltip from "@mui/material/Tooltip"
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline"
-import { PrimaryAgentButton } from "components/Resources/AgentButton"
-import { FC } from "react"
-import { combineClasses } from "utils/combineClasses"
-import * as TypesGen from "../../../api/typesGenerated"
-import { generateRandomString } from "../../../utils/random"
-import { BaseIcon } from "./BaseIcon"
-import { ShareIcon } from "./ShareIcon"
-import { useProxy } from "contexts/ProxyContext"
+import CircularProgress from "@mui/material/CircularProgress";
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import Tooltip from "@mui/material/Tooltip";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { PrimaryAgentButton } from "components/Resources/AgentButton";
+import { FC } from "react";
+import { combineClasses } from "utils/combineClasses";
+import * as TypesGen from "../../../api/typesGenerated";
+import { generateRandomString } from "../../../utils/random";
+import { BaseIcon } from "./BaseIcon";
+import { ShareIcon } from "./ShareIcon";
+import { useProxy } from "contexts/ProxyContext";
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
     `${appName} - ${identifier}`,
-}
+};
 
 export interface AppLinkProps {
-  workspace: TypesGen.Workspace
-  app: TypesGen.WorkspaceApp
-  agent: TypesGen.WorkspaceAgent
+  workspace: TypesGen.Workspace;
+  app: TypesGen.WorkspaceApp;
+  agent: TypesGen.WorkspaceAgent;
 }
 
 export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
-  const { proxy } = useProxy()
-  const preferredPathBase = proxy.preferredPathAppURL
-  const appsHost = proxy.preferredWildcardHostname
+  const { proxy } = useProxy();
+  const preferredPathBase = proxy.preferredPathAppURL;
+  const appsHost = proxy.preferredWildcardHostname;
 
-  const styles = useStyles()
-  const username = workspace.owner_name
+  const styles = useStyles();
+  const username = workspace.owner_name;
 
-  let appSlug = app.slug
-  let appDisplayName = app.display_name
+  let appSlug = app.slug;
+  let appDisplayName = app.display_name;
   if (!appSlug) {
-    appSlug = appDisplayName
+    appSlug = appDisplayName;
   }
   if (!appDisplayName) {
-    appDisplayName = appSlug
+    appDisplayName = appSlug;
   }
 
   // The backend redirects if the trailing slash isn't included, so we add it
   // here to avoid extra roundtrips.
   let href = `${preferredPathBase}/@${username}/${workspace.name}.${
     agent.name
-  }/apps/${encodeURIComponent(appSlug)}/`
+  }/apps/${encodeURIComponent(appSlug)}/`;
   if (app.command) {
     href = `${preferredPathBase}/@${username}/${workspace.name}.${
       agent.name
-    }/terminal?command=${encodeURIComponent(app.command)}`
+    }/terminal?command=${encodeURIComponent(app.command)}`;
   }
 
   if (appsHost && app.subdomain) {
-    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`
-    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain)
+    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`;
+    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain);
   }
   if (app.external) {
-    href = app.url
+    href = app.url;
   }
 
-  let canClick = true
-  let icon = <BaseIcon app={app} />
+  let canClick = true;
+  let icon = <BaseIcon app={app} />;
 
-  let primaryTooltip = ""
+  let primaryTooltip = "";
   if (app.health === "initializing") {
-    canClick = false
-    icon = <CircularProgress size={12} />
-    primaryTooltip = "Initializing..."
+    canClick = false;
+    icon = <CircularProgress size={12} />;
+    primaryTooltip = "Initializing...";
   }
   if (app.health === "unhealthy") {
-    canClick = false
-    icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />
-    primaryTooltip = "Unhealthy"
+    canClick = false;
+    icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />;
+    primaryTooltip = "Unhealthy";
   }
   if (!appsHost && app.subdomain) {
-    canClick = false
-    icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />
+    canClick = false;
+    icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />;
     primaryTooltip =
-      "Your admin has not configured subdomain application access"
+      "Your admin has not configured subdomain application access";
   }
 
-  const isPrivateApp = app.sharing_level === "owner"
+  const isPrivateApp = app.sharing_level === "owner";
 
   const button = (
     <PrimaryAgentButton
@@ -92,7 +92,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
         {appDisplayName}
       </span>
     </PrimaryAgentButton>
-  )
+  );
 
   return (
     <Tooltip title={primaryTooltip}>
@@ -104,12 +104,12 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
           onClick={
             canClick
               ? (event) => {
-                  event.preventDefault()
+                  event.preventDefault();
                   window.open(
                     href,
                     Language.appTitle(appDisplayName, generateRandomString(12)),
                     "width=900,height=600",
-                  )
+                  );
                 }
               : undefined
           }
@@ -118,8 +118,8 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
         </Link>
       </span>
     </Tooltip>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   link: {
@@ -142,4 +142,4 @@ const useStyles = makeStyles((theme) => ({
   appName: {
     marginRight: theme.spacing(1),
   },
-}))
+}));

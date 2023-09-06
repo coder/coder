@@ -1,14 +1,14 @@
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { FC } from "react"
-import * as TypesGen from "../../../api/typesGenerated"
-import { Stack } from "../../../components/Stack/Stack"
-import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip"
-import { UsersTableBody } from "./UsersTableBody"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { FC } from "react";
+import * as TypesGen from "../../../api/typesGenerated";
+import { Stack } from "../../../components/Stack/Stack";
+import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
+import { UsersTableBody } from "./UsersTableBody";
 
 export const Language = {
   usernameLabel: "User",
@@ -16,29 +16,29 @@ export const Language = {
   statusLabel: "Status",
   lastSeenLabel: "Last Seen",
   loginTypeLabel: "Login Type",
-}
+};
 
 export interface UsersTableProps {
-  users?: TypesGen.User[]
-  roles?: TypesGen.AssignableRoles[]
-  isUpdatingUserRoles?: boolean
-  canEditUsers?: boolean
-  canViewActivity?: boolean
-  isLoading?: boolean
-  onSuspendUser: (user: TypesGen.User) => void
-  onActivateUser: (user: TypesGen.User) => void
-  onDeleteUser: (user: TypesGen.User) => void
-  onListWorkspaces: (user: TypesGen.User) => void
-  onViewActivity: (user: TypesGen.User) => void
-  onResetUserPassword: (user: TypesGen.User) => void
+  users?: TypesGen.User[];
+  roles?: TypesGen.AssignableRoles[];
+  isUpdatingUserRoles?: boolean;
+  canEditUsers?: boolean;
+  canViewActivity?: boolean;
+  isLoading?: boolean;
+  onSuspendUser: (user: TypesGen.User) => void;
+  onActivateUser: (user: TypesGen.User) => void;
+  onDeleteUser: (user: TypesGen.User) => void;
+  onListWorkspaces: (user: TypesGen.User) => void;
+  onViewActivity: (user: TypesGen.User) => void;
+  onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
     roles: TypesGen.Role["name"][],
-  ) => void
-  isNonInitialPage: boolean
-  actorID: string
-  oidcRoleSyncEnabled: boolean
-  authMethods?: TypesGen.AuthMethods
+  ) => void;
+  isNonInitialPage: boolean;
+  actorID: string;
+  oidcRoleSyncEnabled: boolean;
+  authMethods?: TypesGen.AuthMethods;
 }
 
 export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
@@ -101,5 +101,5 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
         </TableBody>
       </Table>
     </TableContainer>
-  )
-}
+  );
+};

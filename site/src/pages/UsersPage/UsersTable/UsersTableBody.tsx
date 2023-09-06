@@ -1,72 +1,72 @@
-import Box, { BoxProps } from "@mui/material/Box"
-import { makeStyles, useTheme } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import TableRow from "@mui/material/TableRow"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Pill } from "components/Pill/Pill"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import * as TypesGen from "../../../api/typesGenerated"
-import { combineClasses } from "../../../utils/combineClasses"
-import { AvatarData } from "../../../components/AvatarData/AvatarData"
-import { EmptyState } from "../../../components/EmptyState/EmptyState"
+import Box, { BoxProps } from "@mui/material/Box";
+import { makeStyles, useTheme } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import TableRow from "@mui/material/TableRow";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Pill } from "components/Pill/Pill";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import * as TypesGen from "../../../api/typesGenerated";
+import { combineClasses } from "../../../utils/combineClasses";
+import { AvatarData } from "../../../components/AvatarData/AvatarData";
+import { EmptyState } from "../../../components/EmptyState/EmptyState";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "../../../components/TableLoader/TableLoader"
-import { TableRowMenu } from "../../../components/TableRowMenu/TableRowMenu"
-import { EditRolesButton } from "./EditRolesButton"
-import { Stack } from "components/Stack/Stack"
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
-import dayjs from "dayjs"
-import { SxProps, Theme } from "@mui/material/styles"
-import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined"
-import KeyOutlined from "@mui/icons-material/KeyOutlined"
-import GitHub from "@mui/icons-material/GitHub"
-import PasswordOutlined from "@mui/icons-material/PasswordOutlined"
-import relativeTime from "dayjs/plugin/relativeTime"
-import ShieldOutlined from "@mui/icons-material/ShieldOutlined"
-import Skeleton from "@mui/material/Skeleton"
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
+} from "../../../components/TableLoader/TableLoader";
+import { TableRowMenu } from "../../../components/TableRowMenu/TableRowMenu";
+import { EditRolesButton } from "./EditRolesButton";
+import { Stack } from "components/Stack/Stack";
+import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import dayjs from "dayjs";
+import { SxProps, Theme } from "@mui/material/styles";
+import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
+import KeyOutlined from "@mui/icons-material/KeyOutlined";
+import GitHub from "@mui/icons-material/GitHub";
+import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
+import relativeTime from "dayjs/plugin/relativeTime";
+import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
+import Skeleton from "@mui/material/Skeleton";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
-dayjs.extend(relativeTime)
+dayjs.extend(relativeTime);
 
 const isOwnerRole = (role: TypesGen.Role): boolean => {
-  return role.name === "owner"
-}
+  return role.name === "owner";
+};
 
-const roleOrder = ["owner", "user-admin", "template-admin", "auditor"]
+const roleOrder = ["owner", "user-admin", "template-admin", "auditor"];
 
 const sortRoles = (roles: TypesGen.Role[]) => {
   return roles.slice(0).sort((a, b) => {
-    return roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name)
-  })
-}
+    return roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name);
+  });
+};
 
 interface UsersTableBodyProps {
-  users?: TypesGen.User[]
-  authMethods?: TypesGen.AuthMethods
-  roles?: TypesGen.AssignableRoles[]
-  isUpdatingUserRoles?: boolean
-  canEditUsers?: boolean
-  isLoading?: boolean
-  canViewActivity?: boolean
-  onSuspendUser: (user: TypesGen.User) => void
-  onDeleteUser: (user: TypesGen.User) => void
-  onListWorkspaces: (user: TypesGen.User) => void
-  onViewActivity: (user: TypesGen.User) => void
-  onActivateUser: (user: TypesGen.User) => void
-  onResetUserPassword: (user: TypesGen.User) => void
+  users?: TypesGen.User[];
+  authMethods?: TypesGen.AuthMethods;
+  roles?: TypesGen.AssignableRoles[];
+  isUpdatingUserRoles?: boolean;
+  canEditUsers?: boolean;
+  isLoading?: boolean;
+  canViewActivity?: boolean;
+  onSuspendUser: (user: TypesGen.User) => void;
+  onDeleteUser: (user: TypesGen.User) => void;
+  onListWorkspaces: (user: TypesGen.User) => void;
+  onViewActivity: (user: TypesGen.User) => void;
+  onActivateUser: (user: TypesGen.User) => void;
+  onResetUserPassword: (user: TypesGen.User) => void;
   onUpdateUserRoles: (
     user: TypesGen.User,
     roles: TypesGen.Role["name"][],
-  ) => void
-  isNonInitialPage: boolean
-  actorID: string
+  ) => void;
+  isNonInitialPage: boolean;
+  actorID: string;
   // oidcRoleSyncEnabled should be set to false if unknown.
   // This is used to determine if the oidc roles are synced from the oidc idp and
   // editing via the UI should be disabled.
-  oidcRoleSyncEnabled: boolean
+  oidcRoleSyncEnabled: boolean;
 }
 
 export const UsersTableBody: FC<
@@ -90,8 +90,8 @@ export const UsersTableBody: FC<
   actorID,
   oidcRoleSyncEnabled,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("usersPage")
+  const styles = useStyles();
+  const { t } = useTranslation("usersPage");
 
   return (
     <ChooseOne>
@@ -150,9 +150,11 @@ export const UsersTableBody: FC<
               const fallbackRole: TypesGen.Role = {
                 name: "member",
                 display_name: "Member",
-              }
+              };
               const userRoles =
-                user.roles.length === 0 ? [fallbackRole] : sortRoles(user.roles)
+                user.roles.length === 0
+                  ? [fallbackRole]
+                  : sortRoles(user.roles);
 
               return (
                 <TableRow key={user.id}>
@@ -176,8 +178,8 @@ export const UsersTableBody: FC<
                             // Remove the fallback role because it is only for the UI
                             const rolesWithoutFallback = roles.filter(
                               (role) => role !== fallbackRole.name,
-                            )
-                            onUpdateUserRoles(user, rolesWithoutFallback)
+                            );
+                            onUpdateUserRoles(user, rolesWithoutFallback);
                           }}
                         />
                       )}
@@ -268,40 +270,40 @@ export const UsersTableBody: FC<
                     </TableCell>
                   )}
                 </TableRow>
-              )
+              );
             })}
         </>
       </Cond>
     </ChooseOne>
-  )
-}
+  );
+};
 
 const LoginType = ({
   authMethods,
   value,
 }: {
-  authMethods: TypesGen.AuthMethods
-  value: TypesGen.LoginType
+  authMethods: TypesGen.AuthMethods;
+  value: TypesGen.LoginType;
 }) => {
-  let displayName = value as string
-  let icon = <></>
-  const iconStyles: SxProps = { width: 14, height: 14 }
+  let displayName = value as string;
+  let icon = <></>;
+  const iconStyles: SxProps = { width: 14, height: 14 };
 
   if (value === "password") {
-    displayName = "Password"
-    icon = <PasswordOutlined sx={iconStyles} />
+    displayName = "Password";
+    icon = <PasswordOutlined sx={iconStyles} />;
   } else if (value === "none") {
-    displayName = "None"
-    icon = <HideSourceOutlined sx={iconStyles} />
+    displayName = "None";
+    icon = <HideSourceOutlined sx={iconStyles} />;
   } else if (value === "github") {
-    displayName = "GitHub"
-    icon = <GitHub sx={iconStyles} />
+    displayName = "GitHub";
+    icon = <GitHub sx={iconStyles} />;
   } else if (value === "token") {
-    displayName = "Token"
-    icon = <KeyOutlined sx={iconStyles} />
+    displayName = "Token";
+    icon = <KeyOutlined sx={iconStyles} />;
   } else if (value === "oidc") {
     displayName =
-      authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText
+      authMethods.oidc.signInText === "" ? "OIDC" : authMethods.oidc.signInText;
     icon =
       authMethods.oidc.iconUrl === "" ? (
         <ShieldOutlined sx={iconStyles} />
@@ -312,7 +314,7 @@ const LoginType = ({
           src={authMethods.oidc.iconUrl}
           sx={iconStyles}
         />
-      )
+      );
   }
 
   return (
@@ -320,30 +322,30 @@ const LoginType = ({
       {icon}
       {displayName}
     </Box>
-  )
-}
+  );
+};
 
 const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
-  const theme: Theme = useTheme()
-  const t = dayjs(value)
-  const now = dayjs()
+  const theme: Theme = useTheme();
+  const t = dayjs(value);
+  const now = dayjs();
 
-  let message = t.fromNow()
-  let color = theme.palette.text.secondary
+  let message = t.fromNow();
+  let color = theme.palette.text.secondary;
 
   if (t.isAfter(now.subtract(1, "hour"))) {
-    color = theme.palette.success.light
+    color = theme.palette.success.light;
     // Since the agent reports on a 10m interval,
     // the last_used_at can be inaccurate when recent.
-    message = "Now"
+    message = "Now";
   } else if (t.isAfter(now.subtract(3, "day"))) {
-    color = theme.palette.text.secondary
+    color = theme.palette.text.secondary;
   } else if (t.isAfter(now.subtract(1, "month"))) {
-    color = theme.palette.warning.light
+    color = theme.palette.warning.light;
   } else if (t.isAfter(now.subtract(100, "year"))) {
-    color = theme.palette.error.light
+    color = theme.palette.error.light;
   } else {
-    message = "Never"
+    message = "Never";
   }
 
   return (
@@ -355,8 +357,8 @@ const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
     >
       {message}
     </Box>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   status: {
@@ -373,4 +375,4 @@ const useStyles = makeStyles((theme) => ({
     backgroundColor: theme.palette.info.dark,
     borderColor: theme.palette.info.light,
   },
-}))
+}));

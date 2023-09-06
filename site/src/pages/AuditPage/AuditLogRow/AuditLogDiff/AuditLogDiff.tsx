@@ -1,30 +1,30 @@
-import { makeStyles } from "@mui/styles"
-import { AuditLog } from "api/typesGenerated"
-import { colors } from "theme/colors"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { combineClasses } from "utils/combineClasses"
-import { FC } from "react"
+import { makeStyles } from "@mui/styles";
+import { AuditLog } from "api/typesGenerated";
+import { colors } from "theme/colors";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { combineClasses } from "utils/combineClasses";
+import { FC } from "react";
 
 const getDiffValue = (value: unknown): string => {
   if (typeof value === "string") {
-    return `"${value}"`
+    return `"${value}"`;
   }
 
   if (Array.isArray(value)) {
-    const values = value.map((v) => getDiffValue(v))
-    return `[${values.join(", ")}]`
+    const values = value.map((v) => getDiffValue(v));
+    return `[${values.join(", ")}]`;
   }
 
   if (value === null || value === undefined) {
-    return "null"
+    return "null";
   }
 
-  return String(value)
-}
+  return String(value);
+};
 
 export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
-  const styles = useStyles()
-  const diffEntries = Object.entries(diff)
+  const styles = useStyles();
+  const diffEntries = Object.entries(diff);
 
   return (
     <div className={styles.diff}>
@@ -67,8 +67,8 @@ export const AuditLogDiff: FC<{ diff: AuditLog["diff"] }> = ({ diff }) => {
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   diff: {
@@ -132,4 +132,4 @@ const useStyles = makeStyles((theme) => ({
   diffValueNew: {
     backgroundColor: colors.green[12],
   },
-}))
+}));

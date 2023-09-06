@@ -1,16 +1,16 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import { TemplateExample } from "api/typesGenerated"
-import { CodeExample } from "components/CodeExample/CodeExample"
-import { Stack } from "components/Stack/Stack"
-import { TableEmpty } from "components/TableEmpty/TableEmpty"
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { Link as RouterLink } from "react-router-dom"
-import { docs } from "utils/docs"
-import { Permissions } from "xServices/auth/authXService"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import { TemplateExample } from "api/typesGenerated";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { Stack } from "components/Stack/Stack";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+import { docs } from "utils/docs";
+import { Permissions } from "xServices/auth/authXService";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
@@ -20,30 +20,30 @@ const featuredExampleIds = [
   "aws-windows",
   "gcp-linux",
   "gcp-windows",
-]
+];
 
 const findFeaturedExamples = (examples: TemplateExample[]) => {
-  const featuredExamples: TemplateExample[] = []
+  const featuredExamples: TemplateExample[] = [];
 
   // We loop the featuredExampleIds first to keep the order
   featuredExampleIds.forEach((exampleId) => {
     examples.forEach((example) => {
       if (exampleId === example.id) {
-        featuredExamples.push(example)
+        featuredExamples.push(example);
       }
-    })
-  })
+    });
+  });
 
-  return featuredExamples
-}
+  return featuredExamples;
+};
 
 export const EmptyTemplates: FC<{
-  permissions: Permissions
-  examples: TemplateExample[]
+  permissions: Permissions;
+  examples: TemplateExample[];
 }> = ({ permissions, examples }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("templatesPage")
-  const featuredExamples = findFeaturedExamples(examples)
+  const styles = useStyles();
+  const { t } = useTranslation("templatesPage");
+  const featuredExamples = findFeaturedExamples(examples);
 
   if (permissions.createTemplates) {
     return (
@@ -87,7 +87,7 @@ export const EmptyTemplates: FC<{
           </Stack>
         }
       />
-    )
+    );
   }
 
   return (
@@ -102,8 +102,8 @@ export const EmptyTemplates: FC<{
         </div>
       }
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   withImage: {
@@ -140,4 +140,4 @@ const useStyles = makeStyles((theme) => ({
   viewAllButton: {
     borderRadius: 9999,
   },
-}))
+}));

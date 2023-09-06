@@ -1,26 +1,26 @@
-import { DialogProps } from "components/Dialogs/Dialog"
-import { FC, useRef, useState } from "react"
-import { FormFields } from "components/Form/Form"
-import TextField from "@mui/material/TextField"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Stack } from "components/Stack/Stack"
-import { Template, TemplateVersion } from "api/typesGenerated"
-import { Loader } from "components/Loader/Loader"
-import Autocomplete from "@mui/material/Autocomplete"
-import { createDayString } from "utils/createDayString"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { Pill } from "components/Pill/Pill"
-import { Avatar } from "components/Avatar/Avatar"
-import CircularProgress from "@mui/material/CircularProgress"
-import Box from "@mui/material/Box"
+import { DialogProps } from "components/Dialogs/Dialog";
+import { FC, useRef, useState } from "react";
+import { FormFields } from "components/Form/Form";
+import TextField from "@mui/material/TextField";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "components/Stack/Stack";
+import { Template, TemplateVersion } from "api/typesGenerated";
+import { Loader } from "components/Loader/Loader";
+import Autocomplete from "@mui/material/Autocomplete";
+import { createDayString } from "utils/createDayString";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { Pill } from "components/Pill/Pill";
+import { Avatar } from "components/Avatar/Avatar";
+import CircularProgress from "@mui/material/CircularProgress";
+import Box from "@mui/material/Box";
 
 export type ChangeVersionDialogProps = DialogProps & {
-  template: Template | undefined
-  templateVersions: TemplateVersion[] | undefined
-  defaultTemplateVersion: TemplateVersion | undefined
-  onClose: () => void
-  onConfirm: (templateVersion: TemplateVersion) => void
-}
+  template: Template | undefined;
+  templateVersions: TemplateVersion[] | undefined;
+  defaultTemplateVersion: TemplateVersion | undefined;
+  onClose: () => void;
+  onConfirm: (templateVersion: TemplateVersion) => void;
+};
 
 export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   onConfirm,
@@ -30,8 +30,8 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   defaultTemplateVersion,
   ...dialogProps
 }) => {
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
-  const selectedTemplateVersion = useRef<TemplateVersion | undefined>()
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
+  const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
 
   return (
     <ConfirmDialog
@@ -39,7 +39,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
       onClose={onClose}
       onConfirm={() => {
         if (selectedTemplateVersion.current) {
-          onConfirm(selectedTemplateVersion.current)
+          onConfirm(selectedTemplateVersion.current);
         }
       }}
       hideCancel={false}
@@ -60,13 +60,13 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                 open={isAutocompleteOpen}
                 onChange={(_, newTemplateVersion) => {
                   selectedTemplateVersion.current =
-                    newTemplateVersion ?? undefined
+                    newTemplateVersion ?? undefined;
                 }}
                 onOpen={() => {
-                  setIsAutocompleteOpen(true)
+                  setIsAutocompleteOpen(true);
                 }}
                 onClose={() => {
-                  setIsAutocompleteOpen(false)
+                  setIsAutocompleteOpen(false);
                 }}
                 isOptionEqualToValue={(
                   option: TemplateVersion,
@@ -127,5 +127,5 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
         </Stack>
       }
     />
-  )
-}
+  );
+};

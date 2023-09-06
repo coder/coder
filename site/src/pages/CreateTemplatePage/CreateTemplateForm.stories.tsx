@@ -1,4 +1,4 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   MockTemplateExample,
   MockTemplateVersionVariable1,
@@ -6,11 +6,11 @@ import {
   MockTemplateVersionVariable3,
   MockTemplateVersionVariable4,
   MockTemplateVersionVariable5,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 import {
   CreateTemplateForm,
   CreateTemplateFormProps,
-} from "./CreateTemplateForm"
+} from "./CreateTemplateForm";
 
 export default {
   title: "components/CreateTemplateForm",
@@ -19,21 +19,21 @@ export default {
     isSubmitting: false,
     allowDisableEveryoneAccess: true,
   },
-} as ComponentMeta<typeof CreateTemplateForm>
+} as ComponentMeta<typeof CreateTemplateForm>;
 
 const Template: Story<CreateTemplateFormProps> = (args) => (
   <CreateTemplateForm {...args} />
-)
+);
 
-export const Initial = Template.bind({})
-Initial.args = {}
+export const Initial = Template.bind({});
+Initial.args = {};
 
-export const WithStarterTemplate = Template.bind({})
+export const WithStarterTemplate = Template.bind({});
 WithStarterTemplate.args = {
   starterTemplate: MockTemplateExample,
-}
+};
 
-export const WithVariables = Template.bind({})
+export const WithVariables = Template.bind({});
 WithVariables.args = {
   variables: [
     MockTemplateVersionVariable1,
@@ -42,9 +42,9 @@ WithVariables.args = {
     MockTemplateVersionVariable4,
     MockTemplateVersionVariable5,
   ],
-}
+};
 
-export const WithJobError = Template.bind({})
+export const WithJobError = Template.bind({});
 WithJobError.args = {
   jobError:
     "template import provision for start: recv import provision: plan terraform: terraform plan: exit status 1",
@@ -356,4 +356,4 @@ WithJobError.args = {
       output: "",
     },
   ],
-}
+};

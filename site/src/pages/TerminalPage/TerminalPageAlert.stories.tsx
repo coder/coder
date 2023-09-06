@@ -1,6 +1,6 @@
-import type { Meta, StoryObj } from "@storybook/react"
+import type { Meta, StoryObj } from "@storybook/react";
 
-import TerminalPageAlert from "./TerminalPageAlert"
+import TerminalPageAlert from "./TerminalPageAlert";
 
 const meta: Meta<typeof TerminalPageAlert> = {
   component: TerminalPageAlert,
@@ -13,25 +13,25 @@ const meta: Meta<typeof TerminalPageAlert> = {
       options: ["error", "starting", "success"],
     },
   },
-}
-type Story = StoryObj<typeof TerminalPageAlert>
+};
+type Story = StoryObj<typeof TerminalPageAlert>;
 
 export const Error: Story = {
   args: {
     alertType: "error",
   },
-}
+};
 
 export const Starting: Story = {
   args: {
     alertType: "starting",
   },
-}
+};
 
 export const Success: Story = {
   args: {
     alertType: "success",
   },
-}
+};
 
-export default meta
+export default meta;

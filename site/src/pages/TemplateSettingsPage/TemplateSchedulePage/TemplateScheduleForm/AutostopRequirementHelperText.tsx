@@ -1,26 +1,26 @@
-import { Template } from "api/typesGenerated"
-import { useTranslation } from "react-i18next"
+import { Template } from "api/typesGenerated";
+import { useTranslation } from "react-i18next";
 
 export type TemplateAutostopRequirementDaysValue =
   | "off"
   | "daily"
   | "saturday"
-  | "sunday"
+  | "sunday";
 
 export const convertAutostopRequirementDaysValue = (
   days: Template["autostop_requirement"]["days_of_week"],
 ): TemplateAutostopRequirementDaysValue => {
   if (days.length === 7) {
-    return "daily"
+    return "daily";
   } else if (days.length === 1 && days[0] === "saturday") {
-    return "saturday"
+    return "saturday";
   } else if (days.length === 1 && days[0] === "sunday") {
-    return "sunday"
+    return "sunday";
   }
 
   // On unsupported values we default to "off".
-  return "off"
-}
+  return "off";
+};
 
 export const calculateAutostopRequirementDaysValue = (
   value: TemplateAutostopRequirementDaysValue,
@@ -35,46 +35,46 @@ export const calculateAutostopRequirementDaysValue = (
         "friday",
         "saturday",
         "sunday",
-      ]
+      ];
     case "saturday":
-      return ["saturday"]
+      return ["saturday"];
     case "sunday":
-      return ["sunday"]
+      return ["sunday"];
   }
 
-  return []
-}
+  return [];
+};
 
 export const AutostopRequirementDaysHelperText = ({
   days,
 }: {
-  days: TemplateAutostopRequirementDaysValue
+  days: TemplateAutostopRequirementDaysValue;
 }) => {
-  const { t } = useTranslation("templateSettingsPage")
+  const { t } = useTranslation("templateSettingsPage");
 
-  let str = "off"
+  let str = "off";
   if (days) {
-    str = days
+    str = days;
   }
 
-  return <span>{t("autostopRequirementDaysHelperText_" + str)}</span>
-}
+  return <span>{t("autostopRequirementDaysHelperText_" + str)}</span>;
+};
 
 export const AutostopRequirementWeeksHelperText = ({
   days,
   weeks,
 }: {
-  days: TemplateAutostopRequirementDaysValue
-  weeks: number
+  days: TemplateAutostopRequirementDaysValue;
+  weeks: number;
 }) => {
-  const { t } = useTranslation("templateSettingsPage")
+  const { t } = useTranslation("templateSettingsPage");
 
-  let str = "disabled"
+  let str = "disabled";
   if (days === "saturday" || days === "sunday") {
     if (weeks === 0 || weeks === 1) {
-      str = "one"
+      str = "one";
     } else {
-      str = "other"
+      str = "other";
     }
   }
 
@@ -82,5 +82,5 @@ export const AutostopRequirementWeeksHelperText = ({
     <span>
       {t("autostopRequirementWeeksHelperText_" + str, { count: weeks })}
     </span>
-  )
-}
+  );
+};

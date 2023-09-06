@@ -1,5 +1,5 @@
-import { Workspace, WorkspaceStatus } from "api/typesGenerated"
-import { ReactNode } from "react"
+import { Workspace, WorkspaceStatus } from "api/typesGenerated";
+import { ReactNode } from "react";
 
 // the button types we have
 export enum ButtonTypesEnum {
@@ -21,13 +21,13 @@ export enum ButtonTypesEnum {
 }
 
 export type ButtonMapping = {
-  [key in ButtonTypesEnum]: ReactNode
-}
+  [key in ButtonTypesEnum]: ReactNode;
+};
 
 interface WorkspaceAbilities {
-  actions: ButtonTypesEnum[]
-  canCancel: boolean
-  canAcceptJobs: boolean
+  actions: ButtonTypesEnum[];
+  canCancel: boolean;
+  canAcceptJobs: boolean;
 }
 
 export const actionsByWorkspaceStatus = (
@@ -39,10 +39,10 @@ export const actionsByWorkspaceStatus = (
       actions: [ButtonTypesEnum.activate],
       canCancel: false,
       canAcceptJobs: false,
-    }
+    };
   }
-  return statusToActions[status]
-}
+  return statusToActions[status];
+};
 
 const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
   starting: {
@@ -99,4 +99,4 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
     canCancel: false,
     canAcceptJobs: false,
   },
-}
+};

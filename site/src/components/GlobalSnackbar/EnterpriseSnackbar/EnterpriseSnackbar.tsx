@@ -1,19 +1,19 @@
-import IconButton from "@mui/material/IconButton"
+import IconButton from "@mui/material/IconButton";
 import Snackbar, {
   SnackbarProps as MuiSnackbarProps,
-} from "@mui/material/Snackbar"
-import { makeStyles } from "@mui/styles"
-import CloseIcon from "@mui/icons-material/Close"
-import { FC } from "react"
-import { combineClasses } from "../../../utils/combineClasses"
+} from "@mui/material/Snackbar";
+import { makeStyles } from "@mui/styles";
+import CloseIcon from "@mui/icons-material/Close";
+import { FC } from "react";
+import { combineClasses } from "../../../utils/combineClasses";
 
-type EnterpriseSnackbarVariant = "error" | "info" | "success"
+type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
 export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
   /** Called when the snackbar should close, either from timeout or clicking close */
-  onClose: () => void
+  onClose: () => void;
   /** Variant of snackbar, for theming */
-  variant?: EnterpriseSnackbarVariant
+  variant?: EnterpriseSnackbarVariant;
 }
 
 /**
@@ -30,7 +30,7 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
 export const EnterpriseSnackbar: FC<
   React.PropsWithChildren<EnterpriseSnackbarProps>
 > = ({ onClose, variant = "info", ContentProps = {}, action, ...rest }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Snackbar
@@ -62,8 +62,8 @@ export const EnterpriseSnackbar: FC<
       }}
       onClose={onClose}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   actionWrapper: {
@@ -103,4 +103,4 @@ const useStyles = makeStyles((theme) => ({
   snackbarContentSuccess: {
     borderLeftColor: theme.palette.success.main,
   },
-}))
+}));

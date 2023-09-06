@@ -1,16 +1,16 @@
-import { useState, FC, ReactNode } from "react"
-import Collapse from "@mui/material/Collapse"
+import { useState, FC, ReactNode } from "react";
+import Collapse from "@mui/material/Collapse";
 // eslint-disable-next-line no-restricted-imports -- It is the base component
-import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert"
-import Button from "@mui/material/Button"
-import Box from "@mui/material/Box"
+import MuiAlert, { AlertProps as MuiAlertProps } from "@mui/material/Alert";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
 
 export type AlertProps = MuiAlertProps & {
-  actions?: ReactNode
-  dismissible?: boolean
-  onRetry?: () => void
-  onDismiss?: () => void
-}
+  actions?: ReactNode;
+  dismissible?: boolean;
+  onRetry?: () => void;
+  onDismiss?: () => void;
+};
 
 export const Alert: FC<AlertProps> = ({
   children,
@@ -21,7 +21,7 @@ export const Alert: FC<AlertProps> = ({
   onDismiss,
   ...alertProps
 }) => {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(true);
 
   return (
     <Collapse in={open}>
@@ -47,8 +47,8 @@ export const Alert: FC<AlertProps> = ({
                 variant="text"
                 size="small"
                 onClick={() => {
-                  setOpen(false)
-                  onDismiss && onDismiss()
+                  setOpen(false);
+                  onDismiss && onDismiss();
                 }}
                 data-testid="dismiss-banner-btn"
               >
@@ -61,8 +61,8 @@ export const Alert: FC<AlertProps> = ({
         {children}
       </MuiAlert>
     </Collapse>
-  )
-}
+  );
+};
 
 export const AlertDetail = ({ children }: { children: ReactNode }) => {
   return (
@@ -74,5 +74,5 @@ export const AlertDetail = ({ children }: { children: ReactNode }) => {
     >
       {children}
     </Box>
-  )
-}
+  );
+};

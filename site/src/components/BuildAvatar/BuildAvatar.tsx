@@ -1,15 +1,15 @@
-import Badge from "@mui/material/Badge"
-import { useTheme, withStyles } from "@mui/styles"
-import { FC } from "react"
-import { WorkspaceBuild } from "api/typesGenerated"
-import { getDisplayWorkspaceBuildStatus } from "utils/workspace"
-import { Avatar, AvatarProps } from "components/Avatar/Avatar"
-import { PaletteIndex } from "theme/theme"
-import { Theme } from "@mui/material/styles"
-import { BuildIcon } from "components/BuildIcon/BuildIcon"
+import Badge from "@mui/material/Badge";
+import { useTheme, withStyles } from "@mui/styles";
+import { FC } from "react";
+import { WorkspaceBuild } from "api/typesGenerated";
+import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
+import { Avatar, AvatarProps } from "components/Avatar/Avatar";
+import { PaletteIndex } from "theme/theme";
+import { Theme } from "@mui/material/styles";
+import { BuildIcon } from "components/BuildIcon/BuildIcon";
 
 interface StylesBadgeProps {
-  type: PaletteIndex
+  type: PaletteIndex;
 }
 
 const StyledBadge = withStyles((theme) => ({
@@ -22,16 +22,16 @@ const StyledBadge = withStyles((theme) => ({
     display: "block",
     padding: 0,
   },
-}))(Badge)
+}))(Badge);
 
 export interface BuildAvatarProps {
-  build: WorkspaceBuild
-  size?: AvatarProps["size"]
+  build: WorkspaceBuild;
+  size?: AvatarProps["size"];
 }
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
-  const theme = useTheme<Theme>()
-  const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build)
+  const theme = useTheme<Theme>();
+  const displayBuildStatus = getDisplayWorkspaceBuildStatus(theme, build);
 
   return (
     <StyledBadge
@@ -50,5 +50,5 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
         <BuildIcon transition={build.transition} />
       </Avatar>
     </StyledBadge>
-  )
-}
+  );
+};

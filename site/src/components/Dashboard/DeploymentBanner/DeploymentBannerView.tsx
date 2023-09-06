@@ -1,83 +1,83 @@
-import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated"
-import { FC, useMemo, useEffect, useState } from "react"
-import prettyBytes from "pretty-bytes"
-import BuildingIcon from "@mui/icons-material/Build"
-import { makeStyles } from "@mui/styles"
-import { RocketIcon } from "components/Icons/RocketIcon"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import Tooltip from "@mui/material/Tooltip"
-import { Link as RouterLink } from "react-router-dom"
-import Link from "@mui/material/Link"
-import { VSCodeIcon } from "components/Icons/VSCodeIcon"
-import DownloadIcon from "@mui/icons-material/CloudDownload"
-import UploadIcon from "@mui/icons-material/CloudUpload"
-import LatencyIcon from "@mui/icons-material/SettingsEthernet"
-import WebTerminalIcon from "@mui/icons-material/WebAsset"
-import { TerminalIcon } from "components/Icons/TerminalIcon"
-import dayjs from "dayjs"
-import CollectedIcon from "@mui/icons-material/Compare"
-import RefreshIcon from "@mui/icons-material/Refresh"
-import Button from "@mui/material/Button"
-import { getDisplayWorkspaceStatus } from "utils/workspace"
+import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
+import { FC, useMemo, useEffect, useState } from "react";
+import prettyBytes from "pretty-bytes";
+import BuildingIcon from "@mui/icons-material/Build";
+import { makeStyles } from "@mui/styles";
+import { RocketIcon } from "components/Icons/RocketIcon";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import Tooltip from "@mui/material/Tooltip";
+import { Link as RouterLink } from "react-router-dom";
+import Link from "@mui/material/Link";
+import { VSCodeIcon } from "components/Icons/VSCodeIcon";
+import DownloadIcon from "@mui/icons-material/CloudDownload";
+import UploadIcon from "@mui/icons-material/CloudUpload";
+import LatencyIcon from "@mui/icons-material/SettingsEthernet";
+import WebTerminalIcon from "@mui/icons-material/WebAsset";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
+import dayjs from "dayjs";
+import CollectedIcon from "@mui/icons-material/Compare";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import Button from "@mui/material/Button";
+import { getDisplayWorkspaceStatus } from "utils/workspace";
 
-export const bannerHeight = 36
+export const bannerHeight = 36;
 
 export interface DeploymentBannerViewProps {
-  fetchStats?: () => void
-  stats?: DeploymentStats
+  fetchStats?: () => void;
+  stats?: DeploymentStats;
 }
 
 export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   stats,
   fetchStats,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
-      return
+      return;
     }
-    return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes")
-  }, [stats])
-  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1
-  const [timeUntilRefresh, setTimeUntilRefresh] = useState(0)
+    return dayjs(stats.collected_at).diff(stats.aggregated_from, "minutes");
+  }, [stats]);
+  const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
+  const [timeUntilRefresh, setTimeUntilRefresh] = useState(0);
   useEffect(() => {
     if (!stats || !fetchStats) {
-      return
+      return;
     }
 
     let timeUntilRefresh = dayjs(stats.next_update_at).diff(
       stats.collected_at,
       "seconds",
-    )
-    setTimeUntilRefresh(timeUntilRefresh)
-    let canceled = false
+    );
+    setTimeUntilRefresh(timeUntilRefresh);
+    let canceled = false;
     const loop = () => {
       if (canceled) {
-        return undefined
+        return undefined;
       }
-      setTimeUntilRefresh(timeUntilRefresh--)
+      setTimeUntilRefresh(timeUntilRefresh--);
       if (timeUntilRefresh > 0) {
-        return window.setTimeout(loop, 1000)
+        return window.setTimeout(loop, 1000);
       }
-      fetchStats()
-    }
-    const timeout = setTimeout(loop, 1000)
+      fetchStats();
+    };
+    const timeout = setTimeout(loop, 1000);
     return () => {
-      canceled = true
-      clearTimeout(timeout)
-    }
-  }, [fetchStats, stats])
+      canceled = true;
+      clearTimeout(timeout);
+    };
+  }, [fetchStats, stats]);
   const lastAggregated = useMemo(() => {
     if (!stats) {
-      return
+      return;
     }
     if (!fetchStats) {
       // Storybook!
-      return "just now"
+      return "just now";
     }
-    return dayjs().to(dayjs(stats.collected_at))
+    return dayjs().to(dayjs(stats.collected_at));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
-  }, [timeUntilRefresh, stats])
+  }, [timeUntilRefresh, stats]);
 
   return (
     <div className={styles.container}>
@@ -194,7 +194,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
             className={`${styles.value} ${styles.refreshButton}`}
             onClick={() => {
               if (fetchStats) {
-                fetchStats()
+                fetchStats();
               }
             }}
             variant="text"
@@ -205,25 +205,25 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         </Tooltip>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const ValueSeparator: FC = () => {
-  const styles = useStyles()
-  return <div className={styles.valueSeparator}>/</div>
-}
+  const styles = useStyles();
+  return <div className={styles.valueSeparator}>/</div>;
+};
 
 const WorkspaceBuildValue: FC<{
-  status: WorkspaceStatus
-  count?: number
+  status: WorkspaceStatus;
+  count?: number;
 }> = ({ status, count }) => {
-  const styles = useStyles()
-  const displayStatus = getDisplayWorkspaceStatus(status)
-  let statusText = displayStatus.text
-  let icon = displayStatus.icon
+  const styles = useStyles();
+  const displayStatus = getDisplayWorkspaceStatus(status);
+  let statusText = displayStatus.text;
+  let icon = displayStatus.icon;
   if (status === "starting") {
-    icon = <BuildingIcon />
-    statusText = "Building"
+    icon = <BuildingIcon />;
+    statusText = "Building";
   }
 
   return (
@@ -238,8 +238,8 @@ const WorkspaceBuildValue: FC<{
         </div>
       </Link>
     </Tooltip>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   rocket: {
@@ -324,4 +324,4 @@ const useStyles = makeStyles((theme) => ({
       marginRight: theme.spacing(0.5),
     },
   },
-}))
+}));

@@ -1,20 +1,20 @@
-import { Meta, StoryObj } from "@storybook/react"
+import { Meta, StoryObj } from "@storybook/react";
 import {
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersion3,
   MockWorkspaceResource,
   MockWorkspaceResource2,
-} from "testHelpers/entities"
-import { TemplateSummaryPageView } from "./TemplateSummaryPageView"
+} from "testHelpers/entities";
+import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
 
 const meta: Meta<typeof TemplateSummaryPageView> = {
   title: "pages/TemplateSummaryPageView",
   component: TemplateSummaryPageView,
-}
+};
 
-export default meta
-type Story = StoryObj<typeof TemplateSummaryPageView>
+export default meta;
+type Story = StoryObj<typeof TemplateSummaryPageView>;
 
 export const Example: Story = {
   args: {
@@ -22,7 +22,7 @@ export const Example: Story = {
     activeVersion: MockTemplateVersion,
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
   },
-}
+};
 
 export const NoIcon: Story = {
   args: {
@@ -30,7 +30,7 @@ export const NoIcon: Story = {
     activeVersion: MockTemplateVersion,
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
   },
-}
+};
 
 export const SmallViewport: Story = {
   args: {
@@ -51,11 +51,11 @@ export const SmallViewport: Story = {
     },
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
   },
-}
+};
 
 SmallViewport.parameters = {
   chromatic: { viewports: [600] },
-}
+};
 
 export const WithDeprecatedParameters: Story = {
   args: {
@@ -63,4 +63,4 @@ export const WithDeprecatedParameters: Story = {
     activeVersion: MockTemplateVersion3,
     resources: [MockWorkspaceResource, MockWorkspaceResource2],
   },
-}
+};

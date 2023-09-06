@@ -1,17 +1,17 @@
-import { useMemo, useRef, useState } from "react"
-import { BaseOption } from "./options"
-import { useQuery } from "@tanstack/react-query"
+import { useMemo, useRef, useState } from "react";
+import { BaseOption } from "./options";
+import { useQuery } from "@tanstack/react-query";
 
 export type UseFilterMenuOptions<TOption extends BaseOption> = {
-  id: string
-  value: string | undefined
+  id: string;
+  value: string | undefined;
   // Using null because of react-query
   // https://tanstack.com/query/v4/docs/react/guides/migrating-to-react-query-4#undefined-is-an-illegal-cache-value-for-successful-queries
-  getSelectedOption: () => Promise<TOption | null>
-  getOptions: (query: string) => Promise<TOption[]>
-  onChange: (option: TOption | undefined) => void
-  enabled?: boolean
-}
+  getSelectedOption: () => Promise<TOption | null>;
+  getOptions: (query: string) => Promise<TOption[]>;
+  onChange: (option: TOption | undefined) => void;
+  enabled?: boolean;
+};
 
 export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
   id,
@@ -21,74 +21,74 @@ export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
   onChange,
   enabled,
 }: UseFilterMenuOptions<TOption>) => {
-  const selectedOptionsCacheRef = useRef<Record<string, TOption>>({})
-  const [query, setQuery] = useState("")
+  const selectedOptionsCacheRef = useRef<Record<string, TOption>>({});
+  const [query, setQuery] = useState("");
   const selectedOptionQuery = useQuery({
     queryKey: [id, "autocomplete", "selected", value],
     queryFn: () => {
       if (!value) {
-        return null
+        return null;
       }
 
-      const cachedOption = selectedOptionsCacheRef.current[value]
+      const cachedOption = selectedOptionsCacheRef.current[value];
       if (cachedOption) {
-        return cachedOption
+        return cachedOption;
       }
 
-      return getSelectedOption()
+      return getSelectedOption();
     },
     enabled,
     keepPreviousData: true,
-  })
-  const selectedOption = selectedOptionQuery.data
+  });
+  const selectedOption = selectedOptionQuery.data;
   const searchOptionsQuery = useQuery({
     queryKey: [id, "autocomplete", "search", query],
     queryFn: () => getOptions(query),
     enabled,
-  })
+  });
   const searchOptions = useMemo(() => {
     const isDataLoaded =
-      searchOptionsQuery.isFetched && selectedOptionQuery.isFetched
+      searchOptionsQuery.isFetched && selectedOptionQuery.isFetched;
 
     if (!isDataLoaded) {
-      return undefined
+      return undefined;
     }
 
-    let options = searchOptionsQuery.data ?? []
+    let options = searchOptionsQuery.data ?? [];
 
     if (selectedOption) {
       options = options.filter(
         (option) => option.value !== selectedOption.value,
-      )
-      options = [selectedOption, ...options]
+      );
+      options = [selectedOption, ...options];
     }
 
     options = options.filter(
       (option) =>
         option.label.toLowerCase().includes(query.toLowerCase()) ||
         option.value.toLowerCase().includes(query.toLowerCase()),
-    )
+    );
 
-    return options
+    return options;
   }, [
     selectedOptionQuery.isFetched,
     query,
     searchOptionsQuery.data,
     searchOptionsQuery.isFetched,
     selectedOption,
-  ])
+  ]);
 
   const selectOption = (option: TOption) => {
-    let newSelectedOptionValue: TOption | undefined = option
-    selectedOptionsCacheRef.current[option.value] = option
-    setQuery("")
+    let newSelectedOptionValue: TOption | undefined = option;
+    selectedOptionsCacheRef.current[option.value] = option;
+    setQuery("");
 
     if (option.value === selectedOption?.value) {
-      newSelectedOptionValue = undefined
+      newSelectedOptionValue = undefined;
     }
 
-    onChange(newSelectedOptionValue)
-  }
+    onChange(newSelectedOptionValue);
+  };
 
   return {
     query,
@@ -99,7 +99,7 @@ export const useFilterMenu = <TOption extends BaseOption = BaseOption>({
     isInitializing: selectedOptionQuery.isInitialLoading,
     initialOption: selectedOptionQuery.data,
     isSearching: searchOptionsQuery.isFetching,
-  }
-}
+  };
+};
 
-export type UseFilterMenuResult = ReturnType<typeof useFilterMenu>
+export type UseFilterMenuResult = ReturnType<typeof useFilterMenu>;

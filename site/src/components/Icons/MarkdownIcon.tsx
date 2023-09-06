@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const MarkdownIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 32 32">
@@ -18,4 +18,4 @@ export const MarkdownIcon = (props: SvgIconProps): JSX.Element => (
       style={{ stroke: "#755838" }}
     />
   </SvgIcon>
-)
+);

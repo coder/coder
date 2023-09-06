@@ -1,25 +1,25 @@
-import { useMachine } from "@xstate/react"
-import { isApiValidationError } from "api/errors"
-import { Maybe } from "components/Conditionals/Maybe"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
-import { Loader } from "components/Loader/Loader"
-import { Stack } from "components/Stack/Stack"
-import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
-import { useNavigate, useSearchParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService"
-import { CreateTemplateForm } from "./CreateTemplateForm"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { useMachine } from "@xstate/react";
+import { isApiValidationError } from "api/errors";
+import { Maybe } from "components/Conditionals/Maybe";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService";
+import { CreateTemplateForm } from "./CreateTemplateForm";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const CreateTemplatePage: FC = () => {
-  const { t } = useTranslation("createTemplatePage")
-  const navigate = useNavigate()
-  const organizationId = useOrganizationId()
-  const [searchParams] = useSearchParams()
+  const { t } = useTranslation("createTemplatePage");
+  const navigate = useNavigate();
+  const organizationId = useOrganizationId();
+  const [searchParams] = useSearchParams();
   const [state, send] = useMachine(createTemplateMachine, {
     context: {
       organizationId,
@@ -28,28 +28,28 @@ const CreateTemplatePage: FC = () => {
     },
     actions: {
       onCreate: (_, { data }) => {
-        navigate(`/templates/${data.name}`)
+        navigate(`/templates/${data.name}`);
       },
     },
-  })
+  });
 
   const { starterTemplate, error, file, jobError, jobLogs, variables } =
-    state.context
-  const shouldDisplayForm = !state.hasTag("loading")
-  const { entitlements, experiments } = useDashboard()
+    state.context;
+  const shouldDisplayForm = !state.hasTag("loading");
+  const { entitlements, experiments } = useDashboard();
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
+    entitlements.features["advanced_template_scheduling"].enabled;
   // Requires the template RBAC feature, otherwise disabling everyone access
   // means no one can access.
   const allowDisableEveryoneAccess =
-    entitlements.features["template_rbac"].enabled
+    entitlements.features["template_rbac"].enabled;
   const allowAutostopRequirement = experiments.includes(
     "template_autostop_requirement",
-  )
+  );
 
   const onCancel = () => {
-    navigate(-1)
-  }
+    navigate(-1);
+  };
 
   return (
     <>
@@ -82,16 +82,16 @@ const CreateTemplatePage: FC = () => {
                 send({
                   type: "CREATE",
                   data,
-                })
+                });
               }}
               upload={{
                 file,
                 isUploading: state.matches("uploading"),
                 onRemove: () => {
-                  send("REMOVE_FILE")
+                  send("REMOVE_FILE");
                 },
                 onUpload: (file) => {
-                  send({ type: "UPLOAD_FILE", file })
+                  send({ type: "UPLOAD_FILE", file });
                 },
               }}
               jobError={jobError}
@@ -101,7 +101,7 @@ const CreateTemplatePage: FC = () => {
         </Stack>
       </FullPageHorizontalForm>
     </>
-  )
-}
+  );
+};
 
-export default CreateTemplatePage
+export default CreateTemplatePage;

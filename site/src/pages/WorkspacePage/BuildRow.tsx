@@ -1,30 +1,30 @@
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import { WorkspaceBuild } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { TimelineEntry } from "components/Timeline/TimelineEntry"
-import { useClickable } from "hooks/useClickable"
-import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import { WorkspaceBuild } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { useClickable } from "hooks/useClickable";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
   displayWorkspaceBuildDuration,
   getDisplayWorkspaceBuildInitiatedBy,
-} from "utils/workspace"
-import { BuildAvatar } from "components/BuildAvatar/BuildAvatar"
+} from "utils/workspace";
+import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 
 export interface BuildRowProps {
-  build: WorkspaceBuild
+  build: WorkspaceBuild;
 }
 
 export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
-  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build)
-  const navigate = useNavigate()
+  const styles = useStyles();
+  const { t } = useTranslation("workspacePage");
+  const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build);
+  const navigate = useNavigate();
   const clickableProps = useClickable(() =>
     navigate(`builds/${build.build_number}`),
-  )
+  );
 
   return (
     <TimelineEntry hover data-testid={`build-${build.id}`} {...clickableProps}>
@@ -86,8 +86,8 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
         </Stack>
       </TableCell>
     </TimelineEntry>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   buildWrapper: {
@@ -132,4 +132,4 @@ const useStyles = makeStyles((theme) => ({
   fullWidth: {
     width: "100%",
   },
-}))
+}));

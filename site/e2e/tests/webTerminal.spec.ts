@@ -1,17 +1,17 @@
-import { test } from "@playwright/test"
+import { test } from "@playwright/test";
 import {
   createTemplate,
   createWorkspace,
   startAgent,
   stopAgent,
-} from "../helpers"
-import { randomUUID } from "crypto"
-import { beforeCoderTest } from "../hooks"
+} from "../helpers";
+import { randomUUID } from "crypto";
+import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page))
+test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 test("web terminal", async ({ context, page }) => {
-  const token = randomUUID()
+  const token = randomUUID();
   const template = await createTemplate(page, {
     apply: [
       {
@@ -31,29 +31,29 @@ test("web terminal", async ({ context, page }) => {
         },
       },
     ],
-  })
-  await createWorkspace(page, template)
-  const agent = await startAgent(page, token)
+  });
+  await createWorkspace(page, template);
+  const agent = await startAgent(page, token);
 
   // Wait for the web terminal to open in a new tab
-  const pagePromise = context.waitForEvent("page")
-  await page.getByTestId("terminal").click()
-  const terminal = await pagePromise
-  await terminal.waitForLoadState("domcontentloaded")
+  const pagePromise = context.waitForEvent("page");
+  await page.getByTestId("terminal").click();
+  const terminal = await pagePromise;
+  await terminal.waitForLoadState("domcontentloaded");
 
   // Ensure that we can type in it
-  await terminal.keyboard.type("echo hello")
-  await terminal.keyboard.press("Enter")
+  await terminal.keyboard.type("echo hello");
+  await terminal.keyboard.press("Enter");
 
-  const locator = terminal.locator("text=hello")
+  const locator = terminal.locator("text=hello");
 
   for (let i = 0; i < 10; i++) {
-    const items = await locator.all()
+    const items = await locator.all();
     // Make sure the text came back
     if (items.length === 2) {
-      break
+      break;
     }
-    await new Promise((r) => setTimeout(r, 250))
+    await new Promise((r) => setTimeout(r, 250));
   }
-  await stopAgent(agent)
-})
+  await stopAgent(agent);
+});

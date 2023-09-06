@@ -1,50 +1,50 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import RefreshOutlined from "@mui/icons-material/RefreshOutlined"
-import { BuildInfoResponse } from "api/typesGenerated"
-import { CopyButton } from "components/CopyButton/CopyButton"
-import { CoderIcon } from "components/Icons/CoderIcon"
-import { FullScreenLoader } from "components/Loader/FullScreenLoader"
-import { Stack } from "components/Stack/Stack"
-import { FC, useEffect, useState } from "react"
-import { Helmet } from "react-helmet-async"
-import { Margins } from "../../Margins/Margins"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import RefreshOutlined from "@mui/icons-material/RefreshOutlined";
+import { BuildInfoResponse } from "api/typesGenerated";
+import { CopyButton } from "components/CopyButton/CopyButton";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { Stack } from "components/Stack/Stack";
+import { FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { Margins } from "../../Margins/Margins";
 
 const fetchDynamicallyImportedModuleError =
-  "Failed to fetch dynamically imported module"
+  "Failed to fetch dynamically imported module";
 
-export type RuntimeErrorStateProps = { error: Error }
+export type RuntimeErrorStateProps = { error: Error };
 
 export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
-  const styles = useStyles()
-  const [checkingError, setCheckingError] = useState(true)
-  const [staticBuildInfo, setStaticBuildInfo] = useState<BuildInfoResponse>()
-  const coderVersion = staticBuildInfo?.version
+  const styles = useStyles();
+  const [checkingError, setCheckingError] = useState(true);
+  const [staticBuildInfo, setStaticBuildInfo] = useState<BuildInfoResponse>();
+  const coderVersion = staticBuildInfo?.version;
 
   // We use an effect to show a loading state if the page is trying to reload
   useEffect(() => {
     const isImportError = error.message.includes(
       fetchDynamicallyImportedModuleError,
-    )
-    const isRetried = window.location.search.includes("retries=1")
+    );
+    const isRetried = window.location.search.includes("retries=1");
 
     if (isImportError && !isRetried) {
-      const url = new URL(location.href)
+      const url = new URL(location.href);
       // Add a retry to avoid loops
-      url.searchParams.set("retries", "1")
-      location.assign(url.search)
-      return
+      url.searchParams.set("retries", "1");
+      location.assign(url.search);
+      return;
     }
 
-    setCheckingError(false)
-  }, [error.message])
+    setCheckingError(false);
+  }, [error.message]);
 
   useEffect(() => {
     if (!checkingError) {
-      setStaticBuildInfo(getStaticBuildInfo())
+      setStaticBuildInfo(getStaticBuildInfo());
     }
-  }, [checkingError])
+  }, [checkingError]);
 
   return (
     <>
@@ -83,7 +83,7 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
               <Button
                 startIcon={<RefreshOutlined />}
                 onClick={() => {
-                  window.location.reload()
+                  window.location.reload();
                 }}
               >
                 Reload page
@@ -114,23 +114,23 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
         <FullScreenLoader />
       )}
     </>
-  )
-}
+  );
+};
 
 // During the build process, we inject the build info into the HTML
 const getStaticBuildInfo = () => {
   const buildInfoJson = document
     .querySelector("meta[property=build-info]")
-    ?.getAttribute("content")
+    ?.getAttribute("content");
 
   if (buildInfoJson) {
     try {
-      return JSON.parse(buildInfoJson) as BuildInfoResponse
+      return JSON.parse(buildInfoJson) as BuildInfoResponse;
     } catch {
-      return undefined
+      return undefined;
     }
   }
-}
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -213,4 +213,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
-}))
+}));

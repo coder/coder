@@ -1,68 +1,68 @@
-import Collapse from "@mui/material/Collapse"
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import { AuditLog } from "api/typesGenerated"
+import Collapse from "@mui/material/Collapse";
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import { AuditLog } from "api/typesGenerated";
 import {
   CloseDropdown,
   OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows"
-import { Pill } from "components/Pill/Pill"
-import { Stack } from "components/Stack/Stack"
-import { TimelineEntry } from "components/Timeline/TimelineEntry"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { useState } from "react"
-import userAgentParser from "ua-parser-js"
-import { AuditLogDiff, determineGroupDiff } from "./AuditLogDiff"
-import { useTranslation } from "react-i18next"
-import { AuditLogDescription } from "./AuditLogDescription"
-import { PaletteIndex } from "theme/theme"
+} from "components/DropdownArrows/DropdownArrows";
+import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
+import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useState } from "react";
+import userAgentParser from "ua-parser-js";
+import { AuditLogDiff, determineGroupDiff } from "./AuditLogDiff";
+import { useTranslation } from "react-i18next";
+import { AuditLogDescription } from "./AuditLogDescription";
+import { PaletteIndex } from "theme/theme";
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   // redirects are successful
   if (httpStatus === 307) {
-    return "success"
+    return "success";
   }
 
   if (httpStatus >= 300 && httpStatus < 500) {
-    return "warning"
+    return "warning";
   }
 
   if (httpStatus >= 500) {
-    return "error"
+    return "error";
   }
 
-  return "success"
-}
+  return "success";
+};
 
 export interface AuditLogRowProps {
-  auditLog: AuditLog
+  auditLog: AuditLog;
   // Useful for Storybook
-  defaultIsDiffOpen?: boolean
+  defaultIsDiffOpen?: boolean;
 }
 
 export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   auditLog,
   defaultIsDiffOpen = false,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("auditLog")
-  const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen)
-  const diffs = Object.entries(auditLog.diff)
-  const shouldDisplayDiff = diffs.length > 0
-  const { os, browser } = userAgentParser(auditLog.user_agent)
+  const styles = useStyles();
+  const { t } = useTranslation("auditLog");
+  const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
+  const diffs = Object.entries(auditLog.diff);
+  const shouldDisplayDiff = diffs.length > 0;
+  const { os, browser } = userAgentParser(auditLog.user_agent);
 
-  let auditDiff = auditLog.diff
+  let auditDiff = auditLog.diff;
 
   // groups have nested diffs (group members)
   if (auditLog.resource_type === "group") {
-    auditDiff = determineGroupDiff(auditLog.diff)
+    auditDiff = determineGroupDiff(auditLog.diff);
   }
 
   const toggle = () => {
     if (shouldDisplayDiff) {
-      setIsDiffOpen((v) => !v)
+      setIsDiffOpen((v) => !v);
     }
-  }
+  };
 
   return (
     <TimelineEntry
@@ -79,7 +79,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           onClick={toggle}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
-              toggle()
+              toggle();
             }
           }}
         >
@@ -169,8 +169,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
         )}
       </TableCell>
     </TimelineEntry>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   auditLogCell: {
@@ -225,4 +225,4 @@ const useStyles = makeStyles((theme) => ({
     ...theme.typography.caption,
     color: theme.palette.text.secondary,
   },
-}))
+}));

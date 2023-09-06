@@ -1,4 +1,4 @@
-import { Story } from "@storybook/react"
+import { Story } from "@storybook/react";
 import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
@@ -17,10 +17,10 @@ import {
   MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
   MockProxyLatencies,
-} from "testHelpers/entities"
-import { AgentRow, AgentRowProps } from "./AgentRow"
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
-import { Region } from "api/typesGenerated"
+} from "testHelpers/entities";
+import { AgentRow, AgentRowProps } from "./AgentRow";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { Region } from "api/typesGenerated";
 
 export default {
   title: "components/AgentRow",
@@ -39,15 +39,15 @@ export default {
       time: "",
     })),
   },
-}
+};
 
 const Template: Story<AgentRowProps> = (args) => {
-  return TemplateFC(args, [], undefined)
-}
+  return TemplateFC(args, [], undefined);
+};
 
 const TemplateWithPortForward: Story<AgentRowProps> = (args) => {
-  return TemplateFC(args, MockWorkspaceProxies, MockPrimaryWorkspaceProxy)
-}
+  return TemplateFC(args, MockWorkspaceProxies, MockPrimaryWorkspaceProxy);
+};
 
 const TemplateFC = (
   args: AgentRowProps,
@@ -63,20 +63,20 @@ const TemplateFC = (
         isLoading: false,
         isFetched: true,
         setProxy: () => {
-          return
+          return;
         },
         clearProxy: () => {
-          return
+          return;
         },
         refetchProxyLatencies: (): Date => {
-          return new Date()
+          return new Date();
         },
       }}
     >
       <AgentRow {...args} />
     </ProxyContext.Provider>
-  )
-}
+  );
+};
 
 const defaultAgentMetadata = [
   {
@@ -139,9 +139,9 @@ const defaultAgentMetadata = [
       script: "disk.sh",
     },
   },
-]
+];
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   agent: {
     ...MockWorkspaceAgent,
@@ -151,27 +151,27 @@ Example.args = {
   workspace: MockWorkspace,
   showApps: true,
   storybookAgentMetadata: defaultAgentMetadata,
-}
+};
 
-export const HideSSHButton = Template.bind({})
+export const HideSSHButton = Template.bind({});
 HideSSHButton.args = {
   ...Example.args,
   hideSSHButton: true,
-}
+};
 
-export const HideVSCodeDesktopButton = Template.bind({})
+export const HideVSCodeDesktopButton = Template.bind({});
 HideVSCodeDesktopButton.args = {
   ...Example.args,
   hideVSCodeDesktopButton: true,
-}
+};
 
-export const NotShowingApps = Template.bind({})
+export const NotShowingApps = Template.bind({});
 NotShowingApps.args = {
   ...Example.args,
   showApps: false,
-}
+};
 
-export const BunchOfApps = Template.bind({})
+export const BunchOfApps = Template.bind({});
 BunchOfApps.args = {
   ...Example.args,
   agent: {
@@ -189,87 +189,87 @@ BunchOfApps.args = {
   },
   workspace: MockWorkspace,
   showApps: true,
-}
+};
 
-export const Connecting = Template.bind({})
+export const Connecting = Template.bind({});
 Connecting.args = {
   ...Example.args,
   agent: MockWorkspaceAgentConnecting,
   storybookAgentMetadata: [],
-}
+};
 
-export const Timeout = Template.bind({})
+export const Timeout = Template.bind({});
 Timeout.args = {
   ...Example.args,
   agent: MockWorkspaceAgentTimeout,
-}
+};
 
-export const Starting = Template.bind({})
+export const Starting = Template.bind({});
 Starting.args = {
   ...Example.args,
   agent: MockWorkspaceAgentStarting,
-}
+};
 
-export const Started = Template.bind({})
+export const Started = Template.bind({});
 Started.args = {
   ...Example.args,
   agent: {
     ...MockWorkspaceAgentReady,
     logs_length: 1,
   },
-}
+};
 
-export const StartedNoMetadata = Template.bind({})
+export const StartedNoMetadata = Template.bind({});
 StartedNoMetadata.args = {
   ...Started.args,
   storybookAgentMetadata: [],
-}
+};
 
-export const StartTimeout = Template.bind({})
+export const StartTimeout = Template.bind({});
 StartTimeout.args = {
   ...Example.args,
   agent: MockWorkspaceAgentStartTimeout,
-}
+};
 
-export const StartError = Template.bind({})
+export const StartError = Template.bind({});
 StartError.args = {
   ...Example.args,
   agent: MockWorkspaceAgentStartError,
-}
+};
 
-export const ShuttingDown = Template.bind({})
+export const ShuttingDown = Template.bind({});
 ShuttingDown.args = {
   ...Example.args,
   agent: MockWorkspaceAgentShuttingDown,
-}
+};
 
-export const ShutdownTimeout = Template.bind({})
+export const ShutdownTimeout = Template.bind({});
 ShutdownTimeout.args = {
   ...Example.args,
   agent: MockWorkspaceAgentShutdownTimeout,
-}
+};
 
-export const ShutdownError = Template.bind({})
+export const ShutdownError = Template.bind({});
 ShutdownError.args = {
   ...Example.args,
   agent: MockWorkspaceAgentShutdownError,
-}
+};
 
-export const Off = Template.bind({})
+export const Off = Template.bind({});
 Off.args = {
   ...Example.args,
   agent: MockWorkspaceAgentOff,
-}
+};
 
-export const ShowingPortForward = TemplateWithPortForward.bind({})
+export const ShowingPortForward = TemplateWithPortForward.bind({});
 ShowingPortForward.args = {
   ...Example.args,
-}
+};
 
-export const Outdated = Template.bind({})
+export const Outdated = Template.bind({});
 Outdated.args = {
   ...Example.args,
   agent: MockWorkspaceAgentOutdated,
   workspace: MockWorkspace,
   serverVersion: "v99.999.9999+c1cdf14",
-}
+};

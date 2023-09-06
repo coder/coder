@@ -1,18 +1,18 @@
-import Link from "@mui/material/Link"
-import { SecondaryAgentButton } from "components/Resources/AgentButton"
-import { FC } from "react"
-import * as TypesGen from "../../../api/typesGenerated"
-import { generateRandomString } from "../../../utils/random"
+import Link from "@mui/material/Link";
+import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { FC } from "react";
+import * as TypesGen from "../../../api/typesGenerated";
+import { generateRandomString } from "../../../utils/random";
 
 export const Language = {
   linkText: "Terminal",
   terminalTitle: (identifier: string): string => `Terminal - ${identifier}`,
-}
+};
 
 export interface TerminalLinkProps {
-  agentName?: TypesGen.WorkspaceAgent["name"]
-  userName?: TypesGen.User["username"]
-  workspaceName: TypesGen.Workspace["name"]
+  agentName?: TypesGen.WorkspaceAgent["name"];
+  userName?: TypesGen.User["username"];
+  workspaceName: TypesGen.Workspace["name"];
 }
 
 /**
@@ -30,23 +30,23 @@ export const TerminalLink: FC<React.PropsWithChildren<TerminalLinkProps>> = ({
   // Always use the primary for the terminal link. This is a relative link.
   const href = `/@${userName}/${workspaceName}${
     agentName ? `.${agentName}` : ""
-  }/terminal`
+  }/terminal`;
 
   return (
     <Link
       href={href}
       target="_blank"
       onClick={(event) => {
-        event.preventDefault()
+        event.preventDefault();
         window.open(
           href,
           Language.terminalTitle(generateRandomString(12)),
           "width=900,height=600",
-        )
+        );
       }}
       data-testid="terminal"
     >
       <SecondaryAgentButton>{Language.linkText}</SecondaryAgentButton>
     </Link>
-  )
-}
+  );
+};

@@ -1,16 +1,16 @@
-import { makeStyles } from "@mui/styles"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import * as TypesGen from "api/typesGenerated"
-import { BaseIcon } from "./BaseIcon"
-import { ShareIcon } from "./ShareIcon"
+import { makeStyles } from "@mui/styles";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import * as TypesGen from "api/typesGenerated";
+import { BaseIcon } from "./BaseIcon";
+import { ShareIcon } from "./ShareIcon";
 
 interface AppPreviewProps {
-  app: TypesGen.WorkspaceApp
+  app: TypesGen.WorkspaceApp;
 }
 
 export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Stack
@@ -23,8 +23,8 @@ export const AppPreviewLink: FC<AppPreviewProps> = ({ app }) => {
       {app.display_name}
       <ShareIcon app={app} />
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   appPreviewLink: {
@@ -41,4 +41,4 @@ const useStyles = makeStyles((theme) => ({
       width: 13,
     },
   },
-}))
+}));

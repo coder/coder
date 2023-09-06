@@ -1,20 +1,20 @@
-import Box from "@mui/material/Box"
-import { DeploymentOption } from "api/types"
-import { DAUsResponse } from "api/typesGenerated"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart"
-import { Header } from "components/DeploySettingsLayout/Header"
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
-import { Stack } from "components/Stack/Stack"
-import { ChartSection } from "./ChartSection"
-import { useDeploymentOptions } from "utils/deployOptions"
-import { docs } from "utils/docs"
+import Box from "@mui/material/Box";
+import { DeploymentOption } from "api/types";
+import { DAUsResponse } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
+import { Header } from "components/DeploySettingsLayout/Header";
+import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
+import { Stack } from "components/Stack/Stack";
+import { ChartSection } from "./ChartSection";
+import { useDeploymentOptions } from "utils/deployOptions";
+import { docs } from "utils/docs";
 
 export type GeneralSettingsPageViewProps = {
-  deploymentOptions: DeploymentOption[]
-  deploymentDAUs?: DAUsResponse
-  getDeploymentDAUsError: unknown
-}
+  deploymentOptions: DeploymentOption[];
+  deploymentDAUs?: DAUsResponse;
+  getDeploymentDAUsError: unknown;
+};
 export const GeneralSettingsPageView = ({
   deploymentOptions,
   deploymentDAUs,
@@ -48,5 +48,5 @@ export const GeneralSettingsPageView = ({
         />
       </Stack>
     </>
-  )
-}
+  );
+};

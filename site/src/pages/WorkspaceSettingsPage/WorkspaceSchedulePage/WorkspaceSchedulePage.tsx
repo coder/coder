@@ -1,34 +1,34 @@
-import { makeStyles } from "@mui/styles"
-import { useMachine } from "@xstate/react"
-import { Alert } from "components/Alert/Alert"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Loader } from "components/Loader/Loader"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import dayjs from "dayjs"
+import { makeStyles } from "@mui/styles";
+import { useMachine } from "@xstate/react";
+import { Alert } from "components/Alert/Alert";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Loader } from "components/Loader/Loader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import dayjs from "dayjs";
 import {
   scheduleToAutostart,
   scheduleChanged,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
-import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
-import { useWorkspaceSettingsContext } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
-import { Navigate, useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import * as TypesGen from "api/typesGenerated"
-import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm"
-import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
+import { useWorkspaceSettingsContext } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import * as TypesGen from "api/typesGenerated";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
+import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
-} from "./formToRequest"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "./formToRequest";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
-  scheduleToAutostart(workspace.autostart_schedule)
+  scheduleToAutostart(workspace.autostart_schedule);
 const getAutostop = (workspace: TypesGen.Workspace) =>
-  ttlMsToAutostop(workspace.ttl_ms)
+  ttlMsToAutostop(workspace.ttl_ms);
 
 const useStyles = makeStyles((theme) => ({
   topMargin: {
@@ -37,33 +37,33 @@ const useStyles = makeStyles((theme) => ({
   pageHeader: {
     paddingTop: 0,
   },
-}))
+}));
 
 export const WorkspaceSchedulePage: FC = () => {
-  const { t } = useTranslation("workspaceSchedulePage")
-  const styles = useStyles()
-  const params = useParams() as { username: string; workspace: string }
-  const navigate = useNavigate()
-  const username = params.username.replace("@", "")
-  const workspaceName = params.workspace
-  const { workspace } = useWorkspaceSettingsContext()
+  const { t } = useTranslation("workspaceSchedulePage");
+  const styles = useStyles();
+  const params = useParams() as { username: string; workspace: string };
+  const navigate = useNavigate();
+  const username = params.username.replace("@", "");
+  const workspaceName = params.workspace;
+  const { workspace } = useWorkspaceSettingsContext();
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
     context: { workspace },
-  })
+  });
   const {
     checkPermissionsError,
     submitScheduleError,
     getTemplateError,
     permissions,
     template,
-  } = scheduleState.context
+  } = scheduleState.context;
 
   if (!username || !workspaceName) {
-    return <Navigate to="/workspaces" />
+    return <Navigate to="/workspaces" />;
   }
 
   if (scheduleState.matches("done")) {
-    return <Navigate to={`/@${username}/${workspaceName}`} />
+    return <Navigate to={`/@${username}/${workspaceName}`} />;
   }
 
   return (
@@ -94,7 +94,7 @@ export const WorkspaceSchedulePage: FC = () => {
             isLoading={scheduleState.tags.has("loading")}
             defaultTTL={dayjs.duration(template.default_ttl_ms, "ms").asHours()}
             onCancel={() => {
-              navigate(`/@${username}/${workspaceName}`)
+              navigate(`/@${username}/${workspaceName}`);
             }}
             onSubmit={(values) => {
               scheduleSend({
@@ -109,7 +109,7 @@ export const WorkspaceSchedulePage: FC = () => {
                   getAutostop(workspace),
                   values,
                 ),
-              })
+              });
             }}
           />
         )}
@@ -121,14 +121,14 @@ export const WorkspaceSchedulePage: FC = () => {
         cancelText={t("applyLater").toString()}
         hideCancel={false}
         onConfirm={() => {
-          scheduleSend("RESTART_WORKSPACE")
+          scheduleSend("RESTART_WORKSPACE");
         }}
         onClose={() => {
-          scheduleSend("APPLY_LATER")
+          scheduleSend("APPLY_LATER");
         }}
       />
     </>
-  )
-}
+  );
+};
 
-export default WorkspaceSchedulePage
+export default WorkspaceSchedulePage;

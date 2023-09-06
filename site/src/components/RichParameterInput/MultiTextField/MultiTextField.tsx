@@ -1,14 +1,14 @@
-import Chip from "@mui/material/Chip"
-import FormHelperText from "@mui/material/FormHelperText"
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
+import Chip from "@mui/material/Chip";
+import FormHelperText from "@mui/material/FormHelperText";
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
 
 export type MultiTextFieldProps = {
-  label: string
-  id?: string
-  values: string[]
-  onChange: (values: string[]) => void
-}
+  label: string;
+  id?: string;
+  values: string[];
+  onChange: (values: string[]) => void;
+};
 
 export const MultiTextField: FC<MultiTextFieldProps> = ({
   label,
@@ -16,7 +16,7 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
   values,
   onChange,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div>
@@ -27,7 +27,7 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
             label={value}
             size="small"
             onDelete={() => {
-              onChange(values.filter((oldValue) => oldValue !== value))
+              onChange(values.filter((oldValue) => oldValue !== value));
             }}
           />
         ))}
@@ -37,30 +37,30 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
           className={styles.input}
           onKeyDown={(event) => {
             if (event.key === ",") {
-              event.preventDefault()
-              const newValue = event.currentTarget.value
-              onChange([...values, newValue])
-              event.currentTarget.value = ""
-              return
+              event.preventDefault();
+              const newValue = event.currentTarget.value;
+              onChange([...values, newValue]);
+              event.currentTarget.value = "";
+              return;
             }
 
             if (event.key === "Backspace" && event.currentTarget.value === "") {
-              event.preventDefault()
+              event.preventDefault();
 
               if (values.length === 0) {
-                return
+                return;
               }
 
-              const lastValue = values[values.length - 1]
-              onChange(values.slice(0, -1))
-              event.currentTarget.value = lastValue
+              const lastValue = values[values.length - 1];
+              onChange(values.slice(0, -1));
+              event.currentTarget.value = lastValue;
             }
           }}
           onBlur={(event) => {
             if (event.currentTarget.value !== "") {
-              const newValue = event.currentTarget.value
-              onChange([...values, newValue])
-              event.currentTarget.value = ""
+              const newValue = event.currentTarget.value;
+              onChange([...values, newValue]);
+              event.currentTarget.value = "";
             }
           }}
         />
@@ -68,8 +68,8 @@ export const MultiTextField: FC<MultiTextFieldProps> = ({
 
       <FormHelperText>{'Type "," to separate the values'}</FormHelperText>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -104,4 +104,4 @@ const useStyles = makeStyles((theme) => ({
       outline: "none",
     },
   },
-}))
+}));

@@ -1,5 +1,5 @@
 export type PublishVersionData = {
-  name: string
-  message: string
-  isActiveVersion: boolean
-}
+  name: string;
+  message: string;
+  isActiveVersion: boolean;
+};

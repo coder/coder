@@ -1,33 +1,33 @@
-import RefreshIcon from "@mui/icons-material/Refresh"
-import { FC } from "react"
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { FC } from "react";
 import {
   HelpTooltip,
   HelpTooltipAction,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import InfoIcon from "@mui/icons-material/InfoOutlined"
-import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
-import { useQuery } from "@tanstack/react-query"
-import { getTemplate, getTemplateVersion } from "api/api"
-import Box from "@mui/material/Box"
-import Skeleton from "@mui/material/Skeleton"
-import Link from "@mui/material/Link"
+} from "components/HelpTooltip/HelpTooltip";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { makeStyles } from "@mui/styles";
+import { colors } from "theme/colors";
+import { useQuery } from "@tanstack/react-query";
+import { getTemplate, getTemplateVersion } from "api/api";
+import Box from "@mui/material/Box";
+import Skeleton from "@mui/material/Skeleton";
+import Link from "@mui/material/Link";
 
 export const Language = {
   outdatedLabel: "Outdated",
   versionTooltipText:
     "This workspace version is outdated and a newer version is available.",
   updateVersionLabel: "Update version",
-}
+};
 
 interface TooltipProps {
-  onUpdateVersion: () => void
-  templateId: string
-  templateName: string
-  ariaLabel?: string
+  onUpdateVersion: () => void;
+  templateId: string;
+  templateName: string;
+  ariaLabel?: string;
 }
 
 export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
@@ -36,15 +36,17 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
   templateId,
   templateName,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const { data: activeVersion } = useQuery({
     queryFn: async () => {
-      const template = await getTemplate(templateId)
-      const activeVersion = await getTemplateVersion(template.active_version_id)
-      return activeVersion
+      const template = await getTemplate(templateId);
+      const activeVersion = await getTemplateVersion(
+        template.active_version_id,
+      );
+      return activeVersion;
     },
     queryKey: ["templates", templateId, "activeVersion"],
-  })
+  });
 
   return (
     <HelpTooltip
@@ -122,8 +124,8 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
         </HelpTooltipAction>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   icon: {
@@ -137,4 +139,4 @@ const useStyles = makeStyles(() => ({
       opacity: 1,
     },
   },
-}))
+}));

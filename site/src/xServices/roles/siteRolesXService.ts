@@ -1,17 +1,17 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
-import { displayError } from "../../components/GlobalSnackbar/utils"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import * as TypesGen from "../../api/typesGenerated";
+import { displayError } from "../../components/GlobalSnackbar/utils";
 
 export const Language = {
   getRolesError: "Error on get the roles.",
-}
+};
 
 type SiteRolesContext = {
-  hasPermission: boolean
-  roles?: TypesGen.AssignableRoles[]
-  getRolesError: unknown
-}
+  hasPermission: boolean;
+  roles?: TypesGen.AssignableRoles[];
+  getRolesError: unknown;
+};
 
 export const siteRolesMachine = createMachine(
   {
@@ -63,7 +63,7 @@ export const siteRolesMachine = createMachine(
         getRolesError: (_, event) => event.data,
       }),
       displayGetRolesError: () => {
-        displayError(Language.getRolesError)
+        displayError(Language.getRolesError);
       },
       clearGetRolesError: assign({
         getRolesError: (_) => undefined,
@@ -76,4 +76,4 @@ export const siteRolesMachine = createMachine(
       hasPermission: ({ hasPermission }) => hasPermission,
     },
   },
-)
+);

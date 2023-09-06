@@ -1,6 +1,6 @@
-import { getDeploymentStats } from "api/api"
-import { DeploymentStats } from "api/typesGenerated"
-import { assign, createMachine } from "xstate"
+import { getDeploymentStats } from "api/api";
+import { DeploymentStats } from "api/typesGenerated";
+import { assign, createMachine } from "xstate";
 
 export const deploymentStatsMachine = createMachine(
   {
@@ -10,14 +10,14 @@ export const deploymentStatsMachine = createMachine(
 
     schema: {
       context: {} as {
-        deploymentStats?: DeploymentStats
-        getDeploymentStatsError?: unknown
+        deploymentStats?: DeploymentStats;
+        getDeploymentStatsError?: unknown;
       },
       events: {} as { type: "RELOAD" },
       services: {} as {
         getDeploymentStats: {
-          data: DeploymentStats
-        }
+          data: DeploymentStats;
+        };
       },
     },
     tsTypes: {} as import("./deploymentStatsMachine.typegen").Typegen0,
@@ -57,4 +57,4 @@ export const deploymentStatsMachine = createMachine(
       }),
     },
   },
-)
+);

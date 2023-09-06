@@ -1,58 +1,58 @@
-import { makeStyles } from "@mui/styles"
-import ChevronRightIcon from "@mui/icons-material/ChevronRight"
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore"
-import TreeView from "@mui/lab/TreeView"
-import TreeItem from "@mui/lab/TreeItem"
-import Menu from "@mui/material/Menu"
-import MenuItem from "@mui/material/MenuItem"
-import { CSSProperties, FC, useState } from "react"
-import { FileTree } from "utils/filetree"
-import { DockerIcon } from "components/Icons/DockerIcon"
-import { colors } from "theme/colors"
+import { makeStyles } from "@mui/styles";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import TreeView from "@mui/lab/TreeView";
+import TreeItem from "@mui/lab/TreeItem";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import { CSSProperties, FC, useState } from "react";
+import { FileTree } from "utils/filetree";
+import { DockerIcon } from "components/Icons/DockerIcon";
+import { colors } from "theme/colors";
 
 const sortFileTree = (fileTree: FileTree) => (a: string, b: string) => {
-  const contentA = fileTree[a]
-  const contentB = fileTree[b]
+  const contentA = fileTree[a];
+  const contentB = fileTree[b];
   if (typeof contentA === "object") {
-    return -1
+    return -1;
   }
   if (typeof contentB === "object") {
-    return 1
+    return 1;
   }
-  return a.localeCompare(b)
-}
+  return a.localeCompare(b);
+};
 
 type ContextMenu = {
-  path: string
-  clientX: number
-  clientY: number
-}
+  path: string;
+  clientX: number;
+  clientY: number;
+};
 
 export const FileTreeView: FC<{
-  onSelect: (path: string) => void
-  onDelete: (path: string) => void
-  onRename: (path: string) => void
-  fileTree: FileTree
-  activePath?: string
+  onSelect: (path: string) => void;
+  onDelete: (path: string) => void;
+  onRename: (path: string) => void;
+  fileTree: FileTree;
+  activePath?: string;
 }> = ({ fileTree, activePath, onDelete, onRename, onSelect }) => {
-  const styles = useStyles()
-  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>()
+  const styles = useStyles();
+  const [contextMenu, setContextMenu] = useState<ContextMenu | undefined>();
 
   const buildTreeItems = (
     filename: string,
     content?: FileTree | string,
     parentPath?: string,
   ): JSX.Element => {
-    const currentPath = parentPath ? `${parentPath}/${filename}` : filename
-    let icon: JSX.Element | null = null
+    const currentPath = parentPath ? `${parentPath}/${filename}` : filename;
+    let icon: JSX.Element | null = null;
     if (filename.endsWith(".tf")) {
-      icon = <FileTypeTerraform />
+      icon = <FileTypeTerraform />;
     }
     if (filename.endsWith(".md")) {
-      icon = <FileTypeMarkdown />
+      icon = <FileTypeMarkdown />;
     }
     if (filename.endsWith("Dockerfile")) {
-      icon = <FileTypeDockerfile />
+      icon = <FileTypeDockerfile />;
     }
 
     return (
@@ -64,11 +64,11 @@ export const FileTreeView: FC<{
           currentPath === activePath ? "active" : ""
         }`}
         onClick={() => {
-          onSelect(currentPath)
+          onSelect(currentPath);
         }}
         onContextMenu={(event) => {
-          event.preventDefault() // Avoid default browser behavior
-          event.stopPropagation() // Avoid trigger parent context menu
+          event.preventDefault(); // Avoid default browser behavior
+          event.stopPropagation(); // Avoid trigger parent context menu
           setContextMenu(
             contextMenu
               ? undefined
@@ -77,7 +77,7 @@ export const FileTreeView: FC<{
                   clientY: event.clientY,
                   clientX: event.clientX,
                 },
-          )
+          );
         }}
         icon={icon}
         style={
@@ -90,15 +90,15 @@ export const FileTreeView: FC<{
           Object.keys(content)
             .sort(sortFileTree(content))
             .map((filename) => {
-              const child = content[filename]
-              return buildTreeItems(filename, child, currentPath)
+              const child = content[filename];
+              return buildTreeItems(filename, child, currentPath);
             })
         ) : (
           <></>
         )}
       </TreeItem>
-    )
-  }
+    );
+  };
 
   return (
     <TreeView
@@ -109,8 +109,8 @@ export const FileTreeView: FC<{
       {Object.keys(fileTree)
         .sort(sortFileTree(fileTree))
         .map((filename) => {
-          const child = fileTree[filename]
-          return buildTreeItems(filename, child)
+          const child = fileTree[filename];
+          return buildTreeItems(filename, child);
         })}
 
       <Menu
@@ -137,10 +137,10 @@ export const FileTreeView: FC<{
         <MenuItem
           onClick={() => {
             if (!contextMenu) {
-              return
+              return;
             }
-            onRename(contextMenu.path)
-            setContextMenu(undefined)
+            onRename(contextMenu.path);
+            setContextMenu(undefined);
           }}
         >
           Rename
@@ -148,18 +148,18 @@ export const FileTreeView: FC<{
         <MenuItem
           onClick={() => {
             if (!contextMenu) {
-              return
+              return;
             }
-            onDelete(contextMenu.path)
-            setContextMenu(undefined)
+            onDelete(contextMenu.path);
+            setContextMenu(undefined);
           }}
         >
           Delete
         </MenuItem>
       </Menu>
     </TreeView>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   fileTreeItem: {
@@ -213,7 +213,7 @@ const useStyles = makeStyles((theme) => ({
     flex: 1,
   },
   preview: {},
-}))
+}));
 
 const FileTypeTerraform = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#813cf3">
@@ -223,7 +223,7 @@ const FileTypeTerraform = () => (
     <polygon points="3.541 11.01 11.571 15.599 11.571 6.59 3.541 2 3.541 11.01 3.541 11.01" />
     <polygon points="12.042 25.41 20.071 30 20.071 20.957 12.042 16.368 12.042 25.41 12.042 25.41" />
   </svg>
-)
+);
 
 const FileTypeMarkdown = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="#755838">
@@ -240,6 +240,6 @@ const FileTypeMarkdown = () => (
     <polygon points="5.909 20.636 5.909 11.364 8.636 11.364 11.364 14.773 14.091 11.364 16.818 11.364 16.818 20.636 14.091 20.636 14.091 15.318 11.364 18.727 8.636 15.318 8.636 20.636 5.909 20.636" />
     <polygon points="22.955 20.636 18.864 16.136 21.591 16.136 21.591 11.364 24.318 11.364 24.318 16.136 27.045 16.136 22.955 20.636" />
   </svg>
-)
+);
 
-const FileTypeDockerfile = () => <DockerIcon />
+const FileTypeDockerfile = () => <DockerIcon />;

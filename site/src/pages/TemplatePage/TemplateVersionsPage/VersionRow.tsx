@@ -1,22 +1,22 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import { TemplateVersion } from "api/typesGenerated"
-import { Pill } from "components/Pill/Pill"
-import { Stack } from "components/Stack/Stack"
-import { TimelineEntry } from "components/Timeline/TimelineEntry"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { useClickableTableRow } from "hooks/useClickableTableRow"
-import { useTranslation } from "react-i18next"
-import { useNavigate } from "react-router-dom"
-import { colors } from "theme/colors"
-import { combineClasses } from "utils/combineClasses"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import { TemplateVersion } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
+import { TimelineEntry } from "components/Timeline/TimelineEntry";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { colors } from "theme/colors";
+import { combineClasses } from "utils/combineClasses";
 
 export interface VersionRowProps {
-  version: TemplateVersion
-  isActive: boolean
-  isLatest: boolean
-  onPromoteClick?: (templateVersionId: string) => void
+  version: TemplateVersion;
+  isActive: boolean;
+  isLatest: boolean;
+  onPromoteClick?: (templateVersionId: string) => void;
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
@@ -25,12 +25,12 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   isLatest,
   onPromoteClick,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("templatePage")
-  const navigate = useNavigate()
+  const styles = useStyles();
+  const { t } = useTranslation("templatePage");
+  const navigate = useNavigate();
   const clickableProps = useClickableTableRow(() => {
-    navigate(version.name)
-  })
+    navigate(version.name);
+  });
 
   return (
     <TimelineEntry
@@ -79,9 +79,9 @@ export const VersionRow: React.FC<VersionRowProps> = ({
                 className={styles.promoteButton}
                 disabled={isActive}
                 onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  onPromoteClick(version.id)
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onPromoteClick(version.id);
                 }}
               >
                 Promote
@@ -91,8 +91,8 @@ export const VersionRow: React.FC<VersionRowProps> = ({
         </Stack>
       </TableCell>
     </TimelineEntry>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   row: {
@@ -133,4 +133,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     fontSize: 12,
   },
-}))
+}));

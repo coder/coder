@@ -1,5 +1,5 @@
-import { action } from "@storybook/addon-actions"
-import { Story } from "@storybook/react"
+import { action } from "@storybook/addon-actions";
+import { Story } from "@storybook/react";
 import {
   mockApiError,
   MockTemplateVersion,
@@ -8,28 +8,28 @@ import {
   MockTemplateVersionVariable3,
   MockTemplateVersionVariable4,
   MockTemplateVersionVariable5,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 import {
   TemplateVariablesPageView,
   TemplateVariablesPageViewProps,
-} from "./TemplateVariablesPageView"
+} from "./TemplateVariablesPageView";
 
 export default {
   title: "pages/TemplateVariablesPageView",
   component: TemplateVariablesPageView,
-}
+};
 
 const TemplateVariables: Story<TemplateVariablesPageViewProps> = (args) => (
   <TemplateVariablesPageView {...args} />
-)
+);
 
-export const Loading = TemplateVariables.bind({})
+export const Loading = TemplateVariables.bind({});
 Loading.args = {
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
-}
+};
 
-export const Basic = TemplateVariables.bind({})
+export const Basic = TemplateVariables.bind({});
 Basic.args = {
   templateVersion: MockTemplateVersion,
   templateVariables: [
@@ -40,12 +40,12 @@ Basic.args = {
   ],
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
-}
+};
 
 // This example isn't fully supported. As "user_variable_values" is an array,
 // FormikTouched can't properly handle this.
 // See: https://github.com/jaredpalmer/formik/issues/2022
-export const RequiredVariable = TemplateVariables.bind({})
+export const RequiredVariable = TemplateVariables.bind({});
 RequiredVariable.args = {
   templateVersion: MockTemplateVersion,
   templateVariables: [
@@ -57,9 +57,9 @@ RequiredVariable.args = {
   initialTouched: {
     user_variable_values: true,
   },
-}
+};
 
-export const WithUpdateTemplateError = TemplateVariables.bind({})
+export const WithUpdateTemplateError = TemplateVariables.bind({});
 WithUpdateTemplateError.args = {
   templateVersion: MockTemplateVersion,
   templateVariables: [
@@ -75,9 +75,9 @@ WithUpdateTemplateError.args = {
   },
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
-}
+};
 
-export const WithJobError = TemplateVariables.bind({})
+export const WithJobError = TemplateVariables.bind({});
 WithJobError.args = {
   templateVersion: MockTemplateVersion,
   templateVariables: [
@@ -92,4 +92,4 @@ WithJobError.args = {
   },
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),
-}
+};

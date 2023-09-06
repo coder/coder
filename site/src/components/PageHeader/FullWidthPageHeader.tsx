@@ -1,11 +1,11 @@
-import { makeStyles } from "@mui/styles"
-import { FC, PropsWithChildren } from "react"
-import { combineClasses } from "utils/combineClasses"
+import { makeStyles } from "@mui/styles";
+import { FC, PropsWithChildren } from "react";
+import { combineClasses } from "utils/combineClasses";
 
 export const FullWidthPageHeader: FC<
   PropsWithChildren & { sticky?: boolean }
 > = ({ children, sticky = true }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <header
@@ -14,23 +14,23 @@ export const FullWidthPageHeader: FC<
     >
       {children}
     </header>
-  )
-}
+  );
+};
 
 export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <div className={styles.actions}>{children}</div>
-}
+  const styles = useStyles();
+  return <div className={styles.actions}>{children}</div>;
+};
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <h1 className={styles.title}>{children}</h1>
-}
+  const styles = useStyles();
+  return <h1 className={styles.title}>{children}</h1>;
+};
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <span className={styles.subtitle}>{children}</span>
-}
+  const styles = useStyles();
+  return <span className={styles.subtitle}>{children}</span>;
+};
 
 const useStyles = makeStyles((theme) => ({
   header: {
@@ -74,4 +74,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     display: "block",
   },
-}))
+}));

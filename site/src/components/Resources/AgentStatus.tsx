@@ -1,17 +1,17 @@
-import Tooltip from "@mui/material/Tooltip"
-import { makeStyles } from "@mui/styles"
-import { combineClasses } from "utils/combineClasses"
-import { WorkspaceAgent } from "api/typesGenerated"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { useTranslation } from "react-i18next"
-import WarningRounded from "@mui/icons-material/WarningRounded"
+import Tooltip from "@mui/material/Tooltip";
+import { makeStyles } from "@mui/styles";
+import { combineClasses } from "utils/combineClasses";
+import { WorkspaceAgent } from "api/typesGenerated";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { useTranslation } from "react-i18next";
+import WarningRounded from "@mui/icons-material/WarningRounded";
 import {
   HelpPopover,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import { useRef, useState } from "react"
-import Link from "@mui/material/Link"
+} from "components/HelpTooltip/HelpTooltip";
+import { useRef, useState } from "react";
+import Link from "@mui/material/Link";
 
 // If we think in the agent status and lifecycle into a single enum/state I’d
 // say we would have: connecting, timeout, disconnected, connected:created,
@@ -20,8 +20,8 @@ import Link from "@mui/material/Link"
 // connected:shutdown_error, connected:off.
 
 const ReadyLifecycle = () => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
+  const styles = useStyles();
+  const { t } = useTranslation("workspacePage");
 
   return (
     <div
@@ -30,11 +30,11 @@ const ReadyLifecycle = () => {
       aria-label={t("agentStatus.connected.ready") || "Ready"}
       className={combineClasses([styles.status, styles.connected])}
     />
-  )
-}
+  );
+};
 
 const StartingLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Starting...">
@@ -44,17 +44,17 @@ const StartingLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const StartTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const { t } = useTranslation("agent");
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -87,17 +87,17 @@ const StartTimeoutLifecycle: React.FC<{
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const StartErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const { t } = useTranslation("agent");
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -130,11 +130,11 @@ const StartErrorLifecycle: React.FC<{
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const ShuttingDownLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Stopping...">
@@ -144,17 +144,17 @@ const ShuttingDownLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ShutdownTimeoutLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const { t } = useTranslation("agent");
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -187,17 +187,17 @@ const ShutdownTimeoutLifecycle: React.FC<{
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const ShutdownErrorLifecycle: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const { t } = useTranslation("agent");
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -230,11 +230,11 @@ const ShutdownErrorLifecycle: React.FC<{
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const OffLifecycle: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Stopped">
@@ -244,15 +244,15 @@ const OffLifecycle: React.FC = () => {
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ConnectedStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
   switch (agent.startup_script_behavior) {
     case "non-blocking":
-      return <ReadyLifecycle />
+      return <ReadyLifecycle />;
     case "blocking":
       return (
         <ChooseOne>
@@ -281,12 +281,12 @@ const ConnectedStatus: React.FC<{
             <StartingLifecycle />
           </Cond>
         </ChooseOne>
-      )
+      );
   }
-}
+};
 
 const DisconnectedStatus: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Disconnected">
@@ -296,11 +296,11 @@ const DisconnectedStatus: React.FC = () => {
         className={combineClasses([styles.status, styles.disconnected])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const ConnectingStatus: React.FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Tooltip title="Connecting...">
@@ -310,17 +310,17 @@ const ConnectingStatus: React.FC = () => {
         className={combineClasses([styles.status, styles.connecting])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const TimeoutStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent")
-  const styles = useStyles()
-  const anchorRef = useRef<SVGSVGElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "timeout-popover" : undefined
+  const { t } = useTranslation("agent");
+  const styles = useStyles();
+  const anchorRef = useRef<SVGSVGElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "timeout-popover" : undefined;
 
   return (
     <>
@@ -353,11 +353,11 @@ const TimeoutStatus: React.FC<{
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 export const AgentStatus: React.FC<{
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }> = ({ agent }) => {
   return (
     <ChooseOne>
@@ -374,8 +374,8 @@ export const AgentStatus: React.FC<{
         <ConnectingStatus />
       </Cond>
     </ChooseOne>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   status: {
@@ -424,4 +424,4 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2),
     position: "relative",
   },
-}))
+}));

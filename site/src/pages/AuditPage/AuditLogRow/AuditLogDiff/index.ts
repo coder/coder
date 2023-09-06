@@ -1,2 +1,2 @@
-export { AuditLogDiff } from "./AuditLogDiff"
-export { determineGroupDiff } from "./auditUtils"
+export { AuditLogDiff } from "./AuditLogDiff";
+export { determineGroupDiff } from "./auditUtils";

@@ -1,54 +1,54 @@
-import TextField from "@mui/material/TextField"
-import { Template, UpdateTemplateMeta } from "api/typesGenerated"
-import { FormikTouched, useFormik } from "formik"
-import { FC, ChangeEvent, useState, useEffect } from "react"
-import { getFormHelpers } from "utils/formUtils"
-import { useTranslation } from "react-i18next"
+import TextField from "@mui/material/TextField";
+import { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { FormikTouched, useFormik } from "formik";
+import { FC, ChangeEvent, useState, useEffect } from "react";
+import { getFormHelpers } from "utils/formUtils";
+import { useTranslation } from "react-i18next";
 import {
   FormSection,
   HorizontalForm,
   FormFooter,
   FormFields,
-} from "components/Form/Form"
-import { Stack } from "components/Stack/Stack"
-import { makeStyles } from "@mui/styles"
-import Link from "@mui/material/Link"
-import Checkbox from "@mui/material/Checkbox"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Switch from "@mui/material/Switch"
+} from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import { makeStyles } from "@mui/styles";
+import Link from "@mui/material/Link";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import {
   useWorkspacesToGoDormant,
   useWorkspacesToBeDeleted,
-} from "./useWorkspacesToBeDeleted"
-import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers"
-import { TTLHelperText } from "./TTLHelperText"
-import { docs } from "utils/docs"
-import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import MenuItem from "@mui/material/MenuItem"
+} from "./useWorkspacesToBeDeleted";
+import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
+import { TTLHelperText } from "./TTLHelperText";
+import { docs } from "utils/docs";
+import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import MenuItem from "@mui/material/MenuItem";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
   calculateAutostopRequirementDaysValue,
   convertAutostopRequirementDaysValue,
-} from "./AutostopRequirementHelperText"
+} from "./AutostopRequirementHelperText";
 
-const MS_HOUR_CONVERSION = 3600000
-const MS_DAY_CONVERSION = 86400000
-const FAILURE_CLEANUP_DEFAULT = 7
-const INACTIVITY_CLEANUP_DEFAULT = 180
-const DORMANT_AUTODELETION_DEFAULT = 30
+const MS_HOUR_CONVERSION = 3600000;
+const MS_DAY_CONVERSION = 86400000;
+const FAILURE_CLEANUP_DEFAULT = 7;
+const INACTIVITY_CLEANUP_DEFAULT = 180;
+const DORMANT_AUTODELETION_DEFAULT = 30;
 
 export interface TemplateScheduleForm {
-  template: Template
-  onSubmit: (data: UpdateTemplateMeta) => void
-  onCancel: () => void
-  isSubmitting: boolean
-  error?: unknown
-  allowAdvancedScheduling: boolean
-  allowWorkspaceActions: boolean
-  allowAutostopRequirement: boolean
+  template: Template;
+  onSubmit: (data: UpdateTemplateMeta) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  error?: unknown;
+  allowAdvancedScheduling: boolean;
+  allowWorkspaceActions: boolean;
+  allowAutostopRequirement: boolean;
   // Helpful to show field errors on Storybook
-  initialTouched?: FormikTouched<UpdateTemplateMeta>
+  initialTouched?: FormikTouched<UpdateTemplateMeta>;
 }
 
 export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
@@ -62,8 +62,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
-  const { t: commonT } = useTranslation("common")
-  const validationSchema = getValidationSchema()
+  const { t: commonT } = useTranslation("common");
+  const validationSchema = getValidationSchema();
   const form = useFormik<TemplateScheduleFormValues>({
     initialValues: {
       // on display, convert from ms => hours
@@ -110,66 +110,66 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     onSubmit: () => {
       const dormancyChanged =
         form.initialValues.time_til_dormant_ms !==
-        form.values.time_til_dormant_ms
+        form.values.time_til_dormant_ms;
       const deletionChanged =
         form.initialValues.time_til_dormant_autodelete_ms !==
-        form.values.time_til_dormant_autodelete_ms
+        form.values.time_til_dormant_autodelete_ms;
 
       const dormancyScheduleChanged =
         form.values.inactivity_cleanup_enabled &&
         dormancyChanged &&
         workspacesToDormancyInWeek &&
-        workspacesToDormancyInWeek.length > 0
+        workspacesToDormancyInWeek.length > 0;
 
       const deletionScheduleChanged =
         form.values.inactivity_cleanup_enabled &&
         deletionChanged &&
         workspacesToBeDeletedInWeek &&
-        workspacesToBeDeletedInWeek.length > 0
+        workspacesToBeDeletedInWeek.length > 0;
 
       if (dormancyScheduleChanged || deletionScheduleChanged) {
-        setIsScheduleDialogOpen(true)
+        setIsScheduleDialogOpen(true);
       } else {
-        submitValues()
+        submitValues();
       }
     },
     initialTouched,
-  })
+  });
 
   const getFieldHelpers = getFormHelpers<TemplateScheduleFormValues>(
     form,
     error,
-  )
-  const { t } = useTranslation("templateSettingsPage")
-  const styles = useStyles()
+  );
+  const { t } = useTranslation("templateSettingsPage");
+  const styles = useStyles();
 
-  const now = new Date()
-  const weekFromNow = new Date(now)
-  weekFromNow.setDate(now.getDate() + 7)
+  const now = new Date();
+  const weekFromNow = new Date(now);
+  weekFromNow.setDate(now.getDate() + 7);
 
   const workspacesToDormancyNow = useWorkspacesToGoDormant(
     template,
     form.values,
     now,
-  )
+  );
 
   const workspacesToDormancyInWeek = useWorkspacesToGoDormant(
     template,
     form.values,
     weekFromNow,
-  )
+  );
 
   const workspacesToBeDeletedNow = useWorkspacesToBeDeleted(
     template,
     form.values,
     now,
-  )
+  );
 
   const workspacesToBeDeletedInWeek = useWorkspacesToBeDeleted(
     template,
     form.values,
     weekFromNow,
-  )
+  );
 
   const showScheduleDialog =
     workspacesToDormancyNow &&
@@ -177,17 +177,17 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     workspacesToDormancyInWeek &&
     workspacesToBeDeletedInWeek &&
     (workspacesToDormancyInWeek.length > 0 ||
-      workspacesToBeDeletedInWeek.length > 0)
+      workspacesToBeDeletedInWeek.length > 0);
 
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] =
-    useState<boolean>(false)
+    useState<boolean>(false);
 
   const submitValues = () => {
     const autostop_requirement_weeks = ["saturday", "sunday"].includes(
       form.values.autostop_requirement_days_of_week,
     )
       ? form.values.autostop_requirement_weeks
-      : 1
+      : 1;
 
     // on submit, convert from hours => ms
     onSubmit({
@@ -218,8 +218,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       allow_user_autostop: form.values.allow_user_autostop,
       update_workspace_last_used_at: form.values.update_workspace_last_used_at,
       update_workspace_dormant_at: form.values.update_workspace_dormant_at,
-    })
-  }
+    });
+  };
 
   // Set autostop_requirement weeks to 1 when days_of_week is set to "off" or
   // "daily". Technically you can set weeks to a different value in the backend
@@ -229,7 +229,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   //
   // We want to set the value to 1 when the user selects "off" or "daily"
   // because the input gets disabled so they can't change it to 1 themselves.
-  const { values: currentValues, setValues } = form
+  const { values: currentValues, setValues } = form;
   useEffect(() => {
     if (
       !["saturday", "sunday"].includes(
@@ -241,66 +241,66 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       void setValues({
         ...currentValues,
         autostop_requirement_weeks: 1,
-      })
+      });
     }
-  }, [currentValues, setValues])
+  }, [currentValues, setValues]);
 
   const handleToggleFailureCleanup = async (e: ChangeEvent) => {
-    form.handleChange(e)
+    form.handleChange(e);
     if (!form.values.failure_cleanup_enabled) {
       // fill failure_ttl_ms with defaults
       await form.setValues({
         ...form.values,
         failure_cleanup_enabled: true,
         failure_ttl_ms: FAILURE_CLEANUP_DEFAULT,
-      })
+      });
     } else {
       // clear failure_ttl_ms
       await form.setValues({
         ...form.values,
         failure_cleanup_enabled: false,
         failure_ttl_ms: 0,
-      })
+      });
     }
-  }
+  };
 
   const handleToggleInactivityCleanup = async (e: ChangeEvent) => {
-    form.handleChange(e)
+    form.handleChange(e);
     if (!form.values.inactivity_cleanup_enabled) {
       // fill time_til_dormant_ms with defaults
       await form.setValues({
         ...form.values,
         inactivity_cleanup_enabled: true,
         time_til_dormant_ms: INACTIVITY_CLEANUP_DEFAULT,
-      })
+      });
     } else {
       // clear time_til_dormant_ms
       await form.setValues({
         ...form.values,
         inactivity_cleanup_enabled: false,
         time_til_dormant_ms: 0,
-      })
+      });
     }
-  }
+  };
 
   const handleToggleDormantAutoDeletion = async (e: ChangeEvent) => {
-    form.handleChange(e)
+    form.handleChange(e);
     if (!form.values.dormant_autodeletion_cleanup_enabled) {
       // fill failure_ttl_ms with defaults
       await form.setValues({
         ...form.values,
         dormant_autodeletion_cleanup_enabled: true,
         time_til_dormant_autodelete_ms: DORMANT_AUTODELETION_DEFAULT,
-      })
+      });
     } else {
       // clear failure_ttl_ms
       await form.setValues({
         ...form.values,
         dormant_autodeletion_cleanup_enabled: false,
         time_til_dormant_autodelete_ms: 0,
-      })
+      });
     }
-  }
+  };
 
   return (
     <HorizontalForm
@@ -426,7 +426,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 await form.setFieldValue(
                   "allow_user_autostart",
                   !form.values.allow_user_autostart,
-                )
+                );
               }}
               name="allow_user_autostart"
               checked={form.values.allow_user_autostart}
@@ -446,7 +446,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                 await form.setFieldValue(
                   "allow_user_autostop",
                   !form.values.allow_user_autostop,
-                )
+                );
               }}
               name="allow_user_autostop"
               checked={form.values.allow_user_autostop}
@@ -569,20 +569,20 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       {showScheduleDialog && (
         <ScheduleDialog
           onConfirm={() => {
-            submitValues()
-            setIsScheduleDialogOpen(false)
+            submitValues();
+            setIsScheduleDialogOpen(false);
             // These fields are request-scoped so they should be reset
             // after every submission.
             form
               .setFieldValue("update_workspace_dormant_at", false)
               .catch((error) => {
-                throw error
-              })
+                throw error;
+              });
             form
               .setFieldValue("update_workspace_last_used_at", false)
               .catch((error) => {
-                throw error
-              })
+                throw error;
+              });
           }}
           inactiveWorkspacesToGoDormant={workspacesToDormancyNow.length}
           inactiveWorkspacesToGoDormantInWeek={
@@ -594,7 +594,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           }
           open={isScheduleDialogOpen}
           onClose={() => {
-            setIsScheduleDialogOpen(false)
+            setIsScheduleDialogOpen(false);
           }}
           title="Workspace Scheduling"
           updateDormantWorkspaces={(update: boolean) =>
@@ -620,8 +620,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         submitDisabled={!form.isValid || !form.dirty}
       />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   ttlFields: {
@@ -631,4 +631,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 12,
     color: theme.palette.text.secondary,
   },
-}))
+}));

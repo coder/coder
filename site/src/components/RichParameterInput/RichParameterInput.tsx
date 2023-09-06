@@ -1,31 +1,31 @@
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Radio from "@mui/material/Radio"
-import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/styles"
-import TextField, { TextFieldProps } from "@mui/material/TextField"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { TemplateVersionParameter } from "../../api/typesGenerated"
-import { colors } from "theme/colors"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
-import { MultiTextField } from "components/RichParameterInput/MultiTextField/MultiTextField"
-import Box from "@mui/material/Box"
-import { Theme } from "@mui/material/styles"
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import { makeStyles } from "@mui/styles";
+import TextField, { TextFieldProps } from "@mui/material/TextField";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { TemplateVersionParameter } from "../../api/typesGenerated";
+import { colors } from "theme/colors";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { MultiTextField } from "components/RichParameterInput/MultiTextField/MultiTextField";
+import Box from "@mui/material/Box";
+import { Theme } from "@mui/material/styles";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
-  return parameter.type === "bool"
-}
+  return parameter.type === "bool";
+};
 
 export interface ParameterLabelProps {
-  parameter: TemplateVersionParameter
+  parameter: TemplateVersionParameter;
 }
 
 const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
-  const styles = useStyles()
-  const hasDescription = parameter.description && parameter.description !== ""
+  const styles = useStyles();
+  const hasDescription = parameter.description && parameter.description !== "";
   const displayName = parameter.display_name
     ? parameter.display_name
-    : parameter.name
+    : parameter.name;
 
   return (
     <label htmlFor={parameter.name}>
@@ -52,19 +52,19 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
         )}
       </Stack>
     </label>
-  )
-}
+  );
+};
 
-type Size = "medium" | "small"
+type Size = "medium" | "small";
 
 export type RichParameterInputProps = Omit<
   TextFieldProps,
   "size" | "onChange"
 > & {
-  parameter: TemplateVersionParameter
-  onChange: (value: string) => void
-  size?: Size
-}
+  parameter: TemplateVersionParameter;
+  onChange: (value: string) => void;
+  size?: Size;
+};
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
   parameter,
@@ -83,8 +83,8 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
         <RichParameterField {...fieldProps} size={size} parameter={parameter} />
       </Box>
     </Stack>
-  )
-}
+  );
+};
 
 const RichParameterField: React.FC<RichParameterInputProps> = ({
   disabled,
@@ -94,7 +94,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   size,
   ...props
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (isBoolean(parameter)) {
     return (
@@ -118,7 +118,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           label="False"
         />
       </RadioGroup>
-    )
+    );
   }
 
   if (parameter.options.length > 0) {
@@ -154,21 +154,21 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           />
         ))}
       </RadioGroup>
-    )
+    );
   }
 
   if (parameter.type === "list(string)") {
-    let values: string[] = []
+    let values: string[] = [];
 
     if (typeof value !== "string") {
-      throw new Error("Expected value to be a string")
+      throw new Error("Expected value to be a string");
     }
 
     if (value) {
       try {
-        values = JSON.parse(value) as string[]
+        values = JSON.parse(value) as string[];
       } catch (e) {
-        console.error("Error parsing list(string) parameter", e)
+        console.error("Error parsing list(string) parameter", e);
       }
     }
 
@@ -180,14 +180,14 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
         values={values}
         onChange={(values) => {
           try {
-            const value = JSON.stringify(values)
-            onChange(value)
+            const value = JSON.stringify(values);
+            onChange(value);
           } catch (e) {
-            console.error("Error on change of list(string) parameter", e)
+            console.error("Error on change of list(string) parameter", e);
           }
         }}
       />
-    )
+    );
   }
 
   // A text field can technically handle all cases!
@@ -205,11 +205,11 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       placeholder={parameter.default_value}
       value={value}
       onChange={(event) => {
-        onChange(event.target.value)
+        onChange(event.target.value);
       }}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<Theme>((theme) => ({
   label: {
@@ -295,4 +295,4 @@ const useStyles = makeStyles<Theme>((theme) => ({
       width: 16,
     },
   },
-}))
+}));

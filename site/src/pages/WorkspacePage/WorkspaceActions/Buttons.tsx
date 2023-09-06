@@ -1,20 +1,20 @@
-import Button from "@mui/material/Button"
-import BlockIcon from "@mui/icons-material/Block"
-import CloudQueueIcon from "@mui/icons-material/CloudQueue"
-import CropSquareIcon from "@mui/icons-material/CropSquare"
-import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline"
-import ReplayIcon from "@mui/icons-material/Replay"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { FC } from "react"
-import BlockOutlined from "@mui/icons-material/BlockOutlined"
-import ButtonGroup from "@mui/material/ButtonGroup"
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
-import { BuildParametersPopover } from "./BuildParametersPopover"
-import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew"
+import Button from "@mui/material/Button";
+import BlockIcon from "@mui/icons-material/Block";
+import CloudQueueIcon from "@mui/icons-material/CloudQueue";
+import CropSquareIcon from "@mui/icons-material/CropSquare";
+import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
+import ReplayIcon from "@mui/icons-material/Replay";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { FC } from "react";
+import BlockOutlined from "@mui/icons-material/BlockOutlined";
+import ButtonGroup from "@mui/material/ButtonGroup";
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { BuildParametersPopover } from "./BuildParametersPopover";
+import PowerSettingsNewIcon from "@mui/icons-material/PowerSettingsNew";
 
 interface WorkspaceAction {
-  loading?: boolean
-  handleAction: () => void
+  loading?: boolean;
+  handleAction: () => void;
 }
 
 export const UpdateButton: FC<WorkspaceAction> = ({
@@ -32,8 +32,8 @@ export const UpdateButton: FC<WorkspaceAction> = ({
     >
       Update
     </LoadingButton>
-  )
-}
+  );
+};
 
 export const ActivateButton: FC<WorkspaceAction> = ({
   handleAction,
@@ -49,13 +49,13 @@ export const ActivateButton: FC<WorkspaceAction> = ({
     >
       Activate
     </LoadingButton>
-  )
-}
+  );
+};
 
 export const StartButton: FC<
   Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void
+    workspace: Workspace;
+    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
 > = ({ handleAction, workspace, loading }) => {
   return (
@@ -83,8 +83,8 @@ export const StartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
-  )
-}
+  );
+};
 
 export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   return (
@@ -98,13 +98,13 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
     >
       Stop
     </LoadingButton>
-  )
-}
+  );
+};
 
 export const RestartButton: FC<
   Omit<WorkspaceAction, "handleAction"> & {
-    workspace: Workspace
-    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void
+    workspace: Workspace;
+    handleAction: (buildParameters?: WorkspaceBuildParameter[]) => void;
   }
 > = ({ handleAction, loading, workspace }) => {
   return (
@@ -133,19 +133,19 @@ export const RestartButton: FC<
         onSubmit={handleAction}
       />
     </ButtonGroup>
-  )
-}
+  );
+};
 
 export const CancelButton: FC<WorkspaceAction> = ({ handleAction }) => {
   return (
     <Button startIcon={<BlockIcon />} onClick={handleAction}>
       Cancel
     </Button>
-  )
-}
+  );
+};
 
 interface DisabledProps {
-  label: string
+  label: string;
 }
 
 export const DisabledButton: FC<DisabledProps> = ({ label }) => {
@@ -153,11 +153,11 @@ export const DisabledButton: FC<DisabledProps> = ({ label }) => {
     <Button startIcon={<BlockOutlined />} disabled>
       {label}
     </Button>
-  )
-}
+  );
+};
 
 interface LoadingProps {
-  label: string
+  label: string;
 }
 
 export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
@@ -169,5 +169,5 @@ export const ActionLoadingButton: FC<LoadingProps> = ({ label }) => {
       // This icon can be anything
       startIcon={<ReplayIcon />}
     />
-  )
-}
+  );
+};

@@ -1,9 +1,9 @@
-import MenuItem from "@mui/material/MenuItem"
-import Menu from "@mui/material/Menu"
-import { makeStyles } from "@mui/styles"
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
-import { FC, Fragment, ReactNode, useRef, useState } from "react"
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated"
+import MenuItem from "@mui/material/MenuItem";
+import Menu from "@mui/material/Menu";
+import { makeStyles } from "@mui/styles";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import { FC, Fragment, ReactNode, useRef, useState } from "react";
+import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
 import {
   ActionLoadingButton,
   CancelButton,
@@ -13,32 +13,32 @@ import {
   RestartButton,
   UpdateButton,
   ActivateButton,
-} from "./Buttons"
+} from "./Buttons";
 import {
   ButtonMapping,
   ButtonTypesEnum,
   actionsByWorkspaceStatus,
-} from "./constants"
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined"
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
-import IconButton from "@mui/material/IconButton"
+} from "./constants";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
+import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import IconButton from "@mui/material/IconButton";
 
 export interface WorkspaceActionsProps {
-  workspace: Workspace
-  handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void
-  handleStop: () => void
-  handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void
-  handleDelete: () => void
-  handleUpdate: () => void
-  handleCancel: () => void
-  handleSettings: () => void
-  handleChangeVersion: () => void
-  handleDormantActivate: () => void
-  isUpdating: boolean
-  isRestarting: boolean
-  children?: ReactNode
-  canChangeVersions: boolean
+  workspace: Workspace;
+  handleStart: (buildParameters?: WorkspaceBuildParameter[]) => void;
+  handleStop: () => void;
+  handleRestart: (buildParameters?: WorkspaceBuildParameter[]) => void;
+  handleDelete: () => void;
+  handleUpdate: () => void;
+  handleCancel: () => void;
+  handleSettings: () => void;
+  handleChangeVersion: () => void;
+  handleDormantActivate: () => void;
+  isUpdating: boolean;
+  isRestarting: boolean;
+  children?: ReactNode;
+  canChangeVersions: boolean;
 }
 
 export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
@@ -56,15 +56,15 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const {
     canCancel,
     canAcceptJobs,
     actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status)
-  const canBeUpdated = workspace.outdated && canAcceptJobs
-  const menuTriggerRef = useRef<HTMLButtonElement>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
+  const canBeUpdated = workspace.outdated && canAcceptJobs;
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
@@ -102,13 +102,13 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     [ButtonTypesEnum.activating]: (
       <ActivateButton loading handleAction={handleDormantActivate} />
     ),
-  }
+  };
 
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
-    setIsMenuOpen(false)
-    actionFn()
-  }
+    setIsMenuOpen(false);
+    actionFn();
+  };
 
   return (
     <div className={styles.actions} data-testid="workspace-actions">
@@ -158,8 +158,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
         </Menu>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   actions: {
@@ -167,4 +167,4 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(1.5),
   },
-}))
+}));

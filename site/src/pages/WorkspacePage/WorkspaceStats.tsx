@@ -1,26 +1,26 @@
-import Link from "@mui/material/Link"
-import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip"
-import { FC, useRef, useState } from "react"
-import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "utils/createDayString"
+import Link from "@mui/material/Link";
+import { WorkspaceOutdatedTooltip } from "components/WorkspaceOutdatedTooltip/WorkspaceOutdatedTooltip";
+import { FC, useRef, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { createDayString } from "utils/createDayString";
 import {
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
-} from "utils/workspace"
-import { Workspace } from "api/typesGenerated"
-import { Stats, StatsItem } from "components/Stats/Stats"
-import upperFirst from "lodash/upperFirst"
-import { autostartDisplay, autostopDisplay } from "utils/schedule"
-import IconButton from "@mui/material/IconButton"
-import RemoveIcon from "@mui/icons-material/RemoveOutlined"
-import { makeStyles } from "@mui/styles"
-import AddIcon from "@mui/icons-material/AddOutlined"
-import Popover from "@mui/material/Popover"
-import TextField from "@mui/material/TextField"
-import Button from "@mui/material/Button"
-import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge"
-import { ImpendingDeletionStat } from "components/WorkspaceDeletion"
+} from "utils/workspace";
+import { Workspace } from "api/typesGenerated";
+import { Stats, StatsItem } from "components/Stats/Stats";
+import upperFirst from "lodash/upperFirst";
+import { autostartDisplay, autostopDisplay } from "utils/schedule";
+import IconButton from "@mui/material/IconButton";
+import RemoveIcon from "@mui/icons-material/RemoveOutlined";
+import { makeStyles } from "@mui/styles";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import Popover from "@mui/material/Popover";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import { WorkspaceStatusText } from "components/WorkspaceStatusBadge/WorkspaceStatusBadge";
+import { ImpendingDeletionStat } from "components/WorkspaceDeletion";
 
 const Language = {
   workspaceDetails: "Workspace Details",
@@ -32,17 +32,17 @@ const Language = {
   upToDate: "Up to date",
   byLabel: "Last built by",
   costLabel: "Daily cost",
-}
+};
 
 export interface WorkspaceStatsProps {
-  workspace: Workspace
-  maxDeadlineIncrease: number
-  maxDeadlineDecrease: number
-  canUpdateWorkspace: boolean
-  quota_budget?: number
-  onDeadlinePlus: (hours: number) => void
-  onDeadlineMinus: (hours: number) => void
-  handleUpdate: () => void
+  workspace: Workspace;
+  maxDeadlineIncrease: number;
+  maxDeadlineDecrease: number;
+  canUpdateWorkspace: boolean;
+  quota_budget?: number;
+  onDeadlinePlus: (hours: number) => void;
+  onDeadlineMinus: (hours: number) => void;
+  handleUpdate: () => void;
 }
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
@@ -57,15 +57,15 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
 }) => {
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(
     workspace.latest_build,
-  )
-  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace)
-  const styles = useStyles()
-  const deadlinePlusEnabled = maxDeadlineIncrease >= 1
-  const deadlineMinusEnabled = maxDeadlineDecrease >= 1
-  const addButtonRef = useRef<HTMLButtonElement>(null)
-  const subButtonRef = useRef<HTMLButtonElement>(null)
-  const [isAddingTime, setIsAddingTime] = useState(false)
-  const [isSubTime, setIsSubTime] = useState(false)
+  );
+  const displayTemplateName = getDisplayWorkspaceTemplateName(workspace);
+  const styles = useStyles();
+  const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
+  const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const subButtonRef = useRef<HTMLButtonElement>(null);
+  const [isAddingTime, setIsAddingTime] = useState(false);
+  const [isSubTime, setIsSubTime] = useState(false);
 
   return (
     <>
@@ -198,11 +198,11 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         <form
           className={styles.timePopoverForm}
           onSubmit={(e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const hours = Number(formData.get("hours"))
-            onDeadlinePlus(hours)
-            setIsAddingTime(false)
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const hours = Number(formData.get("hours"));
+            onDeadlinePlus(hours);
+            setIsAddingTime(false);
           }}
         >
           <TextField
@@ -255,11 +255,11 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         <form
           className={styles.timePopoverForm}
           onSubmit={(e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const hours = Number(formData.get("hours"))
-            onDeadlineMinus(hours)
-            setIsSubTime(false)
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const hours = Number(formData.get("hours"));
+            onDeadlineMinus(hours);
+            setIsSubTime(false);
           }}
         >
           <TextField
@@ -287,26 +287,26 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
         </form>
       </Popover>
     </>
-  )
-}
+  );
+};
 
 export const canEditDeadline = (workspace: Workspace): boolean => {
-  return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline)
-}
+  return isWorkspaceOn(workspace) && Boolean(workspace.latest_build.deadline);
+};
 
 export const shouldDisplayScheduleLabel = (workspace: Workspace): boolean => {
   if (canEditDeadline(workspace)) {
-    return true
+    return true;
   }
   if (isWorkspaceOn(workspace)) {
-    return false
+    return false;
   }
-  return Boolean(workspace.autostart_schedule)
-}
+  return Boolean(workspace.autostart_schedule);
+};
 
 const getScheduleLabel = (workspace: Workspace) => {
-  return isWorkspaceOn(workspace) ? "Stops at" : "Starts at"
-}
+  return isWorkspaceOn(workspace) ? "Stops at" : "Starts at";
+};
 
 const useStyles = makeStyles((theme) => ({
   stats: {
@@ -400,4 +400,4 @@ const useStyles = makeStyles((theme) => ({
     paddingRight: theme.spacing(2),
     flexShrink: 0,
   },
-}))
+}));

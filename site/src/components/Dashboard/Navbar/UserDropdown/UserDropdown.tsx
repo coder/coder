@@ -1,24 +1,24 @@
-import Badge from "@mui/material/Badge"
-import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/styles"
-import { useState, FC, PropsWithChildren, MouseEvent } from "react"
-import { colors } from "theme/colors"
-import * as TypesGen from "../../../../api/typesGenerated"
-import { navHeight } from "../../../../theme/constants"
-import { BorderedMenu } from "./BorderedMenu/BorderedMenu"
+import Badge from "@mui/material/Badge";
+import MenuItem from "@mui/material/MenuItem";
+import { makeStyles } from "@mui/styles";
+import { useState, FC, PropsWithChildren, MouseEvent } from "react";
+import { colors } from "theme/colors";
+import * as TypesGen from "../../../../api/typesGenerated";
+import { navHeight } from "../../../../theme/constants";
+import { BorderedMenu } from "./BorderedMenu/BorderedMenu";
 import {
   CloseDropdown,
   OpenDropdown,
-} from "../../../DropdownArrows/DropdownArrows"
-import { UserAvatar } from "../../../UserAvatar/UserAvatar"
-import { UserDropdownContent } from "./UserDropdownContent/UserDropdownContent"
-import { BUTTON_SM_HEIGHT } from "theme/theme"
+} from "../../../DropdownArrows/DropdownArrows";
+import { UserAvatar } from "../../../UserAvatar/UserAvatar";
+import { UserDropdownContent } from "./UserDropdownContent/UserDropdownContent";
+import { BUTTON_SM_HEIGHT } from "theme/theme";
 
 export interface UserDropdownProps {
-  user: TypesGen.User
-  buildInfo?: TypesGen.BuildInfoResponse
-  supportLinks?: TypesGen.LinkConfig[]
-  onSignOut: () => void
+  user: TypesGen.User;
+  buildInfo?: TypesGen.BuildInfoResponse;
+  supportLinks?: TypesGen.LinkConfig[];
+  onSignOut: () => void;
 }
 
 export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
@@ -27,15 +27,15 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   supportLinks,
   onSignOut,
 }: UserDropdownProps) => {
-  const styles = useStyles()
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>()
+  const styles = useStyles();
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>();
 
   const handleDropdownClick = (ev: MouseEvent<HTMLLIElement>): void => {
-    setAnchorEl(ev.currentTarget)
-  }
+    setAnchorEl(ev.currentTarget);
+  };
   const onPopoverClose = () => {
-    setAnchorEl(undefined)
-  }
+    setAnchorEl(undefined);
+  };
 
   return (
     <>
@@ -88,8 +88,8 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
         />
       </BorderedMenu>
     </>
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles((theme) => ({
   divider: {
@@ -110,4 +110,4 @@ export const useStyles = makeStyles((theme) => ({
       backgroundColor: "transparent",
     },
   },
-}))
+}));

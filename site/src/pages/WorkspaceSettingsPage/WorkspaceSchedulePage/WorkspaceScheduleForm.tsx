@@ -1,43 +1,43 @@
-import Checkbox from "@mui/material/Checkbox"
-import FormControl from "@mui/material/FormControl"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import FormGroup from "@mui/material/FormGroup"
-import FormHelperText from "@mui/material/FormHelperText"
-import FormLabel from "@mui/material/FormLabel"
-import MenuItem from "@mui/material/MenuItem"
-import makeStyles from "@mui/styles/makeStyles"
-import Switch from "@mui/material/Switch"
-import TextField from "@mui/material/TextField"
+import Checkbox from "@mui/material/Checkbox";
+import FormControl from "@mui/material/FormControl";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import FormGroup from "@mui/material/FormGroup";
+import FormHelperText from "@mui/material/FormHelperText";
+import FormLabel from "@mui/material/FormLabel";
+import MenuItem from "@mui/material/MenuItem";
+import makeStyles from "@mui/styles/makeStyles";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
 import {
   HorizontalForm,
   FormFooter,
   FormSection,
   FormFields,
-} from "components/Form/Form"
-import { Stack } from "components/Stack/Stack"
-import dayjs from "dayjs"
-import advancedFormat from "dayjs/plugin/advancedFormat"
-import duration from "dayjs/plugin/duration"
-import relativeTime from "dayjs/plugin/relativeTime"
-import timezone from "dayjs/plugin/timezone"
-import utc from "dayjs/plugin/utc"
-import { FormikTouched, useFormik } from "formik"
+} from "components/Form/Form";
+import { Stack } from "components/Stack/Stack";
+import dayjs from "dayjs";
+import advancedFormat from "dayjs/plugin/advancedFormat";
+import duration from "dayjs/plugin/duration";
+import relativeTime from "dayjs/plugin/relativeTime";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
+import { FormikTouched, useFormik } from "formik";
 import {
   defaultSchedule,
   emptySchedule,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
-import { ChangeEvent, FC } from "react"
-import * as Yup from "yup"
-import { getFormHelpers } from "utils/formUtils"
-import { zones } from "./zones"
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
+import { ChangeEvent, FC } from "react";
+import * as Yup from "yup";
+import { getFormHelpers } from "utils/formUtils";
+import { zones } from "./zones";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
-dayjs.extend(utc)
-dayjs.extend(advancedFormat)
-dayjs.extend(duration)
-dayjs.extend(relativeTime)
-dayjs.extend(timezone)
+dayjs.extend(utc);
+dayjs.extend(advancedFormat);
+dayjs.extend(duration);
+dayjs.extend(relativeTime);
+dayjs.extend(timezone);
 
 export const Language = {
   errorNoDayOfWeek:
@@ -70,33 +70,33 @@ export const Language = {
   startSwitch: "Enable Autostart",
   stopSection: "Stop",
   stopSwitch: "Enable Autostop",
-}
+};
 
 export interface WorkspaceScheduleFormProps {
-  submitScheduleError?: unknown
-  initialValues: WorkspaceScheduleFormValues
-  isLoading: boolean
-  onCancel: () => void
-  onSubmit: (values: WorkspaceScheduleFormValues) => void
+  submitScheduleError?: unknown;
+  initialValues: WorkspaceScheduleFormValues;
+  isLoading: boolean;
+  onCancel: () => void;
+  onSubmit: (values: WorkspaceScheduleFormValues) => void;
   // for storybook
-  initialTouched?: FormikTouched<WorkspaceScheduleFormValues>
-  defaultTTL: number
+  initialTouched?: FormikTouched<WorkspaceScheduleFormValues>;
+  defaultTTL: number;
 }
 
 export interface WorkspaceScheduleFormValues {
-  autostartEnabled: boolean
-  sunday: boolean
-  monday: boolean
-  tuesday: boolean
-  wednesday: boolean
-  thursday: boolean
-  friday: boolean
-  saturday: boolean
-  startTime: string
-  timezone: string
+  autostartEnabled: boolean;
+  sunday: boolean;
+  monday: boolean;
+  tuesday: boolean;
+  wednesday: boolean;
+  thursday: boolean;
+  friday: boolean;
+  saturday: boolean;
+  startTime: string;
+  timezone: string;
 
-  autostopEnabled: boolean
-  ttl: number
+  autostopEnabled: boolean;
+  ttl: number;
 }
 
 export const validationSchema = Yup.object({
@@ -105,10 +105,10 @@ export const validationSchema = Yup.object({
     "at-least-one-day",
     Language.errorNoDayOfWeek,
     function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+      const parent = this.parent as WorkspaceScheduleFormValues;
 
       if (!parent.autostartEnabled) {
-        return true
+        return true;
       } else {
         return ![
           parent.sunday,
@@ -118,7 +118,7 @@ export const validationSchema = Yup.object({
           parent.thursday,
           parent.friday,
           parent.saturday,
-        ].every((day) => day === false)
+        ].every((day) => day === false);
       }
     },
   ),
@@ -131,41 +131,41 @@ export const validationSchema = Yup.object({
   startTime: Yup.string()
     .ensure()
     .test("required-if-autostart", Language.errorNoTime, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+      const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostartEnabled) {
-        return value !== ""
+        return value !== "";
       } else {
-        return true
+        return true;
       }
     })
     .test("is-time-string", Language.errorTime, (value) => {
       if (value === "") {
-        return true
+        return true;
       } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
-        return false
+        return false;
       } else {
-        const parts = value.split(":")
-        const HH = Number(parts[0])
-        const mm = Number(parts[1])
-        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59
+        const parts = value.split(":");
+        const HH = Number(parts[0]);
+        const mm = Number(parts[1]);
+        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
       }
     }),
   timezone: Yup.string()
     .ensure()
     .test("is-timezone", Language.errorTimezone, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+      const parent = this.parent as WorkspaceScheduleFormValues;
 
       if (!parent.startTime) {
-        return true
+        return true;
       } else {
         // Unfortunately, there's not a good API on dayjs at this time for
         // evaluating a timezone. Attempt to parse today in the supplied timezone
         // and return as valid if the function doesn't throw.
         try {
-          dayjs.tz(dayjs(), value)
-          return true
+          dayjs.tz(dayjs(), value);
+          return true;
         } catch (e) {
-          return false
+          return false;
         }
       }
     }),
@@ -174,14 +174,14 @@ export const validationSchema = Yup.object({
     .min(0)
     .max(24 * 30 /* 30 days */, Language.errorTtlMax)
     .test("positive-if-autostop", Language.errorNoStop, function (value) {
-      const parent = this.parent as WorkspaceScheduleFormValues
+      const parent = this.parent as WorkspaceScheduleFormValues;
       if (parent.autostopEnabled) {
-        return Boolean(value)
+        return Boolean(value);
       } else {
-        return true
+        return true;
       }
     }),
-})
+});
 
 export const WorkspaceScheduleForm: FC<
   React.PropsWithChildren<WorkspaceScheduleFormProps>
@@ -194,18 +194,18 @@ export const WorkspaceScheduleForm: FC<
   initialTouched,
   defaultTTL,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   const form = useFormik<WorkspaceScheduleFormValues>({
     initialValues,
     onSubmit,
     validationSchema,
     initialTouched,
-  })
+  });
   const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(
     form,
     submitScheduleError,
-  )
+  );
 
   const checkboxes: Array<{ value: boolean; name: string; label: string }> = [
     {
@@ -243,41 +243,41 @@ export const WorkspaceScheduleForm: FC<
       name: "saturday",
       label: Language.daySaturdayLabel,
     },
-  ]
+  ];
 
   const handleToggleAutostart = async (e: ChangeEvent) => {
-    form.handleChange(e)
+    form.handleChange(e);
     if (form.values.autostartEnabled) {
       // disable autostart, clear values
       await form.setValues({
         ...form.values,
         autostartEnabled: false,
         ...emptySchedule,
-      })
+      });
     } else {
       // enable autostart, fill with defaults
       await form.setValues({
         ...form.values,
         autostartEnabled: true,
         ...defaultSchedule(),
-      })
+      });
     }
-  }
+  };
 
   const handleToggleAutostop = async (e: ChangeEvent) => {
-    form.handleChange(e)
+    form.handleChange(e);
     if (form.values.autostopEnabled) {
       // disable autostop, set TTL 0
-      await form.setValues({ ...form.values, autostopEnabled: false, ttl: 0 })
+      await form.setValues({ ...form.values, autostopEnabled: false, ttl: 0 });
     } else {
       // enable autostop, fill with default TTL
       await form.setValues({
         ...form.values,
         autostopEnabled: true,
         ttl: defaultTTL,
-      })
+      });
     }
-  }
+  };
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -376,19 +376,19 @@ export const WorkspaceScheduleForm: FC<
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isLoading} />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 export const ttlShutdownAt = (formTTL: number): string => {
   if (formTTL < 1) {
     // Passing an empty value for TTL in the form results in a number that is not zero but less than 1.
-    return Language.ttlCausesNoShutdownHelperText
+    return Language.ttlCausesNoShutdownHelperText;
   } else {
     return `${Language.ttlCausesShutdownHelperText} ${dayjs
       .duration(formTTL, "hours")
-      .humanize()} ${Language.ttlCausesShutdownAfterStart}.`
+      .humanize()} ${Language.ttlCausesShutdownAfterStart}.`;
   }
-}
+};
 
 const useStyles = makeStyles((theme) => ({
   daysOfWeekLabel: {
@@ -400,4 +400,4 @@ const useStyles = makeStyles((theme) => ({
     flexWrap: "wrap",
     paddingTop: theme.spacing(0.5),
   },
-}))
+}));

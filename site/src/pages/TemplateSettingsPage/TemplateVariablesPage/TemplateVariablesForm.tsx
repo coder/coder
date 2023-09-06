@@ -3,32 +3,32 @@ import {
   TemplateVersion,
   TemplateVersionVariable,
   VariableValue,
-} from "api/typesGenerated"
-import { FormikContextType, FormikTouched, useFormik } from "formik"
-import { FC } from "react"
-import { getFormHelpers } from "utils/formUtils"
-import * as Yup from "yup"
-import { useTranslation } from "react-i18next"
+} from "api/typesGenerated";
+import { FormikContextType, FormikTouched, useFormik } from "formik";
+import { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
+import * as Yup from "yup";
+import { useTranslation } from "react-i18next";
 import {
   FormFields,
   FormSection,
   HorizontalForm,
   FormFooter,
-} from "components/Form/Form"
+} from "components/Form/Form";
 import {
   SensitiveVariableHelperText,
   TemplateVariableField,
-} from "./TemplateVariableField"
+} from "./TemplateVariableField";
 
 export interface TemplateVariablesForm {
-  templateVersion: TemplateVersion
-  templateVariables: TemplateVersionVariable[]
-  onSubmit: (data: CreateTemplateVersionRequest) => void
-  onCancel: () => void
-  isSubmitting: boolean
-  error?: unknown
+  templateVersion: TemplateVersion;
+  templateVariables: TemplateVersionVariable[];
+  onSubmit: (data: CreateTemplateVersionRequest) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+  error?: unknown;
   // Helpful to show field errors on Storybook
-  initialTouched?: FormikTouched<CreateTemplateVersionRequest>
+  initialTouched?: FormikTouched<CreateTemplateVersionRequest>;
 }
 export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   templateVersion,
@@ -40,7 +40,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
   initialTouched,
 }) => {
   const initialUserVariableValues =
-    selectInitialUserVariableValues(templateVariables)
+    selectInitialUserVariableValues(templateVariables);
   const form: FormikContextType<CreateTemplateVersionRequest> =
     useFormik<CreateTemplateVersionRequest>({
       initialValues: {
@@ -59,12 +59,12 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
       }),
       onSubmit,
       initialTouched,
-    })
+    });
   const getFieldHelpers = getFormHelpers<CreateTemplateVersionRequest>(
     form,
     error,
-  )
-  const { t } = useTranslation("templateVariablesPage")
+  );
+  const { t } = useTranslation("templateVariablesPage");
 
   return (
     <HorizontalForm
@@ -72,16 +72,16 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
       aria-label={t("formAriaLabel").toString()}
     >
       {templateVariables.map((templateVariable, index) => {
-        let fieldHelpers
+        let fieldHelpers;
         if (templateVariable.sensitive) {
           fieldHelpers = getFieldHelpers(
             "user_variable_values[" + index + "].value",
             <SensitiveVariableHelperText />,
-          )
+          );
         } else {
           fieldHelpers = getFieldHelpers(
             "user_variable_values[" + index + "].value",
-          )
+          );
         }
 
         return (
@@ -100,88 +100,88 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
                   await form.setFieldValue("user_variable_values." + index, {
                     name: templateVariable.name,
                     value: value,
-                  })
+                  });
                 }}
               />
             </FormFields>
           </FormSection>
-        )
+        );
       })}
 
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 export const selectInitialUserVariableValues = (
   templateVariables: TemplateVersionVariable[],
 ): VariableValue[] => {
-  const defaults: VariableValue[] = []
+  const defaults: VariableValue[] = [];
   templateVariables.forEach((templateVariable) => {
     // Boolean variables must be always either "true" or "false"
     if (templateVariable.type === "bool" && templateVariable.value === "") {
       defaults.push({
         name: templateVariable.name,
         value: templateVariable.default_value,
-      })
-      return
+      });
+      return;
     }
 
     if (templateVariable.sensitive) {
       defaults.push({
         name: templateVariable.name,
         value: "",
-      })
-      return
+      });
+      return;
     }
 
     if (templateVariable.required && templateVariable.value === "") {
       defaults.push({
         name: templateVariable.name,
         value: templateVariable.default_value,
-      })
-      return
+      });
+      return;
     }
 
     defaults.push({
       name: templateVariable.name,
       value: templateVariable.value,
-    })
-  })
-  return defaults
-}
+    });
+  });
+  return defaults;
+};
 
 const ValidationSchemaForTemplateVariables = (
   ns: string,
   templateVariables: TemplateVersionVariable[],
 ): Yup.AnySchema => {
-  const { t } = useTranslation(ns)
+  const { t } = useTranslation(ns);
 
   return Yup.array()
     .of(
       Yup.object().shape({
         name: Yup.string().required(),
         value: Yup.string().test("verify with template", (val, ctx) => {
-          const name = ctx.parent.name
+          const name = ctx.parent.name;
           const templateVariable = templateVariables.find(
             (variable) => variable.name === name,
-          )
+          );
           if (templateVariable && templateVariable.sensitive) {
             // It's possible that the secret is already stored in database,
             // so we can't properly verify the "required" condition.
-            return true
+            return true;
           }
           if (templateVariable && templateVariable.required) {
             if (!val || val.length === 0) {
               return ctx.createError({
                 path: ctx.path,
                 message: t("validationRequiredVariable").toString(),
-              })
+              });
             }
           }
-          return true
+          return true;
         }),
       }),
     )
-    .required()
-}
+    .required();
+};

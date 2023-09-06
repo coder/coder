@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import { Template, TemplateExample } from "api/typesGenerated"
-import { Avatar } from "components/Avatar/Avatar"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
+import { makeStyles } from "@mui/styles";
+import { Template, TemplateExample } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
 
 export interface SelectedTemplateProps {
-  template: Template | TemplateExample
+  template: Template | TemplateExample;
 }
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Stack
@@ -39,8 +39,8 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
         )}
       </Stack>
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   template: {
@@ -58,4 +58,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     color: theme.palette.text.secondary,
   },
-}))
+}));
