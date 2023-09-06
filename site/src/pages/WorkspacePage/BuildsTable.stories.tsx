@@ -1,5 +1,5 @@
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockBuilds } from "../../../testHelpers/entities"
+import { MockBuilds } from "testHelpers/entities"
 import { BuildsTable, BuildsTableProps } from "./BuildsTable"
 
 export default {
