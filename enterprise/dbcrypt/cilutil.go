@@ -160,8 +160,8 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		log.Debug(ctx, "decrypted user tokens", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
-	// Revoke old keys
-	for _, c := range ciphers[1:] {
+	// Revoke _all_ keys
+	for _, c := range ciphers {
 		if err := db.RevokeDBCryptKey(ctx, c.HexDigest()); err != nil {
 			return xerrors.Errorf("revoke key: %w", err)
 		}
@@ -188,14 +188,10 @@ COMMIT;
 // as a last resort, for example, if the database encryption key has been
 // lost.
 func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
-	res, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
+	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
 		return xerrors.Errorf("delete user links: %w", err)
 	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return xerrors.Errorf("get rows affected: %w", err)
-	}
-	log.Info(ctx, "deleted user tokens", slog.F("rows", rows))
+	log.Info(ctx, "deleted encrypted user tokens")
 	return nil
 }

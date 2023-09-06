@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -21,19 +21,19 @@ import (
 )
 
 // nolint: paralleltest // use of t.Setenv
-func TestDBCryptRotate(t *testing.T) {
+func TestServerDBCrypt(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("this test requires a postgres instance")
 	}
-	//
+
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
-	//
+
 	// Setup a postgres database.
 	connectionURL, closePg, err := postgres.Open()
 	require.NoError(t, err)
 	t.Cleanup(closePg)
-	//
+
 	sqlDB, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -52,7 +52,8 @@ func TestDBCryptRotate(t *testing.T) {
 	// Encrypt all the data with the initial cipher.
 	inv, _ := newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
-		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyA)),
+		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyA)),
+		"--yes",
 	)
 	pty := ptytest.New(t)
 	inv.Stdout = pty.Output()
@@ -60,7 +61,9 @@ func TestDBCryptRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all existing data has been encrypted with cipher A.
-	requireDataDecryptsWithCipher(ctx, t, db, cipherA[0], users)
+	for _, usr := range users {
+		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
+	}
 
 	// Create an encrypted database
 	cryptdb, err := dbcrypt.New(ctx, db, cipherA...)
@@ -73,15 +76,12 @@ func TestDBCryptRotate(t *testing.T) {
 	keyB := mustString(t, 32)
 	cipherBA, err := dbcrypt.NewCiphers([]byte(keyB), []byte(keyA))
 	require.NoError(t, err)
-	externalTokensArg := fmt.Sprintf(
-		"%s,%s",
-		base64.StdEncoding.EncodeToString([]byte(keyB)),
-		base64.StdEncoding.EncodeToString([]byte(keyA)),
-	)
 
 	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
-		"--external-token-encryption-keys", externalTokensArg,
+		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyB)),
+		"--old-keys", base64.StdEncoding.EncodeToString([]byte(keyA)),
+		"--yes",
 	)
 	pty = ptytest.New(t)
 	inv.Stdout = pty.Output()
@@ -89,7 +89,9 @@ func TestDBCryptRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been re-encrypted with cipher B.
-	requireDataDecryptsWithCipher(ctx, t, db, cipherBA[0], users)
+	for _, usr := range users {
+		requireEncryptedWithCipher(ctx, t, db, cipherBA[0], usr.ID)
+	}
 
 	// Assert that we can revoke the old key.
 	err = db.RevokeDBCryptKey(ctx, cipherA[0].HexDigest())
@@ -112,6 +114,72 @@ func TestDBCryptRotate(t *testing.T) {
 	var pgErr *pq.Error
 	require.True(t, xerrors.As(err, &pgErr), "expected a pg error")
 	require.EqualValues(t, "23503", pgErr.Code, "expected a foreign key constraint violation error")
+
+	// Decrypt the data using only cipher B. This should result in the key being revoked.
+	inv, _ = newCLI(t, "server", "dbcrypt", "decrypt",
+		"--postgres-url", connectionURL,
+		"--keys", base64.StdEncoding.EncodeToString([]byte(keyB)),
+		"--yes",
+	)
+	pty = ptytest.New(t)
+	inv.Stdout = pty.Output()
+	err = inv.Run()
+	require.NoError(t, err)
+
+	// Validate that both keys have been revoked.
+	keys, err = db.GetDBCryptKeys(ctx)
+	require.NoError(t, err, "failed to get db crypt keys")
+	require.Len(t, keys, 2, "expected exactly 2 keys")
+	for _, key := range keys {
+		require.Empty(t, key.ActiveKeyDigest.String, "expected the new key to not be active")
+	}
+
+	// Validate that all data has been decrypted.
+	for _, usr := range users {
+		requireEncryptedWithCipher(ctx, t, db, &nullCipher{}, usr.ID)
+	}
+
+	// Re-encrypt all existing data with a new cipher.
+	keyC := mustString(t, 32)
+	cipherC, err := dbcrypt.NewCiphers([]byte(keyC))
+	require.NoError(t, err)
+
+	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
+		"--postgres-url", connectionURL,
+		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyC)),
+		"--yes",
+	)
+
+	pty = ptytest.New(t)
+	inv.Stdout = pty.Output()
+	err = inv.Run()
+	require.NoError(t, err)
+
+	// Validate that all data has been re-encrypted with cipher C.
+	for _, usr := range users {
+		requireEncryptedWithCipher(ctx, t, db, cipherC[0], usr.ID)
+	}
+
+	// Now delete all the encrypted data.
+	inv, _ = newCLI(t, "server", "dbcrypt", "delete",
+		"--postgres-url", connectionURL,
+		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyC)),
+		"--yes",
+	)
+	pty = ptytest.New(t)
+	inv.Stdout = pty.Output()
+	err = inv.Run()
+	require.NoError(t, err)
+
+	// Assert that no user links remain.
+	for _, usr := range users {
+		userLinks, err := db.GetUserLinksByUserID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get user links for user %s", usr.ID)
+		require.Empty(t, userLinks)
+		gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get git auth links for user %s", usr.ID)
+		require.Empty(t, gitAuthLinks)
+	}
 }
 
 func genData(t *testing.T, db database.Store, n int) []database.User {
@@ -124,14 +192,14 @@ func genData(t *testing.T, db database.Store, n int) []database.User {
 		_ = dbgen.UserLink(t, db, database.UserLink{
 			UserID:            usr.ID,
 			LoginType:         usr.LoginType,
-			OAuthAccessToken:  mustString(t, 16),
-			OAuthRefreshToken: mustString(t, 16),
+			OAuthAccessToken:  "access-" + usr.ID.String(),
+			OAuthRefreshToken: "refresh-" + usr.ID.String(),
 		})
 		_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
 			UserID:            usr.ID,
 			ProviderID:        "fake",
-			OAuthAccessToken:  mustString(t, 16),
-			OAuthRefreshToken: mustString(t, 16),
+			OAuthAccessToken:  "access-" + usr.ID.String(),
+			OAuthRefreshToken: "refresh-" + usr.ID.String(),
 		})
 		users = append(users, usr)
 	}
@@ -145,35 +213,56 @@ func mustString(t *testing.T, n int) string {
 	return s
 }
 
-func requireDecryptWithCipher(t *testing.T, c dbcrypt.Cipher, s string) {
+func requireEncryptedEquals(t *testing.T, c dbcrypt.Cipher, expected, actual string) {
 	t.Helper()
-	decodedVal, err := base64.StdEncoding.DecodeString(s)
-	require.NoError(t, err, "failed to decode base64 string")
-	_, err = c.Decrypt(decodedVal)
+	var decodedVal []byte
+	var err error
+	if _, ok := c.(*nullCipher); !ok {
+		decodedVal, err = base64.StdEncoding.DecodeString(actual)
+		require.NoError(t, err, "failed to decode base64 string")
+	} else {
+		// If a nullCipher is being used, we expect the value not to be encrypted.
+		decodedVal = []byte(actual)
+	}
+	val, err := c.Decrypt(decodedVal)
 	require.NoError(t, err, "failed to decrypt value")
+	require.Equal(t, expected, string(val))
 }
 
-func requireDataDecryptsWithCipher(ctx context.Context, t *testing.T, db database.Store, c dbcrypt.Cipher, users []database.User) {
+func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.Store, c dbcrypt.Cipher, userID uuid.UUID) {
 	t.Helper()
-	for _, usr := range users {
-		ul, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
-			UserID:    usr.ID,
-			LoginType: usr.LoginType,
-		})
-		require.NoError(t, err, "failed to get user link for user %s", usr.ID)
-		requireDecryptWithCipher(t, c, ul.OAuthAccessToken)
-		requireDecryptWithCipher(t, c, ul.OAuthRefreshToken)
+	userLinks, err := db.GetUserLinksByUserID(ctx, userID)
+	require.NoError(t, err, "failed to get user links for user %s", userID)
+	for _, ul := range userLinks {
+		requireEncryptedEquals(t, c, "access-"+userID.String(), ul.OAuthAccessToken)
+		requireEncryptedEquals(t, c, "refresh-"+userID.String(), ul.OAuthRefreshToken)
 		require.Equal(t, c.HexDigest(), ul.OAuthAccessTokenKeyID.String)
 		require.Equal(t, c.HexDigest(), ul.OAuthRefreshTokenKeyID.String)
-		//
-		gal, err := db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
-			UserID:     usr.ID,
-			ProviderID: "fake",
-		})
-		require.NoError(t, err, "failed to get git auth link for user %s", usr.ID)
-		requireDecryptWithCipher(t, c, gal.OAuthAccessToken)
-		requireDecryptWithCipher(t, c, gal.OAuthRefreshToken)
+	}
+	gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, userID)
+	require.NoError(t, err, "failed to get git auth links for user %s", userID)
+	for _, gal := range gitAuthLinks {
+		requireEncryptedEquals(t, c, "access-"+userID.String(), gal.OAuthAccessToken)
+		requireEncryptedEquals(t, c, "refresh-"+userID.String(), gal.OAuthRefreshToken)
 		require.Equal(t, c.HexDigest(), gal.OAuthAccessTokenKeyID.String)
 		require.Equal(t, c.HexDigest(), gal.OAuthRefreshTokenKeyID.String)
 	}
 }
+
+// nullCipher is a dbcrypt.Cipher that does not encrypt or decrypt.
+// used for testing
+type nullCipher struct{}
+
+func (*nullCipher) Encrypt(b []byte) ([]byte, error) {
+	return b, nil
+}
+
+func (*nullCipher) Decrypt(b []byte) ([]byte, error) {
+	return b, nil
+}
+
+func (*nullCipher) HexDigest() string {
+	return "" // This co-incidentally happens to be the value of sql.NullString{}.String...
+}
+
+var _ dbcrypt.Cipher = (*nullCipher)(nil)
