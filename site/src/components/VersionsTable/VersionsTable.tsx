@@ -31,7 +31,9 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
 }) => {
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
-      if (!latestSoFar) return against
+      if (!latestSoFar) {
+        return against
+      }
 
       return new Date(against.updated_at).getTime() >
         new Date(latestSoFar.updated_at).getTime()
