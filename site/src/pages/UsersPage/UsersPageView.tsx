@@ -2,7 +2,7 @@ import { PaginationWidget } from "components/PaginationWidget/PaginationWidget"
 import { ComponentProps, FC } from "react"
 import { PaginationMachineRef } from "xServices/pagination/paginationXService"
 import * as TypesGen from "../../api/typesGenerated"
-import { UsersTable } from "../../components/UsersTable/UsersTable"
+import { UsersTable } from "./UsersTable/UsersTable"
 import { UsersFilter } from "./UsersFilter"
 import {
   PaginationStatus,
