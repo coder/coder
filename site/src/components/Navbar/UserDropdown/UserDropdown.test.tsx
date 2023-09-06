@@ -1,7 +1,7 @@
 import { fireEvent, screen } from "@testing-library/react"
-import { MockSupportLinks, MockUser } from "../../testHelpers/entities"
-import { render } from "../../testHelpers/renderHelpers"
-import { Language } from "../UserDropdownContent/UserDropdownContent"
+import { MockSupportLinks, MockUser } from "../../../testHelpers/entities"
+import { render } from "../../../testHelpers/renderHelpers"
+import { Language } from "./UserDropdownContent/UserDropdownContent"
 import { UserDropdown, UserDropdownProps } from "./UserDropdown"
 
 const renderAndClick = async (props: Partial<UserDropdownProps> = {}) => {

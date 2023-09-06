@@ -1,5 +1,5 @@
 import { Story } from "@storybook/react"
-import { MockUser } from "../../testHelpers/entities"
+import { MockUser } from "../../../../testHelpers/entities"
 import {
   UserDropdownContent,
   UserDropdownContentProps,
