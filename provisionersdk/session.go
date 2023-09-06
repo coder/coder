@@ -23,8 +23,8 @@ const (
 	// ReadmeFile is the location we look for to extract documentation from template versions.
 	ReadmeFile = "README.md"
 
-	sessionDirPrefix          = "Session"
-	staleSessionDaysThreshold = 7 * 24 * time.Hour
+	sessionDirPrefix      = "Session"
+	staleSessionRetention = 7 * 24 * time.Hour
 )
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
@@ -347,7 +347,7 @@ func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time
 			}
 
 			timeSpec := times.Get(fi)
-			if timeSpec.AccessTime().Add(staleSessionDaysThreshold).After(now) {
+			if timeSpec.AccessTime().Add(staleSessionRetention).After(now) {
 				continue
 			}
 

@@ -18,6 +18,8 @@ import (
 	"github.com/coder/terraform-provider-coder/provider"
 )
 
+const staleTerraformPluginRetention = 30 * 24 * time.Hour
+
 func (s *server) setupContexts(parent context.Context, canceledOrComplete <-chan struct{}) (
 	ctx context.Context, cancel func(), killCtx context.Context, kill func(),
 ) {
@@ -301,8 +303,11 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 		if err != nil {
 			return xerrors.Errorf("unable to evaluate latest access time for directory %q: %w", pluginPath, err)
 		}
+
+		if accessTime.Add(staleTerraformPluginRetention).Before(now) {
+			stalePlugins = append(stalePlugins, pluginPath)
+		}
 	}
-	// TODO
 
 	// Remove stale plugins
 	// TODO
@@ -314,5 +319,5 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 }
 
 func latestAccessTime(path string) (time.Time, error) {
-
+	// TODO
 }
