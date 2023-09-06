@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import * as API from "../../../api/api"
-import * as SecurityForm from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
+import * as SecurityForm from "./SettingsSecurityForm"
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,

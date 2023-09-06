@@ -2,11 +2,11 @@ import TextField from "@mui/material/TextField"
 import { FormikContextType, useFormik } from "formik"
 import { FC } from "react"
 import * as Yup from "yup"
-import { getFormHelpers } from "../../utils/formUtils"
-import { LoadingButton } from "../LoadingButton/LoadingButton"
 import { ErrorAlert } from "components/Alert/ErrorAlert"
 import { Form, FormFields } from "components/Form/Form"
 import { Alert } from "components/Alert/Alert"
+import { getFormHelpers } from "utils/formUtils"
+import { LoadingButton } from "components/LoadingButton/LoadingButton"
 
 interface SecurityFormValues {
   old_password: string

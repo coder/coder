@@ -3,7 +3,7 @@ import { useMe } from "hooks/useMe"
 import { ComponentProps, FC } from "react"
 import { userSecuritySettingsMachine } from "xServices/userSecuritySettings/userSecuritySettingsXService"
 import { Section } from "../../../components/SettingsLayout/Section"
-import { SecurityForm } from "../../../components/SettingsSecurityForm/SettingsSecurityForm"
+import { SecurityForm } from "./SettingsSecurityForm"
 import { useQuery } from "@tanstack/react-query"
 import { getAuthMethods, getUserLoginType } from "api/api"
 import {
