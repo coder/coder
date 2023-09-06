@@ -43,7 +43,7 @@ const WorkspaceProxyPage = lazy(
     import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
 )
 const CreateUserPage = lazy(
-  () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
+  () => import("./pages/CreateUserPage/CreateUserPage"),
 )
 const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
