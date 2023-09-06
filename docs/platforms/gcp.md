@@ -11,7 +11,7 @@ Google Cloud Platform project.
 ## Launch a Coder instance from the Google Cloud Marketplace
 
 We publish an Ubuntu 22.04 VM image with Coder and Docker pre-installed. Search
-for `Coder-v2` in the GCP Marketplace or
+for `Coder v2` in the GCP Marketplace or
 [use direct link](https://console.cloud.google.com/marketplace/product/coder-enterprise-market-public/coder-v2).
 
 ![Coder on GCP Marketplace](../images/platforms/gcp/marketplace.png)
@@ -42,7 +42,7 @@ That's all! Use the UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
-![Coder Workspace and IDE in GCP VM](../images/platforms/gcp/workspace.png)
+![Coder Workspace and IDE in GCP VM](../images/platforms/aws/workspace.png)
 
 ## Configuring Coder server
 
@@ -54,7 +54,8 @@ or using the console:
 ```shell
 ssh ubuntu@<gcp-public-IPv4>
 sudo vim /etc/coder.d/coder.env # edit config
-sudo service coder restart # restart Coder
+sudo systemctl daemon-reload
+sudo systemctl restart coder # restart Coder
 ```
 
 ## Give developers VM workspaces (optional)
