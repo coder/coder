@@ -17,7 +17,7 @@ import * as TypesGen from "../../../api/typesGenerated"
 import {
   WorkspaceScheduleFormValues,
   Language as FormLanguage,
-} from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
+} from "./WorkspaceScheduleForm"
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage"
 import i18next from "i18next"
 import { server } from "testHelpers/server"

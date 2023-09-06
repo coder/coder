@@ -7,9 +7,9 @@ import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
-import { LogLine, logLineHeight } from "components/Logs/Logs"
+import { LogLine, logLineHeight } from "components/WorkspaceBuildLogs/Logs/Logs"
 import { PortForwardButton } from "./PortForwardButton"
-import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
+import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton"
 import {
   FC,
   useCallback,
@@ -34,10 +34,10 @@ import {
   WorkspaceAgent,
   WorkspaceAgentMetadata,
 } from "../../api/typesGenerated"
-import { AppLink } from "../AppLink/AppLink"
-import { SSHButton } from "../SSHButton/SSHButton"
+import { AppLink } from "./AppLink/AppLink"
+import { SSHButton } from "./SSHButton/SSHButton"
 import { Stack } from "../Stack/Stack"
-import { TerminalLink } from "../TerminalLink/TerminalLink"
+import { TerminalLink } from "./TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
 import { AgentVersion } from "./AgentVersion"

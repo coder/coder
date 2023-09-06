@@ -10,7 +10,7 @@ import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { UserAvatar } from "components/UserAvatar/UserAvatar"
 import { getLatencyColor } from "utils/latency"
 import chroma from "chroma-js"

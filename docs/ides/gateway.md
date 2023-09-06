@@ -146,7 +146,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 1. Select the connection you just added
 
-   ![Gateway Welcome](../images/gaGteway/gateway-welcome.png)
+   ![Gateway Welcome](../images/gateway/gateway-welcome.png)
 
 1. Click "Check Connection and Continue"
 

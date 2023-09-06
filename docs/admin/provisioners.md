@@ -101,7 +101,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    secret
 
    ```shell
-   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | tr -dc A-Za-z0-9 | head -c 26`
+   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 26`
    ```
 
 1. Modify your Coder `values.yaml` to include

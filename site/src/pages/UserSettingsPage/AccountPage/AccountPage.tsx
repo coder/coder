@@ -1,6 +1,6 @@
 import { FC } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
-import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
+import { Section } from "components/SettingsLayout/Section"
+import { AccountForm } from "./AccountForm"
 import { useAuth } from "components/AuthProvider/AuthProvider"
 import { useMe } from "hooks/useMe"
 import { usePermissions } from "hooks/usePermissions"

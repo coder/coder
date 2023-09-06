@@ -1,5 +1,5 @@
 import { Component, ReactNode, PropsWithChildren } from "react"
-import { RuntimeErrorState } from "../RuntimeErrorState/RuntimeErrorState"
+import { RuntimeErrorState } from "./RuntimeErrorState/RuntimeErrorState"
 
 type ErrorBoundaryProps = PropsWithChildren<unknown>
 

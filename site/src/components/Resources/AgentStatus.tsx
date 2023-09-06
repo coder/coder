@@ -9,7 +9,7 @@ import {
   HelpPopover,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/Tooltips/HelpTooltip"
+} from "components/HelpTooltip/HelpTooltip"
 import { useRef, useState } from "react"
 import Link from "@mui/material/Link"
 

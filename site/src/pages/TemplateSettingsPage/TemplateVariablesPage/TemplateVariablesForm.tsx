@@ -18,7 +18,7 @@ import {
 import {
   SensitiveVariableHelperText,
   TemplateVariableField,
-} from "components/TemplateVariableField/TemplateVariableField"
+} from "./TemplateVariableField"
 
 export interface TemplateVariablesForm {
   templateVersion: TemplateVersion

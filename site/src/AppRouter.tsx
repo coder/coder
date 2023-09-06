@@ -43,7 +43,7 @@ const WorkspaceProxyPage = lazy(
     import("./pages/UserSettingsPage/WorkspaceProxyPage/WorkspaceProxyPage"),
 )
 const CreateUserPage = lazy(
-  () => import("./pages/UsersPage/CreateUserPage/CreateUserPage"),
+  () => import("./pages/CreateUserPage/CreateUserPage"),
 )
 const WorkspaceBuildPage = lazy(
   () => import("./pages/WorkspaceBuildPage/WorkspaceBuildPage"),
@@ -120,10 +120,7 @@ const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 )
 const TemplateVersionEditorPage = lazy(
-  () =>
-    import(
-      "./pages/TemplateVersionPage/TemplateVersionEditorPage/TemplateVersionEditorPage"
-    ),
+  () => import("./pages/TemplateVersionEditorPage/TemplateVersionEditorPage"),
 )
 const StarterTemplatesPage = lazy(
   () => import("./pages/StarterTemplatesPage/StarterTemplatesPage"),

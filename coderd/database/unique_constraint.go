@@ -6,6 +6,8 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueDbcryptKeysActiveKeyDigestKey                     UniqueConstraint = "dbcrypt_keys_active_key_digest_key"                       // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
+	UniqueDbcryptKeysRevokedKeyDigestKey                    UniqueConstraint = "dbcrypt_keys_revoked_key_digest_key"                      // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 	UniqueFilesHashCreatedByKey                             UniqueConstraint = "files_hash_created_by_key"                                // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueGitAuthLinksProviderIDUserIDKey                   UniqueConstraint = "git_auth_links_provider_id_user_id_key"                   // ALTER TABLE ONLY git_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 	UniqueGroupMembersUserIDGroupIDKey                      UniqueConstraint = "group_members_user_id_group_id_key"                       // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);

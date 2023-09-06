@@ -6,7 +6,7 @@ import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart"
 import { Header } from "components/DeploySettingsLayout/Header"
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
 import { Stack } from "components/Stack/Stack"
-import { WorkspaceSection } from "components/WorkspaceSection/WorkspaceSection"
+import { ChartSection } from "./ChartSection"
 import { useDeploymentOptions } from "utils/deployOptions"
 import { docs } from "utils/docs"
 
@@ -33,9 +33,9 @@ export const GeneralSettingsPageView = ({
         )}
         {deploymentDAUs && (
           <Box height={200} sx={{ mb: 3 }}>
-            <WorkspaceSection title={<DAUTitle />}>
+            <ChartSection title={<DAUTitle />}>
               <DAUChart daus={deploymentDAUs} />
-            </WorkspaceSection>
+            </ChartSection>
           </Box>
         )}
         <OptionsTable

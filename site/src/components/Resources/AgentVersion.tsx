@@ -2,7 +2,7 @@ import { useRef, useState, FC } from "react"
 import { makeStyles } from "@mui/styles"
 import { WorkspaceAgent } from "api/typesGenerated"
 import { getDisplayVersionStatus } from "utils/workspace"
-import { AgentOutdatedTooltip } from "components/Tooltips/AgentOutdatedTooltip"
+import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip"
 
 export const AgentVersion: FC<{
   agent: WorkspaceAgent
