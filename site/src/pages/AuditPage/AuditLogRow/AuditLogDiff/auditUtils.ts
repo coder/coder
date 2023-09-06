@@ -1,8 +1,8 @@
-import { AuditDiff } from "api/typesGenerated"
+import { AuditDiff } from "api/typesGenerated";
 
 interface GroupMember {
-  user_id: string
-  group_id: string
+  user_id: string;
+  group_id: string;
 }
 
 /**
@@ -22,5 +22,5 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
       ),
       secret: auditLogDiff.members?.secret,
     },
-  }
-}
+  };
+};

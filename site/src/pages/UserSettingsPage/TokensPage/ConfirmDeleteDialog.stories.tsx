@@ -1,10 +1,10 @@
-import { Story } from "@storybook/react"
-import { MockToken } from "testHelpers/entities"
+import { Story } from "@storybook/react";
+import { MockToken } from "testHelpers/entities";
 import {
   ConfirmDeleteDialog,
   ConfirmDeleteDialogProps,
-} from "./ConfirmDeleteDialog"
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+} from "./ConfirmDeleteDialog";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -14,12 +14,12 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
-})
+});
 
 export default {
   title: "components/ConfirmDeleteDialog",
   component: ConfirmDeleteDialog,
-}
+};
 
 const Template: Story<ConfirmDeleteDialogProps> = (
   args: ConfirmDeleteDialogProps,
@@ -27,13 +27,13 @@ const Template: Story<ConfirmDeleteDialogProps> = (
   <QueryClientProvider client={queryClient}>
     <ConfirmDeleteDialog {...args} />
   </QueryClientProvider>
-)
+);
 
-export const DeleteDialog = Template.bind({})
+export const DeleteDialog = Template.bind({});
 DeleteDialog.args = {
   queryKey: ["tokens"],
   token: MockToken,
   setToken: () => {
-    return null
+    return null;
   },
-}
+};

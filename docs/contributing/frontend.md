@@ -128,9 +128,9 @@ export const getAgentListeningPorts = async (
 ): Promise<TypesGen.ListeningPortsResponse> => {
   const response = await axios.get(
     `/api/v2/workspaceagents/${agentID}/listening-ports`,
-  )
-  return response.data
-}
+  );
+  return response.data;
+};
 ```
 
 Sometimes, a FE operation can have multiple API calls so it is ok to wrap it as
@@ -140,9 +140,9 @@ a single function.
 export const updateWorkspaceVersion = async (
   workspace: TypesGen.Workspace,
 ): Promise<TypesGen.WorkspaceBuild> => {
-  const template = await getTemplate(workspace.template_id)
-  return startWorkspace(workspace.id, template.active_version_id)
-}
+  const template = await getTemplate(workspace.template_id);
+  return startWorkspace(workspace.id, template.active_version_id);
+};
 ```
 
 If you need more granular errors or control, you may should consider keep them
@@ -242,14 +242,14 @@ instead of using `screen.getByRole("button")` directly we could do
 slow.
 
 ```tsx
-user.click(screen.getByRole("button"))
+user.click(screen.getByRole("button"));
 ```
 
 ✅ Better. We can limit the number of elements we are querying.
 
 ```tsx
-const form = screen.getByTestId("form")
-user.click(within(form).getByRole("button"))
+const form = screen.getByTestId("form");
+user.click(within(form).getByRole("button"));
 ```
 
 #### `jest.spyOn` with the API is not working

@@ -1,24 +1,24 @@
-import { Story } from "@storybook/react"
+import { Story } from "@storybook/react";
 import {
   mockApiError,
   MockOrganization,
   MockTemplateExample,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 import {
   StarterTemplatePageView,
   StarterTemplatePageViewProps,
-} from "./StarterTemplatePageView"
+} from "./StarterTemplatePageView";
 
 export default {
   title: "pages/StarterTemplatePageView",
   component: StarterTemplatePageView,
-}
+};
 
 const Template: Story<StarterTemplatePageViewProps> = (args) => (
   <StarterTemplatePageView {...args} />
-)
+);
 
-export const Default = Template.bind({})
+export const Default = Template.bind({});
 Default.args = {
   context: {
     exampleId: MockTemplateExample.id,
@@ -26,9 +26,9 @@ Default.args = {
     error: undefined,
     starterTemplate: MockTemplateExample,
   },
-}
+};
 
-export const Error = Template.bind({})
+export const Error = Template.bind({});
 Error.args = {
   context: {
     exampleId: MockTemplateExample.id,
@@ -38,4 +38,4 @@ Error.args = {
     }),
     starterTemplate: undefined,
   },
-}
+};

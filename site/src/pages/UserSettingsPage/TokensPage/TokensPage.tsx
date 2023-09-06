@@ -1,21 +1,21 @@
-import { FC, PropsWithChildren, useState } from "react"
-import { Section } from "components/SettingsLayout/Section"
-import { TokensPageView } from "./TokensPageView"
-import makeStyles from "@mui/styles/makeStyles"
-import { useTranslation } from "react-i18next"
-import { useTokensData } from "./hooks"
-import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog"
-import { Stack } from "components/Stack/Stack"
-import Button from "@mui/material/Button"
-import { Link as RouterLink } from "react-router-dom"
-import AddIcon from "@mui/icons-material/AddOutlined"
-import { APIKeyWithOwner } from "api/typesGenerated"
+import { FC, PropsWithChildren, useState } from "react";
+import { Section } from "components/SettingsLayout/Section";
+import { TokensPageView } from "./TokensPageView";
+import makeStyles from "@mui/styles/makeStyles";
+import { useTranslation } from "react-i18next";
+import { useTokensData } from "./hooks";
+import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
+import { Stack } from "components/Stack/Stack";
+import Button from "@mui/material/Button";
+import { Link as RouterLink } from "react-router-dom";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import { APIKeyWithOwner } from "api/typesGenerated";
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
-  const styles = useStyles()
-  const { t } = useTranslation("tokensPage")
+  const styles = useStyles();
+  const { t } = useTranslation("tokensPage");
 
-  const cliCreateCommand = "coder tokens create"
+  const cliCreateCommand = "coder tokens create";
 
   const TokenActions = () => (
     <Stack direction="row" justifyContent="end" className={styles.tokenActions}>
@@ -23,11 +23,11 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
         {t("tokenActions.addToken")}
       </Button>
     </Stack>
-  )
+  );
 
   const [tokenToDelete, setTokenToDelete] = useState<
     APIKeyWithOwner | undefined
-  >(undefined)
+  >(undefined);
 
   const {
     data: tokens,
@@ -39,7 +39,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     // we currently do not show all tokens in the UI, even if
     // the user has read all permissions
     include_all: false,
-  })
+  });
 
   return (
     <>
@@ -62,7 +62,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
           hasLoaded={isFetched}
           getTokensError={getTokensError}
           onDelete={(token) => {
-            setTokenToDelete(token)
+            setTokenToDelete(token);
           }}
         />
       </Section>
@@ -72,8 +72,8 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
         setToken={setTokenToDelete}
       />
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   section: {
@@ -88,6 +88,6 @@ const useStyles = makeStyles((theme) => ({
   tokenActions: {
     marginBottom: theme.spacing(1),
   },
-}))
+}));
 
-export default TokensPage
+export default TokensPage;

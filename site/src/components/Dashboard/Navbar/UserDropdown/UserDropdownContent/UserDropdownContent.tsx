@@ -1,30 +1,30 @@
-import Divider from "@mui/material/Divider"
-import MenuItem from "@mui/material/MenuItem"
-import { makeStyles } from "@mui/styles"
-import AccountIcon from "@mui/icons-material/AccountCircleOutlined"
-import BugIcon from "@mui/icons-material/BugReportOutlined"
-import ChatIcon from "@mui/icons-material/ChatOutlined"
-import LaunchIcon from "@mui/icons-material/LaunchOutlined"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { Link } from "react-router-dom"
-import * as TypesGen from "../../../../../api/typesGenerated"
-import DocsIcon from "@mui/icons-material/MenuBook"
-import LogoutIcon from "@mui/icons-material/ExitToAppOutlined"
-import { combineClasses } from "utils/combineClasses"
+import Divider from "@mui/material/Divider";
+import MenuItem from "@mui/material/MenuItem";
+import { makeStyles } from "@mui/styles";
+import AccountIcon from "@mui/icons-material/AccountCircleOutlined";
+import BugIcon from "@mui/icons-material/BugReportOutlined";
+import ChatIcon from "@mui/icons-material/ChatOutlined";
+import LaunchIcon from "@mui/icons-material/LaunchOutlined";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { Link } from "react-router-dom";
+import * as TypesGen from "../../../../../api/typesGenerated";
+import DocsIcon from "@mui/icons-material/MenuBook";
+import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
+import { combineClasses } from "utils/combineClasses";
 
 export const Language = {
   accountLabel: "Account",
   signOutLabel: "Sign Out",
   copyrightText: `\u00a9 ${new Date().getFullYear()} Coder Technologies, Inc.`,
-}
+};
 
 export interface UserDropdownContentProps {
-  user: TypesGen.User
-  buildInfo?: TypesGen.BuildInfoResponse
-  supportLinks?: TypesGen.LinkConfig[]
-  onPopoverClose: () => void
-  onSignOut: () => void
+  user: TypesGen.User;
+  buildInfo?: TypesGen.BuildInfoResponse;
+  supportLinks?: TypesGen.LinkConfig[];
+  onPopoverClose: () => void;
+  onSignOut: () => void;
 }
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
@@ -34,7 +34,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
   onPopoverClose,
   onSignOut,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div>
@@ -101,8 +101,8 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         <div className={styles.footerText}>{Language.copyrightText}</div>
       </Stack>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   info: {
@@ -166,7 +166,7 @@ const useStyles = makeStyles((theme) => ({
   buildInfo: {
     color: theme.palette.text.primary,
   },
-}))
+}));
 
 const includeBuildInfo = (
   href: string,
@@ -177,5 +177,5 @@ const includeBuildInfo = (
     `${encodeURIComponent(
       `Version: [\`${buildInfo?.version}\`](${buildInfo?.external_url})`,
     )}`,
-  )
-}
+  );
+};

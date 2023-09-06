@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react"
-import { render } from "../../../testHelpers/renderHelpers"
-import { LicenseCard } from "./LicenseCard"
-import { MockLicenseResponse } from "testHelpers/entities"
+import { screen } from "@testing-library/react";
+import { render } from "../../../testHelpers/renderHelpers";
+import { LicenseCard } from "./LicenseCard";
+import { MockLicenseResponse } from "testHelpers/entities";
 
 describe("LicenseCard", () => {
   it("renders (smoke test)", async () => {
@@ -14,13 +14,13 @@ describe("LicenseCard", () => {
         onRemove={() => null}
         isRemoving={false}
       />,
-    )
+    );
 
     // Then
-    await screen.findByText("#1")
-    await screen.findByText("1 / 10")
-    await screen.findByText("Enterprise")
-  })
+    await screen.findByText("#1");
+    await screen.findByText("1 / 10");
+    await screen.findByText("Enterprise");
+  });
 
   it("renders userLimit as unlimited if there is not user limit", async () => {
     // When
@@ -32,16 +32,16 @@ describe("LicenseCard", () => {
         onRemove={() => null}
         isRemoving={false}
       />,
-    )
+    );
 
     // Then
-    await screen.findByText("#1")
-    await screen.findByText("1 / Unlimited")
-    await screen.findByText("Enterprise")
-  })
+    await screen.findByText("#1");
+    await screen.findByText("1 / Unlimited");
+    await screen.findByText("Enterprise");
+  });
 
   it("renders license's user_limit when it is available instead of using the default", async () => {
-    const licenseUserLimit = 3
+    const licenseUserLimit = 3;
     const license = {
       ...MockLicenseResponse[0],
       claims: {
@@ -51,7 +51,7 @@ describe("LicenseCard", () => {
           user_limit: licenseUserLimit,
         },
       },
-    }
+    };
 
     // When
     render(
@@ -62,9 +62,9 @@ describe("LicenseCard", () => {
         onRemove={() => null}
         isRemoving={false}
       />,
-    )
+    );
 
     // Then
-    await screen.findByText("1 / 3")
-  })
-})
+    await screen.findByText("1 / 3");
+  });
+});

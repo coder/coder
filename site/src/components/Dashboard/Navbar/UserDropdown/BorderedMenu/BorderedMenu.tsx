@@ -1,19 +1,19 @@
-import Popover, { PopoverProps } from "@mui/material/Popover"
-import { makeStyles } from "@mui/styles"
-import { FC, PropsWithChildren } from "react"
+import Popover, { PopoverProps } from "@mui/material/Popover";
+import { makeStyles } from "@mui/styles";
+import { FC, PropsWithChildren } from "react";
 
-type BorderedMenuVariant = "user-dropdown"
+type BorderedMenuVariant = "user-dropdown";
 
 export type BorderedMenuProps = Omit<PopoverProps, "variant"> & {
-  variant?: BorderedMenuVariant
-}
+  variant?: BorderedMenuVariant;
+};
 
 export const BorderedMenu: FC<PropsWithChildren<BorderedMenuProps>> = ({
   children,
   variant,
   ...rest
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Popover
@@ -23,8 +23,8 @@ export const BorderedMenu: FC<PropsWithChildren<BorderedMenuProps>> = ({
     >
       {children}
     </Popover>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   paperRoot: {
@@ -32,4 +32,4 @@ const useStyles = makeStyles((theme) => ({
     borderRadius: theme.shape.borderRadius,
     boxShadow: theme.shadows[6],
   },
-}))
+}));

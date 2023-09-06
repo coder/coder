@@ -1,22 +1,22 @@
-import Box from "@mui/material/Box"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableRow from "@mui/material/TableRow"
-import { Timeline } from "components/Timeline/Timeline"
-import { FC } from "react"
-import * as TypesGen from "api/typesGenerated"
-import { EmptyState } from "components/EmptyState/EmptyState"
-import { TableLoader } from "components/TableLoader/TableLoader"
-import { BuildRow } from "./BuildRow"
+import Box from "@mui/material/Box";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableRow from "@mui/material/TableRow";
+import { Timeline } from "components/Timeline/Timeline";
+import { FC } from "react";
+import * as TypesGen from "api/typesGenerated";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { BuildRow } from "./BuildRow";
 
 export const Language = {
   emptyMessage: "No builds found",
-}
+};
 
 export interface BuildsTableProps {
-  builds?: TypesGen.WorkspaceBuild[]
+  builds?: TypesGen.WorkspaceBuild[];
 }
 
 export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
@@ -48,5 +48,5 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
         </TableBody>
       </Table>
     </TableContainer>
-  )
-}
+  );
+};

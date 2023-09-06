@@ -3,9 +3,9 @@ import {
   MockUser2,
   MockAssignableSiteRoles,
   MockAuthMethods,
-} from "testHelpers/entities"
-import { UsersTable } from "./UsersTable"
-import type { Meta, StoryObj } from "@storybook/react"
+} from "testHelpers/entities";
+import { UsersTable } from "./UsersTable";
+import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof UsersTable> = {
   title: "components/UsersTable",
@@ -14,10 +14,10 @@ const meta: Meta<typeof UsersTable> = {
     isNonInitialPage: false,
     authMethods: MockAuthMethods,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof UsersTable>
+export default meta;
+type Story = StoryObj<typeof UsersTable>;
 
 export const Example: Story = {
   args: {
@@ -25,7 +25,7 @@ export const Example: Story = {
     roles: MockAssignableSiteRoles,
     canEditUsers: false,
   },
-}
+};
 
 export const Editable: Story = {
   args: {
@@ -59,14 +59,14 @@ export const Editable: Story = {
     canEditUsers: true,
     canViewActivity: true,
   },
-}
+};
 
 export const Empty: Story = {
   args: {
     users: [],
     roles: MockAssignableSiteRoles,
   },
-}
+};
 
 export const Loading: Story = {
   args: {
@@ -77,4 +77,4 @@ export const Loading: Story = {
   parameters: {
     chromatic: { pauseAnimationAtEnd: true },
   },
-}
+};

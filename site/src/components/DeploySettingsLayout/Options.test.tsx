@@ -1,5 +1,5 @@
-import { optionValue } from "./OptionsTable"
-import { DeploymentOption } from "api/types"
+import { optionValue } from "./OptionsTable";
+import { DeploymentOption } from "api/types";
 
 const defaultOption: DeploymentOption = {
   name: "",
@@ -8,12 +8,12 @@ const defaultOption: DeploymentOption = {
   flag_shorthand: "",
   value: "",
   hidden: false,
-}
+};
 
 describe("optionValue", () => {
   it.each<{
-    option: DeploymentOption
-    expected: unknown
+    option: DeploymentOption;
+    expected: unknown;
   }>([
     {
       option: {
@@ -68,6 +68,6 @@ describe("optionValue", () => {
       expected: [`"123"->"foo"`, `"456"->"bar"`, `"789"->"baz"`],
     },
   ])(`[$option.name]optionValue($option.value)`, ({ option, expected }) => {
-    expect(optionValue(option)).toEqual(expected)
-  })
-})
+    expect(optionValue(option)).toEqual(expected);
+  });
+});

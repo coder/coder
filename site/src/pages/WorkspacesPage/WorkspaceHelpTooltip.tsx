@@ -1,12 +1,12 @@
-import { FC } from "react"
+import { FC } from "react";
 import {
   HelpTooltip,
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import { docs } from "utils/docs"
+} from "components/HelpTooltip/HelpTooltip";
+import { docs } from "utils/docs";
 
 const Language = {
   workspaceTooltipTitle: "What is a workspace?",
@@ -15,7 +15,7 @@ const Language = {
   workspaceTooltipLink1: "Create Workspaces",
   workspaceTooltipLink2: "Connect with SSH",
   workspaceTooltipLink3: "Editors and IDEs",
-}
+};
 
 export const WorkspaceHelpTooltip: FC = () => {
   return (
@@ -34,5 +34,5 @@ export const WorkspaceHelpTooltip: FC = () => {
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>
-  )
-}
+  );
+};

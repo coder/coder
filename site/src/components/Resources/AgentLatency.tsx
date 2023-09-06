@@ -1,44 +1,44 @@
-import { useRef, useState, FC } from "react"
-import { makeStyles, useTheme } from "@mui/styles"
-import { Theme } from "@mui/material/styles"
+import { useRef, useState, FC } from "react";
+import { makeStyles, useTheme } from "@mui/styles";
+import { Theme } from "@mui/material/styles";
 import {
   HelpTooltipText,
   HelpPopover,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import { Stack } from "components/Stack/Stack"
-import { WorkspaceAgent, DERPRegion } from "api/typesGenerated"
-import { getLatencyColor } from "utils/latency"
+} from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
+import { WorkspaceAgent, DERPRegion } from "api/typesGenerated";
+import { getLatencyColor } from "utils/latency";
 
 const getDisplayLatency = (theme: Theme, agent: WorkspaceAgent) => {
   // Find the right latency to display
-  const latencyValues = Object.values(agent.latency ?? {})
+  const latencyValues = Object.values(agent.latency ?? {});
   const latency =
     latencyValues.find((derp) => derp.preferred) ??
     // Accessing an array index can return undefined as well
     // for some reason TS does not handle that
-    (latencyValues[0] as DERPRegion | undefined)
+    (latencyValues[0] as DERPRegion | undefined);
 
   if (!latency) {
-    return undefined
+    return undefined;
   }
 
   return {
     ...latency,
     color: getLatencyColor(theme, latency.latency_ms),
-  }
-}
+  };
+};
 
 export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
-  const theme: Theme = useTheme()
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "latency-popover" : undefined
-  const latency = getDisplayLatency(theme, agent)
-  const styles = useStyles()
+  const theme: Theme = useTheme();
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "latency-popover" : undefined;
+  const latency = getDisplayLatency(theme, agent);
+  const styles = useStyles();
 
   if (!latency || !agent.latency) {
-    return null
+    return null;
   }
 
   return (
@@ -86,8 +86,8 @@ export const AgentLatency: FC<{ agent: WorkspaceAgent }> = ({ agent }) => {
         </HelpTooltipText>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   trigger: {
@@ -99,4 +99,4 @@ const useStyles = makeStyles((theme) => ({
   preferred: {
     color: theme.palette.text.primary,
   },
-}))
+}));

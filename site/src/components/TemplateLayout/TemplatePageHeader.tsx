@@ -1,47 +1,47 @@
-import Button from "@mui/material/Button"
-import AddIcon from "@mui/icons-material/AddOutlined"
+import Button from "@mui/material/Button";
+import AddIcon from "@mui/icons-material/AddOutlined";
 import {
   AuthorizationResponse,
   Template,
   TemplateVersion,
-} from "api/typesGenerated"
-import { Avatar } from "components/Avatar/Avatar"
-import { Maybe } from "components/Conditionals/Maybe"
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
+} from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { Maybe } from "components/Conditionals/Maybe";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
   PageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { FC, useRef, useState } from "react"
-import { Link as RouterLink, useNavigate } from "react-router-dom"
-import { useDeleteTemplate } from "./deleteTemplate"
-import { Margins } from "components/Margins/Margins"
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined"
-import Menu from "@mui/material/Menu"
-import MenuItem from "@mui/material/MenuItem"
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined"
-import EditOutlined from "@mui/icons-material/EditOutlined"
-import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined"
-import IconButton from "@mui/material/IconButton"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { FC, useRef, useState } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useDeleteTemplate } from "./deleteTemplate";
+import { Margins } from "components/Margins/Margins";
+import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
+import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import EditOutlined from "@mui/icons-material/EditOutlined";
+import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
+import IconButton from "@mui/material/IconButton";
 
 const TemplateMenu: FC<{
-  templateName: string
-  templateVersion: string
-  onDelete: () => void
+  templateName: string;
+  templateVersion: string;
+  onDelete: () => void;
 }> = ({ templateName, templateVersion, onDelete }) => {
-  const menuTriggerRef = useRef<HTMLButtonElement>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const navigate = useNavigate()
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const navigate = useNavigate();
 
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
-    setIsMenuOpen(false)
+    setIsMenuOpen(false);
 
-    actionFn()
-  }
+    actionFn();
+  };
 
   return (
     <div>
@@ -93,12 +93,12 @@ const TemplateMenu: FC<{
         </MenuItem>
       </Menu>
     </div>
-  )
-}
+  );
+};
 
 const CreateWorkspaceButton: FC<{
-  templateName: string
-  className?: string
+  templateName: string;
+  className?: string;
 }> = ({ templateName }) => (
   <Button
     variant="contained"
@@ -108,14 +108,14 @@ const CreateWorkspaceButton: FC<{
   >
     Create Workspace
   </Button>
-)
+);
 
 export type TemplatePageHeaderProps = {
-  template: Template
-  activeVersion: TemplateVersion
-  permissions: AuthorizationResponse
-  onDeleteTemplate: () => void
-}
+  template: Template;
+  activeVersion: TemplateVersion;
+  permissions: AuthorizationResponse;
+  onDeleteTemplate: () => void;
+};
 
 export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   template,
@@ -123,8 +123,8 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   permissions,
   onDeleteTemplate,
 }) => {
-  const hasIcon = template.icon && template.icon !== ""
-  const deleteTemplate = useDeleteTemplate(template, onDeleteTemplate)
+  const hasIcon = template.icon && template.icon !== "";
+  const deleteTemplate = useDeleteTemplate(template, onDeleteTemplate);
 
   return (
     <Margins>
@@ -173,5 +173,5 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
         name={template.name}
       />
     </Margins>
-  )
-}
+  );
+};

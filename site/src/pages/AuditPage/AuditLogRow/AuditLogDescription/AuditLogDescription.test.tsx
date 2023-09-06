@@ -4,39 +4,39 @@ import {
   MockWorkspaceCreateAuditLogForDifferentOwner,
   MockAuditLogSuccessfulLogin,
   MockAuditLogUnsuccessfulLoginKnownUser,
-} from "testHelpers/entities"
-import { AuditLogDescription } from "./AuditLogDescription"
-import { AuditLogRow } from "../AuditLogRow"
-import { render } from "testHelpers/renderHelpers"
-import { screen } from "@testing-library/react"
-import { i18n } from "i18n"
+} from "testHelpers/entities";
+import { AuditLogDescription } from "./AuditLogDescription";
+import { AuditLogRow } from "../AuditLogRow";
+import { render } from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import { i18n } from "i18n";
 
 const t = (str: string, variables: Record<string, unknown>) =>
-  i18n.t<string>(str, variables)
+  i18n.t<string>(str, variables);
 
 const getByTextContent = (text: string) => {
   return screen.getByText((_, element) => {
-    const hasText = (element: Element | null) => element?.textContent === text
-    const elementHasText = hasText(element)
+    const hasText = (element: Element | null) => element?.textContent === text;
+    const elementHasText = hasText(element);
     const childrenDontHaveText = Array.from(element?.children || []).every(
       (child) => !hasText(child),
-    )
-    return elementHasText && childrenDontHaveText
-  })
-}
+    );
+    return elementHasText && childrenDontHaveText;
+  });
+};
 describe("AuditLogDescription", () => {
   it("renders the correct string for a workspace create audit log", async () => {
-    render(<AuditLogDescription auditLog={MockAuditLog} />)
+    render(<AuditLogDescription auditLog={MockAuditLog} />);
 
-    expect(screen.getByText("TestUser created workspace")).toBeDefined()
-    expect(screen.getByText("bruno-dev")).toBeDefined()
-  })
+    expect(screen.getByText("TestUser created workspace")).toBeDefined();
+    expect(screen.getByText("bruno-dev")).toBeDefined();
+  });
 
   it("renders the correct string for a workspace_build stop audit log", async () => {
-    render(<AuditLogDescription auditLog={MockAuditLogWithWorkspaceBuild} />)
+    render(<AuditLogDescription auditLog={MockAuditLogWithWorkspaceBuild} />);
 
-    expect(getByTextContent("TestUser stopped workspace test2")).toBeDefined()
-  })
+    expect(getByTextContent("TestUser stopped workspace test2")).toBeDefined();
+  });
 
   it("renders the correct string for a workspace_build audit log with a duplicate word", async () => {
     const AuditLogWithRepeat = {
@@ -44,29 +44,29 @@ describe("AuditLogDescription", () => {
       additional_fields: {
         workspace_name: "workspace",
       },
-    }
-    render(<AuditLogDescription auditLog={AuditLogWithRepeat} />)
+    };
+    render(<AuditLogDescription auditLog={AuditLogWithRepeat} />);
 
     expect(
       getByTextContent("TestUser stopped workspace workspace"),
-    ).toBeDefined()
-  })
+    ).toBeDefined();
+  });
   it("renders the correct string for a workspace created for a different owner", async () => {
     render(
       <AuditLogDescription
         auditLog={MockWorkspaceCreateAuditLogForDifferentOwner}
       />,
-    )
+    );
 
     expect(
       screen.getByText(
         `on behalf of ${MockWorkspaceCreateAuditLogForDifferentOwner.additional_fields.workspace_owner}`,
         { exact: false },
       ),
-    ).toBeDefined()
-  })
+    ).toBeDefined();
+  });
   it("renders the correct string for successful login", async () => {
-    render(<AuditLogRow auditLog={MockAuditLogSuccessfulLogin} />)
+    render(<AuditLogRow auditLog={MockAuditLogSuccessfulLogin} />);
 
     expect(
       screen.getByText(
@@ -79,13 +79,13 @@ describe("AuditLogDescription", () => {
           .replace(/\s{2,}/g, " ")
           .trim(),
       ),
-    ).toBeInTheDocument()
+    ).toBeInTheDocument();
 
-    const statusPill = screen.getByRole("status")
-    expect(statusPill).toHaveTextContent("201")
-  })
+    const statusPill = screen.getByRole("status");
+    expect(statusPill).toHaveTextContent("201");
+  });
   it("renders the correct string for unsuccessful login for a known user", async () => {
-    render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginKnownUser} />)
+    render(<AuditLogRow auditLog={MockAuditLogUnsuccessfulLoginKnownUser} />);
 
     expect(
       screen.getByText(
@@ -98,9 +98,9 @@ describe("AuditLogDescription", () => {
           .replace(/\s{2,}/g, " ")
           .trim(),
       ),
-    ).toBeInTheDocument()
+    ).toBeInTheDocument();
 
-    const statusPill = screen.getByRole("status")
-    expect(statusPill).toHaveTextContent("401")
-  })
-})
+    const statusPill = screen.getByRole("status");
+    expect(statusPill).toHaveTextContent("401");
+  });
+});

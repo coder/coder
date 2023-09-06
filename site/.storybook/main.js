@@ -1,5 +1,5 @@
-import turbosnap from "vite-plugin-turbosnap"
-import { mergeConfig } from "vite"
+import turbosnap from "vite-plugin-turbosnap";
+import { mergeConfig } from "vite";
 
 module.exports = {
   stories: ["../src/**/*.stories.tsx"],
@@ -15,7 +15,7 @@ module.exports = {
     options: {},
   },
   async viteFinal(config, { configType }) {
-    config.plugins = config.plugins || []
+    config.plugins = config.plugins || [];
     // return the customized config
     if (configType === "PRODUCTION") {
       // ignore @ts-ignore because it's not in the vite types yet
@@ -23,8 +23,8 @@ module.exports = {
         turbosnap({
           rootDir: config.root || "",
         }),
-      )
+      );
     }
-    return config
+    return config;
   },
-}
+};

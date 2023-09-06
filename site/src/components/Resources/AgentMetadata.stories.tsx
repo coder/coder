@@ -1,25 +1,25 @@
-import { Story } from "@storybook/react"
+import { Story } from "@storybook/react";
 import {
   WorkspaceAgentMetadataDescription,
   WorkspaceAgentMetadataResult,
-} from "api/typesGenerated"
-import { AgentMetadataView, AgentMetadataViewProps } from "./AgentMetadata"
+} from "api/typesGenerated";
+import { AgentMetadataView, AgentMetadataViewProps } from "./AgentMetadata";
 
 export default {
   title: "components/AgentMetadata",
   component: AgentMetadataView,
-}
+};
 
 const Template: Story<AgentMetadataViewProps> = (args) => (
   <AgentMetadataView {...args} />
-)
+);
 
 const resultDefaults: WorkspaceAgentMetadataResult = {
   collected_at: "2021-05-05T00:00:00Z",
   error: "",
   value: "defvalue",
   age: 5,
-}
+};
 
 const descriptionDefaults: WorkspaceAgentMetadataDescription = {
   display_name: "DisPlay",
@@ -27,9 +27,9 @@ const descriptionDefaults: WorkspaceAgentMetadataDescription = {
   interval: 10,
   timeout: 10,
   script: "some command",
-}
+};
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   metadata: [
     {
@@ -104,4 +104,4 @@ Example.args = {
       },
     },
   ],
-}
+};

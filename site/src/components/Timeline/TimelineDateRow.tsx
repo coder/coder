@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import TableRow from "@mui/material/TableRow"
-import { FC } from "react"
-import { createDisplayDate } from "./utils"
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import TableRow from "@mui/material/TableRow";
+import { FC } from "react";
+import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
-  date: Date
+  date: Date;
 }
 
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <TableRow className={styles.dateRow}>
@@ -17,8 +17,8 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
         {createDisplayDate(date)}
       </TableCell>
     </TableRow>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   dateRow: {
@@ -37,4 +37,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     textTransform: "capitalize",
   },
-}))
+}));

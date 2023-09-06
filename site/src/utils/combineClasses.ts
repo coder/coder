@@ -3,10 +3,10 @@ export const appendCSSString = (
   cssClass: string,
 ): string => {
   if (cssString === "") {
-    return cssClass
+    return cssClass;
   }
-  return `${cssString}  ${cssClass}`
-}
+  return `${cssString}  ${cssClass}`;
+};
 
 /**
  * @param classes May be an object or an array. When using an object, each key
@@ -26,22 +26,22 @@ export const combineClasses = (
     | Array<string | false | undefined>
     | Record<string, boolean | undefined> = {},
 ): string | undefined => {
-  let result = ""
+  let result = "";
 
   if (Array.isArray(classes)) {
     for (const cssClass of classes) {
       if (cssClass) {
-        result = appendCSSString(result, cssClass)
+        result = appendCSSString(result, cssClass);
       }
     }
   } else {
     for (const cssClass in classes) {
-      const useClass = classes[cssClass]
+      const useClass = classes[cssClass];
       if (useClass) {
-        result = appendCSSString(result, cssClass)
+        result = appendCSSString(result, cssClass);
       }
     }
   }
 
-  return result.length > 0 ? result : undefined
-}
+  return result.length > 0 ? result : undefined;
+};

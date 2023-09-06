@@ -1,21 +1,21 @@
-import { action } from "@storybook/addon-actions"
-import { Meta, StoryObj } from "@storybook/react"
-import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata"
-import { ProvisionerJobLog } from "api/typesGenerated"
-import * as Mocks from "testHelpers/entities"
-import { Workspace, WorkspaceErrors } from "./Workspace"
-import { withReactContext } from "storybook-react-context"
-import EventSource from "eventsourcemock"
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
-import { DashboardProviderContext } from "components/Dashboard/DashboardProvider"
-import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection"
+import { action } from "@storybook/addon-actions";
+import { Meta, StoryObj } from "@storybook/react";
+import { WatchAgentMetadataContext } from "components/Resources/AgentMetadata";
+import { ProvisionerJobLog } from "api/typesGenerated";
+import * as Mocks from "testHelpers/entities";
+import { Workspace, WorkspaceErrors } from "./Workspace";
+import { withReactContext } from "storybook-react-context";
+import EventSource from "eventsourcemock";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
+import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
 
 const MockedAppearance = {
   config: Mocks.MockAppearance,
   preview: false,
   setPreview: () => null,
   save: () => null,
-}
+};
 
 const meta: Meta<typeof Workspace> = {
   title: "components/Workspace",
@@ -38,13 +38,13 @@ const meta: Meta<typeof Workspace> = {
             isLoading: false,
             isFetched: true,
             clearProxy: () => {
-              return
+              return;
             },
             setProxy: () => {
-              return
+              return;
             },
             refetchProxyLatencies: (): Date => {
-              return new Date()
+              return new Date();
             },
           }}
         >
@@ -56,13 +56,13 @@ const meta: Meta<typeof Workspace> = {
       Context: WatchAgentMetadataContext,
       initialState: (_: string): EventSource => {
         // Need Bruno's help here.
-        return new EventSource()
+        return new EventSource();
       },
     }),
   ],
-}
-export default meta
-type Story = StoryObj<typeof Workspace>
+};
+export default meta;
+type Story = StoryObj<typeof Workspace>;
 
 export const Running: Story = {
   args: {
@@ -90,42 +90,42 @@ export const Running: Story = {
     buildInfo: Mocks.MockBuildInfo,
     template: Mocks.MockTemplate,
   },
-}
+};
 
 export const WithoutUpdateAccess: Story = {
   args: {
     ...Running.args,
     canUpdateWorkspace: false,
   },
-}
+};
 
 export const PendingInQueue: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockPendingWorkspace,
   },
-}
+};
 
 export const Starting: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStartingWorkspace,
   },
-}
+};
 
 export const Stopped: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStoppedWorkspace,
   },
-}
+};
 
 export const Stopping: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockStoppingWorkspace,
   },
-}
+};
 
 export const Failed: Story = {
   args: {
@@ -137,7 +137,7 @@ export const Failed: Story = {
       }),
     },
   },
-}
+};
 
 export const FailedWithLogs: Story = {
   args: {
@@ -155,7 +155,7 @@ export const FailedWithLogs: Story = {
     },
     buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
-}
+};
 
 export const FailedWithRetry: Story = {
   args: {
@@ -174,42 +174,42 @@ export const FailedWithRetry: Story = {
     canRetryDebugMode: true,
     buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
-}
+};
 
 export const Deleting: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockDeletingWorkspace,
   },
-}
+};
 
 export const Deleted: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockDeletedWorkspace,
   },
-}
+};
 
 export const Canceling: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockCancelingWorkspace,
   },
-}
+};
 
 export const Canceled: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockCanceledWorkspace,
   },
-}
+};
 
 export const Outdated: Story = {
   args: {
     ...Running.args,
     workspace: Mocks.MockOutdatedWorkspace,
   },
-}
+};
 
 export const GetBuildsError: Story = {
   args: {
@@ -220,7 +220,7 @@ export const GetBuildsError: Story = {
       }),
     },
   },
-}
+};
 
 export const CancellationError: Story = {
   args: {
@@ -232,7 +232,7 @@ export const CancellationError: Story = {
     },
     buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
   },
-}
+};
 
 export const Unhealthy: Story = {
   args: {
@@ -246,7 +246,7 @@ export const Unhealthy: Story = {
       },
     },
   },
-}
+};
 
 function makeFailedBuildLogs(): ProvisionerJobLog[] {
   return [
@@ -736,7 +736,7 @@ function makeFailedBuildLogs(): ProvisionerJobLog[] {
       stage: "Cleaning Up",
       output: "",
     },
-  ]
+  ];
 }
 
 export const UnsupportedWorkspace: Story = {
@@ -744,4 +744,4 @@ export const UnsupportedWorkspace: Story = {
     ...Running.args,
     templateWarnings: ["UNSUPPORTED_WORKSPACES"],
   },
-}
+};

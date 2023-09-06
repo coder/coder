@@ -1,45 +1,45 @@
-import { BuildAvatar } from "components/BuildAvatar/BuildAvatar"
-import { FC } from "react"
-import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated"
-import { Loader } from "../../components/Loader/Loader"
-import { Stack } from "../../components/Stack/Stack"
-import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { makeStyles } from "@mui/styles"
+import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
+import { FC } from "react";
+import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated";
+import { Loader } from "../../components/Loader/Loader";
+import { Stack } from "../../components/Stack/Stack";
+import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { makeStyles } from "@mui/styles";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
-} from "components/PageHeader/FullWidthPageHeader"
-import { Link } from "react-router-dom"
-import { Stats, StatsItem } from "components/Stats/Stats"
+} from "components/PageHeader/FullWidthPageHeader";
+import { Link } from "react-router-dom";
+import { Stats, StatsItem } from "components/Stats/Stats";
 import {
   displayWorkspaceBuildDuration,
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceBuildStatus,
-} from "utils/workspace"
-import Box from "@mui/material/Box"
+} from "utils/workspace";
+import Box from "@mui/material/Box";
 import {
   Sidebar,
   SidebarCaption,
   SidebarItem,
-} from "components/Sidebar/Sidebar"
-import { BuildIcon } from "components/BuildIcon/BuildIcon"
-import Skeleton from "@mui/material/Skeleton"
-import { Alert } from "components/Alert/Alert"
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
+} from "components/Sidebar/Sidebar";
+import { BuildIcon } from "components/BuildIcon/BuildIcon";
+import Skeleton from "@mui/material/Skeleton";
+import { Alert } from "components/Alert/Alert";
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 
 const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
   return [...logs].sort(
     (a, b) =>
       new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-  )
-}
+  );
+};
 
 export interface WorkspaceBuildPageViewProps {
-  logs: ProvisionerJobLog[] | undefined
-  build: WorkspaceBuild | undefined
-  builds: WorkspaceBuild[] | undefined
-  activeBuildNumber: number
+  logs: ProvisionerJobLog[] | undefined;
+  build: WorkspaceBuild | undefined;
+  builds: WorkspaceBuild[] | undefined;
+  activeBuildNumber: number;
 }
 
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
@@ -48,10 +48,10 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
   builds,
   activeBuildNumber,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (!build) {
-    return <Loader />
+    return <Loader />;
   }
 
   return (
@@ -170,15 +170,15 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
         </Box>
       </Box>
     </DashboardFullPage>
-  )
-}
+  );
+};
 
 const BuildSidebarItem = ({
   build,
   active,
 }: {
-  build: WorkspaceBuild
-  active: boolean
+  build: WorkspaceBuild;
+  active: boolean;
 }) => {
   return (
     <Link
@@ -223,8 +223,8 @@ const BuildSidebarItem = ({
         </Box>
       </SidebarItem>
     </Link>
-  )
-}
+  );
+};
 
 const BuildSidebarItemSkeleton = () => {
   return (
@@ -237,8 +237,8 @@ const BuildSidebarItemSkeleton = () => {
         </Box>
       </Box>
     </SidebarItem>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   stats: {
@@ -266,4 +266,4 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
     },
   },
-}))
+}));

@@ -1,10 +1,10 @@
-import { assign, createMachine } from "xstate"
-import * as TypeGen from "api/typesGenerated"
-import * as API from "api/api"
+import { assign, createMachine } from "xstate";
+import * as TypeGen from "api/typesGenerated";
+import * as API from "api/api";
 
 export interface AuthMethodsContext {
-  authMethods?: TypeGen.AuthMethods
-  error?: unknown
+  authMethods?: TypeGen.AuthMethods;
+  error?: unknown;
 }
 
 export const authMethodsXService = createMachine(
@@ -16,8 +16,8 @@ export const authMethodsXService = createMachine(
       context: {} as AuthMethodsContext,
       services: {} as {
         getAuthMethods: {
-          data: TypeGen.AuthMethods
-        }
+          data: TypeGen.AuthMethods;
+        };
       },
     },
     context: {},
@@ -52,4 +52,4 @@ export const authMethodsXService = createMachine(
       getAuthMethods: () => API.getAuthMethods(),
     },
   },
-)
+);

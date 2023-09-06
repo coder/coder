@@ -1,11 +1,11 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
-import { displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import * as TypesGen from "../../api/typesGenerated";
+import { displaySuccess } from "../../components/GlobalSnackbar/utils";
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
-}
+};
 
 export const checks = {
   readAllUsers: "readAllUsers",
@@ -20,7 +20,7 @@ export const checks = {
   viewGitAuthConfig: "viewGitAuthConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
-} as const
+} as const;
 
 export const permissionsToCheck = {
   [checks.readAllUsers]: {
@@ -95,31 +95,31 @@ export const permissionsToCheck = {
     },
     action: "create",
   },
-} as const
+} as const;
 
-export type Permissions = Record<keyof typeof permissionsToCheck, boolean>
+export type Permissions = Record<keyof typeof permissionsToCheck, boolean>;
 
 export type AuthenticatedData = {
-  user: TypesGen.User
-  permissions: Permissions
-}
+  user: TypesGen.User;
+  permissions: Permissions;
+};
 export type UnauthenticatedData = {
-  hasFirstUser: boolean
-  authMethods: TypesGen.AuthMethods
-}
-export type AuthData = AuthenticatedData | UnauthenticatedData
+  hasFirstUser: boolean;
+  authMethods: TypesGen.AuthMethods;
+};
+export type AuthData = AuthenticatedData | UnauthenticatedData;
 
 export const isAuthenticated = (data?: AuthData): data is AuthenticatedData =>
-  data !== undefined && "user" in data
+  data !== undefined && "user" in data;
 
 const loadInitialAuthData = async (): Promise<AuthData> => {
-  let authenticatedUser: TypesGen.User | undefined
+  let authenticatedUser: TypesGen.User | undefined;
   // User is injected by the Coder server into the HTML document.
-  const userMeta = document.querySelector("meta[property=user]")
+  const userMeta = document.querySelector("meta[property=user]");
   if (userMeta) {
-    const rawContent = userMeta.getAttribute("content")
+    const rawContent = userMeta.getAttribute("content");
     try {
-      authenticatedUser = JSON.parse(rawContent as string) as TypesGen.User
+      authenticatedUser = JSON.parse(rawContent as string) as TypesGen.User;
     } catch (ex) {
       // Ignore this and fetch as normal!
     }
@@ -127,69 +127,69 @@ const loadInitialAuthData = async (): Promise<AuthData> => {
 
   // If we have the user from the meta tag, we can skip this!
   if (!authenticatedUser) {
-    authenticatedUser = await API.getAuthenticatedUser()
+    authenticatedUser = await API.getAuthenticatedUser();
   }
 
   if (authenticatedUser) {
     const permissions = (await API.checkAuthorization({
       checks: permissionsToCheck,
-    })) as Permissions
+    })) as Permissions;
     return {
       user: authenticatedUser,
       permissions,
-    }
+    };
   }
 
   const [hasFirstUser, authMethods] = await Promise.all([
     API.hasFirstUser(),
     API.getAuthMethods(),
-  ])
+  ]);
 
   return {
     hasFirstUser,
     authMethods,
-  }
-}
+  };
+};
 
 const signIn = async (
   email: string,
   password: string,
 ): Promise<AuthenticatedData> => {
-  await API.login(email, password)
+  await API.login(email, password);
   const [user, permissions] = await Promise.all([
     API.getAuthenticatedUser(),
     API.checkAuthorization({
       checks: permissionsToCheck,
     }),
-  ])
+  ]);
 
   return {
     user: user as TypesGen.User,
     permissions: permissions as Permissions,
-  }
-}
+  };
+};
 
 const signOut = async () => {
   const [authMethods] = await Promise.all([
     API.getAuthMethods(), // Anticipate and load the auth methods
     API.logout(),
-  ])
+  ]);
 
   return {
     hasFirstUser: true,
     authMethods,
-  } as UnauthenticatedData
-}
+  } as UnauthenticatedData;
+};
 export interface AuthContext {
-  error?: unknown
-  updateProfileError?: unknown
-  data?: AuthData
+  error?: unknown;
+  updateProfileError?: unknown;
+  data?: AuthData;
 }
 
 export type AuthEvent =
   | { type: "SIGN_OUT" }
   | { type: "SIGN_IN"; email: string; password: string }
-  | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest }
+  | { type: "UPDATE_PROFILE"; data: TypesGen.UpdateUserProfileRequest };
 
 export const authMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QEMCuAXAFgZXc9YAdADYD2yEAlgHZQCS1l6lyxAghpgCL7IDEEUtSI0AbqQDWRNFlz4iZCjXqNmrDlh54EY0gGN8lIQG0ADAF0z5xKAAOpWEyPUbIAB6IAjAFZThACwATAAcAGwAzOGewZ7hoYH+ADQgAJ6Igaam3oSeGf7BcbnBAJyBAL5lyTI4eAQk5FS0DE7qnFr8gsKEulKE1XJ1io0qLextvDrU4gbMJhbGntZIIPaOsy7LHgg+fkFhkdGx8Ump6bEA7ITn56HnkaFFpRVVnAMKDcrNamOavAJCIimkmkr1q7yUTVULB+3AmuhmzisxkCSzsDicQlcWx2ARCESiMTiCWSaQQgUC5124UCxQKDxCT0qIH6YPqEJG3w0sLwfDAACc+aQ+YRbMR8AAzIUAWz6oPkbOGX2hXPak2mhjmlgsrlWGI2oGxvlx+wJR2JpzJ-lM4UIphKgXuj3KTJZ8scUGEEAA8hg+Ng6ABxAByAH06EGrDr0essV5TOdslloqZPKZ-Od-NESV4Hjb-OESqFvAyEudgs9mXK6u7GJD-l0ekQawxI8tdTHNl5ybtPKnPKFin3ivns2TU3mi1FrmFSuEK67q5QPZ9qLyBUKRWL0JK+TLm9RW2i1s5Y9tu4Q8ZksiFgmnR93PLbad5h6FMgm5y6q02l56GH7A1DL0AFUABVDxWaMT07BAogHQhgmCfwBxvbwiwKe87WyYIM1ibxPHzG5PxeWRWRrSAGBFQVxUoYgRAgOi+GAgAFLg2FAgBRENmIAJS9AAxOgABkOIg9toINdIi0fcJzn7dMshfXtR2ibx-EIUJkOKbwiVw4p52-QhyIgSjbGo2iiFQWwIEMWhmPMxjOkBcRegXH8PQo6gqNIGi6MIKybOYOyHLANV9A1A95m1NsoMxGDPGfHIiPCfxvDSwcCJUwsci0nT4j0gzSLdX9PO83zLOs2yoHsnyLLXQVhVFCVpVlIrFw8kyvLM2q-ICqqavKsKEU1MTYv1dwvESzxktS9LexOUlonyHKBzyilM30r82vc2soB9dB62c4EjN-fbRuPOLJNghK-HJckX2KFLimHFTSkCQhZIKUwByQotnRImpiuXWh9sO7ogV6GszsWKMLvGrY4n8dSbn8bTfFyXx01e8JsLU580unG5CsB9rdtB-kGs3ZrdxOj0zuio89VPWTTHenHTEegpwm+nDwkwzSPuKIjEPOckkOJt5CD0IQaKgVA+WUUDMDAfjKD5WB0GA2B+QA4MwwjBnILh09b1CHIOdTN8Uoe+9pve0WhZKHHNJRiomWoUgIDgVw3NhpmYIAWlCFS3w04cCwyDmKWpYjK22hUV1GFVeD9jsroD1MAhxule1zfNimDi1DnU0IYgyUoblTBIJbIkrvQwVOJIm2CE2CK5olKCIskQrLvovfCkOua14kQmugd2hhG8u5uC78FKHRCO4cPzQvSUCI4LxpUpEMiNNQjH0nPKn+GvDiM3KW52dcO+vmLQSNuEvzRC0uQtDZIPnbSu68rj9PAiCKuNaKOslMw31HJEbIA5874SvOEbSH9aZ-i6iFboDEwC-3igXM28RfB2kCH9I4o4gg2kflaeSalyShH3ltEmn9OplQsqgvyHsOLrj5Bgq669tIfTki7RSGVXpBBWtpXSmYcIIOMqZFBlA0GEApkKDhzcuHZFkvJSkc1PCYUzgRVaojojnAkXXKRPUKqBWUANCyijsQPGyEPO0s0lKZSLtlHRIj8obUMcDPaDcYrGxgvPG0dwaTHAIimfI-M2Z6WmlA8RNDJbS2oLLeWitlaq3VprbW7DfH+yumlPwj83zBBvKXYI3hbaiyuDSMsj00Lpk0m7MoQA */
@@ -203,17 +203,17 @@ export const authMachine =
         events: {} as AuthEvent,
         services: {} as {
           loadInitialAuthData: {
-            data: Awaited<ReturnType<typeof loadInitialAuthData>>
-          }
+            data: Awaited<ReturnType<typeof loadInitialAuthData>>;
+          };
           signIn: {
-            data: Awaited<ReturnType<typeof signIn>>
-          }
+            data: Awaited<ReturnType<typeof signIn>>;
+          };
           updateProfile: {
-            data: TypesGen.User
-          }
+            data: TypesGen.User;
+          };
           signOut: {
-            data: Awaited<ReturnType<typeof signOut>>
-          }
+            data: Awaited<ReturnType<typeof signOut>>;
+          };
         },
       },
       initial: "loadingInitialAuthData",
@@ -359,14 +359,14 @@ export const authMachine =
         signOut,
         updateProfile: async ({ data }, event) => {
           if (!data) {
-            throw new Error("Authenticated data is not loaded yet")
+            throw new Error("Authenticated data is not loaded yet");
           }
 
           if (isAuthenticated(data)) {
-            return API.updateProfile(data.user.id, event.data)
+            return API.updateProfile(data.user.id, event.data);
           }
 
-          throw new Error("User not authenticated")
+          throw new Error("User not authenticated");
         },
       },
       actions: {
@@ -385,26 +385,26 @@ export const authMachine =
         updateUser: assign({
           data: (context, event) => {
             if (!context.data) {
-              throw new Error("No authentication data loaded")
+              throw new Error("No authentication data loaded");
             }
 
             return {
               ...context.data,
               user: event.data,
-            }
+            };
           },
         }),
         assignUpdateProfileError: assign({
           updateProfileError: (_, event) => event.data,
         }),
         notifySuccessProfileUpdate: () => {
-          displaySuccess(Language.successProfileUpdate)
+          displaySuccess(Language.successProfileUpdate);
         },
         clearUpdateProfileError: assign({
           updateProfileError: (_) => undefined,
         }),
         redirect: (_, _data) => {
-          window.location.href = location.origin
+          window.location.href = location.origin;
         },
       },
       guards: {
@@ -414,4 +414,4 @@ export const authMachine =
         hasRedirectUrl: (_, { data }) => Boolean(data),
       },
     },
-  )
+  );

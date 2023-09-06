@@ -1,21 +1,21 @@
-import { PaletteColor, Theme } from "@mui/material/styles"
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
-import { PaletteIndex } from "theme/theme"
-import { combineClasses } from "utils/combineClasses"
+import { PaletteColor, Theme } from "@mui/material/styles";
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
+import { PaletteIndex } from "theme/theme";
+import { combineClasses } from "utils/combineClasses";
 
 export interface PillProps {
-  className?: string
-  icon?: React.ReactNode
-  text: string
-  type?: PaletteIndex
-  lightBorder?: boolean
-  title?: string
+  className?: string;
+  icon?: React.ReactNode;
+  text: string;
+  type?: PaletteIndex;
+  lightBorder?: boolean;
+  title?: string;
 }
 
 export const Pill: FC<PillProps> = (props) => {
-  const { className, icon, text = false, title } = props
-  const styles = useStyles(props)
+  const { className, icon, text = false, title } = props;
+  const styles = useStyles(props);
   return (
     <div
       className={combineClasses([styles.wrapper, styles.pillColor, className])}
@@ -25,8 +25,8 @@ export const Pill: FC<PillProps> = (props) => {
       {icon && <div className={styles.iconWrapper}>{icon}</div>}
       {text}
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<Theme, PillProps>((theme) => ({
   wrapper: {
@@ -72,4 +72,4 @@ const useStyles = makeStyles<Theme, PillProps>((theme) => ({
       height: theme.spacing(1.75),
     },
   },
-}))
+}));

@@ -1,27 +1,27 @@
-import { makeStyles } from "@mui/styles"
-import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink"
-import { Maybe } from "components/Conditionals/Maybe"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { combineClasses } from "utils/combineClasses"
-import { WorkspaceAgent } from "../../api/typesGenerated"
-import { Stack } from "../Stack/Stack"
+import { makeStyles } from "@mui/styles";
+import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink";
+import { Maybe } from "components/Conditionals/Maybe";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import { combineClasses } from "utils/combineClasses";
+import { WorkspaceAgent } from "../../api/typesGenerated";
+import { Stack } from "../Stack/Stack";
 
 interface AgentRowPreviewStyles {
   // Helpful when there are more than one row so the values are aligned
   // When it is only one row, it is better to have than "flex" and not hard aligned
-  alignValues?: boolean
+  alignValues?: boolean;
 }
 export interface AgentRowPreviewProps extends AgentRowPreviewStyles {
-  agent: WorkspaceAgent
+  agent: WorkspaceAgent;
 }
 
 export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
   agent,
   alignValues,
 }) => {
-  const styles = useStyles({ alignValues })
-  const { t } = useTranslation("agent")
+  const styles = useStyles({ alignValues });
+  const { t } = useTranslation("agent");
 
   return (
     <Stack
@@ -102,8 +102,8 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
         </Stack>
       </Stack>
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   agentRow: {
@@ -194,4 +194,4 @@ const useStyles = makeStyles((theme) => ({
       width: "fit-content",
     },
   },
-}))
+}));

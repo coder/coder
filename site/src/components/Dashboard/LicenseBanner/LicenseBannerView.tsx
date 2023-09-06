@@ -1,9 +1,9 @@
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import { Expander } from "components/Expander/Expander"
-import { Pill } from "components/Pill/Pill"
-import { useState } from "react"
-import { colors } from "theme/colors"
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import { Expander } from "components/Expander/Expander";
+import { Pill } from "components/Pill/Pill";
+import { useState } from "react";
+import { colors } from "theme/colors";
 
 export const Language = {
   licenseIssue: "License Issue",
@@ -12,22 +12,22 @@ export const Language = {
   exceeded: "It looks like you've exceeded some limits of your license.",
   lessDetails: "Less",
   moreDetails: "More",
-}
+};
 
 export interface LicenseBannerViewProps {
-  errors: string[]
-  warnings: string[]
+  errors: string[];
+  warnings: string[];
 }
 
 export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
   errors,
   warnings,
 }) => {
-  const styles = useStyles()
-  const [showDetails, setShowDetails] = useState(false)
-  const isError = errors.length > 0
-  const messages = [...errors, ...warnings]
-  const type = isError ? "error" : "warning"
+  const styles = useStyles();
+  const [showDetails, setShowDetails] = useState(false);
+  const isError = errors.length > 0;
+  const messages = [...errors, ...warnings];
+  const type = isError ? "error" : "warning";
 
   if (messages.length === 1) {
     return (
@@ -41,7 +41,7 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           </Link>
         </div>
       </div>
-    )
+    );
   } else {
     return (
       <div className={`${styles.container} ${type}`}>
@@ -73,9 +73,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           </Expander>
         </div>
       </div>
-    )
+    );
   }
-}
+};
 
 const useStyles = makeStyles((theme) => ({
   container: {
@@ -103,4 +103,4 @@ const useStyles = makeStyles((theme) => ({
   listItem: {
     margin: theme.spacing(0.5),
   },
-}))
+}));

@@ -1,4 +1,4 @@
-import { addDays, addHours, format, startOfDay, startOfHour } from "date-fns"
+import { addDays, addHours, format, startOfDay, startOfHour } from "date-fns";
 
 export function getDateRangeFilter({
   startDate,
@@ -6,10 +6,10 @@ export function getDateRangeFilter({
   now,
   isToday,
 }: {
-  startDate: Date
-  endDate: Date
-  now: Date
-  isToday: (date: Date) => boolean
+  startDate: Date;
+  endDate: Date;
+  now: Date;
+  isToday: (date: Date) => boolean;
 }) {
   return {
     start_time: toISOLocal(startOfDay(startDate)),
@@ -18,9 +18,9 @@ export function getDateRangeFilter({
         ? startOfHour(addHours(now, 1))
         : startOfDay(addDays(endDate, 1)),
     ),
-  }
+  };
 }
 
 function toISOLocal(d: Date) {
-  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx")
+  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
 }

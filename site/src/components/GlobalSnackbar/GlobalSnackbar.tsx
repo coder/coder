@@ -1,10 +1,10 @@
-import { makeStyles } from "@mui/styles"
-import { useCallback, useState, FC } from "react"
-import { useCustomEvent } from "../../hooks/events"
-import { CustomEventListener } from "../../utils/events"
-import { EnterpriseSnackbar } from "./EnterpriseSnackbar/EnterpriseSnackbar"
-import { ErrorIcon } from "../Icons/ErrorIcon"
-import { Typography } from "../Typography/Typography"
+import { makeStyles } from "@mui/styles";
+import { useCallback, useState, FC } from "react";
+import { useCustomEvent } from "../../hooks/events";
+import { CustomEventListener } from "../../utils/events";
+import { EnterpriseSnackbar } from "./EnterpriseSnackbar/EnterpriseSnackbar";
+import { ErrorIcon } from "../Icons/ErrorIcon";
+import { Typography } from "../Typography/Typography";
 import {
   AdditionalMessage,
   isNotificationList,
@@ -13,32 +13,32 @@ import {
   MsgType,
   NotificationMsg,
   SnackbarEventType,
-} from "./utils"
+} from "./utils";
 
 const variantFromMsgType = (type: MsgType) => {
   if (type === MsgType.Error) {
-    return "error"
+    return "error";
   } else if (type === MsgType.Success) {
-    return "success"
+    return "success";
   } else {
-    return "info"
+    return "info";
   }
-}
+};
 
 export const GlobalSnackbar: FC = () => {
-  const styles = useStyles()
-  const [open, setOpen] = useState<boolean>(false)
-  const [notification, setNotification] = useState<NotificationMsg>()
+  const styles = useStyles();
+  const [open, setOpen] = useState<boolean>(false);
+  const [notification, setNotification] = useState<NotificationMsg>();
 
   const handleNotification = useCallback<CustomEventListener<NotificationMsg>>(
     (event) => {
-      setNotification(event.detail)
-      setOpen(true)
+      setNotification(event.detail);
+      setOpen(true);
     },
     [],
-  )
+  );
 
-  useCustomEvent(SnackbarEventType, handleNotification)
+  useCustomEvent(SnackbarEventType, handleNotification);
 
   const renderAdditionalMessage = (msg: AdditionalMessage, idx: number) => {
     if (isNotificationText(msg)) {
@@ -51,7 +51,7 @@ export const GlobalSnackbar: FC = () => {
         >
           {msg}
         </Typography>
-      )
+      );
     } else if (isNotificationTextPrefixed(msg)) {
       return (
         <Typography
@@ -62,7 +62,7 @@ export const GlobalSnackbar: FC = () => {
         >
           <strong>{msg.prefix}:</strong> {msg.text}
         </Typography>
-      )
+      );
     } else if (isNotificationList(msg)) {
       return (
         <ul className={styles.list} key={idx}>
@@ -74,13 +74,13 @@ export const GlobalSnackbar: FC = () => {
             </li>
           ))}
         </ul>
-      )
+      );
     }
-    return null
-  }
+    return null;
+  };
 
   if (!notification) {
-    return null
+    return null;
   }
 
   return (
@@ -109,8 +109,8 @@ export const GlobalSnackbar: FC = () => {
         horizontal: "right",
       }}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   list: {
@@ -133,4 +133,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.error.contrastText,
     marginRight: theme.spacing(2),
   },
-}))
+}));

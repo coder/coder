@@ -1,23 +1,23 @@
-import { makeStyles } from "@mui/styles"
-import { LogLevel } from "api/typesGenerated"
-import dayjs from "dayjs"
-import { FC, useMemo } from "react"
-import { MONOSPACE_FONT_FAMILY } from "../../../theme/constants"
-import { combineClasses } from "../../../utils/combineClasses"
-import AnsiToHTML from "ansi-to-html"
-import { Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles";
+import { LogLevel } from "api/typesGenerated";
+import dayjs from "dayjs";
+import { FC, useMemo } from "react";
+import { MONOSPACE_FONT_FAMILY } from "../../../theme/constants";
+import { combineClasses } from "../../../utils/combineClasses";
+import AnsiToHTML from "ansi-to-html";
+import { Theme } from "@mui/material/styles";
 
 export interface Line {
-  time: string
-  output: string
-  level: LogLevel
+  time: string;
+  output: string;
+  level: LogLevel;
 }
 
 export interface LogsProps {
-  lines: Line[]
-  hideTimestamps?: boolean
-  lineNumbers?: boolean
-  className?: string
+  lines: Line[];
+  hideTimestamps?: boolean;
+  lineNumbers?: boolean;
+  className?: string;
 }
 
 export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
@@ -28,7 +28,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
 }) => {
   const styles = useStyles({
     lineNumbers: Boolean(lineNumbers),
-  })
+  });
 
   return (
     <div className={combineClasses([className, styles.root])}>
@@ -50,25 +50,25 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
-export const logLineHeight = 20
+export const logLineHeight = 20;
 
-const convert = new AnsiToHTML()
+const convert = new AnsiToHTML();
 
 export const LogLine: FC<{
-  line: Line
-  hideTimestamp?: boolean
-  number?: number
-  style?: React.CSSProperties
+  line: Line;
+  hideTimestamp?: boolean;
+  number?: number;
+  style?: React.CSSProperties;
 }> = ({ line, hideTimestamp, number, style }) => {
   const styles = useStyles({
     lineNumbers: Boolean(number),
-  })
+  });
   const output = useMemo(() => {
-    return convert.toHtml(line.output.split(/\r/g).pop() as string)
-  }, [line.output])
+    return convert.toHtml(line.output.split(/\r/g).pop() as string);
+  }, [line.output]);
 
   return (
     <div className={combineClasses([styles.line, line.level])} style={style}>
@@ -86,13 +86,13 @@ export const LogLine: FC<{
         }}
       />
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<
   Theme,
   {
-    lineNumbers: boolean
+    lineNumbers: boolean;
   }
 >((theme) => ({
   root: {
@@ -146,4 +146,4 @@ const useStyles = makeStyles<
     display: "inline-block",
     color: theme.palette.text.secondary,
   },
-}))
+}));

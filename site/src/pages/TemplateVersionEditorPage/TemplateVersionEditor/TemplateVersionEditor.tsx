@@ -1,11 +1,11 @@
-import Button from "@mui/material/Button"
-import IconButton from "@mui/material/IconButton"
-import Link from "@mui/material/Link"
-import { makeStyles } from "@mui/styles"
-import Tooltip from "@mui/material/Tooltip"
-import CreateIcon from "@mui/icons-material/AddOutlined"
-import BuildIcon from "@mui/icons-material/BuildOutlined"
-import PreviewIcon from "@mui/icons-material/VisibilityOutlined"
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Link from "@mui/material/Link";
+import { makeStyles } from "@mui/styles";
+import Tooltip from "@mui/material/Tooltip";
+import CreateIcon from "@mui/icons-material/AddOutlined";
+import BuildIcon from "@mui/icons-material/BuildOutlined";
+import PreviewIcon from "@mui/icons-material/VisibilityOutlined";
 import {
   ProvisionerJobLog,
   Template,
@@ -13,15 +13,15 @@ import {
   TemplateVersionVariable,
   VariableValue,
   WorkspaceResource,
-} from "api/typesGenerated"
-import { Link as RouterLink } from "react-router-dom"
-import { Alert, AlertDetail } from "components/Alert/Alert"
-import { Avatar } from "components/Avatar/Avatar"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable"
-import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs"
-import { PublishVersionData } from "pages/TemplateVersionEditorPage/types"
-import { FC, useCallback, useEffect, useRef, useState } from "react"
+} from "api/typesGenerated";
+import { Link as RouterLink } from "react-router-dom";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
 import {
   createFile,
   existsFile,
@@ -32,62 +32,62 @@ import {
   removeFile,
   traverse,
   updateFile,
-} from "utils/filetree"
+} from "utils/filetree";
 import {
   CreateFileDialog,
   DeleteFileDialog,
   RenameFileDialog,
-} from "./FileDialog"
-import { FileTreeView } from "./FileTreeView"
-import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog"
-import { MonacoEditor } from "./MonacoEditor"
-import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog"
+} from "./FileDialog";
+import { FileTreeView } from "./FileTreeView";
+import { MissingTemplateVariablesDialog } from "./MissingTemplateVariablesDialog";
+import { MonacoEditor } from "./MonacoEditor";
+import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import {
   getStatus,
   TemplateVersionStatusBadge,
-} from "./TemplateVersionStatusBadge"
-import { Theme } from "@mui/material/styles"
-import AlertTitle from "@mui/material/AlertTitle"
-import { DashboardFullPage } from "components/Dashboard/DashboardLayout"
+} from "./TemplateVersionStatusBadge";
+import { Theme } from "@mui/material/styles";
+import AlertTitle from "@mui/material/AlertTitle";
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 
 export interface TemplateVersionEditorProps {
-  template: Template
-  templateVersion: TemplateVersion
-  defaultFileTree: FileTree
-  buildLogs?: ProvisionerJobLog[]
-  resources?: WorkspaceResource[]
-  deploymentBannerVisible?: boolean
-  disablePreview: boolean
-  disableUpdate: boolean
-  onPreview: (files: FileTree) => void
-  onPublish: () => void
-  onConfirmPublish: (data: PublishVersionData) => void
-  onCancelPublish: () => void
-  publishingError: unknown
-  publishedVersion?: TemplateVersion
-  publishedVersionIsDefault?: boolean
-  onCreateWorkspace: () => void
-  isAskingPublishParameters: boolean
-  isPromptingMissingVariables: boolean
-  isPublishing: boolean
-  missingVariables?: TemplateVersionVariable[]
-  onSubmitMissingVariableValues: (values: VariableValue[]) => void
-  onCancelSubmitMissingVariableValues: () => void
+  template: Template;
+  templateVersion: TemplateVersion;
+  defaultFileTree: FileTree;
+  buildLogs?: ProvisionerJobLog[];
+  resources?: WorkspaceResource[];
+  deploymentBannerVisible?: boolean;
+  disablePreview: boolean;
+  disableUpdate: boolean;
+  onPreview: (files: FileTree) => void;
+  onPublish: () => void;
+  onConfirmPublish: (data: PublishVersionData) => void;
+  onCancelPublish: () => void;
+  publishingError: unknown;
+  publishedVersion?: TemplateVersion;
+  publishedVersionIsDefault?: boolean;
+  onCreateWorkspace: () => void;
+  isAskingPublishParameters: boolean;
+  isPromptingMissingVariables: boolean;
+  isPublishing: boolean;
+  missingVariables?: TemplateVersionVariable[];
+  onSubmitMissingVariableValues: (values: VariableValue[]) => void;
+  onCancelSubmitMissingVariableValues: () => void;
 }
 
-const topbarHeight = 80
+const topbarHeight = 80;
 
 const findInitialFile = (fileTree: FileTree): string | undefined => {
-  let initialFile: string | undefined
+  let initialFile: string | undefined;
 
   traverse(fileTree, (content, filename, path) => {
     if (filename.endsWith(".tf")) {
-      initialFile = path
+      initialFile = path;
     }
-  })
+  });
 
-  return initialFile
-}
+  return initialFile;
+};
 
 export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   disablePreview,
@@ -115,76 +115,76 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 }) => {
   // If resources are provided, show them by default!
   // This is for Storybook!
-  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0))
-  const [fileTree, setFileTree] = useState(defaultFileTree)
-  const [createFileOpen, setCreateFileOpen] = useState(false)
-  const [deleteFileOpen, setDeleteFileOpen] = useState<string>()
-  const [renameFileOpen, setRenameFileOpen] = useState<string>()
-  const [dirty, setDirty] = useState(false)
+  const [selectedTab, setSelectedTab] = useState(() => (resources ? 1 : 0));
+  const [fileTree, setFileTree] = useState(defaultFileTree);
+  const [createFileOpen, setCreateFileOpen] = useState(false);
+  const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
+  const [renameFileOpen, setRenameFileOpen] = useState<string>();
+  const [dirty, setDirty] = useState(false);
   const [activePath, setActivePath] = useState<string | undefined>(() =>
     findInitialFile(fileTree),
-  )
+  );
 
   const triggerPreview = useCallback(() => {
-    onPreview(fileTree)
+    onPreview(fileTree);
     // Switch to the build log!
-    setSelectedTab(0)
-  }, [fileTree, onPreview])
+    setSelectedTab(0);
+  }, [fileTree, onPreview]);
 
   // Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
   useEffect(() => {
     const keyListener = (event: KeyboardEvent) => {
       if (!(navigator.platform.match("Mac") ? event.metaKey : event.ctrlKey)) {
-        return
+        return;
       }
       switch (event.key) {
         case "s":
           // Prevent opening the save dialog!
-          event.preventDefault()
-          break
+          event.preventDefault();
+          break;
         case "Enter":
-          event.preventDefault()
-          triggerPreview()
-          break
+          event.preventDefault();
+          triggerPreview();
+          break;
       }
-    }
-    document.addEventListener("keydown", keyListener)
+    };
+    document.addEventListener("keydown", keyListener);
     return () => {
-      document.removeEventListener("keydown", keyListener)
-    }
-  }, [triggerPreview])
+      document.removeEventListener("keydown", keyListener);
+    };
+  }, [triggerPreview]);
 
   // Automatically switch to the template preview tab when the build succeeds.
-  const previousVersion = useRef<TemplateVersion>()
+  const previousVersion = useRef<TemplateVersion>();
   useEffect(() => {
     if (!previousVersion.current) {
-      previousVersion.current = templateVersion
-      return
+      previousVersion.current = templateVersion;
+      return;
     }
     if (
       ["running", "pending"].includes(previousVersion.current.job.status) &&
       templateVersion.job.status === "succeeded"
     ) {
-      setSelectedTab(1)
-      setDirty(false)
+      setSelectedTab(1);
+      setDirty(false);
     }
-    previousVersion.current = templateVersion
-  }, [templateVersion])
+    previousVersion.current = templateVersion;
+  }, [templateVersion]);
 
-  const hasIcon = template.icon && template.icon !== ""
-  const templateVersionSucceeded = templateVersion.job.status === "succeeded"
-  const showBuildLogs = Boolean(buildLogs)
-  const editorValue = getFileContent(activePath ?? "", fileTree) as string
-  const firstTemplateVersionOnEditor = useRef(templateVersion)
+  const hasIcon = template.icon && template.icon !== "";
+  const templateVersionSucceeded = templateVersion.job.status === "succeeded";
+  const showBuildLogs = Boolean(buildLogs);
+  const editorValue = getFileContent(activePath ?? "", fileTree) as string;
+  const firstTemplateVersionOnEditor = useRef(templateVersion);
 
   useEffect(() => {
-    window.dispatchEvent(new Event("resize"))
-  }, [showBuildLogs])
+    window.dispatchEvent(new Event("resize"));
+  }, [showBuildLogs]);
   const styles = useStyles({
     templateVersionSucceeded,
     showBuildLogs,
     deploymentBannerVisible,
-  })
+  });
 
   return (
     <>
@@ -243,7 +243,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               title="Build template (Ctrl + Enter)"
               disabled={disablePreview}
               onClick={() => {
-                triggerPreview()
+                triggerPreview();
               }}
             >
               Build template
@@ -268,8 +268,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   <IconButton
                     aria-label="Create File"
                     onClick={(event) => {
-                      setCreateFileOpen(true)
-                      event.currentTarget.blur()
+                      setCreateFileOpen(true);
+                      event.currentTarget.blur();
                     }}
                   >
                     <CreateIcon />
@@ -280,29 +280,29 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 fileTree={fileTree}
                 open={createFileOpen}
                 onClose={() => {
-                  setCreateFileOpen(false)
+                  setCreateFileOpen(false);
                 }}
                 checkExists={(path) => existsFile(path, fileTree)}
                 onConfirm={(path) => {
-                  setFileTree((fileTree) => createFile(path, fileTree, ""))
-                  setActivePath(path)
-                  setCreateFileOpen(false)
-                  setDirty(true)
+                  setFileTree((fileTree) => createFile(path, fileTree, ""));
+                  setActivePath(path);
+                  setCreateFileOpen(false);
+                  setDirty(true);
                 }}
               />
               <DeleteFileDialog
                 onConfirm={() => {
                   if (!deleteFileOpen) {
-                    throw new Error("delete file must be set")
+                    throw new Error("delete file must be set");
                   }
                   setFileTree((fileTree) =>
                     removeFile(deleteFileOpen, fileTree),
-                  )
-                  setDeleteFileOpen(undefined)
+                  );
+                  setDeleteFileOpen(undefined);
                   if (activePath === deleteFileOpen) {
-                    setActivePath(undefined)
+                    setActivePath(undefined);
                   }
-                  setDirty(true)
+                  setDirty(true);
                 }}
                 open={Boolean(deleteFileOpen)}
                 onClose={() => setDeleteFileOpen(undefined)}
@@ -312,20 +312,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 fileTree={fileTree}
                 open={Boolean(renameFileOpen)}
                 onClose={() => {
-                  setRenameFileOpen(undefined)
+                  setRenameFileOpen(undefined);
                 }}
                 filename={renameFileOpen || ""}
                 checkExists={(path) => existsFile(path, fileTree)}
                 onConfirm={(newPath) => {
                   if (!renameFileOpen) {
-                    return
+                    return;
                   }
                   setFileTree((fileTree) =>
                     moveFile(renameFileOpen, newPath, fileTree),
-                  )
-                  setActivePath(newPath)
-                  setRenameFileOpen(undefined)
-                  setDirty(true)
+                  );
+                  setActivePath(newPath);
+                  setRenameFileOpen(undefined);
+                  setDirty(true);
                 }}
               />
             </div>
@@ -334,7 +334,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               onDelete={(file) => setDeleteFileOpen(file)}
               onSelect={(filePath) => {
                 if (!isFolder(filePath, fileTree)) {
-                  setActivePath(filePath)
+                  setActivePath(filePath);
                 }
               }}
               onRename={(file) => setRenameFileOpen(file)}
@@ -350,12 +350,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                   path={activePath}
                   onChange={(value) => {
                     if (!activePath) {
-                      return
+                      return;
                     }
                     setFileTree((fileTree) =>
                       updateFile(activePath, value, fileTree),
-                    )
-                    setDirty(true)
+                    );
+                    setDirty(true);
                   }}
                 />
               ) : (
@@ -370,7 +370,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                     selectedTab === 0 ? "active" : ""
                   }`}
                   onClick={() => {
-                    setSelectedTab(0)
+                    setSelectedTab(0);
                   }}
                 >
                   {templateVersion.job.status !== "succeeded" ? (
@@ -387,7 +387,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                       selectedTab === 1 ? "active" : ""
                     }`}
                     onClick={() => {
-                      setSelectedTab(1)
+                      setSelectedTab(1);
                     }}
                   >
                     <PreviewIcon />
@@ -470,15 +470,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
         missingVariables={missingVariables}
       />
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<
   Theme,
   {
-    templateVersionSucceeded: boolean
-    showBuildLogs: boolean
-    deploymentBannerVisible?: boolean
+    templateVersionSucceeded: boolean;
+    showBuildLogs: boolean;
+    deploymentBannerVisible?: boolean;
   }
 >((theme) => ({
   root: {
@@ -634,4 +634,4 @@ const useStyles = makeStyles<
   resources: {
     paddingBottom: theme.spacing(2),
   },
-}))
+}));

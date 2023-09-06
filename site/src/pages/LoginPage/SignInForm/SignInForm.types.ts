@@ -4,6 +4,6 @@
  * auth providers available and administrative configurations
  */
 export interface BuiltInAuthFormValues {
-  email: string
-  password: string
+  email: string;
+  password: string;
 }

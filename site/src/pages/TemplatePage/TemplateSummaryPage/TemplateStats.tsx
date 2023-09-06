@@ -1,12 +1,12 @@
-import { Stats, StatsItem } from "components/Stats/Stats"
-import { FC } from "react"
-import { Link } from "react-router-dom"
-import { createDayString } from "utils/createDayString"
+import { Stats, StatsItem } from "components/Stats/Stats";
+import { FC } from "react";
+import { Link } from "react-router-dom";
+import { createDayString } from "utils/createDayString";
 import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
-} from "utils/templates"
-import { Template, TemplateVersion } from "api/typesGenerated"
+} from "utils/templates";
+import { Template, TemplateVersion } from "api/typesGenerated";
 
 const Language = {
   usedByLabel: "Used by",
@@ -16,11 +16,11 @@ const Language = {
   developerPlural: "developers",
   developerSingular: "developer",
   createdByLabel: "Created by",
-}
+};
 
 export interface TemplateStatsProps {
-  template: Template
-  activeVersion: TemplateVersion
+  template: Template;
+  activeVersion: TemplateVersion;
 }
 
 export const TemplateStats: FC<TemplateStatsProps> = ({
@@ -61,5 +61,5 @@ export const TemplateStats: FC<TemplateStatsProps> = ({
         value={template.created_by_name}
       />
     </Stats>
-  )
-}
+  );
+};

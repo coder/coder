@@ -1,8 +1,8 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   UserAuthSettingsPageView,
   UserAuthSettingsPageViewProps,
-} from "./UserAuthSettingsPageView"
+} from "./UserAuthSettingsPageView";
 
 export default {
   title: "pages/UserAuthSettingsPageView",
@@ -95,9 +95,9 @@ export default {
       },
     ],
   },
-} as ComponentMeta<typeof UserAuthSettingsPageView>
+} as ComponentMeta<typeof UserAuthSettingsPageView>;
 
 const Template: Story<UserAuthSettingsPageViewProps> = (args) => (
   <UserAuthSettingsPageView {...args} />
-)
-export const Page = Template.bind({})
+);
+export const Page = Template.bind({});

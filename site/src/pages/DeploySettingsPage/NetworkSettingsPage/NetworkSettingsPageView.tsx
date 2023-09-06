@@ -1,21 +1,21 @@
-import { DeploymentOption } from "api/types"
+import { DeploymentOption } from "api/types";
 import {
   Badges,
   EnabledBadge,
   DisabledBadge,
-} from "components/DeploySettingsLayout/Badges"
-import { Header } from "components/DeploySettingsLayout/Header"
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
-import { Stack } from "components/Stack/Stack"
+} from "components/DeploySettingsLayout/Badges";
+import { Header } from "components/DeploySettingsLayout/Header";
+import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
+import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
-} from "utils/deployOptions"
-import { docs } from "utils/docs"
+} from "utils/deployOptions";
+import { docs } from "utils/docs";
 
 export type NetworkSettingsPageViewProps = {
-  options: DeploymentOption[]
-}
+  options: DeploymentOption[];
+};
 
 export const NetworkSettingsPageView = ({
   options: options,
@@ -52,4 +52,4 @@ export const NetworkSettingsPageView = ({
       </Badges>
     </div>
   </Stack>
-)
+);

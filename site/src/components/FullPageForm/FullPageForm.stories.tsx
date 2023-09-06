@@ -1,20 +1,20 @@
-import TextField from "@mui/material/TextField"
-import { action } from "@storybook/addon-actions"
-import { ComponentMeta, Story } from "@storybook/react"
-import { FormFooter } from "../FormFooter/FormFooter"
-import { Stack } from "../Stack/Stack"
-import { FullPageForm, FullPageFormProps } from "./FullPageForm"
+import TextField from "@mui/material/TextField";
+import { action } from "@storybook/addon-actions";
+import { ComponentMeta, Story } from "@storybook/react";
+import { FormFooter } from "../FormFooter/FormFooter";
+import { Stack } from "../Stack/Stack";
+import { FullPageForm, FullPageFormProps } from "./FullPageForm";
 
 export default {
   title: "components/FullPageForm",
   component: FullPageForm,
-} as ComponentMeta<typeof FullPageForm>
+} as ComponentMeta<typeof FullPageForm>;
 
 const Template: Story<FullPageFormProps> = (args) => (
   <FullPageForm {...args}>
     <form
       onSubmit={(e) => {
-        e.preventDefault()
+        e.preventDefault();
       }}
     >
       <Stack>
@@ -24,10 +24,10 @@ const Template: Story<FullPageFormProps> = (args) => (
       </Stack>
     </form>
   </FullPageForm>
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   title: "My Form",
   detail: "Lorem ipsum dolor",
-}
+};

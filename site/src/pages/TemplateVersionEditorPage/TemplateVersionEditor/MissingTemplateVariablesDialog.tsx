@@ -1,41 +1,41 @@
-import { makeStyles } from "@mui/styles"
-import Dialog from "@mui/material/Dialog"
-import DialogContent from "@mui/material/DialogContent"
-import DialogContentText from "@mui/material/DialogContentText"
-import DialogTitle from "@mui/material/DialogTitle"
-import { DialogProps } from "components/Dialogs/Dialog"
-import { FC, useEffect, useState } from "react"
-import { FormFields, VerticalForm } from "components/Form/Form"
-import { TemplateVersionVariable, VariableValue } from "api/typesGenerated"
-import DialogActions from "@mui/material/DialogActions"
-import Button from "@mui/material/Button"
-import { VariableInput } from "pages/CreateTemplatePage/VariableInput"
-import { Loader } from "components/Loader/Loader"
+import { makeStyles } from "@mui/styles";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
+import { DialogProps } from "components/Dialogs/Dialog";
+import { FC, useEffect, useState } from "react";
+import { FormFields, VerticalForm } from "components/Form/Form";
+import { TemplateVersionVariable, VariableValue } from "api/typesGenerated";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import { VariableInput } from "pages/CreateTemplatePage/VariableInput";
+import { Loader } from "components/Loader/Loader";
 
 export type MissingTemplateVariablesDialogProps = Omit<
   DialogProps,
   "onSubmit"
 > & {
-  onClose: () => void
-  onSubmit: (values: VariableValue[]) => void
-  missingVariables?: TemplateVersionVariable[]
-}
+  onClose: () => void;
+  onSubmit: (values: VariableValue[]) => void;
+  missingVariables?: TemplateVersionVariable[];
+};
 
 export const MissingTemplateVariablesDialog: FC<
   MissingTemplateVariablesDialogProps
 > = ({ missingVariables, onSubmit, ...dialogProps }) => {
-  const styles = useStyles()
-  const [variableValues, setVariableValues] = useState<VariableValue[]>([])
+  const styles = useStyles();
+  const [variableValues, setVariableValues] = useState<VariableValue[]>([]);
 
   // Pre-fill the form with the default values when missing variables are loaded
   useEffect(() => {
     if (!missingVariables) {
-      return
+      return;
     }
     setVariableValues(
       missingVariables.map((v) => ({ name: v.name, value: v.value })),
-    )
-  }, [missingVariables])
+    );
+  }, [missingVariables]);
 
   return (
     <Dialog
@@ -59,8 +59,8 @@ export const MissingTemplateVariablesDialog: FC<
           className={styles.form}
           id="updateVariables"
           onSubmit={(e) => {
-            e.preventDefault()
-            onSubmit(variableValues)
+            e.preventDefault();
+            onSubmit(variableValues);
           }}
         >
           {missingVariables ? (
@@ -76,12 +76,12 @@ export const MissingTemplateVariablesDialog: FC<
                         prev[index] = {
                           name: variable.name,
                           value,
-                        }
-                        return [...prev]
-                      })
+                        };
+                        return [...prev];
+                      });
                     }}
                   />
-                )
+                );
               })}
             </FormFields>
           ) : (
@@ -98,8 +98,8 @@ export const MissingTemplateVariablesDialog: FC<
         </Button>
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -140,4 +140,4 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     gap: theme.spacing(1),
   },
-}))
+}));

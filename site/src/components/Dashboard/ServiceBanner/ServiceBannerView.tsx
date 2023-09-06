@@ -1,13 +1,13 @@
-import { makeStyles } from "@mui/styles"
-import { Pill } from "components/Pill/Pill"
-import ReactMarkdown from "react-markdown"
-import { colors } from "theme/colors"
-import { hex } from "color-convert"
+import { makeStyles } from "@mui/styles";
+import { Pill } from "components/Pill/Pill";
+import ReactMarkdown from "react-markdown";
+import { colors } from "theme/colors";
+import { hex } from "color-convert";
 
 export interface ServiceBannerViewProps {
-  message: string
-  backgroundColor: string
-  preview: boolean
+  message: string;
+  backgroundColor: string;
+  preview: boolean;
 }
 
 export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
@@ -15,7 +15,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   backgroundColor,
   preview,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   // We don't want anything funky like an image or a heading in the service
   // banner.
   const markdownElementsAllowed = [
@@ -28,7 +28,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
     "italic",
     "link",
     "em",
-  ]
+  ];
   return (
     <div
       className={styles.container}
@@ -50,8 +50,8 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
         </ReactMarkdown>
       </div>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   container: {
@@ -74,14 +74,14 @@ const useStyles = makeStyles((theme) => ({
       color: "inherit",
     },
   },
-}))
+}));
 
 const readableForegroundColor = (backgroundColor: string): string => {
-  const rgb = hex.rgb(backgroundColor)
+  const rgb = hex.rgb(backgroundColor);
 
   // Logic taken from here:
   // https://github.com/casesandberg/react-color/blob/bc9a0e1dc5d11b06c511a8e02a95bd85c7129f4b/src/helpers/color.js#L56
   // to be consistent with the color-picker label.
-  const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000
-  return yiq >= 128 ? "#000" : "#fff"
-}
+  const yiq = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000;
+  return yiq >= 128 ? "#000" : "#fff";
+};

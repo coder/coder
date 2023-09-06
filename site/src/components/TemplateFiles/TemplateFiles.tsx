@@ -1,58 +1,58 @@
-import { makeStyles } from "@mui/styles"
-import { DockerIcon } from "components/Icons/DockerIcon"
-import { MarkdownIcon } from "components/Icons/MarkdownIcon"
-import { TerraformIcon } from "components/Icons/TerraformIcon"
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
-import { UseTabResult } from "hooks/useTab"
-import { FC } from "react"
-import { combineClasses } from "utils/combineClasses"
-import { TemplateVersionFiles } from "utils/templateVersion"
+import { makeStyles } from "@mui/styles";
+import { DockerIcon } from "components/Icons/DockerIcon";
+import { MarkdownIcon } from "components/Icons/MarkdownIcon";
+import { TerraformIcon } from "components/Icons/TerraformIcon";
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
+import { UseTabResult } from "hooks/useTab";
+import { FC } from "react";
+import { combineClasses } from "utils/combineClasses";
+import { TemplateVersionFiles } from "utils/templateVersion";
 
 const iconByExtension: Record<string, JSX.Element> = {
   tf: <TerraformIcon />,
   md: <MarkdownIcon />,
   mkd: <MarkdownIcon />,
   Dockerfile: <DockerIcon />,
-}
+};
 
 const getExtension = (filename: string) => {
   if (filename.includes(".")) {
-    const [_, extension] = filename.split(".")
-    return extension
+    const [_, extension] = filename.split(".");
+    return extension;
   }
 
-  return filename
-}
+  return filename;
+};
 
 const languageByExtension: Record<string, string> = {
   tf: "hcl",
   md: "markdown",
   mkd: "markdown",
   Dockerfile: "dockerfile",
-}
+};
 
 export const TemplateFiles: FC<{
-  currentFiles: TemplateVersionFiles
-  previousFiles?: TemplateVersionFiles
-  tab: UseTabResult
+  currentFiles: TemplateVersionFiles;
+  previousFiles?: TemplateVersionFiles;
+  tab: UseTabResult;
 }> = ({ currentFiles, previousFiles, tab }) => {
-  const styles = useStyles()
-  const filenames = Object.keys(currentFiles)
-  const selectedFilename = filenames[Number(tab.value)]
-  const currentFile = currentFiles[selectedFilename]
-  const previousFile = previousFiles && previousFiles[selectedFilename]
+  const styles = useStyles();
+  const filenames = Object.keys(currentFiles);
+  const selectedFilename = filenames[Number(tab.value)];
+  const currentFile = currentFiles[selectedFilename];
+  const previousFile = previousFiles && previousFiles[selectedFilename];
 
   return (
     <div className={styles.files}>
       <div className={styles.tabs}>
         {filenames.map((filename, index) => {
-          const tabValue = index.toString()
-          const extension = getExtension(filename)
-          const icon = iconByExtension[extension]
+          const tabValue = index.toString();
+          const extension = getExtension(filename);
+          const icon = iconByExtension[extension];
           const hasDiff =
             previousFiles &&
             previousFiles[filename] &&
-            currentFiles[filename] !== previousFiles[filename]
+            currentFiles[filename] !== previousFiles[filename];
 
           return (
             <button
@@ -61,7 +61,7 @@ export const TemplateFiles: FC<{
                 [styles.tabActive]: tabValue === tab.value,
               })}
               onClick={() => {
-                tab.set(tabValue)
+                tab.set(tabValue);
               }}
               key={filename}
             >
@@ -69,7 +69,7 @@ export const TemplateFiles: FC<{
               {filename}
               {hasDiff && <div className={styles.tabDiff} />}
             </button>
-          )
+          );
         })}
       </div>
 
@@ -79,8 +79,8 @@ export const TemplateFiles: FC<{
         language={languageByExtension[getExtension(selectedFilename)]}
       />
     </div>
-  )
-}
+  );
+};
 const useStyles = makeStyles((theme) => ({
   tabs: {
     display: "flex",
@@ -151,4 +151,4 @@ const useStyles = makeStyles((theme) => ({
   prism: {
     borderRadius: 0,
   },
-}))
+}));

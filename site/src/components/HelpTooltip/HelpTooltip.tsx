@@ -1,8 +1,8 @@
-import Link from "@mui/material/Link"
-import Popover, { PopoverProps } from "@mui/material/Popover"
-import { makeStyles } from "@mui/styles"
-import HelpIcon from "@mui/icons-material/HelpOutline"
-import OpenInNewIcon from "@mui/icons-material/OpenInNew"
+import Link from "@mui/material/Link";
+import Popover, { PopoverProps } from "@mui/material/Popover";
+import { makeStyles } from "@mui/styles";
+import HelpIcon from "@mui/icons-material/HelpOutline";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import {
   createContext,
   useContext,
@@ -10,43 +10,43 @@ import {
   useState,
   FC,
   PropsWithChildren,
-} from "react"
-import { combineClasses } from "utils/combineClasses"
-import { Stack } from "components/Stack/Stack"
-import Box, { BoxProps } from "@mui/material/Box"
+} from "react";
+import { combineClasses } from "utils/combineClasses";
+import { Stack } from "components/Stack/Stack";
+import Box, { BoxProps } from "@mui/material/Box";
 
-type Icon = typeof HelpIcon
+type Icon = typeof HelpIcon;
 
-type Size = "small" | "medium"
+type Size = "small" | "medium";
 export interface HelpTooltipProps {
   // Useful to test on storybook
-  open?: boolean
-  size?: Size
-  icon?: Icon
-  iconClassName?: string
-  buttonClassName?: string
+  open?: boolean;
+  size?: Size;
+  icon?: Icon;
+  iconClassName?: string;
+  buttonClassName?: string;
 }
 
 export const HelpTooltipContext = createContext<
   { open: boolean; onClose: () => void } | undefined
->(undefined)
+>(undefined);
 
 const useHelpTooltip = () => {
-  const helpTooltipContext = useContext(HelpTooltipContext)
+  const helpTooltipContext = useContext(HelpTooltipContext);
 
   if (!helpTooltipContext) {
     throw new Error(
       "This hook should be used in side of the HelpTooltipContext.",
-    )
+    );
   }
 
-  return helpTooltipContext
-}
+  return helpTooltipContext;
+};
 
 export const HelpPopover: FC<
   PopoverProps & { onOpen: () => void; onClose: () => void }
 > = ({ onOpen, onClose, children, ...props }) => {
-  const styles = useStyles({ size: "small" })
+  const styles = useStyles({ size: "small" });
 
   return (
     <Popover
@@ -69,8 +69,8 @@ export const HelpPopover: FC<
     >
       {children}
     </Popover>
-  )
-}
+  );
+};
 
 export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   children,
@@ -80,14 +80,14 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   iconClassName,
   buttonClassName,
 }) => {
-  const styles = useStyles({ size })
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(Boolean(open))
-  const id = isOpen ? "help-popover" : undefined
+  const styles = useStyles({ size });
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(Boolean(open));
+  const id = isOpen ? "help-popover" : undefined;
 
   const onClose = () => {
-    setIsOpen(false)
-  }
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -96,14 +96,14 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         aria-describedby={id}
         className={combineClasses([styles.button, buttonClassName])}
         onClick={(event) => {
-          event.stopPropagation()
-          setIsOpen(true)
+          event.stopPropagation();
+          setIsOpen(true);
         }}
         onMouseEnter={() => {
-          setIsOpen(true)
+          setIsOpen(true);
         }}
         onMouseLeave={() => {
-          setIsOpen(false)
+          setIsOpen(false);
         }}
         aria-label="More info"
       >
@@ -121,19 +121,19 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
         </HelpTooltipContext.Provider>
       </HelpPopover>
     </>
-  )
-}
+  );
+};
 
 export const HelpTooltipTitle: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
-  return <h4 className={styles.title}>{children}</h4>
-}
+  return <h4 className={styles.title}>{children}</h4>;
+};
 
 export const HelpTooltipText = (props: BoxProps) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
   return (
     <Box
@@ -141,80 +141,80 @@ export const HelpTooltipText = (props: BoxProps) => {
       {...props}
       className={combineClasses([styles.text, props.className])}
     />
-  )
-}
+  );
+};
 
 export const HelpTooltipLink: FC<PropsWithChildren<{ href: string }>> = ({
   children,
   href,
 }) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
   return (
     <Link href={href} target="_blank" rel="noreferrer" className={styles.link}>
       <OpenInNewIcon className={styles.linkIcon} />
       {children}
     </Link>
-  )
-}
+  );
+};
 
 export const HelpTooltipAction: FC<
   PropsWithChildren<{
-    icon: Icon
-    onClick: () => void
-    ariaLabel?: string
+    icon: Icon;
+    onClick: () => void;
+    ariaLabel?: string;
   }>
 > = ({ children, icon: Icon, onClick, ariaLabel }) => {
-  const styles = useStyles({})
-  const tooltip = useHelpTooltip()
+  const styles = useStyles({});
+  const tooltip = useHelpTooltip();
 
   return (
     <button
       aria-label={ariaLabel ?? ""}
       className={styles.action}
       onClick={(event) => {
-        event.stopPropagation()
-        onClick()
-        tooltip.onClose()
+        event.stopPropagation();
+        onClick();
+        tooltip.onClose();
       }}
     >
       <Icon className={styles.actionIcon} />
       {children}
     </button>
-  )
-}
+  );
+};
 
 export const HelpTooltipLinksGroup: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
   return (
     <Stack spacing={1} className={styles.linksGroup}>
       {children}
     </Stack>
-  )
-}
+  );
+};
 
 const getButtonSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
-      return 2.5
+      return 2.5;
     case "medium":
     default:
-      return 3
+      return 3;
   }
-}
+};
 
 const getIconSpacingFromSize = (size?: Size): number => {
   switch (size) {
     case "small":
-      return 1.5
+      return 1.5;
     case "medium":
     default:
-      return 2
+      return 2;
   }
-}
+};
 
 const useStyles = makeStyles((theme) => ({
   button: {
@@ -306,4 +306,4 @@ const useStyles = makeStyles((theme) => ({
     height: 14,
     marginRight: theme.spacing(1),
   },
-}))
+}));

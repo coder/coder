@@ -1,6 +1,6 @@
-import { ComponentProps, FC } from "react"
-import { makeStyles } from "@mui/styles"
-import RefreshIcon from "@mui/icons-material/RefreshOutlined"
+import { ComponentProps, FC } from "react";
+import { makeStyles } from "@mui/styles";
+import RefreshIcon from "@mui/icons-material/RefreshOutlined";
 import {
   HelpTooltipText,
   HelpPopover,
@@ -8,16 +8,16 @@ import {
   HelpTooltipAction,
   HelpTooltipLinksGroup,
   HelpTooltipContext,
-} from "components/HelpTooltip/HelpTooltip"
-import { WorkspaceAgent } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { useTranslation } from "react-i18next"
+} from "components/HelpTooltip/HelpTooltip";
+import { WorkspaceAgent } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { useTranslation } from "react-i18next";
 
 type AgentOutdatedTooltipProps = ComponentProps<typeof HelpPopover> & {
-  agent: WorkspaceAgent
-  serverVersion: string
-  onUpdate: () => void
-}
+  agent: WorkspaceAgent;
+  serverVersion: string;
+  onUpdate: () => void;
+};
 
 export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   agent,
@@ -29,8 +29,8 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   onClose,
   anchorEl,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("workspacePage")
+  const styles = useStyles();
+  const { t } = useTranslation("workspacePage");
 
   return (
     <HelpPopover
@@ -77,12 +77,12 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
         </Stack>
       </HelpTooltipContext.Provider>
     </HelpPopover>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   versionLabel: {
     fontWeight: 600,
     color: theme.palette.text.primary,
   },
-}))
+}));

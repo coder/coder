@@ -1,43 +1,45 @@
-import Drawer from "@mui/material/Drawer"
-import IconButton from "@mui/material/IconButton"
-import List from "@mui/material/List"
-import ListItem from "@mui/material/ListItem"
-import { makeStyles } from "@mui/styles"
-import MenuIcon from "@mui/icons-material/Menu"
-import { CoderIcon } from "components/Icons/CoderIcon"
-import { FC, useRef, useState } from "react"
-import { NavLink, useLocation, useNavigate } from "react-router-dom"
-import { colors } from "theme/colors"
-import * as TypesGen from "../../../api/typesGenerated"
-import { navHeight } from "../../../theme/constants"
-import { combineClasses } from "../../../utils/combineClasses"
-import { UserDropdown } from "./UserDropdown/UserDropdown"
-import Box from "@mui/material/Box"
-import Menu from "@mui/material/Menu"
-import Button from "@mui/material/Button"
-import MenuItem from "@mui/material/MenuItem"
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined"
-import { ProxyContextValue } from "contexts/ProxyContext"
-import { displayError } from "components/GlobalSnackbar/utils"
-import Divider from "@mui/material/Divider"
-import Skeleton from "@mui/material/Skeleton"
-import { BUTTON_SM_HEIGHT } from "theme/theme"
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
-import { usePermissions } from "hooks/usePermissions"
-import Typography from "@mui/material/Typography"
+import Drawer from "@mui/material/Drawer";
+import IconButton from "@mui/material/IconButton";
+import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
+import { makeStyles } from "@mui/styles";
+import MenuIcon from "@mui/icons-material/Menu";
+import { CoderIcon } from "components/Icons/CoderIcon";
+import { FC, useRef, useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { colors } from "theme/colors";
+import * as TypesGen from "../../../api/typesGenerated";
+import { navHeight } from "../../../theme/constants";
+import { combineClasses } from "../../../utils/combineClasses";
+import { UserDropdown } from "./UserDropdown/UserDropdown";
+import Box from "@mui/material/Box";
+import Menu from "@mui/material/Menu";
+import Button from "@mui/material/Button";
+import MenuItem from "@mui/material/MenuItem";
+import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
+import { ProxyContextValue } from "contexts/ProxyContext";
+import { displayError } from "components/GlobalSnackbar/utils";
+import Divider from "@mui/material/Divider";
+import Skeleton from "@mui/material/Skeleton";
+import { BUTTON_SM_HEIGHT } from "theme/theme";
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import { usePermissions } from "hooks/usePermissions";
+import Typography from "@mui/material/Typography";
 
-export const USERS_LINK = `/users?filter=${encodeURIComponent("status:active")}`
+export const USERS_LINK = `/users?filter=${encodeURIComponent(
+  "status:active",
+)}`;
 
 export interface NavbarViewProps {
-  logo_url?: string
-  user?: TypesGen.User
-  buildInfo?: TypesGen.BuildInfoResponse
-  supportLinks?: TypesGen.LinkConfig[]
-  onSignOut: () => void
-  canViewAuditLog: boolean
-  canViewDeployment: boolean
-  canViewAllUsers: boolean
-  proxyContextValue?: ProxyContextValue
+  logo_url?: string;
+  user?: TypesGen.User;
+  buildInfo?: TypesGen.BuildInfoResponse;
+  supportLinks?: TypesGen.LinkConfig[];
+  onSignOut: () => void;
+  canViewAuditLog: boolean;
+  canViewDeployment: boolean;
+  canViewAllUsers: boolean;
+  proxyContextValue?: ProxyContextValue;
 }
 
 export const Language = {
@@ -46,18 +48,18 @@ export const Language = {
   users: "Users",
   audit: "Audit",
   deployment: "Deployment",
-}
+};
 
 const NavItems: React.FC<
   React.PropsWithChildren<{
-    className?: string
-    canViewAuditLog: boolean
-    canViewDeployment: boolean
-    canViewAllUsers: boolean
+    className?: string;
+    canViewAuditLog: boolean;
+    canViewDeployment: boolean;
+    canViewAllUsers: boolean;
   }>
 > = ({ className, canViewAuditLog, canViewDeployment, canViewAllUsers }) => {
-  const styles = useStyles()
-  const location = useLocation()
+  const styles = useStyles();
+  const location = useLocation();
 
   return (
     <List className={combineClasses([styles.navItems, className])}>
@@ -99,8 +101,8 @@ const NavItems: React.FC<
         </ListItem>
       )}
     </List>
-  )
-}
+  );
+};
 export const NavbarView: FC<NavbarViewProps> = ({
   user,
   logo_url,
@@ -112,8 +114,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
   canViewAllUsers,
   proxyContextValue,
 }) => {
-  const styles = useStyles()
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const styles = useStyles();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <nav className={styles.root}>
@@ -122,7 +124,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
           aria-label="Open menu"
           className={styles.mobileMenuButton}
           onClick={() => {
-            setIsDrawerOpen(true)
+            setIsDrawerOpen(true);
           }}
           size="large"
         >
@@ -188,30 +190,30 @@ export const NavbarView: FC<NavbarViewProps> = ({
         </Box>
       </div>
     </nav>
-  )
-}
+  );
+};
 
 const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
   proxyContextValue,
 }) => {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const [refetchDate, setRefetchDate] = useState<Date>()
-  const selectedProxy = proxyContextValue.proxy.proxy
-  const refreshLatencies = proxyContextValue.refetchProxyLatencies
-  const closeMenu = () => setIsOpen(false)
-  const navigate = useNavigate()
-  const latencies = proxyContextValue.proxyLatencies
-  const isLoadingLatencies = Object.keys(latencies).length === 0
-  const isLoading = proxyContextValue.isLoading || isLoadingLatencies
-  const permissions = usePermissions()
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [refetchDate, setRefetchDate] = useState<Date>();
+  const selectedProxy = proxyContextValue.proxy.proxy;
+  const refreshLatencies = proxyContextValue.refetchProxyLatencies;
+  const closeMenu = () => setIsOpen(false);
+  const navigate = useNavigate();
+  const latencies = proxyContextValue.proxyLatencies;
+  const isLoadingLatencies = Object.keys(latencies).length === 0;
+  const isLoading = proxyContextValue.isLoading || isLoadingLatencies;
+  const permissions = usePermissions();
   const proxyLatencyLoading = (proxy: TypesGen.Region): boolean => {
     if (!refetchDate) {
       // Only show loading if the user manually requested a refetch
-      return false
+      return false;
     }
 
-    const latency = latencies?.[proxy.id]
+    const latency = latencies?.[proxy.id];
     // Only show a loading spinner if:
     //  - A latency exists. This means the latency was fetched at some point, so the
     //    loader *should* be resolved.
@@ -220,11 +222,11 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
     //    is stale and we should show a loading spinner until the new latency is
     //    fetched.
     if (proxy.healthy && latency && latency.at < refetchDate) {
-      return true
+      return true;
     }
 
-    return false
-  }
+    return false;
+  };
 
   if (isLoading) {
     return (
@@ -233,7 +235,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         height={BUTTON_SM_HEIGHT}
         sx={{ borderRadius: "4px", transform: "none" }}
       />
-    )
+    );
   }
 
   return (
@@ -315,21 +317,21 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
         <Divider sx={{ borderColor: (theme) => theme.palette.divider }} />
         {proxyContextValue.proxies
           ?.sort((a, b) => {
-            const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity
-            const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity
-            return latencyA - latencyB
+            const latencyA = latencies?.[a.id]?.latencyMS ?? Infinity;
+            const latencyB = latencies?.[b.id]?.latencyMS ?? Infinity;
+            return latencyA - latencyB;
           })
           .map((proxy) => (
             <MenuItem
               onClick={() => {
                 if (!proxy.healthy) {
-                  displayError("Please select a healthy workspace proxy.")
-                  closeMenu()
-                  return
+                  displayError("Please select a healthy workspace proxy.");
+                  closeMenu();
+                  return;
                 }
 
-                proxyContextValue.setProxy(proxy)
-                closeMenu()
+                proxyContextValue.setProxy(proxy);
+                closeMenu();
               }}
               key={proxy.id}
               selected={proxy.id === selectedProxy?.id}
@@ -361,7 +363,7 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           <MenuItem
             sx={{ fontSize: 14 }}
             onClick={() => {
-              navigate("deployment/workspace-proxies")
+              navigate("deployment/workspace-proxies");
             }}
           >
             Proxy settings
@@ -371,18 +373,18 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
           sx={{ fontSize: 14 }}
           onClick={(e) => {
             // Stop the menu from closing
-            e.stopPropagation()
+            e.stopPropagation();
             // Refresh the latencies.
-            const refetchDate = refreshLatencies()
-            setRefetchDate(refetchDate)
+            const refetchDate = refreshLatencies();
+            setRefetchDate(refetchDate);
           }}
         >
           Refresh Latencies
         </MenuItem>
       </Menu>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   displayInitial: {
@@ -472,4 +474,4 @@ const useStyles = makeStyles((theme) => ({
       padding: `0 ${theme.spacing(3)}`,
     },
   },
-}))
+}));

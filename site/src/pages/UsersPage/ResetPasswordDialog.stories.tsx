@@ -1,11 +1,11 @@
-import { action } from "@storybook/addon-actions"
-import { Story } from "@storybook/react"
-import { MockUser } from "testHelpers/entities"
+import { action } from "@storybook/addon-actions";
+import { Story } from "@storybook/react";
+import { MockUser } from "testHelpers/entities";
 
 import {
   ResetPasswordDialog,
   ResetPasswordDialogProps,
-} from "./ResetPasswordDialog"
+} from "./ResetPasswordDialog";
 
 export default {
   title: "components/Dialogs/ResetPasswordDialog",
@@ -14,15 +14,15 @@ export default {
     onClose: { action: "onClose", defaultValue: action("onClose") },
     onConfirm: { action: "onConfirm", defaultValue: action("onConfirm") },
   },
-}
+};
 
 const Template: Story<ResetPasswordDialogProps> = (
   args: ResetPasswordDialogProps,
-) => <ResetPasswordDialog {...args} />
+) => <ResetPasswordDialog {...args} />;
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   open: true,
   user: MockUser,
   newPassword: "somerandomstringhere",
-}
+};

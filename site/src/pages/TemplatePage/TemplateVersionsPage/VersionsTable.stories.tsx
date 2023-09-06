@@ -1,18 +1,18 @@
-import { action } from "@storybook/addon-actions"
-import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplateVersion } from "testHelpers/entities"
-import { VersionsTable, VersionsTableProps } from "./VersionsTable"
+import { action } from "@storybook/addon-actions";
+import { ComponentMeta, Story } from "@storybook/react";
+import { MockTemplateVersion } from "testHelpers/entities";
+import { VersionsTable, VersionsTableProps } from "./VersionsTable";
 
 export default {
   title: "components/VersionsTable",
   component: VersionsTable,
-} as ComponentMeta<typeof VersionsTable>
+} as ComponentMeta<typeof VersionsTable>;
 
 const Template: Story<VersionsTableProps> = (args) => (
   <VersionsTable {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   activeVersionId: MockTemplateVersion.id,
   versions: [
@@ -25,9 +25,9 @@ Example.args = {
     MockTemplateVersion,
   ],
   onPromoteClick: undefined,
-}
+};
 
-export const CanPromote = Template.bind({})
+export const CanPromote = Template.bind({});
 CanPromote.args = {
   activeVersionId: MockTemplateVersion.id,
   onPromoteClick: action("onPromoteClick"),
@@ -40,9 +40,9 @@ CanPromote.args = {
     },
     MockTemplateVersion,
   ],
-}
+};
 
-export const Empty = Template.bind({})
+export const Empty = Template.bind({});
 Empty.args = {
   versions: [],
-}
+};

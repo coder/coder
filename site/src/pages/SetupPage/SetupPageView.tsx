@@ -1,16 +1,20 @@
-import Box from "@mui/material/Box"
-import Checkbox from "@mui/material/Checkbox"
-import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
-import Typography from "@mui/material/Typography"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { SignInLayout } from "components/SignInLayout/SignInLayout"
-import { Stack } from "components/Stack/Stack"
-import { Welcome } from "components/Welcome/Welcome"
-import { FormikContextType, useFormik } from "formik"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
-import * as Yup from "yup"
-import * as TypesGen from "../../api/typesGenerated"
+import Box from "@mui/material/Box";
+import Checkbox from "@mui/material/Checkbox";
+import { makeStyles } from "@mui/styles";
+import TextField from "@mui/material/TextField";
+import Typography from "@mui/material/Typography";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Stack } from "components/Stack/Stack";
+import { Welcome } from "components/Welcome/Welcome";
+import { FormikContextType, useFormik } from "formik";
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import * as Yup from "yup";
+import * as TypesGen from "../../api/typesGenerated";
 
 export const Language = {
   emailLabel: "Email",
@@ -21,7 +25,7 @@ export const Language = {
   passwordRequired: "Please enter a password.",
   create: "Create account",
   welcomeMessage: <>Welcome to Coder</>,
-}
+};
 
 const validationSchema = Yup.object({
   email: Yup.string()
@@ -30,12 +34,12 @@ const validationSchema = Yup.object({
     .required(Language.emailRequired),
   password: Yup.string().required(Language.passwordRequired),
   username: nameValidator(Language.usernameLabel),
-})
+});
 
 export interface SetupPageViewProps {
-  onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void
-  error?: unknown
-  isLoading?: boolean
+  onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
+  error?: unknown;
+  isLoading?: boolean;
 }
 
 export const SetupPageView: React.FC<SetupPageViewProps> = ({
@@ -53,12 +57,12 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
       },
       validationSchema,
       onSubmit,
-    })
+    });
   const getFieldHelpers = getFormHelpers<TypesGen.CreateFirstUserRequest>(
     form,
     error,
-  )
-  const styles = useStyles()
+  );
+  const styles = useStyles();
 
   return (
     <SignInLayout>
@@ -122,11 +126,11 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
         </Stack>
       </form>
     </SignInLayout>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   callout: {
     borderRadius: 16,
   },
-}))
+}));

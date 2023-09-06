@@ -1,5 +1,5 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { FormFooter, FormFooterProps } from "./FormFooter"
+import { ComponentMeta, Story } from "@storybook/react";
+import { FormFooter, FormFooterProps } from "./FormFooter";
 
 export default {
   title: "components/FormFooter",
@@ -7,22 +7,22 @@ export default {
   argTypes: {
     onCancel: { action: "cancel" },
   },
-} as ComponentMeta<typeof FormFooter>
+} as ComponentMeta<typeof FormFooter>;
 
-const Template: Story<FormFooterProps> = (args) => <FormFooter {...args} />
+const Template: Story<FormFooterProps> = (args) => <FormFooter {...args} />;
 
-export const Ready = Template.bind({})
+export const Ready = Template.bind({});
 Ready.args = {
   isLoading: false,
-}
+};
 
-export const Custom = Template.bind({})
+export const Custom = Template.bind({});
 Custom.args = {
   isLoading: false,
   submitLabel: "Create",
-}
+};
 
-export const Loading = Template.bind({})
+export const Loading = Template.bind({});
 Loading.args = {
   isLoading: true,
-}
+};

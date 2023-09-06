@@ -1,28 +1,28 @@
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { useWorkspaceSettingsContext } from "../WorkspaceSettingsLayout"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { Loader } from "components/Loader/Loader"
+import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { useWorkspaceSettingsContext } from "../WorkspaceSettingsLayout";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Loader } from "components/Loader/Loader";
 import {
   WorkspaceParametersFormValues,
   WorkspaceParametersForm,
-} from "./WorkspaceParametersForm"
-import { useNavigate } from "react-router-dom"
-import { makeStyles } from "@mui/styles"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { FC } from "react"
-import { isApiValidationError } from "api/errors"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { WorkspaceBuildParameter } from "api/typesGenerated"
+} from "./WorkspaceParametersForm";
+import { useNavigate } from "react-router-dom";
+import { makeStyles } from "@mui/styles";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { FC } from "react";
+import { isApiValidationError } from "api/errors";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { WorkspaceBuildParameter } from "api/typesGenerated";
 
 const WorkspaceParametersPage = () => {
-  const { workspace } = useWorkspaceSettingsContext()
+  const { workspace } = useWorkspaceSettingsContext();
   const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),
-  })
-  const navigate = useNavigate()
+  });
+  const navigate = useNavigate();
   const updateParameters = useMutation({
     mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
       postWorkspaceBuild(workspace.id, {
@@ -30,9 +30,9 @@ const WorkspaceParametersPage = () => {
         rich_parameter_values: buildParameters,
       }),
     onSuccess: () => {
-      navigate(`/${workspace.owner_name}/${workspace.name}`)
+      navigate(`/${workspace.owner_name}/${workspace.name}`);
     },
-  })
+  });
 
   return (
     <>
@@ -52,29 +52,29 @@ const WorkspaceParametersPage = () => {
             .map(
               (p) =>
                 values.rich_parameter_values.find((v) => v.name === p.name)!,
-            )
-          updateParameters.mutate(onlyMultableValues)
+            );
+          updateParameters.mutate(onlyMultableValues);
         }}
         onCancel={() => {
-          navigate("../..")
+          navigate("../..");
         }}
       />
     </>
-  )
-}
+  );
+};
 
 export type WorkspaceParametersPageViewProps = {
-  data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined
-  submitError: unknown
-  isSubmitting: boolean
-  onSubmit: (formValues: WorkspaceParametersFormValues) => void
-  onCancel: () => void
-}
+  data: Awaited<ReturnType<typeof getWorkspaceParameters>> | undefined;
+  submitError: unknown;
+  isSubmitting: boolean;
+  onSubmit: (formValues: WorkspaceParametersFormValues) => void;
+  onCancel: () => void;
+};
 
 export const WorkspaceParametersPageView: FC<
   WorkspaceParametersPageViewProps
 > = ({ data, submitError, isSubmitting, onSubmit, onCancel }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <>
@@ -99,13 +99,13 @@ export const WorkspaceParametersPageView: FC<
         <Loader />
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   pageHeader: {
     paddingTop: 0,
   },
-}))
+}));
 
-export default WorkspaceParametersPage
+export default WorkspaceParametersPage;

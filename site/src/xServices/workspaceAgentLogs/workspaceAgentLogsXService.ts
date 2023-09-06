@@ -1,12 +1,12 @@
-import * as API from "api/api"
-import { createMachine, assign } from "xstate"
-import { Line } from "components/WorkspaceBuildLogs/Logs/Logs"
+import * as API from "api/api";
+import { createMachine, assign } from "xstate";
+import { Line } from "components/WorkspaceBuildLogs/Logs/Logs";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
 // able to just pass the array of logs to the component.
 export interface LineWithID extends Line {
-  id: number
+  id: number;
 }
 
 export const workspaceAgentLogsMachine = createMachine(
@@ -16,23 +16,23 @@ export const workspaceAgentLogsMachine = createMachine(
     schema: {
       events: {} as
         | {
-            type: "ADD_LOGS"
-            logs: LineWithID[]
+            type: "ADD_LOGS";
+            logs: LineWithID[];
           }
         | {
-            type: "FETCH_LOGS"
+            type: "FETCH_LOGS";
           }
         | {
-            type: "DONE"
+            type: "DONE";
           },
       context: {} as {
-        agentID: string
-        logs?: LineWithID[]
+        agentID: string;
+        logs?: LineWithID[];
       },
       services: {} as {
         getLogs: {
-          data: LineWithID[]
-        }
+          data: LineWithID[];
+        };
       },
     },
     tsTypes: {} as import("./workspaceAgentLogsXService.typegen").Typegen0,
@@ -84,9 +84,9 @@ export const workspaceAgentLogsMachine = createMachine(
           })),
         ),
       streamLogs: (ctx) => async (callback) => {
-        let after = 0
+        let after = 0;
         if (ctx.logs && ctx.logs.length > 0) {
-          after = ctx.logs[ctx.logs.length - 1].id
+          after = ctx.logs[ctx.logs.length - 1].id;
         }
 
         const socket = API.watchWorkspaceAgentLogs(ctx.agentID, {
@@ -100,19 +100,19 @@ export const workspaceAgentLogsMachine = createMachine(
                 output: log.output,
                 time: log.created_at,
               })),
-            })
+            });
           },
           onDone: () => {
-            callback({ type: "DONE" })
+            callback({ type: "DONE" });
           },
           onError: (error) => {
-            console.error(error)
+            console.error(error);
           },
-        })
+        });
 
         return () => {
-          socket.close()
-        }
+          socket.close();
+        };
       },
     },
     actions: {
@@ -121,10 +121,10 @@ export const workspaceAgentLogsMachine = createMachine(
       }),
       addLogs: assign({
         logs: (context, event) => {
-          const previousLogs = context.logs ?? []
-          return [...previousLogs, ...event.logs]
+          const previousLogs = context.logs ?? [];
+          return [...previousLogs, ...event.logs];
         },
       }),
     },
   },
-)
+);

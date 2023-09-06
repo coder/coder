@@ -1,11 +1,11 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { GitAuthSettingsPageView } from "./GitAuthSettingsPageView"
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { GitAuthSettingsPageView } from "./GitAuthSettingsPageView";
 
 const GitAuthSettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings()
+  const { deploymentValues: deploymentValues } = useDeploySettings();
 
   return (
     <>
@@ -15,7 +15,7 @@ const GitAuthSettingsPage: FC = () => {
 
       <GitAuthSettingsPageView config={deploymentValues.config} />
     </>
-  )
-}
+  );
+};
 
-export default GitAuthSettingsPage
+export default GitAuthSettingsPage;

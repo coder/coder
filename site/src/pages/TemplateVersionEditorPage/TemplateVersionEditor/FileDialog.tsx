@@ -1,56 +1,56 @@
-import TextField from "@mui/material/TextField"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { Stack } from "components/Stack/Stack"
-import { ChangeEvent, FC, useState } from "react"
-import Typography from "@mui/material/Typography"
-import { allowedExtensions, isAllowedFile } from "utils/templateVersion"
-import { FileTree, isFolder, validatePath } from "utils/filetree"
+import TextField from "@mui/material/TextField";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { Stack } from "components/Stack/Stack";
+import { ChangeEvent, FC, useState } from "react";
+import Typography from "@mui/material/Typography";
+import { allowedExtensions, isAllowedFile } from "utils/templateVersion";
+import { FileTree, isFolder, validatePath } from "utils/filetree";
 
 export const CreateFileDialog: FC<{
-  onClose: () => void
-  checkExists: (path: string) => boolean
-  onConfirm: (path: string) => void
-  open: boolean
-  fileTree: FileTree
+  onClose: () => void;
+  checkExists: (path: string) => boolean;
+  onConfirm: (path: string) => void;
+  open: boolean;
+  fileTree: FileTree;
 }> = ({ checkExists, onClose, onConfirm, open, fileTree }) => {
-  const [pathValue, setPathValue] = useState("")
-  const [error, setError] = useState<string>()
+  const [pathValue, setPathValue] = useState("");
+  const [error, setError] = useState<string>();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setPathValue(event.target.value)
-  }
+    setPathValue(event.target.value);
+  };
   const handleConfirm = () => {
     if (pathValue === "") {
-      setError("You must enter a path!")
-      return
+      setError("You must enter a path!");
+      return;
     }
     if (checkExists(pathValue)) {
-      setError("File already exists")
-      return
+      setError("File already exists");
+      return;
     }
     if (!isAllowedFile(pathValue)) {
-      const extensions = allowedExtensions.join(", ")
+      const extensions = allowedExtensions.join(", ");
       setError(
         `This extension is not allowed. You only can create files with the following extensions: ${extensions}.`,
-      )
-      return
+      );
+      return;
     }
-    const pathError = validatePath(pathValue, fileTree)
+    const pathError = validatePath(pathValue, fileTree);
     if (pathError) {
-      setError(pathError)
-      return
+      setError(pathError);
+      return;
     }
-    onConfirm(pathValue)
-    setError(undefined)
-    setPathValue("")
-  }
+    onConfirm(pathValue);
+    setError(undefined);
+    setPathValue("");
+  };
 
   return (
     <ConfirmDialog
       open={open}
       onClose={() => {
-        onClose()
-        setError(undefined)
-        setPathValue("")
+        onClose();
+        setError(undefined);
+        setPathValue("");
       }}
       onConfirm={handleConfirm}
       hideCancel={false}
@@ -68,7 +68,7 @@ export const CreateFileDialog: FC<{
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleConfirm()
+                handleConfirm();
               }
             }}
             error={Boolean(error)}
@@ -84,14 +84,14 @@ export const CreateFileDialog: FC<{
         </Stack>
       }
     />
-  )
-}
+  );
+};
 
 export const DeleteFileDialog: FC<{
-  onClose: () => void
-  onConfirm: () => void
-  open: boolean
-  filename: string
+  onClose: () => void;
+  onConfirm: () => void;
+  open: boolean;
+  filename: string;
 }> = ({ onClose, onConfirm, open, filename }) => {
   return (
     <ConfirmDialog
@@ -107,61 +107,61 @@ export const DeleteFileDialog: FC<{
         </>
       }
     />
-  )
-}
+  );
+};
 
 export const RenameFileDialog: FC<{
-  onClose: () => void
-  onConfirm: (filename: string) => void
-  checkExists: (path: string) => boolean
-  open: boolean
-  filename: string
-  fileTree: FileTree
+  onClose: () => void;
+  onConfirm: (filename: string) => void;
+  checkExists: (path: string) => boolean;
+  open: boolean;
+  filename: string;
+  fileTree: FileTree;
 }> = ({ checkExists, onClose, onConfirm, open, filename, fileTree }) => {
-  const [pathValue, setPathValue] = useState(filename)
-  const [error, setError] = useState<string>()
+  const [pathValue, setPathValue] = useState(filename);
+  const [error, setError] = useState<string>();
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setPathValue(event.target.value)
-  }
+    setPathValue(event.target.value);
+  };
   const handleConfirm = () => {
     if (pathValue === "") {
-      setError("You must enter a path!")
-      return
+      setError("You must enter a path!");
+      return;
     }
     if (checkExists(pathValue)) {
-      setError("File already exists")
-      return
+      setError("File already exists");
+      return;
     }
     if (!isAllowedFile(pathValue)) {
-      const extensions = allowedExtensions.join(", ")
+      const extensions = allowedExtensions.join(", ");
       setError(
         `This extension is not allowed. You only can rename files with the following extensions: ${extensions}.`,
-      )
-      return
+      );
+      return;
     }
     //Check if a folder is renamed to a file
-    const [_, extension] = pathValue.split(".")
+    const [_, extension] = pathValue.split(".");
     if (isFolder(filename, fileTree) && extension) {
-      setError(`A folder can't be renamed to a file.`)
-      return
+      setError(`A folder can't be renamed to a file.`);
+      return;
     }
-    const pathError = validatePath(pathValue, fileTree)
+    const pathError = validatePath(pathValue, fileTree);
     if (pathError) {
-      setError(pathError)
-      return
+      setError(pathError);
+      return;
     }
-    onConfirm(pathValue)
-    setError(undefined)
-    setPathValue("")
-  }
+    onConfirm(pathValue);
+    setError(undefined);
+    setPathValue("");
+  };
 
   return (
     <ConfirmDialog
       open={open}
       onClose={() => {
-        onClose()
-        setError(undefined)
-        setPathValue("")
+        onClose();
+        setError(undefined);
+        setPathValue("");
       }}
       onConfirm={handleConfirm}
       hideCancel={false}
@@ -179,7 +179,7 @@ export const RenameFileDialog: FC<{
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleConfirm()
+                handleConfirm();
               }
             }}
             error={Boolean(error)}
@@ -195,5 +195,5 @@ export const RenameFileDialog: FC<{
         </Stack>
       }
     />
-  )
-}
+  );
+};

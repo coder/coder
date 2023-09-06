@@ -1,4 +1,4 @@
-import { firstLetter } from "./firstLetter"
+import { firstLetter } from "./firstLetter";
 
 describe("first-letter", () => {
   it.each<[string, string]>([
@@ -6,6 +6,6 @@ describe("first-letter", () => {
     ["User", "U"],
     ["test", "T"],
   ])(`firstLetter(%p) returns %p`, (input, expected) => {
-    expect(firstLetter(input)).toBe(expected)
-  })
-})
+    expect(firstLetter(input)).toBe(expected);
+  });
+});

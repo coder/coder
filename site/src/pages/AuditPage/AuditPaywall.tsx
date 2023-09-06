@@ -1,14 +1,14 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import { Paywall } from "components/Paywall/Paywall"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { docs } from "utils/docs"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
+import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import { docs } from "utils/docs";
 
 export const AuditPaywall: FC = () => {
-  const { t } = useTranslation("auditLog")
+  const { t } = useTranslation("auditLog");
 
   return (
     <Paywall
@@ -31,5 +31,5 @@ export const AuditPaywall: FC = () => {
         </Stack>
       }
     />
-  )
-}
+  );
+};

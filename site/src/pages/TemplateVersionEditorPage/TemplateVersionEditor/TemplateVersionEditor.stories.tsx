@@ -7,9 +7,9 @@ import {
   MockWorkspaceResource,
   MockWorkspaceResource2,
   MockWorkspaceResource3,
-} from "testHelpers/entities"
-import { TemplateVersionEditor } from "./TemplateVersionEditor"
-import type { Meta, StoryObj } from "@storybook/react"
+} from "testHelpers/entities";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
+import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
   title: "components/TemplateVersionEditor",
@@ -22,18 +22,18 @@ const meta: Meta<typeof TemplateVersionEditor> = {
   parameters: {
     layout: "fullscreen",
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof TemplateVersionEditor>
+export default meta;
+type Story = StoryObj<typeof TemplateVersionEditor>;
 
-export const Example: Story = {}
+export const Example: Story = {};
 
 export const Logs = {
   args: {
     buildLogs: MockWorkspaceBuildLogs,
   },
-}
+};
 
 export const Resources: Story = {
   args: {
@@ -44,7 +44,7 @@ export const Resources: Story = {
       MockWorkspaceResource3,
     ],
   },
-}
+};
 
 export const ManyLogs = {
   args: {
@@ -58,10 +58,10 @@ export const ManyLogs = {
     },
     buildLogs: MockWorkspaceExtendedBuildLogs,
   },
-}
+};
 
 export const Published = {
   args: {
     publishedVersion: MockTemplateVersion,
   },
-}
+};

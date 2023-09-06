@@ -1,28 +1,28 @@
-import IconButton from "@mui/material/IconButton"
-import { EditSquare } from "components/Icons/EditSquare"
-import { useRef, useState, FC } from "react"
-import { makeStyles } from "@mui/styles"
-import { useTranslation } from "react-i18next"
-import Popover from "@mui/material/Popover"
-import { Stack } from "components/Stack/Stack"
-import Checkbox from "@mui/material/Checkbox"
-import UserIcon from "@mui/icons-material/PersonOutline"
-import { Role } from "api/typesGenerated"
+import IconButton from "@mui/material/IconButton";
+import { EditSquare } from "components/Icons/EditSquare";
+import { useRef, useState, FC } from "react";
+import { makeStyles } from "@mui/styles";
+import { useTranslation } from "react-i18next";
+import Popover from "@mui/material/Popover";
+import { Stack } from "components/Stack/Stack";
+import Checkbox from "@mui/material/Checkbox";
+import UserIcon from "@mui/icons-material/PersonOutline";
+import { Role } from "api/typesGenerated";
 import {
   HelpTooltip,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip"
-import { Maybe } from "components/Conditionals/Maybe"
+} from "components/HelpTooltip/HelpTooltip";
+import { Maybe } from "components/Conditionals/Maybe";
 
 const Option: React.FC<{
-  value: string
-  name: string
-  description: string
-  isChecked: boolean
-  onChange: (roleName: string) => void
+  value: string;
+  name: string;
+  description: string;
+  isChecked: boolean;
+  onChange: (roleName: string) => void;
 }> = ({ value, name, description, isChecked, onChange }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <label htmlFor={name} className={styles.option}>
@@ -34,7 +34,7 @@ const Option: React.FC<{
           value={value}
           checked={isChecked}
           onChange={(e) => {
-            onChange(e.currentTarget.value)
+            onChange(e.currentTarget.value);
           }}
         />
         <Stack spacing={0}>
@@ -43,17 +43,17 @@ const Option: React.FC<{
         </Stack>
       </Stack>
     </label>
-  )
-}
+  );
+};
 
 export interface EditRolesButtonProps {
-  isLoading: boolean
-  roles: Role[]
-  selectedRoles: Role[]
-  onChange: (roles: Role["name"][]) => void
-  defaultIsOpen?: boolean
-  oidcRoleSync: boolean
-  userLoginType: string
+  isLoading: boolean;
+  roles: Role[];
+  selectedRoles: Role[];
+  onChange: (roles: Role["name"][]) => void;
+  defaultIsOpen?: boolean;
+  oidcRoleSync: boolean;
+  userLoginType: string;
 }
 
 export const EditRolesButton: FC<EditRolesButtonProps> = ({
@@ -65,24 +65,24 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   userLoginType,
   oidcRoleSync,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("usersPage")
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(defaultIsOpen)
-  const id = isOpen ? "edit-roles-popover" : undefined
-  const selectedRoleNames = selectedRoles.map((role) => role.name)
+  const styles = useStyles();
+  const { t } = useTranslation("usersPage");
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(defaultIsOpen);
+  const id = isOpen ? "edit-roles-popover" : undefined;
+  const selectedRoleNames = selectedRoles.map((role) => role.name);
 
   const handleChange = (roleName: string) => {
     if (selectedRoleNames.includes(roleName)) {
-      onChange(selectedRoleNames.filter((role) => role !== roleName))
-      return
+      onChange(selectedRoleNames.filter((role) => role !== roleName));
+      return;
     }
 
-    onChange([...selectedRoleNames, roleName])
-  }
+    onChange([...selectedRoleNames, roleName]);
+  };
 
   const canSetRoles =
-    userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync)
+    userLoginType !== "oidc" || (userLoginType === "oidc" && !oidcRoleSync);
 
   return (
     <>
@@ -152,8 +152,8 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         </div>
       </Popover>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   editButton: {
@@ -218,4 +218,4 @@ const useStyles = makeStyles((theme) => ({
     height: theme.spacing(2.5),
     color: theme.palette.primary.main,
   },
-}))
+}));

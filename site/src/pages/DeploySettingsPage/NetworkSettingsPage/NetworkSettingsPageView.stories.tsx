@@ -1,8 +1,8 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   NetworkSettingsPageView,
   NetworkSettingsPageViewProps,
-} from "./NetworkSettingsPageView"
+} from "./NetworkSettingsPageView";
 
 export default {
   title: "pages/NetworkSettingsPageView",
@@ -52,9 +52,9 @@ export default {
       },
     ],
   },
-} as ComponentMeta<typeof NetworkSettingsPageView>
+} as ComponentMeta<typeof NetworkSettingsPageView>;
 
 const Template: Story<NetworkSettingsPageViewProps> = (args) => (
   <NetworkSettingsPageView {...args} />
-)
-export const Page = Template.bind({})
+);
+export const Page = Template.bind({});

@@ -1,16 +1,16 @@
-import { makeStyles } from "@mui/styles"
-import { FormikTouched } from "formik"
-import { FC, useState } from "react"
-import { AuthMethods } from "../../../api/typesGenerated"
-import { useTranslation } from "react-i18next"
-import { Maybe } from "../../../components/Conditionals/Maybe"
-import { PasswordSignInForm } from "./PasswordSignInForm"
-import { OAuthSignInForm } from "./OAuthSignInForm"
-import { BuiltInAuthFormValues } from "./SignInForm.types"
-import Button from "@mui/material/Button"
-import EmailIcon from "@mui/icons-material/EmailOutlined"
-import { Alert } from "components/Alert/Alert"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { makeStyles } from "@mui/styles";
+import { FormikTouched } from "formik";
+import { FC, useState } from "react";
+import { AuthMethods } from "../../../api/typesGenerated";
+import { useTranslation } from "react-i18next";
+import { Maybe } from "../../../components/Conditionals/Maybe";
+import { PasswordSignInForm } from "./PasswordSignInForm";
+import { OAuthSignInForm } from "./OAuthSignInForm";
+import { BuiltInAuthFormValues } from "./SignInForm.types";
+import Button from "@mui/material/Button";
+import EmailIcon from "@mui/icons-material/EmailOutlined";
+import { Alert } from "components/Alert/Alert";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const Language = {
   emailLabel: "Email",
@@ -20,7 +20,7 @@ export const Language = {
   passwordSignIn: "Sign In",
   githubSignIn: "GitHub",
   oidcSignIn: "OpenID Connect",
-}
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -63,17 +63,17 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2),
     height: theme.spacing(2),
   },
-}))
+}));
 
 export interface SignInFormProps {
-  isSigningIn: boolean
-  redirectTo: string
-  error?: unknown
-  info?: string
-  authMethods?: AuthMethods
-  onSubmit: (credentials: { email: string; password: string }) => void
+  isSigningIn: boolean;
+  redirectTo: string;
+  error?: unknown;
+  info?: string;
+  authMethods?: AuthMethods;
+  onSubmit: (credentials: { email: string; password: string }) => void;
   // initialTouched is only used for testing the error state of the form.
-  initialTouched?: FormikTouched<BuiltInAuthFormValues>
+  initialTouched?: FormikTouched<BuiltInAuthFormValues>;
 }
 
 export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
@@ -87,13 +87,13 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
 }) => {
   const oAuthEnabled = Boolean(
     authMethods?.github.enabled || authMethods?.oidc.enabled,
-  )
-  const passwordEnabled = authMethods?.password.enabled ?? true
+  );
+  const passwordEnabled = authMethods?.password.enabled ?? true;
   // Hide password auth by default if any OAuth method is enabled
-  const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled)
-  const styles = useStyles()
-  const commonTranslation = useTranslation("common")
-  const loginPageTranslation = useTranslation("loginPage")
+  const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
+  const styles = useStyles();
+  const commonTranslation = useTranslation("common");
+  const loginPageTranslation = useTranslation("loginPage");
 
   return (
     <div className={styles.root}>
@@ -154,5 +154,5 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
         </Button>
       </Maybe>
     </div>
-  )
-}
+  );
+};

@@ -1,23 +1,23 @@
-import { makeStyles } from "@mui/styles"
-import Brush from "@mui/icons-material/Brush"
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
-import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined"
-import LockRounded from "@mui/icons-material/LockOutlined"
-import Globe from "@mui/icons-material/PublicOutlined"
-import HubOutlinedIcon from "@mui/icons-material/HubOutlined"
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
-import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined"
-import { GitIcon } from "components/Icons/GitIcon"
-import { Stack } from "components/Stack/Stack"
-import { ElementType, PropsWithChildren, ReactNode, FC } from "react"
-import { NavLink } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { makeStyles } from "@mui/styles";
+import Brush from "@mui/icons-material/Brush";
+import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
+import ApprovalIcon from "@mui/icons-material/VerifiedUserOutlined";
+import LockRounded from "@mui/icons-material/LockOutlined";
+import Globe from "@mui/icons-material/PublicOutlined";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import MonitorHeartOutlined from "@mui/icons-material/MonitorHeartOutlined";
+import { GitIcon } from "components/Icons/GitIcon";
+import { Stack } from "components/Stack/Stack";
+import { ElementType, PropsWithChildren, ReactNode, FC } from "react";
+import { NavLink } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <NavLink
       to={href}
@@ -33,17 +33,17 @@ const SidebarNavItem: FC<
         {children}
       </Stack>
     </NavLink>
-  )
-}
+  );
+};
 
 const SidebarNavItemIcon: FC<{ icon: ElementType }> = ({ icon: Icon }) => {
-  const styles = useStyles()
-  return <Icon className={styles.sidebarNavItemIcon} />
-}
+  const styles = useStyles();
+  return <Icon className={styles.sidebarNavItemIcon} />;
+};
 
 export const Sidebar: React.FC = () => {
-  const styles = useStyles()
-  const dashboard = useDashboard()
+  const styles = useStyles();
+  const dashboard = useDashboard();
 
   return (
     <nav className={styles.sidebar}>
@@ -103,8 +103,8 @@ export const Sidebar: React.FC = () => {
         </SidebarNavItem>
       )}
     </nav>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   sidebar: {
@@ -148,4 +148,4 @@ const useStyles = makeStyles((theme) => ({
     width: theme.spacing(2),
     height: theme.spacing(2),
   },
-}))
+}));

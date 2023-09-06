@@ -1,20 +1,20 @@
-import type { Meta, StoryObj } from "@storybook/react"
-import { TemplateInsightsPageView } from "./TemplateInsightsPage"
+import type { Meta, StoryObj } from "@storybook/react";
+import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
   title: "pages/TemplateInsightsPageView",
   component: TemplateInsightsPageView,
-}
+};
 
-export default meta
-type Story = StoryObj<typeof TemplateInsightsPageView>
+export default meta;
+type Story = StoryObj<typeof TemplateInsightsPageView>;
 
 export const Loading: Story = {
   args: {
     templateInsights: undefined,
     userLatency: undefined,
   },
-}
+};
 
 export const Empty: Story = {
   args: {
@@ -38,7 +38,7 @@ export const Empty: Story = {
       },
     },
   },
-}
+};
 
 export const Loaded: Story = {
   args: {
@@ -658,4 +658,4 @@ export const Loaded: Story = {
       },
     },
   },
-}
+};
