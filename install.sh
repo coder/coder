@@ -178,9 +178,11 @@ EOF
 
 main() {
 	TERRAFORM_VERSION="1.3.4"
+
 	if [ "${TRACE-}" ]; then
 		set -x
 	fi
+
 	unset \
 		DRY_RUN \
 		METHOD \
@@ -188,9 +190,11 @@ main() {
 		ALL_FLAGS \
 		RSH_ARGS \
 		EDGE \
-		RSH
+		RSH \
+		WITH_TERRAFORM
 
 	ALL_FLAGS=""
+
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
 		-*)
@@ -245,7 +249,7 @@ main() {
 			exit 0
 			;;
 		--with-terraform)
-			METHOD=with_terraform
+			WITH_TERRAFORM=1
 			;;
 		--)
 			shift
@@ -275,8 +279,22 @@ main() {
 		return
 	fi
 
+	# These can be overridden for testing but shouldn't normally be used as it can
+	# result in a broken coder.
+	OS=${OS:-$(os)}
+	ARCH=${ARCH:-$(arch)}
+	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
+
+	# We can't reasonably support installing specific versions of Coder through
+	# Homebrew, so if we're on macOS and the `--version` flag was set, we should
+	# "detect" the best installation strategy to be standalone. This check needs
+	# to occur before we default `VERSION` to the latest release.
+	if [ "$OS" = "darwin" ] && [ "${VERSION-}" ]; then
+		METHOD=standalone
+	fi
+
 	METHOD="${METHOD-detect}"
-	if [ "$METHOD" != detect ] && [ "$METHOD" != with_terraform ] && [ "$METHOD" != standalone ]; then
+	if [ "$METHOD" != detect ] && [ "$METHOD" != standalone ]; then
 		echoerr "Unknown install method \"$METHOD\""
 		echoerr "Run with --help to see usage."
 		exit 1
@@ -289,17 +307,17 @@ main() {
 	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	VERSION=${VERSION:-$(echo_latest_version)}
-	# These can be overridden for testing but shouldn't normally be used as it can
-	# result in a broken coder.
-	OS=${OS:-$(os)}
-	ARCH=${ARCH:-$(arch)}
-	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
 	distro_name
 
 	if [ "${DRY_RUN-}" ]; then
 		echoh "Running with --dry-run; the following are the commands that would be run if this were a real installation:"
 		echoh
+	fi
+
+	# Start by installing Terraform, if requested
+	if [ "${WITH_TERRAFORM-}" = 1 ]; then
+		with_terraform
 	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
@@ -312,10 +330,6 @@ main() {
 			echoerr "Please try again without '--method standalone'"
 			exit 1
 		fi
-	fi
-	if [ "$METHOD" = with_terraform ]; then
-		# Install terraform then continue the script
-		with_terraform
 	fi
 
 	# DISTRO can be overridden for testing but shouldn't normally be used as it
