@@ -108,7 +108,7 @@ func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 							UserID:            usr.ID,
 							LoginType:         usr.LoginType,
 						}); err != nil {
-							return xerrors.Errorf("update user link: %w", err)
+							return xerrors.Errorf("update user link user_id=%s linked_id=%s: %w", userLink.UserID, userLink.LinkedID, err)
 						}
 					}
 					gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, usr.ID)
@@ -124,7 +124,7 @@ func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 							OAuthRefreshToken: gitAuthLink.OAuthRefreshToken,
 							OAuthExpiry:       gitAuthLink.OAuthExpiry,
 						}); err != nil {
-							return xerrors.Errorf("update git auth link: %w", err)
+							return xerrors.Errorf("update git auth link user_id=%s provider_id=%s: %w", gitAuthLink.UserID, gitAuthLink.ProviderID, err)
 						}
 					}
 					return nil
@@ -134,7 +134,7 @@ func (*RootCmd) dbcryptRotate() *clibase.Cmd {
 				if err != nil {
 					return xerrors.Errorf("update user links: %w", err)
 				}
-				logger.Debug(ctx, "encrypted user tokens", slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				logger.Debug(ctx, "encrypted user tokens", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			}
 			logger.Info(ctx, "operation completed successfully")
 
