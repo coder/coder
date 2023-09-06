@@ -7,33 +7,24 @@ import { Theme } from "@mui/material/styles";
 
 export interface CodeExampleProps {
   code: string;
-  className?: string;
-  buttonClassName?: string;
-  tooltipTitle?: string;
-  inline?: boolean;
   password?: boolean;
+  className?: string;
 }
 
 /**
  * Component to show single-line code examples, with a copy button
  */
-export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
+export const CodeExample: FC<CodeExampleProps> = ({
   code,
+  password,
   className,
-  buttonClassName,
-  tooltipTitle,
-  inline,
 }) => {
-  const styles = useStyles({ inline: inline });
+  const styles = useStyles({ password });
 
   return (
     <div className={combineClasses([styles.root, className])}>
       <code className={styles.code}>{code}</code>
-      <CopyButton
-        text={code}
-        tooltipTitle={tooltipTitle}
-        buttonClassName={buttonClassName}
-      />
+      <CopyButton text={code} />
     </div>
   );
 };
@@ -48,8 +39,7 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     display: props.inline ? "inline-flex" : "flex",
     flexDirection: "row",
     alignItems: "center",
-    background: props.inline ? "rgb(0 0 0 / 30%)" : "hsl(223, 27%, 3%)",
-    border: props.inline ? undefined : `1px solid ${theme.palette.divider}`,
+    background: "rgb(0 0 0 / 30%)",
     color: theme.palette.primary.contrastText,
     fontFamily: MONOSPACE_FONT_FAMILY,
     fontSize: 14,
