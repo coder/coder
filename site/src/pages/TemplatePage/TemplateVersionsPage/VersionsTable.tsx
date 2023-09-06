@@ -6,9 +6,9 @@ import TableContainer from "@mui/material/TableContainer"
 import TableRow from "@mui/material/TableRow"
 import { Timeline } from "components/Timeline/Timeline"
 import { FC } from "react"
-import * as TypesGen from "../../api/typesGenerated"
-import { EmptyState } from "../EmptyState/EmptyState"
-import { TableLoader } from "../TableLoader/TableLoader"
+import * as TypesGen from "../../../../api/typesGenerated"
+import { EmptyState } from "../../../../components/EmptyState/EmptyState"
+import { TableLoader } from "../../../../components/TableLoader/TableLoader"
 import { VersionRow } from "./VersionRow"
 
 export const Language = {

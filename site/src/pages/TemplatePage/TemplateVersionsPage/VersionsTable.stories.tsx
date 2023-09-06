@@ -1,6 +1,6 @@
 import { action } from "@storybook/addon-actions"
 import { ComponentMeta, Story } from "@storybook/react"
-import { MockTemplateVersion } from "../../testHelpers/entities"
+import { MockTemplateVersion } from "../../../../testHelpers/entities"
 import { VersionsTable, VersionsTableProps } from "./VersionsTable"
 
 export default {
