@@ -5,7 +5,10 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { Loader } from "components/Loader/Loader"
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
 import dayjs from "dayjs"
-import { scheduleToAutostart } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
+import {
+  scheduleToAutostart,
+  scheduleChanged,
+} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
 import { useWorkspaceSettingsContext } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
 import { FC } from "react"
@@ -13,10 +16,9 @@ import { Helmet } from "react-helmet-async"
 import { useTranslation } from "react-i18next"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 import { pageTitle } from "utils/page"
-import { scheduleChanged } from "utils/schedule"
-import * as TypesGen from "../../../api/typesGenerated"
-import { WorkspaceScheduleForm } from "../../../components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { workspaceSchedule } from "../../../xServices/workspaceSchedule/workspaceScheduleXService"
+import * as TypesGen from "api/typesGenerated"
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm"
+import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService"
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,

@@ -1,5 +1,3 @@
-import map from "lodash/map"
-import some from "lodash/some"
 import cronstrue from "cronstrue"
 import dayjs, { Dayjs } from "dayjs"
 import advancedFormat from "dayjs/plugin/advancedFormat"
@@ -9,9 +7,6 @@ import timezone from "dayjs/plugin/timezone"
 import utc from "dayjs/plugin/utc"
 import { Workspace } from "../api/typesGenerated"
 import { isWorkspaceOn } from "./workspace"
-import { WorkspaceScheduleFormValues } from "components/WorkspaceScheduleForm/WorkspaceScheduleForm"
-import { Autostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
-import { Autostart } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -162,15 +157,3 @@ export const getMaxDeadlineChange = (
   deadline: dayjs.Dayjs,
   extremeDeadline: dayjs.Dayjs,
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"))
-
-export const scheduleChanged = (
-  initialValues: Autostart | Autostop,
-  formValues: WorkspaceScheduleFormValues,
-): boolean =>
-  some(
-    map(
-      { ...initialValues },
-      (v: boolean | string, k: keyof typeof initialValues) =>
-        formValues[k] !== v,
-    ),
-  )
