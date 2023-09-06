@@ -196,7 +196,10 @@ require (
 	tailscale.com v1.46.1
 )
 
-require gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
+require (
+	github.com/djherbis/atime v1.1.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
+)
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect

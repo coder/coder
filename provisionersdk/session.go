@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/djherbis/atime"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -18,9 +19,13 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// ReadmeFile is the location we look for to extract documentation from template
-// versions.
-const ReadmeFile = "README.md"
+const (
+	// ReadmeFile is the location we look for to extract documentation from template versions.
+	ReadmeFile = "README.md"
+
+	sessionDirPrefix          = "Session"
+	staleSessionDaysThreshold = 7 * 24 * time.Hour
+)
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
 type protoServer struct {
@@ -36,11 +41,13 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		server: p.server,
 	}
 
-	// TODO Clean stale sessions in WorkDir
+	err := cleanStaleSessions(s.Context(), p.opts.WorkDirectory, time.Now(), s.Logger)
+	if err != nil {
+		return xerrors.Errorf("clean state sessions %q: %w", s.WorkDirectory, err)
+	}
 
-	sessDir := fmt.Sprintf("Session%s", sessID)
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessDir)
-	err := os.MkdirAll(s.WorkDirectory, 0o700)
+	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessionDir(sessID))
+	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
@@ -318,4 +325,44 @@ func (r *request[R, C]) do() (C, error) {
 		close(canceledOrComplete)
 		return c, nil
 	}
+}
+
+func cleanStaleSessions(ctx context.Context, workDirectory string, now time.Time, logger slog.Logger) error {
+	entries, err := os.ReadDir(workDirectory)
+	if err != nil {
+		return xerrors.Errorf("can't read %q directory", workDirectory)
+	}
+
+	for _, entry := range entries {
+		dirName := entry.Name()
+
+		if entry.IsDir() && isValidSessionDir(dirName) {
+			sessionDirPath := filepath.Join(workDirectory, dirName)
+			fi, err := entry.Info()
+			if err != nil {
+				return xerrors.Errorf("can't read %q directory info", sessionDirPath)
+			}
+
+			lastAccessTime := atime.Get(fi)
+			if lastAccessTime.Add(staleSessionDaysThreshold).After(now) {
+				continue
+			}
+
+			logger.Info(ctx, "Remove stale session directory: %s", sessionDirPath)
+			err = os.RemoveAll(sessionDirPath)
+			if err != nil {
+				return xerrors.Errorf("can't remove %q directory", sessionDirPath)
+			}
+		}
+	}
+	return nil
+}
+
+func sessionDir(sessID string) string {
+	return sessionDirPrefix + sessID
+}
+
+func isValidSessionDir(dirName string) bool {
+	match, err := filepath.Match(sessionDirPrefix+"*", dirName)
+	return err == nil && match
 }
