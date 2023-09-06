@@ -104,18 +104,29 @@ Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STAND
 
 EOF
 
-	if [ "$STANDALONE_INSTALL_PREFIX" != /usr/local ]; then
+	CODER_COMMAND="$(command -v "$STANDALONE_BINARY_NAME")"
+
+	if [ ! "$CODER_COMMAND" ]; then
 		cath <<EOF
 Extend your path to use Coder:
-PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
+
+  $ PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
+
+EOF
+	elif [ "$CODER_COMMAND" != "$STANDALONE_BINARY_LOCATION" ]; then
+		echo_path_conflict "$CODER_COMMAND" "$STANDALONE_INSTALL_PREFIX"
+	else
+		cath <<EOF
+To run a Coder server:
+
+  $ $STANDALONE_BINARY_NAME server
+
+To connect to a Coder deployment:
+
+  $ $STANDALONE_BINARY_NAME login <deployment url>
 
 EOF
 	fi
-	cath <<EOF
-Run Coder:
-  $STANDALONE_BINARY_NAME server
-
-EOF
 }
 
 echo_brew_postinstall() {
@@ -125,7 +136,7 @@ echo_brew_postinstall() {
 	fi
 
 	cath <<EOF
-brew formula has been installed.
+Homebrew formula has been installed.
 
 To run a Coder server:
 
@@ -169,10 +180,23 @@ EOF
 
 echo_dryrun_postinstall() {
 	cath <<EOF
-
 Dry-run complete.
 
 To install Coder, re-run this script without the --dry-run flag.
+
+EOF
+}
+
+echo_path_conflict() {
+	cath <<EOF
+There is another binary in your PATH that conflicts with the binary we've installed:
+
+  $1
+
+You'll need to update your PATH:
+
+  $ PATH="$2/bin:\$PATH"
+
 EOF
 }
 
@@ -287,9 +311,16 @@ main() {
 
 	# We can't reasonably support installing specific versions of Coder through
 	# Homebrew, so if we're on macOS and the `--version` flag was set, we should
-	# "detect" the best installation strategy to be standalone. This check needs
-	# to occur before we default `VERSION` to the latest release.
+	# "detect" standalone to be the appropriate installation method. This check
+	# needs to occur before we set `VERSION` to a default of the latest release.
 	if [ "$OS" = "darwin" ] && [ "${VERSION-}" ]; then
+		METHOD=standalone
+	fi
+
+	# If we've been provided a flag which is specific to the standalone installation
+	# method, we should "detect" standalone to be the appropriate installation method.
+	# This check needs to occur before we set these variables with defaults.
+	if [ "${STANDALONE_INSTALL_PREFIX-}" ] || [ "${STANDALONE_BINARY_NAME-}" ]; then
 		METHOD=standalone
 	fi
 
@@ -303,8 +334,8 @@ main() {
 	# These are used by the various install_* functions that make use of GitHub
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
-	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
+	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	VERSION=${VERSION:-$(echo_latest_version)}
 
@@ -443,7 +474,7 @@ with_terraform() {
 install_macos() {
 	# If there is no `brew` binary available, just default to installing standalone
 	if command_exists brew; then
-		echoh "Installing v$VERSION of the coder formula from coder/coder."
+		echoh "Installing coder with Homebrew from the coder/coder tap."
 		echoh
 
 		sh_c brew install coder/coder/coder
@@ -519,16 +550,16 @@ install_standalone() {
 		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
-	COPY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
-	if [ -f "$COPY_LOCATION" ]; then
-		"$sh_c" rm "$COPY_LOCATION"
+	if [ -f "$STANDALONE_BINARY_LOCATION" ]; then
+		"$sh_c" rm "$STANDALONE_BINARY_LOCATION"
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/coder" "$COPY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_BINARY_LOCATION"
 
 	echo_standalone_postinstall
 }
