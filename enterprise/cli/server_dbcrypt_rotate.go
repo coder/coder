@@ -19,14 +19,28 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (*RootCmd) dbcryptRotate() *clibase.Cmd {
+func (r *RootCmd) dbcryptCmd() *clibase.Cmd {
+	dbcryptCmd := &clibase.Cmd{
+		Use:   "dbcrypt",
+		Short: "Manage database encryption.",
+		Handler: func(inv *clibase.Invocation) error {
+			return inv.Command.HelpHandler(inv)
+		},
+	}
+	dbcryptCmd.AddSubcommands(
+		r.dbcryptRotateCmd(),
+	)
+	return dbcryptCmd
+}
+
+func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
 	var (
 		vals = new(codersdk.DeploymentValues)
 		opts = vals.Options()
 	)
 	cmd := &clibase.Cmd{
-		Use:   "dbcrypt-rotate --postgres-url <postgres_url> --external-token-encryption-keys <new-key>,<old-keys>",
-		Short: "Rotate database encryption keys",
+		Use:   "rotate",
+		Short: "Rotate database encryption keys.",
 		Options: clibase.OptionSet{
 			*opts.ByName("Postgres Connection URL"),
 			*opts.ByName("External Token Encryption Keys"),

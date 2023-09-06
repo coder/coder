@@ -17,7 +17,6 @@ func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 		r.licenses(),
 		r.groups(),
 		r.provisionerDaemons(),
-		r.dbcryptRotate(),
 	}
 }
 

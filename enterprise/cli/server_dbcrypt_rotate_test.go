@@ -50,7 +50,7 @@ func TestDBCryptRotate(t *testing.T) {
 	require.NoError(t, err)
 
 	// Encrypt all the data with the initial cipher.
-	inv, _ := newCLI(t, "dbcrypt-rotate",
+	inv, _ := newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
 		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyA)),
 	)
@@ -79,7 +79,7 @@ func TestDBCryptRotate(t *testing.T) {
 		base64.StdEncoding.EncodeToString([]byte(keyA)),
 	)
 
-	inv, _ = newCLI(t, "dbcrypt-rotate",
+	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
 		"--external-token-encryption-keys", externalTokensArg,
 	)

@@ -98,5 +98,9 @@ func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 		}
 		return api.AGPL, api, nil
 	})
+
+	cmd.AddSubcommands(
+		r.dbcryptCmd(),
+	)
 	return cmd
 }

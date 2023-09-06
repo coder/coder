@@ -548,11 +548,6 @@
           "path": "cli/create.md"
         },
         {
-          "title": "dbcrypt-rotate",
-          "description": "Rotate database encryption keys",
-          "path": "cli/dbcrypt-rotate.md"
-        },
-        {
           "title": "delete",
           "description": "Delete a workspace",
           "path": "cli/delete.md"
@@ -710,6 +705,16 @@
           "title": "server create-admin-user",
           "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
           "path": "cli/server_create-admin-user.md"
+        },
+        {
+          "title": "server dbcrypt",
+          "description": "Manage database encryption",
+          "path": "cli/server_dbcrypt.md"
+        },
+        {
+          "title": "server dbcrypt rotate",
+          "description": "Rotate database encryption keys",
+          "path": "cli/server_dbcrypt_rotate.md"
         },
         {
           "title": "server postgres-builtin-serve",
