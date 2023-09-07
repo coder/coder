@@ -464,7 +464,9 @@ These options are only available in the Enterprise Edition.
           keys. Each key, when base64-decoded, must be exactly 32 bytes in
           length. The first key will be used to encrypt new values. Subsequent
           keys will be used as a fallback when decrypting. During normal
-          operation it is recommended to only set one key.
+          operation it is recommended to only set one key unless you are in the
+          process of rotating keys with the `coder server dbcrypt rotate`
+          command.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
