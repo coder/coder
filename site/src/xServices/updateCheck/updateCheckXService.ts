@@ -1,15 +1,15 @@
-import { assign, createMachine } from "xstate"
-import { getUpdateCheck } from "api/api"
-import { AuthorizationResponse, UpdateCheckResponse } from "api/typesGenerated"
-import { checks, Permissions } from "xServices/auth/authXService"
+import { assign, createMachine } from "xstate";
+import { getUpdateCheck } from "api/api";
+import { AuthorizationResponse, UpdateCheckResponse } from "api/typesGenerated";
+import { checks, Permissions } from "xServices/auth/authXService";
 
 export interface UpdateCheckContext {
-  permissions: Permissions
-  updateCheck?: UpdateCheckResponse
-  error?: unknown
+  permissions: Permissions;
+  updateCheck?: UpdateCheckResponse;
+  error?: unknown;
 }
 
-export type UpdateCheckEvent = { type: "DISMISS" }
+export type UpdateCheckEvent = { type: "DISMISS" };
 
 export const updateCheckMachine = createMachine(
   {
@@ -21,11 +21,11 @@ export const updateCheckMachine = createMachine(
       events: {} as UpdateCheckEvent,
       services: {} as {
         checkPermissions: {
-          data: AuthorizationResponse
-        }
+          data: AuthorizationResponse;
+        };
         getUpdateCheck: {
-          data: UpdateCheckResponse
-        }
+          data: UpdateCheckResponse;
+        };
       },
     },
     initial: "checkingPermissions",
@@ -90,33 +90,33 @@ export const updateCheckMachine = createMachine(
       }),
       setDismissedVersion: ({ updateCheck }) => {
         if (!updateCheck) {
-          throw new Error("Update check is not set")
+          throw new Error("Update check is not set");
         }
 
-        saveDismissedVersionOnLocal(updateCheck.version)
+        saveDismissedVersionOnLocal(updateCheck.version);
       },
     },
     guards: {
       canViewUpdateCheck: ({ permissions }) =>
         permissions[checks.viewUpdateCheck] || false,
       shouldShowUpdateCheck: (_, { data }) => {
-        const isNotDismissed = getDismissedVersionOnLocal() !== data.version
-        const isOutdated = !data.current
-        return isNotDismissed && isOutdated
+        const isNotDismissed = getDismissedVersionOnLocal() !== data.version;
+        const isOutdated = !data.current;
+        return isNotDismissed && isOutdated;
       },
     },
   },
-)
+);
 
 // Exporting to be used in the tests
 export const saveDismissedVersionOnLocal = (version: string): void => {
-  window.localStorage.setItem("dismissedVersion", version)
-}
+  window.localStorage.setItem("dismissedVersion", version);
+};
 
 export const getDismissedVersionOnLocal = (): string | undefined => {
-  return localStorage.getItem("dismissedVersion") ?? undefined
-}
+  return localStorage.getItem("dismissedVersion") ?? undefined;
+};
 
 export const clearDismissedVersionOnLocal = (): void => {
-  localStorage.removeItem("dismissedVersion")
-}
+  localStorage.removeItem("dismissedVersion");
+};

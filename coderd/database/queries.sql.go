@@ -636,6 +636,74 @@ func (q *sqlQuerier) InsertAuditLog(ctx context.Context, arg InsertAuditLogParam
 	return i, err
 }
 
+const getDBCryptKeys = `-- name: GetDBCryptKeys :many
+SELECT number, active_key_digest, revoked_key_digest, created_at, revoked_at, test FROM dbcrypt_keys ORDER BY number ASC
+`
+
+func (q *sqlQuerier) GetDBCryptKeys(ctx context.Context) ([]DBCryptKey, error) {
+	rows, err := q.db.QueryContext(ctx, getDBCryptKeys)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DBCryptKey
+	for rows.Next() {
+		var i DBCryptKey
+		if err := rows.Scan(
+			&i.Number,
+			&i.ActiveKeyDigest,
+			&i.RevokedKeyDigest,
+			&i.CreatedAt,
+			&i.RevokedAt,
+			&i.Test,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertDBCryptKey = `-- name: InsertDBCryptKey :exec
+INSERT INTO dbcrypt_keys
+	(number, active_key_digest, created_at, test)
+VALUES ($1::int, $2::text, CURRENT_TIMESTAMP, $3::text)
+`
+
+type InsertDBCryptKeyParams struct {
+	Number          int32  `db:"number" json:"number"`
+	ActiveKeyDigest string `db:"active_key_digest" json:"active_key_digest"`
+	Test            string `db:"test" json:"test"`
+}
+
+func (q *sqlQuerier) InsertDBCryptKey(ctx context.Context, arg InsertDBCryptKeyParams) error {
+	_, err := q.db.ExecContext(ctx, insertDBCryptKey, arg.Number, arg.ActiveKeyDigest, arg.Test)
+	return err
+}
+
+const revokeDBCryptKey = `-- name: RevokeDBCryptKey :exec
+UPDATE dbcrypt_keys
+SET
+	revoked_key_digest = active_key_digest,
+	active_key_digest = revoked_key_digest,
+	revoked_at = CURRENT_TIMESTAMP
+WHERE
+	active_key_digest = $1::text
+AND
+	revoked_key_digest IS NULL
+`
+
+func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
+	_, err := q.db.ExecContext(ctx, revokeDBCryptKey, activeKeyDigest)
+	return err
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id
@@ -800,7 +868,7 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 }
 
 const getGitAuthLink = `-- name: GetGitAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
 `
 
 type GetGitAuthLinkParams struct {
@@ -819,8 +887,47 @@ func (q *sqlQuerier) GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParam
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
+}
+
+const getGitAuthLinksByUserID = `-- name: GetGitAuthLinksByUserID :many
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM git_auth_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]GitAuthLink, error) {
+	rows, err := q.db.QueryContext(ctx, getGitAuthLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GitAuthLink
+	for rows.Next() {
+		var i GitAuthLink
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+			&i.OAuthAccessTokenKeyID,
+			&i.OAuthRefreshTokenKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertGitAuthLink = `-- name: InsertGitAuthLink :one
@@ -830,7 +937,9 @@ INSERT INTO git_auth_links (
     created_at,
     updated_at,
     oauth_access_token,
+    oauth_access_token_key_id,
     oauth_refresh_token,
+    oauth_refresh_token_key_id,
     oauth_expiry
 ) VALUES (
     $1,
@@ -839,18 +948,22 @@ INSERT INTO git_auth_links (
     $4,
     $5,
     $6,
-    $7
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry
+    $7,
+    $8,
+    $9
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 `
 
 type InsertGitAuthLinkParams struct {
-	ProviderID        string    `db:"provider_id" json:"provider_id"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	CreatedAt         time.Time `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	ProviderID             string         `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLinkParams) (GitAuthLink, error) {
@@ -860,7 +973,9 @@ func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLin
 		arg.CreatedAt,
 		arg.UpdatedAt,
 		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
 		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 	)
 	var i GitAuthLink
@@ -872,6 +987,8 @@ func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLin
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
@@ -880,18 +997,22 @@ const updateGitAuthLink = `-- name: UpdateGitAuthLink :one
 UPDATE git_auth_links SET
     updated_at = $3,
     oauth_access_token = $4,
-    oauth_refresh_token = $5,
-    oauth_expiry = $6
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry
+    oauth_access_token_key_id = $5,
+    oauth_refresh_token = $6,
+    oauth_refresh_token_key_id = $7,
+    oauth_expiry = $8
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 `
 
 type UpdateGitAuthLinkParams struct {
-	ProviderID        string    `db:"provider_id" json:"provider_id"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	ProviderID             string         `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) (GitAuthLink, error) {
@@ -900,7 +1021,9 @@ func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLin
 		arg.UserID,
 		arg.UpdatedAt,
 		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
 		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 	)
 	var i GitAuthLink
@@ -912,6 +1035,8 @@ func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLin
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
@@ -5450,7 +5575,7 @@ func (q *sqlQuerier) InsertTemplateVersionVariable(ctx context.Context, arg Inse
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 FROM
 	user_links
 WHERE
@@ -5467,13 +5592,15 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 FROM
 	user_links
 WHERE
@@ -5495,8 +5622,46 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
+}
+
+const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM user_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
+	rows, err := q.db.QueryContext(ctx, getUserLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []UserLink
+	for rows.Next() {
+		var i UserLink
+		if err := rows.Scan(
+			&i.UserID,
+			&i.LoginType,
+			&i.LinkedID,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+			&i.OAuthAccessTokenKeyID,
+			&i.OAuthRefreshTokenKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertUserLink = `-- name: InsertUserLink :one
@@ -5506,20 +5671,24 @@ INSERT INTO
 		login_type,
 		linked_id,
 		oauth_access_token,
+		oauth_access_token_key_id,
 		oauth_refresh_token,
+		oauth_refresh_token_key_id,
 		oauth_expiry
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	( $1, $2, $3, $4, $5, $6, $7, $8 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 `
 
 type InsertUserLinkParams struct {
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	LoginType         LoginType `db:"login_type" json:"login_type"`
-	LinkedID          string    `db:"linked_id" json:"linked_id"`
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	LinkedID               string         `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
 }
 
 func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
@@ -5528,7 +5697,9 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.LoginType,
 		arg.LinkedID,
 		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
 		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 	)
 	var i UserLink
@@ -5539,6 +5710,8 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
@@ -5548,24 +5721,30 @@ UPDATE
 	user_links
 SET
 	oauth_access_token = $1,
-	oauth_refresh_token = $2,
-	oauth_expiry = $3
+	oauth_access_token_key_id = $2,
+	oauth_refresh_token = $3,
+	oauth_refresh_token_key_id = $4,
+	oauth_expiry = $5
 WHERE
-	user_id = $4 AND login_type = $5 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id = $6 AND login_type = $7 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 `
 
 type UpdateUserLinkParams struct {
-	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
-	UserID            uuid.UUID `db:"user_id" json:"user_id"`
-	LoginType         LoginType `db:"login_type" json:"login_type"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
 	row := q.db.QueryRowContext(ctx, updateUserLink,
 		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
 		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
 		arg.UserID,
 		arg.LoginType,
@@ -5578,6 +5757,8 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
@@ -5588,7 +5769,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -5607,6 +5788,8 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthAccessToken,
 		&i.OAuthRefreshToken,
 		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }

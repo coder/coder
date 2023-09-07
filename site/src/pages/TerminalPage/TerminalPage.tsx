@@ -1,85 +1,85 @@
-import { makeStyles, useTheme } from "@mui/styles"
-import { useMachine } from "@xstate/react"
-import { Stack } from "components/Stack/Stack"
-import { FC, useCallback, useEffect, useRef, useState } from "react"
-import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams, useSearchParams } from "react-router-dom"
-import { colors } from "theme/colors"
-import { v4 as uuidv4 } from "uuid"
-import * as XTerm from "xterm"
-import { WebglAddon } from "xterm-addon-webgl"
-import { FitAddon } from "xterm-addon-fit"
-import { WebLinksAddon } from "xterm-addon-web-links"
-import { Unicode11Addon } from "xterm-addon-unicode11"
-import "xterm/css/xterm.css"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { pageTitle } from "../../utils/page"
-import { terminalMachine } from "../../xServices/terminal/terminalXService"
-import { useProxy } from "contexts/ProxyContext"
-import Box from "@mui/material/Box"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { Region, WorkspaceAgent } from "api/typesGenerated"
-import { getLatencyColor } from "utils/latency"
-import Popover from "@mui/material/Popover"
-import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency"
-import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert"
-import { portForwardURL } from "utils/portForward"
+import { makeStyles, useTheme } from "@mui/styles";
+import { useMachine } from "@xstate/react";
+import { Stack } from "components/Stack/Stack";
+import { FC, useCallback, useEffect, useRef, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { colors } from "theme/colors";
+import { v4 as uuidv4 } from "uuid";
+import * as XTerm from "xterm";
+import { WebglAddon } from "xterm-addon-webgl";
+import { FitAddon } from "xterm-addon-fit";
+import { WebLinksAddon } from "xterm-addon-web-links";
+import { Unicode11Addon } from "xterm-addon-unicode11";
+import "xterm/css/xterm.css";
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants";
+import { pageTitle } from "../../utils/page";
+import { terminalMachine } from "../../xServices/terminal/terminalXService";
+import { useProxy } from "contexts/ProxyContext";
+import Box from "@mui/material/Box";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { Region, WorkspaceAgent } from "api/typesGenerated";
+import { getLatencyColor } from "utils/latency";
+import Popover from "@mui/material/Popover";
+import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
+import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert";
+import { portForwardURL } from "utils/portForward";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
-}
+};
 
 const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
-  const lifecycleState = agent?.lifecycle_state
+  const lifecycleState = agent?.lifecycle_state;
   const [startupWarning, setStartupWarning] = useState<
     TerminalPageAlertType | undefined
-  >(undefined)
+  >(undefined);
 
   useEffect(() => {
     if (lifecycleState === "start_error") {
-      setStartupWarning("error")
+      setStartupWarning("error");
     } else if (lifecycleState === "starting") {
-      setStartupWarning("starting")
+      setStartupWarning("starting");
     } else {
       setStartupWarning((prev) => {
         if (prev === "starting") {
-          return "success"
+          return "success";
         }
-        return undefined
-      })
+        return undefined;
+      });
     }
-  }, [lifecycleState])
+  }, [lifecycleState]);
 
   return {
     startupWarning,
-  }
-}
+  };
+};
 
 type TerminalPageProps = React.PropsWithChildren<{
-  renderer: "webgl" | "dom"
-}>
+  renderer: "webgl" | "dom";
+}>;
 
 const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
-  const navigate = useNavigate()
-  const styles = useStyles()
-  const { proxy } = useProxy()
-  const params = useParams() as { username: string; workspace: string }
-  const username = params.username.replace("@", "")
-  const workspaceName = params.workspace
-  const xtermRef = useRef<HTMLDivElement>(null)
-  const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null)
-  const [fitAddon, setFitAddon] = useState<FitAddon | null>(null)
-  const [searchParams] = useSearchParams()
+  const navigate = useNavigate();
+  const styles = useStyles();
+  const { proxy } = useProxy();
+  const params = useParams() as { username: string; workspace: string };
+  const username = params.username.replace("@", "");
+  const workspaceName = params.workspace;
+  const xtermRef = useRef<HTMLDivElement>(null);
+  const [terminal, setTerminal] = useState<XTerm.Terminal | null>(null);
+  const [fitAddon, setFitAddon] = useState<FitAddon | null>(null);
+  const [searchParams] = useSearchParams();
   // The reconnection token is a unique token that identifies
   // a terminal session. It's generated by the client to reduce
   // a round-trip, and must be a UUIDv4.
-  const reconnectionToken = searchParams.get("reconnect") ?? uuidv4()
-  const command = searchParams.get("command") || undefined
+  const reconnectionToken = searchParams.get("reconnect") ?? uuidv4();
+  const command = searchParams.get("command") || undefined;
   // The workspace name is in the format:
   // <workspace name>[.<agent name>]
-  const workspaceNameParts = workspaceName?.split(".")
+  const workspaceNameParts = workspaceName?.split(".");
   const [terminalState, sendEvent] = useMachine(terminalMachine, {
     context: {
       agentName: workspaceNameParts?.[1],
@@ -94,32 +94,32 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         if (typeof event.data === "string") {
           // This exclusively occurs when testing.
           // "jest-websocket-mock" doesn't support ArrayBuffer.
-          terminal?.write(event.data)
+          terminal?.write(event.data);
         } else {
-          terminal?.write(new Uint8Array(event.data))
+          terminal?.write(new Uint8Array(event.data));
         }
       },
     },
-  })
-  const isConnected = terminalState.matches("connected")
-  const isDisconnected = terminalState.matches("disconnected")
+  });
+  const isConnected = terminalState.matches("connected");
+  const isDisconnected = terminalState.matches("disconnected");
   const {
     workspaceError,
     workspace,
     workspaceAgentError,
     workspaceAgent,
     websocketError,
-  } = terminalState.context
-  const reloading = useReloading(isDisconnected)
-  const dashboard = useDashboard()
-  const proxyContext = useProxy()
-  const selectedProxy = proxyContext.proxy.proxy
+  } = terminalState.context;
+  const reloading = useReloading(isDisconnected);
+  const dashboard = useDashboard();
+  const proxyContext = useProxy();
+  const selectedProxy = proxyContext.proxy.proxy;
   const latency = selectedProxy
     ? proxyContext.proxyLatencies[selectedProxy.id]
-    : undefined
+    : undefined;
   const { startupWarning } = useTerminalWarning({
     agent: workspaceAgent,
-  })
+  });
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -130,30 +130,30 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         !username ||
         !proxy.preferredWildcardHostname
       ) {
-        return
+        return;
       }
 
       const open = (uri: string) => {
         // Copied from: https://github.com/xtermjs/xterm.js/blob/master/addons/xterm-addon-web-links/src/WebLinksAddon.ts#L23
-        const newWindow = window.open()
+        const newWindow = window.open();
         if (newWindow) {
           try {
-            newWindow.opener = null
+            newWindow.opener = null;
           } catch {
             // no-op, Electron can throw
           }
-          newWindow.location.href = uri
+          newWindow.location.href = uri;
         } else {
-          console.warn("Opening link blocked as opener could not be cleared")
+          console.warn("Opening link blocked as opener could not be cleared");
         }
-      }
+      };
 
       try {
-        const url = new URL(uri)
-        const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"]
+        const url = new URL(uri);
+        const localHosts = ["0.0.0.0", "127.0.0.1", "localhost"];
         if (!localHosts.includes(url.hostname)) {
-          open(uri)
-          return
+          open(uri);
+          return;
         }
         open(
           portForwardURL(
@@ -163,18 +163,18 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
             workspace.name,
             username,
           ) + url.pathname,
-        )
+        );
       } catch (ex) {
-        open(uri)
+        open(uri);
       }
     },
     [workspaceAgent, workspace, username, proxy.preferredWildcardHostname],
-  )
+  );
 
   // Create the terminal!
   useEffect(() => {
     if (!xtermRef.current) {
-      return
+      return;
     }
     const terminal = new XTerm.Terminal({
       allowProposedApi: true,
@@ -185,29 +185,29 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       theme: {
         background: colors.gray[16],
       },
-    })
+    });
     // DOM is the default renderer.
     if (renderer === "webgl") {
-      terminal.loadAddon(new WebglAddon())
+      terminal.loadAddon(new WebglAddon());
     }
-    const fitAddon = new FitAddon()
-    setFitAddon(fitAddon)
-    terminal.loadAddon(fitAddon)
-    terminal.loadAddon(new Unicode11Addon())
-    terminal.unicode.activeVersion = "11"
+    const fitAddon = new FitAddon();
+    setFitAddon(fitAddon);
+    terminal.loadAddon(fitAddon);
+    terminal.loadAddon(new Unicode11Addon());
+    terminal.unicode.activeVersion = "11";
     terminal.loadAddon(
       new WebLinksAddon((_, uri) => {
-        handleWebLink(uri)
+        handleWebLink(uri);
       }),
-    )
+    );
     terminal.onData((data) => {
       sendEvent({
         type: "WRITE",
         request: {
           data: data,
         },
-      })
-    })
+      });
+    });
     terminal.onResize((event) => {
       sendEvent({
         type: "WRITE",
@@ -215,29 +215,29 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
           height: event.rows,
           width: event.cols,
         },
-      })
-    })
-    setTerminal(terminal)
-    terminal.open(xtermRef.current)
+      });
+    });
+    setTerminal(terminal);
+    terminal.open(xtermRef.current);
     const listener = () => {
       // This will trigger a resize event on the terminal.
-      fitAddon.fit()
-    }
-    window.addEventListener("resize", listener)
+      fitAddon.fit();
+    };
+    window.addEventListener("resize", listener);
     return () => {
-      window.removeEventListener("resize", listener)
-      terminal.dispose()
-    }
-  }, [renderer, sendEvent, xtermRef, handleWebLink])
+      window.removeEventListener("resize", listener);
+      terminal.dispose();
+    };
+  }, [renderer, sendEvent, xtermRef, handleWebLink]);
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
   // from the router.
   useEffect(() => {
     if (searchParams.get("reconnect") === reconnectionToken) {
-      return
+      return;
     }
-    searchParams.set("reconnect", reconnectionToken)
+    searchParams.set("reconnect", reconnectionToken);
     navigate(
       {
         search: searchParams.toString(),
@@ -245,56 +245,56 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       {
         replace: true,
       },
-    )
-  }, [searchParams, navigate, reconnectionToken])
+    );
+  }, [searchParams, navigate, reconnectionToken]);
 
   // Apply terminal options based on connection state.
   useEffect(() => {
     if (!terminal || !fitAddon) {
-      return
+      return;
     }
 
     // We have to fit twice here. It's unknown why, but
     // the first fit will overflow slightly in some
     // scenarios. Applying a second fit resolves this.
-    fitAddon.fit()
-    fitAddon.fit()
+    fitAddon.fit();
+    fitAddon.fit();
 
     if (!isConnected) {
       // Disable user input when not connected.
       terminal.options = {
         disableStdin: true,
-      }
+      };
       if (workspaceError instanceof Error) {
         terminal.writeln(
           Language.workspaceErrorMessagePrefix + workspaceError.message,
-        )
+        );
       }
       if (workspaceAgentError instanceof Error) {
         terminal.writeln(
           Language.workspaceAgentErrorMessagePrefix +
             workspaceAgentError.message,
-        )
+        );
       }
       if (websocketError instanceof Error) {
         terminal.writeln(
           Language.websocketErrorMessagePrefix + websocketError.message,
-        )
+        );
       }
-      return
+      return;
     }
 
     // The terminal should be cleared on each reconnect
     // because all data is re-rendered from the backend.
-    terminal.clear()
+    terminal.clear();
 
     // Focusing on connection allows users to reload the
     // page and start typing immediately.
-    terminal.focus()
+    terminal.focus();
     terminal.options = {
       disableStdin: false,
       windowsMode: workspaceAgent?.operating_system === "windows",
-    }
+    };
 
     // Update the terminal size post-fit.
     sendEvent({
@@ -303,7 +303,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         height: terminal.rows,
         width: terminal.cols,
       },
-    })
+    });
   }, [
     workspaceError,
     workspaceAgentError,
@@ -313,7 +313,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     fitAddon,
     isConnected,
     sendEvent,
-  ])
+  ]);
 
   return (
     <>
@@ -345,7 +345,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
           <TerminalPageAlert
             alertType={startupWarning}
             onDismiss={() => {
-              fitAddon?.fit()
+              fitAddon?.fit();
             }}
           />
         )}
@@ -361,14 +361,14 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
           )}
       </Box>
     </>
-  )
-}
+  );
+};
 
 const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
-  const theme = useTheme()
-  const color = getLatencyColor(theme, latency)
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const theme = useTheme();
+  const color = getLatencyColor(theme, latency);
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
 
   return (
     <Box
@@ -460,36 +460,36 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
         </Box>
       </Popover>
     </Box>
-  )
-}
+  );
+};
 
 const useReloading = (isDisconnected: boolean) => {
   const [status, setStatus] = useState<"reloading" | "notReloading">(
     "notReloading",
-  )
+  );
 
   // Retry connection on key press when it is disconnected
   useEffect(() => {
     if (!isDisconnected) {
-      return
+      return;
     }
 
     const keyDownHandler = () => {
-      setStatus("reloading")
-      window.location.reload()
-    }
+      setStatus("reloading");
+      window.location.reload();
+    };
 
-    document.addEventListener("keydown", keyDownHandler)
+    document.addEventListener("keydown", keyDownHandler);
 
     return () => {
-      document.removeEventListener("keydown", keyDownHandler)
-    }
-  }, [isDisconnected])
+      document.removeEventListener("keydown", keyDownHandler);
+    };
+  }, [isDisconnected]);
 
   return {
     status,
-  }
-}
+  };
+};
 
 const useStyles = makeStyles((theme) => ({
   overlay: {
@@ -575,6 +575,6 @@ const useStyles = makeStyles((theme) => ({
   alertActions: {
     marginLeft: "auto",
   },
-}))
+}));
 
-export default TerminalPage
+export default TerminalPage;

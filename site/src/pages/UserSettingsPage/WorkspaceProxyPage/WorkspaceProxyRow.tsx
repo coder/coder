@@ -1,37 +1,37 @@
-import { Region, WorkspaceProxy } from "api/typesGenerated"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { Avatar } from "components/Avatar/Avatar"
-import TableCell from "@mui/material/TableCell"
-import TableRow from "@mui/material/TableRow"
-import { FC, ReactNode } from "react"
+import { Region, WorkspaceProxy } from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import TableCell from "@mui/material/TableCell";
+import TableRow from "@mui/material/TableRow";
+import { FC, ReactNode } from "react";
 import {
   HealthyBadge,
   NotHealthyBadge,
   NotReachableBadge,
   NotRegisteredBadge,
-} from "components/DeploySettingsLayout/Badges"
-import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { getLatencyColor } from "utils/latency"
-import { Maybe } from "components/Conditionals/Maybe"
-import Box from "@mui/material/Box"
+} from "components/DeploySettingsLayout/Badges";
+import { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { getLatencyColor } from "utils/latency";
+import { Maybe } from "components/Conditionals/Maybe";
+import Box from "@mui/material/Box";
 
 export const ProxyRow: FC<{
-  latency?: ProxyLatencyReport
-  proxy: Region
+  latency?: ProxyLatencyReport;
+  proxy: Region;
 }> = ({ proxy, latency }) => {
   // If we have a more specific proxy status, use that.
   // All users can see healthy/unhealthy, some can see more.
-  let statusBadge = <ProxyStatus proxy={proxy} />
-  let shouldShowMessages = false
+  let statusBadge = <ProxyStatus proxy={proxy} />;
+  let shouldShowMessages = false;
   if ("status" in proxy) {
-    const wsproxy = proxy as WorkspaceProxy
-    statusBadge = <DetailedProxyStatus proxy={wsproxy} />
+    const wsproxy = proxy as WorkspaceProxy;
+    statusBadge = <DetailedProxyStatus proxy={wsproxy} />;
     shouldShowMessages = Boolean(
       (wsproxy.status?.report?.warnings &&
         wsproxy.status?.report?.warnings.length > 0) ||
         (wsproxy.status?.report?.errors &&
           wsproxy.status?.report?.errors.length > 0),
-    )
+    );
   }
 
   return (
@@ -83,11 +83,11 @@ export const ProxyRow: FC<{
         </TableRow>
       </Maybe>
     </>
-  )
-}
+  );
+};
 
 const ProxyMessagesRow: FC<{
-  proxy: WorkspaceProxy
+  proxy: WorkspaceProxy;
 }> = ({ proxy }) => {
   return (
     <>
@@ -114,15 +114,15 @@ const ProxyMessagesRow: FC<{
         messages={proxy.status?.report?.warnings}
       />
     </>
-  )
-}
+  );
+};
 
 const ProxyMessagesList: FC<{
-  title: ReactNode
-  messages?: string[]
+  title: ReactNode;
+  messages?: string[];
 }> = ({ title, messages }) => {
   if (!messages) {
-    return <></>
+    return <></>;
   }
 
   return (
@@ -157,45 +157,45 @@ const ProxyMessagesList: FC<{
         </Box>
       ))}
     </Box>
-  )
-}
+  );
+};
 
 // DetailedProxyStatus allows a more precise status to be displayed.
 const DetailedProxyStatus: FC<{
-  proxy: WorkspaceProxy
+  proxy: WorkspaceProxy;
 }> = ({ proxy }) => {
   if (!proxy.status) {
     // If the status is null/undefined/not provided, just go with the boolean "healthy" value.
-    return <ProxyStatus proxy={proxy} />
+    return <ProxyStatus proxy={proxy} />;
   }
 
-  let derpOnly = false
+  let derpOnly = false;
   if ("derp_only" in proxy) {
-    derpOnly = proxy.derp_only
+    derpOnly = proxy.derp_only;
   }
 
   switch (proxy.status.status) {
     case "ok":
-      return <HealthyBadge derpOnly={derpOnly} />
+      return <HealthyBadge derpOnly={derpOnly} />;
     case "unhealthy":
-      return <NotHealthyBadge />
+      return <NotHealthyBadge />;
     case "unreachable":
-      return <NotReachableBadge />
+      return <NotReachableBadge />;
     case "unregistered":
-      return <NotRegisteredBadge />
+      return <NotRegisteredBadge />;
     default:
-      return <NotHealthyBadge />
+      return <NotHealthyBadge />;
   }
-}
+};
 
 // ProxyStatus will only show "healthy" or "not healthy" status.
 const ProxyStatus: FC<{
-  proxy: Region
+  proxy: Region;
 }> = ({ proxy }) => {
-  let icon = <NotHealthyBadge />
+  let icon = <NotHealthyBadge />;
   if (proxy.healthy) {
-    icon = <HealthyBadge derpOnly={false} />
+    icon = <HealthyBadge derpOnly={false} />;
   }
 
-  return icon
-}
+  return icon;
+};

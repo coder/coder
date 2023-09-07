@@ -1,24 +1,24 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
-import Autocomplete from "@mui/material/Autocomplete"
-import { useMachine } from "@xstate/react"
-import { User } from "api/typesGenerated"
-import { Avatar } from "components/Avatar/Avatar"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import debounce from "just-debounce-it"
-import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react"
-import { searchUserMachine } from "xServices/users/searchUserXService"
-import { useTranslation } from "react-i18next"
-import Box from "@mui/material/Box"
+import CircularProgress from "@mui/material/CircularProgress";
+import { makeStyles } from "@mui/styles";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import { useMachine } from "@xstate/react";
+import { User } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import debounce from "just-debounce-it";
+import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react";
+import { searchUserMachine } from "xServices/users/searchUserXService";
+import { useTranslation } from "react-i18next";
+import Box from "@mui/material/Box";
 
 export type UserAutocompleteProps = {
-  value: User | null
-  onChange: (user: User | null) => void
-  label?: string
-  className?: string
-  size?: ComponentProps<typeof TextField>["size"]
-}
+  value: User | null;
+  onChange: (user: User | null) => void;
+  label?: string;
+  className?: string;
+  size?: ComponentProps<typeof TextField>["size"];
+};
 
 export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   value,
@@ -27,27 +27,27 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   className,
   size = "small",
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("common")
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
-  const [searchState, sendSearch] = useMachine(searchUserMachine)
-  const { searchResults } = searchState.context
+  const styles = useStyles();
+  const { t } = useTranslation("common");
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
+  const [searchState, sendSearch] = useMachine(searchUserMachine);
+  const { searchResults } = searchState.context;
 
   // seed list of options on the first page load if a user pases in a value
   // since some organizations have long lists of users, we do not load all options on page load.
   useEffect(() => {
     if (value) {
-      sendSearch("SEARCH", { query: value.email })
+      sendSearch("SEARCH", { query: value.email });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO look into this
-  }, [])
+  }, []);
 
   const handleFilterChange = debounce(
     (event: ChangeEvent<HTMLInputElement>) => {
-      sendSearch("SEARCH", { query: event.target.value })
+      sendSearch("SEARCH", { query: event.target.value });
     },
     1000,
-  )
+  );
 
   return (
     <Autocomplete
@@ -59,17 +59,17 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       id="user-autocomplete"
       open={isAutocompleteOpen}
       onOpen={() => {
-        setIsAutocompleteOpen(true)
+        setIsAutocompleteOpen(true);
       }}
       onClose={() => {
-        setIsAutocompleteOpen(false)
+        setIsAutocompleteOpen(false);
       }}
       onChange={(_, newValue) => {
         if (newValue === null) {
-          sendSearch("CLEAR_RESULTS")
+          sendSearch("CLEAR_RESULTS");
         }
 
-        onChange(newValue)
+        onChange(newValue);
       }}
       isOptionEqualToValue={(option: User, value: User) =>
         option.username === value.username
@@ -122,8 +122,8 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
         </>
       )}
     />
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles((theme) => ({
   textField: {
@@ -135,4 +135,4 @@ export const useStyles = makeStyles((theme) => ({
     paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
     gap: theme.spacing(0.5),
   },
-}))
+}));

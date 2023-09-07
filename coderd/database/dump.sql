@@ -266,6 +266,29 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE dbcrypt_keys (
+    number integer NOT NULL,
+    active_key_digest text,
+    revoked_key_digest text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    revoked_at timestamp with time zone,
+    test text NOT NULL
+);
+
+COMMENT ON TABLE dbcrypt_keys IS 'A table used to store the keys used to encrypt the database.';
+
+COMMENT ON COLUMN dbcrypt_keys.number IS 'An integer used to identify the key.';
+
+COMMENT ON COLUMN dbcrypt_keys.active_key_digest IS 'If the key is active, the digest of the active key.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_key_digest IS 'If the key has been revoked, the digest of the revoked key.';
+
+COMMENT ON COLUMN dbcrypt_keys.created_at IS 'The time at which the key was created.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revoked.';
+
+COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -282,8 +305,14 @@ CREATE TABLE git_auth_links (
     updated_at timestamp with time zone NOT NULL,
     oauth_access_token text NOT NULL,
     oauth_refresh_token text NOT NULL,
-    oauth_expiry timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text
 );
+
+COMMENT ON COLUMN git_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN git_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
@@ -692,18 +721,16 @@ CREATE TABLE user_links (
     linked_id text DEFAULT ''::text NOT NULL,
     oauth_access_token text DEFAULT ''::text NOT NULL,
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text
 );
 
-CREATE TABLE workspace_agent_log_sources (
-    workspace_agent_id uuid NOT NULL,
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    display_name character varying(127) NOT NULL,
-    icon text NOT NULL
-);
+COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
-CREATE UNLOGGED TABLE workspace_agent_logs (
+COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+CREATE TABLE workspace_agent_logs (
     agent_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     output character varying(1024) NOT NULL,
@@ -1036,6 +1063,15 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_pkey PRIMARY KEY (number);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
+
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 
@@ -1251,6 +1287,12 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
@@ -1304,6 +1346,12 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;

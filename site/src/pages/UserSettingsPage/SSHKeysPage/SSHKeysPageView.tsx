@@ -1,24 +1,24 @@
-import { makeStyles } from "@mui/styles"
-import Box from "@mui/material/Box"
-import Button from "@mui/material/Button"
-import CircularProgress from "@mui/material/CircularProgress"
-import { GitSSHKey } from "api/typesGenerated"
-import { CodeExample } from "components/CodeExample/CodeExample"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { makeStyles } from "@mui/styles";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import { GitSSHKey } from "api/typesGenerated";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const Language = {
   regenerateLabel: "Regenerate",
-}
+};
 
 export interface SSHKeysPageViewProps {
-  isLoading: boolean
-  hasLoaded: boolean
-  getSSHKeyError?: unknown
-  regenerateSSHKeyError?: unknown
-  sshKey?: GitSSHKey
-  onRegenerateClick: () => void
+  isLoading: boolean;
+  hasLoaded: boolean;
+  getSSHKeyError?: unknown;
+  regenerateSSHKeyError?: unknown;
+  sshKey?: GitSSHKey;
+  onRegenerateClick: () => void;
 }
 
 export const SSHKeysPageView: FC<
@@ -31,14 +31,14 @@ export const SSHKeysPageView: FC<
   sshKey,
   onRegenerateClick,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (isLoading) {
     return (
       <Box p={4}>
         <CircularProgress size={26} />
       </Box>
-    )
+    );
   }
 
   return (
@@ -66,8 +66,8 @@ export const SSHKeysPageView: FC<
         </>
       )}
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   description: {
@@ -82,4 +82,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.primary,
     borderRadius: 2,
   },
-}))
+}));

@@ -691,7 +691,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbfake.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
+				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -1953,7 +1953,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 	}, nil
 }
 
-func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.

@@ -1,19 +1,19 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
-import { displaySuccess } from "../../components/GlobalSnackbar/utils"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import * as TypesGen from "../../api/typesGenerated";
+import { displaySuccess } from "../../components/GlobalSnackbar/utils";
 
 export const Language = {
   createUserSuccess: "Successfully created user.",
-}
+};
 
 export interface CreateUserContext {
-  error?: unknown
+  error?: unknown;
 }
 
 export type CreateUserEvent =
   | { type: "CREATE"; user: TypesGen.CreateUserRequest }
-  | { type: "CANCEL_CREATE_USER" }
+  | { type: "CANCEL_CREATE_USER" };
 
 export const createUserMachine = createMachine(
   {
@@ -25,8 +25,8 @@ export const createUserMachine = createMachine(
       events: {} as CreateUserEvent,
       services: {} as {
         createUser: {
-          data: TypesGen.User
-        }
+          data: TypesGen.User;
+        };
       },
     },
     initial: "idle",
@@ -65,8 +65,8 @@ export const createUserMachine = createMachine(
       }),
       clearError: assign({ error: (_) => undefined }),
       displayCreateUserSuccess: () => {
-        displaySuccess(Language.createUserSuccess)
+        displaySuccess(Language.createUserSuccess);
       },
     },
   },
-)
+);

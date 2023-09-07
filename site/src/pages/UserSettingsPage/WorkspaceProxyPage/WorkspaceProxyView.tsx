@@ -1,27 +1,27 @@
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Stack } from "components/Stack/Stack"
-import { TableEmpty } from "components/TableEmpty/TableEmpty"
-import { TableLoader } from "components/TableLoader/TableLoader"
-import { FC } from "react"
-import { Region } from "api/typesGenerated"
-import { ProxyRow } from "./WorkspaceProxyRow"
-import { ProxyLatencyReport } from "contexts/useProxyLatency"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Stack } from "components/Stack/Stack";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { FC } from "react";
+import { Region } from "api/typesGenerated";
+import { ProxyRow } from "./WorkspaceProxyRow";
+import { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface WorkspaceProxyViewProps {
-  proxies?: Region[]
-  proxyLatencies?: Record<string, ProxyLatencyReport>
-  getWorkspaceProxiesError?: unknown
-  isLoading: boolean
-  hasLoaded: boolean
-  preferredProxy?: Region
-  selectProxyError?: unknown
+  proxies?: Region[];
+  proxyLatencies?: Record<string, ProxyLatencyReport>;
+  getWorkspaceProxiesError?: unknown;
+  isLoading: boolean;
+  hasLoaded: boolean;
+  preferredProxy?: Region;
+  selectProxyError?: unknown;
 }
 
 export const WorkspaceProxyView: FC<
@@ -74,5 +74,5 @@ export const WorkspaceProxyView: FC<
         </Table>
       </TableContainer>
     </Stack>
-  )
-}
+  );
+};

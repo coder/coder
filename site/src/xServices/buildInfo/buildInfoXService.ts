@@ -1,10 +1,10 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import * as TypesGen from "../../api/typesGenerated";
 
 export interface BuildInfoContext {
-  getBuildInfoError?: unknown
-  buildInfo?: TypesGen.BuildInfoResponse
+  getBuildInfoError?: unknown;
+  buildInfo?: TypesGen.BuildInfoResponse;
 }
 
 export const buildInfoMachine = createMachine(
@@ -16,8 +16,8 @@ export const buildInfoMachine = createMachine(
       context: {} as BuildInfoContext,
       services: {} as {
         getBuildInfo: {
-          data: TypesGen.BuildInfoResponse
-        }
+          data: TypesGen.BuildInfoResponse;
+        };
       },
     },
     context: {
@@ -55,17 +55,17 @@ export const buildInfoMachine = createMachine(
     services: {
       getBuildInfo: async () => {
         // Build info is injected by the Coder server into the HTML document.
-        const buildInfo = document.querySelector("meta[property=build-info]")
+        const buildInfo = document.querySelector("meta[property=build-info]");
         if (buildInfo) {
-          const rawContent = buildInfo.getAttribute("content")
+          const rawContent = buildInfo.getAttribute("content");
           try {
-            return JSON.parse(rawContent as string)
+            return JSON.parse(rawContent as string);
           } catch (ex) {
             // Ignore this and fetch as normal!
           }
         }
 
-        return API.getBuildInfo()
+        return API.getBuildInfo();
       },
     },
     actions: {
@@ -85,4 +85,4 @@ export const buildInfoMachine = createMachine(
       })),
     },
   },
-)
+);

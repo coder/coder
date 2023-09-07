@@ -1,14 +1,14 @@
-import Collapse from "@mui/material/Collapse"
-import Skeleton from "@mui/material/Skeleton"
-import { makeStyles } from "@mui/styles"
-import { useMachine } from "@xstate/react"
+import Collapse from "@mui/material/Collapse";
+import Skeleton from "@mui/material/Skeleton";
+import { makeStyles } from "@mui/styles";
+import { useMachine } from "@xstate/react";
 import {
   CloseDropdown,
   OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows"
-import { LogLine, logLineHeight } from "components/Logs/Logs"
-import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
-import { useProxy } from "contexts/ProxyContext"
+} from "components/DropdownArrows/DropdownArrows";
+import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
+import { LogLine, logLineHeight } from "components/WorkspaceBuildLogs/Logs";
+import { useProxy } from "contexts/ProxyContext";
 import {
   FC,
   useCallback,
@@ -17,42 +17,42 @@ import {
   useMemo,
   useRef,
   useState,
-} from "react"
-import AutoSizer from "react-virtualized-auto-sizer"
-import { FixedSizeList as List, ListOnScrollProps } from "react-window"
-import { colors } from "theme/colors"
-import { combineClasses } from "utils/combineClasses"
+} from "react";
+import AutoSizer from "react-virtualized-auto-sizer";
+import { FixedSizeList as List, ListOnScrollProps } from "react-window";
+import { colors } from "theme/colors";
+import { combineClasses } from "utils/combineClasses";
 import {
   LineWithID,
   workspaceAgentLogsMachine,
-} from "xServices/workspaceAgentLogs/workspaceAgentLogsXService"
+} from "xServices/workspaceAgentLogs/workspaceAgentLogsXService";
 import {
   Workspace,
   WorkspaceAgent,
   WorkspaceAgentMetadata,
-} from "../../api/typesGenerated"
-import { AppLink } from "../AppLink/AppLink"
-import { SSHButton } from "../SSHButton/SSHButton"
-import { Stack } from "../Stack/Stack"
-import { TerminalLink } from "../TerminalLink/TerminalLink"
-import { AgentLatency } from "./AgentLatency"
-import { AgentMetadata } from "./AgentMetadata"
-import { AgentStatus } from "./AgentStatus"
-import { AgentVersion } from "./AgentVersion"
-import { PortForwardButton } from "./PortForwardButton"
+} from "../../api/typesGenerated";
+import { Stack } from "../Stack/Stack";
+import { AgentLatency } from "./AgentLatency";
+import { AgentMetadata } from "./AgentMetadata";
+import { AgentStatus } from "./AgentStatus";
+import { AgentVersion } from "./AgentVersion";
+import { AppLink } from "./AppLink/AppLink";
+import { PortForwardButton } from "./PortForwardButton";
+import { SSHButton } from "./SSHButton/SSHButton";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 export interface AgentRowProps {
-  agent: WorkspaceAgent
-  workspace: Workspace
-  showApps: boolean
-  showBuiltinApps?: boolean
-  sshPrefix?: string
-  hideSSHButton?: boolean
-  hideVSCodeDesktopButton?: boolean
-  serverVersion: string
-  onUpdateAgent: () => void
-  storybookLogs?: LineWithID[]
-  storybookAgentMetadata?: WorkspaceAgentMetadata[]
+  agent: WorkspaceAgent;
+  workspace: Workspace;
+  showApps: boolean;
+  showBuiltinApps?: boolean;
+  sshPrefix?: string;
+  hideSSHButton?: boolean;
+  hideVSCodeDesktopButton?: boolean;
+  serverVersion: string;
+  onUpdateAgent: () => void;
+  storybookLogs?: LineWithID[];
+  storybookAgentMetadata?: WorkspaceAgentMetadata[];
 }
 
 export const AgentRow: FC<AgentRowProps> = ({
@@ -68,57 +68,57 @@ export const AgentRow: FC<AgentRowProps> = ({
   storybookAgentMetadata,
   sshPrefix,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
     context: { agentID: agent.id },
     services: process.env.STORYBOOK
       ? {
           getLogs: async () => {
-            return storybookLogs || []
+            return storybookLogs || [];
           },
           streamLogs: () => async () => {
             // noop
           },
         }
       : undefined,
-  })
-  const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0
+  });
+  const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0;
   const shouldDisplayApps =
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
-      agent.status === "connecting")
+      agent.status === "connecting");
   const hasStartupFeatures =
-    Boolean(agent.logs_length) || Boolean(logsMachine.context.logs?.length)
-  const { proxy } = useProxy()
+    Boolean(agent.logs_length) || Boolean(logsMachine.context.logs?.length);
+  const { proxy } = useProxy();
 
   const [showLogs, setShowLogs] = useState(
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
-  )
+  );
   useEffect(() => {
-    setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures)
-  }, [agent.lifecycle_state, hasStartupFeatures])
+    setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
+  }, [agent.lifecycle_state, hasStartupFeatures]);
   // External applications can provide startup logs for an agent during it's spawn.
   // These could be Kubernetes logs, or other logs that are useful to the user.
   // For this reason, we want to fetch these logs when the agent is starting.
   useEffect(() => {
     if (agent.lifecycle_state === "starting") {
-      sendLogsEvent("FETCH_LOGS")
+      sendLogsEvent("FETCH_LOGS");
     }
-  }, [sendLogsEvent, agent.lifecycle_state])
+  }, [sendLogsEvent, agent.lifecycle_state]);
   useEffect(() => {
     // We only want to fetch logs when they are actually shown,
     // otherwise we can make a lot of requests that aren't necessary.
     if (showLogs && logsMachine.can("FETCH_LOGS")) {
-      sendLogsEvent("FETCH_LOGS")
+      sendLogsEvent("FETCH_LOGS");
     }
-  }, [logsMachine, sendLogsEvent, showLogs])
-  const logListRef = useRef<List>(null)
-  const logListDivRef = useRef<HTMLDivElement>(null)
+  }, [logsMachine, sendLogsEvent, showLogs]);
+  const logListRef = useRef<List>(null);
+  const logListDivRef = useRef<HTMLDivElement>(null);
   const startupLogs = useMemo(() => {
-    const allLogs = logsMachine.context.logs || []
+    const allLogs = logsMachine.context.logs || [];
 
-    const logs = [...allLogs]
+    const logs = [...allLogs];
     if (agent.logs_overflowed) {
       logs.push({
         id: -1,
@@ -126,18 +126,18 @@ export const AgentRow: FC<AgentRowProps> = ({
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
         source_id: "",
-      })
+      });
     }
-    return logs
-  }, [logsMachine.context.logs, agent.logs_overflowed])
-  const [bottomOfLogs, setBottomOfLogs] = useState(true)
+    return logs;
+  }, [logsMachine.context.logs, agent.logs_overflowed]);
+  const [bottomOfLogs, setBottomOfLogs] = useState(true);
   // This is a layout effect to remove flicker when we're scrolling to the bottom.
   useLayoutEffect(() => {
     // If we're currently watching the bottom, we always want to stay at the bottom.
     if (bottomOfLogs && logListRef.current) {
-      logListRef.current.scrollToItem(startupLogs.length - 1, "end")
+      logListRef.current.scrollToItem(startupLogs.length - 1, "end");
     }
-  }, [showLogs, startupLogs, logListRef, bottomOfLogs])
+  }, [showLogs, startupLogs, logListRef, bottomOfLogs]);
 
   // This is a bit of a hack on the react-window API to get the scroll position.
   // If we're scrolled to the bottom, we want to keep the list scrolled to the bottom.
@@ -149,20 +149,20 @@ export const AgentRow: FC<AgentRowProps> = ({
         props.scrollUpdateWasRequested ||
         !logListDivRef.current
       ) {
-        return
+        return;
       }
       // The parent holds the height of the list!
-      const parent = logListDivRef.current.parentElement
+      const parent = logListDivRef.current.parentElement;
       if (!parent) {
-        return
+        return;
       }
       const distanceFromBottom =
         logListDivRef.current.scrollHeight -
-        (props.scrollOffset + parent.clientHeight)
-      setBottomOfLogs(distanceFromBottom < logLineHeight)
+        (props.scrollOffset + parent.clientHeight);
+      setBottomOfLogs(distanceFromBottom < logLineHeight);
     },
     [logListDivRef],
-  )
+  );
 
   return (
     <Stack
@@ -322,7 +322,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   styles.toggleLogsButton,
                 ])}
                 onClick={() => {
-                  setShowLogs((v) => !v)
+                  setShowLogs((v) => !v);
                 }}
               >
                 <CloseDropdown />
@@ -335,7 +335,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   styles.toggleLogsButton,
                 ])}
                 onClick={() => {
-                  setShowLogs((v) => !v)
+                  setShowLogs((v) => !v);
                 }}
               >
                 <OpenDropdown />
@@ -346,8 +346,8 @@ export const AgentRow: FC<AgentRowProps> = ({
         </div>
       )}
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   agentRow: {
@@ -554,4 +554,4 @@ const useStyles = makeStyles((theme) => ({
   agentOS: {
     textTransform: "capitalize",
   },
-}))
+}));
