@@ -66,10 +66,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if options.ExternalTokenEncryption == nil {
 		options.ExternalTokenEncryption = make([]dbcrypt.Cipher, 0)
 	}
-
 	// Database encryption is an enterprise feature, but as checking license entitlements
 	// depends on the database, we end up in a chicken-and-egg situation. To avoid this,
 	// we always enable it but only soft-enforce it.
+	if len(options.ExternalTokenEncryption) > 0 {
+		var keyDigests []string
+		for _, cipher := range options.ExternalTokenEncryption {
+			keyDigests = append(keyDigests, cipher.HexDigest())
+		}
+		options.Logger.Info(ctx, "database encryption enabled", slog.F("keys", keyDigests))
+	}
+
 	cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
 	if err != nil {
 		cancelFunc()
