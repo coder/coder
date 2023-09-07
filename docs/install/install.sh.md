@@ -27,7 +27,7 @@ manually via `coder server` or as a system package.
 By default, the Coder server runs on `http://127.0.0.1:3000` and uses a
 [public tunnel](../admin/configure.md#tunnel) for workspace connections.
 
-## `PATH` conflicts
+## PATH conflicts
 
 It's possible to end up in situations where you have multiple `coder` binaries
 in your `PATH`, and your system may use a version that you don't intend. Your
@@ -47,7 +47,7 @@ $ which -a coder
 Whichever binary comes first in this list will be used when running `coder`
 commands.
 
-### Reordering your `PATH`
+### Reordering your PATH
 
 If you use bash or zsh, you can update your `PATH` like this:
 
