@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	testKeyID         = "enterprise-test"
-	testEncryptionKey = "coder-coder-coder-coder-coder-1!" // nolint:gosec
+	testKeyID = "enterprise-test"
 )
 
 var (
@@ -84,11 +83,6 @@ func NewWithAPI(t *testing.T, options *Options) (
 	if !options.NoDefaultQuietHoursSchedule && oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value() == "" {
 		err := oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Set("0 0 * * *")
 		require.NoError(t, err)
-	}
-	if options.ExternalTokenEncryption == nil {
-		c, err := dbcrypt.NewCiphers([]byte(testEncryptionKey))
-		require.NoError(t, err)
-		options.ExternalTokenEncryption = c
 	}
 	coderAPI, err := coderd.New(context.Background(), &coderd.Options{
 		RBAC:                       true,

@@ -63,21 +63,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 
-	if options.ExternalTokenEncryption != nil {
-		cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
-		if err != nil {
-			cancelFunc()
-			// If we fail to initialize the database, it's likely that the
-			// database is encrypted with an unknown external token encryption key.
-			// This is a fatal error.
-			var derr *dbcrypt.DecryptFailedError
-			if xerrors.As(err, &derr) {
-				return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/v2/latest/admin/encryption#disabling-encryption: %w", derr)
-			}
-			return nil, xerrors.Errorf("init database encryption: %w", err)
-		}
-		options.Database = cryptDB
+	if options.ExternalTokenEncryption == nil {
+		options.ExternalTokenEncryption = make([]dbcrypt.Cipher, 0)
 	}
+
+	// Database encryption is an enterprise feature, but as checking license entitlements
+	// depends on the database, we end up in a chicken-and-egg situation. To avoid this,
+	// we always enable it but only soft-enforce it.
+	cryptDB, err := dbcrypt.New(ctx, options.Database, options.ExternalTokenEncryption...)
+	if err != nil {
+		cancelFunc()
+		// If we fail to initialize the database, it's likely that the
+		// database is encrypted with an unknown external token encryption key.
+		// This is a fatal error.
+		var derr *dbcrypt.DecryptFailedError
+		if xerrors.As(err, &derr) {
+			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/v2/latest/admin/encryption#disabling-encryption: %w", derr)
+		}
+		return nil, xerrors.Errorf("init database encryption: %w", err)
+	}
+	options.Database = cryptDB
 
 	api := &API{
 		ctx:     ctx,
@@ -455,7 +460,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
 			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
-			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) != 0,
+			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateAutostopRequirement depends on
@@ -634,6 +639,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			api.AGPL.DERPMapper.Store(nil)
 		}
 	}
+
+	// External token encryption is soft-enforced
+	featureExternalTokenEncryption := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
+	featureExternalTokenEncryption.Enabled = len(api.ExternalTokenEncryption) > 0
+	if featureExternalTokenEncryption.Enabled && featureExternalTokenEncryption.Entitlement != codersdk.EntitlementEntitled {
+		msg := fmt.Sprintf("%s is enabled (due to setting external token encryption keys) but your license is not entitled to this feature.", codersdk.FeatureExternalTokenEncryption.Humanize())
+		api.Logger.Warn(ctx, msg)
+		entitlements.Warnings = append(entitlements.Warnings, msg)
+	}
+	entitlements.Features[codersdk.FeatureExternalTokenEncryption] = featureExternalTokenEncryption
 
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
