@@ -512,8 +512,7 @@ jobs:
   test-e2e:
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
     needs: changes
-    # if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    if: false
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     timeout-minutes: 20
     steps:
       - name: Checkout
@@ -692,7 +691,7 @@ jobs:
       - test-go-pg
       - test-go-race
       - test-js
-      # - test-e2e
+      - test-e2e
       - offlinedocs
     # Allow this job to run even if the needed jobs fail, are skipped or
     # cancelled.
