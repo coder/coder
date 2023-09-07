@@ -1,7 +1,7 @@
-import { Stack } from "../../../components/Stack/Stack";
+import { Stack } from "components/Stack/Stack";
 import TextField from "@mui/material/TextField";
-import { getFormHelpers, onChangeTrimmed } from "../../../utils/formUtils";
-import { LoadingButton } from "../../../components/LoadingButton/LoadingButton";
+import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Language } from "./SignInForm";
 import { FormikContextType, FormikTouched, useFormik } from "formik";
 import * as Yup from "yup";
