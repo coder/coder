@@ -65,7 +65,6 @@ export interface TemplateVersionEditorProps {
   onCancelPublish: () => void;
   publishingError: unknown;
   publishedVersion?: TemplateVersion;
-  publishedVersionIsDefault?: boolean;
   onCreateWorkspace: () => void;
   isAskingPublishParameters: boolean;
   isPromptingMissingVariables: boolean;
@@ -104,7 +103,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   isPublishing,
   publishingError,
   publishedVersion,
-  publishedVersionIsDefault,
   onCreateWorkspace,
   buildLogs,
   resources,
@@ -213,18 +211,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
               severity="success"
               dismissible
               actions={
-                // TODO: Only show this button when the version we just published is the
-                // new primary version. We should remove this condition soon, when we can
-                // create workspaces using any version, not just the primary.
-                publishedVersionIsDefault && (
-                  <Button
-                    variant="text"
-                    size="small"
-                    onClick={onCreateWorkspace}
-                  >
-                    Create a workspace
-                  </Button>
-                )
+                <Button variant="text" size="small" onClick={onCreateWorkspace}>
+                  Create a workspace
+                </Button>
               }
             >
               Successfully published {publishedVersion.name}!
