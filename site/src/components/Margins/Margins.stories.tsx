@@ -1,17 +1,20 @@
-import { ComponentMeta, Story } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { Margins } from "./Margins";
 
-export default {
+const meta: Meta<typeof Margins> = {
   title: "components/Margins",
   component: Margins,
-} as ComponentMeta<typeof Margins>;
+};
 
-const Template: Story = (args) => (
-  <Margins {...args}>
-    <div style={{ width: "100%", background: "black" }}>
-      Here is some content that will not get too wide!
-    </div>
-  </Margins>
-);
+export default meta;
+type Story = StoryObj<typeof Margins>;
 
-export const Example = Template.bind({});
+export const Example: Story = {
+  args: {
+    children: (
+      <div style={{ width: "100%", background: "black" }}>
+        Here is some content that will not get too wide!
+      </div>
+    ),
+  },
+};
