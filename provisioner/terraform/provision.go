@@ -9,11 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"cdr.dev/slog"
-
 	"github.com/djherbis/times"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
