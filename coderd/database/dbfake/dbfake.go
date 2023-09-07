@@ -3071,7 +3071,7 @@ func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	}, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+func (q *FakeQuerier) GetWorkspaceAgentLogSourcesByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3121,7 +3121,7 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgen
 	return metadata, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4467,7 +4467,7 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 	return agent, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentLogSources(_ context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -4554,7 +4554,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
