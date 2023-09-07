@@ -186,7 +186,6 @@ resource "coder_agent" "dev" {
     sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
     code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
 
-
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
     filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
