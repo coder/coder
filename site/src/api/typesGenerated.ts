@@ -1408,14 +1408,14 @@ export interface WorkspaceAgentMetadataResult {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
-  readonly log_source_id: string
-  readonly log_path: string
-  readonly source: string
-  readonly cron: string
-  readonly run_on_start: boolean
-  readonly run_on_stop: boolean
-  readonly start_blocks_login: boolean
-  readonly timeout_seconds: number
+  readonly log_source_id: string;
+  readonly log_path: string;
+  readonly source: string;
+  readonly cron: string;
+  readonly run_on_start: boolean;
+  readonly run_on_stop: boolean;
+  readonly start_blocks_login: boolean;
+  readonly timeout_seconds: number;
 }
 
 // From codersdk/workspaceapps.go

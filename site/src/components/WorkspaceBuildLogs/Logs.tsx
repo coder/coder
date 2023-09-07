@@ -7,10 +7,10 @@ import { combineClasses } from "utils/combineClasses";
 import AnsiToHTML from "ansi-to-html";
 
 export interface Line {
-  time: string
-  output: string
-  level: LogLevel
-  source_id: string
+  time: string;
+  output: string;
+  level: LogLevel;
+  source_id: string;
 }
 
 export interface LogsProps {
