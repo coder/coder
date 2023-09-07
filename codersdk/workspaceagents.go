@@ -190,11 +190,11 @@ type WorkspaceAgentLogSource struct {
 type WorkspaceAgentScript struct {
 	LogSourceDisplayName string        `json:"log_source_display_name"`
 	LogSourceID          uuid.UUID     `json:"log_source_id" format:"uuid"`
-	Script               string        `json:"script"`
-	Schedule             string        `json:"schedule"`
+	Source               string        `json:"source"`
+	CRON                 string        `json:"cron"`
 	RunOnStart           bool          `json:"run_on_start"`
 	RunOnStop            bool          `json:"run_on_stop"`
-	LoginBeforeReady     bool          `json:"login_before_ready"`
+	StartBlocksLogin     bool          `json:"start_blocks_login"`
 	Timeout              time.Duration `json:"timeout_seconds"`
 }
 
@@ -767,10 +767,11 @@ const (
 )
 
 type WorkspaceAgentLog struct {
-	ID        int64     `json:"id"`
-	CreatedAt time.Time `json:"created_at" format:"date-time"`
-	Output    string    `json:"output"`
-	Level     LogLevel  `json:"level"`
+	ID          int64     `json:"id"`
+	CreatedAt   time.Time `json:"created_at" format:"date-time"`
+	Output      string    `json:"output"`
+	Level       LogLevel  `json:"level"`
+	LogSourceID uuid.UUID `json:"log_source_id" format:"uuid"`
 }
 
 type AgentSubsystem string

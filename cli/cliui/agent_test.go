@@ -288,11 +288,10 @@ func TestAgent(t *testing.T) {
 
 			var buf bytes.Buffer
 			agent := codersdk.WorkspaceAgent{
-				ID:                    uuid.New(),
-				Status:                codersdk.WorkspaceAgentConnecting,
-				StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-				CreatedAt:             time.Now(),
-				LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
+				ID:             uuid.New(),
+				Status:         codersdk.WorkspaceAgentConnecting,
+				CreatedAt:      time.Now(),
+				LifecycleState: codersdk.WorkspaceAgentLifecycleCreated,
 			}
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
 

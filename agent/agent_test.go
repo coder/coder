@@ -1209,7 +1209,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "sleep 3",
+				Source:     "sleep 3",
 				Timeout:    time.Nanosecond,
 				RunOnStart: true,
 			}},
@@ -1234,7 +1234,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "false",
+				Source:     "false",
 				Timeout:    30 * time.Second,
 				RunOnStart: true,
 			}},
@@ -1259,7 +1259,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "true",
+				Source:     "true",
 				Timeout:    30 * time.Second,
 				RunOnStart: true,
 			}},
@@ -1284,7 +1284,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "sleep 3",
+				Source:    "sleep 3",
 				Timeout:   30 * time.Second,
 				RunOnStop: true,
 			}},
@@ -1325,7 +1325,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "sleep 3",
+				Source:    "sleep 3",
 				Timeout:   time.Nanosecond,
 				RunOnStop: true,
 			}},
@@ -1367,7 +1367,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "false",
+				Source:    "false",
 				Timeout:   30 * time.Second,
 				RunOnStop: true,
 			}},
@@ -1417,11 +1417,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 				DERPMap: derpMap,
 				Scripts: []codersdk.WorkspaceAgentScript{{
 					LogSourceDisplayName: "startup",
-					Script:               "echo 1",
+					Source:               "echo 1",
 					RunOnStart:           true,
 				}, {
 					LogSourceDisplayName: "shutdown",
-					Script:               "echo " + expected,
+					Source:               "echo " + expected,
 					RunOnStop:            true,
 				}},
 			},

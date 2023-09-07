@@ -65,11 +65,11 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 	r.scripts = scripts
 
 	for _, script := range scripts {
-		if script.Schedule == "" {
+		if script.CRON == "" {
 			continue
 		}
 		script := script
-		_, err := r.cron.AddFunc(script.Schedule, func() {
+		_, err := r.cron.AddFunc(script.CRON, func() {
 			err := r.run(script)
 			if err != nil {
 				r.Logger.Warn(r.ctx, "run agent script on schedule", slog.Error(err))
@@ -114,7 +114,7 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 	logger := r.Logger.With(slog.F("log_source", script.LogSourceDisplayName))
 	ctx := r.ctx
-	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
+	logger.Info(ctx, "running agent script", slog.F("script", script.Source))
 	fileWriter, err := r.Filesystem.OpenFile(filepath.Join(r.LogDir, fmt.Sprintf("coder-%s-script.log", script.LogSourceDisplayName)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", script.LogSourceDisplayName, err)
@@ -134,7 +134,7 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 		defer cancel()
 	}
 
-	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Script, nil)
+	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Source, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", script.LogSourceDisplayName, err)
 	}

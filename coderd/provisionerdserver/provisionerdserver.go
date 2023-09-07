@@ -1250,32 +1250,21 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                   agentID,
-			CreatedAt:            dbtime.Now(),
-			UpdatedAt:            dbtime.Now(),
-			ResourceID:           resource.ID,
-			Name:                 prAgent.Name,
-			AuthToken:            authToken,
-			AuthInstanceID:       instanceID,
-			Architecture:         prAgent.Architecture,
-			EnvironmentVariables: env,
-			Directory:            prAgent.Directory,
-			OperatingSystem:      prAgent.OperatingSystem,
-			StartupScript: sql.NullString{
-				String: prAgent.StartupScript,
-				Valid:  prAgent.StartupScript != "",
-			},
-			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
-			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
-			MOTDFile:                    prAgent.GetMotdFile(),
-			StartupScriptBehavior:       database.StartupScriptBehavior(prAgent.GetStartupScriptBehavior()),
-			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
-			ShutdownScript: sql.NullString{
-				String: prAgent.ShutdownScript,
-				Valid:  prAgent.ShutdownScript != "",
-			},
-			ShutdownScriptTimeoutSeconds: prAgent.GetShutdownScriptTimeoutSeconds(),
-			DisplayApps:                  convertDisplayApps(prAgent.GetDisplayApps()),
+			ID:                       agentID,
+			CreatedAt:                dbtime.Now(),
+			UpdatedAt:                dbtime.Now(),
+			ResourceID:               resource.ID,
+			Name:                     prAgent.Name,
+			AuthToken:                authToken,
+			AuthInstanceID:           instanceID,
+			Architecture:             prAgent.Architecture,
+			EnvironmentVariables:     env,
+			Directory:                prAgent.Directory,
+			OperatingSystem:          prAgent.OperatingSystem,
+			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
+			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
+			MOTDFile:                 prAgent.GetMotdFile(),
+			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)

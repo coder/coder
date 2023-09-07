@@ -29,25 +29,26 @@ type agentMetadata struct {
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                     string            `mapstructure:"auth"`
-	OperatingSystem          string            `mapstructure:"os"`
-	Architecture             string            `mapstructure:"arch"`
-	Directory                string            `mapstructure:"dir"`
-	ID                       string            `mapstructure:"id"`
-	Token                    string            `mapstructure:"token"`
-	Env                      map[string]string `mapstructure:"env"`
-	StartupScript            string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string            `mapstructure:"motd_file"`
+	Auth            string            `mapstructure:"auth"`
+	OperatingSystem string            `mapstructure:"os"`
+	Architecture    string            `mapstructure:"arch"`
+	Directory       string            `mapstructure:"dir"`
+	ID              string            `mapstructure:"id"`
+	Token           string            `mapstructure:"token"`
+	Env             map[string]string `mapstructure:"env"`
 	// Deprecated, but remains here for backwards compatibility.
-	LoginBeforeReady             bool                         `mapstructure:"login_before_ready"`
-	StartupScriptBehavior        string                       `mapstructure:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds  int32                        `mapstructure:"startup_script_timeout"`
-	ShutdownScript               string                       `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32                        `mapstructure:"shutdown_script_timeout"`
-	Metadata                     []agentMetadata              `mapstructure:"metadata"`
-	DisplayApps                  []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+	StartupScript                string `mapstructure:"startup_script"`
+	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds  int32  `mapstructure:"startup_script_timeout"`
+	LoginBeforeReady             bool   `mapstructure:"login_before_ready"`
+	ShutdownScript               string `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32  `mapstructure:"shutdown_script_timeout"`
+
+	ConnectionTimeoutSeconds int32                        `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string                       `mapstructure:"troubleshooting_url"`
+	MOTDFile                 string                       `mapstructure:"motd_file"`
+	Metadata                 []agentMetadata              `mapstructure:"metadata"`
+	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -74,6 +75,18 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+type agentScriptAttributes struct {
+	AgentID          string `mapstructure:"agent_id"`
+	DisplayName      string `mapstructure:"display_name"`
+	Icon             string `mapstructure:"icon"`
+	Source           string `mapstructure:"source"`
+	Cron             string `mapstructure:"cron"`
+	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
+	RunOnStart       bool   `mapstructure:"run_on_start"`
+	RunOnStop        bool   `mapstructure:"run_on_stop"`
+	TimeoutSeconds   int32  `mapstructure:"timeout"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -206,22 +219,35 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			}
 
 			agent := &proto.Agent{
-				Name:                         tfResource.Name,
-				Id:                           attrs.ID,
-				Env:                          attrs.Env,
-				StartupScript:                attrs.StartupScript,
-				OperatingSystem:              attrs.OperatingSystem,
-				Architecture:                 attrs.Architecture,
-				Directory:                    attrs.Directory,
-				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:           attrs.TroubleshootingURL,
-				MotdFile:                     attrs.MOTDFile,
-				StartupScriptBehavior:        startupScriptBehavior,
-				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
-				ShutdownScript:               attrs.ShutdownScript,
-				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
-				Metadata:                     metadata,
-				DisplayApps:                  displayApps,
+				Name:                     tfResource.Name,
+				Id:                       attrs.ID,
+				Env:                      attrs.Env,
+				OperatingSystem:          attrs.OperatingSystem,
+				Architecture:             attrs.Architecture,
+				Directory:                attrs.Directory,
+				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:       attrs.TroubleshootingURL,
+				MotdFile:                 attrs.MOTDFile,
+				Metadata:                 metadata,
+				DisplayApps:              displayApps,
+			}
+			// Support the legacy script attributes in the agent!
+			if attrs.StartupScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					DisplayName:      "Startup Script",
+					Source:           attrs.StartupScript,
+					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
+					Timeout:          attrs.StartupScriptTimeoutSeconds,
+					RunOnStart:       true,
+				})
+			}
+			if attrs.ShutdownScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					DisplayName: "Shutdown Script",
+					Source:      attrs.ShutdownScript,
+					Timeout:     attrs.ShutdownScriptTimeoutSeconds,
+					RunOnStop:   true,
+				})
 			}
 			switch attrs.Auth {
 			case "token":
@@ -397,6 +423,38 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
 						Healthcheck:  healthcheck,
+					})
+				}
+			}
+		}
+	}
+
+	// Associate scripts with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_script" {
+				continue
+			}
+			var attrs agentScriptAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode app attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if agent.Id != attrs.AgentID {
+						continue
+					}
+					agent.Scripts = append(agent.Scripts, &proto.Script{
+						DisplayName:      attrs.DisplayName,
+						Icon:             attrs.Icon,
+						Source:           attrs.Source,
+						Cron:             attrs.Cron,
+						StartBlocksLogin: attrs.StartBlocksLogin,
+						RunOnStart:       attrs.RunOnStart,
+						RunOnStop:        attrs.RunOnStop,
+						Timeout:          attrs.TimeoutSeconds,
 					})
 				}
 			}

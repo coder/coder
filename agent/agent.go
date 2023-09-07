@@ -976,13 +976,13 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn)
 }
 
 func (a *agent) runScript(ctx context.Context, script codersdk.WorkspaceAgentScript) (err error) {
-	if script.Script == "" {
+	if script.Source == "" {
 		return nil
 	}
 
 	logger := a.logger.With(slog.F("log_source", script.LogSourceDisplayName))
 
-	logger.Info(ctx, "running script", slog.F("script", script.Script))
+	logger.Info(ctx, "running script", slog.F("script", script.Source))
 	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", script.LogSourceDisplayName)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", script.LogSourceDisplayName, err)
@@ -994,7 +994,7 @@ func (a *agent) runScript(ctx context.Context, script codersdk.WorkspaceAgentScr
 		}
 	}()
 
-	cmdPty, err := a.sshServer.CreateCommand(ctx, script.Script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, script.Source, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", script.LogSourceDisplayName, err)
 	}
