@@ -2,19 +2,19 @@ package terraform
 
 import (
 	"context"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/djherbis/times"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 )
 
-// cleanStaleTerraformPlugins browses the Terraform cache directory
+// CleanStaleTerraformPlugins browses the Terraform cache directory
 // and remove stale plugins that haven't been used for a while.
 // Additionally, it sweeps empty, old directory trees.
 //
@@ -22,14 +22,14 @@ import (
 //
 //	/Users/john.doe/Library/Caches/coder/provisioner-1/tf
 //	/tmp/coder/provisioner-0/tf
-func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.Time, logger slog.Logger) error {
+func CleanStaleTerraformPlugins(ctx context.Context, cachePath string, fs afero.Fs, now time.Time, logger slog.Logger) error {
 	cachePath, err := filepath.Abs(cachePath) // sanity check in case the path is e.g. ../../../cache
 	if err != nil {
 		return xerrors.Errorf("unable to determine absolute path %q: %w", cachePath, err)
 	}
 
 	// Firstly, check if the cache path exists.
-	_, err = os.Stat(cachePath)
+	_, err = fs.Stat(cachePath)
 	if os.IsNotExist(err) {
 		return nil
 	} else if err != nil {
@@ -56,7 +56,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 
 	// Review cached Terraform plugins
 	var pluginPaths []string
-	err = filepath.Walk(cachePath, func(path string, info fs.FileInfo, err error) error {
+	err = afero.Walk(fs, cachePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	// Identify stale plugins
 	var stalePlugins []string
 	for _, pluginPath := range pluginPaths {
-		accessTime, err := latestAccessTime(pluginPath)
+		accessTime, err := latestAccessTime(fs, pluginPath)
 		if err != nil {
 			return xerrors.Errorf("unable to evaluate latest access time for directory %q: %w", pluginPath, err)
 		}
@@ -92,7 +92,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	// Remove stale plugins
 	for _, stalePluginPath := range stalePlugins {
 		// Remove the plugin directory
-		err = os.RemoveAll(stalePluginPath)
+		err = fs.RemoveAll(stalePluginPath)
 		if err != nil {
 			return xerrors.Errorf("unable to remove stale plugin %q: %w", stalePluginPath, err)
 		}
@@ -108,7 +108,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 
 			wd = filepath.Dir(wd)
 
-			files, err := os.ReadDir(wd)
+			files, err := afero.ReadDir(fs, wd)
 			if err != nil {
 				return xerrors.Errorf("unable to read directory content %q: %w", wd, err)
 			}
@@ -118,7 +118,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 			}
 
 			logger.Debug(ctx, "remove empty directory", slog.F("path", wd))
-			err = os.Remove(wd)
+			err = fs.Remove(wd)
 			if err != nil {
 				return xerrors.Errorf("unable to remove directory %q: %w", wd, err)
 			}
@@ -129,9 +129,9 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 
 // latestAccessTime walks recursively through the directory content, and locates
 // the last accessed file.
-func latestAccessTime(pluginPath string) (time.Time, error) {
+func latestAccessTime(fs afero.Fs, pluginPath string) (time.Time, error) {
 	var latest time.Time
-	err := filepath.Walk(pluginPath, func(path string, info fs.FileInfo, err error) error {
+	err := afero.Walk(fs, pluginPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}

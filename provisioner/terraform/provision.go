@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/afero"
+
 	"cdr.dev/slog"
 	"github.com/coder/terraform-provider-coder/provider"
 
@@ -91,7 +93,7 @@ func (s *server) Plan(
 		}
 	}
 
-	err := cleanStaleTerraformPlugins(sess.Context(), "/tmp/coder/provisioner-0/tf", time.Now(), s.logger)
+	err := CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
 	}
