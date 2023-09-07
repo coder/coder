@@ -3103,6 +3103,10 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgen
 	return metadata, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -4503,6 +4507,15 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {

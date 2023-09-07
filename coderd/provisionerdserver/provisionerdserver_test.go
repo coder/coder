@@ -1557,7 +1557,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Env: map[string]string{
 					"something": "test",
 				},
-				StartupScript:   "value",
 				OperatingSystem: "linux",
 				Architecture:    "amd64",
 				Auth: &sdkproto.Agent_Token{
@@ -1566,7 +1565,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
-				ShutdownScript: "shutdown",
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,
@@ -1585,8 +1583,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		agent := agents[0]
 		require.Equal(t, "amd64", agent.Architecture)
 		require.Equal(t, "linux", agent.OperatingSystem)
-		require.Equal(t, "value", agent.StartupScript.String)
-		require.Equal(t, "shutdown", agent.ShutdownScript.String)
 		want, err := json.Marshal(map[string]string{
 			"something": "test",
 		})

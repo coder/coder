@@ -1564,6 +1564,10 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentI
 	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
 }
 
+func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
 	return q.db.GetWorkspaceAgentStats(ctx, createdAfter)
 }
@@ -2047,6 +2051,10 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	}
 
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+	panic("not implemented")
 }
 
 func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {

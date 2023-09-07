@@ -124,6 +124,19 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 		return
 	}
 
+	// nolint:gocritic // GetWorkspaceAgentScriptsByAgentIDs is a system function.
+	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), resourceAgentIDs)
+	if errors.Is(err, sql.ErrNoRows) {
+		err = nil
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent scripts.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	// nolint:gocritic // GetWorkspaceResourceMetadataByResourceIDs is a system function.
 	resourceMetadata, err := api.Database.GetWorkspaceResourceMetadataByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil {
@@ -147,9 +160,15 @@ func (api *API) provisionerJobResources(rw http.ResponseWriter, r *http.Request,
 					dbApps = append(dbApps, app)
 				}
 			}
+			dbScripts := make([]database.WorkspaceAgentScript, 0)
+			for _, script := range scripts {
+				if script.WorkspaceAgentID == agent.ID {
+					dbScripts = append(dbScripts, script)
+				}
+			}
 
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(dbApps), convertScripts(dbScripts), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {

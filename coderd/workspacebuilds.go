@@ -76,6 +76,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.scripts,
 		data.templateVersions[0],
 	)
 	if err != nil {
@@ -190,6 +191,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.scripts,
 		data.templateVersions,
 	)
 	if err != nil {
@@ -278,6 +280,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.metadata,
 		data.agents,
 		data.apps,
+		data.scripts,
 		data.templateVersions[0],
 	)
 	if err != nil {
@@ -398,6 +401,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
+		[]database.WorkspaceAgentScript{},
 		database.TemplateVersion{},
 	)
 	if err != nil {
@@ -631,6 +635,7 @@ type workspaceBuildsData struct {
 	metadata         []database.WorkspaceResourceMetadatum
 	agents           []database.WorkspaceAgent
 	apps             []database.WorkspaceApp
+	scripts          []database.WorkspaceAgentScript
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -715,6 +720,12 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
 	}
 
+	// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
+	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace agent scripts: %w", err)
+	}
+
 	return workspaceBuildsData{
 		users:            users,
 		jobs:             jobs,
@@ -723,6 +734,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		metadata:         metadata,
 		agents:           agents,
 		apps:             apps,
+		scripts:          scripts,
 	}, nil
 }
 
@@ -735,6 +747,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	agentScripts []database.WorkspaceAgentScript,
 	templateVersions []database.TemplateVersion,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
@@ -775,6 +788,7 @@ func (api *API) convertWorkspaceBuilds(
 			resourceMetadata,
 			resourceAgents,
 			agentApps,
+			agentScripts,
 			templateVersion,
 		)
 		if err != nil {
@@ -796,6 +810,7 @@ func (api *API) convertWorkspaceBuild(
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
+	agentScripts []database.WorkspaceAgentScript,
 	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
 	userByID := map[uuid.UUID]database.User{}
@@ -818,6 +833,10 @@ func (api *API) convertWorkspaceBuild(
 	for _, app := range agentApps {
 		appsByAgentID[app.AgentID] = append(appsByAgentID[app.AgentID], app)
 	}
+	scriptsByAgentID := map[uuid.UUID][]database.WorkspaceAgentScript{}
+	for _, script := range agentScripts {
+		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
+	}
 
 	owner, exists := userByID[workspace.OwnerID]
 	if !exists {
@@ -831,8 +850,9 @@ func (api *API) convertWorkspaceBuild(
 		apiAgents := make([]codersdk.WorkspaceAgent, 0)
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
+			scripts := scriptsByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps), convertScripts(scripts), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {

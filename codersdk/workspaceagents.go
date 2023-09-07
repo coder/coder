@@ -167,16 +167,14 @@ type WorkspaceAgent struct {
 	Version              string                  `json:"version"`
 	Apps                 []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
-	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
-	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
-	TroubleshootingURL       string                `json:"troubleshooting_url"`
-	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady bool                      `json:"login_before_ready"`
-	Subsystems       []AgentSubsystem          `json:"subsystems"`
-	Health           WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
-	DisplayApps      []DisplayApp              `json:"display_apps"`
-	LogSources       []WorkspaceAgentLogSource `json:"log_sources"`
-	Scripts          []WorkspaceAgentScript    `json:"scripts"`
+	DERPLatency              map[string]DERPRegion     `json:"latency,omitempty"`
+	ConnectionTimeoutSeconds int32                     `json:"connection_timeout_seconds"`
+	TroubleshootingURL       string                    `json:"troubleshooting_url"`
+	Subsystems               []AgentSubsystem          `json:"subsystems"`
+	Health                   WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
+	DisplayApps              []DisplayApp              `json:"display_apps"`
+	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
+	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
 }
 
 type WorkspaceAgentLogSource struct {

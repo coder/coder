@@ -1344,7 +1344,6 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
-  readonly login_before_ready: boolean
   readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
   readonly display_apps: DisplayApp[]
@@ -1376,6 +1375,7 @@ export interface WorkspaceAgentLog {
   readonly created_at: string
   readonly output: string
   readonly level: LogLevel
+  readonly log_source_id: string
 }
 
 // From codersdk/workspaceagents.go
@@ -1412,10 +1412,13 @@ export interface WorkspaceAgentMetadataResult {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
+  readonly log_source_display_name: string
   readonly log_source_id: string
-  readonly script: string
-  readonly schedule: string
-  readonly login_before_ready: boolean
+  readonly source: string
+  readonly cron: string
+  readonly run_on_start: boolean
+  readonly run_on_stop: boolean
+  readonly start_blocks_login: boolean
   readonly timeout_seconds: number
 }
 

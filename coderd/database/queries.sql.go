@@ -9033,6 +9033,119 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
+SELECT workspace_agent_id, log_source_id, log_source_display_name, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogSourceDisplayName,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.Timeout,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
+INSERT INTO
+	workspace_agent_scripts (workspace_agent_id, log_source_id, log_source_display_name, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
+SELECT
+	$1 :: uuid AS workspace_agent_id,
+	unnest($2 :: uuid [ ]) AS log_source_id,
+	unnest($3 :: varchar(127) [ ]) AS log_source_display_name,
+	unnest($4 :: timestamptz [ ]) AS created_at,
+	unnest($5 :: text [ ]) AS source,
+	unnest($6 :: text [ ]) AS cron,
+	unnest($7 :: boolean [ ]) AS start_blocks_login,
+	unnest($8 :: boolean [ ]) AS run_on_start,
+	unnest($9 :: boolean [ ]) AS run_on_stop,
+	unnest($10 :: integer [ ]) AS timeout
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_source_display_name, workspace_agent_scripts.created_at, workspace_agent_scripts.source, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout
+`
+
+type InsertWorkspaceAgentScriptsParams struct {
+	WorkspaceAgentID     uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID          []uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogSourceDisplayName []string    `db:"log_source_display_name" json:"log_source_display_name"`
+	CreatedAt            []time.Time `db:"created_at" json:"created_at"`
+	Source               []string    `db:"source" json:"source"`
+	Cron                 []string    `db:"cron" json:"cron"`
+	StartBlocksLogin     []bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart           []bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop            []bool      `db:"run_on_stop" json:"run_on_stop"`
+	Timeout              []int32     `db:"timeout" json:"timeout"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
+		arg.WorkspaceAgentID,
+		pq.Array(arg.LogSourceID),
+		pq.Array(arg.LogSourceDisplayName),
+		pq.Array(arg.CreatedAt),
+		pq.Array(arg.Source),
+		pq.Array(arg.Cron),
+		pq.Array(arg.StartBlocksLogin),
+		pq.Array(arg.RunOnStart),
+		pq.Array(arg.RunOnStop),
+		pq.Array(arg.Timeout),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogSourceDisplayName,
+			&i.CreatedAt,
+			&i.Source,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.Timeout,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT

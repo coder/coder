@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -39,12 +40,10 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 			ctx:    context.Background(),
 			level:  codersdk.LogLevelInfo,
 			writes: []string{"hello world\n"},
-			source: codersdk.WorkspaceAgentLogSourceShutdownScript,
 			want: []agentsdk.Log{
 				{
 					Level:  codersdk.LogLevelInfo,
 					Output: "hello world",
-					Source: codersdk.WorkspaceAgentLogSourceShutdownScript,
 				},
 			},
 		},
@@ -330,7 +329,7 @@ func TestStartupLogsSender(t *testing.T) {
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.LogsSender(patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()

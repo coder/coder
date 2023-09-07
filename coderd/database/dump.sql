@@ -727,14 +727,14 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
     log_source_id uuid NOT NULL,
+    log_source_display_name character varying(127) NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    script text NOT NULL,
-    schedule text NOT NULL,
-    login_before_ready boolean NOT NULL,
+    source text NOT NULL,
+    cron text NOT NULL,
+    start_blocks_login boolean NOT NULL,
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
-    name character varying(127) NOT NULL,
-    description text NOT NULL
+    timeout integer NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq

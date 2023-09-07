@@ -1243,11 +1243,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		// Set the default in case it was not provided (e.g. echo provider).
-		if prAgent.GetStartupScriptBehavior() == "" {
-			prAgent.StartupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
-		}
-
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 			ID:                       agentID,

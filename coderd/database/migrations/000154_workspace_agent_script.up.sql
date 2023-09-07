@@ -11,14 +11,14 @@ CREATE TABLE workspace_agent_log_sources (
 CREATE TABLE workspace_agent_scripts (
 	workspace_agent_id uuid NOT NULL,
 	log_source_id uuid NOT NULL,
+	log_source_display_name varchar(127) NOT NULL,
 	created_at timestamptz NOT NULL,
-	script text NOT NULL,
-	schedule text NOT NULL,
-	login_before_ready boolean NOT NULL,
+	source text NOT NULL,
+	cron text NOT NULL,
+	start_blocks_login boolean NOT NULL,
 	run_on_start boolean NOT NULL,
 	run_on_stop boolean NOT NULL,
-	name varchar(127) NOT NULL,
-	description text NOT NULL
+	timeout integer NOT NULL
 );
 
 ALTER TABLE workspace_agent_logs ADD COLUMN log_source_id uuid NOT NULL;
