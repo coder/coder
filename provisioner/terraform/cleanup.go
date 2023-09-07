@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/djherbis/times"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 )
 
 // cleanStaleTerraformPlugins browses the Terraform cache directory
@@ -23,6 +24,14 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	cachePath, err := filepath.Abs(cachePath) // sanity check in case the path is e.g. ../../../cache
 	if err != nil {
 		return xerrors.Errorf("unable to determine absolute path %q: %w", cachePath, err)
+	}
+
+	// Firstly, check if the cache path exists.
+	_, err = os.Stat(cachePath)
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return xerrors.Errorf("unable to stat cache path %q: %w", cachePath, err)
 	}
 
 	logger.Info(ctx, "clean stale Terraform plugins", slog.F("cache_path", cachePath))
