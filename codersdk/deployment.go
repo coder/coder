@@ -46,8 +46,9 @@ const (
 	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                  FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
-	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
 	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
+	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
 	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
 )
 
@@ -65,6 +66,8 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureExternalTokenEncryption,
+	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceBatchActions,
 }
 
@@ -154,6 +157,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	ExternalTokenEncryptionKeys     clibase.StringArray             `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
@@ -1605,7 +1609,14 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
-
+		{
+			Name:        "External Token Encryption Keys",
+			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
+			Flag:        "external-token-encryption-keys",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Value:       &c.ExternalTokenEncryptionKeys,
+		},
 		{
 			Name:        "Disable Path Apps",
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
@@ -1783,7 +1794,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
-		case *clibase.String:
+		case *clibase.String, *clibase.StringArray:
 			err := v.Set("")
 			if err != nil {
 				panic(err)

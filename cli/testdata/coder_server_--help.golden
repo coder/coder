@@ -458,6 +458,16 @@ These options are only available in the Enterprise Edition.
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.
 
+      --external-token-encryption-keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS
+          Encrypt OIDC and Git authentication tokens with AES-256-GCM in the
+          database. The value must be a comma-separated list of base64-encoded
+          keys. Each key, when base64-decoded, must be exactly 32 bytes in
+          length. The first key will be used to encrypt new values. Subsequent
+          keys will be used as a fallback when decrypting. During normal
+          operation it is recommended to only set one key unless you are in the
+          process of rotating keys with the `coder server dbcrypt rotate`
+          command.
+
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.

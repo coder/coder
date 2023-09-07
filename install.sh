@@ -104,29 +104,18 @@ Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STAND
 
 EOF
 
-	CODER_COMMAND="$(command -v "$STANDALONE_BINARY_NAME")"
-
-	if [ ! "$CODER_COMMAND" ]; then
+	if [ "$STANDALONE_INSTALL_PREFIX" != /usr/local ]; then
 		cath <<EOF
 Extend your path to use Coder:
-
-  $ PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
-
-EOF
-	elif [ "$CODER_COMMAND" != "$STANDALONE_BINARY_LOCATION" ]; then
-		echo_path_conflict "$CODER_COMMAND" "$STANDALONE_INSTALL_PREFIX"
-	else
-		cath <<EOF
-To run a Coder server:
-
-  $ $STANDALONE_BINARY_NAME server
-
-To connect to a Coder deployment:
-
-  $ $STANDALONE_BINARY_NAME login <deployment url>
+PATH="$STANDALONE_INSTALL_PREFIX/bin:\$PATH"
 
 EOF
 	fi
+	cath <<EOF
+Run Coder:
+  $STANDALONE_BINARY_NAME server
+
+EOF
 }
 
 echo_brew_postinstall() {
@@ -135,15 +124,8 @@ echo_brew_postinstall() {
 		return
 	fi
 
-	CODER_COMMAND="$(command -v "coder")"
-	BREW_PREFIX="$(brew --prefix)"
-
-	if [ "$CODER_COMMAND" != "$BREW_PREFIX/bin/coder" ]; then
-		echo_path_conflict "$CODER_COMMAND" "$BREW_PREFIX"
-	fi
-
 	cath <<EOF
-Homebrew formula has been installed.
+brew formula has been installed.
 
 To run a Coder server:
 
@@ -175,6 +157,7 @@ To run a Coder server:
   # Or just run the server directly
   $ coder server
 
+  Default URL: http://127.0.0.1:3000
   Configuring Coder: https://coder.com/docs/v2/latest/admin/configure
 
 To connect to a Coder deployment:
@@ -186,33 +169,18 @@ EOF
 
 echo_dryrun_postinstall() {
 	cath <<EOF
+
 Dry-run complete.
 
 To install Coder, re-run this script without the --dry-run flag.
-
-EOF
-}
-
-echo_path_conflict() {
-	cath <<EOF
-There is another binary in your PATH that conflicts with the binary we've installed.
-
-  $1
-
-This is likely because of an existing installation of Coder. See our documentation for suggests on how to resolve this.
-
-	https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
-
 EOF
 }
 
 main() {
 	TERRAFORM_VERSION="1.3.4"
-
 	if [ "${TRACE-}" ]; then
 		set -x
 	fi
-
 	unset \
 		DRY_RUN \
 		METHOD \
@@ -220,11 +188,9 @@ main() {
 		ALL_FLAGS \
 		RSH_ARGS \
 		EDGE \
-		RSH \
-		WITH_TERRAFORM
+		RSH
 
 	ALL_FLAGS=""
-
 	while [ "$#" -gt 0 ]; do
 		case "$1" in
 		-*)
@@ -279,7 +245,7 @@ main() {
 			exit 0
 			;;
 		--with-terraform)
-			WITH_TERRAFORM=1
+			METHOD=with_terraform
 			;;
 		--)
 			shift
@@ -309,29 +275,8 @@ main() {
 		return
 	fi
 
-	# These can be overridden for testing but shouldn't normally be used as it can
-	# result in a broken coder.
-	OS=${OS:-$(os)}
-	ARCH=${ARCH:-$(arch)}
-	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
-
-	# We can't reasonably support installing specific versions of Coder through
-	# Homebrew, so if we're on macOS and the `--version` flag was set, we should
-	# "detect" standalone to be the appropriate installation method. This check
-	# needs to occur before we set `VERSION` to a default of the latest release.
-	if [ "$OS" = "darwin" ] && [ "${VERSION-}" ]; then
-		METHOD=standalone
-	fi
-
-	# If we've been provided a flag which is specific to the standalone installation
-	# method, we should "detect" standalone to be the appropriate installation method.
-	# This check needs to occur before we set these variables with defaults.
-	if [ "${STANDALONE_INSTALL_PREFIX-}" ] || [ "${STANDALONE_BINARY_NAME-}" ]; then
-		METHOD=standalone
-	fi
-
 	METHOD="${METHOD-detect}"
-	if [ "$METHOD" != detect ] && [ "$METHOD" != standalone ]; then
+	if [ "$METHOD" != detect ] && [ "$METHOD" != with_terraform ] && [ "$METHOD" != standalone ]; then
 		echoerr "Unknown install method \"$METHOD\""
 		echoerr "Run with --help to see usage."
 		exit 1
@@ -340,21 +285,21 @@ main() {
 	# These are used by the various install_* functions that make use of GitHub
 	# releases in order to download and unpack the right release.
 	CACHE_DIR=$(echo_cache_dir)
-	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_INSTALL_PREFIX=${STANDALONE_INSTALL_PREFIX:-/usr/local}
+	TERRAFORM_INSTALL_PREFIX=${TERRAFORM_INSTALL_PREFIX:-/usr/local}
 	STANDALONE_BINARY_NAME=${STANDALONE_BINARY_NAME:-coder}
 	VERSION=${VERSION:-$(echo_latest_version)}
+	# These can be overridden for testing but shouldn't normally be used as it can
+	# result in a broken coder.
+	OS=${OS:-$(os)}
+	ARCH=${ARCH:-$(arch)}
+	TERRAFORM_ARCH=${TERRAFORM_ARCH:-$(terraform_arch)}
 
 	distro_name
 
 	if [ "${DRY_RUN-}" ]; then
 		echoh "Running with --dry-run; the following are the commands that would be run if this were a real installation:"
 		echoh
-	fi
-
-	# Start by installing Terraform, if requested
-	if [ "${WITH_TERRAFORM-}" = 1 ]; then
-		with_terraform
 	fi
 
 	# Standalone installs by pulling pre-built releases from GitHub.
@@ -367,6 +312,10 @@ main() {
 			echoerr "Please try again without '--method standalone'"
 			exit 1
 		fi
+	fi
+	if [ "$METHOD" = with_terraform ]; then
+		# Install terraform then continue the script
+		with_terraform
 	fi
 
 	# DISTRO can be overridden for testing but shouldn't normally be used as it
@@ -480,7 +429,7 @@ with_terraform() {
 install_macos() {
 	# If there is no `brew` binary available, just default to installing standalone
 	if command_exists brew; then
-		echoh "Installing coder with Homebrew from the coder/coder tap."
+		echoh "Installing v$VERSION of the coder formula from coder/coder."
 		echoh
 
 		sh_c brew install coder/coder/coder
@@ -556,16 +505,16 @@ install_standalone() {
 		"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/coder_${VERSION}_${OS}_${ARCH}.zip"
 	fi
 
-	STANDALONE_BINARY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
+	COPY_LOCATION="$STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME"
 
 	# Remove the file if it already exists to
 	# avoid https://github.com/coder/coder/issues/2086
-	if [ -f "$STANDALONE_BINARY_LOCATION" ]; then
-		"$sh_c" rm "$STANDALONE_BINARY_LOCATION"
+	if [ -f "$COPY_LOCATION" ]; then
+		"$sh_c" rm "$COPY_LOCATION"
 	fi
 
 	# Copy the binary to the correct location.
-	"$sh_c" cp "$CACHE_DIR/coder" "$STANDALONE_BINARY_LOCATION"
+	"$sh_c" cp "$CACHE_DIR/coder" "$COPY_LOCATION"
 
 	echo_standalone_postinstall
 }

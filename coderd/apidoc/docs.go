@@ -7956,6 +7956,12 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "external_token_encryption_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "git_auth": {
                     "$ref": "#/definitions/clibase.Struct-array_codersdk_GitAuthConfig"
                 },
