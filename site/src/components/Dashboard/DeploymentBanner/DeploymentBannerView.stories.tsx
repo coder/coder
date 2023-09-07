@@ -1,20 +1,16 @@
-import { Story } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockDeploymentStats } from "testHelpers/entities";
-import {
-  DeploymentBannerView,
-  DeploymentBannerViewProps,
-} from "./DeploymentBannerView";
+import { DeploymentBannerView } from "./DeploymentBannerView";
 
-export default {
+const meta: Meta<typeof DeploymentBannerView> = {
   title: "components/DeploymentBannerView",
   component: DeploymentBannerView,
+  args: {
+    stats: MockDeploymentStats,
+  },
 };
 
-const Template: Story<DeploymentBannerViewProps> = (args) => (
-  <DeploymentBannerView {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof DeploymentBannerView>;
 
-export const Preview = Template.bind({});
-Preview.args = {
-  stats: MockDeploymentStats,
-};
+export const Preview: Story = {};
