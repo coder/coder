@@ -2,10 +2,9 @@ import { makeStyles } from "@mui/styles";
 import { LogLevel } from "api/typesGenerated";
 import dayjs from "dayjs";
 import { FC, useMemo } from "react";
-import { MONOSPACE_FONT_FAMILY } from "../../../theme/constants";
-import { combineClasses } from "../../../utils/combineClasses";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { combineClasses } from "utils/combineClasses";
 import AnsiToHTML from "ansi-to-html";
-import { Theme } from "@mui/material/styles";
 
 export interface Line {
   time: string;
@@ -16,19 +15,15 @@ export interface Line {
 export interface LogsProps {
   lines: Line[];
   hideTimestamps?: boolean;
-  lineNumbers?: boolean;
   className?: string;
 }
 
 export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
   hideTimestamps,
   lines,
-  lineNumbers,
   className = "",
 }) => {
-  const styles = useStyles({
-    lineNumbers: Boolean(lineNumbers),
-  });
+  const styles = useStyles();
 
   return (
     <div className={combineClasses([className, styles.root])}>
@@ -38,9 +33,7 @@ export const Logs: FC<React.PropsWithChildren<LogsProps>> = ({
             {!hideTimestamps && (
               <>
                 <span className={styles.time}>
-                  {lineNumbers
-                    ? idx + 1
-                    : dayjs(line.time).format(`HH:mm:ss.SSS`)}
+                  {dayjs(line.time).format(`HH:mm:ss.SSS`)}
                 </span>
                 <span className={styles.space} />
               </>
@@ -63,9 +56,7 @@ export const LogLine: FC<{
   number?: number;
   style?: React.CSSProperties;
 }> = ({ line, hideTimestamp, number, style }) => {
-  const styles = useStyles({
-    lineNumbers: Boolean(number),
-  });
+  const styles = useStyles();
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output]);
@@ -89,12 +80,7 @@ export const LogLine: FC<{
   );
 };
 
-const useStyles = makeStyles<
-  Theme,
-  {
-    lineNumbers: boolean;
-  }
->((theme) => ({
+const useStyles = makeStyles((theme) => ({
   root: {
     minHeight: 156,
     padding: theme.spacing(1, 0),
@@ -116,7 +102,7 @@ const useStyles = makeStyles<
     fontSize: 14,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
-    height: ({ lineNumbers }) => (lineNumbers ? logLineHeight : "auto"),
+    height: "auto",
     // Whitespace is significant in terminal output for alignment
     whiteSpace: "pre",
     padding: theme.spacing(0, 4),
@@ -141,7 +127,7 @@ const useStyles = makeStyles<
   },
   time: {
     userSelect: "none",
-    width: ({ lineNumbers }) => theme.spacing(lineNumbers ? 3.5 : 12.5),
+    width: theme.spacing(12.5),
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
