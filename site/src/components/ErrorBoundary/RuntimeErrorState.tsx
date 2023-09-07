@@ -9,7 +9,7 @@ import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { Stack } from "components/Stack/Stack";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Margins } from "../../Margins/Margins";
+import { Margins } from "components/Margins/Margins";
 
 const fetchDynamicallyImportedModuleError =
   "Failed to fetch dynamically imported module";
