@@ -181,9 +181,15 @@ resource "coder_agent" "dev" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
 
+    # install vscode and start serve-web
+    curl -L "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" -o /tmp/code.deb
+    sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
+    code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
+
+
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
+    filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
 
     repo_dir="${data.coder_parameter.repo_dir.value}"
     repo_dir="$${repo_dir/#~\//$HOME\/}"
@@ -232,11 +238,21 @@ resource "coder_app" "code-server" {
   }
 }
 
+resource "coder_app" "vscode-web" {
+  agent_id     = coder_agent.dev.id
+  display_name = "VSCode Web"
+  slug         = "vscode-web"
+  url          = "http://localhost:13338"
+  icon         = "/icon/code.svg"
+  subdomain    = true
+  share        = "owner"
+}
+
 resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.dev.id
   display_name = "File Browser"
   slug         = "filebrowser"
-  url          = "http://localhost:13338"
+  url          = "http://localhost:13339"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   subdomain    = true
   share        = "owner"
