@@ -5,10 +5,10 @@ import { makeStyles } from "@mui/styles";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
 import { FC } from "react";
-import { TemplateVersionParameter } from "../../api/typesGenerated";
+import { TemplateVersionParameter } from "api/typesGenerated";
 import { colors } from "theme/colors";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import { MultiTextField } from "components/RichParameterInput/MultiTextField/MultiTextField";
+import { MultiTextField } from "./MultiTextField";
 import Box from "@mui/material/Box";
 import { Theme } from "@mui/material/styles";
 
