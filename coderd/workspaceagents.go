@@ -131,12 +131,13 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		return nil
 	})
 	eg.Go(func() (err error) {
-		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
-		return
+		// nolint:gocritic // This is necessary to fetch agent scripts!
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		return err
 	})
 	eg.Go(func() (err error) {
 		metadata, err = api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
-		return
+		return err
 	})
 	eg.Go(func() (err error) {
 		resource, err = api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -155,7 +156,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		if err != nil {
 			return xerrors.Errorf("getting workspace owner by id: %w", err)
 		}
-		return
+		return err
 	})
 	err = eg.Wait()
 	if err != nil {

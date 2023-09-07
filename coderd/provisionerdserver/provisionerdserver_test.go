@@ -1565,6 +1565,10 @@ func TestInsertWorkspaceResource(t *testing.T) {
 				Apps: []*sdkproto.App{{
 					Slug: "a",
 				}},
+				Scripts: []*sdkproto.Script{{
+					DisplayName: "Startup",
+					Icon:        "/test.png",
+				}},
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,

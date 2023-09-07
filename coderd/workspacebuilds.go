@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -719,16 +720,31 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
-	apps, err := api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace apps: %w", err)
-	}
+	var (
+		apps       []database.WorkspaceApp
+		scripts    []database.WorkspaceAgentScript
+		logSources []database.WorkspaceAgentLogSource
+	)
 
-	// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
-	scripts, err := api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return workspaceBuildsData{}, xerrors.Errorf("fetching workspace agent scripts: %w", err)
+	var eg errgroup.Group
+	eg.Go(func() (err error) {
+		// nolint:gocritic // Getting workspace apps by agent IDs is a system function.
+		apps, err = api.Database.GetWorkspaceAppsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+		return err
+	})
+	eg.Go(func() (err error) {
+		// nolint:gocritic // Getting workspace scripts by agent IDs is a system function.
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+		return err
+	})
+	eg.Go(func() error {
+		// nolint:gocritic // Getting workspace agent log sources by agent IDs is a system function.
+		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(dbauthz.AsSystemRestricted(ctx), agentIDs)
+		return err
+	})
+	err = eg.Wait()
+	if err != nil {
+		return workspaceBuildsData{}, err
 	}
 
 	return workspaceBuildsData{
@@ -740,6 +756,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.W
 		agents:           agents,
 		apps:             apps,
 		scripts:          scripts,
+		logSources:       logSources,
 	}, nil
 }
 

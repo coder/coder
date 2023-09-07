@@ -1281,6 +1281,59 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
+		logSourceCreatedAt := make([]time.Time, 0, len(prAgent.Scripts))
+		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
+		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
+		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
+		scriptSources := make([]string, 0, len(prAgent.Scripts))
+		scriptCron := make([]string, 0, len(prAgent.Scripts))
+		scriptTimeout := make([]int32, 0, len(prAgent.Scripts))
+		scriptStartBlocksLogin := make([]bool, 0, len(prAgent.Scripts))
+		scriptRunOnStart := make([]bool, 0, len(prAgent.Scripts))
+		scriptRunOnStop := make([]bool, 0, len(prAgent.Scripts))
+
+		for _, script := range prAgent.Scripts {
+			logSourceIDs = append(logSourceIDs, uuid.New())
+			logSourceCreatedAt = append(logSourceCreatedAt, dbtime.Now())
+			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
+			logSourceIcons = append(logSourceIcons, script.Icon)
+			scriptLogPaths = append(scriptLogPaths, script.LogPath)
+			scriptSources = append(scriptSources, script.Source)
+			scriptCron = append(scriptCron, script.Cron)
+			scriptTimeout = append(scriptTimeout, script.Timeout)
+			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
+			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
+			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
+		}
+
+		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+			WorkspaceAgentID: agentID,
+			ID:               logSourceIDs,
+			CreatedAt:        logSourceCreatedAt,
+			DisplayName:      logSourceDisplayNames,
+			Icon:             logSourceIcons,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent log sources: %w", err)
+		}
+
+		_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
+			WorkspaceAgentID: agentID,
+			LogSourceID:      logSourceIDs,
+			LogPath:          scriptLogPaths,
+			CreatedAt:        logSourceCreatedAt,
+			Source:           scriptSources,
+			Cron:             scriptCron,
+			Timeout:          scriptTimeout,
+			StartBlocksLogin: scriptStartBlocksLogin,
+			RunOnStart:       scriptRunOnStart,
+			RunOnStop:        scriptRunOnStop,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent scripts: %w", err)
+		}
+
 		for _, app := range prAgent.Apps {
 			slug := app.Slug
 			if slug == "" {
