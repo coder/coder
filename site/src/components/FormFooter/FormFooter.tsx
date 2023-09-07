@@ -1,21 +1,21 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import { ClassNameMap } from "@mui/styles/withStyles"
-import { FC } from "react"
-import { LoadingButton } from "../LoadingButton/LoadingButton"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import { ClassNameMap } from "@mui/styles/withStyles";
+import { FC } from "react";
+import { LoadingButton } from "../LoadingButton/LoadingButton";
 
 export const Language = {
   cancelLabel: "Cancel",
   defaultSubmitLabel: "Submit",
-}
+};
 
-type FormFooterStyles = ClassNameMap<"footer" | "button">
+type FormFooterStyles = ClassNameMap<"footer" | "button">;
 export interface FormFooterProps {
-  onCancel: () => void
-  isLoading: boolean
-  styles?: FormFooterStyles
-  submitLabel?: string
-  submitDisabled?: boolean
+  onCancel: () => void;
+  isLoading: boolean;
+  styles?: FormFooterStyles;
+  submitLabel?: string;
+  submitDisabled?: boolean;
 }
 
 export const FormFooter: FC<FormFooterProps> = ({
@@ -50,8 +50,8 @@ export const FormFooter: FC<FormFooterProps> = ({
         {Language.cancelLabel}
       </Button>
     </div>
-  )
-}
+  );
+};
 
 const defaultStyles = makeStyles((theme) => ({
   footer: {
@@ -67,4 +67,4 @@ const defaultStyles = makeStyles((theme) => ({
   button: {
     width: "100%",
   },
-}))
+}));

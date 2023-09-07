@@ -1,24 +1,24 @@
-import { DeploymentOption } from "api/types"
+import { DeploymentOption } from "api/types";
 import {
   Badges,
   DisabledBadge,
   EnabledBadge,
   EnterpriseBadge,
-} from "components/DeploySettingsLayout/Badges"
-import { Header } from "components/DeploySettingsLayout/Header"
-import OptionsTable from "components/DeploySettingsLayout/OptionsTable"
-import { Stack } from "components/Stack/Stack"
+} from "components/DeploySettingsLayout/Badges";
+import { Header } from "components/DeploySettingsLayout/Header";
+import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
+import { Stack } from "components/Stack/Stack";
 import {
   deploymentGroupHasParent,
   useDeploymentOptions,
-} from "utils/deployOptions"
-import { docs } from "utils/docs"
+} from "utils/deployOptions";
+import { docs } from "utils/docs";
 
 export type SecuritySettingsPageViewProps = {
-  options: DeploymentOption[]
-  featureAuditLogEnabled: boolean
-  featureBrowserOnlyEnabled: boolean
-}
+  options: DeploymentOption[];
+  featureAuditLogEnabled: boolean;
+  featureBrowserOnlyEnabled: boolean;
+};
 export const SecuritySettingsPageView = ({
   options: options,
   featureAuditLogEnabled,
@@ -26,7 +26,7 @@ export const SecuritySettingsPageView = ({
 }: SecuritySettingsPageViewProps): JSX.Element => {
   const tlsOptions = options.filter((o) =>
     deploymentGroupHasParent(o.group, "TLS"),
-  )
+  );
 
   return (
     <>
@@ -88,5 +88,5 @@ export const SecuritySettingsPageView = ({
         )}
       </Stack>
     </>
-  )
-}
+  );
+};

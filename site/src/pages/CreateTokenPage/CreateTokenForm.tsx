@@ -1,34 +1,34 @@
-import { FC, useState, useEffect } from "react"
+import { FC, useState, useEffect } from "react";
 import {
   FormFields,
   FormSection,
   FormFooter,
   HorizontalForm,
-} from "components/Form/Form"
-import makeStyles from "@mui/styles/makeStyles"
-import { useTranslation } from "react-i18next"
-import { onChangeTrimmed, getFormHelpers } from "utils/formUtils"
-import TextField from "@mui/material/TextField"
-import MenuItem from "@mui/material/MenuItem"
+} from "components/Form/Form";
+import makeStyles from "@mui/styles/makeStyles";
+import { useTranslation } from "react-i18next";
+import { onChangeTrimmed, getFormHelpers } from "utils/formUtils";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import {
   NANO_HOUR,
   CreateTokenData,
   determineDefaultLtValue,
   filterByMaxTokenLifetime,
   customLifetimeDay,
-} from "./utils"
-import { FormikContextType } from "formik"
-import dayjs from "dayjs"
-import { useNavigate } from "react-router-dom"
-import { Stack } from "components/Stack/Stack"
+} from "./utils";
+import { FormikContextType } from "formik";
+import dayjs from "dayjs";
+import { useNavigate } from "react-router-dom";
+import { Stack } from "components/Stack/Stack";
 
 interface CreateTokenFormProps {
-  form: FormikContextType<CreateTokenData>
-  maxTokenLifetime?: number
-  formError: unknown
-  setFormError: (arg0: unknown) => void
-  isCreating: boolean
-  creationFailed: boolean
+  form: FormikContextType<CreateTokenData>;
+  maxTokenLifetime?: number;
+  formError: unknown;
+  setFormError: (arg0: unknown) => void;
+  isCreating: boolean;
+  creationFailed: boolean;
 }
 
 export const CreateTokenForm: FC<CreateTokenFormProps> = ({
@@ -39,25 +39,25 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
   isCreating,
   creationFailed,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("tokensPage")
-  const navigate = useNavigate()
+  const styles = useStyles();
+  const { t } = useTranslation("tokensPage");
+  const navigate = useNavigate();
 
-  const [expDays, setExpDays] = useState<number>(1)
+  const [expDays, setExpDays] = useState<number>(1);
   const [lifetimeDays, setLifetimeDays] = useState<number | string>(
     determineDefaultLtValue(maxTokenLifetime),
-  )
+  );
 
   useEffect(() => {
     if (lifetimeDays !== "custom") {
-      void form.setFieldValue("lifetime", lifetimeDays)
+      void form.setFieldValue("lifetime", lifetimeDays);
     } else {
-      void form.setFieldValue("lifetime", expDays)
+      void form.setFieldValue("lifetime", expDays);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- adding form will cause an infinite loop
-  }, [lifetimeDays, expDays])
+  }, [lifetimeDays, expDays]);
 
-  const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError)
+  const getFieldHelpers = getFormHelpers<CreateTokenData>(form, formError);
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit}>
@@ -97,7 +97,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
               required
               defaultValue={determineDefaultLtValue(maxTokenLifetime)}
               onChange={(event) => {
-                void setLifetimeDays(event.target.value)
+                void setLifetimeDays(event.target.value);
               }}
               fullWidth
             >
@@ -122,8 +122,8 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
                 onChange={(event) => {
                   const lt = Math.ceil(
                     dayjs(event.target.value).diff(dayjs(), "day", true),
-                  )
-                  setExpDays(lt)
+                  );
+                  setExpDays(lt);
                 }}
                 inputProps={{
                   min: dayjs().add(1, "day").format("YYYY-MM-DD"),
@@ -149,11 +149,11 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
         submitLabel={creationFailed ? "Retry" : "Create token"}
       />
     </HorizontalForm>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   formSectionInfo: {
     minWidth: "300px",
   },
-}))
+}));

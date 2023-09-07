@@ -1,12 +1,12 @@
-import { makeStyles } from "@mui/styles"
-import Tooltip from "@mui/material/Tooltip"
-import { useClickable } from "hooks/useClickable"
-import { useClipboard } from "hooks/useClipboard"
-import { FC, HTMLProps } from "react"
-import { combineClasses } from "utils/combineClasses"
+import { makeStyles } from "@mui/styles";
+import Tooltip from "@mui/material/Tooltip";
+import { useClickable } from "hooks/useClickable";
+import { useClipboard } from "hooks/useClipboard";
+import { FC, HTMLProps } from "react";
+import { combineClasses } from "utils/combineClasses";
 
 interface CopyableValueProps extends HTMLProps<HTMLDivElement> {
-  value: string
+  value: string;
 }
 
 export const CopyableValue: FC<CopyableValueProps> = ({
@@ -14,9 +14,9 @@ export const CopyableValue: FC<CopyableValueProps> = ({
   className,
   ...props
 }) => {
-  const { isCopied, copy } = useClipboard(value)
-  const clickableProps = useClickable(copy)
-  const styles = useStyles()
+  const { isCopied, copy } = useClipboard(value);
+  const clickableProps = useClickable(copy);
+  const styles = useStyles();
 
   return (
     <Tooltip
@@ -29,11 +29,11 @@ export const CopyableValue: FC<CopyableValueProps> = ({
         className={combineClasses([styles.value, className])}
       />
     </Tooltip>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   value: {
     cursor: "pointer",
   },
-}))
+}));

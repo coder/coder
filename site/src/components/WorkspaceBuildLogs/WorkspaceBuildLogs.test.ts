@@ -1,5 +1,5 @@
-import { ProvisionerJobLog } from "api/typesGenerated"
-import { groupLogsByStage } from "./WorkspaceBuildLogs"
+import { ProvisionerJobLog } from "api/typesGenerated";
+import { groupLogsByStage } from "./WorkspaceBuildLogs";
 
 describe("groupLogsByStage", () => {
   it("should group them by stage", () => {
@@ -28,10 +28,10 @@ describe("groupLogsByStage", () => {
         stage: "cleanup",
         output: "done",
       },
-    ]
+    ];
 
-    const actual = groupLogsByStage(input)
+    const actual = groupLogsByStage(input);
 
-    expect(actual["cleanup"].length).toBe(2)
-  })
-})
+    expect(actual["cleanup"].length).toBe(2);
+  });
+});

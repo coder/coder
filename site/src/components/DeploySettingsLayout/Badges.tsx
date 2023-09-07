@@ -1,92 +1,92 @@
-import { makeStyles } from "@mui/styles"
-import { Stack } from "components/Stack/Stack"
-import { PropsWithChildren, FC } from "react"
-import { MONOSPACE_FONT_FAMILY } from "theme/constants"
-import { combineClasses } from "utils/combineClasses"
-import Tooltip from "@mui/material/Tooltip"
+import { makeStyles } from "@mui/styles";
+import { Stack } from "components/Stack/Stack";
+import { PropsWithChildren, FC } from "react";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { combineClasses } from "utils/combineClasses";
+import Tooltip from "@mui/material/Tooltip";
 
 export const EnabledBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
       Enabled
     </span>
-  )
-}
+  );
+};
 
 export const EntitledBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
       Entitled
     </span>
-  )
-}
+  );
+};
 
 export const HealthyBadge: FC<{ derpOnly: boolean }> = ({ derpOnly }) => {
-  const styles = useStyles()
-  let text = "Healthy"
+  const styles = useStyles();
+  let text = "Healthy";
   if (derpOnly) {
-    text = "Healthy (DERP Only)"
+    text = "Healthy (DERP Only)";
   }
   return (
     <span className={combineClasses([styles.badge, styles.enabledBadge])}>
       {text}
     </span>
-  )
-}
+  );
+};
 
 export const NotHealthyBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <span className={combineClasses([styles.badge, styles.errorBadge])}>
       Unhealthy
     </span>
-  )
-}
+  );
+};
 
 export const NotRegisteredBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <Tooltip title="Workspace Proxy has never come online and needs to be started.">
       <span className={combineClasses([styles.badge, styles.warnBadge])}>
         Never Seen
       </span>
     </Tooltip>
-  )
-}
+  );
+};
 
 export const NotReachableBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <Tooltip title="Workspace Proxy not responding to http(s) requests.">
       <span className={combineClasses([styles.badge, styles.warnBadge])}>
         Not Dialable
       </span>
     </Tooltip>
-  )
-}
+  );
+};
 
 export const DisabledBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <span className={combineClasses([styles.badge, styles.disabledBadge])}>
       Disabled
     </span>
-  )
-}
+  );
+};
 
 export const EnterpriseBadge: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <span className={combineClasses([styles.badge, styles.enterpriseBadge])}>
       Enterprise
     </span>
-  )
-}
+  );
+};
 
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <Stack
       className={styles.badges}
@@ -96,8 +96,8 @@ export const Badges: FC<PropsWithChildren> = ({ children }) => {
     >
       {children}
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   badges: {
@@ -152,4 +152,4 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.divider}`,
     backgroundColor: theme.palette.background.paper,
   },
-}))
+}));

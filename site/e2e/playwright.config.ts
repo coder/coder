@@ -1,18 +1,18 @@
-import { defineConfig } from "@playwright/test"
-import path from "path"
-import { defaultPort, gitAuth } from "./constants"
+import { defineConfig } from "@playwright/test";
+import path from "path";
+import { defaultPort, gitAuth } from "./constants";
 
 export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
-  : defaultPort
+  : defaultPort;
 
-const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go")
+const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go");
 
-export const STORAGE_STATE = path.join(__dirname, ".auth.json")
+export const STORAGE_STATE = path.join(__dirname, ".auth.json");
 
 const localURL = (port: number, path: string): string => {
-  return `http://localhost:${port}${path}`
-}
+  return `http://localhost:${port}${path}`;
+};
 
 export default defineConfig({
   projects: [
@@ -92,4 +92,4 @@ export default defineConfig({
     },
     reuseExistingServer: false,
   },
-})
+});

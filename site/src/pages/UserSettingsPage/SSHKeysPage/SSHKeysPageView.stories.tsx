@@ -1,6 +1,6 @@
-import { Story } from "@storybook/react"
-import { mockApiError } from "testHelpers/entities"
-import { SSHKeysPageView, SSHKeysPageViewProps } from "./SSHKeysPageView"
+import { Story } from "@storybook/react";
+import { mockApiError } from "testHelpers/entities";
+import { SSHKeysPageView, SSHKeysPageViewProps } from "./SSHKeysPageView";
 
 export default {
   title: "components/SSHKeysPageView",
@@ -8,13 +8,13 @@ export default {
   argTypes: {
     onRegenerateClick: { action: "Submit" },
   },
-}
+};
 
 const Template: Story<SSHKeysPageViewProps> = (args: SSHKeysPageViewProps) => (
   <SSHKeysPageView {...args} />
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   isLoading: false,
   hasLoaded: true,
@@ -25,29 +25,29 @@ Example.args = {
     public_key: "SSH-Key",
   },
   onRegenerateClick: () => {
-    return Promise.resolve()
+    return Promise.resolve();
   },
-}
+};
 
-export const Loading = Template.bind({})
+export const Loading = Template.bind({});
 Loading.args = {
   ...Example.args,
   isLoading: true,
-}
+};
 
-export const WithGetSSHKeyError = Template.bind({})
+export const WithGetSSHKeyError = Template.bind({});
 WithGetSSHKeyError.args = {
   ...Example.args,
   hasLoaded: false,
   getSSHKeyError: mockApiError({
     message: "Failed to get SSH key",
   }),
-}
+};
 
-export const WithRegenerateSSHKeyError = Template.bind({})
+export const WithRegenerateSSHKeyError = Template.bind({});
 WithRegenerateSSHKeyError.args = {
   ...Example.args,
   regenerateSSHKeyError: mockApiError({
     message: "Failed to regenerate SSH key",
   }),
-}
+};

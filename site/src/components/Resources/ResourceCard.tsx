@@ -1,31 +1,31 @@
-import { makeStyles } from "@mui/styles"
-import { FC, useState } from "react"
-import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated"
-import { Stack } from "../Stack/Stack"
-import { ResourceAvatar } from "./ResourceAvatar"
-import { SensitiveValue } from "./SensitiveValue"
+import { makeStyles } from "@mui/styles";
+import { FC, useState } from "react";
+import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated";
+import { Stack } from "../Stack/Stack";
+import { ResourceAvatar } from "./ResourceAvatar";
+import { SensitiveValue } from "./SensitiveValue";
 import {
   OpenDropdown,
   CloseDropdown,
-} from "components/DropdownArrows/DropdownArrows"
-import IconButton from "@mui/material/IconButton"
-import Tooltip from "@mui/material/Tooltip"
-import { Maybe } from "components/Conditionals/Maybe"
-import { CopyableValue } from "components/CopyableValue/CopyableValue"
+} from "components/DropdownArrows/DropdownArrows";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import { Maybe } from "components/Conditionals/Maybe";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
 export interface ResourceCardProps {
-  resource: WorkspaceResource
-  agentRow: (agent: WorkspaceAgent) => JSX.Element
+  resource: WorkspaceResource;
+  agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
-    useState(false)
-  const styles = useStyles()
-  const metadataToDisplay = resource.metadata ?? []
+    useState(false);
+  const styles = useStyles();
+  const metadataToDisplay = resource.metadata ?? [];
   const visibleMetadata = shouldDisplayAllMetadata
     ? metadataToDisplay
-    : metadataToDisplay.slice(0, 4)
+    : metadataToDisplay.slice(0, 4);
 
   return (
     <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
@@ -75,7 +75,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
                     )}
                   </div>
                 </div>
-              )
+              );
             })}
           </div>
 
@@ -87,7 +87,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
             >
               <IconButton
                 onClick={() => {
-                  setShouldDisplayAllMetadata((value) => !value)
+                  setShouldDisplayAllMetadata((value) => !value);
                 }}
                 size="large"
               >
@@ -106,8 +106,8 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
         <div>{resource.agents.map(agentRow)}</div>
       )}
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   resourceCard: {
@@ -167,4 +167,4 @@ const useStyles = makeStyles((theme) => ({
     whiteSpace: "nowrap",
     ...theme.typography.body1,
   },
-}))
+}));

@@ -1,6 +1,6 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
+import CircularProgress from "@mui/material/CircularProgress";
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -14,14 +14,14 @@ export const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     background: theme.palette.background.default,
   },
-}))
+}));
 
 export const FullScreenLoader: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div className={styles.root} data-testid="loader">
       <CircularProgress />
     </div>
-  )
-}
+  );
+};

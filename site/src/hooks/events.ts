@@ -1,5 +1,5 @@
-import { useEffect } from "react"
-import { CustomEventListener } from "../utils/events"
+import { useEffect } from "react";
+import { CustomEventListener } from "../utils/events";
 
 /**
  * Handles a custom event with descriptive type information.
@@ -13,12 +13,12 @@ export const useCustomEvent = <T, E extends string = string>(
 ): void => {
   useEffect(() => {
     const handleEvent: CustomEventListener<T> = (event) => {
-      listener(event)
-    }
-    window.addEventListener(eventType, handleEvent as EventListener)
+      listener(event);
+    };
+    window.addEventListener(eventType, handleEvent as EventListener);
 
     return () => {
-      window.removeEventListener(eventType, handleEvent as EventListener)
-    }
-  }, [eventType, listener])
-}
+      window.removeEventListener(eventType, handleEvent as EventListener);
+    };
+  }, [eventType, listener]);
+};

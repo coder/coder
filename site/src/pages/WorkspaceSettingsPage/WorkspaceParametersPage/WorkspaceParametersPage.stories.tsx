@@ -1,9 +1,9 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   WorkspaceParametersPageView,
   WorkspaceParametersPageViewProps,
-} from "./WorkspaceParametersPage"
-import { action } from "@storybook/addon-actions"
+} from "./WorkspaceParametersPage";
+import { action } from "@storybook/addon-actions";
 import {
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
@@ -11,7 +11,7 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockWorkspaceBuildParameter3,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 
 export default {
   title: "pages/WorkspaceParametersPageView",
@@ -36,11 +36,11 @@ export default {
       ],
     },
   },
-} as ComponentMeta<typeof WorkspaceParametersPageView>
+} as ComponentMeta<typeof WorkspaceParametersPageView>;
 
 const Template: Story<WorkspaceParametersPageViewProps> = (args) => (
   <WorkspaceParametersPageView {...args} />
-)
+);
 
-export const Example = Template.bind({})
-Example.args = {}
+export const Example = Template.bind({});
+Example.args = {};

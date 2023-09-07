@@ -1,18 +1,18 @@
-import makeStyles from "@mui/styles/makeStyles"
-import TextField from "@mui/material/TextField"
-import { Maybe } from "components/Conditionals/Maybe"
-import { ChangeEvent, useState, PropsWithChildren, FC } from "react"
-import { useTranslation } from "react-i18next"
-import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog"
+import makeStyles from "@mui/styles/makeStyles";
+import TextField from "@mui/material/TextField";
+import { Maybe } from "components/Conditionals/Maybe";
+import { ChangeEvent, useState, PropsWithChildren, FC } from "react";
+import { useTranslation } from "react-i18next";
+import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 export interface DeleteDialogProps {
-  isOpen: boolean
-  onConfirm: () => void
-  onCancel: () => void
-  entity: string
-  name: string
-  info?: string
-  confirmLoading?: boolean
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+  entity: string;
+  name: string;
+  info?: string;
+  confirmLoading?: boolean;
 }
 
 export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
@@ -24,14 +24,14 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   name,
   confirmLoading,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("common")
-  const [nameValue, setNameValue] = useState("")
-  const confirmed = name === nameValue
+  const styles = useStyles();
+  const { t } = useTranslation("common");
+  const [nameValue, setNameValue] = useState("");
+  const confirmed = name === nameValue;
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setNameValue(event.target.value)
-  }
-  const hasError = nameValue.length > 0 && !confirmed
+    setNameValue(event.target.value);
+  };
+  const hasError = nameValue.length > 0 && !confirmed;
 
   const content = (
     <>
@@ -43,9 +43,9 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
 
       <form
         onSubmit={(e) => {
-          e.preventDefault()
+          e.preventDefault();
           if (confirmed) {
-            onConfirm()
+            onConfirm();
           }
         }}
       >
@@ -65,7 +65,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         />
       </form>
     </>
-  )
+  );
 
   return (
     <ConfirmDialog
@@ -79,8 +79,8 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       confirmLoading={confirmLoading}
       disabled={!confirmed}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   warning: {
@@ -90,4 +90,4 @@ const useStyles = makeStyles((theme) => ({
   textField: {
     marginTop: theme.spacing(3),
   },
-}))
+}));

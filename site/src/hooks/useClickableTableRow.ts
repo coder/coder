@@ -1,23 +1,23 @@
-import { makeStyles } from "@mui/styles"
-import { useClickable, UseClickableResult } from "./useClickable"
+import { makeStyles } from "@mui/styles";
+import { useClickable, UseClickableResult } from "./useClickable";
 
 interface UseClickableTableRowResult extends UseClickableResult {
-  className: string
-  hover: true
+  className: string;
+  hover: true;
 }
 
 export const useClickableTableRow = (
   onClick: () => void,
 ): UseClickableTableRowResult => {
-  const styles = useStyles()
-  const clickable = useClickable(onClick)
+  const styles = useStyles();
+  const clickable = useClickable(onClick);
 
   return {
     ...clickable,
     className: styles.row,
     hover: true,
-  }
-}
+  };
+};
 
 const useStyles = makeStyles((theme) => ({
   row: {
@@ -33,4 +33,4 @@ const useStyles = makeStyles((theme) => ({
       borderBottomRightRadius: theme.shape.borderRadius,
     },
   },
-}))
+}));

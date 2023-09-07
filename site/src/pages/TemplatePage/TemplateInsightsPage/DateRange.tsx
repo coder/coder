@@ -1,55 +1,57 @@
-import Box from "@mui/material/Box"
-import { styled } from "@mui/material/styles"
-import { ComponentProps, useRef, useState } from "react"
-import "react-date-range/dist/styles.css"
-import "react-date-range/dist/theme/default.css"
-import Button from "@mui/material/Button"
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import Popover from "@mui/material/Popover"
-import { DateRangePicker, createStaticRanges } from "react-date-range"
-import { format, subDays } from "date-fns"
+import Box from "@mui/material/Box";
+import { styled } from "@mui/material/styles";
+import { ComponentProps, useRef, useState } from "react";
+import "react-date-range/dist/styles.css";
+import "react-date-range/dist/theme/default.css";
+import Button from "@mui/material/Button";
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
+import Popover from "@mui/material/Popover";
+import { DateRangePicker, createStaticRanges } from "react-date-range";
+import { format, subDays } from "date-fns";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
   export function createStaticRanges(
     ranges: Omit<StaticRange, "isSelected">[],
-  ): StaticRange[]
+  ): StaticRange[];
 }
 
 export type DateRangeValue = {
-  startDate: Date
-  endDate: Date
-}
+  startDate: Date;
+  endDate: Date;
+};
 
-type RangesState = NonNullable<ComponentProps<typeof DateRangePicker>["ranges"]>
+type RangesState = NonNullable<
+  ComponentProps<typeof DateRangePicker>["ranges"]
+>;
 
 export const DateRange = ({
   value,
   onChange,
 }: {
-  value: DateRangeValue
-  onChange: (value: DateRangeValue) => void
+  value: DateRangeValue;
+  onChange: (value: DateRangeValue) => void;
 }) => {
-  const selectionStatusRef = useRef<"idle" | "selecting">("idle")
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
+  const selectionStatusRef = useRef<"idle" | "selecting">("idle");
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [ranges, setRanges] = useState<RangesState>([
     {
       ...value,
       key: "selection",
     },
-  ])
+  ]);
   const currentRange = {
     startDate: ranges[0].startDate as Date,
     endDate: ranges[0].endDate as Date,
-  }
+  };
   const handleClose = () => {
     onChange({
       startDate: currentRange.startDate,
       endDate: currentRange.endDate,
-    })
-    setIsOpen(false)
-  }
+    });
+    setIsOpen(false);
+  };
 
   return (
     <>
@@ -75,24 +77,24 @@ export const DateRange = ({
         <DateRangePickerWrapper
           component={DateRangePicker}
           onChange={(item) => {
-            const range = item.selection
-            setRanges([range])
+            const range = item.selection;
+            setRanges([range]);
 
             // When it is the first selection, we don't want to close the popover
             // We have to do that ourselves because the library doesn't provide a way to do it
             if (selectionStatusRef.current === "idle") {
-              selectionStatusRef.current = "selecting"
-              return
+              selectionStatusRef.current = "selecting";
+              return;
             }
 
-            selectionStatusRef.current = "idle"
-            const startDate = range.startDate as Date
-            const endDate = range.endDate as Date
+            selectionStatusRef.current = "idle";
+            const startDate = range.startDate as Date;
+            const endDate = range.endDate as Date;
             onChange({
               startDate,
               endDate,
-            })
-            setIsOpen(false)
+            });
+            setIsOpen(false);
           }}
           moveRangeOnFirstSelection={false}
           months={2}
@@ -139,8 +141,8 @@ export const DateRange = ({
         />
       </Popover>
     </>
-  )
-}
+  );
+};
 
 const DateRangePickerWrapper: typeof Box = styled(Box)(({ theme }) => ({
   "& .rdrDefinedRangesWrapper": {
@@ -231,4 +233,4 @@ const DateRangePickerWrapper: typeof Box = styled(Box)(({ theme }) => ({
       color: theme.palette.text.disabled,
     },
   },
-}))
+}));

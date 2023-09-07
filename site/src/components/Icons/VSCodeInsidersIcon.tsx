@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const VSCodeInsidersIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 256 256">
@@ -123,4 +123,4 @@ export const VSCodeInsidersIcon = (props: SvgIconProps) => (
       </defs>
     </svg>
   </SvgIcon>
-)
+);

@@ -2,7 +2,7 @@
 
 # This script builds a single Go binary of Coder with the given parameters.
 #
-# Usage: ./build_go.sh [--version 1.2.3-devel+abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim] [--agpl]
+# Usage: ./build_go.sh [--version 1.2.3-devel+abcdef] [--os linux] [--arch amd64] [--output path/to/output] [--slim] [--agpl] [--boringcrypto]
 #
 # Defaults to linux:amd64 with slim disabled, but can be controlled with GOOS,
 # GOARCH and CODER_SLIM_BUILD=1. If no version is specified, defaults to the
@@ -22,6 +22,9 @@
 #
 # If the --agpl parameter is specified, builds only the AGPL-licensed code (no
 # Coder enterprise features).
+#
+# If the --boringcrypto parameter is specified, builds use boringcrypto instead of
+# the standard go crypto libraries.
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -34,8 +37,9 @@ slim="${CODER_SLIM_BUILD:-0}"
 sign_darwin="${CODER_SIGN_DARWIN:-0}"
 output_path=""
 agpl="${CODER_BUILD_AGPL:-0}"
+boringcrypto=${CODER_BUILD_BORINGCRYPTO:-0}
 
-args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin -- "$@")"
+args="$(getopt -o "" -l version:,os:,arch:,output:,slim,agpl,sign-darwin,boringcrypto -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -66,6 +70,10 @@ while true; do
 		;;
 	--sign-darwin)
 		sign_darwin=1
+		shift
+		;;
+	--boringcrypto)
+		boringcrypto=1
 		shift
 		;;
 	--)
@@ -140,7 +148,15 @@ cmd_path="./enterprise/cmd/coder"
 if [[ "$agpl" == 1 ]]; then
 	cmd_path="./cmd/coder"
 fi
-CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
+
+cgo=0
+goexp=""
+if [[ "$boringcrypto" == 1 ]]; then
+	cgo=1
+	goexp="boringcrypto"
+fi
+
+GOEXPERIMENT="$goexp" CGO_ENABLED="$cgo" GOOS="$os" GOARCH="$arch" GOARM="$arm_version" go build \
 	"${build_args[@]}" \
 	"$cmd_path" 1>&2
 

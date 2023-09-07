@@ -1,17 +1,17 @@
-import { FC } from "react"
-import * as TypesGen from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
-import { Maybe } from "components/Conditionals/Maybe"
+import { FC } from "react";
+import * as TypesGen from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { Maybe } from "components/Conditionals/Maybe";
 
 export interface TemplateVersionWarningsProps {
-  warnings?: TypesGen.TemplateVersionWarning[]
+  warnings?: TypesGen.TemplateVersionWarning[];
 }
 
 export const TemplateVersionWarnings: FC<
   React.PropsWithChildren<TemplateVersionWarningsProps>
 > = ({ warnings }) => {
   if (!warnings) {
-    return <></>
+    return <></>;
   }
 
   return (
@@ -23,5 +23,5 @@ export const TemplateVersionWarnings: FC<
         </Alert>
       </div>
     </Maybe>
-  )
-}
+  );
+};

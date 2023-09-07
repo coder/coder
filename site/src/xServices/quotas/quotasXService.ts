@@ -1,12 +1,12 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import { WorkspaceQuota } from "../../api/typesGenerated"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import { WorkspaceQuota } from "../../api/typesGenerated";
 
 export type QuotaContext = {
-  username: string
-  quota?: WorkspaceQuota
-  getQuotaError?: unknown
-}
+  username: string;
+  quota?: WorkspaceQuota;
+  getQuotaError?: unknown;
+};
 
 export const quotaMachine = createMachine(
   {
@@ -60,4 +60,4 @@ export const quotaMachine = createMachine(
       getQuota: ({ username }) => API.getWorkspaceQuota(username),
     },
   },
-)
+);

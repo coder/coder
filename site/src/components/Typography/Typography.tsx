@@ -3,15 +3,15 @@
  * verbatim port from `@coder/ui`.
  */
 
-import { makeStyles } from "@mui/styles"
+import { makeStyles } from "@mui/styles";
 import MuiTypography, {
   TypographyProps as MuiTypographyProps,
-} from "@mui/material/Typography"
-import * as React from "react"
-import { appendCSSString, combineClasses } from "../../utils/combineClasses"
+} from "@mui/material/Typography";
+import * as React from "react";
+import { appendCSSString, combineClasses } from "../../utils/combineClasses";
 
 export interface TypographyProps extends MuiTypographyProps {
-  short?: boolean
+  short?: boolean;
 }
 
 /**
@@ -25,15 +25,15 @@ export const Typography: React.FC<TypographyProps> = ({
   short,
   ...rest
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
-  let classes = combineClasses({ [styles.short]: short })
+  let classes = combineClasses({ [styles.short]: short });
   if (className) {
-    classes = appendCSSString(classes ?? "", className)
+    classes = appendCSSString(classes ?? "", className);
   }
 
-  return <MuiTypography {...rest} className={classes} />
-}
+  return <MuiTypography {...rest} className={classes} />;
+};
 
 const useStyles = makeStyles({
   short: {
@@ -45,4 +45,4 @@ const useStyles = makeStyles({
       letterSpacing: 0.2,
     },
   },
-})
+});

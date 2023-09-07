@@ -3,37 +3,37 @@ import {
   getTemplateVersion,
   getTemplateVersionVariables,
   updateActiveTemplateVersion,
-} from "api/api"
+} from "api/api";
 import {
   CreateTemplateVersionRequest,
   Template,
   TemplateVersion,
   TemplateVersionVariable,
-} from "api/typesGenerated"
-import { assign, createMachine } from "xstate"
-import { delay } from "utils/delay"
-import { Message } from "api/types"
+} from "api/typesGenerated";
+import { assign, createMachine } from "xstate";
+import { delay } from "utils/delay";
+import { Message } from "api/types";
 
 type TemplateVariablesContext = {
-  organizationId: string
+  organizationId: string;
 
-  template: Template
-  activeTemplateVersion?: TemplateVersion
-  templateVariables?: TemplateVersionVariable[]
+  template: Template;
+  activeTemplateVersion?: TemplateVersion;
+  templateVariables?: TemplateVersionVariable[];
 
-  createTemplateVersionRequest?: CreateTemplateVersionRequest
-  newTemplateVersion?: TemplateVersion
+  createTemplateVersionRequest?: CreateTemplateVersionRequest;
+  newTemplateVersion?: TemplateVersion;
 
-  getTemplateDataError?: unknown
-  updateTemplateError?: unknown
+  getTemplateDataError?: unknown;
+  updateTemplateError?: unknown;
 
-  jobError?: TemplateVersion["job"]["error"]
-}
+  jobError?: TemplateVersion["job"]["error"];
+};
 
 type UpdateTemplateEvent = {
-  type: "UPDATE_TEMPLATE_EVENT"
-  request: CreateTemplateVersionRequest
-}
+  type: "UPDATE_TEMPLATE_EVENT";
+  request: CreateTemplateVersionRequest;
+};
 
 export const templateVariablesMachine = createMachine(
   {
@@ -45,20 +45,20 @@ export const templateVariablesMachine = createMachine(
       events: {} as UpdateTemplateEvent,
       services: {} as {
         getActiveTemplateVersion: {
-          data: TemplateVersion
-        }
+          data: TemplateVersion;
+        };
         getTemplateVariables: {
-          data: TemplateVersionVariable[]
-        }
+          data: TemplateVersionVariable[];
+        };
         createNewTemplateVersion: {
-          data: TemplateVersion
-        }
+          data: TemplateVersion;
+        };
         waitForJobToBeCompleted: {
-          data: TemplateVersion
-        }
+          data: TemplateVersion;
+        };
         updateTemplate: {
-          data: Message
-        }
+          data: Message;
+        };
       },
     },
     initial: "gettingActiveTemplateVersion",
@@ -163,44 +163,44 @@ export const templateVariablesMachine = createMachine(
   {
     services: {
       getActiveTemplateVersion: ({ template }) => {
-        return getTemplateVersion(template.active_version_id)
+        return getTemplateVersion(template.active_version_id);
       },
       getTemplateVariables: ({ template }) => {
-        return getTemplateVersionVariables(template.active_version_id)
+        return getTemplateVersionVariables(template.active_version_id);
       },
       createNewTemplateVersion: ({
         organizationId,
         createTemplateVersionRequest,
       }) => {
         if (!createTemplateVersionRequest) {
-          throw new Error("Missing request body")
+          throw new Error("Missing request body");
         }
         return createTemplateVersion(
           organizationId,
           createTemplateVersionRequest,
-        )
+        );
       },
       waitForJobToBeCompleted: async ({ newTemplateVersion }) => {
         if (!newTemplateVersion) {
-          throw new Error("Template version is undefined")
+          throw new Error("Template version is undefined");
         }
 
-        let status = newTemplateVersion.job.status
+        let status = newTemplateVersion.job.status;
         while (["pending", "running"].includes(status)) {
-          newTemplateVersion = await getTemplateVersion(newTemplateVersion.id)
-          status = newTemplateVersion.job.status
-          await delay(2_000)
+          newTemplateVersion = await getTemplateVersion(newTemplateVersion.id);
+          status = newTemplateVersion.job.status;
+          await delay(2_000);
         }
-        return newTemplateVersion
+        return newTemplateVersion;
       },
       updateTemplate: ({ template, newTemplateVersion }) => {
         if (!newTemplateVersion) {
-          throw new Error("New template version is undefined")
+          throw new Error("New template version is undefined");
         }
 
         return updateActiveTemplateVersion(template.id, {
           id: newTemplateVersion.id,
-        })
+        });
       },
     },
     actions: {
@@ -237,8 +237,8 @@ export const templateVariablesMachine = createMachine(
     },
     guards: {
       hasJobError: (_, { data }) => {
-        return Boolean(data.job.error)
+        return Boolean(data.job.error);
       },
     },
   },
-)
+);

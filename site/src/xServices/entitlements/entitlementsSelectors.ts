@@ -1,4 +1,4 @@
-import { Entitlements, Feature, FeatureName } from "api/typesGenerated"
+import { Entitlements, Feature, FeatureName } from "api/typesGenerated";
 
 /**
  * @param hasLicense true if Enterprise edition
@@ -11,19 +11,19 @@ export const getFeatureVisibility = (
 ): Record<string, boolean> => {
   if (hasLicense) {
     const permissionPairs = Object.keys(features).map((feature) => {
-      const { entitlement, limit, actual, enabled } = features[feature]
-      const entitled = ["entitled", "grace_period"].includes(entitlement)
-      const limitCompliant = limit && actual ? limit >= actual : true
-      return [feature, entitled && limitCompliant && enabled]
-    })
-    return Object.fromEntries(permissionPairs)
+      const { entitlement, limit, actual, enabled } = features[feature];
+      const entitled = ["entitled", "grace_period"].includes(entitlement);
+      const limitCompliant = limit && actual ? limit >= actual : true;
+      return [feature, entitled && limitCompliant && enabled];
+    });
+    return Object.fromEntries(permissionPairs);
   } else {
-    return {}
+    return {};
   }
-}
+};
 
 export const selectFeatureVisibility = (
   entitlements: Entitlements,
 ): Record<FeatureName, boolean> => {
-  return getFeatureVisibility(entitlements.has_license, entitlements.features)
-}
+  return getFeatureVisibility(entitlements.has_license, entitlements.features);
+};

@@ -1,33 +1,33 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import EditIcon from "@mui/icons-material/Edit"
-import { Loader } from "components/Loader/Loader"
-import { Margins } from "components/Margins/Margins"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import EditIcon from "@mui/icons-material/Edit";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderCaption,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { Stats, StatsItem } from "components/Stats/Stats"
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles"
-import { UseTabResult } from "hooks/useTab"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "utils/createDayString"
-import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { Stats, StatsItem } from "components/Stats/Stats";
+import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
+import { UseTabResult } from "hooks/useTab";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import { Link as RouterLink } from "react-router-dom";
+import { createDayString } from "utils/createDayString";
+import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface TemplateVersionPageViewProps {
   /**
    * Used to display the version name before loading the version in the API
    */
-  versionName: string
-  templateName: string
-  tab: UseTabResult
-  context: TemplateVersionMachineContext
+  versionName: string;
+  templateName: string;
+  tab: UseTabResult;
+  context: TemplateVersionMachineContext;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
@@ -36,8 +36,8 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   versionName,
   templateName,
 }) => {
-  const { currentFiles, error, currentVersion, previousFiles } = context
-  const { t } = useTranslation("templateVersionPage")
+  const { currentFiles, error, currentVersion, previousFiles } = context;
+  const { t } = useTranslation("templateVersionPage");
 
   return (
     <Margins>
@@ -94,7 +94,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         )}
       </Stack>
     </Margins>
-  )
-}
+  );
+};
 
-export default TemplateVersionPageView
+export default TemplateVersionPageView;

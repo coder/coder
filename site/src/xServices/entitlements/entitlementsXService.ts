@@ -1,11 +1,11 @@
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import { Entitlements } from "../../api/typesGenerated"
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import { Entitlements } from "../../api/typesGenerated";
 
 export type EntitlementsContext = {
-  entitlements?: Entitlements
-  getEntitlementsError?: unknown
-}
+  entitlements?: Entitlements;
+  getEntitlementsError?: unknown;
+};
 
 export const entitlementsMachine = createMachine(
   {
@@ -74,7 +74,7 @@ export const entitlementsMachine = createMachine(
       }),
       assignGetEntitlementsError: assign({
         getEntitlementsError: (_, event) => {
-          return event.data
+          return event.data;
         },
       }),
       clearGetEntitlementsError: assign({
@@ -83,24 +83,24 @@ export const entitlementsMachine = createMachine(
     },
     services: {
       refreshEntitlements: async () => {
-        return API.refreshEntitlements()
+        return API.refreshEntitlements();
       },
       getEntitlements: async () => {
         // Entitlements is injected by the Coder server into the HTML document.
         const entitlements = document.querySelector(
           "meta[property=entitlements]",
-        )
+        );
         if (entitlements) {
-          const rawContent = entitlements.getAttribute("content")
+          const rawContent = entitlements.getAttribute("content");
           try {
-            return JSON.parse(rawContent as string)
+            return JSON.parse(rawContent as string);
           } catch (ex) {
             // Ignore this and fetch as normal!
           }
         }
 
-        return API.getEntitlements()
+        return API.getEntitlements();
       },
     },
   },
-)
+);

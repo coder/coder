@@ -1,15 +1,15 @@
-import { assign, createMachine } from "xstate"
-import * as API from "api/api"
-import { UpdateUserPasswordRequest } from "api/typesGenerated"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { t } from "i18next"
+import { assign, createMachine } from "xstate";
+import * as API from "api/api";
+import { UpdateUserPasswordRequest } from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { t } from "i18next";
 
 interface Context {
-  userId: string
-  error?: unknown
+  userId: string;
+  error?: unknown;
 }
 
-type Events = { type: "UPDATE_SECURITY"; data: UpdateUserPasswordRequest }
+type Events = { type: "UPDATE_SECURITY"; data: UpdateUserPasswordRequest };
 
 export const userSecuritySettingsMachine = createMachine(
   {
@@ -61,14 +61,14 @@ export const userSecuritySettingsMachine = createMachine(
       notifyUpdate: () => {
         displaySuccess(
           t("securityUpdateSuccessMessage", { ns: "userSettingsPage" }),
-        )
+        );
       },
       assignError: assign({
         error: (_, event) => event.data,
       }),
       redirectToHome: () => {
-        window.location.href = location.origin
+        window.location.href = location.origin;
       },
     },
   },
-)
+);

@@ -1,10 +1,10 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { Margins } from "./Margins"
+import { ComponentMeta, Story } from "@storybook/react";
+import { Margins } from "./Margins";
 
 export default {
   title: "components/Margins",
   component: Margins,
-} as ComponentMeta<typeof Margins>
+} as ComponentMeta<typeof Margins>;
 
 const Template: Story = (args) => (
   <Margins {...args}>
@@ -12,6 +12,6 @@ const Template: Story = (args) => (
       Here is some content that will not get too wide!
     </div>
   </Margins>
-)
+);
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});

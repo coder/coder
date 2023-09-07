@@ -1,27 +1,27 @@
-import OpenInNewIcon from "@mui/icons-material/OpenInNew"
-import RefreshIcon from "@mui/icons-material/Refresh"
-import CircularProgress from "@mui/material/CircularProgress"
-import Link from "@mui/material/Link"
-import Tooltip from "@mui/material/Tooltip"
-import { makeStyles } from "@mui/styles"
-import { ApiErrorResponse } from "api/errors"
-import { GitAuth, GitAuthDevice } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
-import { Avatar } from "components/Avatar/Avatar"
-import { CopyButton } from "components/CopyButton/CopyButton"
-import { SignInLayout } from "components/SignInLayout/SignInLayout"
-import { Welcome } from "components/Welcome/Welcome"
-import { FC, useEffect } from "react"
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth"
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import CircularProgress from "@mui/material/CircularProgress";
+import Link from "@mui/material/Link";
+import Tooltip from "@mui/material/Tooltip";
+import { makeStyles } from "@mui/styles";
+import { ApiErrorResponse } from "api/errors";
+import { GitAuth, GitAuthDevice } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { Avatar } from "components/Avatar/Avatar";
+import { CopyButton } from "components/CopyButton/CopyButton";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
+import { FC, useEffect } from "react";
+import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
 
 export interface GitAuthPageViewProps {
-  gitAuth: GitAuth
-  viewGitAuthConfig: boolean
+  gitAuth: GitAuth;
+  viewGitAuthConfig: boolean;
 
-  gitAuthDevice?: GitAuthDevice
-  deviceExchangeError?: ApiErrorResponse
+  gitAuthDevice?: GitAuthDevice;
+  deviceExchangeError?: ApiErrorResponse;
 
-  onReauthenticate: () => void
+  onReauthenticate: () => void;
 }
 
 const GitAuthPageView: FC<GitAuthPageViewProps> = ({
@@ -31,19 +31,19 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
   onReauthenticate,
   viewGitAuthConfig,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   useEffect(() => {
     if (!gitAuth.authenticated) {
-      return
+      return;
     }
     // This is used to notify the parent window that the Git auth token has been refreshed.
     // It's critical in the create workspace flow!
     // eslint-disable-next-line compat/compat -- It actually is supported... not sure why it's complaining.
-    const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL)
+    const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL);
     // The message doesn't matter, any message refreshes the page!
-    bc.postMessage("noop")
-  }, [gitAuth.authenticated])
+    bc.postMessage("noop");
+  }, [gitAuth.authenticated]);
 
   if (!gitAuth.authenticated) {
     return (
@@ -57,19 +57,19 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
           />
         )}
       </SignInLayout>
-    )
+    );
   }
 
-  const hasInstallations = gitAuth.installations.length > 0
+  const hasInstallations = gitAuth.installations.length > 0;
 
   // We only want to wrap this with a link if an install URL is available!
-  let installTheApp: JSX.Element = <>{`install the ${gitAuth.type} App`}</>
+  let installTheApp: JSX.Element = <>{`install the ${gitAuth.type} App`}</>;
   if (gitAuth.app_install_url) {
     installTheApp = (
       <Link href={gitAuth.app_install_url} target="_blank" rel="noreferrer">
         {installTheApp}
       </Link>
-    )
+    );
   }
 
   return (
@@ -85,7 +85,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
         <div className={styles.authorizedInstalls}>
           {gitAuth.installations.map((install) => {
             if (!install.account) {
-              return
+              return;
             }
             return (
               <Tooltip key={install.id} title={install.account.login}>
@@ -103,7 +103,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
                   </Avatar>
                 </Link>
               </Tooltip>
-            )
+            );
           })}
           &nbsp;
           {gitAuth.installations.length} organization
@@ -138,58 +138,58 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
           className={styles.link}
           href="#"
           onClick={() => {
-            onReauthenticate()
+            onReauthenticate();
           }}
         >
           <RefreshIcon /> Reauthenticate
         </Link>
       </div>
     </SignInLayout>
-  )
-}
+  );
+};
 
 const GitDeviceAuth: FC<{
-  gitAuthDevice?: GitAuthDevice
-  deviceExchangeError?: ApiErrorResponse
+  gitAuthDevice?: GitAuthDevice;
+  deviceExchangeError?: ApiErrorResponse;
 }> = ({ gitAuthDevice, deviceExchangeError }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   let status = (
     <p className={styles.status}>
       <CircularProgress size={16} color="secondary" data-chromatic="ignore" />
       Checking for authentication...
     </p>
-  )
+  );
   if (deviceExchangeError) {
     // See https://datatracker.ietf.org/doc/html/rfc8628#section-3.5
     switch (deviceExchangeError.detail) {
       case "authorization_pending":
-        break
+        break;
       case "expired_token":
         status = (
           <Alert severity="error">
             The one-time code has expired. Refresh to get a new one!
           </Alert>
-        )
-        break
+        );
+        break;
       case "access_denied":
         status = (
           <Alert severity="error">Access to the Git provider was denied.</Alert>
-        )
-        break
+        );
+        break;
       default:
         status = (
           <Alert severity="error">
             An unknown error occurred. Please try again:{" "}
             {deviceExchangeError.message}
           </Alert>
-        )
-        break
+        );
+        break;
     }
   }
 
   if (!gitAuthDevice) {
-    return <CircularProgress />
+    return <CircularProgress />;
   }
 
   return (
@@ -217,10 +217,10 @@ const GitDeviceAuth: FC<{
 
       {status}
     </div>
-  )
-}
+  );
+};
 
-export default GitAuthPageView
+export default GitAuthPageView;
 
 const useStyles = makeStyles((theme) => ({
   text: {
@@ -274,4 +274,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.disabled,
     margin: theme.spacing(4),
   },
-}))
+}));

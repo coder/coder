@@ -1,9 +1,9 @@
-import { forwardRef } from "react"
+import { forwardRef } from "react";
 import MuiLoadingButton, {
   LoadingButtonProps as MuiLoadingButtonProps,
-} from "@mui/lab/LoadingButton"
+} from "@mui/lab/LoadingButton";
 
-export type LoadingButtonProps = MuiLoadingButtonProps
+export type LoadingButtonProps = MuiLoadingButtonProps;
 
 export const LoadingButton = forwardRef<
   HTMLButtonElement,
@@ -21,5 +21,5 @@ export const LoadingButton = forwardRef<
         {buttonProps.loading && loadingIndicator ? loadingIndicator : children}
       </span>
     </MuiLoadingButton>
-  )
-})
+  );
+});

@@ -1,23 +1,23 @@
-import { Maybe } from "components/Conditionals/Maybe"
-import { StatsItem } from "components/Stats/Stats"
-import Link from "@mui/material/Link"
-import { Link as RouterLink } from "react-router-dom"
-import styled from "@emotion/styled"
-import { Workspace } from "api/typesGenerated"
-import { displayImpendingDeletion } from "./utils"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { Maybe } from "components/Conditionals/Maybe";
+import { StatsItem } from "components/Stats/Stats";
+import Link from "@mui/material/Link";
+import { Link as RouterLink } from "react-router-dom";
+import styled from "@emotion/styled";
+import { Workspace } from "api/typesGenerated";
+import { displayImpendingDeletion } from "./utils";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 export const ImpendingDeletionStat = ({
   workspace,
 }: {
-  workspace: Workspace
+  workspace: Workspace;
 }): JSX.Element => {
-  const { entitlements, experiments } = useDashboard()
+  const { entitlements, experiments } = useDashboard();
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
+    entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
+  const allowWorkspaceActions = experiments.includes("workspace_actions");
 
   return (
     <Maybe
@@ -42,8 +42,8 @@ export const ImpendingDeletionStat = ({
         }
       />
     </Maybe>
-  )
-}
+  );
+};
 
 const StyledStatsItem = styled(StatsItem)(() => ({
   "&.containerClass": {
@@ -56,4 +56,4 @@ const StyledStatsItem = styled(StatsItem)(() => ({
       fontWeight: 500,
     },
   },
-}))
+}));

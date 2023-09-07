@@ -125,7 +125,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hashicorp/hc-install v0.6.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
-	github.com/hashicorp/terraform-json v0.17.0
+	github.com/hashicorp/terraform-json v0.17.2-0.20230905102422-cd7b46b136bb
 	github.com/hashicorp/yamux v0.1.1
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
@@ -172,22 +172,23 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.2.1
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.12.0
+	golang.org/x/crypto v0.13.0
 	golang.org/x/exp v0.0.0-20230801115018-d63ba01acd4b
 	golang.org/x/mod v0.12.0
-	golang.org/x/net v0.14.0
-	golang.org/x/oauth2 v0.11.0
+	golang.org/x/net v0.15.0
+	golang.org/x/oauth2 v0.12.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.12.0
 	golang.org/x/term v0.12.0
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.12.0
+	golang.org/x/tools v0.13.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
 	google.golang.org/api v0.138.0
 	google.golang.org/grpc v1.57.0
 	google.golang.org/protobuf v1.31.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f
@@ -196,10 +197,7 @@ require (
 	tailscale.com v1.46.1
 )
 
-require (
-	github.com/djherbis/times v1.5.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
-)
+require github.com/djherbis/times v1.5.0
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
@@ -227,6 +225,7 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.20.0 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.18.32 // indirect
@@ -391,7 +390,7 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/yuin/goldmark v1.5.6 // indirect
 	github.com/yuin/goldmark-emoji v1.0.1 // indirect
-	github.com/zclconf/go-cty v1.13.2 // indirect
+	github.com/zclconf/go-cty v1.14.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.17.0 // indirect

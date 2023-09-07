@@ -2036,6 +2036,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
+    "external_token_encryption_keys": ["string"],
     "git_auth": {
       "value": [
         {
@@ -2400,6 +2401,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "enable_terraform_debug_mode": true,
   "experiments": ["string"],
+  "external_token_encryption_keys": ["string"],
   "git_auth": {
     "value": [
       {
@@ -2613,6 +2615,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `docs_url`                           | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
+| `external_token_encryption_keys`     | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |

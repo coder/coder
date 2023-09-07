@@ -1,13 +1,13 @@
-import { useMe } from "hooks"
-import { BaseOption } from "./options"
-import { getUsers } from "api/api"
-import { UseFilterMenuOptions, useFilterMenu } from "./menu"
-import { FilterSearchMenu, OptionItem } from "./filter"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
+import { useMe } from "hooks";
+import { BaseOption } from "./options";
+import { getUsers } from "api/api";
+import { UseFilterMenuOptions, useFilterMenu } from "./menu";
+import { FilterSearchMenu, OptionItem } from "./filter";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export type UserOption = BaseOption & {
-  avatarUrl?: string
-}
+  avatarUrl?: string;
+};
 
 export const useUserFilterMenu = ({
   value,
@@ -17,15 +17,15 @@ export const useUserFilterMenu = ({
   UseFilterMenuOptions<UserOption>,
   "value" | "onChange" | "enabled"
 >) => {
-  const me = useMe()
+  const me = useMe();
 
   const addMeAsFirstOption = (options: UserOption[]) => {
-    options = options.filter((option) => option.value !== me.username)
+    options = options.filter((option) => option.value !== me.username);
     return [
       { label: me.username, value: me.username, avatarUrl: me.avatar_url },
       ...options,
-    ]
-  }
+    ];
+  };
 
   return useFilterMenu({
     onChange,
@@ -38,34 +38,34 @@ export const useUserFilterMenu = ({
           label: me.username,
           value: me.username,
           avatarUrl: me.avatar_url,
-        }
+        };
       }
 
-      const usersRes = await getUsers({ q: value, limit: 1 })
-      const firstUser = usersRes.users.at(0)
+      const usersRes = await getUsers({ q: value, limit: 1 });
+      const firstUser = usersRes.users.at(0);
       if (firstUser && firstUser.username === value) {
         return {
           label: firstUser.username,
           value: firstUser.username,
           avatarUrl: firstUser.avatar_url,
-        }
+        };
       }
-      return null
+      return null;
     },
     getOptions: async (query) => {
-      const usersRes = await getUsers({ q: query, limit: 25 })
+      const usersRes = await getUsers({ q: query, limit: 25 });
       let options: UserOption[] = usersRes.users.map((user) => ({
         label: user.username,
         value: user.username,
         avatarUrl: user.avatar_url,
-      }))
-      options = addMeAsFirstOption(options)
-      return options
+      }));
+      options = addMeAsFirstOption(options);
+      return options;
     },
-  })
-}
+  });
+};
 
-export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>
+export type UserFilterMenu = ReturnType<typeof useUserFilterMenu>;
 
 export const UserMenu = (menu: UserFilterMenu) => {
   return (
@@ -82,15 +82,15 @@ export const UserMenu = (menu: UserFilterMenu) => {
     >
       {(itemProps) => <UserOptionItem {...itemProps} />}
     </FilterSearchMenu>
-  )
-}
+  );
+};
 
 const UserOptionItem = ({
   option,
   isSelected,
 }: {
-  option: UserOption
-  isSelected?: boolean
+  option: UserOption;
+  isSelected?: boolean;
 }) => {
   return (
     <OptionItem
@@ -104,5 +104,5 @@ const UserOptionItem = ({
         />
       }
     />
-  )
-}
+  );
+};

@@ -1,14 +1,14 @@
-import { Permissions } from "xServices/auth/authXService"
-import { assign, createMachine } from "xstate"
-import * as API from "../../api/api"
-import * as TypesGen from "../../api/typesGenerated"
+import { Permissions } from "xServices/auth/authXService";
+import { assign, createMachine } from "xstate";
+import * as API from "../../api/api";
+import * as TypesGen from "../../api/typesGenerated";
 
 export interface TemplatesContext {
-  organizationId: string
-  permissions: Permissions
-  templates?: TypesGen.Template[]
-  examples?: TypesGen.TemplateExample[]
-  error?: unknown
+  organizationId: string;
+  permissions: Permissions;
+  templates?: TypesGen.Template[];
+  examples?: TypesGen.TemplateExample[];
+  error?: unknown;
 }
 
 export const templatesMachine = createMachine(
@@ -21,10 +21,10 @@ export const templatesMachine = createMachine(
       services: {} as {
         load: {
           data: {
-            templates: TypesGen.Template[]
-            examples: TypesGen.TemplateExample[]
-          }
-        }
+            templates: TypesGen.Template[];
+            examples: TypesGen.TemplateExample[];
+          };
+        };
       },
     },
     initial: "loading",
@@ -65,13 +65,13 @@ export const templatesMachine = createMachine(
           permissions.createTemplates
             ? API.getTemplateExamples(organizationId)
             : Promise.resolve([]),
-        ])
+        ]);
 
         return {
           templates,
           examples,
-        }
+        };
       },
     },
   },
-)
+);
