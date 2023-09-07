@@ -125,7 +125,7 @@ require (
 	github.com/hashicorp/golang-lru/v2 v2.0.1
 	github.com/hashicorp/hc-install v0.6.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
-	github.com/hashicorp/terraform-json v0.17.1
+	github.com/hashicorp/terraform-json v0.17.2-0.20230905102422-cd7b46b136bb
 	github.com/hashicorp/yamux v0.1.1
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
@@ -223,6 +223,7 @@ require (
 	github.com/alexbrainman/sspi v0.0.0-20210105120005-909beea2cc74 // indirect
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be // indirect
 	github.com/apparentlymart/go-textseg/v13 v13.0.0 // indirect
+	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.20.0 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.18.32 // indirect
@@ -387,7 +388,7 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/yuin/goldmark v1.5.6 // indirect
 	github.com/yuin/goldmark-emoji v1.0.1 // indirect
-	github.com/zclconf/go-cty v1.13.2 // indirect
+	github.com/zclconf/go-cty v1.14.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/otel/metric v1.17.0 // indirect
