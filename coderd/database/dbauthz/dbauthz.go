@@ -768,7 +768,10 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 }
 
 func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return database.DeleteTailnetClientSubscriptionRow{}, err
+	}
+	return q.db.DeleteTailnetClientSubscription(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2783,7 +2786,10 @@ func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTa
 }
 
 func (q *querier) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.UpsertTailnetClientSubscription(ctx, arg)
 }
 
 func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {

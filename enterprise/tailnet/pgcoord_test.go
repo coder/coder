@@ -646,7 +646,7 @@ type testConn struct {
 func newTestConn(ids []uuid.UUID) *testConn {
 	a := &testConn{}
 	a.ws, a.serverWS = net.Pipe()
-	a.nodeChan = make(chan []*agpl.Node, 5)
+	a.nodeChan = make(chan []*agpl.Node)
 	a.sendNode, a.errChan = agpl.ServeCoordinator(a.ws, func(nodes []*agpl.Node) error {
 		a.nodeChan <- nodes
 		return nil

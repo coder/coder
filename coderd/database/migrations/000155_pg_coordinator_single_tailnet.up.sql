@@ -1,13 +1,13 @@
 BEGIN;
 
 CREATE TABLE tailnet_client_subscriptions (
-    client_id uuid NOT NULL,
+	client_id uuid NOT NULL,
 	coordinator_id uuid NOT NULL,
 	-- this isn't a foreign key since it's more of a list of agents the client
 	-- *wants* to connect to, and they don't necessarily have to currently
 	-- exist in the db.
-    agent_id uuid NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
+	agent_id uuid NOT NULL,
+	updated_at timestamp with time zone NOT NULL,
 	PRIMARY KEY (client_id, coordinator_id, agent_id),
 	FOREIGN KEY (coordinator_id)  REFERENCES tailnet_coordinators (id) ON DELETE CASCADE
 	-- we don't keep a foreign key to the tailnet_clients table since there's
@@ -23,8 +23,7 @@ BEGIN
 	IF (NEW IS NOT NULL) THEN
 		PERFORM pg_notify('tailnet_client_update', NEW.client_id || ',' || NEW.agent_id);
 		RETURN NULL;
-	END IF;
-	IF (OLD IS NOT NULL) THEN
+	ELSIF (OLD IS NOT NULL) THEN
 		PERFORM pg_notify('tailnet_client_update', OLD.client_id || ',' || OLD.agent_id);
 		RETURN NULL;
 	END IF;
@@ -44,10 +43,6 @@ DECLARE
 	var_agent_ids uuid[];
 BEGIN
 	IF (NEW.id IS NOT NULL) THEN
-		IF (NEW.node IS NULL) THEN
-			return NULL;
-		END IF;
-
 		var_client_id = NEW.id;
 		SELECT
 			array_agg(agent_id)
@@ -60,6 +55,7 @@ BEGIN
 			subs.coordinator_id = NEW.coordinator_id;
 	ELSIF (OLD.id IS NOT NULL) THEN
 		-- if new is null and old is not null, that means the row was deleted.
+		-- simulate a foreign key by deleting all of the subscriptions.
 		var_client_id = OLD.id;
 		WITH agent_ids AS (
 			DELETE FROM

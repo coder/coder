@@ -909,13 +909,8 @@ func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetC
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.DeleteTailnetClientSubscriptionRow{}, err
-	}
-
-	panic("not implemented")
+func (*FakeQuerier) DeleteTailnetClientSubscription(context.Context, database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
+	return database.DeleteTailnetClientSubscriptionRow{}, ErrUnimplemented
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
