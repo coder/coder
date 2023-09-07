@@ -6,6 +6,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -157,7 +158,9 @@ func diffFileSystem(t *testing.T, fs afero.Fs) {
 	}
 
 	want, err := os.ReadFile(goldenFile)
-	want = bytes.ReplaceAll(want, []byte{'\r', '\n'}, []byte{'\n'}) // fix for Windows
+	if runtime.GOOS == "windows" {
+		want = bytes.ReplaceAll(want, []byte("\r\n"), []byte("\n"))
+	}
 	require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
 	assert.Empty(t, cmp.Diff(want, actual), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
 }
@@ -165,6 +168,7 @@ func diffFileSystem(t *testing.T, fs afero.Fs) {
 func dumpFileSystem(t *testing.T, fs afero.Fs) []byte {
 	var buffer bytes.Buffer
 	err := afero.Walk(fs, "/", func(path string, info os.FileInfo, err error) error {
+		path = strings.ReplaceAll(path, "\\", "/") // fix for Windows
 		_, _ = buffer.WriteString(path)
 		_ = buffer.WriteByte(' ')
 		if info.IsDir() {
