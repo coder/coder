@@ -37,8 +37,8 @@ Additional database fields may be encrypted in the future.
 > Encryption keys in use are stored in `dbcrypt_keys`. This table stores a
 > record of all encryption keys that have been used to encrypt data. Active keys
 > have a null `revoked_key_id` column, and revoked keys have a non-null
-> `revoked_key_id` column. A key cannot be revoked until all rows referring to
-> it have been re-encrypted with a different key.
+> `revoked_key_id` column. You cannot revoke a key until you have rotated all
+> values using that key to a new key.
 
 ## Enabling encryption
 
@@ -74,6 +74,9 @@ coder:
           key: keys
 ```
 
+1. Restart the Coder server. The server will now encrypt all new data with the
+   provided key.
+
 ## Rotating keys
 
 We recommend only having one active encryption key at a time normally. However,
@@ -104,10 +107,9 @@ data:
    encrypted with the old key(s).
 
 1. To re-encrypt all encrypted database fields with the new key, run
-   [`coder dbcrypt-rotate`](../cli/dbcrypt-rotate.md). This command will
-   re-encrypt all tokens with the first key in the list of external token
-   encryption keys. We recommend performing this action during a maintenance
-   window.
+   [`coder server dbcrypt rotate`](../cli/server_dbcrypt_rotate.md). This
+   command will re-encrypt all tokens with the specified new encryption key. We
+   recommend performing this action during a maintenance window.
 
    > Note: this command requires direct access to the database. If you are using
    > the built-in PostgreSQL database, you can run
@@ -120,10 +122,52 @@ data:
 
 ## Disabling encryption
 
-Disabling encryption is currently not supported.
+To disable encryption, perform the following actions:
+
+1. Ensure you have a valid backup of your database. **Do not skip this step.**
+
+1. Stop all active coderd instances. This will prevent new encrypted data from
+   being written.
+
+1. Run [`coder server dbcrypt decrypt`](../cli/server_dbcrypt_decrypt.md). This
+   command will decrypt all encrypted user tokens and revoke all active
+   encryption keys.
+
+1. Remove all
+   [external token encryption keys](../cli/server.md#external-token-encryption-keys)
+   from Coder's configuration.
+
+1. Start coderd. You can now safely delete the encryption keys from your secret
+   store.
+
+## Deleting Encrypted Data
+
+> NOTE: This is a destructive operation.
+
+To delete all encrypted data from your database, perform the following actions:
+
+1. Ensure you have a valid backup of your database. **Do not skip this step.**
+
+1. Stop all active coderd instances. This will prevent new encrypted data from
+   being written.
+
+1. Run [`coder server dbcrypt delete`](../cli/server_dbcrypt_delete.md). This
+   command will delete all encrypted user tokens and revoke all active
+   encryption keys.
+
+1. Remove all
+   [external token encryption keys](../cli/server.md#external-token-encryption-keys)
+   from Coder's configuration.
+
+1. Start coderd. You can now safely delete the encryption keys from your secret
+   store.
 
 ## Troubleshooting
 
 - If Coder detects that the data stored in the database was not encrypted with
   any known keys, it will refuse to start. If you are seeing this behaviour,
   ensure that the encryption keys provided are correct.
+- If Coder detects that the data stored in the database was encrypted with a key
+  that is no longer active, it will refuse to start. If you are seeing this
+  behaviour, ensure that the encryption keys provided are correct and that you
+  have not revoked any keys that are still in use.
