@@ -15,7 +15,6 @@ set -euo pipefail
 
 CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
 DEFAULT_PASSWORD="SomeSecurePassword!"
-EXTERNAL_TOKEN_ENCRYPTION_KEYS="Y29kZXItY29kZXItY29kZXItY29kZXItY29kZXItMSE="
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 
@@ -137,7 +136,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true --external-token-encryption-keys="${EXTERNAL_TOKEN_ENCRYPTION_KEYS}" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
