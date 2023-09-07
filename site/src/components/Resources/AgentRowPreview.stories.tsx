@@ -5,20 +5,18 @@ import type { Meta, StoryObj } from "@storybook/react";
 const meta: Meta<typeof AgentRowPreview> = {
   title: "components/AgentRowPreview",
   component: AgentRowPreview,
-};
-
-export default meta;
-type Story = StoryObj<typeof AgentRowPreview>;
-
-export const Example: Story = {
   args: {
     agent: MockWorkspaceAgent,
   },
 };
 
+export default meta;
+type Story = StoryObj<typeof AgentRowPreview>;
+
+export const Example: Story = {};
+
 export const BunchOfApps: Story = {
   args: {
-    ...Example.args,
     agent: {
       ...MockWorkspaceAgent,
       apps: [
@@ -37,7 +35,6 @@ export const BunchOfApps: Story = {
 
 export const NoApps: Story = {
   args: {
-    ...Example.args,
     agent: {
       ...MockWorkspaceAgent,
       apps: [],

@@ -12,12 +12,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 const meta: Meta<typeof ResourceCard> = {
   title: "components/ResourceCard",
   component: ResourceCard,
-};
-
-export default meta;
-type Story = StoryObj<typeof ResourceCard>;
-
-export const Example: Story = {
   args: {
     resource: MockWorkspaceResource,
     agentRow: (agent) => (
@@ -52,9 +46,13 @@ export const Example: Story = {
   },
 };
 
+export default meta;
+type Story = StoryObj<typeof ResourceCard>;
+
+export const Example: Story = {};
+
 export const BunchOfMetadata: Story = {
   args: {
-    ...Example.args,
     resource: {
       ...MockWorkspaceResource,
       metadata: [

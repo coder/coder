@@ -118,28 +118,24 @@ export const Example: Story = {};
 
 export const HideSSHButton: Story = {
   args: {
-    ...Example.args,
     hideSSHButton: true,
   },
 };
 
 export const HideVSCodeDesktopButton: Story = {
   args: {
-    ...Example.args,
     hideVSCodeDesktopButton: true,
   },
 };
 
 export const NotShowingApps: Story = {
   args: {
-    ...Example.args,
     showApps: false,
   },
 };
 
 export const BunchOfApps: Story = {
   args: {
-    ...Example.args,
     agent: {
       ...MockWorkspaceAgent,
       apps: [
@@ -160,7 +156,6 @@ export const BunchOfApps: Story = {
 
 export const Connecting: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentConnecting,
     storybookAgentMetadata: [],
   },
@@ -168,21 +163,18 @@ export const Connecting: Story = {
 
 export const Timeout: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentTimeout,
   },
 };
 
 export const Starting: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentStarting,
   },
 };
 
 export const Started: Story = {
   args: {
-    ...Example.args,
     agent: {
       ...MockWorkspaceAgentReady,
       logs_length: 1,
@@ -199,42 +191,36 @@ export const StartedNoMetadata: Story = {
 
 export const StartTimeout: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentStartTimeout,
   },
 };
 
 export const StartError: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentStartError,
   },
 };
 
 export const ShuttingDown: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentShuttingDown,
   },
 };
 
 export const ShutdownTimeout: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentShutdownTimeout,
   },
 };
 
 export const ShutdownError: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentShutdownError,
   },
 };
 
 export const Off: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentOff,
   },
 };
@@ -271,7 +257,6 @@ export const ShowingPortForward: Story = {
 
 export const Outdated: Story = {
   args: {
-    ...Example.args,
     agent: MockWorkspaceAgentOutdated,
     workspace: MockWorkspace,
     serverVersion: "v99.999.9999+c1cdf14",
