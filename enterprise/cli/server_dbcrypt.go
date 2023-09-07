@@ -71,17 +71,18 @@ func (*RootCmd) dbcryptRotateCmd() *clibase.Cmd {
 				return xerrors.Errorf("create ciphers: %w", err)
 			}
 
-			newDigest := ciphers[0].HexDigest()
-			oldDigests := make([]string, 0, len(ciphers)-1)
-			for _, c := range ciphers[1:] {
-				oldDigests = append(oldDigests, c.HexDigest())
+			var act string
+			switch len(flags.Old) {
+			case 0:
+				act = "Data will be encrypted with the new key."
+			default:
+				act = "Data will be decrypted with all available keys and re-encrypted with new key."
 			}
-			if len(oldDigests) == 0 {
-				oldDigests = append(oldDigests, "none")
-			}
-			msg := fmt.Sprintf(`Rotate external token encryptions keys?\n- New key: %s\n- Old keys: %s`,
-				newDigest,
-				strings.Join(oldDigests, ", "),
+
+			msg := fmt.Sprintf("%s\n\n- New key: %s\n- Old keys: %s\n\nRotate external token encryption keys?\n",
+				act,
+				flags.New,
+				strings.Join(flags.Old, ", "),
 			)
 			if _, err := cliui.Prompt(inv, cliui.PromptOptions{Text: msg, IsConfirm: true}); err != nil {
 				return err
@@ -179,9 +180,13 @@ func (*RootCmd) dbcryptDeleteCmd() *clibase.Cmd {
 			if err := flags.valid(); err != nil {
 				return err
 			}
+			msg := `All encrypted data will be deleted from the database:
+- Encrypted user OAuth access and refresh tokens
+- Encrypted user Git authentication access and refresh tokens
 
+Are you sure you want to continue?`
 			if _, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "This will delete all encrypted data from the database. Are you sure you want to continue?",
+				Text:      msg,
 				IsConfirm: true,
 			}); err != nil {
 				return err
@@ -238,6 +243,10 @@ func (f *rotateFlags) attach(opts *clibase.OptionSet) {
 }
 
 func (f *rotateFlags) valid() error {
+	if f.PostgresURL == "" {
+		return xerrors.Errorf("no database configured")
+	}
+
 	if f.New == "" {
 		return xerrors.Errorf("no new key provided")
 	}
@@ -289,6 +298,10 @@ func (f *decryptFlags) attach(opts *clibase.OptionSet) {
 }
 
 func (f *decryptFlags) valid() error {
+	if f.PostgresURL == "" {
+		return xerrors.Errorf("no database configured")
+	}
+
 	if len(f.Keys) == 0 {
 		return xerrors.Errorf("no keys provided")
 	}
