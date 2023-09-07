@@ -1,19 +1,16 @@
-import { Story } from "@storybook/react";
-import {
-  TemplateVersionWarnings,
-  TemplateVersionWarningsProps,
-} from "./TemplateVersionWarnings";
+import { TemplateVersionWarnings } from "./TemplateVersionWarnings";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TemplateVersionWarnings> = {
   title: "components/TemplateVersionWarnings",
   component: TemplateVersionWarnings,
 };
 
-const Template: Story<TemplateVersionWarningsProps> = (args) => (
-  <TemplateVersionWarnings {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof TemplateVersionWarnings>;
 
-export const UnsupportedWorkspaces = Template.bind({});
-UnsupportedWorkspaces.args = {
-  warnings: ["UNSUPPORTED_WORKSPACES"],
+export const UnsupportedWorkspaces: Story = {
+  args: {
+    warnings: ["UNSUPPORTED_WORKSPACES"],
+  },
 };
