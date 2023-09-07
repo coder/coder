@@ -263,45 +263,37 @@ export const downloadCoderVersion = async (
     return binaryPath;
   }
 
-  // Runs our public install script using our options to
-  // install the binary!
+  // Run our official install script to install the binary
   await new Promise<void>((resolve, reject) => {
     const cp = spawn(
-      "sh",
+      path.join(__dirname, "../../install.sh"),
       [
-        "-c",
-        [
-          "curl",
-          "-L",
-          "https://coder.com/install.sh",
-          "|",
-          "sh",
-          "-s",
-          "--",
-          "--version",
-          version,
-          "--method",
-          "standalone",
-          "--prefix",
-          tempDir,
-          "--binary-name",
-          binaryName,
-        ].join(" "),
+        "--version",
+        version,
+        "--method",
+        "standalone",
+        "--prefix",
+        tempDir,
+        "--binary-name",
+        binaryName,
       ],
       {
         env: {
           ...process.env,
           XDG_CACHE_HOME: "/tmp/coder-e2e-cache",
+          TRACE: "1", // tells install.sh to `set -x`, helpful if something goes wrong
         },
       },
     );
     // eslint-disable-next-line no-console -- Needed for debugging
-    cp.stderr.on("data", (data) => console.log(data.toString()));
+    cp.stderr.on("data", (data) => console.error(data.toString()));
+    // eslint-disable-next-line no-console -- Needed for debugging
+    cp.stdout.on("data", (data) => console.log(data.toString()));
     cp.on("close", (code) => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error("curl failed with code " + code));
+        reject(new Error("install.sh failed with code " + code));
       }
     });
   });
