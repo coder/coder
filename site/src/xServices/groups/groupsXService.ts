@@ -1,8 +1,8 @@
-import { getGroups } from "api/api"
-import { getErrorMessage } from "api/errors"
-import { Group } from "api/typesGenerated"
-import { displayError } from "components/GlobalSnackbar/utils"
-import { assign, createMachine } from "xstate"
+import { getGroups } from "api/api";
+import { getErrorMessage } from "api/errors";
+import { Group } from "api/typesGenerated";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { assign, createMachine } from "xstate";
 
 export const groupsMachine = createMachine(
   {
@@ -10,14 +10,14 @@ export const groupsMachine = createMachine(
     predictableActionArguments: true,
     schema: {
       context: {} as {
-        organizationId: string
-        shouldFetchGroups: boolean
-        groups?: Group[]
+        organizationId: string;
+        shouldFetchGroups: boolean;
+        groups?: Group[];
       },
       services: {} as {
         loadGroups: {
-          data: Group[]
-        }
+          data: Group[];
+        };
       },
     },
     tsTypes: {} as import("./groupsXService.typegen").Typegen0,
@@ -52,9 +52,9 @@ export const groupsMachine = createMachine(
         groups: (_, { data }) => data,
       }),
       displayLoadingGroupsError: (_, { data }) => {
-        const message = getErrorMessage(data, "Error on loading groups.")
-        displayError(message)
+        const message = getErrorMessage(data, "Error on loading groups.");
+        displayError(message);
       },
     },
   },
-)
+);

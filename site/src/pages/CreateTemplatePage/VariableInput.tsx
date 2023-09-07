@@ -1,20 +1,20 @@
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Radio from "@mui/material/Radio"
-import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { TemplateVersionVariable } from "../../api/typesGenerated"
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import { makeStyles } from "@mui/styles";
+import TextField from "@mui/material/TextField";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { TemplateVersionVariable } from "../../api/typesGenerated";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
-  return variable.type === "bool"
-}
+  return variable.type === "bool";
+};
 
 const VariableLabel: React.FC<{ variable: TemplateVersionVariable }> = ({
   variable,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <label htmlFor={variable.name}>
@@ -24,14 +24,14 @@ const VariableLabel: React.FC<{ variable: TemplateVersionVariable }> = ({
       </span>
       <span className={styles.labelDescription}>{variable.description}</span>
     </label>
-  )
-}
+  );
+};
 
 export interface VariableInputProps {
-  disabled?: boolean
-  variable: TemplateVersionVariable
-  onChange: (value: string) => void
-  defaultValue?: string
+  disabled?: boolean;
+  variable: TemplateVersionVariable;
+  onChange: (value: string) => void;
+  defaultValue?: string;
 }
 
 export const VariableInput: FC<VariableInputProps> = ({
@@ -40,7 +40,7 @@ export const VariableInput: FC<VariableInputProps> = ({
   variable,
   defaultValue,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Stack direction="column" spacing={0.75}>
@@ -54,8 +54,8 @@ export const VariableInput: FC<VariableInputProps> = ({
         />
       </div>
     </Stack>
-  )
-}
+  );
+};
 
 const VariableField: React.FC<VariableInputProps> = ({
   disabled,
@@ -69,7 +69,7 @@ const VariableField: React.FC<VariableInputProps> = ({
         id={variable.name}
         defaultValue={variable.default_value}
         onChange={(event) => {
-          onChange(event.target.value)
+          onChange(event.target.value);
         }}
       >
         <FormControlLabel
@@ -85,7 +85,7 @@ const VariableField: React.FC<VariableInputProps> = ({
           label="False"
         />
       </RadioGroup>
-    )
+    );
   }
 
   return (
@@ -100,7 +100,7 @@ const VariableField: React.FC<VariableInputProps> = ({
         variable.sensitive ? "" : defaultValue ?? variable.default_value
       }
       onChange={(event) => {
-        onChange(event.target.value)
+        onChange(event.target.value);
       }}
       type={
         variable.type === "number"
@@ -110,8 +110,8 @@ const VariableField: React.FC<VariableInputProps> = ({
           : "string"
       }
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   labelName: {
@@ -135,4 +135,4 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     gap: theme.spacing(1),
   },
-}))
+}));

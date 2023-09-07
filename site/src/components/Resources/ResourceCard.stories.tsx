@@ -1,22 +1,22 @@
-import { action } from "@storybook/addon-actions"
-import { Story } from "@storybook/react"
+import { action } from "@storybook/addon-actions";
+import { Story } from "@storybook/react";
 import {
   MockProxyLatencies,
   MockWorkspace,
   MockWorkspaceResource,
-} from "testHelpers/entities"
-import { AgentRow } from "./AgentRow"
-import { ResourceCard, ResourceCardProps } from "./ResourceCard"
-import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext"
+} from "testHelpers/entities";
+import { AgentRow } from "./AgentRow";
+import { ResourceCard, ResourceCardProps } from "./ResourceCard";
+import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 
 export default {
   title: "components/ResourceCard",
   component: ResourceCard,
-}
+};
 
-const Template: Story<ResourceCardProps> = (args) => <ResourceCard {...args} />
+const Template: Story<ResourceCardProps> = (args) => <ResourceCard {...args} />;
 
-export const Example = Template.bind({})
+export const Example = Template.bind({});
 Example.args = {
   resource: MockWorkspaceResource,
   agentRow: (agent) => (
@@ -28,13 +28,13 @@ Example.args = {
         isLoading: false,
         isFetched: true,
         setProxy: () => {
-          return
+          return;
         },
         clearProxy: () => {
-          return
+          return;
         },
         refetchProxyLatencies: (): Date => {
-          return new Date()
+          return new Date();
         },
       }}
     >
@@ -48,9 +48,9 @@ Example.args = {
       />
     </ProxyContext.Provider>
   ),
-}
+};
 
-export const BunchOfMetadata = Template.bind({})
+export const BunchOfMetadata = Template.bind({});
 BunchOfMetadata.args = {
   ...Example.args,
   resource: {
@@ -101,13 +101,13 @@ BunchOfMetadata.args = {
         isLoading: false,
         isFetched: true,
         setProxy: () => {
-          return
+          return;
         },
         clearProxy: () => {
-          return
+          return;
         },
         refetchProxyLatencies: (): Date => {
-          return new Date()
+          return new Date();
         },
       }}
     >
@@ -121,4 +121,4 @@ BunchOfMetadata.args = {
       />
     </ProxyContext.Provider>
   ),
-}
+};

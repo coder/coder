@@ -1,5 +1,5 @@
-import { Story } from "@storybook/react"
-import { LoadingButton, LoadingButtonProps } from "./LoadingButton"
+import { Story } from "@storybook/react";
+import { LoadingButton, LoadingButtonProps } from "./LoadingButton";
 
 export default {
   title: "components/LoadingButton",
@@ -11,18 +11,18 @@ export default {
   args: {
     children: "Create workspace",
   },
-}
+};
 
 const Template: Story<LoadingButtonProps> = (args) => (
   <LoadingButton {...args} />
-)
+);
 
-export const Loading = Template.bind({})
+export const Loading = Template.bind({});
 Loading.args = {
   loading: true,
-}
+};
 
-export const NotLoading = Template.bind({})
+export const NotLoading = Template.bind({});
 NotLoading.args = {
   loading: false,
-}
+};

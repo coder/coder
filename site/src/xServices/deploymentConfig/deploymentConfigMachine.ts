@@ -1,7 +1,7 @@
-import { DAUsResponse } from "./../../api/typesGenerated"
-import { getDeploymentValues, getDeploymentDAUs } from "api/api"
-import { createMachine, assign } from "xstate"
-import { DeploymentConfig } from "api/types"
+import { DAUsResponse } from "./../../api/typesGenerated";
+import { getDeploymentValues, getDeploymentDAUs } from "api/api";
+import { createMachine, assign } from "xstate";
+import { DeploymentConfig } from "api/types";
 
 export const deploymentConfigMachine = createMachine(
   {
@@ -10,19 +10,19 @@ export const deploymentConfigMachine = createMachine(
 
     schema: {
       context: {} as {
-        deploymentValues?: DeploymentConfig
-        getDeploymentValuesError?: unknown
-        deploymentDAUs?: DAUsResponse
-        getDeploymentDAUsError?: unknown
+        deploymentValues?: DeploymentConfig;
+        getDeploymentValuesError?: unknown;
+        deploymentDAUs?: DAUsResponse;
+        getDeploymentDAUsError?: unknown;
       },
       events: {} as { type: "LOAD" },
       services: {} as {
         getDeploymentValues: {
-          data: DeploymentConfig
-        }
+          data: DeploymentConfig;
+        };
         getDeploymentDAUs: {
-          data: DAUsResponse
-        }
+          data: DAUsResponse;
+        };
       },
     },
     tsTypes: {} as import("./deploymentConfigMachine.typegen").Typegen0,
@@ -65,7 +65,7 @@ export const deploymentConfigMachine = createMachine(
     services: {
       getDeploymentValues: getDeploymentValues,
       getDeploymentDAUs: async () => {
-        return getDeploymentDAUs()
+        return getDeploymentDAUs();
       },
     },
     actions: {
@@ -83,4 +83,4 @@ export const deploymentConfigMachine = createMachine(
       }),
     },
   },
-)
+);

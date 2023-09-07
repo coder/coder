@@ -1,10 +1,10 @@
-import { FC } from "react"
-import Box from "@mui/material/Box"
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
-import { Avatar, AvatarProps } from "components/Avatar/Avatar"
-import { Palette, PaletteColor } from "@mui/material/styles"
-import { TemplateFilterMenu, StatusFilterMenu } from "./menus"
-import { TemplateOption, StatusOption } from "./options"
+import { FC } from "react";
+import Box from "@mui/material/Box";
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { Avatar, AvatarProps } from "components/Avatar/Avatar";
+import { Palette, PaletteColor } from "@mui/material/styles";
+import { TemplateFilterMenu, StatusFilterMenu } from "./menus";
+import { TemplateOption, StatusOption } from "./options";
 import {
   Filter,
   FilterMenu,
@@ -13,10 +13,10 @@ import {
   OptionItem,
   SearchFieldSkeleton,
   useFilter,
-} from "components/Filter/filter"
-import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter"
-import { workspaceFilterQuery } from "utils/filters"
-import { docs } from "utils/docs"
+} from "components/Filter/filter";
+import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
+import { workspaceFilterQuery } from "utils/filters";
+import { docs } from "utils/docs";
 
 const PRESET_FILTERS = [
   { query: workspaceFilterQuery.me, name: "My workspaces" },
@@ -29,27 +29,27 @@ const PRESET_FILTERS = [
     query: workspaceFilterQuery.failed,
     name: "Failed workspaces",
   },
-]
+];
 
 export const WorkspacesFilter = ({
   filter,
   error,
   menus,
 }: {
-  filter: ReturnType<typeof useFilter>
-  error?: unknown
+  filter: ReturnType<typeof useFilter>;
+  error?: unknown;
   menus: {
-    user?: UserFilterMenu
-    template: TemplateFilterMenu
-    status: StatusFilterMenu
-  }
+    user?: UserFilterMenu;
+    template: TemplateFilterMenu;
+    status: StatusFilterMenu;
+  };
 }) => {
-  const presets = [...PRESET_FILTERS]
+  const presets = [...PRESET_FILTERS];
   if (useIsWorkspaceActionsEnabled()) {
     presets.push({
       query: workspaceFilterQuery.dormant,
       name: "Dormant workspaces",
-    })
+    });
   }
 
   return (
@@ -75,8 +75,8 @@ export const WorkspacesFilter = ({
         </>
       }
     />
-  )
-}
+  );
+};
 
 const TemplateMenu = (menu: TemplateFilterMenu) => {
   return (
@@ -93,15 +93,15 @@ const TemplateMenu = (menu: TemplateFilterMenu) => {
     >
       {(itemProps) => <TemplateOptionItem {...itemProps} />}
     </FilterSearchMenu>
-  )
-}
+  );
+};
 
 const TemplateOptionItem = ({
   option,
   isSelected,
 }: {
-  option: TemplateOption
-  isSelected?: boolean
+  option: TemplateOption;
+  isSelected?: boolean;
 }) => {
   return (
     <OptionItem
@@ -115,8 +115,8 @@ const TemplateOptionItem = ({
         />
       }
     />
-  )
-}
+  );
+};
 
 const TemplateAvatar: FC<
   AvatarProps & { templateName: string; icon?: string }
@@ -125,8 +125,8 @@ const TemplateAvatar: FC<
     <Avatar src={icon} variant="square" fitImage {...avatarProps} />
   ) : (
     <Avatar {...avatarProps}>{templateName}</Avatar>
-  )
-}
+  );
+};
 
 const StatusMenu = (menu: StatusFilterMenu) => {
   return (
@@ -143,15 +143,15 @@ const StatusMenu = (menu: StatusFilterMenu) => {
     >
       {(itemProps) => <StatusOptionItem {...itemProps} />}
     </FilterMenu>
-  )
-}
+  );
+};
 
 const StatusOptionItem = ({
   option,
   isSelected,
 }: {
-  option: StatusOption
-  isSelected?: boolean
+  option: StatusOption;
+  isSelected?: boolean;
 }) => {
   return (
     <OptionItem
@@ -159,8 +159,8 @@ const StatusOptionItem = ({
       left={<StatusIndicator option={option} />}
       isSelected={isSelected}
     />
-  )
-}
+  );
+};
 
 const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
   return (
@@ -173,5 +173,5 @@ const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
           (theme.palette[option.color as keyof Palette] as PaletteColor).light,
       }}
     />
-  )
-}
+  );
+};

@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import { FC, ReactNode, FormEventHandler } from "react"
-import Button from "@mui/material/Button"
+import { makeStyles } from "@mui/styles";
+import { FC, ReactNode, FormEventHandler } from "react";
+import Button from "@mui/material/Button";
 
 export const Fieldset: FC<{
-  children: ReactNode
-  title: string | JSX.Element
-  subtitle?: string | JSX.Element
-  validation?: string | JSX.Element | false
-  button?: JSX.Element | false
-  onSubmit: FormEventHandler<HTMLFormElement>
-  isSubmitting?: boolean
+  children: ReactNode;
+  title: string | JSX.Element;
+  subtitle?: string | JSX.Element;
+  validation?: string | JSX.Element | false;
+  button?: JSX.Element | false;
+  onSubmit: FormEventHandler<HTMLFormElement>;
+  isSubmitting?: boolean;
 }> = ({
   title,
   subtitle,
@@ -19,7 +19,7 @@ export const Fieldset: FC<{
   onSubmit,
   isSubmitting,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <form className={styles.fieldset} onSubmit={onSubmit}>
@@ -37,8 +37,8 @@ export const Fieldset: FC<{
         )}
       </footer>
     </form>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   fieldset: {
@@ -75,4 +75,4 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
   },
-}))
+}));

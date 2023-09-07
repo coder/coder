@@ -1,16 +1,16 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
-import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar"
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
-import { combineClasses } from "utils/combineClasses"
-import { firstLetter } from "./firstLetter"
+import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
+import { combineClasses } from "utils/combineClasses";
+import { firstLetter } from "./firstLetter";
 
 export type AvatarProps = MuiAvatarProps & {
-  size?: "sm" | "md" | "xl"
-  colorScheme?: "light" | "darken"
-  fitImage?: boolean
-}
+  size?: "sm" | "md" | "xl";
+  colorScheme?: "light" | "darken";
+  fitImage?: boolean;
+};
 
 export const Avatar: FC<AvatarProps> = ({
   size = "md",
@@ -20,7 +20,7 @@ export const Avatar: FC<AvatarProps> = ({
   children,
   ...muiProps
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <MuiAvatar
@@ -35,16 +35,16 @@ export const Avatar: FC<AvatarProps> = ({
       {/* If the children is a string, we always want to render the first letter */}
       {typeof children === "string" ? firstLetter(children) : children}
     </MuiAvatar>
-  )
-}
+  );
+};
 
 /**
  * Use it to make an img element behaves like a MaterialUI Icon component
  */
 export const AvatarIcon: FC<{ src: string }> = ({ src }) => {
-  const styles = useStyles()
-  return <img src={src} alt="" className={styles.avatarIcon} />
-}
+  const styles = useStyles();
+  return <img src={src} alt="" className={styles.avatarIcon} />;
+};
 
 const useStyles = makeStyles((theme) => ({
   // Size styles
@@ -77,4 +77,4 @@ const useStyles = makeStyles((theme) => ({
       objectFit: "contain",
     },
   },
-}))
+}));

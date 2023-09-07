@@ -105,7 +105,7 @@
         {
           "title": "GCP",
           "description": "Set up Coder on a GCP Compute Engine VM",
-          "path": "./platforms/google-cloud-platform.md",
+          "path": "./platforms/gcp.md",
           "icon_path": "./images/google-cloud.svg"
         },
         {
@@ -708,12 +708,22 @@
         },
         {
           "title": "server dbcrypt",
-          "description": "Manage database encryption",
+          "description": "Manage database encryption.",
           "path": "cli/server_dbcrypt.md"
         },
         {
+          "title": "server dbcrypt decrypt",
+          "description": "Decrypt a previously encrypted database.",
+          "path": "cli/server_dbcrypt_decrypt.md"
+        },
+        {
+          "title": "server dbcrypt delete",
+          "description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
+          "path": "cli/server_dbcrypt_delete.md"
+        },
+        {
           "title": "server dbcrypt rotate",
-          "description": "Rotate database encryption keys",
+          "description": "Rotate database encryption keys.",
           "path": "cli/server_dbcrypt_rotate.md"
         },
         {

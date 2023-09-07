@@ -1,17 +1,17 @@
-import { Story } from "@storybook/react"
+import { Story } from "@storybook/react";
 import {
   CreateGroupPageView,
   CreateGroupPageViewProps,
-} from "./CreateGroupPageView"
+} from "./CreateGroupPageView";
 
 export default {
   title: "pages/CreateGroupPageView",
   component: CreateGroupPageView,
-}
+};
 
 const Template: Story<CreateGroupPageViewProps> = (
   args: CreateGroupPageViewProps,
-) => <CreateGroupPageView {...args} />
+) => <CreateGroupPageView {...args} />;
 
-export const Example = Template.bind({})
-Example.args = {}
+export const Example = Template.bind({});
+Example.args = {};

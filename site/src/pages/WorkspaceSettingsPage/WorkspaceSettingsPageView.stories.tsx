@@ -1,10 +1,10 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import { MockWorkspace } from "testHelpers/entities"
+import { ComponentMeta, Story } from "@storybook/react";
+import { MockWorkspace } from "testHelpers/entities";
 import {
   WorkspaceSettingsPageView,
   WorkspaceSettingsPageViewProps,
-} from "./WorkspaceSettingsPageView"
-import { action } from "@storybook/addon-actions"
+} from "./WorkspaceSettingsPageView";
+import { action } from "@storybook/addon-actions";
 
 export default {
   title: "pages/WorkspaceSettingsPageView",
@@ -15,11 +15,11 @@ export default {
     workspace: MockWorkspace,
     onCancel: action("cancel"),
   },
-} as ComponentMeta<typeof WorkspaceSettingsPageView>
+} as ComponentMeta<typeof WorkspaceSettingsPageView>;
 
 const Template: Story<WorkspaceSettingsPageViewProps> = (args) => (
   <WorkspaceSettingsPageView {...args} />
-)
+);
 
-export const Example = Template.bind({})
-Example.args = {}
+export const Example = Template.bind({});
+Example.args = {};

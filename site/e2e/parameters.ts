@@ -1,4 +1,4 @@
-import { RichParameter } from "./provisionerGenerated"
+import { RichParameter } from "./provisionerGenerated";
 
 // Rich parameters
 
@@ -19,7 +19,7 @@ const emptyParameter: RichParameter = {
   displayName: "",
   order: 0,
   ephemeral: false,
-}
+};
 
 // firstParameter is mutable string with a default value (parameter value not required).
 export const firstParameter: RichParameter = {
@@ -33,7 +33,7 @@ export const firstParameter: RichParameter = {
   defaultValue: "123",
   mutable: true,
   order: 1,
-}
+};
 
 // secondParameter is immutable string with a default value (parameter value not required).
 export const secondParameter: RichParameter = {
@@ -45,7 +45,7 @@ export const secondParameter: RichParameter = {
   description: "This is second parameter.",
   defaultValue: "abc",
   order: 2,
-}
+};
 
 // thirdParameter is mutable string with an empty default value (parameter value not required).
 export const thirdParameter: RichParameter = {
@@ -57,7 +57,7 @@ export const thirdParameter: RichParameter = {
   defaultValue: "",
   mutable: true,
   order: 3,
-}
+};
 
 // fourthParameter is immutable boolean with a default "true" value (parameter value not required).
 export const fourthParameter: RichParameter = {
@@ -68,7 +68,7 @@ export const fourthParameter: RichParameter = {
   description: "This is fourth parameter.",
   defaultValue: "true",
   order: 3,
-}
+};
 
 // fifthParameter is immutable "string with options", with a default option selected (parameter value not required).
 export const fifthParameter: RichParameter = {
@@ -100,7 +100,7 @@ export const fifthParameter: RichParameter = {
   description: "This is fifth parameter.",
   defaultValue: "def",
   order: 3,
-}
+};
 
 // sixthParameter is mutable string without a default value (parameter value is required).
 export const sixthParameter: RichParameter = {
@@ -114,7 +114,7 @@ export const sixthParameter: RichParameter = {
   required: true,
   mutable: true,
   order: 1,
-}
+};
 
 // seventhParameter is immutable string without a default value (parameter value is required).
 export const seventhParameter: RichParameter = {
@@ -126,7 +126,7 @@ export const seventhParameter: RichParameter = {
   description: "This is seventh parameter.",
   required: true,
   order: 1,
-}
+};
 
 // Build options
 
@@ -141,7 +141,7 @@ export const firstBuildOption: RichParameter = {
   defaultValue: "ABCDEF",
   mutable: true,
   ephemeral: true,
-}
+};
 
 export const secondBuildOption: RichParameter = {
   ...emptyParameter,
@@ -153,4 +153,4 @@ export const secondBuildOption: RichParameter = {
   defaultValue: "false",
   mutable: true,
   ephemeral: true,
-}
+};

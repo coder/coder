@@ -4,13 +4,13 @@ import {
   lifetimeDayPresets,
   LifetimeDay,
   NANO_HOUR,
-} from "./utils"
+} from "./utils";
 
 describe("unit/CreateTokenForm", () => {
   describe("filterByMaxTokenLifetime", () => {
     it.each<{
-      maxTokenLifetime: number
-      expected: LifetimeDay[]
+      maxTokenLifetime: number;
+      expected: LifetimeDay[];
     }>([
       { maxTokenLifetime: 6 * 24 * NANO_HOUR, expected: [] },
       {
@@ -36,14 +36,14 @@ describe("unit/CreateTokenForm", () => {
     ])(
       `filterByMaxTokenLifetime($maxTokenLifetime)`,
       ({ maxTokenLifetime, expected }) => {
-        expect(filterByMaxTokenLifetime(maxTokenLifetime)).toEqual(expected)
+        expect(filterByMaxTokenLifetime(maxTokenLifetime)).toEqual(expected);
       },
-    )
-  })
+    );
+  });
   describe("determineDefaultLtValue", () => {
     it.each<{
-      maxTokenLifetime: number
-      expected: string | number
+      maxTokenLifetime: number;
+      expected: string | number;
     }>([
       {
         maxTokenLifetime: 0,
@@ -64,8 +64,8 @@ describe("unit/CreateTokenForm", () => {
     ])(
       `determineDefaultLtValue($maxTokenLifetime)`,
       ({ maxTokenLifetime, expected }) => {
-        expect(determineDefaultLtValue(maxTokenLifetime)).toEqual(expected)
+        expect(determineDefaultLtValue(maxTokenLifetime)).toEqual(expected);
       },
-    )
-  })
-})
+    );
+  });
+});

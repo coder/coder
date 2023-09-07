@@ -2,7 +2,7 @@
 
 # server dbcrypt rotate
 
-Rotate database encryption keys
+Rotate database encryption keys.
 
 ## Usage
 
@@ -12,14 +12,23 @@ coder server dbcrypt rotate [flags]
 
 ## Options
 
-### --external-token-encryption-keys
+### --new-key
 
-|             |                                                    |
-| ----------- | -------------------------------------------------- |
-| Type        | <code>string-array</code>                          |
-| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
+|             |                                                               |
+| ----------- | ------------------------------------------------------------- |
+| Type        | <code>string</code>                                           |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY</code> |
 
-Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key.
+The new external token encryption key. Must be base64-encoded.
+
+### --old-keys
+
+|             |                                                                |
+| ----------- | -------------------------------------------------------------- |
+| Type        | <code>string-array</code>                                      |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS</code> |
+
+The old external token encryption keys. Must be a comma-separated list of base64-encoded keys.
 
 ### --postgres-url
 
@@ -28,4 +37,12 @@ Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+The connection URL for the Postgres database.
+
+### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Bypass prompts.

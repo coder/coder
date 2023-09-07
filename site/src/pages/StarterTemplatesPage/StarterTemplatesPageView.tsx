@@ -1,20 +1,20 @@
-import { makeStyles } from "@mui/styles"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Maybe } from "components/Conditionals/Maybe"
-import { Loader } from "components/Loader/Loader"
-import { Margins } from "components/Margins/Margins"
+import { makeStyles } from "@mui/styles";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Maybe } from "components/Conditionals/Maybe";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { Link, useSearchParams } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
+import { FC } from "react";
+import { useTranslation } from "react-i18next";
+import { Link, useSearchParams } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService";
 
 const getTagLabel = (tag: string, t: (key: string) => string) => {
   const labelByTag: Record<string, string> = {
@@ -22,32 +22,32 @@ const getTagLabel = (tag: string, t: (key: string) => string) => {
     digitalocean: t("tags.digitalocean"),
     aws: t("tags.aws"),
     google: t("tags.google"),
-  }
+  };
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
-  return labelByTag[tag] ?? tag
-}
+  return labelByTag[tag] ?? tag;
+};
 
 const selectTags = ({ starterTemplatesByTag }: StarterTemplatesContext) => {
   return starterTemplatesByTag
     ? Object.keys(starterTemplatesByTag).sort((a, b) => a.localeCompare(b))
-    : undefined
-}
+    : undefined;
+};
 export interface StarterTemplatesPageViewProps {
-  context: StarterTemplatesContext
+  context: StarterTemplatesContext;
 }
 
 export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   context,
 }) => {
-  const { t } = useTranslation("starterTemplatesPage")
-  const [urlParams] = useSearchParams()
-  const styles = useStyles()
-  const { starterTemplatesByTag } = context
-  const tags = selectTags(context)
-  const activeTag = urlParams.get("tag") ?? "all"
+  const { t } = useTranslation("starterTemplatesPage");
+  const [urlParams] = useSearchParams();
+  const styles = useStyles();
+  const { starterTemplatesByTag } = context;
+  const tags = selectTags(context);
+  const activeTag = urlParams.get("tag") ?? "all";
   const visibleTemplates = starterTemplatesByTag
     ? starterTemplatesByTag[activeTag]
-    : undefined
+    : undefined;
 
   return (
     <Margins>
@@ -91,8 +91,8 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
         </div>
       </Stack>
     </Margins>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   filter: {
@@ -131,4 +131,4 @@ const useStyles = makeStyles((theme) => ({
     gap: theme.spacing(2),
     gridAutoRows: "min-content",
   },
-}))
+}));

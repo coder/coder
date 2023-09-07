@@ -1,35 +1,35 @@
-import CircularProgress from "@mui/material/CircularProgress"
-import { makeStyles } from "@mui/styles"
-import TextField from "@mui/material/TextField"
-import Autocomplete from "@mui/material/Autocomplete"
-import { useMachine } from "@xstate/react"
-import { Group, User } from "api/typesGenerated"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import debounce from "just-debounce-it"
-import { ChangeEvent, useState } from "react"
-import { getGroupSubtitle } from "utils/groups"
-import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService"
-import Box from "@mui/material/Box"
+import CircularProgress from "@mui/material/CircularProgress";
+import { makeStyles } from "@mui/styles";
+import TextField from "@mui/material/TextField";
+import Autocomplete from "@mui/material/Autocomplete";
+import { useMachine } from "@xstate/react";
+import { Group, User } from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import debounce from "just-debounce-it";
+import { ChangeEvent, useState } from "react";
+import { getGroupSubtitle } from "utils/groups";
+import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService";
+import Box from "@mui/material/Box";
 
-export type UserOrGroupAutocompleteValue = User | Group | null
+export type UserOrGroupAutocompleteValue = User | Group | null;
 
 const isGroup = (value: UserOrGroupAutocompleteValue): value is Group => {
-  return value !== null && "members" in value
-}
+  return value !== null && "members" in value;
+};
 
 export type UserOrGroupAutocompleteProps = {
-  value: UserOrGroupAutocompleteValue
-  onChange: (value: UserOrGroupAutocompleteValue) => void
-  organizationId: string
-  templateID?: string
-  exclude: UserOrGroupAutocompleteValue[]
-}
+  value: UserOrGroupAutocompleteValue;
+  onChange: (value: UserOrGroupAutocompleteValue) => void;
+  organizationId: string;
+  templateID?: string;
+  exclude: UserOrGroupAutocompleteValue[];
+};
 
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
 > = ({ value, onChange, organizationId, templateID, exclude }) => {
-  const styles = useStyles()
-  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false)
+  const styles = useStyles();
+  const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
     context: {
       userResults: [],
@@ -37,19 +37,19 @@ export const UserOrGroupAutocomplete: React.FC<
       organizationId,
       templateID,
     },
-  })
-  const { userResults, groupResults } = searchState.context
+  });
+  const { userResults, groupResults } = searchState.context;
   const options = [...groupResults, ...userResults].filter((result) => {
-    const excludeIds = exclude.map((optionToExclude) => optionToExclude?.id)
-    return !excludeIds.includes(result.id)
-  })
+    const excludeIds = exclude.map((optionToExclude) => optionToExclude?.id);
+    return !excludeIds.includes(result.id);
+  });
 
   const handleFilterChange = debounce(
     (event: ChangeEvent<HTMLInputElement>) => {
-      sendSearch("SEARCH", { query: event.target.value })
+      sendSearch("SEARCH", { query: event.target.value });
     },
     500,
-  )
+  );
 
   return (
     <Autocomplete
@@ -57,24 +57,24 @@ export const UserOrGroupAutocomplete: React.FC<
       id="user-or-group-autocomplete"
       open={isAutocompleteOpen}
       onOpen={() => {
-        setIsAutocompleteOpen(true)
+        setIsAutocompleteOpen(true);
       }}
       onClose={() => {
-        setIsAutocompleteOpen(false)
+        setIsAutocompleteOpen(false);
       }}
       onChange={(_, newValue) => {
         if (newValue === null) {
-          sendSearch("CLEAR_RESULTS")
+          sendSearch("CLEAR_RESULTS");
         }
 
-        onChange(newValue)
+        onChange(newValue);
       }}
       isOptionEqualToValue={(option, value) => option.id === value.id}
       getOptionLabel={(option) =>
         isGroup(option) ? option.display_name || option.name : option.email
       }
       renderOption={(props, option) => {
-        const isOptionGroup = isGroup(option)
+        const isOptionGroup = isGroup(option);
 
         return (
           <Box component="li" {...props}>
@@ -88,7 +88,7 @@ export const UserOrGroupAutocomplete: React.FC<
               src={option.avatar_url}
             />
           </Box>
-        )
+        );
       }}
       options={options}
       loading={searchState.matches("searching")}
@@ -118,8 +118,8 @@ export const UserOrGroupAutocomplete: React.FC<
         </>
       )}
     />
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles(() => {
   return {
@@ -134,5 +134,5 @@ export const useStyles = makeStyles(() => {
         width: "100%",
       },
     },
-  }
-})
+  };
+});

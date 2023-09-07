@@ -1,17 +1,17 @@
-import { makeStyles } from "@mui/styles"
-import { FC } from "react"
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants"
-import { combineClasses } from "../../utils/combineClasses"
-import { CopyButton } from "../CopyButton/CopyButton"
-import { Theme } from "@mui/material/styles"
+import { makeStyles } from "@mui/styles";
+import { FC } from "react";
+import { MONOSPACE_FONT_FAMILY } from "../../theme/constants";
+import { combineClasses } from "../../utils/combineClasses";
+import { CopyButton } from "../CopyButton/CopyButton";
+import { Theme } from "@mui/material/styles";
 
 export interface CodeExampleProps {
-  code: string
-  className?: string
-  buttonClassName?: string
-  tooltipTitle?: string
-  inline?: boolean
-  password?: boolean
+  code: string;
+  className?: string;
+  buttonClassName?: string;
+  tooltipTitle?: string;
+  inline?: boolean;
+  password?: boolean;
 }
 
 /**
@@ -24,7 +24,7 @@ export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
   tooltipTitle,
   inline,
 }) => {
-  const styles = useStyles({ inline: inline })
+  const styles = useStyles({ inline: inline });
 
   return (
     <div className={combineClasses([styles.root, className])}>
@@ -35,12 +35,12 @@ export const CodeExample: FC<React.PropsWithChildren<CodeExampleProps>> = ({
         buttonClassName={buttonClassName}
       />
     </div>
-  )
-}
+  );
+};
 
 interface styleProps {
-  inline?: boolean
-  password?: boolean
+  inline?: boolean;
+  password?: boolean;
 }
 
 const useStyles = makeStyles<Theme, styleProps>((theme) => ({
@@ -65,4 +65,4 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     wordBreak: "break-all",
     "-webkit-text-security": (props) => (props.password ? "disc" : undefined),
   },
-}))
+}));

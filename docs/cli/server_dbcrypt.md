@@ -2,7 +2,7 @@
 
 # server dbcrypt
 
-Manage database encryption
+Manage database encryption.
 
 ## Usage
 
@@ -12,6 +12,8 @@ coder server dbcrypt
 
 ## Subcommands
 
-| Name                                              | Purpose                         |
-| ------------------------------------------------- | ------------------------------- |
-| [<code>rotate</code>](./server_dbcrypt_rotate.md) | Rotate database encryption keys |
+| Name                                                | Purpose                                                                       |
+| --------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [<code>decrypt</code>](./server_dbcrypt_decrypt.md) | Decrypt a previously encrypted database.                                      |
+| [<code>delete</code>](./server_dbcrypt_delete.md)   | Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION. |
+| [<code>rotate</code>](./server_dbcrypt_rotate.md)   | Rotate database encryption keys.                                              |

@@ -1,8 +1,8 @@
-import { Avatar } from "components/Avatar/Avatar"
-import Badge from "@mui/material/Badge"
-import { withStyles } from "@mui/styles"
-import Group from "@mui/icons-material/Group"
-import { FC } from "react"
+import { Avatar } from "components/Avatar/Avatar";
+import Badge from "@mui/material/Badge";
+import { withStyles } from "@mui/styles";
+import Group from "@mui/icons-material/Group";
+import { FC } from "react";
 
 const StyledBadge = withStyles((theme) => ({
   badge: {
@@ -20,12 +20,12 @@ const StyledBadge = withStyles((theme) => ({
       height: 14,
     },
   },
-}))(Badge)
+}))(Badge);
 
 export type GroupAvatarProps = {
-  name: string
-  avatarURL?: string
-}
+  name: string;
+  avatarURL?: string;
+};
 
 export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
   return (
@@ -39,5 +39,5 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
     >
       <Avatar src={avatarURL}>{name}</Avatar>
     </StyledBadge>
-  )
-}
+  );
+};

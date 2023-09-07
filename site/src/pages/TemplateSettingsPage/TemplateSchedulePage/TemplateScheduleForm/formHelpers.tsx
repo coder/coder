@@ -1,18 +1,18 @@
-import { UpdateTemplateMeta } from "api/typesGenerated"
-import * as Yup from "yup"
-import i18next from "i18next"
-import { TemplateAutostopRequirementDaysValue } from "./AutostopRequirementHelperText"
+import { UpdateTemplateMeta } from "api/typesGenerated";
+import * as Yup from "yup";
+import i18next from "i18next";
+import { TemplateAutostopRequirementDaysValue } from "./AutostopRequirementHelperText";
 
 export interface TemplateScheduleFormValues
   extends Omit<UpdateTemplateMeta, "autostop_requirement"> {
-  autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue
-  autostop_requirement_weeks: number
-  failure_cleanup_enabled: boolean
-  inactivity_cleanup_enabled: boolean
-  dormant_autodeletion_cleanup_enabled: boolean
+  autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
+  autostop_requirement_weeks: number;
+  failure_cleanup_enabled: boolean;
+  inactivity_cleanup_enabled: boolean;
+  dormant_autodeletion_cleanup_enabled: boolean;
 }
 
-const MAX_TTL_DAYS = 30
+const MAX_TTL_DAYS = 30;
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
@@ -46,11 +46,11 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         "positive-if-enabled",
         "Failure cleanup days must be greater than zero when enabled.",
         function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
+          const parent = this.parent as TemplateScheduleFormValues;
           if (parent.failure_cleanup_enabled) {
-            return Boolean(value)
+            return Boolean(value);
           } else {
-            return true
+            return true;
           }
         },
       ),
@@ -60,11 +60,11 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         "positive-if-enabled",
         "Dormancy threshold days must be greater than zero when enabled.",
         function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
+          const parent = this.parent as TemplateScheduleFormValues;
           if (parent.inactivity_cleanup_enabled) {
-            return Boolean(value)
+            return Boolean(value);
           } else {
-            return true
+            return true;
           }
         },
       ),
@@ -74,11 +74,11 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
         "positive-if-enabled",
         "Dormancy auto-deletion days must be greater than zero when enabled.",
         function (value) {
-          const parent = this.parent as TemplateScheduleFormValues
+          const parent = this.parent as TemplateScheduleFormValues;
           if (parent.dormant_autodeletion_cleanup_enabled) {
-            return Boolean(value)
+            return Boolean(value);
           } else {
-            return true
+            return true;
           }
         },
       ),
@@ -87,4 +87,4 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
 
     autostop_requirement_days_of_week: Yup.string().required(),
     autostop_requirement_weeks: Yup.number().required().min(1).max(16),
-  })
+  });

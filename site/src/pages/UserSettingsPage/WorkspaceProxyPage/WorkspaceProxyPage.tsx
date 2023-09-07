@@ -1,14 +1,14 @@
-import { FC, PropsWithChildren } from "react"
-import { Section } from "components/SettingsLayout/Section"
-import { WorkspaceProxyView } from "./WorkspaceProxyView"
-import makeStyles from "@mui/styles/makeStyles"
-import { useProxy } from "contexts/ProxyContext"
+import { FC, PropsWithChildren } from "react";
+import { Section } from "components/SettingsLayout/Section";
+import { WorkspaceProxyView } from "./WorkspaceProxyView";
+import makeStyles from "@mui/styles/makeStyles";
+import { useProxy } from "contexts/ProxyContext";
 
 export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   const description =
-    "Workspace proxies improve terminal and web app connections to workspaces."
+    "Workspace proxies improve terminal and web app connections to workspaces.";
 
   const {
     proxyLatencies,
@@ -17,7 +17,7 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
     isFetched: proxiesFetched,
     isLoading: proxiesLoading,
     proxy,
-  } = useProxy()
+  } = useProxy();
 
   return (
     <Section
@@ -35,8 +35,8 @@ export const WorkspaceProxyPage: FC<PropsWithChildren<unknown>> = () => {
         preferredProxy={proxy.proxy}
       />
     </Section>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   section: {
@@ -48,6 +48,6 @@ const useStyles = makeStyles((theme) => ({
       borderRadius: 2,
     },
   },
-}))
+}));
 
-export default WorkspaceProxyPage
+export default WorkspaceProxyPage;

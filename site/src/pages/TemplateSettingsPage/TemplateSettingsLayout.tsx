@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import { Sidebar } from "./Sidebar"
-import { Stack } from "components/Stack/Stack"
-import { createContext, FC, Suspense, useContext } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "../../utils/page"
-import { Loader } from "components/Loader/Loader"
-import { Outlet, useParams } from "react-router-dom"
-import { Margins } from "components/Margins/Margins"
-import { checkAuthorization, getTemplateByName } from "api/api"
-import { useQuery } from "@tanstack/react-query"
-import { useOrganizationId } from "hooks/useOrganizationId"
+import { makeStyles } from "@mui/styles";
+import { Sidebar } from "./Sidebar";
+import { Stack } from "components/Stack/Stack";
+import { createContext, FC, Suspense, useContext } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "../../utils/page";
+import { Loader } from "components/Loader/Loader";
+import { Outlet, useParams } from "react-router-dom";
+import { Margins } from "components/Margins/Margins";
+import { checkAuthorization, getTemplateByName } from "api/api";
+import { useQuery } from "@tanstack/react-query";
+import { useOrganizationId } from "hooks/useOrganizationId";
 
 const templatePermissions = (templateId: string) =>
   ({
@@ -20,51 +20,55 @@ const templatePermissions = (templateId: string) =>
       },
       action: "update",
     },
-  }) as const
+  }) as const;
 
 const fetchTemplateSettings = async (orgId: string, name: string) => {
-  const template = await getTemplateByName(orgId, name)
+  const template = await getTemplateByName(orgId, name);
   const permissions = await checkAuthorization({
     checks: templatePermissions(template.id),
-  })
+  });
 
   return {
     template,
     permissions,
-  }
-}
+  };
+};
 
-export const getTemplateQuery = (name: string) => ["template", name, "settings"]
+export const getTemplateQuery = (name: string) => [
+  "template",
+  name,
+  "settings",
+];
 
 const useTemplate = (orgId: string, name: string) => {
   return useQuery({
     queryKey: getTemplateQuery(name),
     queryFn: () => fetchTemplateSettings(orgId, name),
     keepPreviousData: true,
-  })
-}
+  });
+};
 
 const TemplateSettingsContext = createContext<
   Awaited<ReturnType<typeof fetchTemplateSettings>> | undefined
->(undefined)
+>(undefined);
 
 export const useTemplateSettingsContext = () => {
-  const context = useContext(TemplateSettingsContext)
+  const context = useContext(TemplateSettingsContext);
 
   if (!context) {
     throw new Error(
       "useTemplateSettingsContext must be used within a TemplateSettingsContext.Provider",
-    )
+    );
   }
 
-  return context
-}
+  return context;
+};
 
 export const TemplateSettingsLayout: FC = () => {
-  const styles = useStyles()
-  const orgId = useOrganizationId()
-  const { template: templateName } = useParams() as { template: string }
-  const { data: settings } = useTemplate(orgId, templateName)
+  const styles = useStyles();
+  const orgId = useOrganizationId();
+  const { template: templateName } = useParams() as { template: string };
+  const { data: settings } = useTemplate(orgId, templateName);
 
   return (
     <>
@@ -89,8 +93,8 @@ export const TemplateSettingsLayout: FC = () => {
         <Loader />
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   wrapper: {
@@ -100,4 +104,4 @@ const useStyles = makeStyles((theme) => ({
   content: {
     width: "100%",
   },
-}))
+}));

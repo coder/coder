@@ -1,19 +1,19 @@
-import { makeStyles } from "@mui/styles"
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined"
-import { User } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
-import { NavLink } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import AccountIcon from "@mui/icons-material/Person"
-import SecurityIcon from "@mui/icons-material/LockOutlined"
+import { makeStyles } from "@mui/styles";
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
+import { User } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
+import { NavLink } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import AccountIcon from "@mui/icons-material/Person";
+import SecurityIcon from "@mui/icons-material/LockOutlined";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <NavLink
       to={href}
@@ -29,18 +29,18 @@ const SidebarNavItem: FC<
         {children}
       </Stack>
     </NavLink>
-  )
-}
+  );
+};
 
 const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   icon: Icon,
 }) => {
-  const styles = useStyles()
-  return <Icon className={styles.sidebarNavItemIcon} />
-}
+  const styles = useStyles();
+  return <Icon className={styles.sidebarNavItemIcon} />;
+};
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <nav className={styles.sidebar}>
@@ -77,8 +77,8 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
         Tokens
       </SidebarNavItem>
     </nav>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   sidebar: {
@@ -139,4 +139,4 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-}))
+}));

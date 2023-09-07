@@ -1,17 +1,17 @@
-import Box from "@mui/material/Box"
-import { makeStyles } from "@mui/styles"
-import Typography from "@mui/material/Typography"
-import { FC, ReactNode } from "react"
-import { combineClasses } from "../../utils/combineClasses"
+import Box from "@mui/material/Box";
+import { makeStyles } from "@mui/styles";
+import Typography from "@mui/material/Typography";
+import { FC, ReactNode } from "react";
+import { combineClasses } from "../../utils/combineClasses";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
-  message: string
+  message: string;
   /** Longer optional description to display below the message */
-  description?: string | React.ReactNode
-  cta?: ReactNode
-  className?: string
-  image?: ReactNode
+  description?: string | React.ReactNode;
+  cta?: ReactNode;
+  className?: string;
+  image?: ReactNode;
 }
 
 /**
@@ -25,8 +25,8 @@ export interface EmptyStateProps {
 export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
   props,
 ) => {
-  const { message, description, cta, className, image, ...boxProps } = props
-  const styles = useStyles()
+  const { message, description, cta, className, image, ...boxProps } = props;
+  const styles = useStyles();
 
   return (
     <Box className={combineClasses([styles.root, className])} {...boxProps}>
@@ -45,8 +45,8 @@ export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
       {cta && <div className={styles.cta}>{cta}</div>}
       {image}
     </Box>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -75,4 +75,4 @@ const useStyles = makeStyles((theme) => ({
   cta: {
     marginTop: theme.spacing(4),
   },
-}))
+}));

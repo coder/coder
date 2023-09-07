@@ -1,19 +1,19 @@
-import DialogActions from "@mui/material/DialogActions"
-import { makeStyles } from "@mui/styles"
-import { ReactNode, FC, PropsWithChildren } from "react"
+import DialogActions from "@mui/material/DialogActions";
+import { makeStyles } from "@mui/styles";
+import { ReactNode, FC, PropsWithChildren } from "react";
 import {
   Dialog,
   DialogActionButtons,
   DialogActionButtonsProps,
-} from "../Dialog"
-import { ConfirmDialogType } from "../types"
-import Checkbox from "@mui/material/Checkbox"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import { Stack } from "@mui/system"
+} from "../Dialog";
+import { ConfirmDialogType } from "../types";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import { Stack } from "@mui/system";
 
 interface ConfirmDialogTypeConfig {
-  confirmText: ReactNode
-  hideCancel: boolean
+  confirmText: ReactNode;
+  hideCancel: boolean;
 }
 
 const CONFIRM_DIALOG_DEFAULTS: Record<
@@ -32,30 +32,30 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
     confirmText: "OK",
     hideCancel: true,
   },
-}
+};
 
 export interface ConfirmDialogProps
   extends Omit<
     DialogActionButtonsProps,
     "color" | "confirmDialog" | "onCancel"
   > {
-  readonly description?: ReactNode
+  readonly description?: ReactNode;
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
    * button when set to false. When undefined:
    *   - cancel is not displayed for "info" dialogs
    *   - cancel is displayed for "delete" dialogs
    */
-  readonly hideCancel?: boolean
+  readonly hideCancel?: boolean;
   /**
    * onClose is called when canceling (if cancel is showing).
    *
    * Additionally, if onConfirm is not defined onClose will be used in its place
    * when confirming.
    */
-  readonly onClose: () => void
-  readonly open: boolean
-  readonly title: string
+  readonly onClose: () => void;
+  readonly open: boolean;
+  readonly title: string;
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -98,7 +98,7 @@ const useStyles = makeStyles((theme) => ({
       margin: theme.spacing(1, 0),
     },
   },
-}))
+}));
 
 /**
  * Quick-use version of the Dialog component with slightly alternative styles,
@@ -117,12 +117,12 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
   title,
   type = "info",
 }) => {
-  const styles = useStyles({ type })
+  const styles = useStyles({ type });
 
-  const defaults = CONFIRM_DIALOG_DEFAULTS[type]
+  const defaults = CONFIRM_DIALOG_DEFAULTS[type];
 
   if (typeof hideCancel === "undefined") {
-    hideCancel = defaults.hideCancel
+    hideCancel = defaults.hideCancel;
   }
 
   return (
@@ -152,18 +152,18 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
         />
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};
 
 export interface ScheduleDialogProps extends ConfirmDialogProps {
-  readonly inactiveWorkspacesToGoDormant: number
-  readonly inactiveWorkspacesToGoDormantInWeek: number
-  readonly dormantWorkspacesToBeDeleted: number
-  readonly dormantWorkspacesToBeDeletedInWeek: number
-  readonly updateDormantWorkspaces: (confirm: boolean) => void
-  readonly updateInactiveWorkspaces: (confirm: boolean) => void
-  readonly dormantValueChanged: boolean
-  readonly deletionValueChanged: boolean
+  readonly inactiveWorkspacesToGoDormant: number;
+  readonly inactiveWorkspacesToGoDormantInWeek: number;
+  readonly dormantWorkspacesToBeDeleted: number;
+  readonly dormantWorkspacesToBeDeletedInWeek: number;
+  readonly updateDormantWorkspaces: (confirm: boolean) => void;
+  readonly updateInactiveWorkspaces: (confirm: boolean) => void;
+  readonly dormantValueChanged: boolean;
+  readonly deletionValueChanged: boolean;
 }
 
 export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
@@ -185,21 +185,22 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
   dormantValueChanged,
   deletionValueChanged,
 }) => {
-  const styles = useScheduleStyles({ type })
+  const styles = useScheduleStyles({ type });
 
-  const defaults = CONFIRM_DIALOG_DEFAULTS["delete"]
+  const defaults = CONFIRM_DIALOG_DEFAULTS["delete"];
 
   if (typeof hideCancel === "undefined") {
-    hideCancel = defaults.hideCancel
+    hideCancel = defaults.hideCancel;
   }
 
   const showDormancyWarning =
     dormantValueChanged &&
     (inactiveWorkspacesToGoDormant > 0 ||
-      inactiveWorkspacesToGoDormantInWeek > 0)
+      inactiveWorkspacesToGoDormantInWeek > 0);
   const showDeletionWarning =
     deletionValueChanged &&
-    (dormantWorkspacesToBeDeleted > 0 || dormantWorkspacesToBeDeletedInWeek > 0)
+    (dormantWorkspacesToBeDeleted > 0 ||
+      dormantWorkspacesToBeDeletedInWeek > 0);
 
   return (
     <Dialog
@@ -225,7 +226,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
                     <Checkbox
                       size="small"
                       onChange={(e) => {
-                        updateInactiveWorkspaces(e.target.checked)
+                        updateInactiveWorkspaces(e.target.checked);
                       }}
                     />
                   }
@@ -250,7 +251,7 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
                     <Checkbox
                       size="small"
                       onChange={(e) => {
-                        updateDormantWorkspaces(e.target.checked)
+                        updateDormantWorkspaces(e.target.checked);
                       }}
                     />
                   }
@@ -275,8 +276,8 @@ export const ScheduleDialog: FC<PropsWithChildren<ScheduleDialogProps>> = ({
         />
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};
 
 const useScheduleStyles = makeStyles((theme) => ({
   dialogWrapper: {
@@ -318,4 +319,4 @@ const useScheduleStyles = makeStyles((theme) => ({
       margin: theme.spacing(1, 0),
     },
   },
-}))
+}));

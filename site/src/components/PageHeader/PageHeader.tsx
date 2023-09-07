@@ -1,11 +1,11 @@
-import { makeStyles } from "@mui/styles"
-import { PropsWithChildren, FC } from "react"
-import { combineClasses } from "../../utils/combineClasses"
-import { Stack } from "../Stack/Stack"
+import { makeStyles } from "@mui/styles";
+import { PropsWithChildren, FC } from "react";
+import { combineClasses } from "../../utils/combineClasses";
+import { Stack } from "../Stack/Stack";
 
 export interface PageHeaderProps {
-  actions?: JSX.Element
-  className?: string
+  actions?: JSX.Element;
+  className?: string;
 }
 
 export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
@@ -13,7 +13,7 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
   actions,
   className,
 }) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
   return (
     <header
@@ -27,31 +27,31 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
         </Stack>
       )}
     </header>
-  )
-}
+  );
+};
 
 export const PageHeaderTitle: FC<PropsWithChildren<unknown>> = ({
   children,
 }) => {
-  const styles = useStyles({})
+  const styles = useStyles({});
 
-  return <h1 className={styles.title}>{children}</h1>
-}
+  return <h1 className={styles.title}>{children}</h1>;
+};
 
 export const PageHeaderSubtitle: FC<
   PropsWithChildren<{ condensed?: boolean }>
 > = ({ children, condensed }) => {
   const styles = useStyles({
     condensed,
-  })
+  });
 
-  return <h2 className={styles.subtitle}>{children}</h2>
-}
+  return <h2 className={styles.subtitle}>{children}</h2>;
+};
 
 export const PageHeaderCaption: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles({})
-  return <span className={styles.caption}>{children}</span>
-}
+  const styles = useStyles({});
+  return <span className={styles.caption}>{children}</span>;
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -104,4 +104,4 @@ const useStyles = makeStyles((theme) => ({
     textTransform: "uppercase",
     letterSpacing: "0.1em",
   },
-}))
+}));

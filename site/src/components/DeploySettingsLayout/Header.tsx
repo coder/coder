@@ -1,16 +1,16 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
 
 export const Header: FC<{
-  title: string | JSX.Element
-  description?: string | JSX.Element
-  secondary?: boolean
-  docsHref?: string
+  title: string | JSX.Element;
+  description?: string | JSX.Element;
+  secondary?: boolean;
+  docsHref?: string;
 }> = ({ title, description, docsHref, secondary }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Stack alignItems="baseline" direction="row" justifyContent="space-between">
@@ -34,8 +34,8 @@ export const Header: FC<{
         </Button>
       )}
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   headingGroup: {
@@ -64,4 +64,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     lineHeight: "160%",
   },
-}))
+}));

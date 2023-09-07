@@ -2,29 +2,29 @@ import {
   render as tlRender,
   screen,
   waitForElementToBeRemoved,
-} from "@testing-library/react"
-import { AppProviders } from "app"
-import { DashboardLayout } from "components/Dashboard/DashboardLayout"
-import { i18n } from "i18n"
-import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout"
-import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout"
-import { I18nextProvider } from "react-i18next"
+} from "@testing-library/react";
+import { AppProviders } from "app";
+import { DashboardLayout } from "components/Dashboard/DashboardLayout";
+import { i18n } from "i18n";
+import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
+import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { I18nextProvider } from "react-i18next";
 import {
   RouterProvider,
   createMemoryRouter,
   RouteObject,
-} from "react-router-dom"
-import { RequireAuth } from "../components/RequireAuth/RequireAuth"
-import { MockUser } from "./entities"
-import { ReactNode } from "react"
+} from "react-router-dom";
+import { RequireAuth } from "../components/RequireAuth/RequireAuth";
+import { MockUser } from "./entities";
+import { ReactNode } from "react";
 
 const baseRender = (element: ReactNode) => {
   return tlRender(
     <I18nextProvider i18n={i18n}>
       <AppProviders>{element}</AppProviders>
     </I18nextProvider>,
-  )
-}
+  );
+};
 
 export const renderWithRouter = (
   router: ReturnType<typeof createMemoryRouter>,
@@ -32,8 +32,8 @@ export const renderWithRouter = (
   return {
     ...baseRender(<RouterProvider router={router} />),
     router,
-  }
-}
+  };
+};
 
 export const render = (element: ReactNode) => {
   return renderWithRouter(
@@ -46,22 +46,22 @@ export const render = (element: ReactNode) => {
       ],
       { initialEntries: ["/"] },
     ),
-  )
-}
+  );
+};
 
 type RenderWithAuthOptions = {
   // The current URL, /workspaces/123
-  route?: string
+  route?: string;
   // The route path, /workspaces/:workspaceId
-  path?: string
+  path?: string;
   // Extra routes to add to the router. It is helpful when having redirecting
   // routes or multiple routes during the test flow
-  extraRoutes?: RouteObject[]
+  extraRoutes?: RouteObject[];
   // The same as extraRoutes but for routes that don't require authentication
-  nonAuthenticatedRoutes?: RouteObject[]
+  nonAuthenticatedRoutes?: RouteObject[];
   // In case you want to render a layout inside of it
-  children?: RouteObject["children"]
-}
+  children?: RouteObject["children"];
+};
 
 export function renderWithAuth(
   element: JSX.Element,
@@ -79,16 +79,16 @@ export function renderWithAuth(
       children: [{ path, element, children }, ...extraRoutes],
     },
     ...nonAuthenticatedRoutes,
-  ]
+  ];
 
   const renderResult = renderWithRouter(
     createMemoryRouter(routes, { initialEntries: [route] }),
-  )
+  );
 
   return {
     user: MockUser,
     ...renderResult,
-  }
+  };
 }
 
 export function renderWithTemplateSettingsLayout(
@@ -116,16 +116,16 @@ export function renderWithTemplateSettingsLayout(
       ],
     },
     ...nonAuthenticatedRoutes,
-  ]
+  ];
 
   const renderResult = renderWithRouter(
     createMemoryRouter(routes, { initialEntries: [route] }),
-  )
+  );
 
   return {
     user: MockUser,
     ...renderResult,
-  }
+  };
 }
 
 export function renderWithWorkspaceSettingsLayout(
@@ -153,16 +153,16 @@ export function renderWithWorkspaceSettingsLayout(
       ],
     },
     ...nonAuthenticatedRoutes,
-  ]
+  ];
 
   const renderResult = renderWithRouter(
     createMemoryRouter(routes, { initialEntries: [route] }),
-  )
+  );
 
   return {
     user: MockUser,
     ...renderResult,
-  }
+  };
 }
 
 export const waitForLoaderToBeRemoved = (): Promise<void> =>
@@ -171,4 +171,4 @@ export const waitForLoaderToBeRemoved = (): Promise<void> =>
   // some of the endpoints
   waitForElementToBeRemoved(() => screen.queryByTestId("loader"), {
     timeout: 5_000,
-  })
+  });

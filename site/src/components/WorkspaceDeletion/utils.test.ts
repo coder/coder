@@ -1,9 +1,9 @@
-import * as TypesGen from "api/typesGenerated"
-import * as Mocks from "testHelpers/entities"
-import { displayImpendingDeletion } from "./utils"
+import * as TypesGen from "api/typesGenerated";
+import * as Mocks from "testHelpers/entities";
+import { displayImpendingDeletion } from "./utils";
 
 describe("displayImpendingDeletion", () => {
-  const today = new Date()
+  const today = new Date();
   it.each<[string, boolean, boolean, boolean]>([
     [
       new Date(new Date().setDate(today.getDate() + 15)).toISOString(),
@@ -43,14 +43,14 @@ describe("displayImpendingDeletion", () => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
         deleting_at,
-      }
+      };
       expect(
         displayImpendingDeletion(
           workspace,
           allowAdvancedScheduling,
           allowWorkspaceActions,
         ),
-      ).toBe(shouldDisplay)
+      ).toBe(shouldDisplay);
     },
-  )
-})
+  );
+});
