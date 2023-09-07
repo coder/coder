@@ -106,7 +106,9 @@ resource "coder_app" "code-server" {
 
 ## VS Code Web
 
-VS Code supports launching a local web client using the `code serve-web` command. To add VS COde web as a web IDE, Install and start this in your `startup_script` and create a corresponding `coder_app`
+VS Code supports launching a local web client using the `code serve-web`
+command. To add VS COde web as a web IDE, Install and start this in your
+`startup_script` and create a corresponding `coder_app`
 
 ```hcl
 resource "coder_agent" "main" {
@@ -125,15 +127,9 @@ resource "coder_agent" "main" {
 
 You also need to add a `coder_app` resource for this,
 
-resource "coder_app" "vscode-web" {
-  agent_id     = coder_agent.coder.id
-  slug         = "vscode-web"
-  display_name = "VS Code Web"
-  url          = "http://localhost:13338"
-  icon         = "/icon/code.svg"
-  share        = "owner"
-  subdomain    = true
-}
+resource "coder_app" "vscode-web" { agent_id = coder_agent.coder.id slug =
+"vscode-web" display_name = "VS Code Web" url = "http://localhost:13338" icon =
+"/icon/code.svg" share = "owner" subdomain = true }
 
 ## JupyterLab
 
