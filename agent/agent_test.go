@@ -1416,13 +1416,13 @@ func TestAgent_Lifecycle(t *testing.T) {
 			agentsdk.Manifest{
 				DERPMap: derpMap,
 				Scripts: []codersdk.WorkspaceAgentScript{{
-					LogSourceDisplayName: "startup",
-					Source:               "echo 1",
-					RunOnStart:           true,
+					LogPath:    "coder-startup-script.log",
+					Source:     "echo 1",
+					RunOnStart: true,
 				}, {
-					LogSourceDisplayName: "shutdown",
-					Source:               "echo " + expected,
-					RunOnStop:            true,
+					LogPath:   "coder-shutdown-script.log",
+					Source:    "echo " + expected,
+					RunOnStop: true,
 				}},
 			},
 			make(chan *agentsdk.Stats, 50),

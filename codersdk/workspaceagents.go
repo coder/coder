@@ -186,14 +186,14 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentScript struct {
-	LogSourceDisplayName string        `json:"log_source_display_name"`
-	LogSourceID          uuid.UUID     `json:"log_source_id" format:"uuid"`
-	Source               string        `json:"source"`
-	CRON                 string        `json:"cron"`
-	RunOnStart           bool          `json:"run_on_start"`
-	RunOnStop            bool          `json:"run_on_stop"`
-	StartBlocksLogin     bool          `json:"start_blocks_login"`
-	Timeout              time.Duration `json:"timeout_seconds"`
+	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
+	LogPath          string        `json:"log_path"`
+	Source           string        `json:"source"`
+	CRON             string        `json:"cron"`
+	RunOnStart       bool          `json:"run_on_start"`
+	RunOnStop        bool          `json:"run_on_stop"`
+	StartBlocksLogin bool          `json:"start_blocks_login"`
+	Timeout          time.Duration `json:"timeout_seconds"`
 }
 
 type WorkspaceAgentHealth struct {

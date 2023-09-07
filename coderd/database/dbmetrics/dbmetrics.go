@@ -816,6 +816,13 @@ func (m metricsStore) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	return r0, r1
 }
 
+func (m metricsStore) GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetWorkspaceAgentLogSourcesByAgentIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceAgentLogsAfter(ctx, arg)

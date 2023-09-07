@@ -6398,9 +6398,6 @@ const docTemplate = `{
                 },
                 "output": {
                     "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },
@@ -6447,17 +6444,11 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
-                "shutdown_script": {
-                    "type": "string"
-                },
-                "shutdown_script_timeout": {
-                    "type": "integer"
-                },
-                "startup_script": {
-                    "type": "string"
-                },
-                "startup_script_timeout": {
-                    "type": "integer"
+                "scripts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScript"
+                    }
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"
@@ -6466,7 +6457,13 @@ const docTemplate = `{
         },
         "agentsdk.PatchLogs": {
             "type": "object",
+            "required": [
+                "log_source_id"
+            ],
             "properties": {
+                "log_source_id": {
+                    "type": "string"
+                },
                 "logs": {
                     "type": "array",
                     "items": {
@@ -10681,9 +10678,11 @@ const docTemplate = `{
                 "lifecycle_state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
-                "login_before_ready": {
-                    "description": "Deprecated: Use StartupScriptBehavior instead.",
-                    "type": "boolean"
+                "log_sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+                    }
                 },
                 "logs_length": {
                     "type": "integer"
@@ -10705,25 +10704,15 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "shutdown_script": {
-                    "type": "string"
-                },
-                "shutdown_script_timeout_seconds": {
-                    "type": "integer"
+                "scripts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScript"
+                    }
                 },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
-                },
-                "startup_script": {
-                    "type": "string"
-                },
-                "startup_script_behavior": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
-                },
-                "startup_script_timeout_seconds": {
-                    "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
-                    "type": "integer"
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
@@ -10841,29 +10830,37 @@ const docTemplate = `{
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
                 },
+                "log_source_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "output": {
                     "type": "string"
                 }
             }
         },
         "codersdk.WorkspaceAgentLogSource": {
-            "type": "string",
-            "enum": [
-                "startup_script",
-                "shutdown_script",
-                "kubernetes",
-                "envbox",
-                "envbuilder",
-                "external"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceAgentLogSourceStartupScript",
-                "WorkspaceAgentLogSourceShutdownScript",
-                "WorkspaceAgentLogSourceKubernetes",
-                "WorkspaceAgentLogSourceEnvbox",
-                "WorkspaceAgentLogSourceEnvbuilder",
-                "WorkspaceAgentLogSourceExternal"
-            ]
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
@@ -10885,16 +10882,35 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentStartupScriptBehavior": {
-            "type": "string",
-            "enum": [
-                "blocking",
-                "non-blocking"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceAgentStartupScriptBehaviorBlocking",
-                "WorkspaceAgentStartupScriptBehaviorNonBlocking"
-            ]
+        "codersdk.WorkspaceAgentScript": {
+            "type": "object",
+            "properties": {
+                "cron": {
+                    "type": "string"
+                },
+                "log_path": {
+                    "type": "string"
+                },
+                "log_source_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "run_on_start": {
+                    "type": "boolean"
+                },
+                "run_on_stop": {
+                    "type": "boolean"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "start_blocks_login": {
+                    "type": "boolean"
+                },
+                "timeout_seconds": {
+                    "type": "integer"
+                }
+            }
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",

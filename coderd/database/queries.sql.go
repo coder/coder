@@ -6585,6 +6585,39 @@ func (q *sqlQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id
 	return i, err
 }
 
+const getWorkspaceAgentLogSourcesByAgentIDs = `-- name: GetWorkspaceAgentLogSourcesByAgentIDs :many
+SELECT workspace_agent_id, id, created_at, display_name, icon FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentLogSource, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentLogSourcesByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentLogSource
+	for rows.Next() {
+		var i WorkspaceAgentLogSource
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.ID,
+			&i.CreatedAt,
+			&i.DisplayName,
+			&i.Icon,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceAgentLogsAfter = `-- name: GetWorkspaceAgentLogsAfter :many
 SELECT
 	agent_id, created_at, output, id, level, log_source_id
@@ -9034,7 +9067,7 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_source_display_name, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+SELECT workspace_agent_id, log_source_id, log_path, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
@@ -9049,7 +9082,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 		if err := rows.Scan(
 			&i.WorkspaceAgentID,
 			&i.LogSourceID,
-			&i.LogSourceDisplayName,
+			&i.LogPath,
 			&i.CreatedAt,
 			&i.Source,
 			&i.Cron,
@@ -9073,11 +9106,11 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, log_source_id, log_source_display_name, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
+	workspace_agent_scripts (workspace_agent_id, log_source_id, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	unnest($2 :: uuid [ ]) AS log_source_id,
-	unnest($3 :: varchar(127) [ ]) AS log_source_display_name,
+	unnest($3 :: text [ ]) AS log_path,
 	unnest($4 :: timestamptz [ ]) AS created_at,
 	unnest($5 :: text [ ]) AS source,
 	unnest($6 :: text [ ]) AS cron,
@@ -9085,27 +9118,27 @@ SELECT
 	unnest($8 :: boolean [ ]) AS run_on_start,
 	unnest($9 :: boolean [ ]) AS run_on_stop,
 	unnest($10 :: integer [ ]) AS timeout
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_source_display_name, workspace_agent_scripts.created_at, workspace_agent_scripts.source, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.source, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout
 `
 
 type InsertWorkspaceAgentScriptsParams struct {
-	WorkspaceAgentID     uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	LogSourceID          []uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogSourceDisplayName []string    `db:"log_source_display_name" json:"log_source_display_name"`
-	CreatedAt            []time.Time `db:"created_at" json:"created_at"`
-	Source               []string    `db:"source" json:"source"`
-	Cron                 []string    `db:"cron" json:"cron"`
-	StartBlocksLogin     []bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart           []bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop            []bool      `db:"run_on_stop" json:"run_on_stop"`
-	Timeout              []int32     `db:"timeout" json:"timeout"`
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogPath          []string    `db:"log_path" json:"log_path"`
+	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
+	Source           []string    `db:"source" json:"source"`
+	Cron             []string    `db:"cron" json:"cron"`
+	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
+	Timeout          []int32     `db:"timeout" json:"timeout"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
 	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
 		arg.WorkspaceAgentID,
 		pq.Array(arg.LogSourceID),
-		pq.Array(arg.LogSourceDisplayName),
+		pq.Array(arg.LogPath),
 		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Source),
 		pq.Array(arg.Cron),
@@ -9124,7 +9157,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 		if err := rows.Scan(
 			&i.WorkspaceAgentID,
 			&i.LogSourceID,
-			&i.LogSourceDisplayName,
+			&i.LogPath,
 			&i.CreatedAt,
 			&i.Source,
 			&i.Cron,

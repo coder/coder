@@ -727,7 +727,7 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
     log_source_id uuid NOT NULL,
-    log_source_display_name character varying(127) NOT NULL,
+    log_path text NOT NULL,
     created_at timestamp with time zone NOT NULL,
     source text NOT NULL,
     cron text NOT NULL,

@@ -99,7 +99,7 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 		eg.Go(func() error {
 			err := r.run(script)
 			if err != nil {
-				return xerrors.Errorf("run agent script %q: %w", script.LogSourceDisplayName, err)
+				return xerrors.Errorf("run agent script %q: %w", script.LogPath, err)
 			}
 			return nil
 		})
@@ -112,17 +112,25 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 // If the process does not exit after a few seconds, it is forcefully killed.
 // This function immediately returns after a timeout, and does not wait for the process to exit.
 func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
-	logger := r.Logger.With(slog.F("log_source", script.LogSourceDisplayName))
+	logger := r.Logger.With(slog.F("log_source", script.LogPath))
 	ctx := r.ctx
 	logger.Info(ctx, "running agent script", slog.F("script", script.Source))
-	fileWriter, err := r.Filesystem.OpenFile(filepath.Join(r.LogDir, fmt.Sprintf("coder-%s-script.log", script.LogSourceDisplayName)), os.O_CREATE|os.O_RDWR, 0o600)
+
+	logPath := script.LogPath
+	if logPath == "" {
+		logPath = fmt.Sprintf("coder-%s-script.log", script.LogSourceID)
+	}
+	if !filepath.IsAbs(logPath) {
+		logPath = filepath.Join(r.LogDir, logPath)
+	}
+	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", script.LogSourceDisplayName, err)
+		return xerrors.Errorf("open %s script log file: %w", logPath, err)
 	}
 	defer func() {
 		err := fileWriter.Close()
 		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", script.LogSourceDisplayName), slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("close %s script log file", logPath), slog.Error(err))
 		}
 	}()
 
@@ -136,7 +144,7 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 
 	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Source, nil)
 	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", script.LogSourceDisplayName, err)
+		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
 	cmd = cmdPty.AsExec()
 
@@ -169,15 +177,15 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 			if xerrors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
-			logger.Warn(ctx, fmt.Sprintf("%s script failed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("%s script failed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
 		} else {
-			logger.Info(ctx, fmt.Sprintf("%s script completed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
+			logger.Info(ctx, fmt.Sprintf("%s script completed", logPath), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 	}()
 
 	err = cmd.Start()
 	if err != nil {
-		return xerrors.Errorf("%s script: start command: %w", script.LogSourceDisplayName, err)
+		return xerrors.Errorf("%s script: start command: %w", logPath, err)
 	}
 
 	// timeout stores whether the process timed out then was gracefully killed.
@@ -199,7 +207,7 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 		cmdDone <- cmd.Wait()
 	})
 	if err != nil {
-		return xerrors.Errorf("%s script: track command goroutine: %w", script.LogSourceDisplayName, err)
+		return xerrors.Errorf("%s script: track command goroutine: %w", logPath, err)
 	}
 	select {
 	case <-timeout:

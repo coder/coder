@@ -31,8 +31,7 @@ func TestExecuteBasic(t *testing.T) {
 	})
 	defer runner.Close()
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
-		LogSourceDisplayName: "test",
-		Source:               "echo hello",
+		Source: "echo hello",
 	}})
 	require.NoError(t, err)
 	require.NoError(t, runner.Execute(func(script codersdk.WorkspaceAgentScript) bool {

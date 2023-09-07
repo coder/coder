@@ -57,8 +57,9 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	var (
-		dbApps  []database.WorkspaceApp
-		scripts []database.WorkspaceAgentScript
+		dbApps     []database.WorkspaceApp
+		scripts    []database.WorkspaceAgentScript
+		logSources []database.WorkspaceAgentLogSource
 	)
 
 	var eg errgroup.Group
@@ -70,8 +71,12 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
 		return
 	})
+	eg.Go(func() (err error) {
+		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
+		return
+	})
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), convertScripts(scripts), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -96,7 +101,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -109,6 +114,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	var (
 		dbApps    []database.WorkspaceApp
+		scripts   []database.WorkspaceAgentScript
 		metadata  []database.WorkspaceAgentMetadatum
 		resource  database.WorkspaceResource
 		build     database.WorkspaceBuild
@@ -123,6 +129,10 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 			return err
 		}
 		return nil
+	})
+	eg.Go(func() (err error) {
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
+		return
 	})
 	eg.Go(func() (err error) {
 		metadata, err = api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
@@ -170,6 +180,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
 		Apps:                     convertApps(dbApps),
+		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		GitAuthConfigs:           len(api.GitAuthConfigs),
@@ -196,7 +207,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -642,7 +653,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -1290,17 +1301,31 @@ func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
 	return apps
 }
 
+func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []codersdk.WorkspaceAgentLogSource {
+	logSources := make([]codersdk.WorkspaceAgentLogSource, 0)
+	for _, dbLogSource := range dbLogSources {
+		logSources = append(logSources, codersdk.WorkspaceAgentLogSource{
+			ID:               dbLogSource.ID,
+			DisplayName:      dbLogSource.DisplayName,
+			WorkspaceAgentID: dbLogSource.WorkspaceAgentID,
+			CreatedAt:        dbLogSource.CreatedAt,
+			Icon:             dbLogSource.Icon,
+		})
+	}
+	return logSources
+}
+
 func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.WorkspaceAgentScript {
 	scripts := make([]codersdk.WorkspaceAgentScript, 0)
 	for _, dbScript := range dbScripts {
 		scripts = append(scripts, codersdk.WorkspaceAgentScript{
-			LogSourceDisplayName: dbScript.LogSourceDisplayName,
-			LogSourceID:          dbScript.LogSourceID,
-			Source:               dbScript.Source,
-			CRON:                 dbScript.Cron,
-			RunOnStart:           dbScript.RunOnStart,
-			RunOnStop:            dbScript.RunOnStop,
-			StartBlocksLogin:     dbScript.StartBlocksLogin,
+			LogPath:          dbScript.LogPath,
+			LogSourceID:      dbScript.LogSourceID,
+			Source:           dbScript.Source,
+			CRON:             dbScript.Cron,
+			RunOnStart:       dbScript.RunOnStart,
+			RunOnStop:        dbScript.RunOnStop,
+			StartBlocksLogin: dbScript.StartBlocksLogin,
 			// In the database it's stored as seconds!
 			Timeout: time.Duration(dbScript.Timeout) * time.Second,
 		})
@@ -1322,7 +1347,9 @@ func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) [
 	return metadata
 }
 
-func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
+	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
+	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)

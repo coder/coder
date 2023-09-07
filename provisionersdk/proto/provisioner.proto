@@ -145,6 +145,7 @@ message Script {
 	bool run_on_start = 6;
 	bool run_on_stop = 7;
 	int32 timeout = 8;
+	string log_path = 9;
 }
 
 // App represents a dev-accessible application on the workspace.

@@ -171,6 +171,9 @@ INSERT INTO
 		unnest(@icon :: text [ ]) AS icon
 	RETURNING workspace_agent_log_sources.*;
 
+-- name: GetWorkspaceAgentLogSourcesByAgentIDs :many
+SELECT * FROM workspace_agent_log_sources WHERE workspace_agent_id = ANY(@ids :: uuid [ ]);
+
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
 -- Logs can take up a lot of space, so it's important we clean up frequently.
 -- name: DeleteOldWorkspaceAgentLogs :exec

@@ -163,19 +163,17 @@
 {
   "created_at": "string",
   "level": "trace",
-  "output": "string",
-  "source": "startup_script"
+  "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                                 | Required | Restrictions | Description |
-| ------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                                               | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel)                               | false    |              |             |
-| `output`     | string                                                               | false    |              |             |
-| `source`     | [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
 
 ## agentsdk.Manifest
 
@@ -278,10 +276,18 @@
     }
   ],
   "motd_file": "string",
-  "shutdown_script": "string",
-  "shutdown_script_timeout": 0,
-  "startup_script": "string",
-  "startup_script_timeout": 0,
+  "scripts": [
+    {
+      "cron": "string",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "source": "string",
+      "start_blocks_login": true,
+      "timeout_seconds": 0
+    }
+  ],
   "vscode_port_proxy_uri": "string"
 }
 ```
@@ -301,22 +307,19 @@
 | `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
 | `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
 | `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script`            | string                                                                                            | false    |              |                                                                                                                                                            |
-| `shutdown_script_timeout`    | integer                                                                                           | false    |              |                                                                                                                                                            |
-| `startup_script`             | string                                                                                            | false    |              |                                                                                                                                                            |
-| `startup_script_timeout`     | integer                                                                                           | false    |              |                                                                                                                                                            |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PatchLogs
 
 ```json
 {
+  "log_source_id": "string",
   "logs": [
     {
       "created_at": "string",
       "level": "trace",
-      "output": "string",
-      "source": "startup_script"
+      "output": "string"
     }
   ]
 }
@@ -324,9 +327,10 @@
 
 ### Properties
 
-| Name   | Type                                  | Required | Restrictions | Description |
-| ------ | ------------------------------------- | -------- | ------------ | ----------- |
-| `logs` | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
+| Name            | Type                                  | Required | Restrictions | Description |
+| --------------- | ------------------------------------- | -------- | ------------ | ----------- |
+| `log_source_id` | string                                | true     |              |             |
+| `logs`          | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest
 
@@ -5468,19 +5472,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               }
             },
             "lifecycle_state": "created",
-            "login_before_ready": true,
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
             "logs_length": 0,
             "logs_overflowed": true,
             "name": "string",
             "operating_system": "string",
             "ready_at": "2019-08-24T14:15:22Z",
             "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-            "shutdown_script": "string",
-            "shutdown_script_timeout_seconds": 0,
+            "scripts": [
+              {
+                "cron": "string",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "source": "string",
+                "start_blocks_login": true,
+                "timeout_seconds": 0
+              }
+            ],
             "started_at": "2019-08-24T14:15:22Z",
-            "startup_script": "string",
-            "startup_script_behavior": "blocking",
-            "startup_script_timeout_seconds": 0,
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -5611,19 +5630,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   },
   "lifecycle_state": "created",
-  "login_before_ready": true,
+  "log_sources": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+    }
+  ],
   "logs_length": 0,
   "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "shutdown_script": "string",
-  "shutdown_script_timeout_seconds": 0,
+  "scripts": [
+    {
+      "cron": "string",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "source": "string",
+      "start_blocks_login": true,
+      "timeout_seconds": 0
+    }
+  ],
   "started_at": "2019-08-24T14:15:22Z",
-  "startup_script": "string",
-  "startup_script_behavior": "blocking",
-  "startup_script_timeout_seconds": 0,
   "status": "connecting",
   "subsystems": ["envbox"],
   "troubleshooting_url": "string",
@@ -5634,44 +5668,40 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                              | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                                                |
-| --------------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps`                            | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                                                            |
-| `architecture`                    | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `connection_timeout_seconds`      | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `created_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `directory`                       | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `disconnected_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `display_apps`                    | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                            |
-| `environment_variables`           | object                                                                                       | false    |              |                                                                                                                                                                                                            |
-| » `[any property]`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `expanded_directory`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `first_connected_at`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `health`                          | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                                                    |
-| `id`                              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `instance_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `last_connected_at`               | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `latency`                         | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                                                        |
-| » `[any property]`                | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                                                            |
-| `lifecycle_state`                 | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                                                            |
-| `login_before_ready`              | boolean                                                                                      | false    |              | Deprecated: Use StartupScriptBehavior instead.                                                                                                                                                             |
-| `logs_length`                     | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `logs_overflowed`                 | boolean                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `name`                            | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `operating_system`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `ready_at`                        | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `resource_id`                     | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `shutdown_script_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                                                            |
-| `started_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `startup_script`                  | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `startup_script_behavior`         | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              |                                                                                                                                                                                                            |
-| `startup_script_timeout_seconds`  | integer                                                                                      | false    |              | Startup script timeout seconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout. |
-| `status`                          | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                            |
-| `subsystems`                      | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                                                            |
-| `troubleshooting_url`             | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `updated_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
-| `version`                         | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| Name                         | Type                                                                          | Required | Restrictions | Description                                                         |
+| ---------------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                       | false    |              |                                                                     |
+| `architecture`               | string                                                                        | false    |              |                                                                     |
+| `connection_timeout_seconds` | integer                                                                       | false    |              |                                                                     |
+| `created_at`                 | string                                                                        | false    |              |                                                                     |
+| `directory`                  | string                                                                        | false    |              |                                                                     |
+| `disconnected_at`            | string                                                                        | false    |              |                                                                     |
+| `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                           | false    |              |                                                                     |
+| `environment_variables`      | object                                                                        | false    |              |                                                                     |
+| » `[any property]`           | string                                                                        | false    |              |                                                                     |
+| `expanded_directory`         | string                                                                        | false    |              |                                                                     |
+| `first_connected_at`         | string                                                                        | false    |              |                                                                     |
+| `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                | false    |              | Health reports the health of the agent.                             |
+| `id`                         | string                                                                        | false    |              |                                                                     |
+| `instance_id`                | string                                                                        | false    |              |                                                                     |
+| `last_connected_at`          | string                                                                        | false    |              |                                                                     |
+| `latency`                    | object                                                                        | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                    | false    |              |                                                                     |
+| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)          | false    |              |                                                                     |
+| `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |                                                                     |
+| `logs_length`                | integer                                                                       | false    |              |                                                                     |
+| `logs_overflowed`            | boolean                                                                       | false    |              |                                                                     |
+| `name`                       | string                                                                        | false    |              |                                                                     |
+| `operating_system`           | string                                                                        | false    |              |                                                                     |
+| `ready_at`                   | string                                                                        | false    |              |                                                                     |
+| `resource_id`                | string                                                                        | false    |              |                                                                     |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)       | false    |              |                                                                     |
+| `started_at`                 | string                                                                        | false    |              |                                                                     |
+| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                | false    |              |                                                                     |
+| `subsystems`                 | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                     |
+| `troubleshooting_url`        | string                                                                        | false    |              |                                                                     |
+| `updated_at`                 | string                                                                        | false    |              |                                                                     |
+| `version`                    | string                                                                        | false    |              |                                                                     |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -5832,37 +5862,42 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
   "level": "trace",
+  "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
   "output": "string"
 }
 ```
 
 ### Properties
 
-| Name         | Type                                   | Required | Restrictions | Description |
-| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at` | string                                 | false    |              |             |
-| `id`         | integer                                | false    |              |             |
-| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `output`     | string                                 | false    |              |             |
+| Name            | Type                                   | Required | Restrictions | Description |
+| --------------- | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at`    | string                                 | false    |              |             |
+| `id`            | integer                                | false    |              |             |
+| `level`         | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `log_source_id` | string                                 | false    |              |             |
+| `output`        | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentLogSource
 
 ```json
-"startup_script"
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+}
 ```
 
 ### Properties
 
-#### Enumerated Values
-
-| Value             |
-| ----------------- |
-| `startup_script`  |
-| `shutdown_script` |
-| `kubernetes`      |
-| `envbox`          |
-| `envbuilder`      |
-| `external`        |
+| Name                 | Type   | Required | Restrictions | Description |
+| -------------------- | ------ | -------- | ------------ | ----------- |
+| `created_at`         | string | false    |              |             |
+| `display_name`       | string | false    |              |             |
+| `icon`               | string | false    |              |             |
+| `id`                 | string | false    |              |             |
+| `workspace_agent_id` | string | false    |              |             |
 
 ## codersdk.WorkspaceAgentMetadataDescription
 
@@ -5886,20 +5921,33 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `script`       | string  | false    |              |             |
 | `timeout`      | integer | false    |              |             |
 
-## codersdk.WorkspaceAgentStartupScriptBehavior
+## codersdk.WorkspaceAgentScript
 
 ```json
-"blocking"
+{
+  "cron": "string",
+  "log_path": "string",
+  "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+  "run_on_start": true,
+  "run_on_stop": true,
+  "source": "string",
+  "start_blocks_login": true,
+  "timeout_seconds": 0
+}
 ```
 
 ### Properties
 
-#### Enumerated Values
-
-| Value          |
-| -------------- |
-| `blocking`     |
-| `non-blocking` |
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `cron`               | string  | false    |              |             |
+| `log_path`           | string  | false    |              |             |
+| `log_source_id`      | string  | false    |              |             |
+| `run_on_start`       | boolean | false    |              |             |
+| `run_on_stop`        | boolean | false    |              |             |
+| `source`             | string  | false    |              |             |
+| `start_blocks_login` | boolean | false    |              |             |
+| `timeout_seconds`    | integer | false    |              |             |
 
 ## codersdk.WorkspaceAgentStatus
 
@@ -6081,19 +6129,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             }
           },
           "lifecycle_state": "created",
-          "login_before_ready": true,
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
           "logs_length": 0,
           "logs_overflowed": true,
           "name": "string",
           "operating_system": "string",
           "ready_at": "2019-08-24T14:15:22Z",
           "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-          "shutdown_script": "string",
-          "shutdown_script_timeout_seconds": 0,
+          "scripts": [
+            {
+              "cron": "string",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "source": "string",
+              "start_blocks_login": true,
+              "timeout_seconds": 0
+            }
+          ],
           "started_at": "2019-08-24T14:15:22Z",
-          "startup_script": "string",
-          "startup_script_behavior": "blocking",
-          "startup_script_timeout_seconds": 0,
           "status": "connecting",
           "subsystems": ["envbox"],
           "troubleshooting_url": "string",
@@ -6393,19 +6456,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       },
       "lifecycle_state": "created",
-      "login_before_ready": true,
+      "log_sources": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+        }
+      ],
       "logs_length": 0,
       "logs_overflowed": true,
       "name": "string",
       "operating_system": "string",
       "ready_at": "2019-08-24T14:15:22Z",
       "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-      "shutdown_script": "string",
-      "shutdown_script_timeout_seconds": 0,
+      "scripts": [
+        {
+          "cron": "string",
+          "log_path": "string",
+          "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+          "run_on_start": true,
+          "run_on_stop": true,
+          "source": "string",
+          "start_blocks_login": true,
+          "timeout_seconds": 0
+        }
+      ],
       "started_at": "2019-08-24T14:15:22Z",
-      "startup_script": "string",
-      "startup_script_behavior": "blocking",
-      "startup_script_timeout_seconds": 0,
       "status": "connecting",
       "subsystems": ["envbox"],
       "troubleshooting_url": "string",
@@ -6607,19 +6685,34 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   }
                 },
                 "lifecycle_state": "created",
-                "login_before_ready": true,
+                "log_sources": [
+                  {
+                    "created_at": "2019-08-24T14:15:22Z",
+                    "display_name": "string",
+                    "icon": "string",
+                    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+                  }
+                ],
                 "logs_length": 0,
                 "logs_overflowed": true,
                 "name": "string",
                 "operating_system": "string",
                 "ready_at": "2019-08-24T14:15:22Z",
                 "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-                "shutdown_script": "string",
-                "shutdown_script_timeout_seconds": 0,
+                "scripts": [
+                  {
+                    "cron": "string",
+                    "log_path": "string",
+                    "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "run_on_start": true,
+                    "run_on_stop": true,
+                    "source": "string",
+                    "start_blocks_login": true,
+                    "timeout_seconds": 0
+                  }
+                ],
                 "started_at": "2019-08-24T14:15:22Z",
-                "startup_script": "string",
-                "startup_script_behavior": "blocking",
-                "startup_script_timeout_seconds": 0,
                 "status": "connecting",
                 "subsystems": ["envbox"],
                 "troubleshooting_url": "string",

@@ -135,6 +135,8 @@ type data struct {
 	workspaceAgents               []database.WorkspaceAgent
 	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs            []database.WorkspaceAgentLog
+	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
+	workspaceAgentScripts         []database.WorkspaceAgentScript
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
@@ -3069,6 +3071,22 @@ func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	}, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	logSources := make([]database.WorkspaceAgentLogSource, 0)
+	for _, logSource := range q.workspaceAgentLogSources {
+		for _, id := range ids {
+			if logSource.WorkspaceAgentID == id {
+				logSources = append(logSources, logSource)
+				break
+			}
+		}
+	}
+	return logSources, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentLogsAfter(_ context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -3104,7 +3122,19 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgen
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for _, script := range q.workspaceAgentScripts {
+		for _, id := range ids {
+			if script.WorkspaceAgentID == id {
+				scripts = append(scripts, script)
+				break
+			}
+		}
+	}
+	return scripts, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -4443,7 +4473,22 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogSources(ctx context.Context, arg da
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logSources := make([]database.WorkspaceAgentLogSource, 0)
+	for index, source := range arg.ID {
+		logSource := database.WorkspaceAgentLogSource{
+			ID:               source,
+			WorkspaceAgentID: arg.WorkspaceAgentID,
+			CreatedAt:        arg.CreatedAt[index],
+			DisplayName:      arg.DisplayName[index],
+			Icon:             arg.Icon[index],
+		}
+		logSources = append(logSources, logSource)
+	}
+	q.workspaceAgentLogSources = append(q.workspaceAgentLogSources, logSources...)
+	return logSources, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
@@ -4515,7 +4560,27 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg datab
 		return nil, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for index, source := range arg.LogSourceID {
+		script := database.WorkspaceAgentScript{
+			LogSourceID:      source,
+			WorkspaceAgentID: arg.WorkspaceAgentID,
+			LogPath:          arg.LogPath[index],
+			Source:           arg.Source[index],
+			Cron:             arg.Cron[index],
+			StartBlocksLogin: arg.StartBlocksLogin[index],
+			RunOnStart:       arg.RunOnStart[index],
+			RunOnStop:        arg.RunOnStop[index],
+			Timeout:          arg.Timeout[index],
+			CreatedAt:        arg.CreatedAt[index],
+		}
+		scripts = append(scripts, script)
+	}
+	q.workspaceAgentScripts = append(q.workspaceAgentScripts, scripts...)
+	return scripts, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {

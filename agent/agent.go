@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"sort"
@@ -973,78 +972,6 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn)
 			}
 		}
 	}
-}
-
-func (a *agent) runScript(ctx context.Context, script codersdk.WorkspaceAgentScript) (err error) {
-	if script.Source == "" {
-		return nil
-	}
-
-	logger := a.logger.With(slog.F("log_source", script.LogSourceDisplayName))
-
-	logger.Info(ctx, "running script", slog.F("script", script.Source))
-	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", script.LogSourceDisplayName)), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", script.LogSourceDisplayName, err)
-	}
-	defer func() {
-		err := fileWriter.Close()
-		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", script.LogSourceDisplayName), slog.Error(err))
-		}
-	}()
-
-	cmdPty, err := a.sshServer.CreateCommand(ctx, script.Source, nil)
-	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", script.LogSourceDisplayName, err)
-	}
-	cmd := cmdPty.AsExec()
-
-	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, a.client.PatchLogs, logger)
-	// If ctx is canceled here (or in a writer below), we may be
-	// discarding logs, but that's okay because we're shutting down
-	// anyway. We could consider creating a new context here if we
-	// want better control over flush during shutdown.
-	defer func() {
-		if err := flushAndClose(ctx); err != nil {
-			logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
-		}
-	}()
-
-	infoW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelInfo)
-	defer infoW.Close()
-	errW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelError)
-	defer errW.Close()
-	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
-	cmd.Stderr = io.MultiWriter(fileWriter, errW)
-
-	start := time.Now()
-	defer func() {
-		end := time.Now()
-		execTime := end.Sub(start)
-		exitCode := 0
-		if err != nil {
-			exitCode = 255 // Unknown status.
-			var exitError *exec.ExitError
-			if xerrors.As(err, &exitError) {
-				exitCode = exitError.ExitCode()
-			}
-			logger.Warn(ctx, fmt.Sprintf("%s script failed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
-		} else {
-			logger.Info(ctx, fmt.Sprintf("%s script completed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
-		}
-	}()
-
-	err = cmd.Run()
-	if err != nil {
-		// cmd.Run does not return a context canceled error, it returns "signal: killed".
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		return xerrors.Errorf("%s script: run: %w", script.LogSourceDisplayName, err)
-	}
-	return nil
 }
 
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {

@@ -1412,8 +1412,8 @@ export interface WorkspaceAgentMetadataResult {
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentScript {
-  readonly log_source_display_name: string
   readonly log_source_id: string
+  readonly log_path: string
   readonly source: string
   readonly cron: string
   readonly run_on_start: boolean

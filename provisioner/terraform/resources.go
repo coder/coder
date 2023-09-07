@@ -234,6 +234,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			// Support the legacy script attributes in the agent!
 			if attrs.StartupScript != "" {
 				agent.Scripts = append(agent.Scripts, &proto.Script{
+					LogPath:          "coder-startup-script.log",
 					DisplayName:      "Startup Script",
 					Source:           attrs.StartupScript,
 					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
@@ -243,6 +244,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			}
 			if attrs.ShutdownScript != "" {
 				agent.Scripts = append(agent.Scripts, &proto.Script{
+					LogPath:     "coder-shutdown-script.log",
 					DisplayName: "Shutdown Script",
 					Source:      attrs.ShutdownScript,
 					Timeout:     attrs.ShutdownScriptTimeoutSeconds,

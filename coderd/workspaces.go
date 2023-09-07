@@ -535,6 +535,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAgentScript{},
+		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 	)
 	if err != nil {
@@ -1120,6 +1121,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.agents,
 		data.apps,
 		data.scripts,
+		data.logSources,
 		data.templateVersions,
 	)
 	if err != nil {

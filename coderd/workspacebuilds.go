@@ -77,6 +77,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.agents,
 		data.apps,
 		data.scripts,
+		data.logSources,
 		data.templateVersions[0],
 	)
 	if err != nil {
@@ -192,6 +193,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.agents,
 		data.apps,
 		data.scripts,
+		data.logSources,
 		data.templateVersions,
 	)
 	if err != nil {
@@ -281,6 +283,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.agents,
 		data.apps,
 		data.scripts,
+		data.logSources,
 		data.templateVersions[0],
 	)
 	if err != nil {
@@ -402,6 +405,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAgentScript{},
+		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 	)
 	if err != nil {
@@ -636,6 +640,7 @@ type workspaceBuildsData struct {
 	agents           []database.WorkspaceAgent
 	apps             []database.WorkspaceApp
 	scripts          []database.WorkspaceAgentScript
+	logSources       []database.WorkspaceAgentLogSource
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaces []database.Workspace, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -748,6 +753,7 @@ func (api *API) convertWorkspaceBuilds(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 	agentScripts []database.WorkspaceAgentScript,
+	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
@@ -789,6 +795,7 @@ func (api *API) convertWorkspaceBuilds(
 			resourceAgents,
 			agentApps,
 			agentScripts,
+			agentLogSources,
 			templateVersion,
 		)
 		if err != nil {
@@ -811,6 +818,7 @@ func (api *API) convertWorkspaceBuild(
 	resourceAgents []database.WorkspaceAgent,
 	agentApps []database.WorkspaceApp,
 	agentScripts []database.WorkspaceAgentScript,
+	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
 	userByID := map[uuid.UUID]database.User{}
@@ -837,6 +845,10 @@ func (api *API) convertWorkspaceBuild(
 	for _, script := range agentScripts {
 		scriptsByAgentID[script.WorkspaceAgentID] = append(scriptsByAgentID[script.WorkspaceAgentID], script)
 	}
+	logSourcesByAgentID := map[uuid.UUID][]database.WorkspaceAgentLogSource{}
+	for _, logSource := range agentLogSources {
+		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
+	}
 
 	owner, exists := userByID[workspace.OwnerID]
 	if !exists {
@@ -851,8 +863,9 @@ func (api *API) convertWorkspaceBuild(
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
 			scripts := scriptsByAgentID[agent.ID]
+			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps), convertScripts(scripts), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
