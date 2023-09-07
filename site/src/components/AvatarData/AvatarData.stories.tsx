@@ -17,6 +17,6 @@ export const WithTitleAndSubtitle: Story = {};
 
 export const WithImage: Story = {
   args: {
-    src: "https://AvatarDatas.githubusercontent.com/u/95932066?s=200&v=4",
+    src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
   },
 };
