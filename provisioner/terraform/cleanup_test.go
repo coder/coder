@@ -21,9 +21,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-const (
-	cachePath = "/tmp/coder/provisioner-0/tf"
-)
+const cachePath = "/tmp/coder/provisioner-0/tf"
 
 // updateGoldenFiles is a flag that can be set to update golden files.
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
@@ -31,19 +29,22 @@ var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 func TestPluginCache_Golden(t *testing.T) {
 	t.Parallel()
 
+	prepare := func() (afero.Fs, time.Time, slog.Logger) {
+		fs := afero.NewMemMapFs()
+		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
+		logger := slogtest.Make(t, nil).
+			Leveled(slog.LevelDebug).
+			Named("cleanup-test")
+		return fs, now, logger
+	}
+
 	t.Run("all plugins are stale", func(t *testing.T) {
 		t.Parallel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// prepare
-		fs := afero.NewMemMapFs()
-		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
-
-		logger := slogtest.Make(t, nil).
-			Leveled(slog.LevelDebug).
-			Named("cleanup-test")
+		fs, now, logger := prepare()
 
 		// given
 		// This plugin is older than 30 days.
@@ -71,13 +72,7 @@ func TestPluginCache_Golden(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// prepare
-		fs := afero.NewMemMapFs()
-		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
-
-		logger := slogtest.Make(t, nil).
-			Leveled(slog.LevelDebug).
-			Named("cleanup-test")
+		fs, now, logger := prepare()
 
 		// given
 		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "terraform-provider-coder_v0.11.1", now.Add(-2*time.Hour))
@@ -104,19 +99,13 @@ func TestPluginCache_Golden(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
-		// prepare
-		fs := afero.NewMemMapFs()
-		now := time.Date(2023, time.June, 3, 4, 5, 6, 0, time.UTC)
-
-		logger := slogtest.Make(t, nil).
-			Leveled(slog.LevelDebug).
-			Named("cleanup-test")
+		fs, now, logger := prepare()
 
 		// given
 		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
 		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "LICENSE", now.Add(-33*24*time.Hour))
 		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "README.md", now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder", now.Add(-4*time.Hour))
+		addPluginFolder(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder", now.Add(-4*time.Hour)) // touched
 		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder/foobar.tf", now.Add(-43*24*time.Hour))
 
 		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -41,12 +42,12 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		server: p.server,
 	}
 
-	err := cleanStaleSessions(s.Context(), p.opts.WorkDirectory, time.Now(), s.Logger)
+	err := CleanStaleSessions(s.Context(), p.opts.WorkDirectory, afero.NewOsFs(), time.Now(), s.Logger)
 	if err != nil {
 		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
 	}
 
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessionDir(sessID))
+	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
 	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
@@ -327,6 +328,7 @@ func (r *request[R, C]) do() (C, error) {
 	}
 }
 
-func sessionDir(sessID string) string {
+// SessionDir returns the directory name with mandatory prefix.
+func SessionDir(sessID string) string {
 	return sessionDirPrefix + sessID
 }

@@ -137,7 +137,6 @@ func latestAccessTime(fs afero.Fs, pluginPath string) (time.Time, error) {
 		}
 
 		var accessTime = info.ModTime() // fallback to modTime if accessTime is not available (afero)
-
 		if info.Sys() != nil {
 			timeSpec := times.Get(info)
 			accessTime = timeSpec.AccessTime()
