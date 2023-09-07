@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
+
+	"github.com/djherbis/times"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -257,7 +260,10 @@ func logTerraformEnvVars(sink logSink) {
 //
 // Sample cachePath: /Users/<username>/Library/Caches/coder/provisioner-<N>/tf
 func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.Time, logger slog.Logger) error {
-	// Review cached Terraform plugins
+	cachePath, err := filepath.Abs(cachePath) // sanity check in case the path is e.g. ../../../cache
+	if err != nil {
+		return xerrors.Errorf("unable to determine absolute path %q: %w", cachePath, err)
+	}
 
 	// Filter directory trees matching pattern: <repositoryURL>/<company>/<plugin>/<version>/<distribution>
 	filterFunc := func(path string, info os.FileInfo) bool {
@@ -278,8 +284,9 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 		return true
 	}
 
+	// Review cached Terraform plugins
 	var pluginPaths []string
-	err := filepath.Walk(cachePath, func(path string, info fs.FileInfo, err error) error {
+	err = filepath.Walk(cachePath, func(path string, info fs.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -310,14 +317,61 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 	}
 
 	// Remove stale plugins
-	// TODO
+	for _, stalePluginPath := range stalePlugins {
+		// Remove the plugin directory
+		err = os.RemoveAll(stalePluginPath)
+		if err != nil {
+			return xerrors.Errorf("unable to remove stale plugin %q: %w", stalePluginPath, err)
+		}
 
-	// Maintain the directory tree
-	// TODO
+		// Compact the plugin structure by removing empty directories.
+		wd := stalePluginPath
+		level := 4 // <repositoryURL>/<company>/<plugin>/<version>/<distribution>
+		for {
+			level--
+			if level == 0 {
+				break // do not compact further
+			}
 
+			wd = filepath.Dir(wd)
+
+			files, err := os.ReadDir(wd)
+			if err != nil {
+				return xerrors.Errorf("unable to read directory content %q: %w", wd, err)
+			}
+
+			if len(files) > 0 {
+				break // there are still other plugins
+			}
+
+			logger.Debug(ctx, "remove empty directory: %s", wd)
+			err = os.Remove(wd)
+			if err != nil {
+				return xerrors.Errorf("unable to remove directory %q: %w", wd, err)
+			}
+		}
+	}
 	return nil
 }
 
-func latestAccessTime(path string) (time.Time, error) {
-	// TODO
+// latestAccessTime walks recursively through the directory content, and locates
+// the last accessed file.
+func latestAccessTime(pluginPath string) (time.Time, error) {
+	var latest time.Time
+	err := filepath.Walk(pluginPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		timeSpec := times.Get(info)
+		accessTime := timeSpec.AccessTime()
+		if latest.Before(accessTime) {
+			latest = accessTime
+		}
+		return nil
+	})
+	if err != nil {
+		return time.Time{}, xerrors.Errorf("unable to walk the plugin path %q: %w", pluginPath, err)
+	}
+	return latest, nil
 }
