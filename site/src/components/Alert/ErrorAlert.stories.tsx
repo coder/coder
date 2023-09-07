@@ -53,12 +53,6 @@ export const WithActionAndDismiss: Story = {
   },
 };
 
-export const WithRetry: Story = {
-  args: {
-    dismissible: true,
-  },
-};
-
 export const WithNonApiError: Story = {
   args: {
     error: new Error("Non API error here"),
