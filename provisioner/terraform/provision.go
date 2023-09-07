@@ -9,9 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/djherbis/times"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -276,10 +277,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 		}
 
 		parts := strings.Split(relativePath, string(filepath.Separator))
-		if len(parts) >= 5 {
-			return false
-		}
-		return true
+		return len(parts) == 5
 	}
 
 	// Review cached Terraform plugins
@@ -293,7 +291,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 			return nil
 		}
 
-		logger.Debug(ctx, "Plugin directory discovered: %s", path)
+		logger.Debug(ctx, "plugin directory discovered: %s", path)
 		pluginPaths = append(pluginPaths, path)
 		return nil
 	})
