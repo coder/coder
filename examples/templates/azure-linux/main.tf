@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.7.0"
+      source = "coder/coder"
     }
     azurerm = {
-      source  = "hashicorp/azurerm"
-      version = "~>3.47.0"
+      source = "hashicorp/azurerm"
     }
   }
 }
