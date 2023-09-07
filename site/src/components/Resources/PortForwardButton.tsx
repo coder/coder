@@ -8,7 +8,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "components/HelpTooltip";
+} from "components/HelpTooltip/HelpTooltip";
 import { SecondaryAgentButton } from "components/Resources/AgentButton";
 import { docs } from "utils/docs";
 import Box from "@mui/material/Box";

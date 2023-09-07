@@ -1,4 +1,3 @@
-import { ComponentMeta, Story } from "@storybook/react";
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -7,14 +6,10 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "./HelpTooltip";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
-  title: "components/HelpTooltip",
-  component: HelpTooltip,
-} as ComponentMeta<typeof HelpTooltip>;
-
-const Template: Story<HelpTooltipProps> = (args) => (
-  <HelpTooltip {...args}>
+const Template = (props: HelpTooltipProps) => (
+  <HelpTooltip {...props}>
     <HelpTooltipTitle>What is a template?</HelpTooltipTitle>
     <HelpTooltipText>
       A template is a common configuration for your team&apos;s workspaces.
@@ -30,9 +25,18 @@ const Template: Story<HelpTooltipProps> = (args) => (
   </HelpTooltip>
 );
 
-export const Close = Template.bind({});
+const meta: Meta<typeof HelpTooltip> = {
+  title: "components/HelpTooltip/HelpTooltip",
+  component: Template,
+};
 
-export const Open = Template.bind({});
-Open.args = {
-  open: true,
+export default meta;
+type Story = StoryObj<typeof HelpTooltip>;
+
+export const Close: Story = {};
+
+export const Open: Story = {
+  args: {
+    open: true,
+  },
 };
