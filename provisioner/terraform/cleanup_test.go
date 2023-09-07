@@ -27,6 +27,11 @@ const cachePath = "/tmp/coder/provisioner-0/tf"
 // updateGoldenFiles is a flag that can be set to update golden files.
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
+var (
+	coderPluginPath  = filepath.Join("registry.terraform.io", "coder", "coder", "0.11.1", "darwin_arm64")
+	dockerPluginPath = filepath.Join("registry.terraform.io", "kreuzwerker", "docker", "2.25.0", "darwin_arm64")
+)
+
 func TestPluginCache_Golden(t *testing.T) {
 	t.Parallel()
 
@@ -49,16 +54,16 @@ func TestPluginCache_Golden(t *testing.T) {
 
 		// given
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "LICENSE", now.Add(-33*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "README.md", now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder", now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder/foobar.tf", now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-43*24*time.Hour))
 
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "LICENSE", now.Add(-32*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "README.md", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-32*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
@@ -76,16 +81,16 @@ func TestPluginCache_Golden(t *testing.T) {
 		fs, now, logger := prepare()
 
 		// given
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "terraform-provider-coder_v0.11.1", now.Add(-2*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "LICENSE", now.Add(-3*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "README.md", now.Add(-4*time.Hour))
-		addPluginFolder(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder", now.Add(-5*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder/foobar.tf", now.Add(-4*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-2*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-3*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-4*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-5*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "new_folder/foobar.tf", now.Add(-4*time.Hour))
 
 		// This plugin is older than 30 days.
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "LICENSE", now.Add(-32*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "README.md", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-32*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
@@ -103,15 +108,15 @@ func TestPluginCache_Golden(t *testing.T) {
 		fs, now, logger := prepare()
 
 		// given
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "LICENSE", now.Add(-33*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "README.md", now.Add(-31*24*time.Hour))
-		addPluginFolder(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder", now.Add(-4*time.Hour)) // touched
-		addPluginFile(t, fs, "registry.terraform.io/coder/coder/0.11.1/darwin_arm64", "new_folder/foobar.tf", now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "terraform-provider-coder_v0.11.1", now.Add(-63*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
+		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-4*time.Hour)) // touched
+		addPluginFile(t, fs, coderPluginPath, "new_folder/foobar.tf", now.Add(-43*24*time.Hour))
 
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "LICENSE", now.Add(-2*time.Hour))
-		addPluginFile(t, fs, "registry.terraform.io/kreuzwerker/docker/2.25.0/darwin_arm64", "README.md", now.Add(-33*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-2*time.Hour))
+		addPluginFile(t, fs, dockerPluginPath, "README.md", now.Add(-33*24*time.Hour))
 
 		// when
 		terraform.CleanStaleTerraformPlugins(ctx, cachePath, fs, now, logger)
