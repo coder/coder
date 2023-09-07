@@ -99,7 +99,7 @@ func CleanStaleTerraformPlugins(ctx context.Context, cachePath string, fs afero.
 
 		// Compact the plugin structure by removing empty directories.
 		wd := stalePluginPath
-		level := 4 // <repositoryURL>/<company>/<plugin>/<version>/<distribution>
+		level := 5 // <repositoryURL>/<company>/<plugin>/<version>/<distribution>
 		for {
 			level--
 			if level == 0 {
@@ -136,8 +136,12 @@ func latestAccessTime(fs afero.Fs, pluginPath string) (time.Time, error) {
 			return err
 		}
 
-		timeSpec := times.Get(info)
-		accessTime := timeSpec.AccessTime()
+		var accessTime = info.ModTime() // fallback to modTime if accessTime is not available (afero)
+
+		if info.Sys() != nil {
+			timeSpec := times.Get(info)
+			accessTime = timeSpec.AccessTime()
+		}
 		if latest.Before(accessTime) {
 			latest = accessTime
 		}

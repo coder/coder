@@ -570,7 +570,7 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
@@ -591,6 +591,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
+	go test ./provisioner/terraform -run="Test.*Golden$$" -update
 	touch "$@"
 
 scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
