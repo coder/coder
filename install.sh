@@ -208,7 +208,7 @@ There is another binary in your PATH that conflicts with the binary we've instal
 
   $1
 
-This is likely because of an existing installation of Coder. See our documentation for suggests on how to resolve this.
+This is likely because of an existing installation of Coder. See our documentation for suggestions on how to resolve this.
 
 	https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
 
