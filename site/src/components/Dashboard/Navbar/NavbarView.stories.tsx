@@ -20,7 +20,7 @@ export const ForMember: Story = {
     user: MockUser2,
     canViewAuditLog: false,
     canViewDeployment: false,
-    canViewAllUsers: true,
+    canViewAllUsers: false,
   },
 };
 
