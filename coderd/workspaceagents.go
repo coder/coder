@@ -1379,6 +1379,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Scripts:                  scripts,
 		LogsLength:               dbAgent.LogsLength,
 		LogsOverflowed:           dbAgent.LogsOverflowed,
+		LogSources:               logSources,
 		Version:                  dbAgent.Version,
 		EnvironmentVariables:     envs,
 		Directory:                dbAgent.Directory,

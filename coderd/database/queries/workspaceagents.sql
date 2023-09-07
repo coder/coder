@@ -151,7 +151,7 @@ WITH new_length AS (
 	logs_length = logs_length + @output_length WHERE workspace_agents.id = @agent_id
 )
 INSERT INTO
-		workspace_agent_logs (agent_id, created_at, output, level, source)
+		workspace_agent_logs (agent_id, created_at, output, level, log_source_id)
 	SELECT
 		@agent_id :: uuid AS agent_id,
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
