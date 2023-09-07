@@ -81,6 +81,7 @@ export const workspaceAgentLogsMachine = createMachine(
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
+            source_id: log.source_id,
           })),
         ),
       streamLogs: (ctx) => async (callback) => {
@@ -99,6 +100,7 @@ export const workspaceAgentLogsMachine = createMachine(
                 level: log.level || "info",
                 output: log.output,
                 time: log.created_at,
+                source_id: log.source_id,
               })),
             })
           },

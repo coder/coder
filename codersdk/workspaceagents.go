@@ -765,11 +765,11 @@ const (
 )
 
 type WorkspaceAgentLog struct {
-	ID          int64     `json:"id"`
-	CreatedAt   time.Time `json:"created_at" format:"date-time"`
-	Output      string    `json:"output"`
-	Level       LogLevel  `json:"level"`
-	LogSourceID uuid.UUID `json:"log_source_id" format:"uuid"`
+	ID        int64     `json:"id"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	Output    string    `json:"output"`
+	Level     LogLevel  `json:"level"`
+	SourceID  uuid.UUID `json:"source_id" format:"uuid"`
 }
 
 type AgentSubsystem string

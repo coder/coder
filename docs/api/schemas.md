@@ -5862,20 +5862,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "id": 0,
   "level": "trace",
-  "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-  "output": "string"
+  "output": "string",
+  "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
 }
 ```
 
 ### Properties
 
-| Name            | Type                                   | Required | Restrictions | Description |
-| --------------- | -------------------------------------- | -------- | ------------ | ----------- |
-| `created_at`    | string                                 | false    |              |             |
-| `id`            | integer                                | false    |              |             |
-| `level`         | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
-| `log_source_id` | string                                 | false    |              |             |
-| `output`        | string                                 | false    |              |             |
+| Name         | Type                                   | Required | Restrictions | Description |
+| ------------ | -------------------------------------- | -------- | ------------ | ----------- |
+| `created_at` | string                                 | false    |              |             |
+| `id`         | integer                                | false    |              |             |
+| `level`      | [codersdk.LogLevel](#codersdkloglevel) | false    |              |             |
+| `output`     | string                                 | false    |              |             |
+| `source_id`  | string                                 | false    |              |             |
 
 ## codersdk.WorkspaceAgentLogSource
 

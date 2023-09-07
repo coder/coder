@@ -10830,12 +10830,12 @@ const docTemplate = `{
                 "level": {
                     "$ref": "#/definitions/codersdk.LogLevel"
                 },
-                "log_source_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
                 "output": {
                     "type": "string"
+                },
+                "source_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

@@ -942,8 +942,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "level": "trace",
-    "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-    "output": "string"
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
   }
 ]
 ```
@@ -958,14 +958,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 Status Code **200**
 
-| Name              | Type                                             | Required | Restrictions | Description |
-| ----------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`    | array                                            | false    |              |             |
-| `» created_at`    | string(date-time)                                | false    |              |             |
-| `» id`            | integer                                          | false    |              |             |
-| `» level`         | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
-| `» log_source_id` | string(uuid)                                     | false    |              |             |
-| `» output`        | string                                           | false    |              |             |
+| Name           | Type                                             | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                            | false    |              |             |
+| `» created_at` | string(date-time)                                | false    |              |             |
+| `» id`         | integer                                          | false    |              |             |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
+| `» output`     | string                                           | false    |              |             |
+| `» source_id`  | string(uuid)                                     | false    |              |             |
 
 #### Enumerated Values
 
@@ -1038,8 +1038,8 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "level": "trace",
-    "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-    "output": "string"
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
   }
 ]
 ```
@@ -1054,14 +1054,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 Status Code **200**
 
-| Name              | Type                                             | Required | Restrictions | Description |
-| ----------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`    | array                                            | false    |              |             |
-| `» created_at`    | string(date-time)                                | false    |              |             |
-| `» id`            | integer                                          | false    |              |             |
-| `» level`         | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
-| `» log_source_id` | string(uuid)                                     | false    |              |             |
-| `» output`        | string                                           | false    |              |             |
+| Name           | Type                                             | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                            | false    |              |             |
+| `» created_at` | string(date-time)                                | false    |              |             |
+| `» id`         | integer                                          | false    |              |             |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
+| `» output`     | string                                           | false    |              |             |
+| `» source_id`  | string(uuid)                                     | false    |              |             |
 
 #### Enumerated Values
 

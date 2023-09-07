@@ -2256,6 +2256,7 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+		SourceID:  logEntry.LogSourceID,
 	}
 }
 

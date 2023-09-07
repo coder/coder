@@ -14,6 +14,7 @@ const lines = MockWorkspaceBuildLogs.map((log) => ({
   time: log.created_at,
   output: log.output,
   level: "info" as LogLevel,
+  source_id: log.log_source,
 }))
 export const Example = Template.bind({})
 Example.args = {
