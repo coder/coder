@@ -6,7 +6,8 @@ preventing attackers with database access from using them to impersonate users.
 
 ## How it works
 
-Coder allows administrators to specify [external token encryption keys](../cli/server.md#external-token-encryption-keys).
+Coder allows administrators to specify
+[external token encryption keys](../cli/server.md#external-token-encryption-keys).
 If configured, Coder will use these keys to encrypt external user tokens before
 storing them in the database. The encryption algorithm used is AES-256-GCM with
 a 32-byte key length.
