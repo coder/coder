@@ -9106,7 +9106,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, log_source_id, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
+	workspace_agent_scripts (workspace_agent_id, log_source_id, log_path, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	unnest($2 :: uuid [ ]) AS log_source_id,

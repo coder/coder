@@ -1,6 +1,6 @@
 -- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, log_source_id, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
+	workspace_agent_scripts (workspace_agent_id, log_source_id, log_path, created_at, source, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
 SELECT
 	@workspace_agent_id :: uuid AS workspace_agent_id,
 	unnest(@log_source_id :: uuid [ ]) AS log_source_id,
