@@ -16,10 +16,12 @@ import (
 
 // cleanStaleTerraformPlugins browses the Terraform cache directory
 // and remove stale plugins that haven't been used for a while.
-//
 // Additionally, it sweeps empty, old directory trees.
 //
-// Sample cachePath: /Users/<username>/Library/Caches/coder/provisioner-<N>/tf
+// Sample cachePath:
+//
+//	/Users/john.doe/Library/Caches/coder/provisioner-1/tf
+//	/tmp/coder/provisioner-0/tf
 func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.Time, logger slog.Logger) error {
 	cachePath, err := filepath.Abs(cachePath) // sanity check in case the path is e.g. ../../../cache
 	if err != nil {
