@@ -27,7 +27,7 @@ func CleanStaleSessions(ctx context.Context, workDirectory string, fs afero.Fs, 
 		if fi.IsDir() && isValidSessionDir(dirName) {
 			sessionDirPath := filepath.Join(workDirectory, dirName)
 
-			var accessTime = fi.ModTime() // fallback to modTime if accessTime is not available (afero)
+			accessTime := fi.ModTime() // fallback to modTime if accessTime is not available (afero)
 			if fi.Sys() != nil {
 				timeSpec := times.Get(fi)
 				accessTime = timeSpec.AccessTime()

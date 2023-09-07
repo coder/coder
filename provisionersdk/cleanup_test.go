@@ -105,7 +105,7 @@ func TestStaleSessions(t *testing.T) {
 }
 
 func addSessionFolder(t *testing.T, fs afero.Fs, sessionName string, accessTime time.Time) {
-	err := fs.MkdirAll(filepath.Join(workDirectory, sessionName), 0755)
+	err := fs.MkdirAll(filepath.Join(workDirectory, sessionName), 0o755)
 	require.NoError(t, err, "can't create session folder")
 	fs.Chtimes(filepath.Join(workDirectory, sessionName), accessTime, accessTime)
 	require.NoError(t, err, "can't set times")

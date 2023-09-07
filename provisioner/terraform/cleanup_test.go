@@ -121,13 +121,13 @@ func TestPluginCache_Golden(t *testing.T) {
 }
 
 func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath string, accessTime time.Time) {
-	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath), 0755)
+	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath), 0o755)
 	require.NoError(t, err, "can't create test folder for plugin file")
 
 	err = fs.Chtimes(filepath.Join(cachePath, pluginPath), accessTime, accessTime)
 	require.NoError(t, err, "can't set times")
 
-	err = afero.WriteFile(fs, filepath.Join(cachePath, pluginPath, resourcePath), []byte("foo"), 0644)
+	err = afero.WriteFile(fs, filepath.Join(cachePath, pluginPath, resourcePath), []byte("foo"), 0o644)
 	require.NoError(t, err, "can't create test file")
 
 	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, resourcePath), accessTime, accessTime)
@@ -135,7 +135,7 @@ func addPluginFile(t *testing.T, fs afero.Fs, pluginPath string, resourcePath st
 }
 
 func addPluginFolder(t *testing.T, fs afero.Fs, pluginPath string, folderPath string, accessTime time.Time) {
-	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath, folderPath), 0755)
+	err := fs.MkdirAll(filepath.Join(cachePath, pluginPath, folderPath), 0o755)
 	require.NoError(t, err, "can't create plugin folder")
 
 	err = fs.Chtimes(filepath.Join(cachePath, pluginPath, folderPath), accessTime, accessTime)
@@ -151,7 +151,7 @@ func diffFileSystem(t *testing.T, fs afero.Fs) {
 		err := os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 		require.NoError(t, err, "want no error creating golden file directory")
 
-		err = os.WriteFile(goldenFile, actual, 0600)
+		err = os.WriteFile(goldenFile, actual, 0o600)
 		require.NoError(t, err, "want no error creating golden file")
 		return
 	}
