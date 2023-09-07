@@ -30,6 +30,10 @@ args:
   {{- end }}
 - server
 {{- end }}
+envFrom:
+{{- with .Values.coder.envFrom }}
+{{ toYaml . }}
+{{- end }}
 env:
 - name: CODER_HTTP_ADDRESS
   value: "0.0.0.0:8080"

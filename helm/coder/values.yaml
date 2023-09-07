@@ -21,6 +21,10 @@ coder:
   # - name: "CODER_ACCESS_URL"
   #   value: "https://coder.example.com"
 
+  envFrom:
+  - secretRef:
+      name: ""
+
   # coder.image -- The image to use for Coder.
   image:
     # coder.image.repo -- The repository of the image.
@@ -29,13 +33,13 @@ coder:
     # if not set. If you're using the chart directly from git, the default
     # app version will not work and you'll need to set this value. The helm
     # chart helpfully fails quickly in this case.
-    tag: ""
+    tag: "v2.1.5"
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
     # coder.image.pullSecrets -- The secrets used for pulling the Coder image from
     # a private registry.
-    pullSecrets: []
+    pullSecrets:
     #  - name: "pull-secret"
 
   # coder.initContainers -- Init containers for the deployment. See:
