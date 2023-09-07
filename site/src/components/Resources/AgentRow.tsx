@@ -1,15 +1,14 @@
-import Popover from "@mui/material/Popover"
-import { makeStyles, useTheme } from "@mui/styles"
+import Collapse from "@mui/material/Collapse"
 import Skeleton from "@mui/material/Skeleton"
+import { makeStyles } from "@mui/styles"
 import { useMachine } from "@xstate/react"
-import CodeOutlined from "@mui/icons-material/CodeOutlined"
 import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows"
 import { LogLine, logLineHeight } from "components/Logs/Logs"
-import { PortForwardButton } from "./PortForwardButton"
 import { VSCodeDesktopButton } from "components/VSCodeDesktopButton/VSCodeDesktopButton"
+import { useProxy } from "contexts/ProxyContext"
 import {
   FC,
   useCallback,
@@ -19,8 +18,6 @@ import {
   useRef,
   useState,
 } from "react"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism"
 import AutoSizer from "react-virtualized-auto-sizer"
 import { FixedSizeList as List, ListOnScrollProps } from "react-window"
 import { colors } from "theme/colors"
@@ -40,10 +37,9 @@ import { Stack } from "../Stack/Stack"
 import { TerminalLink } from "../TerminalLink/TerminalLink"
 import { AgentLatency } from "./AgentLatency"
 import { AgentMetadata } from "./AgentMetadata"
-import { AgentVersion } from "./AgentVersion"
 import { AgentStatus } from "./AgentStatus"
-import Collapse from "@mui/material/Collapse"
-import { useProxy } from "contexts/ProxyContext"
+import { AgentVersion } from "./AgentVersion"
+import { PortForwardButton } from "./PortForwardButton"
 
 export interface AgentRowProps {
   agent: WorkspaceAgent
@@ -86,9 +82,6 @@ export const AgentRow: FC<AgentRowProps> = ({
         }
       : undefined,
   })
-  const theme = useTheme()
-  const startupScriptAnchorRef = useRef<HTMLButtonElement>(null)
-  const [startupScriptOpen, setStartupScriptOpen] = useState(false)
   const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0
   const shouldDisplayApps =
     showApps &&
@@ -132,6 +125,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
+        source_id: "",
       })
     }
     return logs
@@ -348,47 +342,6 @@ export const AgentRow: FC<AgentRowProps> = ({
                 Show startup logs
               </button>
             )}
-
-            <button
-              className={combineClasses([
-                styles.logsPanelButton,
-                styles.scriptButton,
-              ])}
-              ref={startupScriptAnchorRef}
-              onClick={() => {
-                setStartupScriptOpen(!startupScriptOpen)
-              }}
-            >
-              <CodeOutlined />
-              Startup script
-            </button>
-
-            <Popover
-              classes={{
-                paper: styles.startupScriptPopover,
-              }}
-              open={startupScriptOpen}
-              onClose={() => setStartupScriptOpen(false)}
-              anchorEl={startupScriptAnchorRef.current}
-            >
-              <div>
-                <SyntaxHighlighter
-                  style={darcula}
-                  language="shell"
-                  showLineNumbers
-                  // Use inline styles does not work correctly
-                  // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-                  codeTagProps={{ style: {} }}
-                  customStyle={{
-                    background: theme.palette.background.default,
-                    maxWidth: 600,
-                    margin: 0,
-                  }}
-                >
-                  {agent.startup_script || ""}
-                </SyntaxHighlighter>
-              </div>
-            </Popover>
           </div>
         </div>
       )}
@@ -510,10 +463,6 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  startupScriptPopover: {
-    backgroundColor: theme.palette.background.default,
-  },
-
   agentNameAndStatus: {
     display: "flex",
     alignItems: "center",
@@ -600,13 +549,6 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 400,
     marginTop: theme.spacing(0.5),
     color: theme.palette.warning.light,
-  },
-
-  scriptButton: {
-    "& svg": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
-    },
   },
 
   agentOS: {
