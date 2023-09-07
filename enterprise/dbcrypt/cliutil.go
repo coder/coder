@@ -188,10 +188,27 @@ COMMIT;
 // as a last resort, for example, if the database encryption key has been
 // lost.
 func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
+	store := database.New(sqlDB)
 	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
 		return xerrors.Errorf("delete user links: %w", err)
 	}
 	log.Info(ctx, "deleted encrypted user tokens")
+
+	log.Info(ctx, "revoking all active keys")
+	keys, err := store.GetDBCryptKeys(ctx)
+	if err != nil {
+		return xerrors.Errorf("get db crypt keys: %w", err)
+	}
+	for _, k := range keys {
+		if !k.ActiveKeyDigest.Valid {
+			continue
+		}
+		if err := store.RevokeDBCryptKey(ctx, k.ActiveKeyDigest.String); err != nil {
+			return xerrors.Errorf("revoke key: %w", err)
+		}
+		log.Info(ctx, "revoked unused key", slog.F("digest", k.ActiveKeyDigest.String))
+	}
+
 	return nil
 }

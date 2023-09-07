@@ -180,6 +180,15 @@ func TestServerDBCrypt(t *testing.T) {
 		require.NoError(t, err, "failed to get git auth links for user %s", usr.ID)
 		require.Empty(t, gitAuthLinks)
 	}
+
+	// Validate that the key has been revoked in the database.
+	keys, err = db.GetDBCryptKeys(ctx)
+	require.NoError(t, err, "failed to get db crypt keys")
+	require.Len(t, keys, 3, "expected exactly 3 keys")
+	for _, k := range keys {
+		require.Empty(t, k.ActiveKeyDigest.String, "expected the key to not be active")
+		require.NotEmpty(t, k.RevokedKeyDigest.String, "expected the key to be revoked")
+	}
 }
 
 func genData(t *testing.T, db database.Store, n int) []database.User {
