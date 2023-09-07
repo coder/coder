@@ -1,4 +1,3 @@
-import { Story } from "@storybook/react";
 import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
@@ -18,65 +17,9 @@ import {
   MockWorkspaceApp,
   MockProxyLatencies,
 } from "testHelpers/entities";
-import { AgentRow, AgentRowProps } from "./AgentRow";
+import { AgentRow } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
-import { Region } from "api/typesGenerated";
-
-export default {
-  title: "components/AgentRow",
-  component: AgentRow,
-  args: {
-    storybookStartupLogs: [
-      "\x1b[91mCloning Git repository...",
-      "\x1b[2;37;41mStarting Docker Daemon...",
-      "\x1b[1;95mAdding some 🧙magic🧙...",
-      "Starting VS Code...",
-      "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
-    ].map((line, index) => ({
-      id: index,
-      level: "info",
-      output: line,
-      time: "",
-    })),
-  },
-};
-
-const Template: Story<AgentRowProps> = (args) => {
-  return TemplateFC(args, [], undefined);
-};
-
-const TemplateWithPortForward: Story<AgentRowProps> = (args) => {
-  return TemplateFC(args, MockWorkspaceProxies, MockPrimaryWorkspaceProxy);
-};
-
-const TemplateFC = (
-  args: AgentRowProps,
-  proxies: Region[],
-  selectedProxy?: Region,
-) => {
-  return (
-    <ProxyContext.Provider
-      value={{
-        proxyLatencies: MockProxyLatencies,
-        proxy: getPreferredProxy(proxies, selectedProxy),
-        proxies: proxies,
-        isLoading: false,
-        isFetched: true,
-        setProxy: () => {
-          return;
-        },
-        clearProxy: () => {
-          return;
-        },
-        refetchProxyLatencies: (): Date => {
-          return new Date();
-        },
-      }}
-    >
-      <AgentRow {...args} />
-    </ProxyContext.Provider>
-  );
-};
+import type { Meta, StoryObj } from "@storybook/react";
 
 const defaultAgentMetadata = [
   {
@@ -141,135 +84,196 @@ const defaultAgentMetadata = [
   },
 ];
 
-export const Example = Template.bind({});
-Example.args = {
-  agent: {
-    ...MockWorkspaceAgent,
-    startup_script:
-      'set -eux -o pipefail\n\n# install and start code-server\ncurl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3\n/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &\n\n\nif [ ! -d ~/coder ]; then\n  mkdir -p ~/coder\n\n  git clone https://github.com/coder/coder ~/coder\nfi\n\nsudo service docker start\nDOTFILES_URI=" "\nrm -f ~/.personalize.log\nif [ -n "${DOTFILES_URI// }" ]; then\n  coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log\nfi\nif [ -x ~/personalize ]; then\n  ~/personalize 2>&1 | tee -a ~/.personalize.log\nelif [ -f ~/personalize ]; then\n  echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log\nfi\n',
-  },
-  workspace: MockWorkspace,
-  showApps: true,
-  storybookAgentMetadata: defaultAgentMetadata,
-};
-
-export const HideSSHButton = Template.bind({});
-HideSSHButton.args = {
-  ...Example.args,
-  hideSSHButton: true,
-};
-
-export const HideVSCodeDesktopButton = Template.bind({});
-HideVSCodeDesktopButton.args = {
-  ...Example.args,
-  hideVSCodeDesktopButton: true,
-};
-
-export const NotShowingApps = Template.bind({});
-NotShowingApps.args = {
-  ...Example.args,
-  showApps: false,
-};
-
-export const BunchOfApps = Template.bind({});
-BunchOfApps.args = {
-  ...Example.args,
-  agent: {
-    ...MockWorkspaceAgent,
-    apps: [
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-    ],
-  },
-  workspace: MockWorkspace,
-  showApps: true,
-};
-
-export const Connecting = Template.bind({});
-Connecting.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentConnecting,
-  storybookAgentMetadata: [],
-};
-
-export const Timeout = Template.bind({});
-Timeout.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentTimeout,
-};
-
-export const Starting = Template.bind({});
-Starting.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentStarting,
-};
-
-export const Started = Template.bind({});
-Started.args = {
-  ...Example.args,
-  agent: {
-    ...MockWorkspaceAgentReady,
-    logs_length: 1,
+const meta: Meta<typeof AgentRow> = {
+  title: "components/AgentRow",
+  component: AgentRow,
+  args: {
+    storybookLogs: [
+      "\x1b[91mCloning Git repository...",
+      "\x1b[2;37;41mStarting Docker Daemon...",
+      "\x1b[1;95mAdding some 🧙magic🧙...",
+      "Starting VS Code...",
+      "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+    ].map((line, index) => ({
+      id: index,
+      level: "info",
+      output: line,
+      time: "",
+    })),
+    agent: {
+      ...MockWorkspaceAgent,
+      startup_script:
+        'set -eux -o pipefail\n\n# install and start code-server\ncurl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3\n/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &\n\n\nif [ ! -d ~/coder ]; then\n  mkdir -p ~/coder\n\n  git clone https://github.com/coder/coder ~/coder\nfi\n\nsudo service docker start\nDOTFILES_URI=" "\nrm -f ~/.personalize.log\nif [ -n "${DOTFILES_URI// }" ]; then\n  coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log\nfi\nif [ -x ~/personalize ]; then\n  ~/personalize 2>&1 | tee -a ~/.personalize.log\nelif [ -f ~/personalize ]; then\n  echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log\nfi\n',
+    },
+    workspace: MockWorkspace,
+    showApps: true,
+    storybookAgentMetadata: defaultAgentMetadata,
   },
 };
 
-export const StartedNoMetadata = Template.bind({});
-StartedNoMetadata.args = {
-  ...Started.args,
-  storybookAgentMetadata: [],
+export default meta;
+type Story = StoryObj<typeof AgentRow>;
+
+export const Example: Story = {};
+
+export const HideSSHButton: Story = {
+  args: {
+    ...Example.args,
+    hideSSHButton: true,
+  },
 };
 
-export const StartTimeout = Template.bind({});
-StartTimeout.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentStartTimeout,
+export const HideVSCodeDesktopButton: Story = {
+  args: {
+    ...Example.args,
+    hideVSCodeDesktopButton: true,
+  },
 };
 
-export const StartError = Template.bind({});
-StartError.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentStartError,
+export const NotShowingApps: Story = {
+  args: {
+    ...Example.args,
+    showApps: false,
+  },
 };
 
-export const ShuttingDown = Template.bind({});
-ShuttingDown.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentShuttingDown,
+export const BunchOfApps: Story = {
+  args: {
+    ...Example.args,
+    agent: {
+      ...MockWorkspaceAgent,
+      apps: [
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+      ],
+    },
+    workspace: MockWorkspace,
+    showApps: true,
+  },
 };
 
-export const ShutdownTimeout = Template.bind({});
-ShutdownTimeout.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentShutdownTimeout,
+export const Connecting: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentConnecting,
+    storybookAgentMetadata: [],
+  },
 };
 
-export const ShutdownError = Template.bind({});
-ShutdownError.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentShutdownError,
+export const Timeout: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentTimeout,
+  },
 };
 
-export const Off = Template.bind({});
-Off.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentOff,
+export const Starting: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentStarting,
+  },
 };
 
-export const ShowingPortForward = TemplateWithPortForward.bind({});
-ShowingPortForward.args = {
-  ...Example.args,
+export const Started: Story = {
+  args: {
+    ...Example.args,
+    agent: {
+      ...MockWorkspaceAgentReady,
+      logs_length: 1,
+    },
+  },
 };
 
-export const Outdated = Template.bind({});
-Outdated.args = {
-  ...Example.args,
-  agent: MockWorkspaceAgentOutdated,
-  workspace: MockWorkspace,
-  serverVersion: "v99.999.9999+c1cdf14",
+export const StartedNoMetadata: Story = {
+  args: {
+    ...Started.args,
+    storybookAgentMetadata: [],
+  },
+};
+
+export const StartTimeout: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentStartTimeout,
+  },
+};
+
+export const StartError: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentStartError,
+  },
+};
+
+export const ShuttingDown: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentShuttingDown,
+  },
+};
+
+export const ShutdownTimeout: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentShutdownTimeout,
+  },
+};
+
+export const ShutdownError: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentShutdownError,
+  },
+};
+
+export const Off: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentOff,
+  },
+};
+
+export const ShowingPortForward: Story = {
+  decorators: [
+    (Story) => (
+      <ProxyContext.Provider
+        value={{
+          proxyLatencies: MockProxyLatencies,
+          proxy: getPreferredProxy(
+            MockWorkspaceProxies,
+            MockPrimaryWorkspaceProxy,
+          ),
+          proxies: MockWorkspaceProxies,
+          isLoading: false,
+          isFetched: true,
+          setProxy: () => {
+            return;
+          },
+          clearProxy: () => {
+            return;
+          },
+          refetchProxyLatencies: (): Date => {
+            return new Date();
+          },
+        }}
+      >
+        <Story />
+      </ProxyContext.Provider>
+    ),
+  ],
+};
+
+export const Outdated: Story = {
+  args: {
+    ...Example.args,
+    agent: MockWorkspaceAgentOutdated,
+    workspace: MockWorkspace,
+    serverVersion: "v99.999.9999+c1cdf14",
+  },
 };
