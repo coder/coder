@@ -151,11 +151,11 @@
         {
           "title": "Anatomy of a template",
           "description": "What makes up a template",
-          "path": "./templates/concepts.md"
+          "path": "./templates/anatomy.md"
         },
         {
           "title": "Setting up templates",
-          "description": "Best practices for writing and managing templates",
+          "description": "Best practices for writing templates",
           "path": "./templates/best-practices.md",
           "children": [
             {
@@ -188,6 +188,21 @@
           "description": "Give information and options to workspace users",
           "path": "./templates/customizing.md",
           "children": [
+            {
+              "title": "Agent metadata",
+              "description": "Show operational metrics in the workspace",
+              "path": "./templates/agent-metadata.md"             
+            },
+            {
+              "title": "Resource metadata",
+              "description": "Show information in the workspace about template resources",
+              "path": "./templates/resource-metadata.md"
+            },
+            {
+              "title": "Parameters",
+              "description": "Prompt the user for additional information about a workspace",
+              "path": "./templates/parameters.md"
+            }
           ]
         },
         {

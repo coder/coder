@@ -1,3 +1,7 @@
 # Template best practices
 
-Templates are very flexible
+We recommend a few ways to manage persistence of resources,
+authentication, and versioning.
+
+<children>
+</children>
