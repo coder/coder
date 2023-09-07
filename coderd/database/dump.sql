@@ -224,10 +224,6 @@ DECLARE
 	var_agent_ids uuid[];
 BEGIN
 	IF (NEW.id IS NOT NULL) THEN
-		IF (NEW.node IS NULL) THEN
-			return NULL;
-		END IF;
-
 		var_client_id = NEW.id;
 		SELECT
 			array_agg(agent_id)
@@ -240,6 +236,7 @@ BEGIN
 			subs.coordinator_id = NEW.coordinator_id;
 	ELSIF (OLD.id IS NOT NULL) THEN
 		-- if new is null and old is not null, that means the row was deleted.
+		-- simulate a foreign key by deleting all of the subscriptions.
 		var_client_id = OLD.id;
 		WITH agent_ids AS (
 			DELETE FROM
@@ -276,8 +273,7 @@ BEGIN
 	IF (NEW IS NOT NULL) THEN
 		PERFORM pg_notify('tailnet_client_update', NEW.client_id || ',' || NEW.agent_id);
 		RETURN NULL;
-	END IF;
-	IF (OLD IS NOT NULL) THEN
+	ELSIF (OLD IS NOT NULL) THEN
 		PERFORM pg_notify('tailnet_client_update', OLD.client_id || ',' || OLD.agent_id);
 		RETURN NULL;
 	END IF;

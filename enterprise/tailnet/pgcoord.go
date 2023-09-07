@@ -667,9 +667,17 @@ func (q *querier) handleNewSubscriptions() {
 			return
 		case c := <-q.newSubscriptions:
 			if c.active {
-				q.newClientSubscription(c.q, c.agentID)
+				err := q.newClientSubscription(c.q, c.agentID)
+				if err != nil {
+					q.logger.Error(q.ctx, "create client subscription", slog.Error(err),
+						slog.F("client_id", c.q.UniqueID()), slog.F("agent_id", c.agentID))
+				}
 			} else {
-				q.removeClientSubscription(c.q, c.agentID)
+				err := q.removeClientSubscription(c.q, c.agentID)
+				if err != nil {
+					q.logger.Error(q.ctx, "remove client subscription", slog.Error(err),
+						slog.F("client_id", c.q.UniqueID()), slog.F("agent_id", c.agentID))
+				}
 			}
 		}
 	}
