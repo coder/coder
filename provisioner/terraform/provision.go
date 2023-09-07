@@ -96,7 +96,7 @@ func (s *server) Plan(
 		}
 	}
 
-	err := cleanStaleTerraformPlugins(sess.Context(), s.cachePath, time.Now(), s.logger)
+	err := cleanStaleTerraformPlugins(sess.Context(), "/tmp/coder/provisioner-0/tf", time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.PlanErrorf("unable to clean stale Terraform plugins: %s", err)
 	}
@@ -264,6 +264,8 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 		return xerrors.Errorf("unable to determine absolute path %q: %w", cachePath, err)
 	}
 
+	logger.Info(ctx, "clean stale Terraform plugins", slog.F("cache_path", cachePath))
+
 	// Filter directory trees matching pattern: <repositoryURL>/<company>/<plugin>/<version>/<distribution>
 	filterFunc := func(path string, info os.FileInfo) bool {
 		if !info.IsDir() {
@@ -272,7 +274,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 
 		relativePath, err := filepath.Rel(cachePath, path)
 		if err != nil {
-			logger.Error(ctx, "unable to evaluate a relative path (base: %s, target: %s): %w", cachePath, path, err)
+			logger.Error(ctx, "unable to evaluate a relative path", slog.F("base", cachePath), slog.F("target", path), slog.Error(err))
 			return false
 		}
 
@@ -291,7 +293,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 			return nil
 		}
 
-		logger.Debug(ctx, "plugin directory discovered: %s", path)
+		logger.Debug(ctx, "plugin directory discovered", slog.F("path", path))
 		pluginPaths = append(pluginPaths, path)
 		return nil
 	})
@@ -308,7 +310,10 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 		}
 
 		if accessTime.Add(staleTerraformPluginRetention).Before(now) {
+			logger.Info(ctx, "plugin directory is stale and will be removed", slog.F("plugin_path", pluginPath))
 			stalePlugins = append(stalePlugins, pluginPath)
+		} else {
+			logger.Debug(ctx, "plugin directory is not stale", slog.F("plugin_path", pluginPath))
 		}
 	}
 
@@ -340,7 +345,7 @@ func cleanStaleTerraformPlugins(ctx context.Context, cachePath string, now time.
 				break // there are still other plugins
 			}
 
-			logger.Debug(ctx, "remove empty directory: %s", wd)
+			logger.Debug(ctx, "remove empty directory", slog.F("path", wd))
 			err = os.Remove(wd)
 			if err != nil {
 				return xerrors.Errorf("unable to remove directory %q: %w", wd, err)
