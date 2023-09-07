@@ -390,6 +390,13 @@
           "description": "Learn what usage telemetry Coder collects",
           "path": "./admin/telemetry.md",
           "icon_path": "./images/icons/science.svg"
+        },
+        {
+          "title": "Database Encryption",
+          "description": "Learn how to encrypt sensitive data at rest in Coder",
+          "path": "./admin/database-encryption.md",
+          "icon_path": "./images/icons/lock.svg",
+          "state": "enterprise"
         }
       ]
     },
@@ -698,6 +705,26 @@
           "title": "server create-admin-user",
           "description": "Create a new admin user with the given username, email and password and adds it to every organization.",
           "path": "cli/server_create-admin-user.md"
+        },
+        {
+          "title": "server dbcrypt",
+          "description": "Manage database encryption.",
+          "path": "cli/server_dbcrypt.md"
+        },
+        {
+          "title": "server dbcrypt decrypt",
+          "description": "Decrypt a previously encrypted database.",
+          "path": "cli/server_dbcrypt_decrypt.md"
+        },
+        {
+          "title": "server dbcrypt delete",
+          "description": "Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.",
+          "path": "cli/server_dbcrypt_delete.md"
+        },
+        {
+          "title": "server dbcrypt rotate",
+          "description": "Rotate database encryption keys.",
+          "path": "cli/server_dbcrypt_rotate.md"
         },
         {
           "title": "server postgres-builtin-serve",

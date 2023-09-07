@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -23,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -48,25 +52,27 @@ func TestEntitlements(t *testing.T) {
 			AuditLogging:   true,
 			DontAddLicense: true,
 		})
+		// Enable all features
+		features := make(license.Features)
+		for _, feature := range codersdk.FeatureNames {
+			features[feature] = 1
+		}
+		features[codersdk.FeatureUserLimit] = 100
 		coderdenttest.AddLicense(t, client, coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureUserLimit:                  100,
-				codersdk.FeatureAuditLog:                   1,
-				codersdk.FeatureTemplateRBAC:               1,
-				codersdk.FeatureExternalProvisionerDaemons: 1,
-				codersdk.FeatureAdvancedTemplateScheduling: 1,
-				codersdk.FeatureWorkspaceProxy:             1,
-				codersdk.FeatureUserRoleManagement:         1,
-			},
-			GraceAt: time.Now().Add(59 * 24 * time.Hour),
+			Features: features,
+			GraceAt:  time.Now().Add(59 * 24 * time.Hour),
 		})
 		res, err := client.Entitlements(context.Background())
 		require.NoError(t, err)
 		assert.True(t, res.HasLicense)
 		ul := res.Features[codersdk.FeatureUserLimit]
 		assert.Equal(t, codersdk.EntitlementEntitled, ul.Entitlement)
-		assert.Equal(t, int64(100), *ul.Limit)
-		assert.Equal(t, int64(1), *ul.Actual)
+		if assert.NotNil(t, ul.Limit) {
+			assert.Equal(t, int64(100), *ul.Limit)
+		}
+		if assert.NotNil(t, ul.Actual) {
+			assert.Equal(t, int64(1), *ul.Actual)
+		}
 		assert.True(t, ul.Enabled)
 		al := res.Features[codersdk.FeatureAuditLog]
 		assert.Equal(t, codersdk.EntitlementEntitled, al.Entitlement)
@@ -225,6 +231,134 @@ func TestAuditLogging(t *testing.T) {
 		require.True(t, connected)
 		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+	})
+}
+
+func TestExternalTokenEncryption(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Enabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, ps := dbtestutil.NewDB(t)
+		ciphers, err := dbcrypt.NewCiphers(bytes.Repeat([]byte("a"), 32))
+		require.NoError(t, err)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			EntitlementsUpdateInterval: 25 * time.Millisecond,
+			ExternalTokenEncryption:    ciphers,
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalTokenEncryption: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+		})
+		keys, err := db.GetDBCryptKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].ActiveKeyDigest.String)
+
+		require.Eventually(t, func() bool {
+			entitlements, err := client.Entitlements(context.Background())
+			assert.NoError(t, err)
+			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
+			entitled := feature.Entitlement == codersdk.EntitlementEntitled
+			var warningExists bool
+			for _, warning := range entitlements.Warnings {
+				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
+					warningExists = true
+					break
+				}
+			}
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			return feature.Enabled && entitled && !warningExists
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, ps := dbtestutil.NewDB(t)
+		ciphers, err := dbcrypt.NewCiphers()
+		require.NoError(t, err)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			DontAddLicense:             true,
+			EntitlementsUpdateInterval: 25 * time.Millisecond,
+			ExternalTokenEncryption:    ciphers,
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+		})
+		keys, err := db.GetDBCryptKeys(ctx)
+		require.NoError(t, err)
+		require.Empty(t, keys)
+
+		require.Eventually(t, func() bool {
+			entitlements, err := client.Entitlements(context.Background())
+			assert.NoError(t, err)
+			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
+			entitled := feature.Entitlement == codersdk.EntitlementEntitled
+			var warningExists bool
+			for _, warning := range entitlements.Warnings {
+				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
+					warningExists = true
+					break
+				}
+			}
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			return !feature.Enabled && !entitled && !warningExists
+		}, testutil.WaitShort, testutil.IntervalFast)
+	})
+
+	t.Run("PreviouslyEnabledButMissingFromLicense", func(t *testing.T) {
+		// If this test fails, it potentially means that a customer who has
+		// actively been using this feature is now unable _start coderd_
+		// because of a licensing issue. This should never happen.
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		db, ps := dbtestutil.NewDB(t)
+		ciphers, err := dbcrypt.NewCiphers(bytes.Repeat([]byte("a"), 32))
+		require.NoError(t, err)
+
+		dbc, err := dbcrypt.New(ctx, db, ciphers...) // should insert key
+		require.NoError(t, err)
+
+		keys, err := dbc.GetDBCryptKeys(ctx)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			DontAddLicense:             true,
+			EntitlementsUpdateInterval: 25 * time.Millisecond,
+			ExternalTokenEncryption:    ciphers,
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   ps,
+			},
+		})
+
+		require.Eventually(t, func() bool {
+			entitlements, err := client.Entitlements(context.Background())
+			assert.NoError(t, err)
+			feature := entitlements.Features[codersdk.FeatureExternalTokenEncryption]
+			entitled := feature.Entitlement == codersdk.EntitlementEntitled
+			var warningExists bool
+			for _, warning := range entitlements.Warnings {
+				if strings.Contains(warning, codersdk.FeatureExternalTokenEncryption.Humanize()) {
+					warningExists = true
+					break
+				}
+			}
+			t.Logf("feature: %+v, warnings: %+v, errors: %+v", feature, entitlements.Warnings, entitlements.Errors)
+			return feature.Enabled && !entitled && warningExists
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 

@@ -5,6 +5,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"errors"
 	"io"
 	"net/url"
@@ -19,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
 
@@ -74,11 +76,31 @@ func (r *RootCmd) Server(_ func()) *clibase.Cmd {
 			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, options.Database),
 		}
 
+		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
+			keys := make([][]byte, 0, len(encKeys))
+			for idx, ek := range encKeys {
+				dk, err := base64.StdEncoding.DecodeString(ek)
+				if err != nil {
+					return nil, nil, xerrors.Errorf("decode external-token-encryption-key %d: %w", idx, err)
+				}
+				keys = append(keys, dk)
+			}
+			cs, err := dbcrypt.NewCiphers(keys...)
+			if err != nil {
+				return nil, nil, xerrors.Errorf("initialize encryption: %w", err)
+			}
+			o.ExternalTokenEncryption = cs
+		}
+
 		api, err := coderd.New(ctx, o)
 		if err != nil {
 			return nil, nil, err
 		}
 		return api.AGPL, api, nil
 	})
+
+	cmd.AddSubcommands(
+		r.dbcryptCmd(),
+	)
 	return cmd
 }
