@@ -1,3 +1,4 @@
+import Button from "@mui/material/Button";
 import { EmptyState } from "./EmptyState";
 import type { Meta, StoryObj } from "@storybook/react";
 
@@ -5,23 +6,16 @@ const meta: Meta<typeof EmptyState> = {
   title: "components/EmptyState",
   component: EmptyState,
   args: {
-    message: "Hello world",
+    message: "Create your first workspace",
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof EmptyState>;
 
-export const Example: Story = {};
-
-export const WithDescription: Story = {
+export const Example: Story = {
   args: {
-    description: "Friendly greeting",
-  },
-};
-
-export const WithCTA: Story = {
-  args: {
-    cta: <button title="Click me" />,
+    description: "It is easy, just click the button below",
+    cta: <Button>Create workspace</Button>,
   },
 };
