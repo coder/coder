@@ -1,15 +1,17 @@
-import { Story } from "@storybook/react";
-import { GroupAvatar, GroupAvatarProps } from "./GroupAvatar";
+import { GroupAvatar } from "./GroupAvatar";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof GroupAvatar> = {
   title: "components/GroupAvatar",
   component: GroupAvatar,
 };
 
-const Template: Story<GroupAvatarProps> = (args) => <GroupAvatar {...args} />;
+export default meta;
+type Story = StoryObj<typeof GroupAvatar>;
 
-export const Example = Template.bind({});
-Example.args = {
-  name: "My Group",
-  avatarURL: "",
+export const Example: Story = {
+  args: {
+    name: "My Group",
+    avatarURL: "",
+  },
 };

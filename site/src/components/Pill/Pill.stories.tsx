@@ -1,57 +1,66 @@
-import { Story } from "@storybook/react";
-import { Pill, PillProps } from "./Pill";
+import { Pill } from "./Pill";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof Pill> = {
   title: "components/Pill",
   component: Pill,
 };
 
-const Template: Story<PillProps> = (args) => <Pill {...args} />;
+export default meta;
+type Story = StoryObj<typeof Pill>;
 
-export const Primary = Template.bind({});
-Primary.args = {
-  text: "Primary",
-  type: "primary",
+export const Primary: Story = {
+  args: {
+    text: "Primary",
+    type: "primary",
+  },
 };
 
-export const Secondary = Template.bind({});
-Secondary.args = {
-  text: "Secondary",
-  type: "secondary",
+export const Secondary: Story = {
+  args: {
+    text: "Secondary",
+    type: "secondary",
+  },
 };
 
-export const Success = Template.bind({});
-Success.args = {
-  text: "Success",
-  type: "success",
+export const Success: Story = {
+  args: {
+    text: "Success",
+    type: "success",
+  },
 };
 
-export const Info = Template.bind({});
-Info.args = {
-  text: "Information",
-  type: "info",
+export const Info: Story = {
+  args: {
+    text: "Information",
+    type: "info",
+  },
 };
 
-export const Warning = Template.bind({});
-Warning.args = {
-  text: "Warning",
-  type: "warning",
+export const Warning: Story = {
+  args: {
+    text: "Warning",
+    type: "warning",
+  },
 };
 
-export const Error = Template.bind({});
-Error.args = {
-  text: "Error",
-  type: "error",
+export const Error: Story = {
+  args: {
+    text: "Error",
+    type: "error",
+  },
 };
 
-export const Default = Template.bind({});
-Default.args = {
-  text: "Default",
+export const Default: Story = {
+  args: {
+    text: "Default",
+  },
 };
 
-export const WarningLight = Template.bind({});
-WarningLight.args = {
-  text: "Warning",
-  type: "warning",
-  lightBorder: true,
+export const WarningLight: Story = {
+  args: {
+    text: "Warning",
+    type: "warning",
+    lightBorder: true,
+  },
 };

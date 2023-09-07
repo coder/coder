@@ -8,7 +8,7 @@ import LaunchIcon from "@mui/icons-material/LaunchOutlined";
 import { Stack } from "components/Stack/Stack";
 import { FC } from "react";
 import { Link } from "react-router-dom";
-import * as TypesGen from "../../../../../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import DocsIcon from "@mui/icons-material/MenuBook";
 import LogoutIcon from "@mui/icons-material/ExitToAppOutlined";
 import { combineClasses } from "utils/combineClasses";

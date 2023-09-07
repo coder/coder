@@ -1,25 +1,25 @@
-import { Story } from "@storybook/react";
-import { Typography, TypographyProps } from "./Typography";
+import { Typography } from "./Typography";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof Typography> = {
   title: "components/Typography",
   component: Typography,
+  args: {
+    children: "Colorless green ideas sleep furiously",
+  },
 };
 
-const Template: Story<TypographyProps> = (args: TypographyProps) => (
-  <>
-    <Typography {...args}>Colorless green ideas sleep furiously</Typography>
-    <Typography {...args}>
-      More people have been to France than I have
-    </Typography>
-  </>
-);
+export default meta;
+type Story = StoryObj<typeof Typography>;
 
-export const Short = Template.bind({});
-Short.args = {
-  short: true,
+export const Short: Story = {
+  args: {
+    short: true,
+  },
 };
-export const Tall = Template.bind({});
-Tall.args = {
-  short: false,
+
+export const Tall: Story = {
+  args: {
+    short: false,
+  },
 };

@@ -1,12 +1,9 @@
-import { ComponentMeta, Story } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
-import {
-  TemplatePageHeader,
-  TemplatePageHeaderProps,
-} from "./TemplatePageHeader";
+import { TemplatePageHeader } from "./TemplatePageHeader";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
-  title: "Components/TemplatePageHeader",
+const meta: Meta<typeof TemplatePageHeader> = {
+  title: "components/TemplatePageHeader",
   component: TemplatePageHeader,
   args: {
     template: MockTemplate,
@@ -15,18 +12,17 @@ export default {
       canUpdateTemplate: true,
     },
   },
-} as ComponentMeta<typeof TemplatePageHeader>;
+};
 
-const Template: Story<TemplatePageHeaderProps> = (args) => (
-  <TemplatePageHeader {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof TemplatePageHeader>;
 
-export const CanUpdate = Template.bind({});
-CanUpdate.args = {};
+export const CanUpdate: Story = {};
 
-export const CanNotUpdate = Template.bind({});
-CanNotUpdate.args = {
-  permissions: {
-    canUpdateTemplate: false,
+export const CanNotUpdate: Story = {
+  args: {
+    permissions: {
+      canUpdateTemplate: false,
+    },
   },
 };

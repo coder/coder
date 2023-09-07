@@ -5,7 +5,7 @@ import Snackbar, {
 import { makeStyles } from "@mui/styles";
 import CloseIcon from "@mui/icons-material/Close";
 import { FC } from "react";
-import { combineClasses } from "../../../utils/combineClasses";
+import { combineClasses } from "utils/combineClasses";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 

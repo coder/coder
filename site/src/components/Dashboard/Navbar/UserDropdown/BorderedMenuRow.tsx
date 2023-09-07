@@ -3,8 +3,8 @@ import { makeStyles } from "@mui/styles";
 import CheckIcon from "@mui/icons-material/Check";
 import { FC } from "react";
 import { NavLink } from "react-router-dom";
-import { ellipsizeText } from "../../../../../utils/ellipsizeText";
-import { Typography } from "../../../../Typography/Typography";
+import { ellipsizeText } from "utils/ellipsizeText";
+import { Typography } from "components/Typography/Typography";
 
 type BorderedMenuRowVariant = "narrow" | "wide";
 

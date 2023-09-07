@@ -1,7 +1,6 @@
 import Button from "@mui/material/Button";
 import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react";
-import { action } from "@storybook/addon-actions";
 import { ErrorAlert } from "./ErrorAlert";
 
 const mockError = mockApiError({
@@ -15,7 +14,6 @@ const meta: Meta<typeof ErrorAlert> = {
   args: {
     error: mockError,
     dismissible: false,
-    onRetry: undefined,
   },
 };
 
@@ -51,21 +49,6 @@ export const WithAction: Story = {
 export const WithActionAndDismiss: Story = {
   args: {
     actions: [ExampleAction],
-    dismissible: true,
-  },
-};
-
-export const WithRetry: Story = {
-  args: {
-    onRetry: action("retry"),
-    dismissible: true,
-  },
-};
-
-export const WithActionRetryAndDismiss: Story = {
-  args: {
-    actions: [ExampleAction],
-    onRetry: action("retry"),
     dismissible: true,
   },
 };

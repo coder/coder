@@ -1,28 +1,25 @@
-import { Story } from "@storybook/react";
-import { LoadingButton, LoadingButtonProps } from "./LoadingButton";
+import { LoadingButton } from "./LoadingButton";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof LoadingButton> = {
   title: "components/LoadingButton",
   component: LoadingButton,
-  argTypes: {
-    loading: { control: "boolean" },
-    children: { control: "text" },
-  },
   args: {
     children: "Create workspace",
   },
 };
 
-const Template: Story<LoadingButtonProps> = (args) => (
-  <LoadingButton {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof LoadingButton>;
 
-export const Loading = Template.bind({});
-Loading.args = {
-  loading: true,
+export const Loading: Story = {
+  args: {
+    loading: true,
+  },
 };
 
-export const NotLoading = Template.bind({});
-NotLoading.args = {
-  loading: false,
+export const NotLoading: Story = {
+  args: {
+    loading: false,
+  },
 };

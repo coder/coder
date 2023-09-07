@@ -1,5 +1,5 @@
 import { Avatar } from "components/Avatar/Avatar";
-import { FC, PropsWithChildren } from "react";
+import { FC } from "react";
 import { Stack } from "components/Stack/Stack";
 import { makeStyles } from "@mui/styles";
 
@@ -10,7 +10,7 @@ export interface AvatarDataProps {
   avatar?: React.ReactNode;
 }
 
-export const AvatarData: FC<PropsWithChildren<AvatarDataProps>> = ({
+export const AvatarData: FC<AvatarDataProps> = ({
   title,
   subtitle,
   src,

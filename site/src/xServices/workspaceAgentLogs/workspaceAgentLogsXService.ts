@@ -1,6 +1,6 @@
 import * as API from "api/api";
 import { createMachine, assign } from "xstate";
-import { Line } from "components/WorkspaceBuildLogs/Logs/Logs";
+import { Line } from "components/WorkspaceBuildLogs/Logs";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're

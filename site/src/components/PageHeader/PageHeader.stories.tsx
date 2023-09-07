@@ -1,26 +1,29 @@
-import { ComponentMeta, Story } from "@storybook/react";
 import { PageHeader, PageHeaderSubtitle, PageHeaderTitle } from "./PageHeader";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof PageHeader> = {
   title: "components/PageHeader",
   component: PageHeader,
-} as ComponentMeta<typeof PageHeader>;
+};
 
-const WithTitleTemplate: Story = () => (
-  <PageHeader>
-    <PageHeaderTitle>Templates</PageHeaderTitle>
-  </PageHeader>
-);
+export default meta;
+type Story = StoryObj<typeof PageHeader>;
 
-export const WithTitle = WithTitleTemplate.bind({});
+export const WithTitle: Story = {
+  args: {
+    children: <PageHeaderTitle>Templates</PageHeaderTitle>,
+  },
+};
 
-const WithSubtitleTemplate: Story = () => (
-  <PageHeader>
-    <PageHeaderTitle>Templates</PageHeaderTitle>
-    <PageHeaderSubtitle>
-      Create a new workspace from a Template
-    </PageHeaderSubtitle>
-  </PageHeader>
-);
-
-export const WithSubtitle = WithSubtitleTemplate.bind({});
+export const WithSubtitle: Story = {
+  args: {
+    children: (
+      <>
+        <PageHeaderTitle>Templates</PageHeaderTitle>
+        <PageHeaderSubtitle>
+          Create a new workspace from a Template
+        </PageHeaderSubtitle>
+      </>
+    ),
+  },
+};
