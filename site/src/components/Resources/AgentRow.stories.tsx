@@ -109,6 +109,30 @@ const meta: Meta<typeof AgentRow> = {
     showApps: true,
     storybookAgentMetadata: defaultAgentMetadata,
   },
+  decorators: [
+    (Story) => (
+      <ProxyContext.Provider
+        value={{
+          proxyLatencies: MockProxyLatencies,
+          proxy: getPreferredProxy([], undefined),
+          proxies: [],
+          isLoading: false,
+          isFetched: true,
+          setProxy: () => {
+            return;
+          },
+          clearProxy: () => {
+            return;
+          },
+          refetchProxyLatencies: (): Date => {
+            return new Date();
+          },
+        }}
+      >
+        <Story />
+      </ProxyContext.Provider>
+    ),
+  ],
 };
 
 export default meta;
