@@ -85,7 +85,7 @@ func TestPluginCache_Golden(t *testing.T) {
 		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-3*time.Hour))
 		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-4*time.Hour))
 		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-5*time.Hour))
-		addPluginFile(t, fs, coderPluginPath, "new_folder/foobar.tf", now.Add(-4*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-4*time.Hour))
 
 		// This plugin is older than 30 days.
 		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
@@ -112,7 +112,7 @@ func TestPluginCache_Golden(t *testing.T) {
 		addPluginFile(t, fs, coderPluginPath, "LICENSE", now.Add(-33*24*time.Hour))
 		addPluginFile(t, fs, coderPluginPath, "README.md", now.Add(-31*24*time.Hour))
 		addPluginFolder(t, fs, coderPluginPath, "new_folder", now.Add(-4*time.Hour)) // touched
-		addPluginFile(t, fs, coderPluginPath, "new_folder/foobar.tf", now.Add(-43*24*time.Hour))
+		addPluginFile(t, fs, coderPluginPath, filepath.Join("new_folder", "foobar.tf"), now.Add(-43*24*time.Hour))
 
 		addPluginFile(t, fs, dockerPluginPath, "terraform-provider-docker_v2.25.0", now.Add(-31*24*time.Hour))
 		addPluginFile(t, fs, dockerPluginPath, "LICENSE", now.Add(-2*time.Hour))
