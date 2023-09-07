@@ -394,7 +394,7 @@
         {
           "title": "Database Encryption",
           "description": "Learn how to encrypt sensitive data at rest in Coder",
-          "path": "./admin/database-encryption.md",
+          "path": "./admin/encryption.md",
           "icon_path": "./images/icons/lock.svg",
           "state": "enterprise"
         }
