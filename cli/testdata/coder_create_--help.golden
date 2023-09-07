@@ -2,9 +2,9 @@ Usage: coder create [flags] [name]
 
 Create a workspace
 
-- Create a workspace for another user (if you have permission):               
+- Create a workspace for another user (if you have permission):
 
-     [40m [0m[91;40m$ coder create <username>/<workspace_name>[0m[40m [0m
+     $ coder create <username>/<workspace_name>
 
 [1mOptions[0m
       --parameter string-array, $CODER_RICH_PARAMETER

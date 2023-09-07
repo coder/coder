@@ -5,7 +5,7 @@ platform
 
 Aliases: rm, delete
 
-[40m [0m[91;40m$ coder users suspend example_user[0m[40m [0m
+$ coder users suspend example_user
 
 [1mOptions[0m
   -c, --column string-array (default: username,email,created_at,status)

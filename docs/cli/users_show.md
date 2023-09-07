@@ -13,7 +13,7 @@ coder users show [flags] <username|user_id|'me'>
 ## Description
 
 ```console
-  $ coder users show me
+ $ coder users show me
 ```
 
 ## Options

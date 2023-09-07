@@ -5,6 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -27,7 +29,7 @@ func (r *RootCmd) rename() *clibase.Cmd {
 			}
 
 			_, _ = fmt.Fprintf(inv.Stdout, "%s\n\n",
-				cliui.DefaultStyles.Wrap.Render("WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes). Please backup any data before proceeding."),
+				pretty.Sprint(cliui.DefaultStyles.Wrap, "WARNING: A rename can result in data loss if a resource references the workspace name in the template (e.g volumes). Please backup any data before proceeding."),
 			)
 			_, _ = fmt.Fprintf(inv.Stdout, "See: %s\n\n", "https://coder.com/docs/coder-oss/latest/templates/resource-persistence#%EF%B8%8F-persistence-pitfalls")
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{

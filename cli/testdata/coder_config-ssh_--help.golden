@@ -2,14 +2,14 @@ Usage: coder config-ssh [flags]
 
 Add an SSH Host entry for your workspaces "ssh coder.workspace"
 
-- You can use -o (or --ssh-option) so set SSH options to be used for all your 
-    workspaces:                                                                 
+- You can use -o (or --ssh-option) so set SSH options to be used for all your
+workspaces:
 
-     [40m [0m[91;40m$ coder config-ssh -o ForwardAgent=yes[0m[40m [0m
+     $ coder config-ssh -o ForwardAgent=yes
 
-  - You can use --dry-run (or -n) to see the changes that would be made:        
+  - You can use --dry-run (or -n) to see the changes that would be made:
 
-     [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
+     $ coder config-ssh --dry-run
 
 [1mOptions[0m
       --coder-binary-path string, $CODER_SSH_CONFIG_BINARY_PATH

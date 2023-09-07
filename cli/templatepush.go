@@ -11,6 +11,8 @@ import (
 	"github.com/briandowns/spinner"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -85,7 +87,7 @@ func (pf *templateUploadFlags) upload(inv *clibase.Invocation, client *codersdk.
 
 	spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 	spin.Writer = inv.Stdout
-	spin.Suffix = cliui.DefaultStyles.Keyword.Render(" Uploading directory...")
+	spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Uploading directory...")
 	spin.Start()
 	defer spin.Stop()
 
@@ -110,7 +112,7 @@ func (pf *templateUploadFlags) checkForLockfile(inv *clibase.Invocation) error {
 	if !hasLockfile {
 		cliui.Warn(inv.Stdout, "No .terraform.lock.hcl file found",
 			"When provisioning, Coder will be unable to cache providers without a lockfile and must download them from the internet each time.",
-			"Create one by running "+cliui.DefaultStyles.Code.Render("terraform init")+" in your template directory.",
+			"Create one by running "+pretty.Sprint(cliui.DefaultStyles.Code, "terraform init")+" in your template directory.",
 		)
 	}
 	return nil
@@ -246,9 +248,10 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 					return err
 				}
 
-				_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.DefaultStyles.Wrap.Render(
-					"The "+cliui.DefaultStyles.Keyword.Render(name)+" template has been created at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
-						"Developers can provision a workspace with this template using:")+"\n")
+				_, _ = fmt.Fprintln(
+					inv.Stdout, "\n"+cliui.Wrap(
+						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
+							"Developers can provision a workspace with this template using:")+"\n")
 			} else if activate {
 				err = client.UpdateActiveTemplateVersion(inv.Context(), template.ID, codersdk.UpdateActiveTemplateVersion{
 					ID: job.ID,
@@ -258,7 +261,7 @@ func (r *RootCmd) templatePush() *clibase.Cmd {
 				}
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated version at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

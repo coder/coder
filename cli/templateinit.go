@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/pretty"
 )
 
 func (*RootCmd) templateInit() *clibase.Cmd {
@@ -42,17 +43,21 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 				for _, example := range exampleList {
 					name := fmt.Sprintf(
 						"%s\n%s\n%s\n",
-						cliui.DefaultStyles.Bold.Render(example.Name),
-						cliui.DefaultStyles.Wrap.Copy().PaddingLeft(6).Render(example.Description),
-						cliui.DefaultStyles.Keyword.Copy().PaddingLeft(6).Render(example.URL),
+						cliui.Bold(example.Name),
+						pretty.Sprint(cliui.DefaultStyles.Wrap.With(pretty.XPad(6, 0)), example.Description),
+						pretty.Sprint(cliui.DefaultStyles.Keyword.With(pretty.XPad(6, 0)), example.URL),
 					)
 					optsToID[name] = example.ID
 				}
 				opts := maps.Keys(optsToID)
 				sort.Strings(opts)
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render(
-					"A template defines infrastructure as code to be provisioned "+
-						"for individual developer workspaces. Select an example to be copied to the active directory:\n"))
+				_, _ = fmt.Fprintln(
+					inv.Stdout,
+					pretty.Sprint(
+						cliui.DefaultStyles.Wrap,
+						"A template defines infrastructure as code to be provisioned "+
+							"for individual developer workspaces. Select an example to be copied to the active directory:\n"),
+				)
 				selected, err := cliui.Select(inv, cliui.SelectOptions{
 					Options: opts,
 				})
@@ -94,7 +99,7 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 			} else {
 				relPath = "./" + relPath
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Extracting %s to %s...\n", cliui.DefaultStyles.Field.Render(selectedTemplate.ID), relPath)
+			_, _ = fmt.Fprintf(inv.Stdout, "Extracting %s to %s...\n", pretty.Sprint(cliui.DefaultStyles.Field, selectedTemplate.ID), relPath)
 			err = os.MkdirAll(directory, 0o700)
 			if err != nil {
 				return err
@@ -104,8 +109,13 @@ func (*RootCmd) templateInit() *clibase.Cmd {
 				return err
 			}
 			_, _ = fmt.Fprintln(inv.Stdout, "Create your template by running:")
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Paragraph.Render(cliui.DefaultStyles.Code.Render("cd "+relPath+" && coder templates create"))+"\n")
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Wrap.Render("Examples provide a starting point and are expected to be edited! 🎨"))
+			_, _ = fmt.Fprintln(
+				inv.Stdout,
+				pretty.Sprint(
+					cliui.DefaultStyles.Code,
+					"cd "+relPath+" && coder templates create"),
+			)
+			_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Wrap, "\nExamples provide a starting point and are expected to be edited! 🎨"))
 			return nil
 		},
 	}
