@@ -22,16 +22,26 @@ import (
 )
 
 func main() {
-	root := &clibase.Cmd{
+	var root *clibase.Cmd
+	root = &clibase.Cmd{
 		Use:   "cliui",
 		Short: "Used for visually testing UI components for the CLI.",
+		HelpHandler: func(inv *clibase.Invocation) error {
+			_, _ = fmt.Fprintln(inv.Stdout, "This command is used for visually testing UI components for the CLI.")
+			_, _ = fmt.Fprintln(inv.Stdout, "It is not intended to be used by end users.")
+			_, _ = fmt.Fprintln(inv.Stdout, "Subcommands: ")
+			for _, child := range root.Children {
+				_, _ = fmt.Fprintf(inv.Stdout, "- %s\n", child.Use)
+			}
+			return nil
+		},
 	}
 
 	root.Children = append(root.Children, &clibase.Cmd{
 		Use: "prompt",
 		Handler: func(inv *clibase.Invocation) error {
 			_, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:    "What is our " + cliui.DefaultStyles.Field.Render("company name") + "?",
+				Text:    "What is our " + cliui.Field("company name") + "?",
 				Default: "acme-corp",
 				Validate: func(s string) error {
 					if !strings.EqualFold(s, "coder") {

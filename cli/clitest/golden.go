@@ -11,11 +11,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -53,13 +53,9 @@ func DefaultCases() []CommandHelpCase {
 //
 //nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *clibase.Cmd, cases []CommandHelpCase) {
-	ogColorProfile := lipgloss.ColorProfile()
 	// ANSI256 escape codes are far easier for humans to parse in a diff,
 	// but TrueColor is probably more popular with modern terminals.
-	lipgloss.SetColorProfile(termenv.ANSI)
-	t.Cleanup(func() {
-		lipgloss.SetColorProfile(ogColorProfile)
-	})
+	cliui.TestColor(t, termenv.ANSI)
 	rootClient, replacements := prepareTestData(t)
 
 	root := getRoot(t)

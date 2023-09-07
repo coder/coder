@@ -16,6 +16,8 @@ import (
 	"github.com/pkg/browser"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/userpassword"
@@ -43,7 +45,7 @@ func promptFirstUsername(inv *clibase.Invocation) (string, error) {
 		return "", xerrors.Errorf("get current user: %w", err)
 	}
 	username, err := cliui.Prompt(inv, cliui.PromptOptions{
-		Text:    "What " + cliui.DefaultStyles.Field.Render("username") + " would you like?",
+		Text:    "What " + pretty.Sprint(cliui.DefaultStyles.Field, "username") + " would you like?",
 		Default: currentUser.Username,
 	})
 	if errors.Is(err, cliui.Canceled) {
@@ -59,7 +61,7 @@ func promptFirstUsername(inv *clibase.Invocation) (string, error) {
 func promptFirstPassword(inv *clibase.Invocation) (string, error) {
 retry:
 	password, err := cliui.Prompt(inv, cliui.PromptOptions{
-		Text:   "Enter a " + cliui.DefaultStyles.Field.Render("password") + ":",
+		Text:   "Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
 		Secret: true,
 		Validate: func(s string) error {
 			return userpassword.Validate(s)
@@ -69,7 +71,7 @@ retry:
 		return "", xerrors.Errorf("specify password prompt: %w", err)
 	}
 	confirm, err := cliui.Prompt(inv, cliui.PromptOptions{
-		Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
+		Text:     "Confirm " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
 		Secret:   true,
 		Validate: cliui.ValidateNotEmpty,
 	})
@@ -78,7 +80,7 @@ retry:
 	}
 
 	if confirm != password {
-		_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Passwords do not match"))
+		_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Error, "Passwords do not match"))
 		goto retry
 	}
 
@@ -115,12 +117,8 @@ func (r *RootCmd) loginWithPassword(
 
 	_, _ = fmt.Fprintf(
 		inv.Stdout,
-		cliui.DefaultStyles.Paragraph.Render(
-			fmt.Sprintf(
-				"Welcome to Coder, %s! You're authenticated.",
-				cliui.DefaultStyles.Keyword.Render(u.Username),
-			),
-		)+"\n",
+		"Welcome to Coder, %s! You're authenticated.",
+		pretty.Sprint(cliui.DefaultStyles.Keyword, u.Username),
 	)
 
 	return nil
@@ -177,7 +175,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 			if err != nil {
 				// Checking versions isn't a fatal error so we print a warning
 				// and proceed.
-				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Warn.Render(err.Error()))
+				_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, err.Error()))
 			}
 
 			hasFirstUser, err := client.HasFirstUser(ctx)
@@ -209,7 +207,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 
 				if email == "" {
 					email, err = cliui.Prompt(inv, cliui.PromptOptions{
-						Text: "What's your " + cliui.DefaultStyles.Field.Render("email") + "?",
+						Text: "What's your " + pretty.Sprint(cliui.DefaultStyles.Field, "email") + "?",
 						Validate: func(s string) error {
 							err := validator.New().Var(s, "email")
 							if err != nil {
@@ -261,7 +259,9 @@ func (r *RootCmd) login() *clibase.Cmd {
 
 				_, _ = fmt.Fprintf(
 					inv.Stdout,
-					cliui.DefaultStyles.Paragraph.Render("Get started by creating a template: "+cliui.DefaultStyles.Code.Render("coder templates init"))+"\n")
+					"Get started by creating a template: %s\n",
+					pretty.Sprint(cliui.DefaultStyles.Code, "coder templates init"),
+				)
 				return nil
 			}
 
@@ -327,7 +327,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				return xerrors.Errorf("write server url: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", cliui.DefaultStyles.Keyword.Render(resp.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, Caret+"Welcome to Coder, %s! You're authenticated.\n", pretty.Sprint(cliui.DefaultStyles.Keyword, resp.Username))
 			return nil
 		},
 	}

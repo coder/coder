@@ -52,6 +52,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/pretty"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
@@ -512,7 +514,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(
 					inv.Stderr,
 					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.DefaultStyles.Field.Render(vals.AccessURL.String()), reason,
+					pretty.Sprint(cliui.DefaultStyles.Field, vals.AccessURL.String()), reason,
 				)
 			}
 
@@ -1026,9 +1028,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
-					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
-				))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
@@ -1134,7 +1134,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("psql %q", url)))
 			}
 			return nil
 		},
@@ -1164,7 +1164,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("psql %q", url)))
 			}
 
 			<-ctx.Done()
@@ -1403,7 +1403,7 @@ func PrintLogo(inv *clibase.Invocation, daemonTitle string) {
 		return
 	}
 
-	versionString := cliui.DefaultStyles.Bold.Render(daemonTitle + " " + buildinfo.Version())
+	versionString := cliui.Bold(daemonTitle + " " + buildinfo.Version())
 
 	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", versionString)
 }

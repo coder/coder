@@ -5,17 +5,17 @@ Manage personal access tokens
 Aliases: token
 
 Tokens are used to authenticate automated clients to Coder.
-  - Create a token for automation:                                              
+  - Create a token for automation:
 
-     [40m [0m[91;40m$ coder tokens create[0m[40m [0m
+     $ coder tokens create
 
-  - List your tokens:                                                           
+  - List your tokens:
 
-     [40m [0m[91;40m$ coder tokens ls[0m[40m [0m
+     $ coder tokens ls
 
-  - Remove a token by ID:                                                       
+  - Remove a token by ID:
 
-     [40m [0m[91;40m$ coder tokens rm WuoWs4ZsMX[0m[40m [0m
+     $ coder tokens rm WuoWs4ZsMX
 
 [1mSubcommands[0m
     create    Create a token
