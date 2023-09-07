@@ -46,6 +46,7 @@ const useStyles = makeStyles<Theme, styleProps>((theme) => ({
     borderRadius: theme.shape.borderRadius,
     padding: theme.spacing(1),
     lineHeight: "150%",
+    border: `1px solid ${theme.palette.divider}`,
   }),
   code: {
     padding: theme.spacing(0, 1),
