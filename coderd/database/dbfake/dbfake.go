@@ -4420,20 +4420,26 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		Architecture:             arg.Architecture,
 		OperatingSystem:          arg.OperatingSystem,
 		Directory:                arg.Directory,
-		StartupScriptBehavior:    arg.StartupScriptBehavior,
-		StartupScript:            arg.StartupScript,
 		InstanceMetadata:         arg.InstanceMetadata,
 		ResourceMetadata:         arg.ResourceMetadata,
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
-		ShutdownScript:           arg.ShutdownScript,
 		DisplayApps:              arg.DisplayApps,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
 	return agent, nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
@@ -4453,12 +4459,12 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 	for index, output := range arg.Output {
 		id++
 		logs = append(logs, database.WorkspaceAgentLog{
-			ID:        id,
-			AgentID:   arg.AgentID,
-			CreatedAt: arg.CreatedAt[index],
-			Level:     arg.Level[index],
-			Source:    arg.Source[index],
-			Output:    output,
+			ID:          id,
+			AgentID:     arg.AgentID,
+			CreatedAt:   arg.CreatedAt[index],
+			Level:       arg.Level[index],
+			LogSourceID: arg.LogSourceID,
+			Output:      output,
 		})
 		outputLength += int32(len(output))
 	}

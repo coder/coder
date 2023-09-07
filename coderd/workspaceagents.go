@@ -289,7 +289,6 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
-	source := make([]database.WorkspaceAgentLogSource, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
 		createdAt = append(createdAt, logEntry.CreatedAt)
@@ -308,20 +307,6 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 		level = append(level, parsedLevel)
-
-		if logEntry.Source == "" {
-			// Default to "startup_script" to support older agents that didn't have the source field.
-			logEntry.Source = codersdk.WorkspaceAgentLogSourceStartupScript
-		}
-		parsedSource := database.WorkspaceAgentLogSource(logEntry.Source)
-		if !parsedSource.Valid() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid log source provided.",
-				Detail:  fmt.Sprintf("invalid log source: %q", logEntry.Source),
-			})
-			return
-		}
-		source = append(source, parsedSource)
 	}
 
 	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
@@ -329,7 +314,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		CreatedAt:    createdAt,
 		Output:       output,
 		Level:        level,
-		Source:       source,
+		LogSourceID:  req.LogSourceID,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {

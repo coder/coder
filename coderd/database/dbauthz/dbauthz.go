@@ -2031,6 +2031,10 @@ func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertW
 	return q.db.InsertWorkspaceAgent(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	panic("not implemented")
+}
+
 func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
 	return q.db.InsertWorkspaceAgentLogs(ctx, arg)
 }

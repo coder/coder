@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty"
@@ -1055,84 +1054,6 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 	}
 }
 
-func TestAgent_StartupScript(t *testing.T) {
-	t.Parallel()
-	output := "something"
-	command := "sh -c 'echo " + output + "'"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo " + output
-	}
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := agenttest.NewClient(t,
-			logger,
-			uuid.New(),
-			agentsdk.Manifest{
-				StartupScript: command,
-				DERPMap:       &tailcfg.DERPMap{},
-			},
-			make(chan *agentsdk.Stats),
-			tailnet.NewCoordinator(logger),
-		)
-		closer := agent.New(agent.Options{
-			Client:                 client,
-			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 logger.Named("agent"),
-			ReconnectingPTYTimeout: 0,
-		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-		assert.Eventually(t, func() bool {
-			got := client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
-		}, testutil.WaitShort, testutil.IntervalMedium)
-
-		require.Len(t, client.GetStartupLogs(), 1)
-		require.Equal(t, output, client.GetStartupLogs()[0].Output)
-	})
-	// This ensures that even when coderd sends back that the startup
-	// script has written too many lines it will still succeed!
-	t.Run("OverflowsAndSkips", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := agenttest.NewClient(t,
-			logger,
-			uuid.New(),
-			agentsdk.Manifest{
-				StartupScript: command,
-				DERPMap:       &tailcfg.DERPMap{},
-			},
-			make(chan *agentsdk.Stats, 50),
-			tailnet.NewCoordinator(logger),
-		)
-		client.PatchWorkspaceLogs = func() error {
-			resp := httptest.NewRecorder()
-			httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Too many lines!",
-			})
-			res := resp.Result()
-			defer res.Body.Close()
-			return codersdk.ReadBodyAsError(res)
-		}
-		closer := agent.New(agent.Options{
-			Client:                 client,
-			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 logger.Named("agent"),
-			ReconnectingPTYTimeout: 0,
-		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-		assert.Eventually(t, func() bool {
-			got := client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
-		}, testutil.WaitShort, testutil.IntervalMedium)
-		require.Len(t, client.GetStartupLogs(), 0)
-	})
-}
-
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
@@ -1287,8 +1208,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "sleep 3",
-			StartupScriptTimeout: time.Nanosecond,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "sleep 3",
+				Timeout:    time.Nanosecond,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1309,8 +1233,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "false",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "false",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1331,8 +1258,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "true",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1353,8 +1283,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:       "sleep 3",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "sleep 3",
+				Timeout:   30 * time.Second,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1391,8 +1324,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "sleep 3",
-			ShutdownScriptTimeout: time.Nanosecond,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "sleep 3",
+				Timeout:   time.Nanosecond,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1430,8 +1366,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "false",
-			ShutdownScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "false",
+				Timeout:   30 * time.Second,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1475,9 +1414,16 @@ func TestAgent_Lifecycle(t *testing.T) {
 			logger,
 			uuid.New(),
 			agentsdk.Manifest{
-				DERPMap:        derpMap,
-				StartupScript:  "echo 1",
-				ShutdownScript: "echo " + expected,
+				DERPMap: derpMap,
+				Scripts: []codersdk.WorkspaceAgentScript{{
+					LogSourceDisplayName: "startup",
+					Script:               "echo 1",
+					RunOnStart:           true,
+				}, {
+					LogSourceDisplayName: "shutdown",
+					Script:               "echo " + expected,
+					RunOnStop:            true,
+				}},
 			},
 			make(chan *agentsdk.Stats, 50),
 			tailnet.NewCoordinator(logger),
@@ -1528,9 +1474,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "",
+			Directory: "",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1542,9 +1486,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "~",
+			Directory: "~",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1558,9 +1500,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "coder/coder",
+			Directory: "coder/coder",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1574,9 +1514,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "$HOME",
+			Directory: "$HOME",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""

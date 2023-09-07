@@ -91,14 +91,21 @@ type Manifest struct {
 	DERPMap                  *tailcfg.DERPMap                             `json:"derpmap"`
 	DERPForceWebSockets      bool                                         `json:"derp_force_websockets"`
 	EnvironmentVariables     map[string]string                            `json:"environment_variables"`
-	StartupScript            string                                       `json:"startup_script"`
-	StartupScriptTimeout     time.Duration                                `json:"startup_script_timeout"`
 	Directory                string                                       `json:"directory"`
 	MOTDFile                 string                                       `json:"motd_file"`
-	ShutdownScript           string                                       `json:"shutdown_script"`
-	ShutdownScriptTimeout    time.Duration                                `json:"shutdown_script_timeout"`
 	DisableDirectConnections bool                                         `json:"disable_direct_connections"`
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
+	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
+}
+
+type LogSource struct {
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+type Script struct {
+	Script string `json:"script"`
 }
 
 // Manifest fetches manifest for the currently authenticated workspace agent.
@@ -631,14 +638,14 @@ func (c *Client) PostStartup(ctx context.Context, req PostStartupRequest) error 
 }
 
 type Log struct {
-	CreatedAt time.Time                        `json:"created_at"`
-	Output    string                           `json:"output"`
-	Level     codersdk.LogLevel                `json:"level"`
-	Source    codersdk.WorkspaceAgentLogSource `json:"source"`
+	CreatedAt time.Time         `json:"created_at"`
+	Output    string            `json:"output"`
+	Level     codersdk.LogLevel `json:"level"`
 }
 
 type PatchLogs struct {
-	Logs []Log `json:"logs"`
+	LogSourceID uuid.UUID `json:"log_source_id" validate:"required"`
+	Logs        []Log     `json:"logs"`
 }
 
 // PatchLogs writes log messages to the agent startup script.

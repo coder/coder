@@ -40,21 +40,16 @@ INSERT INTO
 		architecture,
 		environment_variables,
 		operating_system,
-		startup_script,
 		directory,
 		instance_metadata,
 		resource_metadata,
 		connection_timeout_seconds,
 		troubleshooting_url,
 		motd_file,
-		startup_script_behavior,
-		startup_script_timeout_seconds,
-		shutdown_script,
-		shutdown_script_timeout_seconds,
 		display_apps
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING *;
 
 -- name: UpdateWorkspaceAgentConnectionByID :exec
 UPDATE
@@ -162,8 +157,19 @@ INSERT INTO
 		unnest(@created_at :: timestamptz [ ]) AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
 		unnest(@level :: log_level [ ]) AS level,
-		unnest(@source :: workspace_agent_log_source [ ]) AS source
+		@log_source_id :: uuid AS log_source_id
 	RETURNING workspace_agent_logs.*;
+
+-- name: InsertWorkspaceAgentLogSources :many
+INSERT INTO
+		workspace_agent_log_sources (workspace_agent_id, id, created_at, display_name, icon)
+	SELECT
+		@workspace_agent_id :: uuid AS workspace_agent_id,
+		unnest(@id :: uuid [ ]) AS id,
+		unnest(@created_at :: timestamptz [ ]) AS created_at,
+		unnest(@display_name :: VARCHAR(127) [ ]) AS display_name,
+		unnest(@icon :: text [ ]) AS icon
+	RETURNING workspace_agent_log_sources.*;
 
 -- If an agent hasn't connected in the last 7 days, we purge it's logs.
 -- Logs can take up a lot of space, so it's important we clean up frequently.

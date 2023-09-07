@@ -34,6 +34,7 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/buildinfo"
@@ -177,6 +178,7 @@ type agent struct {
 
 	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	reportMetadataInterval       time.Duration
+	scriptRunner                 *agentscripts.Runner
 	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
 	serviceBannerRefreshInterval time.Duration
 	sessionToken                 atomic.Pointer[string]
@@ -213,7 +215,13 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Manifest = &a.manifest
 	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
-
+	a.scriptRunner = agentscripts.New(ctx, agentscripts.Options{
+		LogDir:     a.logDir,
+		Logger:     a.logger,
+		SSHServer:  sshSrv,
+		Filesystem: a.filesystem,
+		PatchLogs:  a.client.PatchLogs,
+	})
 	go a.runLoop(ctx)
 }
 
@@ -631,41 +639,28 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
-		lifecycleState := codersdk.WorkspaceAgentLifecycleReady
-		scriptDone := make(chan error, 1)
+		err = a.scriptRunner.Init(manifest.Scripts)
+		if err != nil {
+			return xerrors.Errorf("init script runner: %w", err)
+		}
 		err = a.trackConnGoroutine(func() {
-			defer close(scriptDone)
-			scriptDone <- a.runStartupScript(ctx, manifest.StartupScript)
+			err := a.scriptRunner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
+				return script.RunOnStart
+			})
+			if err != nil {
+				a.logger.Warn(ctx, "startup script failed", slog.Error(err))
+				if errors.Is(err, agentscripts.ErrTimeout) {
+					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
+				} else {
+					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartError)
+				}
+			} else {
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
+			}
 		})
 		if err != nil {
-			return xerrors.Errorf("track startup script: %w", err)
+			return xerrors.Errorf("track conn goroutine: %w", err)
 		}
-		go func() {
-			var timeout <-chan time.Time
-			// If timeout is zero, an older version of the coder
-			// provider was used. Otherwise a timeout is always > 0.
-			if manifest.StartupScriptTimeout > 0 {
-				t := time.NewTimer(manifest.StartupScriptTimeout)
-				defer t.Stop()
-				timeout = t.C
-			}
-
-			var err error
-			select {
-			case err = <-scriptDone:
-			case <-timeout:
-				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.StartupScriptTimeout))
-				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
-				err = <-scriptDone // The script can still complete after a timeout.
-			}
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
-			}
-			a.setLifecycle(ctx, lifecycleState)
-		}()
 	}
 
 	// This automatically closes when the context ends!
@@ -980,63 +975,48 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn)
 	}
 }
 
-func (a *agent) runStartupScript(ctx context.Context, script string) error {
-	return a.runScript(ctx, "startup", script)
-}
-
-func (a *agent) runShutdownScript(ctx context.Context, script string) error {
-	return a.runScript(ctx, "shutdown", script)
-}
-
-func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err error) {
-	if script == "" {
+func (a *agent) runScript(ctx context.Context, script codersdk.WorkspaceAgentScript) (err error) {
+	if script.Script == "" {
 		return nil
 	}
 
-	logger := a.logger.With(slog.F("lifecycle", lifecycle))
+	logger := a.logger.With(slog.F("log_source", script.LogSourceDisplayName))
 
-	logger.Info(ctx, fmt.Sprintf("running %s script", lifecycle), slog.F("script", script))
-	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
+	logger.Info(ctx, "running script", slog.F("script", script.Script))
+	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", script.LogSourceDisplayName)), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
+		return xerrors.Errorf("open %s script log file: %w", script.LogSourceDisplayName, err)
 	}
 	defer func() {
 		err := fileWriter.Close()
 		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", lifecycle), slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("close %s script log file", script.LogSourceDisplayName), slog.Error(err))
 		}
 	}()
 
-	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
+	cmdPty, err := a.sshServer.CreateCommand(ctx, script.Script, nil)
 	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", lifecycle, err)
+		return xerrors.Errorf("%s script: create command: %w", script.LogSourceDisplayName, err)
 	}
 	cmd := cmdPty.AsExec()
 
-	var stdout, stderr io.Writer = fileWriter, fileWriter
-	if lifecycle == "startup" {
-		send, flushAndClose := agentsdk.LogsSender(a.client.PatchLogs, logger)
-		// If ctx is canceled here (or in a writer below), we may be
-		// discarding logs, but that's okay because we're shutting down
-		// anyway. We could consider creating a new context here if we
-		// want better control over flush during shutdown.
-		defer func() {
-			if err := flushAndClose(ctx); err != nil {
-				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
-			}
-		}()
+	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, a.client.PatchLogs, logger)
+	// If ctx is canceled here (or in a writer below), we may be
+	// discarding logs, but that's okay because we're shutting down
+	// anyway. We could consider creating a new context here if we
+	// want better control over flush during shutdown.
+	defer func() {
+		if err := flushAndClose(ctx); err != nil {
+			logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
+		}
+	}()
 
-		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelInfo)
-		defer infoW.Close()
-		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.WorkspaceAgentLogSourceStartupScript, codersdk.LogLevelError)
-		defer errW.Close()
-
-		stdout = io.MultiWriter(fileWriter, infoW)
-		stderr = io.MultiWriter(fileWriter, errW)
-	}
-
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	infoW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelInfo)
+	defer infoW.Close()
+	errW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelError)
+	defer errW.Close()
+	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
+	cmd.Stderr = io.MultiWriter(fileWriter, errW)
 
 	start := time.Now()
 	defer func() {
@@ -1049,9 +1029,9 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			if xerrors.As(err, &exitError) {
 				exitCode = exitError.ExitCode()
 			}
-			logger.Warn(ctx, fmt.Sprintf("%s script failed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
+			logger.Warn(ctx, fmt.Sprintf("%s script failed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
 		} else {
-			logger.Info(ctx, fmt.Sprintf("%s script completed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
+			logger.Info(ctx, fmt.Sprintf("%s script completed", script.LogSourceDisplayName), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
 		}
 	}()
 
@@ -1062,7 +1042,7 @@ func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err er
 			return ctx.Err()
 		}
 
-		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
+		return xerrors.Errorf("%s script: run: %w", script.LogSourceDisplayName, err)
 	}
 	return nil
 }
@@ -1336,38 +1316,24 @@ func (a *agent) Close() error {
 	}
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	if manifest := a.manifest.Load(); manifest != nil && manifest.ShutdownScript != "" {
-		scriptDone := make(chan error, 1)
-		go func() {
-			defer close(scriptDone)
-			scriptDone <- a.runShutdownScript(ctx, manifest.ShutdownScript)
-		}()
-
-		var timeout <-chan time.Time
-		// If timeout is zero, an older version of the coder
-		// provider was used. Otherwise a timeout is always > 0.
-		if manifest.ShutdownScriptTimeout > 0 {
-			t := time.NewTimer(manifest.ShutdownScriptTimeout)
-			defer t.Stop()
-			timeout = t.C
-		}
-
-		var err error
-		select {
-		case err = <-scriptDone:
-		case <-timeout:
-			a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "shutdown"), slog.F("timeout", manifest.ShutdownScriptTimeout))
-			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShutdownTimeout)
-			err = <-scriptDone // The script can still complete after a timeout.
-		}
-		if err != nil {
+	err = a.scriptRunner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
+		return script.RunOnStop
+	})
+	if err != nil {
+		if errors.Is(err, agentscripts.ErrTimeout) {
+			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownTimeout
+		} else {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
+	} else {
+		lifecycleState = codersdk.WorkspaceAgentLifecycleOff
 	}
-
-	// Set final state and wait for it to be reported because context
-	// cancellation will stop the report loop.
 	a.setLifecycle(ctx, lifecycleState)
+
+	err = a.scriptRunner.Close()
+	if err != nil {
+		a.logger.Error(ctx, "script runner close", slog.Error(err))
+	}
 
 	// Wait for the lifecycle to be reported, but don't wait forever so
 	// that we don't break user expectations.

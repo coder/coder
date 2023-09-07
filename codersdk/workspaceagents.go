@@ -144,42 +144,58 @@ const (
 )
 
 type WorkspaceAgent struct {
-	ID                          uuid.UUID                           `json:"id" format:"uuid"`
-	CreatedAt                   time.Time                           `json:"created_at" format:"date-time"`
-	UpdatedAt                   time.Time                           `json:"updated_at" format:"date-time"`
-	FirstConnectedAt            *time.Time                          `json:"first_connected_at,omitempty" format:"date-time"`
-	LastConnectedAt             *time.Time                          `json:"last_connected_at,omitempty" format:"date-time"`
-	DisconnectedAt              *time.Time                          `json:"disconnected_at,omitempty" format:"date-time"`
-	StartedAt                   *time.Time                          `json:"started_at,omitempty" format:"date-time"`
-	ReadyAt                     *time.Time                          `json:"ready_at,omitempty" format:"date-time"`
-	Status                      WorkspaceAgentStatus                `json:"status"`
-	LifecycleState              WorkspaceAgentLifecycle             `json:"lifecycle_state"`
-	Name                        string                              `json:"name"`
-	ResourceID                  uuid.UUID                           `json:"resource_id" format:"uuid"`
-	InstanceID                  string                              `json:"instance_id,omitempty"`
-	Architecture                string                              `json:"architecture"`
-	EnvironmentVariables        map[string]string                   `json:"environment_variables"`
-	OperatingSystem             string                              `json:"operating_system"`
-	StartupScript               string                              `json:"startup_script,omitempty"`
-	StartupScriptBehavior       WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds int32                               `json:"startup_script_timeout_seconds"` // StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.
-	LogsLength                  int32                               `json:"logs_length"`
-	LogsOverflowed              bool                                `json:"logs_overflowed"`
-	Directory                   string                              `json:"directory,omitempty"`
-	ExpandedDirectory           string                              `json:"expanded_directory,omitempty"`
-	Version                     string                              `json:"version"`
-	Apps                        []WorkspaceApp                      `json:"apps"`
+	ID                   uuid.UUID               `json:"id" format:"uuid"`
+	CreatedAt            time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt            time.Time               `json:"updated_at" format:"date-time"`
+	FirstConnectedAt     *time.Time              `json:"first_connected_at,omitempty" format:"date-time"`
+	LastConnectedAt      *time.Time              `json:"last_connected_at,omitempty" format:"date-time"`
+	DisconnectedAt       *time.Time              `json:"disconnected_at,omitempty" format:"date-time"`
+	StartedAt            *time.Time              `json:"started_at,omitempty" format:"date-time"`
+	ReadyAt              *time.Time              `json:"ready_at,omitempty" format:"date-time"`
+	Status               WorkspaceAgentStatus    `json:"status"`
+	LifecycleState       WorkspaceAgentLifecycle `json:"lifecycle_state"`
+	Name                 string                  `json:"name"`
+	ResourceID           uuid.UUID               `json:"resource_id" format:"uuid"`
+	InstanceID           string                  `json:"instance_id,omitempty"`
+	Architecture         string                  `json:"architecture"`
+	EnvironmentVariables map[string]string       `json:"environment_variables"`
+	OperatingSystem      string                  `json:"operating_system"`
+	LogsLength           int32                   `json:"logs_length"`
+	LogsOverflowed       bool                    `json:"logs_overflowed"`
+	Directory            string                  `json:"directory,omitempty"`
+	ExpandedDirectory    string                  `json:"expanded_directory,omitempty"`
+	Version              string                  `json:"version"`
+	Apps                 []WorkspaceApp          `json:"apps"`
 	// DERPLatency is mapped by region name (e.g. "New York City", "Seattle").
 	DERPLatency              map[string]DERPRegion `json:"latency,omitempty"`
 	ConnectionTimeoutSeconds int32                 `json:"connection_timeout_seconds"`
 	TroubleshootingURL       string                `json:"troubleshooting_url"`
 	// Deprecated: Use StartupScriptBehavior instead.
-	LoginBeforeReady             bool                 `json:"login_before_ready"`
-	ShutdownScript               string               `json:"shutdown_script,omitempty"`
-	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
-	Subsystems                   []AgentSubsystem     `json:"subsystems"`
-	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
-	DisplayApps                  []DisplayApp         `json:"display_apps"`
+	LoginBeforeReady bool                      `json:"login_before_ready"`
+	Subsystems       []AgentSubsystem          `json:"subsystems"`
+	Health           WorkspaceAgentHealth      `json:"health"` // Health reports the health of the agent.
+	DisplayApps      []DisplayApp              `json:"display_apps"`
+	LogSources       []WorkspaceAgentLogSource `json:"log_sources"`
+	Scripts          []WorkspaceAgentScript    `json:"scripts"`
+}
+
+type WorkspaceAgentLogSource struct {
+	WorkspaceAgentID uuid.UUID `json:"workspace_agent_id" format:"uuid"`
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	DisplayName      string    `json:"display_name"`
+	Icon             string    `json:"icon"`
+}
+
+type WorkspaceAgentScript struct {
+	LogSourceDisplayName string        `json:"log_source_display_name"`
+	LogSourceID          uuid.UUID     `json:"log_source_id" format:"uuid"`
+	Script               string        `json:"script"`
+	Schedule             string        `json:"schedule"`
+	RunOnStart           bool          `json:"run_on_start"`
+	RunOnStop            bool          `json:"run_on_stop"`
+	LoginBeforeReady     bool          `json:"login_before_ready"`
+	Timeout              time.Duration `json:"timeout_seconds"`
 }
 
 type WorkspaceAgentHealth struct {
@@ -530,13 +546,6 @@ func (c *Client) WorkspaceAgent(ctx context.Context, id uuid.UUID) (WorkspaceAge
 	if err != nil {
 		return WorkspaceAgent{}, err
 	}
-	// Backwards compatibility for cases where the API is older then the client.
-	if workspaceAgent.StartupScriptBehavior == "" {
-		workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorNonBlocking
-		if !workspaceAgent.LoginBeforeReady {
-			workspaceAgent.StartupScriptBehavior = WorkspaceAgentStartupScriptBehaviorBlocking
-		}
-	}
 	return workspaceAgent, nil
 }
 
@@ -780,14 +789,3 @@ func (s AgentSubsystem) Valid() bool {
 		return false
 	}
 }
-
-type WorkspaceAgentLogSource string
-
-const (
-	WorkspaceAgentLogSourceStartupScript  WorkspaceAgentLogSource = "startup_script"
-	WorkspaceAgentLogSourceShutdownScript WorkspaceAgentLogSource = "shutdown_script"
-	WorkspaceAgentLogSourceKubernetes     WorkspaceAgentLogSource = "kubernetes"
-	WorkspaceAgentLogSourceEnvbox         WorkspaceAgentLogSource = "envbox"
-	WorkspaceAgentLogSourceEnvbuilder     WorkspaceAgentLogSource = "envbuilder"
-	WorkspaceAgentLogSourceExternal       WorkspaceAgentLogSource = "external"
-)

@@ -1335,9 +1335,6 @@ export interface WorkspaceAgent {
   readonly architecture: string
   readonly environment_variables: Record<string, string>
   readonly operating_system: string
-  readonly startup_script?: string
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior
-  readonly startup_script_timeout_seconds: number
   readonly logs_length: number
   readonly logs_overflowed: boolean
   readonly directory?: string
@@ -1348,11 +1345,11 @@ export interface WorkspaceAgent {
   readonly connection_timeout_seconds: number
   readonly troubleshooting_url: string
   readonly login_before_ready: boolean
-  readonly shutdown_script?: string
-  readonly shutdown_script_timeout_seconds: number
   readonly subsystems: AgentSubsystem[]
   readonly health: WorkspaceAgentHealth
   readonly display_apps: DisplayApp[]
+  readonly log_sources: WorkspaceAgentLogSource[]
+  readonly scripts: WorkspaceAgentScript[]
 }
 
 // From codersdk/workspaceagents.go
@@ -1382,6 +1379,15 @@ export interface WorkspaceAgentLog {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentLogSource {
+  readonly workspace_agent_id: string
+  readonly id: string
+  readonly created_at: string
+  readonly display_name: string
+  readonly icon: string
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentMetadata {
   readonly result: WorkspaceAgentMetadataResult
   readonly description: WorkspaceAgentMetadataDescription
@@ -1402,6 +1408,15 @@ export interface WorkspaceAgentMetadataResult {
   readonly age: number
   readonly value: string
   readonly error: string
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentScript {
+  readonly log_source_id: string
+  readonly script: string
+  readonly schedule: string
+  readonly login_before_ready: boolean
+  readonly timeout_seconds: number
 }
 
 // From codersdk/workspaceapps.go
@@ -1879,23 +1894,6 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
-]
-
-// From codersdk/workspaceagents.go
-export type WorkspaceAgentLogSource =
-  | "envbox"
-  | "envbuilder"
-  | "external"
-  | "kubernetes"
-  | "shutdown_script"
-  | "startup_script"
-export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
-  "envbox",
-  "envbuilder",
-  "external",
-  "kubernetes",
-  "shutdown_script",
-  "startup_script",
 ]
 
 // From codersdk/workspaceagents.go

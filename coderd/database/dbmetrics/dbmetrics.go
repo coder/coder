@@ -1236,6 +1236,13 @@ func (m metricsStore) InsertWorkspaceAgent(ctx context.Context, arg database.Ins
 	return agent, err
 }
 
+func (m metricsStore) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentLogSources(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentLogSources").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspaceAgentLogs(ctx, arg)
