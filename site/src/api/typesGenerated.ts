@@ -372,19 +372,6 @@ export interface DeploymentValues {
   readonly secure_auth_cookie?: boolean;
   readonly strict_transport_security?: number;
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-<<<<<<< HEAD
-  readonly strict_transport_security_options?: string[]
-  readonly ssh_keygen_algorithm?: string
-  readonly metrics_cache_refresh_interval?: number
-  readonly agent_stat_refresh_interval?: number
-  readonly agent_fallback_troubleshooting_url?: string
-  readonly browser_only?: boolean
-  readonly scim_api_key?: string
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
-  readonly external_token_encryption_keys?: string[]
-  readonly provisioner?: ProvisionerConfig
-  readonly rate_limit?: RateLimitConfig
-=======
   readonly strict_transport_security_options?: string[];
   readonly ssh_keygen_algorithm?: string;
   readonly metrics_cache_refresh_interval?: number;
@@ -392,9 +379,10 @@ export interface DeploymentValues {
   readonly agent_fallback_troubleshooting_url?: string;
   readonly browser_only?: boolean;
   readonly scim_api_key?: string;
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
+  readonly external_token_encryption_keys?: string[];
   readonly provisioner?: ProvisionerConfig;
   readonly rate_limit?: RateLimitConfig;
->>>>>>> origin/main
   // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly experiments?: string[];
   readonly update_check?: boolean;
