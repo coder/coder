@@ -1,5 +1,5 @@
 import { useMachine } from "@xstate/react";
-import { TemplateVersionEditor } from "pages/TemplateVersionEditorPage/TemplateVersionEditor/TemplateVersionEditor";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { usePermissions } from "hooks/usePermissions";
 import { FC } from "react";
