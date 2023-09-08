@@ -69,6 +69,7 @@ type remoteConnector struct {
 }
 
 func NewRemoteConnector(ctx context.Context, logger slog.Logger, exec Executor) (agpl.Connector, error) {
+	// nolint: gosec
 	listener, err := net.Listen("tcp", ":0")
 	if err != nil {
 		return nil, xerrors.Errorf("failed to listen: %w", err)
@@ -219,13 +220,13 @@ func (r *remoteConnector) Connect(
 	if !pt.Valid() {
 		go errResponse(job, respCh, xerrors.Errorf("invalid provisioner type: %s", job.Provisioner))
 	}
-	tb := make([]byte, 4) // 128-bit token
+	tb := make([]byte, 16) // 128-bit token
 	n, err := rand.Read(tb)
 	if err != nil {
 		go errResponse(job, respCh, err)
 		return
 	}
-	if n != 4 {
+	if n != 16 {
 		go errResponse(job, respCh, xerrors.New("short read generating token"))
 	}
 	token := base64.StdEncoding.EncodeToString(tb)
@@ -350,7 +351,7 @@ func DialTLS(ctx context.Context, cert, addr string) (*tls.Conn, error) {
 	// and write deadlines.
 	err = tc.HandshakeContext(ctx)
 	if err != nil {
-		nc.Close()
+		_ = nc.Close()
 		return nil, xerrors.Errorf("TLS handshake: %w", err)
 	}
 	return tc, nil
@@ -394,10 +395,10 @@ const serverName = "provisionerd"
 // protocol.
 func AuthenticateProvisioner(conn io.ReadWriter, token, jobID string) error {
 	sb := strings.Builder{}
-	sb.WriteString(jobID)
-	sb.WriteString("\n")
-	sb.WriteString(token)
-	sb.WriteString("\n")
+	_, _ = sb.WriteString(jobID)
+	_, _ = sb.WriteString("\n")
+	_, _ = sb.WriteString(token)
+	_, _ = sb.WriteString("\n")
 	_, err := conn.Write([]byte(sb.String()))
 	if err != nil {
 		return xerrors.Errorf("failed to write token: %w", err)

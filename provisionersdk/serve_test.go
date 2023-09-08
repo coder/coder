@@ -130,7 +130,6 @@ func TestProvisionerSDK(t *testing.T) {
 			require.NoError(t, err)
 		}
 	})
-
 }
 
 type unimplementedServer struct{}

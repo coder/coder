@@ -81,12 +81,12 @@ func TestRemoteConnector_Mainline(t *testing.T) {
 			}}})
 			require.NoError(t, err)
 			err = s.Send(&sdkproto.Request{Type: &sdkproto.Request_Parse{Parse: &sdkproto.ParseRequest{}}})
+			require.NoError(t, err)
 			r, err := s.Recv()
 			require.NoError(t, err)
 			require.IsType(t, &sdkproto.Response_Parse{}, r.Type)
 		})
 	}
-
 }
 
 func TestRemoteConnector_BadToken(t *testing.T) {
@@ -152,6 +152,7 @@ func TestRemoteConnector_BadJobID(t *testing.T) {
 func TestRemoteConnector_BadCert(t *testing.T) {
 	t.Parallel()
 	_, cert, err := provisionerd.GenCert()
+	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -303,8 +304,10 @@ func (e *testExecutor) Execute(
 
 func (e *testExecutor) doSmokeScreen(ctx context.Context, jobID, daemonCert, daemonAddress string) {
 	conn, err := provisionerd.DialTLS(ctx, daemonCert, daemonAddress)
+	if !assert.NoError(e.t, err) {
+		return
+	}
 	defer conn.Close()
-	assert.NoError(e.t, err)
 	err = provisionerd.AuthenticateProvisioner(conn, "smokescreen", jobID)
 	assert.ErrorContains(e.t, err, "invalid token")
 }
