@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -111,8 +112,12 @@ func getAvailablePort() (int, error) {
 
 	defer l.Close()
 
-	port := l.Addr().(*net.TCPAddr).Port
-	return port, nil
+	if tcpAddr, ok := l.Addr().(*net.TCPAddr); ok {
+		port := tcpAddr.Port
+		return port, nil
+	} else {
+		return -1, errors.New("Unable to get an available port")
+	}
 }
 
 func (s *Server) GenerateCallbackPath() string {
