@@ -9,7 +9,7 @@ const oidcGroup: DeploymentGroup = {
 };
 
 const ghGroup: DeploymentGroup = {
-  name: "Networking",
+  name: "GitHub",
   description: "",
   children: [] as DeploymentGroup[],
 };
