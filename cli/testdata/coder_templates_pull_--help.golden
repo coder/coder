@@ -6,10 +6,10 @@ coder v0.0.0-devel
   Download the latest version of a template to a path.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mtar[0m bool
+      [96m--[0m[96mtar[0m bool
           Output the template as a tar archive to stdout.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

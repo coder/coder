@@ -6,59 +6,59 @@ coder v0.0.0-devel
   Create a template from the current directory or as specified by flag
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mdefault-ttl[0m duration (default: 24h)
+      [96m--[0m[96mdefault-ttl[0m duration (default: 24h)
           Specify a default TTL for workspaces created from this template. It is
           the default time before shutdown - workspaces created from this
           template default to this value. Maps to "Default autostop" in the UI.
 
-  [94m-[0m[94md[0m, [94m--[0m[94mdirectory[0m string (default: .)
+  [96m-[0m[96md[0m, [96m--[0m[96mdirectory[0m string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
-      [94m--[0m[94mfailure-ttl[0m duration (default: 0h)
+      [96m--[0m[96mfailure-ttl[0m duration (default: 0h)
           Specify a failure TTL for workspaces created from this template. It is
           the amount of time after a failed "start" build before coder
           automatically schedules a "stop" build to cleanup.This licensed
           feature's default is 0h (off). Maps to "Failure cleanup"in the UI.
 
-      [94m--[0m[94mignore-lockfile[0m bool (default: false)
+      [96m--[0m[96mignore-lockfile[0m bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
 
-      [94m--[0m[94minactivity-ttl[0m duration (default: 0h)
+      [96m--[0m[96minactivity-ttl[0m duration (default: 0h)
           Specify an inactivity TTL for workspaces created from this template.
           It is the amount of time the workspace is not used before it is be
           stopped and auto-locked. This includes across multiple builds (e.g.
           auto-starts and stops). This licensed feature's default is 0h (off).
           Maps to "Dormancy threshold" in the UI.
 
-      [94m--[0m[94mmax-ttl[0m duration
+      [96m--[0m[96mmax-ttl[0m duration
           Edit the template maximum time before shutdown - workspaces created
           from this template must shutdown within the given duration after
           starting. This is an enterprise-only feature.
 
-  [94m-[0m[94mm[0m, [94m--[0m[94mmessage[0m string
+  [96m-[0m[96mm[0m, [96m--[0m[96mmessage[0m string
           Specify a message describing the changes in this version of the
           template. Messages longer than 72 characters will be displayed as
           truncated.
 
-      [94m--[0m[94mprivate[0m bool
+      [96m--[0m[96mprivate[0m bool
           Disable the default behavior of granting template access to the
           'everyone' group. The template permissions must be updated to allow
           non-admin users to use this template.
 
-      [94m--[0m[94mprovisioner-tag[0m string-array
+      [96m--[0m[96mprovisioner-tag[0m string-array
           Specify a set of tags to target provisioner daemons.
 
-      [94m--[0m[94mvar[0m string-array
+      [96m--[0m[96mvar[0m string-array
           Alias of --variable.
 
-      [94m--[0m[94mvariable[0m string-array
+      [96m--[0m[96mvariable[0m string-array
           Specify a set of values for Terraform-managed variables.
 
-      [94m--[0m[94mvariables-file[0m string
+      [96m--[0m[96mvariables-file[0m string
           Specify a file path with values for Terraform-managed variables.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

@@ -6,7 +6,7 @@ coder v0.0.0-devel
   Pull a Terraform state file from a workspace.
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mb[0m, [94m--[0m[94mbuild[0m int
+  [96m-[0m[96mb[0m, [96m--[0m[96mbuild[0m int
           Specify a workspace build to target by name. Defaults to latest.
 
 ———

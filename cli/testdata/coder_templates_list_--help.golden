@@ -8,12 +8,12 @@ coder v0.0.0-devel
   Aliases: ls
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: name,last updated,used by)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: name,last updated,used by)
           Columns to display in table output. Available columns: name, created
           at, last updated, organization id, provisioner, active version id,
           used by, default ttl.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
 ———

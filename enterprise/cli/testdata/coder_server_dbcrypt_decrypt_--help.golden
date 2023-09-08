@@ -6,14 +6,14 @@ coder v0.0.0-devel
   Decrypt a previously encrypted database.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mkeys[0m string-array, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS[0m
+      [96m--[0m[96mkeys[0m string-array, [96m$CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS[0m
           Keys required to decrypt existing data. Must be a comma-separated list
           of base64-encoded keys.
 
-      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_PG_CONNECTION_URL[0m
+      [96m--[0m[96mpostgres-url[0m string, [96m$CODER_PG_CONNECTION_URL[0m
           The connection URL for the Postgres database.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

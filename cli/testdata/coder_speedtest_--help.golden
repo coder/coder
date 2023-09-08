@@ -6,15 +6,15 @@ coder v0.0.0-devel
   Run upload and download tests from your machine to a workspace
 
 [93mOPTIONS:[0m
-  [94m-[0m[94md[0m, [94m--[0m[94mdirect[0m bool
+  [96m-[0m[96md[0m, [96m--[0m[96mdirect[0m bool
           Specifies whether to wait for a direct connection before testing
           speed.
 
-      [94m--[0m[94mdirection[0m up|down (default: down)
+      [96m--[0m[96mdirection[0m up|down (default: down)
           Specifies whether to run in reverse mode where the client receives and
           the server sends.
 
-  [94m-[0m[94mt[0m, [94m--[0m[94mtime[0m duration (default: 5s)
+  [96m-[0m[96mt[0m, [96m--[0m[96mtime[0m duration (default: 5s)
           Specifies the duration to monitor traffic.
 
 ———

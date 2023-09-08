@@ -8,10 +8,10 @@ coder v0.0.0-devel
   Aliases: rm
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL[0m
+      [96m--[0m[96mpostgres-url[0m string, [96m$CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL[0m
           The connection URL for the Postgres database.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

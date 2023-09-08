@@ -60,7 +60,7 @@ var usageTemplate = template.Must(
 			},
 			"keyword": func(s string) string {
 				return pretty.Sprint(
-					pretty.FgColor(cliui.Color("#0173ff")),
+					pretty.FgColor(cliui.Color("#87ceeb")),
 					s,
 				)
 			},

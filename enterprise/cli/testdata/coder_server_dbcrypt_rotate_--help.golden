@@ -6,17 +6,17 @@ coder v0.0.0-devel
   Rotate database encryption keys.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mnew-key[0m string, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY[0m
+      [96m--[0m[96mnew-key[0m string, [96m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY[0m
           The new external token encryption key. Must be base64-encoded.
 
-      [94m--[0m[94mold-keys[0m string-array, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS[0m
+      [96m--[0m[96mold-keys[0m string-array, [96m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS[0m
           The old external token encryption keys. Must be a comma-separated list
           of base64-encoded keys.
 
-      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_PG_CONNECTION_URL[0m
+      [96m--[0m[96mpostgres-url[0m string, [96m$CODER_PG_CONNECTION_URL[0m
           The connection URL for the Postgres database.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

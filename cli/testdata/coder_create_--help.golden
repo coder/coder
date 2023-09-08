@@ -10,25 +10,25 @@ coder v0.0.0-devel
        $ coder create <username>/<workspace_name>
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mparameter[0m string-array, [94m$CODER_RICH_PARAMETER[0m
+      [96m--[0m[96mparameter[0m string-array, [96m$CODER_RICH_PARAMETER[0m
           Rich parameter value in the format "name=value".
 
-      [94m--[0m[94mrich-parameter-file[0m string, [94m$CODER_RICH_PARAMETER_FILE[0m
+      [96m--[0m[96mrich-parameter-file[0m string, [96m$CODER_RICH_PARAMETER_FILE[0m
           Specify a file path with values for rich parameters defined in the
           template.
 
-      [94m--[0m[94mstart-at[0m string, [94m$CODER_WORKSPACE_START_AT[0m
+      [96m--[0m[96mstart-at[0m string, [96m$CODER_WORKSPACE_START_AT[0m
           Specify the workspace autostart schedule. Check coder schedule start
           --help for the syntax.
 
-      [94m--[0m[94mstop-after[0m duration, [94m$CODER_WORKSPACE_STOP_AFTER[0m
+      [96m--[0m[96mstop-after[0m duration, [96m$CODER_WORKSPACE_STOP_AFTER[0m
           Specify a duration after which the workspace should shut down (e.g.
           8h).
 
-  [94m-[0m[94mt[0m, [94m--[0m[94mtemplate[0m string, [94m$CODER_TEMPLATE_NAME[0m
+  [96m-[0m[96mt[0m, [96m--[0m[96mtemplate[0m string, [96m$CODER_TEMPLATE_NAME[0m
           Specify a template name.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———
