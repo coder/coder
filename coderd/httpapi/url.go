@@ -31,7 +31,15 @@ type ApplicationURL struct {
 // String returns the application URL hostname without scheme. You will likely
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
-	return fmt.Sprintf("%s--%s--%s--%s", a.AppSlugOrPort, a.AgentName, a.WorkspaceName, a.Username)
+	var appURL strings.Builder
+	_, _ = appURL.WriteString(a.AppSlugOrPort)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.AgentName)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.WorkspaceName)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.Username)
+	return appURL.String()
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

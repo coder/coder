@@ -21,6 +21,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -141,10 +142,14 @@ func (d *Details) PathAppURL(app App) *url.URL {
 
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *Details) SubdomainAppURL(app App) *url.URL {
-	host := fmt.Sprintf("%s--%s--%s--%s", app.AppSlugOrPort, app.AgentName, app.WorkspaceName, app.Username)
-
+	appHost := httpapi.ApplicationURL{
+		AppSlugOrPort: app.AppSlugOrPort,
+		AgentName:     app.AgentName,
+		WorkspaceName: app.WorkspaceName,
+		Username:      app.Username,
+	}
 	u := *d.PathAppBaseURL
-	u.Host = strings.Replace(d.Options.AppHost, "*", host, 1)
+	u.Host = strings.Replace(d.Options.AppHost, "*", appHost.String(), 1)
 	u.Path = "/"
 	u.RawQuery = app.Query
 	return &u
@@ -355,13 +360,14 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	if primaryAppHost.Host != "" {
 		manifest, err := agentClient.Manifest(appHostCtx)
 		require.NoError(t, err)
-		proxyURL := fmt.Sprintf(
-			"http://{{port}}--%s--%s--%s%s",
-			proxyTestAgentName,
-			workspace.Name,
-			me.Username,
-			strings.ReplaceAll(primaryAppHost.Host, "*", ""),
-		)
+
+		appHost := httpapi.ApplicationURL{
+			AppSlugOrPort: "{{port}}",
+			AgentName:     proxyTestAgentName,
+			WorkspaceName: workspace.Name,
+			Username:      me.Username,
+		}
+		proxyURL := "http://" + appHost.String() + strings.ReplaceAll(primaryAppHost.Host, "*", "")
 		require.Equal(t, proxyURL, manifest.VSCodePortProxyURI)
 	}
 	agentCloser := agent.New(agent.Options{
