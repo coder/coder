@@ -7,7 +7,6 @@ import {
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { FC, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -110,7 +109,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const styles = useStyles();
   const navigate = useNavigate();
   const serverVersion = buildInfo?.version || "";
-  const { t } = useTranslation("workspacePage");
   const { saveLocal, getLocal } = useLocalStorage();
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
@@ -301,7 +299,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                     variant="text"
                     size="small"
                   >
-                    {t("actionButton.retryDebugMode")}
+                    Try in debug mode
                   </Button>
                 )
               }
