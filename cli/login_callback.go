@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"time"
 )
 
 type TokenResponse struct {
@@ -27,6 +28,8 @@ func (h *HandlerWithContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/auth" {
 		token := r.URL.Query().Get("token")
 		h.resultChan <- TokenResponse{token: token, err: nil}
+		_, _ = fmt.Fprintf(w, "<html><head><script>alert('goobers')</script></head></html>")
+
 		h.Server.Stop()
 	}
 }
@@ -37,6 +40,11 @@ func NewServer(authURL url.URL, addr string, handler http.Handler) *Server {
 		httpServer: &http.Server{
 			Addr:    addr,
 			Handler: handler,
+
+			ReadTimeout:       1 * time.Second,
+			WriteTimeout:      1 * time.Second,
+			IdleTimeout:       30 * time.Second,
+			ReadHeaderTimeout: 2 * time.Second,
 		},
 		resultChan: make(chan TokenResponse),
 		stopChan:   make(chan struct{}),
@@ -47,7 +55,7 @@ func NewServer(authURL url.URL, addr string, handler http.Handler) *Server {
 
 func (s *Server) Start() {
 	go func() {
-		fmt.Printf("HTTP server listening on %s\n", s.httpServer.Addr)
+		_, _ = fmt.Printf("HTTP server listening on %s\n", s.httpServer.Addr)
 		if err := s.httpServer.ListenAndServe(); err != http.ErrServerClosed {
 			s.resultChan <- TokenResponse{token: "", err: err}
 		}
@@ -55,13 +63,17 @@ func (s *Server) Start() {
 }
 
 func (s *Server) Stop() {
-	s.httpServer.Close()
+	err := s.httpServer.Close()
+	if err != nil {
+		_, _ = fmt.Printf("Unable to stop HTTP Server")
+	}
+
 	close(s.stopChan)
 }
 
 func (s *Server) Wait() {
 	<-s.stopChan
-	fmt.Println("HTTP server stopped.")
+	_, _ = fmt.Println("HTTP server stopped.")
 }
 
 func getListenAddr(port int) string {
@@ -70,7 +82,6 @@ func getListenAddr(port int) string {
 
 func getServer(authURL url.URL) (*Server, error) {
 	port, err := getAvailablePort()
-
 	if err != nil {
 		return &Server{}, err
 	}
@@ -79,20 +90,21 @@ func getServer(authURL url.URL) (*Server, error) {
 
 	server.Start()
 
-	server.authURL.Query().Add("callback", server.GenerateCallbackPath())
+	values := server.authURL.Query()
+	values.Add("callback", server.GenerateCallbackPath())
+
+	server.authURL.RawQuery = values.Encode()
 
 	return server, nil
 }
 
 func getAvailablePort() (int, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
-
 	if err != nil {
 		return 0, err
 	}
 
 	l, err := net.ListenTCP("tcp", addr)
-
 	if err != nil {
 		return 0, err
 	}
