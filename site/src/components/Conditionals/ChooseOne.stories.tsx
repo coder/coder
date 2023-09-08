@@ -1,11 +1,11 @@
-import { Story } from "@storybook/react"
-import { ChooseOne, Cond } from "./ChooseOne"
+import { Story } from "@storybook/react";
+import { ChooseOne, Cond } from "./ChooseOne";
 
 export default {
   title: "components/Conditionals/ChooseOne",
   component: ChooseOne,
   subcomponents: { Cond },
-}
+};
 
 export const FirstIsTrue: Story = () => (
   <ChooseOne>
@@ -13,7 +13,7 @@ export const FirstIsTrue: Story = () => (
     <Cond condition={false}>The second one does not show.</Cond>
     <Cond>The default does not show.</Cond>
   </ChooseOne>
-)
+);
 
 export const SecondIsTrue: Story = () => (
   <ChooseOne>
@@ -21,7 +21,7 @@ export const SecondIsTrue: Story = () => (
     <Cond condition>The second one shows.</Cond>
     <Cond>The default does not show.</Cond>
   </ChooseOne>
-)
+);
 
 export const AllAreTrue: Story = () => (
   <ChooseOne>
@@ -29,7 +29,7 @@ export const AllAreTrue: Story = () => (
     <Cond condition>The second one does not show.</Cond>
     <Cond>The default does not show.</Cond>
   </ChooseOne>
-)
+);
 
 export const NoneAreTrue: Story = () => (
   <ChooseOne>
@@ -37,10 +37,10 @@ export const NoneAreTrue: Story = () => (
     <Cond condition={false}>The second one does not show.</Cond>
     <Cond>The default shows.</Cond>
   </ChooseOne>
-)
+);
 
 export const OneCond: Story = () => (
   <ChooseOne>
     <Cond>An only child renders.</Cond>
   </ChooseOne>
-)
+);

@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templateVersions() *clibase.Cmd {
@@ -101,7 +101,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 	for i, templateVersion := range templateVersions {
 		activeStatus := ""
 		if templateVersion.ID == activeVersionID {
-			activeStatus = cliui.DefaultStyles.Code.Render(cliui.DefaultStyles.Keyword.Render("Active"))
+			activeStatus = cliui.Keyword("Active")
 		}
 
 		rows[i] = templateVersionRow{

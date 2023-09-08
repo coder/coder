@@ -13,14 +13,15 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/autobuild"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/autobuild"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -623,7 +624,7 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 						UserAutostartEnabled: false,
 						UserAutostopEnabled:  true,
 						DefaultTTL:           0,
-						RestartRequirement:   schedule.TemplateRestartRequirement{},
+						AutostopRequirement:  schedule.TemplateAutostopRequirement{},
 					}, nil
 				},
 			},
@@ -683,8 +684,8 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionFailed,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyFailed,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
@@ -733,11 +734,11 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.ProvisionComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.InactivityTTLMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
+			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -766,22 +767,16 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 		Parse: echo.ParseComplete,
-		ProvisionPlan: []*proto.Provision_Response{
+		ProvisionPlan: []*proto.Response{
 			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
 						Parameters: richParameters,
 					},
 				},
 			},
 		},
-		ProvisionApply: []*proto.Provision_Response{
-			{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
-				},
-			},
-		},
+		ProvisionApply: echo.ApplyComplete,
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
@@ -790,9 +785,9 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 
-func mustSchedule(t *testing.T, s string) *schedule.Schedule {
+func mustSchedule(t *testing.T, s string) *cron.Schedule {
 	t.Helper()
-	sched, err := schedule.Weekly(s)
+	sched, err := cron.Weekly(s)
 	require.NoError(t, err)
 	return sched
 }

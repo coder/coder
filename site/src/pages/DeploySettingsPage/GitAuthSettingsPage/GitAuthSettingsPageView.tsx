@@ -1,24 +1,24 @@
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { DeploymentValues, GitAuthConfig } from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
-import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges"
-import { Header } from "components/DeploySettingsLayout/Header"
-import { docs } from "utils/docs"
+import { makeStyles } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { DeploymentValues, GitAuthConfig } from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
+import { Header } from "components/DeploySettingsLayout/Header";
+import { docs } from "utils/docs";
 
 export type GitAuthSettingsPageViewProps = {
-  config: DeploymentValues
-}
+  config: DeploymentValues;
+};
 
 export const GitAuthSettingsPageView = ({
   config,
 }: GitAuthSettingsPageViewProps): JSX.Element => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <>
@@ -66,21 +66,21 @@ export const GitAuthSettingsPageView = ({
               </TableRow>
             )) ||
               config.git_auth.map((git: GitAuthConfig) => {
-                const name = git.id || git.type
+                const name = git.id || git.type;
                 return (
                   <TableRow key={name}>
                     <TableCell>{name}</TableCell>
                     <TableCell>{git.client_id}</TableCell>
                     <TableCell>{git.regex || "Not Set"}</TableCell>
                   </TableRow>
-                )
+                );
               })}
           </TableBody>
         </Table>
       </TableContainer>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   table: {
@@ -100,4 +100,4 @@ const useStyles = makeStyles((theme) => ({
   empty: {
     textAlign: "center",
   },
-}))
+}));

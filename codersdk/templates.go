@@ -29,13 +29,13 @@ type Template struct {
 	Description      string                 `json:"description"`
 	Icon             string                 `json:"icon"`
 	DefaultTTLMillis int64                  `json:"default_ttl_ms"`
-	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms"`
-	// RestartRequirement is an enterprise feature. Its value is only used if
+	// AutostopRequirement is an enterprise feature. Its value is only used if
 	// your license is entitled to use the advanced template scheduling feature.
-	RestartRequirement TemplateRestartRequirement `json:"restart_requirement"`
-	CreatedByID        uuid.UUID                  `json:"created_by_id" format:"uuid"`
-	CreatedByName      string                     `json:"created_by_name"`
+	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
+	CreatedByID         uuid.UUID                   `json:"created_by_id" format:"uuid"`
+	CreatedByName       string                      `json:"created_by_name"`
 
 	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
 	// values are only used if your license is entitled to use the advanced
@@ -44,12 +44,12 @@ type Template struct {
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// FailureTTLMillis, InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their
+	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
-	FailureTTLMillis    int64 `json:"failure_ttl_ms"`
-	InactivityTTLMillis int64 `json:"inactivity_ttl_ms"`
-	LockedTTLMillis     int64 `json:"locked_ttl_ms"`
+	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
+	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
+	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -83,7 +83,7 @@ func WeekdaysToBitmap(days []string) (uint8, error) {
 // BitmapToWeekdays converts a bitmap to a list of weekdays in accordance with
 // the schedule package's rules (see above).
 func BitmapToWeekdays(bitmap uint8) []string {
-	var days []string
+	days := []string{}
 	for i := 0; i < 7; i++ {
 		if bitmap&(1<<i) != 0 {
 			switch i {
@@ -107,7 +107,7 @@ func BitmapToWeekdays(bitmap uint8) []string {
 	return days
 }
 
-type TemplateRestartRequirement struct {
+type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a list of days of the week on which restarts are required.
 	// Restarts happen within the user's quiet hours (in their configured
 	// timezone). If no days are specified, restarts are not required. Weekdays
@@ -180,18 +180,27 @@ type UpdateTemplateMeta struct {
 	Description      string `json:"description,omitempty"`
 	Icon             string `json:"icon,omitempty"`
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
-	// TODO(@dean): remove max_ttl once restart_requirement is matured
+	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
-	// RestartRequirement can only be set if your license includes the advanced
+	// AutostopRequirement can only be set if your license includes the advanced
 	// template scheduling feature. If you attempt to set this value while
 	// unlicensed, it will be ignored.
-	RestartRequirement           *TemplateRestartRequirement `json:"restart_requirement,omitempty"`
-	AllowUserAutostart           bool                        `json:"allow_user_autostart,omitempty"`
-	AllowUserAutostop            bool                        `json:"allow_user_autostop,omitempty"`
-	AllowUserCancelWorkspaceJobs bool                        `json:"allow_user_cancel_workspace_jobs,omitempty"`
-	FailureTTLMillis             int64                       `json:"failure_ttl_ms,omitempty"`
-	InactivityTTLMillis          int64                       `json:"inactivity_ttl_ms,omitempty"`
-	LockedTTLMillis              int64                       `json:"locked_ttl_ms,omitempty"`
+	AutostopRequirement            *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
+	AllowUserAutostart             bool                         `json:"allow_user_autostart,omitempty"`
+	AllowUserAutostop              bool                         `json:"allow_user_autostop,omitempty"`
+	AllowUserCancelWorkspaceJobs   bool                         `json:"allow_user_cancel_workspace_jobs,omitempty"`
+	FailureTTLMillis               int64                        `json:"failure_ttl_ms,omitempty"`
+	TimeTilDormantMillis           int64                        `json:"time_til_dormant_ms,omitempty"`
+	TimeTilDormantAutoDeleteMillis int64                        `json:"time_til_dormant_autodelete_ms,omitempty"`
+	// UpdateWorkspaceLastUsedAt updates the last_used_at field of workspaces
+	// spawned from the template. This is useful for preventing workspaces being
+	// immediately locked when updating the inactivity_ttl field to a new, shorter
+	// value.
+	UpdateWorkspaceLastUsedAt bool `json:"update_workspace_last_used_at"`
+	// UpdateWorkspaceDormant updates the dormant_at field of workspaces spawned
+	// from the template. This is useful for preventing dormant workspaces being immediately
+	// deleted when updating the dormant_ttl field to a new, shorter value.
+	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 }
 
 type TemplateExample struct {

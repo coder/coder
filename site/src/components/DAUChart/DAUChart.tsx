@@ -1,7 +1,7 @@
-import Box from "@mui/material/Box"
-import { Theme } from "@mui/material/styles"
-import useTheme from "@mui/styles/useTheme"
-import * as TypesGen from "api/typesGenerated"
+import Box from "@mui/material/Box";
+import { Theme } from "@mui/material/styles";
+import useTheme from "@mui/styles/useTheme";
+import * as TypesGen from "api/typesGenerated";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -9,56 +9,63 @@ import {
   defaults,
   Legend,
   LinearScale,
-  LineElement,
-  PointElement,
+  BarElement,
   TimeScale,
   Title,
   Tooltip,
-} from "chart.js"
-import "chartjs-adapter-date-fns"
+} from "chart.js";
+import "chartjs-adapter-date-fns";
 import {
   HelpTooltip,
   HelpTooltipTitle,
   HelpTooltipText,
-} from "components/Tooltips/HelpTooltip"
-import dayjs from "dayjs"
-import { FC } from "react"
-import { Line } from "react-chartjs-2"
+} from "components/HelpTooltip/HelpTooltip";
+import dayjs from "dayjs";
+import { FC } from "react";
+import { Bar } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   TimeScale,
-  PointElement,
-  LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
-)
+);
 
 export interface DAUChartProps {
-  daus: TypesGen.DAUsResponse
+  daus: TypesGen.DAUsResponse;
 }
 
 export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
-  const theme: Theme = useTheme()
+  const theme: Theme = useTheme();
 
   const labels = daus.entries.map((val) => {
-    return dayjs(val.date).format("YYYY-MM-DD")
-  })
+    return dayjs(val.date).format("YYYY-MM-DD");
+  });
 
   const data = daus.entries.map((val) => {
-    return val.amount
-  })
+    return val.amount;
+  });
 
-  defaults.font.family = theme.typography.fontFamily as string
-  defaults.color = theme.palette.text.secondary
+  defaults.font.family = theme.typography.fontFamily as string;
+  defaults.color = theme.palette.text.secondary;
 
-  const options: ChartOptions<"line"> = {
+  const options: ChartOptions<"bar"> = {
     responsive: true,
     plugins: {
       legend: {
         display: false,
+      },
+      tooltip: {
+        displayColors: false,
+        callbacks: {
+          title: (context) => {
+            const date = new Date(context[0].parsed.x);
+            return date.toLocaleDateString();
+          },
+        },
       },
     },
     scales: {
@@ -70,7 +77,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       },
       x: {
         ticks: {
-          stepSize: 2,
+          stepSize: daus.entries.length > 10 ? 2 : undefined,
         },
         type: "time",
         time: {
@@ -79,10 +86,10 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
       },
     },
     maintainAspectRatio: false,
-  }
+  };
 
   return (
-    <Line
+    <Bar
       data-chromatic="ignore"
       data={{
         labels: labels,
@@ -90,16 +97,19 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
           {
             label: "Daily Active Users",
             data: data,
-            tension: 1 / 4,
             backgroundColor: theme.palette.secondary.dark,
             borderColor: theme.palette.secondary.dark,
+            barThickness: 8,
+            borderWidth: 2,
+            borderRadius: Number.MAX_VALUE,
+            borderSkipped: false,
           },
         ],
       }}
       options={options}
     />
-  )
-}
+  );
+};
 
 export const DAUTitle = () => {
   return (
@@ -115,5 +125,5 @@ export const DAUTitle = () => {
         </HelpTooltipText>
       </HelpTooltip>
     </Box>
-  )
-}
+  );
+};

@@ -1,78 +1,78 @@
-import { getTemplateACL, updateTemplateACL } from "api/api"
+import { getTemplateACL, updateTemplateACL } from "api/api";
 import {
   TemplateACL,
   TemplateGroup,
   TemplateRole,
   TemplateUser,
-} from "api/typesGenerated"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { assign, createMachine } from "xstate"
+} from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { assign, createMachine } from "xstate";
 
 export const templateACLMachine = createMachine(
   {
     schema: {
       context: {} as {
-        templateId: string
-        templateACL?: TemplateACL
+        templateId: string;
+        templateACL?: TemplateACL;
         // User
-        userToBeAdded?: TemplateUser
-        userToBeUpdated?: TemplateUser
-        addUserCallback?: () => void
+        userToBeAdded?: TemplateUser;
+        userToBeUpdated?: TemplateUser;
+        addUserCallback?: () => void;
         // Group
-        groupToBeAdded?: TemplateGroup
-        groupToBeUpdated?: TemplateGroup
-        addGroupCallback?: () => void
+        groupToBeAdded?: TemplateGroup;
+        groupToBeUpdated?: TemplateGroup;
+        addGroupCallback?: () => void;
       },
       services: {} as {
         loadTemplateACL: {
-          data: TemplateACL
-        }
+          data: TemplateACL;
+        };
         // User
         addUser: {
-          data: unknown
-        }
+          data: unknown;
+        };
         updateUser: {
-          data: unknown
-        }
+          data: unknown;
+        };
         // Group
         addGroup: {
-          data: unknown
-        }
+          data: unknown;
+        };
         updateGroup: {
-          data: unknown
-        }
+          data: unknown;
+        };
       },
       events: {} as  // User
         | {
-            type: "ADD_USER"
-            user: TemplateUser
-            role: TemplateRole
-            onDone: () => void
+            type: "ADD_USER";
+            user: TemplateUser;
+            role: TemplateRole;
+            onDone: () => void;
           }
         | {
-            type: "UPDATE_USER_ROLE"
-            user: TemplateUser
-            role: TemplateRole
+            type: "UPDATE_USER_ROLE";
+            user: TemplateUser;
+            role: TemplateRole;
           }
         | {
-            type: "REMOVE_USER"
-            user: TemplateUser
+            type: "REMOVE_USER";
+            user: TemplateUser;
           }
         // Group
         | {
-            type: "ADD_GROUP"
-            group: TemplateGroup
-            role: TemplateRole
-            onDone: () => void
+            type: "ADD_GROUP";
+            group: TemplateGroup;
+            role: TemplateRole;
+            onDone: () => void;
           }
         | {
-            type: "UPDATE_GROUP_ROLE"
-            group: TemplateGroup
-            role: TemplateRole
+            type: "UPDATE_GROUP_ROLE";
+            group: TemplateGroup;
+            role: TemplateRole;
           }
         | {
-            type: "REMOVE_GROUP"
-            group: TemplateGroup
+            type: "REMOVE_GROUP";
+            group: TemplateGroup;
           },
     },
     tsTypes: {} as import("./templateACLXService.typegen").Typegen0,
@@ -235,20 +235,20 @@ export const templateACLMachine = createMachine(
       addUserToTemplateACL: assign({
         templateACL: ({ templateACL, userToBeAdded }) => {
           if (!userToBeAdded) {
-            throw new Error("No user to be added")
+            throw new Error("No user to be added");
           }
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             users: [...templateACL.users, userToBeAdded],
-          }
+          };
         },
       }),
       runAddUserCallback: ({ addUserCallback }) => {
         if (addUserCallback) {
-          addUserCallback()
+          addUserCallback();
         }
       },
       assignUserToBeUpdated: assign({
@@ -257,42 +257,42 @@ export const templateACLMachine = createMachine(
       updateUserOnTemplateACL: assign({
         templateACL: ({ templateACL, userToBeUpdated }) => {
           if (!userToBeUpdated) {
-            throw new Error("No user to be added")
+            throw new Error("No user to be added");
           }
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             users: templateACL.users.map((oldTemplateUser) => {
               return oldTemplateUser.id === userToBeUpdated.id
                 ? userToBeUpdated
-                : oldTemplateUser
+                : oldTemplateUser;
             }),
-          }
+          };
         },
       }),
       clearUserToBeUpdated: assign({
         userToBeUpdated: (_) => undefined,
       }),
       displayUpdateUserSuccessMessage: () => {
-        displaySuccess("User role update successfully!")
+        displaySuccess("User role update successfully!");
       },
       removeUserFromTemplateACL: assign({
         templateACL: ({ templateACL }, { user }) => {
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             users: templateACL.users.filter((oldTemplateUser) => {
-              return oldTemplateUser.id !== user.id
+              return oldTemplateUser.id !== user.id;
             }),
-          }
+          };
         },
       }),
       displayRemoveUserSuccessMessage: () => {
-        displaySuccess("User removed successfully!")
+        displaySuccess("User removed successfully!");
       },
       // Group
       assignGroupToBeAdded: assign({
@@ -302,20 +302,20 @@ export const templateACLMachine = createMachine(
       addGroupToTemplateACL: assign({
         templateACL: ({ templateACL, groupToBeAdded }) => {
           if (!groupToBeAdded) {
-            throw new Error("No group to be added")
+            throw new Error("No group to be added");
           }
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             group: [...templateACL.group, groupToBeAdded],
-          }
+          };
         },
       }),
       runAddGroupCallback: ({ addGroupCallback }) => {
         if (addGroupCallback) {
-          addGroupCallback()
+          addGroupCallback();
         }
       },
       assignGroupToBeUpdated: assign({
@@ -324,43 +324,43 @@ export const templateACLMachine = createMachine(
       updateGroupOnTemplateACL: assign({
         templateACL: ({ templateACL, groupToBeUpdated }) => {
           if (!groupToBeUpdated) {
-            throw new Error("No group to be added")
+            throw new Error("No group to be added");
           }
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             group: templateACL.group.map((oldTemplateGroup) => {
               return oldTemplateGroup.id === groupToBeUpdated.id
                 ? groupToBeUpdated
-                : oldTemplateGroup
+                : oldTemplateGroup;
             }),
-          }
+          };
         },
       }),
       clearGroupToBeUpdated: assign({
         groupToBeUpdated: (_) => undefined,
       }),
       displayUpdateGroupSuccessMessage: () => {
-        displaySuccess("Group role update successfully!")
+        displaySuccess("Group role update successfully!");
       },
       removeGroupFromTemplateACL: assign({
         templateACL: ({ templateACL }, { group }) => {
           if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet")
+            throw new Error("Template ACL is not loaded yet");
           }
           return {
             ...templateACL,
             group: templateACL.group.filter((oldTemplateGroup) => {
-              return oldTemplateGroup.id !== group.id
+              return oldTemplateGroup.id !== group.id;
             }),
-          }
+          };
         },
       }),
       displayRemoveGroupSuccessMessage: () => {
-        displaySuccess("Group removed successfully!")
+        displaySuccess("Group removed successfully!");
       },
     },
   },
-)
+);

@@ -22,9 +22,9 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/database/postgres"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/postgres"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -266,6 +266,7 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 		"template_version_parameters",
 		"workspace_build_parameters",
 		"template_version_variables",
+		"dbcrypt_keys", // having zero rows is a valid state for this table
 	}
 	s := &tableStats{s: make(map[string]int)}
 

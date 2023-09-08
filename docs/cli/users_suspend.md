@@ -18,7 +18,7 @@ coder users suspend [flags] <username|user_id>
 ## Description
 
 ```console
-  $ coder users suspend example_user
+ $ coder users suspend example_user
 ```
 
 ## Options

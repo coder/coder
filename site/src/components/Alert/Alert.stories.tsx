@@ -1,28 +1,34 @@
-import { Alert } from "./Alert"
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import type { Meta, StoryObj } from "@storybook/react"
+import { Alert } from "./Alert";
+import Button from "@mui/material/Button";
+import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Alert> = {
   title: "components/Alert",
   component: Alert,
-}
+};
 
-export default meta
-type Story = StoryObj<typeof Alert>
+export default meta;
+type Story = StoryObj<typeof Alert>;
 
 const ExampleAction = (
   <Button onClick={() => null} size="small" variant="text">
     Button
   </Button>
-)
+);
+
+export const Success: Story = {
+  args: {
+    children: "You're doing great!",
+    severity: "success",
+  },
+};
 
 export const Warning: Story = {
   args: {
     children: "This is a warning",
     severity: "warning",
   },
-}
+};
 
 export const WarningWithDismiss: Story = {
   args: {
@@ -30,7 +36,7 @@ export const WarningWithDismiss: Story = {
     dismissible: true,
     severity: "warning",
   },
-}
+};
 
 export const WarningWithAction: Story = {
   args: {
@@ -38,7 +44,7 @@ export const WarningWithAction: Story = {
     actions: [ExampleAction],
     severity: "warning",
   },
-}
+};
 
 export const WarningWithActionAndDismiss: Story = {
   args: {
@@ -47,15 +53,4 @@ export const WarningWithActionAndDismiss: Story = {
     dismissible: true,
     severity: "warning",
   },
-}
-
-export const WithChildren: Story = {
-  args: {
-    severity: "warning",
-    children: (
-      <div>
-        This is a message with a <Link href="#">link</Link>
-      </div>
-    ),
-  },
-}
+};

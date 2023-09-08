@@ -5,14 +5,15 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -38,8 +39,17 @@ type SignedToken struct {
 // MatchesRequest returns true if the token matches the request. Any token that
 // does not match the request should be considered invalid.
 func (t SignedToken) MatchesRequest(req Request) bool {
+	tokenBasePath := t.Request.BasePath
+	if !strings.HasSuffix(tokenBasePath, "/") {
+		tokenBasePath += "/"
+	}
+	reqBasePath := req.BasePath
+	if !strings.HasSuffix(reqBasePath, "/") {
+		reqBasePath += "/"
+	}
+
 	return t.AccessMethod == req.AccessMethod &&
-		t.BasePath == req.BasePath &&
+		tokenBasePath == reqBasePath &&
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&
@@ -158,7 +168,7 @@ func (k SecurityKey) EncryptAPIKey(payload EncryptedAPIKeyPayload) (string, erro
 	if payload.ExpiresAt.IsZero() {
 		// Very short expiry as these keys are only used once as part of an
 		// automatic redirection flow.
-		payload.ExpiresAt = database.Now().Add(time.Minute)
+		payload.ExpiresAt = dbtime.Now().Add(time.Minute)
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -217,7 +227,7 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 	}
 
 	// Validate expiry.
-	if payload.ExpiresAt.Before(database.Now()) {
+	if payload.ExpiresAt.Before(dbtime.Now()) {
 		return "", xerrors.New("encrypted API key expired")
 	}
 
@@ -227,22 +237,39 @@ func (k SecurityKey) DecryptAPIKey(encryptedAPIKey string) (string, error) {
 // FromRequest returns the signed token from the request, if it exists and is
 // valid. The caller must check that the token matches the request.
 func FromRequest(r *http.Request, key SecurityKey) (*SignedToken, bool) {
-	// Get the token string from the request. We usually use a cookie for this,
-	// but for web terminal we also support a query parameter to support
-	// cross-domain terminal access.
-	tokenStr := ""
-	tokenCookie, cookieErr := r.Cookie(codersdk.DevURLSignedAppTokenCookie)
-	if cookieErr == nil {
-		tokenStr = tokenCookie.Value
-	} else {
-		tokenStr = r.URL.Query().Get(codersdk.SignedAppTokenQueryParameter)
+	// Get all signed app tokens from the request. This includes the query
+	// parameter and all matching cookies sent with the request. If there are
+	// somehow multiple signed app token cookies, we want to try all of them
+	// (up to 4). The first one that is valid is used.
+	//
+	// Browsers will send all cookies in the request, even if there are multiple
+	// with the same name on different paths.
+	//
+	// If using a query parameter the request MUST be a terminal request. We use
+	// this to support cross-domain terminal access for the web terminal.
+	var (
+		tokens        = []string{}
+		hasQueryParam = false
+	)
+	if q := r.URL.Query().Get(codersdk.SignedAppTokenQueryParameter); q != "" {
+		hasQueryParam = true
+		tokens = append(tokens, q)
+	}
+	for _, cookie := range r.Cookies() {
+		if cookie.Name == codersdk.SignedAppTokenCookie {
+			tokens = append(tokens, cookie.Value)
+		}
 	}
 
-	if tokenStr != "" {
+	if len(tokens) > 4 {
+		tokens = tokens[:4]
+	}
+
+	for _, tokenStr := range tokens {
 		token, err := key.VerifySignedToken(tokenStr)
 		if err == nil {
 			req := token.Request.Normalize()
-			if cookieErr != nil && req.AccessMethod != AccessMethodTerminal {
+			if hasQueryParam && req.AccessMethod != AccessMethodTerminal {
 				// The request must be a terminal request if we're using a
 				// query parameter.
 				return nil, false

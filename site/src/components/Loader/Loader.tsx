@@ -1,6 +1,6 @@
-import Box, { BoxProps } from "@mui/material/Box"
-import CircularProgress from "@mui/material/CircularProgress"
-import { FC } from "react"
+import Box, { BoxProps } from "@mui/material/Box";
+import CircularProgress from "@mui/material/CircularProgress";
+import { FC } from "react";
 
 export const Loader: FC<{ size?: number } & BoxProps> = ({
   size = 26,
@@ -18,5 +18,5 @@ export const Loader: FC<{ size?: number } & BoxProps> = ({
     >
       <CircularProgress size={size} />
     </Box>
-  )
-}
+  );
+};

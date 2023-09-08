@@ -1,7 +1,10 @@
-import Box from "@mui/material/Box"
-import { PortForwardPopoverView } from "./PortForwardButton"
-import type { Meta, StoryObj } from "@storybook/react"
-import { MockListeningPortsResponse } from "testHelpers/entities"
+import Box from "@mui/material/Box";
+import { PortForwardPopoverView } from "./PortForwardButton";
+import type { Meta, StoryObj } from "@storybook/react";
+import {
+  MockListeningPortsResponse,
+  MockWorkspaceAgent,
+} from "testHelpers/entities";
 
 const meta: Meta<typeof PortForwardPopoverView> = {
   title: "components/PortForwardPopoverView",
@@ -20,19 +23,22 @@ const meta: Meta<typeof PortForwardPopoverView> = {
       </Box>
     ),
   ],
-}
+  args: {
+    agent: MockWorkspaceAgent,
+  },
+};
 
-export default meta
-type Story = StoryObj<typeof PortForwardPopoverView>
+export default meta;
+type Story = StoryObj<typeof PortForwardPopoverView>;
 
 export const WithPorts: Story = {
   args: {
     ports: MockListeningPortsResponse.ports,
   },
-}
+};
 
 export const Empty: Story = {
   args: {
     ports: [],
   },
-}
+};

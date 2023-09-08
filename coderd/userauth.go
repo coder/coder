@@ -23,17 +23,18 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/apikey"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/userpassword"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/site"
+	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/site"
 )
 
 const (
@@ -184,7 +185,9 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		Expires:  claims.ExpiresAt.Time,
 		Secure:   api.SecureAuthCookie,
 		HttpOnly: true,
-		SameSite: http.SameSiteStrictMode,
+		// Must be SameSite to work on the redirected auth flow from the
+		// oauth provider.
+		SameSite: http.SameSiteLaxMode,
 	})
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuthConversionResponse{
 		StateString: stateString,
@@ -326,7 +329,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
@@ -1315,7 +1318,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 				ID:        user.ID,
 				Status:    database.UserStatusActive,
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 			})
 			if err != nil {
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
@@ -1434,7 +1437,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				ID:        user.ID,
 				Email:     user.Email,
 				Username:  user.Username,
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 				AvatarURL: user.AvatarURL,
 			})
 			if err != nil {

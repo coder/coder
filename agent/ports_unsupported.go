@@ -2,7 +2,7 @@
 
 package agent
 
-import "github.com/coder/coder/codersdk"
+import "github.com/coder/coder/v2/codersdk"
 
 func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {
 	// Can't scan for ports on non-linux or non-windows_amd64 systems at the

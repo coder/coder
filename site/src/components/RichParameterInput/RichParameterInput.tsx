@@ -1,35 +1,34 @@
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Radio from "@mui/material/Radio"
-import RadioGroup from "@mui/material/RadioGroup"
-import { makeStyles } from "@mui/styles"
-import TextField, { TextFieldProps } from "@mui/material/TextField"
-import { Stack } from "components/Stack/Stack"
-import { FC, useState } from "react"
-import { TemplateVersionParameter } from "../../api/typesGenerated"
-import { colors } from "theme/colors"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
-import { MultiTextField } from "components/MultiTextField/MultiTextField"
-import Box from "@mui/material/Box"
-import { Theme } from "@mui/material/styles"
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import { makeStyles } from "@mui/styles";
+import TextField, { TextFieldProps } from "@mui/material/TextField";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { TemplateVersionParameter } from "api/typesGenerated";
+import { colors } from "theme/colors";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { MultiTextField } from "./MultiTextField";
+import Box from "@mui/material/Box";
+import { Theme } from "@mui/material/styles";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
-  return parameter.type === "bool"
-}
+  return parameter.type === "bool";
+};
 
 export interface ParameterLabelProps {
-  id: string
-  parameter: TemplateVersionParameter
+  parameter: TemplateVersionParameter;
 }
 
-const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
-  const styles = useStyles()
-  const hasDescription = parameter.description && parameter.description !== ""
+const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
+  const styles = useStyles();
+  const hasDescription = parameter.description && parameter.description !== "";
   const displayName = parameter.display_name
     ? parameter.display_name
-    : parameter.name
+    : parameter.name;
 
   return (
-    <label htmlFor={id}>
+    <label htmlFor={parameter.name}>
       <Stack direction="row" alignItems="center">
         {parameter.icon && (
           <span className={styles.labelIconWrapper}>
@@ -43,8 +42,8 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0}>
-            <span className={styles.labelCaption}>{displayName}</span>
-            <MemoizedMarkdown className={styles.labelPrimary}>
+            <span className={styles.labelPrimary}>{displayName}</span>
+            <MemoizedMarkdown className={styles.labelCaption}>
               {parameter.description}
             </MemoizedMarkdown>
           </Stack>
@@ -53,29 +52,22 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ id, parameter }) => {
         )}
       </Stack>
     </label>
-  )
-}
+  );
+};
 
-type Size = "medium" | "small"
+type Size = "medium" | "small";
 
 export type RichParameterInputProps = Omit<
   TextFieldProps,
-  "onChange" | "size"
+  "size" | "onChange"
 > & {
-  index: number
-  parameter: TemplateVersionParameter
-  onChange: (value: string) => void
-  initialValue?: string
-  id: string
-  size?: Size
-}
+  parameter: TemplateVersionParameter;
+  onChange: (value: string) => void;
+  size?: Size;
+};
 
 export const RichParameterInput: FC<RichParameterInputProps> = ({
-  index,
-  disabled,
-  onChange,
   parameter,
-  initialValue,
   size = "medium",
   ...fieldProps
 }) => {
@@ -84,41 +76,34 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
       direction="column"
       spacing={size === "small" ? 1.25 : 2}
       className={size}
+      data-testid={`parameter-field-${parameter.name}`}
     >
-      <ParameterLabel id={fieldProps.id} parameter={parameter} />
+      <ParameterLabel parameter={parameter} />
       <Box sx={{ display: "flex", flexDirection: "column" }}>
-        <RichParameterField
-          {...fieldProps}
-          index={index}
-          disabled={disabled}
-          onChange={onChange}
-          parameter={parameter}
-          initialValue={initialValue}
-        />
+        <RichParameterField {...fieldProps} size={size} parameter={parameter} />
       </Box>
     </Stack>
-  )
-}
+  );
+};
 
 const RichParameterField: React.FC<RichParameterInputProps> = ({
   disabled,
   onChange,
   parameter,
-  initialValue,
+  value,
   size,
   ...props
 }) => {
-  const [parameterValue, setParameterValue] = useState(initialValue)
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
+        id={parameter.name}
+        data-testid="parameter-field-bool"
         className={styles.radioGroup}
-        defaultValue={parameterValue}
-        onChange={(event) => {
-          onChange(event.target.value)
-        }}
+        value={value}
+        onChange={(_, value) => onChange(value)}
       >
         <FormControlLabel
           disabled={disabled}
@@ -133,17 +118,17 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           label="False"
         />
       </RadioGroup>
-    )
+    );
   }
 
   if (parameter.options.length > 0) {
     return (
       <RadioGroup
+        id={parameter.name}
+        data-testid="parameter-field-options"
         className={styles.radioGroup}
-        defaultValue={parameterValue}
-        onChange={(event) => {
-          onChange(event.target.value)
-        }}
+        value={value}
+        onChange={(_, value) => onChange(value)}
       >
         {parameter.options.map((option) => (
           <FormControlLabel
@@ -169,35 +154,40 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
           />
         ))}
       </RadioGroup>
-    )
+    );
   }
 
   if (parameter.type === "list(string)") {
-    let values: string[] = []
+    let values: string[] = [];
 
-    if (parameterValue) {
+    if (typeof value !== "string") {
+      throw new Error("Expected value to be a string");
+    }
+
+    if (value) {
       try {
-        values = JSON.parse(parameterValue) as string[]
+        values = JSON.parse(value) as string[];
       } catch (e) {
-        console.error("Error parsing list(string) parameter", e)
+        console.error("Error parsing list(string) parameter", e);
       }
     }
 
     return (
       <MultiTextField
+        id={parameter.name}
+        data-testid="parameter-field-list-of-string"
         label={props.label as string}
         values={values}
         onChange={(values) => {
           try {
-            const value = JSON.stringify(values)
-            setParameterValue(value)
-            onChange(value)
+            const value = JSON.stringify(values);
+            onChange(value);
           } catch (e) {
-            console.error("Error on change of list(string) parameter", e)
+            console.error("Error on change of list(string) parameter", e);
           }
         }}
       />
-    )
+    );
   }
 
   // A text field can technically handle all cases!
@@ -206,19 +196,20 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   return (
     <TextField
       {...props}
+      id={parameter.name}
+      data-testid="parameter-field-text"
       className={styles.textField}
       type={parameter.type}
       disabled={disabled}
       required={parameter.required}
       placeholder={parameter.default_value}
-      value={parameterValue}
+      value={value}
       onChange={(event) => {
-        setParameterValue(event.target.value)
-        onChange(event.target.value)
+        onChange(event.target.value);
       }}
     />
-  )
-}
+  );
+};
 
 const useStyles = makeStyles<Theme>((theme) => ({
   label: {
@@ -304,4 +295,4 @@ const useStyles = makeStyles<Theme>((theme) => ({
       width: 16,
     },
   },
-}))
+}));

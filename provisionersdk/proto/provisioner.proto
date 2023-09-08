@@ -1,6 +1,6 @@
 
 syntax = "proto3";
-option go_package = "github.com/coder/coder/provisionersdk/proto";
+option go_package = "github.com/coder/coder/v2/provisionersdk/proto";
 
 package provisioner;
 
@@ -82,8 +82,8 @@ message InstanceIdentityAuth {
 }
 
 message GitAuthProvider {
-	string id = 1;
-	string access_token = 2;
+    string id = 1;
+    string access_token = 2;
 }
 
 // Agent represents a running agent on the workspace.
@@ -110,21 +110,30 @@ message Agent {
         string token = 9;
         string instance_id = 10;
     }
-	int32 connection_timeout_seconds = 11;
-	string troubleshooting_url = 12;
-	string motd_file = 13;
-	// Field 14 was bool login_before_ready = 14, now removed.
-	int32 startup_script_timeout_seconds = 15;
-	string shutdown_script = 16;
-	int32 shutdown_script_timeout_seconds = 17;
+    int32 connection_timeout_seconds = 11;
+    string troubleshooting_url = 12;
+    string motd_file = 13;
+    // Field 14 was bool login_before_ready = 14, now removed.
+    int32 startup_script_timeout_seconds = 15;
+    string shutdown_script = 16;
+    int32 shutdown_script_timeout_seconds = 17;
     repeated Metadata metadata = 18;
-	string startup_script_behavior = 19;
+    string startup_script_behavior = 19;
+    DisplayApps display_apps = 20;
 }
 
 enum AppSharingLevel {
     OWNER = 0;
     AUTHENTICATED = 1;
     PUBLIC = 2;
+}
+
+message DisplayApps {
+    bool vscode = 1;
+    bool vscode_insiders = 2;
+    bool web_terminal = 3;
+    bool ssh_helper = 4;
+    bool port_forwarding_helper = 5;
 }
 
 // App represents a dev-accessible application on the workspace.
@@ -168,96 +177,111 @@ message Resource {
     int32 daily_cost = 8;
 }
 
-// Parse consumes source-code from a directory to produce inputs.
-message Parse {
-    message Request {
-        string directory = 1;
-    }
-    message Complete {
-		reserved 2;
-
-        repeated TemplateVariable template_variables = 1;
-    }
-    message Response {
-        oneof type {
-            Log log = 1;
-            Complete complete = 2;
-        }
-    }
-}
-
+// WorkspaceTransition is the desired outcome of a build
 enum WorkspaceTransition {
     START = 0;
     STOP = 1;
     DESTROY = 2;
 }
 
-// Provision consumes source-code from a directory to produce resources.
-// Exactly one of Plan or Apply must be provided in a single session.
-message Provision {
-    message Metadata {
-        string coder_url = 1;
-        WorkspaceTransition workspace_transition = 2;
-        string workspace_name = 3;
-        string workspace_owner = 4;
-        string workspace_id = 5;
-        string workspace_owner_id = 6;
-        string workspace_owner_email = 7;
-        string template_name = 8;
-        string template_version = 9;
-        string workspace_owner_oidc_access_token = 10;
-        string workspace_owner_session_token = 11;
-    }
+// Metadata is information about a workspace used in the execution of a build
+message Metadata {
+    string coder_url = 1;
+    WorkspaceTransition workspace_transition = 2;
+    string workspace_name = 3;
+    string workspace_owner = 4;
+    string workspace_id = 5;
+    string workspace_owner_id = 6;
+    string workspace_owner_email = 7;
+    string template_name = 8;
+    string template_version = 9;
+    string workspace_owner_oidc_access_token = 10;
+    string workspace_owner_session_token = 11;
+}
 
-    // Config represents execution configuration shared by both Plan and
-    // Apply commands.
-    message Config {
-        string directory = 1;
-        bytes state = 2;
-        Metadata metadata = 3;
+// Config represents execution configuration shared by all subsequent requests in the Session
+message Config {
+    // template_source_archive is a tar of the template source files
+    bytes template_source_archive = 1;
+    // state is the provisioner state (if any)
+    bytes state = 2;
+    string provisioner_log_level = 3;
+}
 
-        string provisioner_log_level = 4;
-    }
+// ParseRequest consumes source-code to produce inputs.
+message ParseRequest {
+}
 
-    message Plan {
-        reserved 2;
+// ParseComplete indicates a request to parse completed.
+message ParseComplete {
+    string error = 1;
+    repeated TemplateVariable template_variables = 2;
+    bytes readme = 3;
+}
 
+// PlanRequest asks the provisioner to plan what resources & parameters it will create
+message PlanRequest {
+    Metadata metadata = 1;
+    repeated RichParameterValue rich_parameter_values = 2;
+    repeated VariableValue variable_values = 3;
+    repeated GitAuthProvider git_auth_providers = 4;
+}
+
+// PlanComplete indicates a request to plan completed.
+message PlanComplete {
+    string error = 1;
+    repeated Resource resources = 2;
+    repeated RichParameter parameters = 3;
+    repeated string git_auth_providers = 4;
+}
+
+// ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
+// in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
+message ApplyRequest {
+    Metadata metadata = 1;
+}
+
+// ApplyComplete indicates a request to apply completed.
+message ApplyComplete {
+    bytes state = 1;
+    string error = 2;
+    repeated Resource resources = 3;
+    repeated RichParameter parameters = 4;
+    repeated string git_auth_providers = 5;
+}
+
+// CancelRequest requests that the previous request be canceled gracefully.
+message CancelRequest {}
+
+message Request {
+    oneof type {
         Config config = 1;
-        repeated RichParameterValue rich_parameter_values = 3;
-        repeated VariableValue variable_values = 4;
-        repeated GitAuthProvider git_auth_providers = 5;
+        ParseRequest parse = 2;
+        PlanRequest plan = 3;
+        ApplyRequest apply = 4;
+        CancelRequest cancel = 5;
     }
+}
 
-    message Apply {
-        Config config = 1;
-        bytes plan = 2;
-    }
-
-    message Cancel {}
-    message Request {
-        oneof type {
-            Plan plan = 1;
-            Apply apply = 2;
-            Cancel cancel = 3;
-        }
-    }
-    message Complete {
-        bytes state = 1;
-        string error = 2;
-        repeated Resource resources = 3;
-        repeated RichParameter parameters = 4;
-        repeated string git_auth_providers = 5;
-        bytes plan = 6;
-    }
-    message Response {
-        oneof type {
-            Log log = 1;
-            Complete complete = 2;
-        }
+message Response {
+    oneof type {
+        Log log = 1;
+        ParseComplete parse = 2;
+        PlanComplete plan = 3;
+        ApplyComplete apply = 4;
     }
 }
 
 service Provisioner {
-    rpc Parse(Parse.Request) returns (stream Parse.Response);
-    rpc Provision(stream Provision.Request) returns (stream Provision.Response);
+    // Session represents provisioning a single template import or workspace.  The daemon always sends Config followed
+    // by one of the requests (ParseRequest, PlanRequest, ApplyRequest).  The provisioner should respond with a stream
+    // of zero or more Logs, followed by the corresponding complete message (ParseComplete, PlanComplete,
+    // ApplyComplete).  The daemon may then send a new request.  A request to apply MUST be preceded by a request plan,
+    // and the provisioner should store the plan data on the Session after a successful plan, so that the daemon may
+    // request an apply.  If the daemon closes the Session without an apply, the plan data may be safely discarded.
+    //
+    // The daemon may send a CancelRequest, asynchronously to ask the provisioner to cancel the previous ParseRequest,
+    // PlanRequest, or ApplyRequest.  The provisioner MUST reply with a complete message corresponding to the request
+    // that was canceled.  If the provisioner has already completed the request, it may ignore the CancelRequest.
+    rpc Session(stream Request) returns (stream Response);
 }

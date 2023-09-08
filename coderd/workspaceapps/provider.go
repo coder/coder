@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -58,7 +57,7 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		AppRequest:     appReq,
 		PathAppBaseURL: opts.PathAppBaseURL.String(),
 		AppHostname:    opts.AppHostname,
-		SessionToken:   httpmw.APITokenFromRequest(r),
+		SessionToken:   AppConnectSessionTokenFromRequest(r, appReq.AccessMethod),
 		AppPath:        opts.AppPath,
 		AppQuery:       opts.AppQuery,
 	}
@@ -68,11 +67,16 @@ func ResolveRequest(rw http.ResponseWriter, r *http.Request, opts ResolveRequest
 		return nil, false
 	}
 
-	// Write the signed app token cookie. We always want this to apply to the
-	// current hostname (even for subdomain apps, without any wildcard
-	// shenanigans, because the token is only valid for a single app).
+	// Write the signed app token cookie.
+	//
+	// For path apps, this applies to only the path app base URL on the current
+	// domain, e.g.
+	//   /@user/workspace[.agent]/apps/path-app/
+	//
+	// For subdomain apps, this applies to the entire subdomain, e.g.
+	//   app--agent--workspace--user.apps.example.com
 	http.SetCookie(rw, &http.Cookie{
-		Name:    codersdk.DevURLSignedAppTokenCookie,
+		Name:    codersdk.SignedAppTokenCookie,
 		Value:   tokenStr,
 		Path:    appReq.BasePath,
 		Expires: token.Expiry,

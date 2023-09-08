@@ -15,9 +15,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/codersdk"
-	agpl "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 // NewCoordinator creates a new high availability coordinator

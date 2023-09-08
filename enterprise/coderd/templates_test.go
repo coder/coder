@@ -10,16 +10,16 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplates(t *testing.T) {
@@ -140,7 +140,7 @@ func TestTemplates(t *testing.T) {
 		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
 
-	t.Run("SetRestartRequirement", func(t *testing.T) {
+	t.Run("SetAutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -157,8 +157,8 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.Empty(t, 0, template.RestartRequirement.DaysOfWeek)
-		require.Zero(t, template.RestartRequirement.Weeks)
+		require.Empty(t, 0, template.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 
 		// ctx := testutil.Context(t, testutil.WaitLong)
 		ctx := context.Background()
@@ -169,19 +169,19 @@ func TestTemplates(t *testing.T) {
 			Icon:                         template.Icon,
 			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
 			DefaultTTLMillis:             time.Hour.Milliseconds(),
-			RestartRequirement: &codersdk.TemplateRestartRequirement{
+			AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 				DaysOfWeek: []string{"monday", "saturday"},
 				Weeks:      3,
 			},
 		})
 		require.NoError(t, err)
-		require.Equal(t, []string{"monday", "saturday"}, updated.RestartRequirement.DaysOfWeek)
-		require.EqualValues(t, 3, updated.RestartRequirement.Weeks)
+		require.Equal(t, []string{"monday", "saturday"}, updated.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, updated.AutostopRequirement.Weeks)
 
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
-		require.Equal(t, []string{"monday", "saturday"}, template.RestartRequirement.DaysOfWeek)
-		require.EqualValues(t, 3, template.RestartRequirement.Weeks)
+		require.Equal(t, []string{"monday", "saturday"}, template.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 3, template.AutostopRequirement.Weeks)
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
@@ -202,41 +202,41 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.EqualValues(t, 0, template.InactivityTTLMillis)
+		require.EqualValues(t, 0, template.TimeTilDormantMillis)
 		require.EqualValues(t, 0, template.FailureTTLMillis)
-		require.EqualValues(t, 0, template.LockedTTLMillis)
+		require.EqualValues(t, 0, template.TimeTilDormantAutoDeleteMillis)
 
 		var (
 			failureTTL    int64 = 1
 			inactivityTTL int64 = 2
-			lockedTTL     int64 = 3
+			dormantTTL    int64 = 3
 		)
 
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                         template.Name,
-			DisplayName:                  template.DisplayName,
-			Description:                  template.Description,
-			Icon:                         template.Icon,
-			AllowUserCancelWorkspaceJobs: template.AllowUserCancelWorkspaceJobs,
-			InactivityTTLMillis:          inactivityTTL,
-			FailureTTLMillis:             failureTTL,
-			LockedTTLMillis:              lockedTTL,
+			Name:                           template.Name,
+			DisplayName:                    template.DisplayName,
+			Description:                    template.Description,
+			Icon:                           template.Icon,
+			AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+			TimeTilDormantMillis:           inactivityTTL,
+			FailureTTLMillis:               failureTTL,
+			TimeTilDormantAutoDeleteMillis: dormantTTL,
 		})
 		require.NoError(t, err)
 		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
-		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
+		require.Equal(t, dormantTTL, updated.TimeTilDormantAutoDeleteMillis)
 
 		// Validate fetching the template returns the same values as updating
 		// the template.
 		template, err = client.Template(ctx, template.ID)
 		require.NoError(t, err)
 		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.InactivityTTLMillis)
-		require.Equal(t, lockedTTL, updated.LockedTTLMillis)
+		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
+		require.Equal(t, dormantTTL, updated.TimeTilDormantAutoDeleteMillis)
 	})
 
-	t.Run("UpdateLockedTTL", func(t *testing.T) {
+	t.Run("UpdateTimeTilDormantAutoDelete", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -254,58 +254,172 @@ func TestTemplates(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		unlockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		lockedWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		require.Nil(t, unlockedWorkspace.DeletingAt)
-		require.Nil(t, lockedWorkspace.DeletingAt)
+		activeWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		dormantWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, activeWS.DeletingAt)
+		require.Nil(t, dormantWS.DeletingAt)
 
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, unlockedWorkspace.LatestBuild.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, lockedWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWS.LatestBuild.ID)
 
-		err := client.UpdateWorkspaceLock(ctx, lockedWorkspace.ID, codersdk.UpdateWorkspaceLock{
-			Lock: true,
+		err := client.UpdateWorkspaceDormancy(ctx, dormantWS.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
 		})
 		require.NoError(t, err)
 
-		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
-		// The deleting_at field should be nil since there is no template locked_ttl set.
-		require.Nil(t, lockedWorkspace.DeletingAt)
+		dormantWS = coderdtest.MustWorkspace(t, client, dormantWS.ID)
+		require.NotNil(t, dormantWS.DormantAt)
+		// The deleting_at field should be nil since there is no template time_til_dormant_autodelete set.
+		require.Nil(t, dormantWS.DeletingAt)
 
-		lockedTTL := time.Minute
+		dormantTTL := time.Minute
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: lockedTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
 		})
 		require.NoError(t, err)
-		require.Equal(t, lockedTTL.Milliseconds(), updated.LockedTTLMillis)
+		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
 
-		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, unlockedWorkspace.LockedAt)
-		require.Nil(t, unlockedWorkspace.DeletingAt)
+		activeWS = coderdtest.MustWorkspace(t, client, activeWS.ID)
+		require.Nil(t, activeWS.DormantAt)
+		require.Nil(t, activeWS.DeletingAt)
 
-		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
-		require.NotNil(t, lockedWorkspace.DeletingAt)
-		require.Equal(t, lockedWorkspace.LockedAt.Add(lockedTTL), *lockedWorkspace.DeletingAt)
+		updatedDormantWorkspace := coderdtest.MustWorkspace(t, client, dormantWS.ID)
+		require.NotNil(t, updatedDormantWorkspace.DormantAt)
+		require.NotNil(t, updatedDormantWorkspace.DeletingAt)
+		require.Equal(t, updatedDormantWorkspace.DormantAt.Add(dormantTTL), *updatedDormantWorkspace.DeletingAt)
+		require.Equal(t, updatedDormantWorkspace.DormantAt, dormantWS.DormantAt)
 
-		// Disable the locked_ttl on the template, then we can assert that the workspaces
+		// Disable the time_til_dormant_auto_delete on the template, then we can assert that the workspaces
 		// no longer have a deleting_at field.
 		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			LockedTTLMillis: 0,
+			TimeTilDormantAutoDeleteMillis: 0,
 		})
 		require.NoError(t, err)
-		require.EqualValues(t, 0, updated.LockedTTLMillis)
+		require.EqualValues(t, 0, updated.TimeTilDormantAutoDeleteMillis)
 
-		// The unlocked workspace should remain unchanged.
-		unlockedWorkspace = coderdtest.MustWorkspace(t, client, unlockedWorkspace.ID)
-		require.Nil(t, unlockedWorkspace.LockedAt)
-		require.Nil(t, unlockedWorkspace.DeletingAt)
+		// The active workspace should remain unchanged.
+		activeWS = coderdtest.MustWorkspace(t, client, activeWS.ID)
+		require.Nil(t, activeWS.DormantAt)
+		require.Nil(t, activeWS.DeletingAt)
 
-		// Fetch the locked workspace. It should still be locked, but it should no
+		// Fetch the dormant workspace. It should still be dormant, but it should no
 		// longer be scheduled for deletion.
-		lockedWorkspace = coderdtest.MustWorkspace(t, client, lockedWorkspace.ID)
-		require.NotNil(t, lockedWorkspace.LockedAt)
-		require.Nil(t, lockedWorkspace.DeletingAt)
+		dormantWS = coderdtest.MustWorkspace(t, client, dormantWS.ID)
+		require.NotNil(t, dormantWS.DormantAt)
+		require.Nil(t, dormantWS.DeletingAt)
+	})
+
+	t.Run("UpdateDormantAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		activeWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		dormantWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, activeWS.DeletingAt)
+		require.Nil(t, dormantWS.DeletingAt)
+
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWS.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceDormancy(ctx, dormantWS.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
+		})
+		require.NoError(t, err)
+
+		dormantWS = coderdtest.MustWorkspace(t, client, dormantWS.ID)
+		require.NotNil(t, dormantWS.DormantAt)
+		// The deleting_at field should be nil since there is no template time_til_dormant_autodelete set.
+		require.Nil(t, dormantWS.DeletingAt)
+
+		dormantTTL := time.Minute
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			UpdateWorkspaceDormantAt:       true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
+
+		activeWS = coderdtest.MustWorkspace(t, client, activeWS.ID)
+		require.Nil(t, activeWS.DormantAt)
+		require.Nil(t, activeWS.DeletingAt)
+
+		updatedDormantWorkspace := coderdtest.MustWorkspace(t, client, dormantWS.ID)
+		require.NotNil(t, updatedDormantWorkspace.DormantAt)
+		require.NotNil(t, updatedDormantWorkspace.DeletingAt)
+		// Validate that the workspace dormant_at value is updated.
+		require.True(t, updatedDormantWorkspace.DormantAt.After(*dormantWS.DormantAt))
+		require.Equal(t, updatedDormantWorkspace.DormantAt.Add(dormantTTL), *updatedDormantWorkspace.DeletingAt)
+	})
+
+	t.Run("UpdateLastUsedAt", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		activeWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		dormantWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		require.Nil(t, activeWorkspace.DeletingAt)
+		require.Nil(t, dormantWorkspace.DeletingAt)
+
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWorkspace.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceDormancy(ctx, dormantWorkspace.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
+		})
+		require.NoError(t, err)
+
+		dormantWorkspace = coderdtest.MustWorkspace(t, client, dormantWorkspace.ID)
+		require.NotNil(t, dormantWorkspace.DormantAt)
+		// The deleting_at field should be nil since there is no template time_til_dormant_autodelete set.
+		require.Nil(t, dormantWorkspace.DeletingAt)
+
+		inactivityTTL := time.Minute
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			TimeTilDormantMillis:      inactivityTTL.Milliseconds(),
+			UpdateWorkspaceLastUsedAt: true,
+		})
+		require.NoError(t, err)
+		require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
+
+		updatedActiveWS := coderdtest.MustWorkspace(t, client, activeWorkspace.ID)
+		require.Nil(t, updatedActiveWS.DormantAt)
+		require.Nil(t, updatedActiveWS.DeletingAt)
+		require.True(t, updatedActiveWS.LastUsedAt.After(activeWorkspace.LastUsedAt))
+
+		updatedDormantWS := coderdtest.MustWorkspace(t, client, dormantWorkspace.ID)
+		require.NotNil(t, updatedDormantWS.DormantAt)
+		require.Nil(t, updatedDormantWS.DeletingAt)
+		// Validate that the workspace dormant_at value is updated.
+		require.Equal(t, updatedDormantWS.DormantAt, dormantWorkspace.DormantAt)
+		require.True(t, updatedDormantWS.LastUsedAt.After(dormantWorkspace.LastUsedAt))
 	})
 }
 
@@ -373,8 +487,7 @@ func TestTemplateACL(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Len(t, acl.Groups, 1)
-		// We don't return members for the 'Everyone' group.
-		require.Len(t, acl.Groups[0].Members, 0)
+		require.Len(t, acl.Groups[0].Members, 2)
 		require.Len(t, acl.Users, 0)
 	})
 

@@ -1,17 +1,17 @@
-import { colors } from "./colors"
-import { ThemeOptions, createTheme, Theme } from "@mui/material/styles"
-import { BODY_FONT_FAMILY, borderRadius } from "./constants"
+import { colors } from "./colors";
+import { ThemeOptions, createTheme, Theme } from "@mui/material/styles";
+import { BODY_FONT_FAMILY, borderRadius } from "./constants";
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit
-export const BUTTON_LG_HEIGHT = 40
-export const BUTTON_MD_HEIGHT = 36
-export const BUTTON_SM_HEIGHT = 32
+export const BUTTON_LG_HEIGHT = 40;
+export const BUTTON_MD_HEIGHT = 36;
+export const BUTTON_SM_HEIGHT = 32;
 
-export type PaletteIndex = keyof Theme["palette"]
+export type PaletteIndex = keyof Theme["palette"];
 export type PaletteStatusIndex = Extract<
   PaletteIndex,
   "error" | "warning" | "info" | "success"
->
+>;
 
 export let dark = createTheme({
   palette: {
@@ -80,12 +80,16 @@ export let dark = createTheme({
   shape: {
     borderRadius,
   },
-})
+});
 
 dark = createTheme(dark, {
   components: {
     MuiCssBaseline: {
       styleOverrides: `
+        html, body, #root, #storybook-root {
+          height: 100%;
+        }
+
         input:-webkit-autofill,
         input:-webkit-autofill:hover,
         input:-webkit-autofill:focus,
@@ -384,6 +388,15 @@ dark = createTheme(dark, {
         disableRipple: true,
       },
     },
+    MuiCheckbox: {
+      styleOverrides: {
+        root: {
+          "&.Mui-disabled": {
+            color: colors.gray[11],
+          },
+        },
+      },
+    },
     MuiSwitch: {
       defaultProps: {
         color: "primary",
@@ -448,4 +461,4 @@ dark = createTheme(dark, {
       },
     },
   },
-} as ThemeOptions)
+} as ThemeOptions);

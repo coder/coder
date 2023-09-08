@@ -18,11 +18,12 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type apiKeyContextKey struct{}
@@ -236,16 +237,23 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	var (
 		link database.UserLink
-		now  = database.Now()
+		now  = dbtime.Now()
 		// Tracks if the API key has properties updated
 		changed = false
 	)
 	if key.LoginType == database.LoginTypeGithub || key.LoginType == database.LoginTypeOIDC {
+		var err error
 		//nolint:gocritic // System needs to fetch UserLink to check if it's valid.
-		link, err := cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+		link, err = cfg.DB.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    key.UserID,
 			LoginType: key.LoginType,
 		})
+		if errors.Is(err, sql.ErrNoRows) {
+			return optionalWrite(http.StatusUnauthorized, codersdk.Response{
+				Message: SignedOutErrorMessage,
+				Detail:  "You must re-authenticate with the login provider.",
+			})
+		}
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
 				Message: "A database error occurred",
@@ -295,7 +303,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 			}).Token()
 			if err != nil {
 				return write(http.StatusUnauthorized, codersdk.Response{
-					Message: "Could not refresh expired Oauth token.",
+					Message: "Could not refresh expired Oauth token. Try re-authenticating to resolve this issue.",
 					Detail:  err.Error(),
 				})
 			}
@@ -308,6 +316,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	}
 
 	// Checking if the key is expired.
+	// NOTE: The `RequireAuth` React component depends on this `Detail` to detect when
+	// the users token has expired. If you change the text here, make sure to update it
+	// in site/src/components/RequireAuth/RequireAuth.tsx as well.
 	if key.ExpiresAt.Before(now) {
 		return optionalWrite(http.StatusUnauthorized, codersdk.Response{
 			Message: SignedOutErrorMessage,
@@ -380,8 +391,8 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// nolint:gocritic
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
-			LastSeenAt: database.Now(),
-			UpdatedAt:  database.Now(),
+			LastSeenAt: dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
@@ -409,7 +420,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        key.UserID,
 			Status:    database.UserStatusActive,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
@@ -443,10 +454,10 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 // APITokenFromRequest returns the api token from the request.
 // Find the session token from:
 // 1: The cookie
-// 1: The devurl cookie
-// 3: The old cookie
-// 4. The coder_session_token query parameter
-// 5. The custom auth header
+// 2. The coder_session_token query parameter
+// 3. The custom auth header
+//
+// API tokens for apps are read from workspaceapps/cookies.go.
 func APITokenFromRequest(r *http.Request) string {
 	cookie, err := r.Cookie(codersdk.SessionTokenCookie)
 	if err == nil && cookie.Value != "" {
@@ -461,11 +472,6 @@ func APITokenFromRequest(r *http.Request) string {
 	headerValue := r.Header.Get(codersdk.SessionTokenHeader)
 	if headerValue != "" {
 		return headerValue
-	}
-
-	cookie, err = r.Cookie(codersdk.DevURLSessionTokenCookie)
-	if err == nil && cookie.Value != "" {
-		return cookie.Value
 	}
 
 	return ""

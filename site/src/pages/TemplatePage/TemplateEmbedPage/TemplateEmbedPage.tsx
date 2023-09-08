@@ -1,39 +1,36 @@
-import CheckOutlined from "@mui/icons-material/CheckOutlined"
-import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined"
-import Box from "@mui/material/Box"
-import Button from "@mui/material/Button"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import Radio from "@mui/material/Radio"
-import RadioGroup from "@mui/material/RadioGroup"
-import { useQuery } from "@tanstack/react-query"
-import { getTemplateVersionRichParameters } from "api/api"
-import { Template, TemplateVersionParameter } from "api/typesGenerated"
-import { FormSection, VerticalForm } from "components/Form/Form"
-import { Loader } from "components/Loader/Loader"
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
+import CheckOutlined from "@mui/icons-material/CheckOutlined";
+import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Radio from "@mui/material/Radio";
+import RadioGroup from "@mui/material/RadioGroup";
+import { useQuery } from "@tanstack/react-query";
+import { getTemplateVersionRichParameters } from "api/api";
+import { Template, TemplateVersionParameter } from "api/typesGenerated";
+import { FormSection, VerticalForm } from "components/Form/Form";
+import { Loader } from "components/Loader/Loader";
+import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
 import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
   TemplateParametersSectionProps,
-} from "components/TemplateParameters/TemplateParameters"
-import { useClipboard } from "hooks/useClipboard"
-import { FC, useState } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import {
-  selectInitialRichParametersValues,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
-import { paramsUsedToCreateWorkspace } from "utils/workspace"
+} from "components/TemplateParameters/TemplateParameters";
+import { useClipboard } from "hooks/useClipboard";
+import { FC, useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { getInitialRichParameterValues } from "utils/richParameters";
+import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
-type ButtonValues = Record<string, string>
+type ButtonValues = Record<string, string>;
 
 const TemplateEmbedPage = () => {
-  const { template } = useTemplateLayoutContext()
+  const { template } = useTemplateLayoutContext();
   const { data: templateParameters } = useQuery({
     queryKey: ["template", template.id, "embed"],
     queryFn: () => getTemplateVersionRichParameters(template.active_version_id),
-  })
+  });
 
   return (
     <>
@@ -47,53 +44,61 @@ const TemplateEmbedPage = () => {
         )}
       />
     </>
-  )
-}
+  );
+};
 
 export const TemplateEmbedPageView: FC<{
-  template: Template
-  templateParameters?: TemplateVersionParameter[]
+  template: Template;
+  templateParameters?: TemplateVersionParameter[];
 }> = ({ template, templateParameters }) => {
-  const [buttonValues, setButtonValues] = useState<ButtonValues>({
-    mode: "manual",
-  })
-  const initialRichParametersValues = templateParameters
-    ? selectInitialRichParametersValues(templateParameters)
-    : undefined
-  const deploymentUrl = `${window.location.protocol}//${window.location.host}`
-  const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`
-  const createWorkspaceParams = new URLSearchParams(buttonValues)
-  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`
-  const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`
-  const clipboard = useClipboard(buttonMkdCode)
-
+  const [buttonValues, setButtonValues] = useState<ButtonValues | undefined>(
+    undefined,
+  );
+  const deploymentUrl = `${window.location.protocol}//${window.location.host}`;
+  const createWorkspaceUrl = `${deploymentUrl}/templates/${template.name}/workspace`;
+  const createWorkspaceParams = new URLSearchParams(buttonValues);
+  const buttonUrl = `${createWorkspaceUrl}?${createWorkspaceParams.toString()}`;
+  const buttonMkdCode = `[![Open in Coder](${deploymentUrl}/open-in-coder.svg)](${buttonUrl})`;
+  const clipboard = useClipboard(buttonMkdCode);
   const getInputProps: TemplateParametersSectionProps["getInputProps"] = (
     parameter,
   ) => {
-    if (!initialRichParametersValues) {
-      throw new Error("initialRichParametersValues is undefined")
+    if (!buttonValues) {
+      throw new Error("buttonValues is undefined");
     }
     return {
-      id: parameter.name,
-      initialValue: workspaceBuildParameterValue(
-        initialRichParametersValues,
-        parameter,
-      ),
+      value: buttonValues[`param.${parameter.name}`] ?? "",
       onChange: (value) => {
         setButtonValues((buttonValues) => ({
           ...buttonValues,
           [`param.${parameter.name}`]: value,
-        }))
+        }));
       },
+    };
+  };
+
+  // template parameters is async so we need to initialize the values after it
+  // is loaded
+  useEffect(() => {
+    if (templateParameters && !buttonValues) {
+      const buttonValues: ButtonValues = {
+        mode: "manual",
+      };
+      for (const parameter of getInitialRichParameterValues(
+        templateParameters,
+      )) {
+        buttonValues[`param.${parameter.name}`] = parameter.value;
+      }
+      setButtonValues(buttonValues);
     }
-  }
+  }, [buttonValues, templateParameters]);
 
   return (
     <>
       <Helmet>
         <title>{pageTitle(`${template.name} · Embed`)}</title>
       </Helmet>
-      {!templateParameters ? (
+      {!buttonValues || !templateParameters ? (
         <Loader />
       ) : (
         <Box display="flex" alignItems="flex-start" gap={6}>
@@ -109,7 +114,7 @@ export const TemplateEmbedPageView: FC<{
                     setButtonValues((buttonValues) => ({
                       ...buttonValues,
                       mode: v,
-                    }))
+                    }));
                   }}
                 >
                   <FormControlLabel
@@ -142,9 +147,9 @@ export const TemplateEmbedPageView: FC<{
           <Box
             display="flex"
             height={{
-              // 80px is the vertical padding of the content area
-              // 36px is from the status bar from the bottom
-              md: "calc(100vh - (80px + 36px))",
+              // 80px for padding, 36px is for the status bar. We want to use `vh`
+              // so that it will be relative to the screen and not the parent layout.
+              height: "calc(100vh - (80px + 36px))",
               top: 40,
               position: "sticky",
             }}
@@ -183,7 +188,7 @@ export const TemplateEmbedPageView: FC<{
         </Box>
       )}
     </>
-  )
-}
+  );
+};
 
-export default TemplateEmbedPage
+export default TemplateEmbedPage;

@@ -13,8 +13,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 )
 
 type request struct {
@@ -68,7 +69,7 @@ func New(db database.Store, url string, keys map[string]ed25519.PublicKey) func(
 			return xerrors.Errorf("parse uuid: %w", err)
 		}
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
+			UploadedAt: dbtime.Now(),
 			JWT:        string(raw),
 			Exp:        expTime,
 			UUID:       id,

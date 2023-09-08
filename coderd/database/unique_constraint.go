@@ -6,6 +6,8 @@ type UniqueConstraint string
 
 // UniqueConstraint enums.
 const (
+	UniqueDbcryptKeysActiveKeyDigestKey                     UniqueConstraint = "dbcrypt_keys_active_key_digest_key"                       // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
+	UniqueDbcryptKeysRevokedKeyDigestKey                    UniqueConstraint = "dbcrypt_keys_revoked_key_digest_key"                      // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 	UniqueFilesHashCreatedByKey                             UniqueConstraint = "files_hash_created_by_key"                                // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueGitAuthLinksProviderIDUserIDKey                   UniqueConstraint = "git_auth_links_provider_id_user_id_key"                   // ALTER TABLE ONLY git_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 	UniqueGroupMembersUserIDGroupIDKey                      UniqueConstraint = "group_members_user_id_group_id_key"                       // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
@@ -18,6 +20,7 @@ const (
 	UniqueTemplateVersionParametersTemplateVersionIDNameKey UniqueConstraint = "template_version_parameters_template_version_id_name_key" // ALTER TABLE ONLY template_version_parameters ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
 	UniqueTemplateVersionVariablesTemplateVersionIDNameKey  UniqueConstraint = "template_version_variables_template_version_id_name_key"  // ALTER TABLE ONLY template_version_variables ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
 	UniqueTemplateVersionsTemplateIDNameKey                 UniqueConstraint = "template_versions_template_id_name_key"                   // ALTER TABLE ONLY template_versions ADD CONSTRAINT template_versions_template_id_name_key UNIQUE (template_id, name);
+	UniqueWorkspaceAppStatsUserIDAgentIDSessionIDKey        UniqueConstraint = "workspace_app_stats_user_id_agent_id_session_id_key"      // ALTER TABLE ONLY workspace_app_stats ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
 	UniqueWorkspaceAppsAgentIDSlugIndex                     UniqueConstraint = "workspace_apps_agent_id_slug_idx"                         // ALTER TABLE ONLY workspace_apps ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 	UniqueWorkspaceBuildParametersWorkspaceBuildIDNameKey   UniqueConstraint = "workspace_build_parameters_workspace_build_id_name_key"   // ALTER TABLE ONLY workspace_build_parameters ADD CONSTRAINT workspace_build_parameters_workspace_build_id_name_key UNIQUE (workspace_build_id, name);
 	UniqueWorkspaceBuildsJobIDKey                           UniqueConstraint = "workspace_builds_job_id_key"                              // ALTER TABLE ONLY workspace_builds ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);

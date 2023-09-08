@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestScheduleShow(t *testing.T) {
@@ -316,8 +316,8 @@ func TestScheduleOverride(t *testing.T) {
 			stdoutBuf = &bytes.Buffer{}
 		)
 		require.Zero(t, template.DefaultTTLMillis)
-		require.Empty(t, template.RestartRequirement.DaysOfWeek)
-		require.Zero(t, template.RestartRequirement.Weeks)
+		require.Empty(t, template.AutostopRequirement.DaysOfWeek)
+		require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
 
 		// Unset the workspace TTL
 		err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})

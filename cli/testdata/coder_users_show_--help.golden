@@ -2,7 +2,7 @@ Usage: coder users show [flags] <username|user_id|'me'>
 
 Show a single user. Use 'me' to indicate the currently authenticated user.
 
-[40m [0m[91;40m$ coder users show me[0m[40m [0m
+$ coder users show me
 
 [1mOptions[0m
   -o, --output string (default: table)

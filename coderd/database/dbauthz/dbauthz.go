@@ -15,9 +15,11 @@ import (
 	"github.com/open-policy-agent/opa/topdown"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 var _ database.Store = (*querier)(nil)
@@ -35,8 +37,16 @@ type NotAuthorizedError struct {
 	Err error
 }
 
+// Ensure we implement the IsUnauthorized interface.
+var _ httpapiconstraints.IsUnauthorizedError = (*NotAuthorizedError)(nil)
+
 func (e NotAuthorizedError) Error() string {
 	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
+}
+
+// IsUnauthorized implements the IsUnauthorized interface.
+func (NotAuthorizedError) IsUnauthorized() bool {
+	return true
 }
 
 // Unwrap will always unwrap to a sql.ErrNoRows so the API returns a 404.
@@ -580,7 +590,7 @@ func (q *querier) SoftDeleteTemplateByID(ctx context.Context, id uuid.UUID) erro
 		return q.db.UpdateTemplateDeletedByID(ctx, database.UpdateTemplateDeletedByIDParams{
 			ID:        id,
 			Deleted:   true,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 	}
 	return deleteQ(q.log, q.auth, q.db.GetTemplateByID, deleteF)(ctx, id)
@@ -828,6 +838,13 @@ func (q *querier) GetAuthorizationUserRoles(ctx context.Context, userID uuid.UUI
 	return q.db.GetAuthorizationUserRoles(ctx, userID)
 }
 
+func (q *querier) GetDBCryptKeys(ctx context.Context) ([]database.DBCryptKey, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetDBCryptKeys(ctx)
+}
+
 func (q *querier) GetDERPMeshKey(ctx context.Context) (string, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
 		return "", err
@@ -904,6 +921,13 @@ func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLin
 	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
 }
 
+func (q *querier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetGitAuthLinksByUserID(ctx, userID)
+}
+
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
 	return fetch(q.log, q.auth, q.db.GetGitSSHKey)(ctx, userID)
 }
@@ -916,11 +940,11 @@ func (q *querier) GetGroupByOrgAndName(ctx context.Context, arg database.GetGrou
 	return fetch(q.log, q.auth, q.db.GetGroupByOrgAndName)(ctx, arg)
 }
 
-func (q *querier) GetGroupMembers(ctx context.Context, groupID uuid.UUID) ([]database.User, error) {
-	if _, err := q.GetGroupByID(ctx, groupID); err != nil { // AuthZ check
+func (q *querier) GetGroupMembers(ctx context.Context, id uuid.UUID) ([]database.User, error) {
+	if _, err := q.GetGroupByID(ctx, id); err != nil { // AuthZ check
 		return nil, err
 	}
-	return q.db.GetGroupMembers(ctx, groupID)
+	return q.db.GetGroupMembers(ctx, id)
 }
 
 func (q *querier) GetGroupsByOrganizationID(ctx context.Context, organizationID uuid.UUID) ([]database.Group, error) {
@@ -1171,6 +1195,25 @@ func (q *querier) GetTailnetClientsForAgent(ctx context.Context, agentID uuid.UU
 		return nil, err
 	}
 	return q.db.GetTailnetClientsForAgent(ctx, agentID)
+}
+
+func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetTemplateAppInsights(ctx, arg)
 }
 
 // Only used by metrics cache.
@@ -1453,6 +1496,13 @@ func (q *querier) GetUserLinkByUserIDLoginType(ctx context.Context, arg database
 	return q.db.GetUserLinkByUserIDLoginType(ctx, arg)
 }
 
+func (q *querier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserLink, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserLinksByUserID(ctx, userID)
+}
+
 func (q *querier) GetUsers(ctx context.Context, arg database.GetUsersParams) ([]database.GetUsersRow, error) {
 	// This does the filtering in SQL.
 	prep, err := prepareSQLFilter(ctx, q.auth, rbac.ActionRead, rbac.ResourceUser.Type)
@@ -1474,13 +1524,12 @@ func (q *querier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 	return q.db.GetUsersByIDs(ctx, ids)
 }
 
-// GetWorkspaceAgentByAuthToken is used in http middleware to get the workspace agent.
-// This should only be used by a system user in that middleware.
-func (q *querier) GetWorkspaceAgentByAuthToken(ctx context.Context, authToken uuid.UUID) (database.WorkspaceAgent, error) {
+func (q *querier) GetWorkspaceAgentAndOwnerByAuthToken(ctx context.Context, authToken uuid.UUID) (database.GetWorkspaceAgentAndOwnerByAuthTokenRow, error) {
+	// This is a system function
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAgent{}, err
+		return database.GetWorkspaceAgentAndOwnerByAuthTokenRow{}, err
 	}
-	return q.db.GetWorkspaceAgentByAuthToken(ctx, authToken)
+	return q.db.GetWorkspaceAgentAndOwnerByAuthToken(ctx, authToken)
 }
 
 func (q *querier) GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (database.WorkspaceAgent, error) {
@@ -1817,6 +1866,13 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 	return insert(q.log, q.auth, rbac.ResourceAuditLog, q.db.InsertAuditLog)(ctx, arg)
 }
 
+func (q *querier) InsertDBCryptKey(ctx context.Context, arg database.InsertDBCryptKeyParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertDBCryptKey(ctx, arg)
+}
+
 func (q *querier) InsertDERPMeshKey(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return err
@@ -2046,6 +2102,13 @@ func (q *querier) InsertWorkspaceApp(ctx context.Context, arg database.InsertWor
 	return q.db.InsertWorkspaceApp(ctx, arg)
 }
 
+func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.InsertWorkspaceAppStatsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertWorkspaceAppStats(ctx, arg)
+}
+
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -2107,6 +2170,13 @@ func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.Regis
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)
 	}
 	return updateWithReturn(q.log, q.auth, fetch, q.db.RegisterWorkspaceProxy)(ctx, arg)
+}
+
+func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
@@ -2360,6 +2430,14 @@ func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Conte
 	return q.db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
 }
 
+func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) (database.Template, error) {
+		return q.db.GetTemplateByID(ctx, arg.TemplateID)
+	}
+
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateTemplateWorkspacesLastUsedAt)(ctx, arg)
+}
+
 // UpdateUserDeletedByID
 // Deprecated: Delete this function in favor of 'SoftDeleteUserByID'. Deletes are
 // irreversible.
@@ -2603,18 +2681,18 @@ func (q *querier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.U
 	return deleteQ(q.log, q.auth, fetch, q.db.UpdateWorkspaceDeletedByID)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceDormantDeletingAt)(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLastUsedAtParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspaceLockedDeletingAt(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspaceLockedDeletingAtParams) (database.Workspace, error) {
-		return q.db.GetWorkspaceByID(ctx, arg.ID)
-	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateWorkspaceLockedDeletingAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -2638,12 +2716,12 @@ func (q *querier) UpdateWorkspaceTTL(ctx context.Context, arg database.UpdateWor
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceTTL)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspacesDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) error {
-	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDeletingAtByTemplateIDParams) (database.Template, error) {
+func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) (database.Template, error) {
 		return q.db.GetTemplateByID(ctx, arg.TemplateID)
 	}
 
-	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesDeletingAtByTemplateID)(ctx, arg)
+	return fetchAndExec(q.log, q.auth, rbac.ActionUpdate, fetch, q.db.UpdateWorkspacesDormantDeletingAtByTemplateID)(ctx, arg)
 }
 
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {

@@ -141,7 +141,8 @@ jobs:
             build/coder_"$version"_linux_{amd64,armv7,arm64}.{tar.gz,apk,deb,rpm} \
             build/coder_"$version"_{darwin,windows}_{amd64,arm64}.zip \
             build/coder_"$version"_windows_amd64_installer.exe \
-            build/coder_helm_"$version".tgz
+            build/coder_helm_"$version".tgz \
+            build/provisioner_helm_"$version".tgz
         env:
           CODER_SIGN_DARWIN: "1"
           AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
@@ -295,9 +296,11 @@ jobs:
           version="$(./scripts/version.sh)"
           mkdir -p build/helm
           cp "build/coder_helm_${version}.tgz" build/helm
+          cp "build/provisioner_helm_${version}.tgz" build/helm
           gsutil cp gs://helm.coder.com/v2/index.yaml build/helm/index.yaml
           helm repo index build/helm --url https://helm.coder.com/v2 --merge build/helm/index.yaml
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/coder_helm_${version}.tgz gs://helm.coder.com/v2
+          gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/provisioner_helm_${version}.tgz gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp build/helm/index.yaml gs://helm.coder.com/v2
           gsutil -h "Cache-Control:no-cache,max-age=0" cp helm/artifacthub-repo.yml gs://helm.coder.com/v2
 
@@ -325,10 +328,85 @@ jobs:
           event-type: coder-release
           client-payload: '{"coder_version": "${{ steps.version.outputs.version }}"}'
 
+  publish-homebrew:
+    name: Publish to Homebrew tap
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ !inputs.dry_run }}
+
+    steps:
+      # TODO: skip this if it's not a new release (i.e. a backport). This is
+      #       fine right now because it just makes a PR that we can close.
+      - name: Update homebrew
+        env:
+          # Variables used by the `gh` command
+          GH_REPO: coder/homebrew-coder
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+        run: |
+          # Keep version number around for reference, removing any potential leading v
+          coder_version="$(echo "${{ needs.release.outputs.version }}" | tr -d v)"
+
+          set -euxo pipefail
+
+          # Setup Git
+          git config --global user.email "ci@coder.com"
+          git config --global user.name "Coder CI"
+          git config --global credential.helper "store"
+
+          temp_dir="$(mktemp -d)"
+          cd "$temp_dir"
+
+          # Download checksums
+          checksums_url="$(gh release view --repo coder/coder "v$coder_version" --json assets \
+            | jq -r ".assets | map(.url) | .[]" \
+            | grep -e ".checksums.txt\$")"
+          wget "$checksums_url" -O checksums.txt
+
+          # Get the SHAs
+          darwin_arm_sha="$(cat checksums.txt | grep "darwin_arm64.zip" | awk '{ print $1 }')"
+          darwin_intel_sha="$(cat checksums.txt | grep "darwin_amd64.zip" | awk '{ print $1 }')"
+          linux_sha="$(cat checksums.txt | grep "linux_amd64.tar.gz" | awk '{ print $1 }')"
+
+          echo "macOS arm64: $darwin_arm_sha"
+          echo "macOS amd64: $darwin_intel_sha"
+          echo "Linux amd64: $linux_sha"
+
+          # Check out the homebrew repo
+          git clone "https://github.com/$GH_REPO" homebrew-coder
+          brew_branch="auto-release/$coder_version"
+          cd homebrew-coder
+
+          # Check if a PR already exists.
+          pr_count="$(gh pr list --search "head:$brew_branch" --json id,closed | jq -r ".[] | select(.closed == false) | .id" | wc -l)"
+          if [[ "$pr_count" > 0 ]]; then
+            echo "Bailing out as PR already exists" 2>&1
+            exit 0
+          fi
+
+          # Set up cdrci credentials for pushing to homebrew-coder
+          echo "https://x-access-token:$GH_TOKEN@github.com" >> ~/.git-credentials
+          # Update the formulae and push
+          git checkout -b "$brew_branch"
+          ./scripts/update-v2.sh "$coder_version" "$darwin_arm_sha" "$darwin_intel_sha" "$linux_sha"
+          git add .
+          git commit -m "coder $coder_version"
+          git push -u origin -f "$brew_branch"
+
+          # Create PR
+          gh pr create \
+            -B master -H "$brew_branch" \
+            -t "coder $coder_version" \
+            -b "" \
+            -r "${{ github.actor }}" \
+            -a "${{ github.actor }}" \
+            -b "This automatic PR was triggered by the release of Coder v$coder_version"
+
   publish-winget:
     name: Publish to winget-pkgs
     runs-on: windows-latest
     needs: release
+    if: ${{ !inputs.dry_run }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -364,12 +442,6 @@ jobs:
           echo "Installer URL: ${installer_url}"
           echo "Package version: ${version}"
 
-          # Bail if dry-run.
-          if ($env:CODER_DRY_RUN -match "t") {
-            echo "Skipping submission due to dry-run."
-            exit 0
-          }
-
           # The URL "|X64" suffix forces the architecture as it cannot be
           # sniffed properly from the URL. wingetcreate checks both the URL and
           # binary magic bytes for the architecture and they need to both match,
@@ -393,7 +465,6 @@ jobs:
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
       - name: Comment on PR
-        if: ${{ !inputs.dry_run }}
         run: |
           # wait 30 seconds
           Start-Sleep -Seconds 30.0
@@ -408,4 +479,67 @@ jobs:
         env:
           # For gh CLI. We need a real token since we're commenting on a PR in a
           # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+  publish-chocolatey:
+    name: Publish to Chocolatey
+    runs-on: windows-latest
+    needs: release
+    if: ${{ !inputs.dry_run }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # Same reason as for release.
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      # From https://chocolatey.org
+      - name: Install Chocolatey
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+
+          iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+      - name: Build chocolatey package
+        run: |
+          cd scripts/chocolatey
+
+          # The package version is the same as the tag minus the leading "v".
+          # The version in this output already has the leading "v" removed but
+          # we do it again to be safe.
+          $version = "${{ needs.release.outputs.version }}".Trim('v')
+
+          $release_assets = gh release view --repo coder/coder "v${version}" --json assets | `
+            ConvertFrom-Json
+
+          # Get the URL for the Windows ZIP from the release assets.
+          $zip_url = $release_assets.assets | `
+            Where-Object name -Match ".*_windows_amd64.zip$" | `
+            Select -ExpandProperty url
+
+          echo "ZIP URL: ${zip_url}"
+          echo "Package version: ${version}"
+
+          echo "Downloading ZIP..."
+          Invoke-WebRequest $zip_url -OutFile assets.zip
+
+          echo "Extracting ZIP..."
+          Expand-Archive assets.zip -DestinationPath assets/
+
+          # No need to specify nuspec if there's only one in the directory.
+          choco pack --version=$version binary_path=assets/coder.exe
+
+          choco apikey --api-key $env:CHOCO_API_KEY --source https://push.chocolatey.org/
+
+          # No need to specify nupkg if there's only one in the directory.
+          choco push --source https://push.chocolatey.org/
+
+        env:
+          CHOCO_API_KEY: ${{ secrets.CHOCO_API_KEY }}
+          # We need a GitHub token for the gh CLI to function under GitHub Actions
           GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}

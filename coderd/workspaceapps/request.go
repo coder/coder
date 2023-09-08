@@ -12,8 +12,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type AccessMethod string
@@ -101,6 +101,10 @@ func (r Request) Normalize() Request {
 		if len(workspaceAndAgent) > 1 {
 			req.AgentNameOrID = workspaceAndAgent[1]
 		}
+	}
+
+	if !strings.HasSuffix(req.BasePath, "/") {
+		req.BasePath += "/"
 	}
 
 	return req

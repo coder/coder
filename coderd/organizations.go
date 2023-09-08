@@ -9,11 +9,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get organization by ID
@@ -69,8 +70,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      req.Name,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)
@@ -78,8 +79,8 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: organization.ID,
 			UserID:         apiKey.UserID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			Roles: []string{
 				// TODO: When organizations are allowed to be created, we should
 				// come back to determining the default role of the person who
@@ -94,7 +95,7 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 
 		_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 		if err != nil {
-			return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+			return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
 		}
 		return nil
 	}, nil)

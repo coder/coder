@@ -137,7 +137,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@v1.16.2
+        uses: crate-ci/typos@v1.16.10
         with:
           config: .github/workflows/typos.toml
 
@@ -188,16 +188,13 @@ jobs:
 
       - name: Install Protoc
         run: |
-          # protoc must be in lockstep with our dogfood Dockerfile or the
-          # version in the comments will differ. This is also defined in
-          # security.yaml
-          set -x
-          cd dogfood
-          DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
-          protoc_path=/usr/local/bin/protoc
-          docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
-          chmod +x $protoc_path
-          protoc --version
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
 
       - name: make gen
         run: "make --output-sync -j -B gen"
@@ -532,6 +529,24 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: go install tools
+        run: |
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/mikefarah/yq/v4@v4.30.6
+          go install github.com/golang/mock/mockgen@v1.6.0
+
+      - name: Install Protoc
+        run: |
+          mkdir -p /tmp/proto
+          pushd /tmp/proto
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          unzip protoc.zip
+          cp -r ./bin/* /usr/local/bin
+          cp -r ./include /usr/local/bin/include
+          popd
+
       - name: Build
         run: |
           make -B site/out/index.html
@@ -539,7 +554,7 @@ jobs:
       - run: pnpm playwright:install
         working-directory: site
 
-      - run: pnpm playwright:test
+      - run: pnpm playwright:test --workers 1
         env:
           DEBUG: pw:api
         working-directory: site
@@ -550,6 +565,14 @@ jobs:
         with:
           name: failed-test-videos
           path: ./site/test-results/**/*.webm
+          retention-days: 7
+
+      - name: Upload pprof dumps
+        if: always() && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && !github.event.pull_request.head.repo.fork
+        uses: actions/upload-artifact@v3
+        with:
+          name: debug-pprof-dumps
+          path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
   chromatic:
@@ -586,6 +609,7 @@ jobs:
           # https://www.chromatic.com/docs/github-actions#forked-repositories
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
@@ -611,6 +635,7 @@ jobs:
           buildScriptName: "storybook:build"
           projectToken: 695c25b6cb65
           workingDir: "./site"
+          storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
           # and tell chromatic to only take snapshots of relevent stories
           onlyChanged: true
@@ -640,9 +665,7 @@ jobs:
           go install github.com/golang/mock/mockgen@v1.6.0
 
       - name: Setup sqlc
-        uses: sqlc-dev/setup-sqlc@v3
-        with:
-          sqlc-version: "1.19.1"
+        uses: ./.github/actions/setup-sqlc
 
       - name: Format
         run: |

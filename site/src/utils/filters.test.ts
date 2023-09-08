@@ -1,5 +1,5 @@
-import * as TypesGen from "../api/typesGenerated"
-import { queryToFilter } from "./filters"
+import * as TypesGen from "../api/typesGenerated";
+import { queryToFilter } from "./filters";
 
 describe("queryToFilter", () => {
   it.each<
@@ -15,6 +15,6 @@ describe("queryToFilter", () => {
     ["    key:val      owner:me       ", { q: "key:val owner:me" }],
     ["status:failed", { q: "status:failed" }],
   ])(`query=%p, filter=%p`, (query, filter) => {
-    expect(queryToFilter(query)).toEqual(filter)
-  })
-})
+    expect(queryToFilter(query)).toEqual(filter);
+  });
+});

@@ -17,8 +17,8 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 //go:embed help.tpl
@@ -127,7 +127,7 @@ var usageTemplate = template.Must(
 				return opt.Flag
 			},
 			"prettyHeader": func(s string) string {
-				return cliui.DefaultStyles.Bold.Render(s)
+				return cliui.Bold(s)
 			},
 			"isEnterprise": func(opt clibase.Option) bool {
 				return opt.Annotations.IsSet("enterprise")

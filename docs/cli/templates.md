@@ -20,15 +20,15 @@ coder templates
 Templates are written in standard Terraform and describe the infrastructure for workspaces
   - Create a template for developers to create workspaces:
 
-      $ coder templates create
+     $ coder templates create
 
   - Make changes to your template, and plan the changes:
 
-      $ coder templates plan my-template
+     $ coder templates plan my-template
 
   - Push an update to the template. Your developers can update their workspaces:
 
-      $ coder templates push my-template
+     $ coder templates push my-template
 ```
 
 ## Subcommands
@@ -40,7 +40,6 @@ Templates are written in standard Terraform and describe the infrastructure for 
 | [<code>edit</code>](./templates_edit.md)         | Edit the metadata of a template by name.                                       |
 | [<code>init</code>](./templates_init.md)         | Get started with a templated template.                                         |
 | [<code>list</code>](./templates_list.md)         | List all the templates available for the organization                          |
-| [<code>plan</code>](./templates_plan.md)         | Plan a template push from the current directory                                |
 | [<code>pull</code>](./templates_pull.md)         | Download the latest version of a template to a path.                           |
 | [<code>push</code>](./templates_push.md)         | Push a new template version from the current directory or as specified by flag |
 | [<code>versions</code>](./templates_versions.md) | Manage different versions of the specified template                            |

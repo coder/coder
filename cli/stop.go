@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) stop() *clibase.Cmd {
@@ -47,7 +47,12 @@ func (r *RootCmd) stop() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been stopped at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(
+				inv.Stdout,
+				"\nThe %s workspace has been stopped at %s!\n", cliui.Keyword(workspace.Name),
+
+				cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

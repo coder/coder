@@ -168,6 +168,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "derp": {
       "config": {
         "block_direct": true,
+        "force_websockets": true,
         "path": "string",
         "url": "string"
       },
@@ -211,6 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
+    "external_token_encryption_keys": ["string"],
     "git_auth": {
       "value": [
         {
@@ -375,6 +377,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "trace": {
       "capture_logs": true,
+      "data_dog": true,
       "enable": true,
       "honeycomb_api_key": "string"
     },

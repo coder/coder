@@ -13,9 +13,10 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 const (
@@ -105,6 +106,8 @@ func New(ctx context.Context, opts ...Option) (*Batcher, func(), error) {
 		b.tickCh = b.ticker.C
 	}
 
+	b.initBuf(b.batchSize)
+
 	cancelCtx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
 	go func() {
@@ -135,7 +138,7 @@ func (b *Batcher) Add(
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	now = database.Time(now)
+	now = dbtime.Time(now)
 
 	b.buf.ID = append(b.buf.ID, uuid.New())
 	b.buf.CreatedAt = append(b.buf.CreatedAt, now)
@@ -172,7 +175,6 @@ func (b *Batcher) Add(
 
 // Run runs the batcher.
 func (b *Batcher) run(ctx context.Context) {
-	b.initBuf(b.batchSize)
 	// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
 	authCtx := dbauthz.AsSystemRestricted(ctx)
 	for {
@@ -183,8 +185,14 @@ func (b *Batcher) run(ctx context.Context) {
 			// If the flush lever is depressed, flush the buffer immediately.
 			b.flush(authCtx, true, "reaching capacity")
 		case <-ctx.Done():
-			b.log.Warn(ctx, "context done, flushing before exit")
-			b.flush(authCtx, true, "exit")
+			b.log.Debug(ctx, "context done, flushing before exit")
+
+			// We must create a new context here as the parent context is done.
+			ctxTimeout, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel() //nolint:revive // We're returning, defer is fine.
+
+			// nolint:gocritic // This is only ever used for one thing - inserting agent stats.
+			b.flush(dbauthz.AsSystemRestricted(ctxTimeout), true, "exit")
 			return
 		}
 	}

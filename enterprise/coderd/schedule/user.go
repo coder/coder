@@ -7,9 +7,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	agpl "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/database"
+	agpl "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 // enterpriseUserQuietHoursScheduleStore provides an
@@ -49,7 +50,7 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(ctx context.Contex
 		rawSchedule = s.defaultSchedule
 	}
 
-	sched, err := agpl.Daily(rawSchedule)
+	sched, err := cron.Daily(rawSchedule)
 	if err != nil {
 		// This shouldn't get hit during Gets, only Sets.
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("parse daily schedule %q: %w", rawSchedule, err)

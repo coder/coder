@@ -15,6 +15,7 @@ coder server [flags]
 | Name                                                                      | Purpose                                                                                                |
 | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
+| [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 
@@ -117,6 +118,16 @@ Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp
 | YAML        | <code>networking.derp.url</code>    |
 
 URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
+
+### --derp-force-websockets
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>bool</code>                            |
+| Environment | <code>$CODER_DERP_FORCE_WEBSOCKETS</code>    |
+| YAML        | <code>networking.derp.forceWebSockets</code> |
+
+Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.
 
 ### --derp-server-enable
 
@@ -262,6 +273,15 @@ Expose the swagger endpoint via /swagger.
 | YAML        | <code>experiments</code>        |
 
 Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+
+### --external-token-encryption-keys
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>string-array</code>                          |
+| Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
+
+Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.
 
 ### --provisioner-force-cancel-interval
 
@@ -613,7 +633,7 @@ The text to show on the OpenID Connect sign in button.
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 | YAML        | <code>oidc.iconURL</code>         |
 
-URL pointing to the icon to use on the OepnID Connect login button.
+URL pointing to the icon to use on the OpenID Connect login button.
 
 ### --provisioner-daemon-poll-interval
 

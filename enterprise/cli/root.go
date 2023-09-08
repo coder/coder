@@ -1,8 +1,8 @@
 package cli
 
 import (
-	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 type RootCmd struct {
@@ -11,7 +11,7 @@ type RootCmd struct {
 
 func (r *RootCmd) enterpriseOnly() []*clibase.Cmd {
 	return []*clibase.Cmd{
-		r.server(),
+		r.Server(nil),
 		r.workspaceProxy(),
 		r.features(),
 		r.licenses(),

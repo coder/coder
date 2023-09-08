@@ -1,16 +1,20 @@
-import { Meta, StoryObj } from "@storybook/react"
-import { createPaginationRef } from "components/PaginationWidget/utils"
+import { Meta, StoryObj } from "@storybook/react";
+import { createPaginationRef } from "components/PaginationWidget/utils";
 import {
   MockUser,
   MockUser2,
   MockAssignableSiteRoles,
   mockApiError,
-} from "testHelpers/entities"
-import { UsersPageView } from "./UsersPageView"
-import { ComponentProps } from "react"
-import { MockMenu, getDefaultFilterProps } from "components/Filter/storyHelpers"
+  MockAuthMethods,
+} from "testHelpers/entities";
+import { UsersPageView } from "./UsersPageView";
+import { ComponentProps } from "react";
+import {
+  MockMenu,
+  getDefaultFilterProps,
+} from "components/Filter/storyHelpers";
 
-type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"]
+type FilterProps = ComponentProps<typeof UsersPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
   query: "owner:me",
@@ -20,7 +24,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
   values: {
     status: "active",
   },
-})
+});
 
 const meta: Meta<typeof UsersPageView> = {
   title: "pages/UsersPageView",
@@ -33,27 +37,28 @@ const meta: Meta<typeof UsersPageView> = {
     count: 2,
     canEditUsers: true,
     filterProps: defaultFilterProps,
+    authMethods: MockAuthMethods,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof UsersPageView>
+export default meta;
+type Story = StoryObj<typeof UsersPageView>;
 
-export const Admin: Story = {}
+export const Admin: Story = {};
 
 export const SmallViewport = {
   parameters: {
     chromatic: { viewports: [600] },
   },
-}
+};
 
 export const Member = {
   args: { canEditUsers: false },
-}
+};
 
 export const Empty = {
   args: { users: [], count: 0 },
-}
+};
 
 export const EmptyPage = {
   args: {
@@ -61,7 +66,7 @@ export const EmptyPage = {
     count: 0,
     isNonInitialPage: true,
   },
-}
+};
 
 export const Error = {
   args: {
@@ -80,4 +85,4 @@ export const Error = {
       }),
     },
   },
-}
+};

@@ -19,7 +19,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
@@ -89,6 +89,7 @@ type Manifest struct {
 	VSCodePortProxyURI       string                                       `json:"vscode_port_proxy_uri"`
 	Apps                     []codersdk.WorkspaceApp                      `json:"apps"`
 	DERPMap                  *tailcfg.DERPMap                             `json:"derpmap"`
+	DERPForceWebSockets      bool                                         `json:"derp_force_websockets"`
 	EnvironmentVariables     map[string]string                            `json:"environment_variables"`
 	StartupScript            string                                       `json:"startup_script"`
 	StartupScriptTimeout     time.Duration                                `json:"startup_script_timeout"`

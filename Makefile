@@ -344,15 +344,19 @@ push/$(CODER_MAIN_IMAGE): $(CODER_MAIN_IMAGE)
 	docker manifest push "$$image_tag"
 .PHONY: push/$(CODER_MAIN_IMAGE)
 
+# Helm charts that are available
+charts = coder provisioner
+
 # Shortcut for Helm chart package.
-build/coder_helm.tgz: build/coder_helm_$(VERSION).tgz
+$(foreach chart,$(charts),build/$(chart)_helm.tgz): build/%_helm.tgz: build/%_helm_$(VERSION).tgz
 	rm -f "$@"
 	ln "$<" "$@"
 
 # Helm chart package.
-build/coder_helm_$(VERSION).tgz:
+$(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VERSION).tgz:
 	./scripts/helm.sh \
 		--version "$(VERSION)" \
+		--chart $* \
 		--output "$@"
 
 site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
@@ -452,10 +456,10 @@ DB_GEN_FILES := \
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
-	coderd/database/dump.sql \
-	$(DB_GEN_FILES) \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
+	coderd/database/dump.sql \
+	$(DB_GEN_FILES) \
 	site/src/api/typesGenerated.ts \
 	coderd/rbac/object_gen.go \
 	docs/admin/prometheus.md \
@@ -466,17 +470,19 @@ gen: \
 	.prettierignore \
 	site/.prettierrc.yaml \
 	site/.prettierignore \
-	site/.eslintignore
+	site/.eslintignore \
+	site/e2e/provisionerGenerated.ts \
+	examples/examples.gen.json
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
 	files="\
-		coderd/database/dump.sql \
-		$(DB_GEN_FILES) \
 		provisionersdk/proto/provisioner.pb.go \
 		provisionerd/proto/provisionerd.pb.go \
+		coderd/database/dump.sql \
+		$(DB_GEN_FILES) \
 		site/src/api/typesGenerated.ts \
 		coderd/rbac/object_gen.go \
 		docs/admin/prometheus.md \
@@ -488,6 +494,8 @@ gen/mark-fresh:
 		site/.prettierrc.yaml \
 		site/.prettierignore \
 		site/.eslintignore \
+		site/e2e/provisionerGenerated.ts \
+		examples/examples.gen.json \
 	"
 	for file in $$files; do
 		echo "$$file"
@@ -532,7 +540,16 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
 	cd site
-	pnpm run format:types
+	pnpm run format:types ./src/api/typesGenerated.ts
+
+site/e2e/provisionerGenerated.ts:
+	cd site
+	../scripts/pnpm_install.sh
+	pnpm run gen:provisioner
+
+
+examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
+	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
 coderd/rbac/object_gen.go: scripts/rbacgen/main.go coderd/rbac/object.go
 	go run scripts/rbacgen/main.go ./coderd/rbac > coderd/rbac/object_gen.go
@@ -541,8 +558,8 @@ docs/admin/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/me
 	go run scripts/metricsdocgen/main.go
 	pnpm run format:write:only ./docs/admin/prometheus.md
 
-docs/cli.md: scripts/clidocgen/main.go $(GO_SRC_FILES)
-	BASE_PATH="." go run ./scripts/clidocgen
+docs/cli.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
+	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm run format:write:only ./docs/cli.md ./docs/cli/*.md ./docs/manifest.json
 
 docs/admin/audit-logs.md: scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
@@ -553,7 +570,7 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 	./scripts/apidocgen/generate.sh
 	pnpm run format:write:only ./docs/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
-update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden
+update-golden-files: cli/testdata/.gen-golden helm/coder/tests/testdata/.gen-golden helm/provisioner/tests/testdata/.gen-golden scripts/ci-report/testdata/.gen-golden enterprise/cli/testdata/.gen-golden coderd/.gen-golden
 .PHONY: update-golden-files
 
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
@@ -570,6 +587,10 @@ helm/coder/tests/testdata/.gen-golden: $(wildcard helm/coder/tests/testdata/*.ya
 
 helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/testdata/*.yaml) $(wildcard helm/provisioner/tests/testdata/*.golden) $(GO_SRC_FILES) $(wildcard helm/provisioner/tests/*_test.go)
 	go test ./helm/provisioner/tests -run=TestUpdateGoldenFiles -update
+	touch "$@"
+
+coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
+	go test ./coderd -run="Test.*Golden$$" -update
 	touch "$@"
 
 scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
@@ -590,7 +611,7 @@ site/.prettierrc.yaml: .prettierrc.yaml
 	# - ./ -> ../
 	# - ./site -> ./
 	yq \
-		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./"))' \
+		'.overrides[].files |= map(. | sub("^./"; "") | sub("^"; "../") | sub("../site/"; "./") | sub("../!"; "!../"))' \
 		"$<" >> "$@"
 
 # Combine .gitignore with .prettierignore.include to generate .prettierignore.

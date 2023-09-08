@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 )
 
 func Test_RequestValidate(t *testing.T) {
@@ -15,6 +15,7 @@ func Test_RequestValidate(t *testing.T) {
 	cases := []struct {
 		name        string
 		req         workspaceapps.Request
+		noNormalize bool
 		errContains string
 	}{
 		{
@@ -90,6 +91,7 @@ func Test_RequestValidate(t *testing.T) {
 				AgentNameOrID:     "baz",
 				AppSlugOrPort:     "qux",
 			},
+			noNormalize: true,
 			errContains: "base path is required",
 		},
 		{
@@ -215,7 +217,10 @@ func Test_RequestValidate(t *testing.T) {
 		c := c
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			req := c.req.Normalize()
+			req := c.req
+			if !c.noNormalize {
+				req = c.req.Normalize()
+			}
 			err := req.Validate()
 			if c.errContains == "" {
 				require.NoError(t, err)

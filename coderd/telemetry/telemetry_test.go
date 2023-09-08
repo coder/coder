@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,12 +16,13 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -76,9 +77,9 @@ func TestTelemetry(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
+			UploadedAt: dbtime.Now(),
 			JWT:        "",
-			Exp:        database.Now().Add(time.Hour),
+			Exp:        dbtime.Now().Add(time.Hour),
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)

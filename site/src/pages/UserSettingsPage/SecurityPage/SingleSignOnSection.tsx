@@ -1,29 +1,29 @@
-import { useState } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
-import TextField from "@mui/material/TextField"
-import Box from "@mui/material/Box"
-import GitHubIcon from "@mui/icons-material/GitHub"
-import KeyIcon from "@mui/icons-material/VpnKey"
-import Button from "@mui/material/Button"
-import Typography from "@mui/material/Typography"
-import { convertToOAUTH } from "api/api"
-import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated"
-import Skeleton from "@mui/material/Skeleton"
-import { Stack } from "components/Stack/Stack"
-import { useMutation } from "@tanstack/react-query"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { getErrorMessage } from "api/errors"
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
+import { useState } from "react";
+import { Section } from "../../../components/SettingsLayout/Section";
+import TextField from "@mui/material/TextField";
+import Box from "@mui/material/Box";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import KeyIcon from "@mui/icons-material/VpnKey";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
+import { convertToOAUTH } from "api/api";
+import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated";
+import Skeleton from "@mui/material/Skeleton";
+import { Stack } from "components/Stack/Stack";
+import { useMutation } from "@tanstack/react-query";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { getErrorMessage } from "api/errors";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 
 type LoginTypeConfirmation =
   | {
-      open: false
-      selectedType: undefined
+      open: false;
+      selectedType: undefined;
     }
   | {
-      open: true
-      selectedType: LoginType
-    }
+      open: true;
+      selectedType: LoginType;
+    };
 
 export const redirectToOIDCAuth = (
   toType: string,
@@ -32,24 +32,24 @@ export const redirectToOIDCAuth = (
 ) => {
   switch (toType) {
     case "github":
-      window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
-      break
+      window.location.href = `/api/v2/users/oauth2/github/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+      break;
     case "oidc":
-      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`
-      break
+      window.location.href = `/api/v2/users/oidc/callback?oidc_merge_state=${stateString}&redirect=${redirectTo}`;
+      break;
     default:
-      throw new Error(`Unknown login type ${toType}`)
+      throw new Error(`Unknown login type ${toType}`);
   }
-}
+};
 
 export const useSingleSignOnSection = () => {
   const [loginTypeConfirmation, setLoginTypeConfirmation] =
-    useState<LoginTypeConfirmation>({ open: false, selectedType: undefined })
+    useState<LoginTypeConfirmation>({ open: false, selectedType: undefined });
 
   const mutation = useMutation(convertToOAUTH, {
     onSuccess: (data) => {
       const loginTypeMsg =
-        data.to_type === "github" ? "Github" : "OpenID Connect"
+        data.to_type === "github" ? "Github" : "OpenID Connect";
       redirectToOIDCAuth(
         data.to_type,
         data.state_string,
@@ -58,28 +58,28 @@ export const useSingleSignOnSection = () => {
         encodeURIComponent(
           `/login?info=Login type has been changed to ${loginTypeMsg}. Log in again using the new method.`,
         ),
-      )
+      );
     },
-  })
+  });
 
   const openConfirmation = (selectedType: LoginType) => {
-    setLoginTypeConfirmation({ open: true, selectedType })
-  }
+    setLoginTypeConfirmation({ open: true, selectedType });
+  };
 
   const closeConfirmation = () => {
-    setLoginTypeConfirmation({ open: false, selectedType: undefined })
-    mutation.reset()
-  }
+    setLoginTypeConfirmation({ open: false, selectedType: undefined });
+    mutation.reset();
+  };
 
   const confirm = (password: string) => {
     if (!loginTypeConfirmation.selectedType) {
-      throw new Error("No login type selected")
+      throw new Error("No login type selected");
     }
     mutation.mutate({
       to_type: loginTypeConfirmation.selectedType,
       password,
-    })
-  }
+    });
+  };
 
   return {
     openConfirmation,
@@ -90,13 +90,13 @@ export const useSingleSignOnSection = () => {
     isUpdating: mutation.isLoading || mutation.isSuccess,
     isConfirming: loginTypeConfirmation.open,
     error: mutation.error,
-  }
-}
+  };
+};
 
 type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
-  authMethods: AuthMethods
-  userLoginType: UserLoginType
-}
+  authMethods: AuthMethods;
+  userLoginType: UserLoginType;
+};
 
 export const SingleSignOnSection = ({
   authMethods,
@@ -195,8 +195,8 @@ export const SingleSignOnSection = ({
         onConfirm={confirm}
       />
     </>
-  )
-}
+  );
+};
 
 const OIDCIcon = ({ authMethods }: { authMethods: AuthMethods }) => {
   return authMethods.oidc.iconUrl ? (
@@ -208,12 +208,12 @@ const OIDCIcon = ({ authMethods }: { authMethods: AuthMethods }) => {
     />
   ) : (
     <KeyIcon sx={{ width: 16, height: 16 }} />
-  )
-}
+  );
+};
 
 const getOIDCLabel = (authMethods: AuthMethods) => {
-  return authMethods.oidc.signInText || "OpenID Connect"
-}
+  return authMethods.oidc.signInText || "OpenID Connect";
+};
 
 const ConfirmLoginTypeChangeModal = ({
   open,
@@ -222,23 +222,23 @@ const ConfirmLoginTypeChangeModal = ({
   onClose,
   onConfirm,
 }: {
-  open: boolean
-  loading: boolean
-  error: unknown
-  onClose: () => void
-  onConfirm: (password: string) => void
+  open: boolean;
+  loading: boolean;
+  error: unknown;
+  onClose: () => void;
+  onConfirm: (password: string) => void;
 }) => {
-  const [password, setPassword] = useState("")
+  const [password, setPassword] = useState("");
 
   const handleConfirm = () => {
-    onConfirm(password)
-  }
+    onConfirm(password);
+  };
 
   return (
     <ConfirmDialog
       open={open}
       onClose={() => {
-        onClose()
+        onClose();
       }}
       onConfirm={handleConfirm}
       hideCancel={false}
@@ -256,7 +256,7 @@ const ConfirmLoginTypeChangeModal = ({
             autoFocus
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleConfirm()
+                handleConfirm();
               }
             }}
             error={Boolean(error)}
@@ -275,5 +275,5 @@ const ConfirmLoginTypeChangeModal = ({
         </Stack>
       }
     />
-  )
-}
+  );
+};

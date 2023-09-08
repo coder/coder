@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -11,16 +13,17 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionerd"
-	provisionerdproto "github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionerd"
+	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func (r *RootCmd) provisionerDaemons() *clibase.Cmd {
@@ -65,9 +68,31 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				return err
 			}
 
+			logger := slog.Make(sloghuman.Sink(inv.Stderr))
+			if ok, _ := inv.ParsedFlags().GetBool("verbose"); ok {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
+
+			if len(tags) != 0 {
+				logger.Info(ctx, "note: tagged provisioners can currently pick up jobs from untagged templates")
+				logger.Info(ctx, "see https://github.com/coder/coder/issues/6442 for details")
+			}
+
+			// When authorizing with a PSK, we automatically scope the provisionerd
+			// to organization. Scoping to user with PSK auth is not a valid configuration.
+			if preSharedKey != "" {
+				logger.Info(ctx, "psk auth automatically sets tag "+provisionerdserver.TagScope+"="+provisionerdserver.ScopeOrganization)
+				tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
+			}
+
 			err = os.MkdirAll(cacheDir, 0o700)
 			if err != nil {
 				return xerrors.Errorf("mkdir %q: %w", cacheDir, err)
+			}
+
+			tempDir, err := os.MkdirTemp("", "provisionerd")
+			if err != nil {
+				return err
 			}
 
 			terraformClient, terraformServer := provisionersdk.MemTransportPipe()
@@ -77,17 +102,17 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				_ = terraformServer.Close()
 			}()
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr))
 			errCh := make(chan error, 1)
 			go func() {
 				defer cancel()
 
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
-						Listener: terraformServer,
+						Listener:      terraformServer,
+						Logger:        logger.Named("terraform"),
+						WorkDirectory: tempDir,
 					},
 					CachePath: cacheDir,
-					Logger:    logger.Named("terraform"),
 				})
 				if err != nil && !xerrors.Is(err, context.Canceled) {
 					select {
@@ -97,14 +122,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				}
 			}()
 
-			tempDir, err := os.MkdirTemp("", "provisionerd")
-			if err != nil {
-				return err
-			}
-
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
-			provisioners := provisionerd.Provisioners{
+			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
@@ -120,15 +140,14 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				JobPollInterval: pollInterval,
 				JobPollJitter:   pollJitter,
 				UpdateInterval:  500 * time.Millisecond,
-				Provisioners:    provisioners,
-				WorkDirectory:   tempDir,
+				Connector:       connector,
 			})
 
 			var exitErr error
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-errCh:

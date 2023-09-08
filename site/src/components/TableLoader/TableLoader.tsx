@@ -1,13 +1,11 @@
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import TableRow from "@mui/material/TableRow"
-import Skeleton from "@mui/material/Skeleton"
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton"
-import { FC } from "react"
-import { Loader } from "../Loader/Loader"
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import TableRow, { TableRowProps } from "@mui/material/TableRow";
+import { FC, ReactNode, cloneElement, isValidElement } from "react";
+import { Loader } from "../Loader/Loader";
 
 export const TableLoader: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <TableRow>
@@ -15,45 +13,37 @@ export const TableLoader: FC = () => {
         <Loader />
       </TableCell>
     </TableRow>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   cell: {
     textAlign: "center",
     height: theme.spacing(20),
   },
-}))
+}));
 
-export const TableLoaderSkeleton: FC<{
-  columns: number
-  rows?: number
-  useAvatarData?: boolean
-}> = ({ columns, rows = 4, useAvatarData = false }) => {
-  const placeholderColumns = Array(columns).fill(undefined)
-  const placeholderRows = Array(rows).fill(undefined)
-
+export const TableLoaderSkeleton = ({
+  rows = 4,
+  children,
+}: {
+  rows?: number;
+  children: ReactNode;
+}) => {
+  if (!isValidElement(children)) {
+    throw new Error(
+      "TableLoaderSkeleton children must be a valid React element",
+    );
+  }
   return (
     <>
-      {placeholderRows.map((_, rowIndex) => (
-        <TableRow key={rowIndex} role="progressbar" data-testid="loader">
-          {placeholderColumns.map((_, columnIndex) => {
-            if (useAvatarData && columnIndex === 0) {
-              return (
-                <TableCell key={columnIndex}>
-                  <AvatarDataSkeleton />
-                </TableCell>
-              )
-            }
-
-            return (
-              <TableCell key={columnIndex}>
-                <Skeleton variant="text" width="25%" />
-              </TableCell>
-            )
-          })}
-        </TableRow>
-      ))}
+      {Array.from({ length: rows }, (_, i) =>
+        cloneElement(children, { key: i }),
+      )}
     </>
-  )
-}
+  );
+};
+
+export const TableRowSkeleton = (props: TableRowProps) => {
+  return <TableRow role="progressbar" data-testid="loader" {...props} />;
+};

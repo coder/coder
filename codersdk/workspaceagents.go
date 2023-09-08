@@ -20,8 +20,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -133,6 +133,16 @@ type WorkspaceAgentMetadata struct {
 	Description WorkspaceAgentMetadataDescription `json:"description"`
 }
 
+type DisplayApp string
+
+const (
+	DisplayAppVSCodeDesktop  DisplayApp = "vscode"
+	DisplayAppVSCodeInsiders DisplayApp = "vscode_insiders"
+	DisplayAppWebTerminal    DisplayApp = "web_terminal"
+	DisplayAppPortForward    DisplayApp = "port_forwarding_helper"
+	DisplayAppSSH            DisplayApp = "ssh_helper"
+)
+
 type WorkspaceAgent struct {
 	ID                          uuid.UUID                           `json:"id" format:"uuid"`
 	CreatedAt                   time.Time                           `json:"created_at" format:"date-time"`
@@ -169,6 +179,7 @@ type WorkspaceAgent struct {
 	ShutdownScriptTimeoutSeconds int32                `json:"shutdown_script_timeout_seconds"`
 	Subsystems                   []AgentSubsystem     `json:"subsystems"`
 	Health                       WorkspaceAgentHealth `json:"health"` // Health reports the health of the agent.
+	DisplayApps                  []DisplayApp         `json:"display_apps"`
 }
 
 type WorkspaceAgentHealth struct {
@@ -186,6 +197,7 @@ type DERPRegion struct {
 // @typescript-ignore WorkspaceAgentConnectionInfo
 type WorkspaceAgentConnectionInfo struct {
 	DERPMap                  *tailcfg.DERPMap `json:"derp_map"`
+	DERPForceWebSockets      bool             `json:"derp_force_websockets"`
 	DisableDirectConnections bool             `json:"disable_direct_connections"`
 }
 
@@ -247,11 +259,12 @@ func (c *Client) DialWorkspaceAgent(ctx context.Context, agentID uuid.UUID, opti
 		header = headerTransport.Header()
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      []netip.Prefix{netip.PrefixFrom(ip, 128)},
-		DERPMap:        connInfo.DERPMap,
-		DERPHeader:     &header,
-		Logger:         options.Logger,
-		BlockEndpoints: c.DisableDirectConnections || options.BlockEndpoints,
+		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
+		DERPMap:             connInfo.DERPMap,
+		DERPHeader:          &header,
+		DERPForceWebSockets: connInfo.DERPForceWebSockets,
+		Logger:              options.Logger,
+		BlockEndpoints:      c.DisableDirectConnections || options.BlockEndpoints,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

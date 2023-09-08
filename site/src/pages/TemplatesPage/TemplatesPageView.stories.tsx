@@ -1,4 +1,4 @@
-import { ComponentMeta, Story } from "@storybook/react"
+import { ComponentMeta, Story } from "@storybook/react";
 import {
   mockApiError,
   MockOrganization,
@@ -6,19 +6,19 @@ import {
   MockTemplate,
   MockTemplateExample,
   MockTemplateExample2,
-} from "../../testHelpers/entities"
-import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
+} from "../../testHelpers/entities";
+import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView";
 
 export default {
   title: "pages/TemplatesPageView",
   component: TemplatesPageView,
-} as ComponentMeta<typeof TemplatesPageView>
+} as ComponentMeta<typeof TemplatesPageView>;
 
 const Template: Story<TemplatesPageViewProps> = (args) => (
   <TemplatesPageView {...args} />
-)
+);
 
-export const WithTemplates = Template.bind({})
+export const WithTemplates = Template.bind({});
 WithTemplates.args = {
   context: {
     organizationId: MockOrganization.id,
@@ -46,17 +46,17 @@ WithTemplates.args = {
     ],
     examples: [],
   },
-}
+};
 
-export const WithTemplatesSmallViewPort = Template.bind({})
+export const WithTemplatesSmallViewPort = Template.bind({});
 WithTemplatesSmallViewPort.args = {
   ...WithTemplates.args,
-}
+};
 WithTemplatesSmallViewPort.parameters = {
   chromatic: { viewports: [600] },
-}
+};
 
-export const EmptyCanCreate = Template.bind({})
+export const EmptyCanCreate = Template.bind({});
 EmptyCanCreate.args = {
   context: {
     organizationId: MockOrganization.id,
@@ -65,9 +65,9 @@ EmptyCanCreate.args = {
     templates: [],
     examples: [MockTemplateExample, MockTemplateExample2],
   },
-}
+};
 
-export const EmptyCannotCreate = Template.bind({})
+export const EmptyCannotCreate = Template.bind({});
 EmptyCannotCreate.args = {
   context: {
     organizationId: MockOrganization.id,
@@ -79,9 +79,9 @@ EmptyCannotCreate.args = {
     templates: [],
     examples: [MockTemplateExample, MockTemplateExample2],
   },
-}
+};
 
-export const Error = Template.bind({})
+export const Error = Template.bind({});
 Error.args = {
   context: {
     organizationId: MockOrganization.id,
@@ -95,4 +95,4 @@ Error.args = {
     templates: undefined,
     examples: undefined,
   },
-}
+};

@@ -39,7 +39,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -82,6 +82,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -201,7 +202,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -244,6 +245,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -545,6 +547,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
         "created_at": "2019-08-24T14:15:22Z",
         "directory": "string",
         "disconnected_at": "2019-08-24T14:15:22Z",
+        "display_apps": ["vscode"],
         "environment_variables": {
           "property1": "string",
           "property2": "string"
@@ -643,6 +646,7 @@ Status Code **200**
 | `»» created_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» directory`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» disconnected_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»» display_apps`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» environment_variables`           | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -759,7 +763,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -802,6 +806,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -926,7 +931,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "error_code": "MISSING_TEMPLATE_PARAMETER",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "queue_position": 0,
@@ -969,6 +974,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -1103,6 +1109,7 @@ Status Code **200**
 | `»»» created_at`                      | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» directory`                       | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» disconnected_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
+| `»»» display_apps`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»»» environment_variables`           | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» [any property]`                 | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» expanded_directory`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1163,7 +1170,6 @@ Status Code **200**
 
 | Property                  | Value                         |
 | ------------------------- | ----------------------------- |
-| `error_code`              | `MISSING_TEMPLATE_PARAMETER`  |
 | `error_code`              | `REQUIRED_TEMPLATE_VARIABLES` |
 | `status`                  | `pending`                     |
 | `status`                  | `running`                     |
@@ -1273,7 +1279,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -1316,6 +1322,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"

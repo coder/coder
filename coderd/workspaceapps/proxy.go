@@ -18,13 +18,14 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/site"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/site"
 )
 
 const (
@@ -109,7 +110,8 @@ type Server struct {
 	DisablePathApps  bool
 	SecureAuthCookie bool
 
-	AgentProvider AgentProvider
+	AgentProvider  AgentProvider
+	StatsCollector *StatsCollector
 
 	websocketWaitMutex sync.Mutex
 	websocketWaitGroup sync.WaitGroup
@@ -121,6 +123,10 @@ func (s *Server) Close() error {
 	s.websocketWaitMutex.Lock()
 	s.websocketWaitGroup.Wait()
 	s.websocketWaitMutex.Unlock()
+
+	if s.StatsCollector != nil {
+		_ = s.StatsCollector.Close()
+	}
 
 	// The caller must close the SignedTokenProvider and the AgentProvider (if
 	// necessary).
@@ -214,8 +220,12 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	// We don't set an expiration because the key in the database already has an
 	// expiration, and expired tokens don't affect the user experience (they get
 	// auto-redirected to re-smuggle the API key).
+	//
+	// We use different cookie names for path apps and for subdomain apps to
+	// avoid both being set and sent to the server at the same time and the
+	// server using the wrong value.
 	http.SetCookie(rw, &http.Cookie{
-		Name:     codersdk.DevURLSessionTokenCookie,
+		Name:     AppConnectSessionTokenCookieName(accessMethod),
 		Value:    token,
 		Domain:   domain,
 		Path:     "/",
@@ -246,8 +256,8 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request) {
 	if s.DisablePathApps {
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-			Status:       http.StatusUnauthorized,
-			Title:        "Unauthorized",
+			Status:       http.StatusForbidden,
+			Title:        "Forbidden",
 			Description:  "Path-based applications are disabled on this Coder deployment by the administrator.",
 			RetryEnabled: false,
 			DashboardURL: s.DashboardURL.String(),
@@ -586,6 +596,14 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	// end span so we don't get long lived trace data
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
+	report := newStatsReportFromSignedToken(appToken)
+	s.collectStats(report)
+	defer func() {
+		// We must use defer here because ServeHTTP may panic.
+		report.SessionEndedAt = dbtime.Now()
+		s.collectStats(report)
+	}()
+
 	proxy.ServeHTTP(rw, r)
 }
 
@@ -678,8 +696,22 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 	}
 	defer ptNetConn.Close()
 	log.Debug(ctx, "obtained PTY")
+
+	report := newStatsReportFromSignedToken(*appToken)
+	s.collectStats(report)
+	defer func() {
+		report.SessionEndedAt = dbtime.Now()
+		s.collectStats(report)
+	}()
+
 	agentssh.Bicopy(ctx, wsNetConn, ptNetConn)
 	log.Debug(ctx, "pty Bicopy finished")
+}
+
+func (s *Server) collectStats(stats StatsReport) {
+	if s.StatsCollector != nil {
+		s.StatsCollector.Collect(stats)
+	}
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

@@ -1,16 +1,16 @@
-import { Meta, StoryFn } from "@storybook/react"
-import GitAuthPageView, { GitAuthPageViewProps } from "./GitAuthPageView"
+import { Meta, StoryFn } from "@storybook/react";
+import GitAuthPageView, { GitAuthPageViewProps } from "./GitAuthPageView";
 
 export default {
   title: "pages/GitAuthPageView",
   component: GitAuthPageView,
-} as Meta<typeof GitAuthPageView>
+} as Meta<typeof GitAuthPageView>;
 
 const Template: StoryFn<GitAuthPageViewProps> = (args) => (
   <GitAuthPageView {...args} />
-)
+);
 
-export const WebAuthenticated = Template.bind({})
+export const WebAuthenticated = Template.bind({});
 WebAuthenticated.args = {
   gitAuth: {
     type: "BitBucket",
@@ -26,9 +26,9 @@ WebAuthenticated.args = {
       profile_url: "",
     },
   },
-}
+};
 
-export const DeviceUnauthenticated = Template.bind({})
+export const DeviceUnauthenticated = Template.bind({});
 DeviceUnauthenticated.args = {
   gitAuth: {
     type: "GitHub",
@@ -45,9 +45,9 @@ DeviceUnauthenticated.args = {
     user_code: "ABCD-EFGH",
     verification_uri: "",
   },
-}
+};
 
-export const DeviceUnauthenticatedError = Template.bind({})
+export const DeviceUnauthenticatedError = Template.bind({});
 DeviceUnauthenticatedError.args = {
   gitAuth: {
     type: "GitHub",
@@ -68,9 +68,9 @@ DeviceUnauthenticatedError.args = {
     message: "Error exchanging device code.",
     detail: "expired_token",
   },
-}
+};
 
-export const DeviceAuthenticatedNotInstalled = Template.bind({})
+export const DeviceAuthenticatedNotInstalled = Template.bind({});
 DeviceAuthenticatedNotInstalled.args = {
   viewGitAuthConfig: true,
   gitAuth: {
@@ -87,9 +87,9 @@ DeviceAuthenticatedNotInstalled.args = {
       profile_url: "",
     },
   },
-}
+};
 
-export const DeviceAuthenticatedInstalled = Template.bind({})
+export const DeviceAuthenticatedInstalled = Template.bind({});
 DeviceAuthenticatedInstalled.args = {
   gitAuth: {
     type: "GitHub",
@@ -116,4 +116,4 @@ DeviceAuthenticatedInstalled.args = {
       profile_url: "",
     },
   },
-}
+};

@@ -16,13 +16,13 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 // Returns provisioner logs based on query parameters.
@@ -402,7 +402,7 @@ func (f *logFollower) follow() {
 				if f.ctx.Err() == nil && !xerrors.Is(err, io.EOF) {
 					// neither context expiry, nor EOF, close and log
 					f.logger.Error(f.ctx, "failed to query logs", slog.Error(err))
-					err = f.conn.Close(websocket.StatusInternalError, err.Error())
+					err = f.conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("%s", err.Error()))
 					if err != nil {
 						f.logger.Warn(f.ctx, "failed to close webscoket", slog.Error(err))
 					}

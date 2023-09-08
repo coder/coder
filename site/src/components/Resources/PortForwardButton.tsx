@@ -1,59 +1,61 @@
-import Link from "@mui/material/Link"
-import Popover from "@mui/material/Popover"
-import { makeStyles } from "@mui/styles"
-import { useRef, useState } from "react"
-import { colors } from "theme/colors"
+import Link from "@mui/material/Link";
+import Popover from "@mui/material/Popover";
+import { makeStyles } from "@mui/styles";
+import { useRef, useState } from "react";
+import { colors } from "theme/colors";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
   HelpTooltipTitle,
-} from "../Tooltips/HelpTooltip"
-import { SecondaryAgentButton } from "components/Resources/AgentButton"
-import { docs } from "utils/docs"
-import Box from "@mui/material/Box"
-import { useQuery } from "@tanstack/react-query"
-import { getAgentListeningPorts } from "api/api"
-import { WorkspaceAgentListeningPort } from "api/typesGenerated"
-import CircularProgress from "@mui/material/CircularProgress"
-import { portForwardURL } from "utils/portForward"
-import { MockListeningPortsResponse } from "testHelpers/entities"
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+} from "components/HelpTooltip/HelpTooltip";
+import { SecondaryAgentButton } from "components/Resources/AgentButton";
+import { docs } from "utils/docs";
+import Box from "@mui/material/Box";
+import { useQuery } from "@tanstack/react-query";
+import { getAgentListeningPorts } from "api/api";
+import {
+  WorkspaceAgent,
+  WorkspaceAgentListeningPort,
+} from "api/typesGenerated";
+import CircularProgress from "@mui/material/CircularProgress";
+import { portForwardURL } from "utils/portForward";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 
 export interface PortForwardButtonProps {
-  host: string
-  username: string
-  workspaceName: string
-  agentName: string
-  agentId: string
+  host: string;
+  username: string;
+  workspaceName: string;
+  agent: WorkspaceAgent;
 }
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "schedule-popover" : undefined
-  const styles = useStyles()
-  const { data: listeningPorts } = useQuery({
-    queryKey: ["portForward", props.agentId],
-    queryFn: () => getAgentListeningPorts(props.agentId),
-    initialData: MockListeningPortsResponse,
-  })
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "schedule-popover" : undefined;
+  const styles = useStyles();
+  const portsQuery = useQuery({
+    queryKey: ["portForward", props.agent.id],
+    queryFn: () => getAgentListeningPorts(props.agent.id),
+    enabled: props.agent.status === "connected",
+    refetchInterval: 5_000,
+  });
 
   const onClose = () => {
-    setIsOpen(false)
-  }
+    setIsOpen(false);
+  };
 
   return (
     <>
       <SecondaryAgentButton
-        disabled={!listeningPorts}
+        disabled={!portsQuery.data}
         ref={anchorRef}
         onClick={() => {
-          setIsOpen(true)
+          setIsOpen(true);
         }}
       >
         Ports
-        {listeningPorts ? (
+        {portsQuery.data ? (
           <Box
             sx={{
               fontSize: 12,
@@ -69,7 +71,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
               ml: 1,
             }}
           >
-            {listeningPorts.ports.length}
+            {portsQuery.data.ports.length}
           </Box>
         ) : (
           <CircularProgress size={10} sx={{ ml: 1 }} />
@@ -90,16 +92,16 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
           horizontal: "right",
         }}
       >
-        <PortForwardPopoverView {...props} ports={listeningPorts?.ports} />
+        <PortForwardPopoverView {...props} ports={portsQuery.data?.ports} />
       </Popover>
     </>
-  )
-}
+  );
+};
 
 export const PortForwardPopoverView: React.FC<
   PortForwardButtonProps & { ports?: WorkspaceAgentListeningPort[] }
 > = (props) => {
-  const { host, workspaceName, agentName, username, ports } = props
+  const { host, workspaceName, agent, username, ports } = props;
 
   return (
     <>
@@ -122,11 +124,11 @@ export const PortForwardPopoverView: React.FC<
             const url = portForwardURL(
               host,
               p.port,
-              agentName,
+              agent.name,
               workspaceName,
               username,
-            )
-            const label = p.process_name !== "" ? p.process_name : p.port
+            );
+            const label = p.process_name !== "" ? p.process_name : p.port;
             return (
               <Link
                 underline="none"
@@ -158,7 +160,7 @@ export const PortForwardPopoverView: React.FC<
                   {p.port}
                 </Box>
               </Link>
-            )
+            );
           })}
         </Box>
       </Box>
@@ -188,17 +190,17 @@ export const PortForwardPopoverView: React.FC<
             },
           }}
           onSubmit={(e) => {
-            e.preventDefault()
-            const formData = new FormData(e.currentTarget)
-            const port = Number(formData.get("portNumber"))
+            e.preventDefault();
+            const formData = new FormData(e.currentTarget);
+            const port = Number(formData.get("portNumber"));
             const url = portForwardURL(
               host,
               port,
-              agentName,
+              agent.name,
               workspaceName,
               username,
-            )
-            window.open(url, "_blank")
+            );
+            window.open(url, "_blank");
           }}
         >
           <Box
@@ -241,8 +243,8 @@ export const PortForwardPopoverView: React.FC<
         </HelpTooltipLinksGroup>
       </Box>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   popoverPaper: {
@@ -270,4 +272,4 @@ const useStyles = makeStyles((theme) => ({
   form: {
     margin: theme.spacing(2, 0),
   },
-}))
+}));

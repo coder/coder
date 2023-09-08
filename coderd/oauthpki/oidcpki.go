@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -21,7 +20,7 @@ import (
 	"golang.org/x/oauth2/jws"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 // Config uses jwt assertions over client_secret for oauth2 authentication of
@@ -216,7 +215,10 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	var tokenRes struct {
-		oauth2.Token
+		AccessToken  string `json:"access_token"`
+		TokenType    string `json:"token_type,omitempty"`
+		RefreshToken string `json:"refresh_token,omitempty"`
+
 		// Extra fields returned by the refresh that are needed
 		IDToken   string `json:"id_token"`
 		ExpiresIn int64  `json:"expires_in"` // relative seconds from now
@@ -243,7 +245,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 	}
 
 	if unmarshalError != nil {
-		return nil, fmt.Errorf("oauth2: cannot unmarshal token: %w", err)
+		return nil, xerrors.Errorf("oauth2: cannot unmarshal token: %w", err)
 	}
 
 	newToken := &oauth2.Token{
@@ -264,7 +266,7 @@ func (src *jwtTokenSource) Token() (*oauth2.Token, error) {
 		// decode returned id token to get expiry
 		claimSet, err := jws.Decode(v)
 		if err != nil {
-			return nil, fmt.Errorf("oauth2: error decoding JWT token: %w", err)
+			return nil, xerrors.Errorf("oauth2: error decoding JWT token: %w", err)
 		}
 		newToken.Expiry = time.Unix(claimSet.Exp, 0)
 	}

@@ -1,23 +1,20 @@
-import { Workspace } from "api/typesGenerated"
-import { Pill } from "components/Pill/Pill"
-import { FC, PropsWithChildren } from "react"
-import { makeStyles } from "@mui/styles"
-import { combineClasses } from "utils/combineClasses"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import {
-  LockedBadge,
-  ImpendingDeletionText,
-} from "components/WorkspaceDeletion"
-import { getDisplayWorkspaceStatus } from "utils/workspace"
-import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip"
-import { styled } from "@mui/material/styles"
-import Box from "@mui/material/Box"
-import ErrorOutline from "@mui/icons-material/ErrorOutline"
+import { Workspace } from "api/typesGenerated";
+import { Pill } from "components/Pill/Pill";
+import { FC, PropsWithChildren } from "react";
+import { makeStyles } from "@mui/styles";
+import { combineClasses } from "utils/combineClasses";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { ImpendingDeletionText } from "components/WorkspaceDeletion";
+import { getDisplayWorkspaceStatus } from "utils/workspace";
+import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip";
+import { styled } from "@mui/material/styles";
+import Box from "@mui/material/Box";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
 
 export type WorkspaceStatusBadgeProps = {
-  workspace: Workspace
-  className?: string
-}
+  workspace: Workspace;
+  className?: string;
+};
 
 export const WorkspaceStatusBadge: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
@@ -25,13 +22,9 @@ export const WorkspaceStatusBadge: FC<
   const { text, icon, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
     workspace.latest_build.job,
-  )
+  );
   return (
     <ChooseOne>
-      {/* <ImpendingDeletionBadge/> determines its own visibility */}
-      <Cond condition={Boolean(LockedBadge({ workspace }))}>
-        <LockedBadge workspace={workspace} />
-      </Cond>
       <Cond condition={workspace.latest_build.status === "failed"}>
         <FailureTooltip
           title={
@@ -57,16 +50,16 @@ export const WorkspaceStatusBadge: FC<
         <Pill className={className} icon={icon} text={text} type={type} />
       </Cond>
     </ChooseOne>
-  )
-}
+  );
+};
 
 export const WorkspaceStatusText: FC<
   PropsWithChildren<WorkspaceStatusBadgeProps>
 > = ({ workspace, className }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const { text, type } = getDisplayWorkspaceStatus(
     workspace.latest_build.status,
-  )
+  );
 
   return (
     <ChooseOne>
@@ -88,8 +81,8 @@ export const WorkspaceStatusText: FC<
         </span>
       </Cond>
     </ChooseOne>
-  )
-}
+  );
+};
 
 const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
   <Tooltip {...props} classes={{ popper: className }} />
@@ -100,7 +93,7 @@ const FailureTooltip = styled(({ className, ...props }: TooltipProps) => (
     fontSize: 12,
     padding: theme.spacing(1, 1.25),
   },
-}))
+}));
 
 const useStyles = makeStyles((theme) => ({
   root: { fontWeight: 600 },
@@ -125,4 +118,4 @@ const useStyles = makeStyles((theme) => ({
   "type-secondary": {
     color: theme.palette.text.secondary,
   },
-}))
+}));

@@ -8,10 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestLogin(t *testing.T) {
@@ -97,16 +99,15 @@ func TestLogin(t *testing.T) {
 	t.Run("InitialUserFlags", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		doneChan := make(chan struct{})
-		root, _ := clitest.New(t, "login", client.URL.String(), "--first-user-username", "testuser", "--first-user-email", "user@coder.com", "--first-user-password", "SomeSecurePassword!", "--first-user-trial")
-		pty := ptytest.New(t).Attach(root)
-		go func() {
-			defer close(doneChan)
-			err := root.Run()
-			assert.NoError(t, err)
-		}()
+		inv, _ := clitest.New(
+			t, "login", client.URL.String(),
+			"--first-user-username", "testuser", "--first-user-email", "user@coder.com",
+			"--first-user-password", "SomeSecurePassword!", "--first-user-trial",
+		)
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
 		pty.ExpectMatch("Welcome to Coder")
-		<-doneChan
+		w.RequireSuccess()
 	})
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
@@ -142,7 +143,7 @@ func TestLogin(t *testing.T) {
 
 		// Validate that we reprompt for matching passwords.
 		pty.ExpectMatch("Passwords do not match")
-		pty.ExpectMatch("Enter a " + cliui.DefaultStyles.Field.Render("password"))
+		pty.ExpectMatch("Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password"))
 
 		pty.WriteLine("SomeSecurePassword!")
 		pty.ExpectMatch("Confirm")

@@ -12,12 +12,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	agplschedule "github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/enterprise/coderd/schedule"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/enterprise/coderd/schedule"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplateUpdateBuildDeadlines(t *testing.T) {
@@ -210,24 +210,24 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			// Set the template policy.
 			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
-			templateScheduleStore.UseRestartRequirement.Store(true)
+			templateScheduleStore.UseAutostopRequirement.Store(true)
 			templateScheduleStore.TimeNowFn = func() time.Time {
 				return c.now
 			}
 			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-				UserAutostartEnabled:  false,
-				UserAutostopEnabled:   false,
-				DefaultTTL:            0,
-				MaxTTL:                0,
-				UseRestartRequirement: true,
-				RestartRequirement: agplschedule.TemplateRestartRequirement{
+				UserAutostartEnabled:   false,
+				UserAutostopEnabled:    false,
+				DefaultTTL:             0,
+				MaxTTL:                 0,
+				UseAutostopRequirement: true,
+				AutostopRequirement: agplschedule.TemplateAutostopRequirement{
 					// Every day
 					DaysOfWeek: 0b01111111,
 					Weeks:      0,
 				},
-				FailureTTL:    0,
-				InactivityTTL: 0,
-				LockedTTL:     0,
+				FailureTTL:               0,
+				TimeTilDormant:           0,
+				TimeTilDormantAutoDelete: 0,
 			})
 			require.NoError(t, err)
 
@@ -485,24 +485,24 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 
 	// Set the template policy.
 	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr)
-	templateScheduleStore.UseRestartRequirement.Store(true)
+	templateScheduleStore.UseAutostopRequirement.Store(true)
 	templateScheduleStore.TimeNowFn = func() time.Time {
 		return now
 	}
 	_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-		UserAutostartEnabled:  false,
-		UserAutostopEnabled:   false,
-		DefaultTTL:            0,
-		MaxTTL:                0,
-		UseRestartRequirement: true,
-		RestartRequirement: agplschedule.TemplateRestartRequirement{
+		UserAutostartEnabled:   false,
+		UserAutostopEnabled:    false,
+		DefaultTTL:             0,
+		MaxTTL:                 0,
+		UseAutostopRequirement: true,
+		AutostopRequirement: agplschedule.TemplateAutostopRequirement{
 			// Every day
 			DaysOfWeek: 0b01111111,
 			Weeks:      0,
 		},
-		FailureTTL:    0,
-		InactivityTTL: 0,
-		LockedTTL:     0,
+		FailureTTL:               0,
+		TimeTilDormant:           0,
+		TimeTilDormantAutoDelete: 0,
 	})
 	require.NoError(t, err)
 

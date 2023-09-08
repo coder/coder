@@ -1,11 +1,11 @@
-import { getUsers } from "api/api"
-import { User } from "api/typesGenerated"
-import { queryToFilter } from "utils/filters"
-import { assign, createMachine } from "xstate"
+import { getUsers } from "api/api";
+import { User } from "api/typesGenerated";
+import { queryToFilter } from "utils/filters";
+import { assign, createMachine } from "xstate";
 
 export type AutocompleteEvent =
   | { type: "SEARCH"; query: string }
-  | { type: "CLEAR_RESULTS" }
+  | { type: "CLEAR_RESULTS" };
 
 export const searchUserMachine = createMachine(
   {
@@ -13,13 +13,13 @@ export const searchUserMachine = createMachine(
     predictableActionArguments: true,
     schema: {
       context: {} as {
-        searchResults?: User[]
+        searchResults?: User[];
       },
       events: {} as AutocompleteEvent,
       services: {} as {
         searchUsers: {
-          data: User[]
-        }
+          data: User[];
+        };
       },
     },
     context: {
@@ -62,4 +62,4 @@ export const searchUserMachine = createMachine(
       }),
     },
   },
-)
+);

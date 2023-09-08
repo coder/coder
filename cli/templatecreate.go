@@ -14,12 +14,12 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionerd"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templateCreate() *clibase.Cmd {
@@ -29,9 +29,11 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		variablesFile   string
 		variables       []string
 		disableEveryone bool
-		defaultTTL      time.Duration
-		failureTTL      time.Duration
-		inactivityTTL   time.Duration
+
+		defaultTTL    time.Duration
+		failureTTL    time.Duration
+		inactivityTTL time.Duration
+		maxTTL        time.Duration
 
 		uploadFlags templateUploadFlags
 	)
@@ -44,7 +46,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if failureTTL != 0 || inactivityTTL != 0 {
+			if failureTTL != 0 || inactivityTTL != 0 || maxTTL != 0 {
 				// This call can be removed when workspace_actions is no longer experimental
 				experiments, exErr := client.Experiments(inv.Context())
 				if exErr != nil {
@@ -109,7 +111,7 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				Message:         message,
 				Client:          client,
 				Organization:    organization,
-				Provisioner:     database.ProvisionerType(provisioner),
+				Provisioner:     codersdk.ProvisionerType(provisioner),
 				FileID:          resp.ID,
 				ProvisionerTags: tags,
 				VariablesFile:   variablesFile,
@@ -134,7 +136,8 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				VersionID:                  job.ID,
 				DefaultTTLMillis:           ptr.Ref(defaultTTL.Milliseconds()),
 				FailureTTLMillis:           ptr.Ref(failureTTL.Milliseconds()),
-				InactivityTTLMillis:        ptr.Ref(inactivityTTL.Milliseconds()),
+				MaxTTLMillis:               ptr.Ref(maxTTL.Milliseconds()),
+				TimeTilDormantMillis:       ptr.Ref(inactivityTTL.Milliseconds()),
 				DisableEveryoneGroupAccess: disableEveryone,
 			}
 
@@ -143,11 +146,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.DefaultStyles.Wrap.Render(
-				"The "+cliui.DefaultStyles.Keyword.Render(templateName)+" template has been created at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
+				"The "+pretty.Sprint(
+					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.DefaultStyles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
 			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
@@ -182,21 +187,26 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 		},
 		{
 			Flag:        "default-ttl",
-			Description: "Specify a default TTL for workspaces created from this template.",
+			Description: "Specify a default TTL for workspaces created from this template. It is the default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Default:     "24h",
 			Value:       clibase.DurationOf(&defaultTTL),
 		},
 		{
 			Flag:        "failure-ttl",
-			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\"in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&failureTTL),
 		},
 		{
 			Flag:        "inactivity-ttl",
-			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
+		},
+		{
+			Flag:        "max-ttl",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Value:       clibase.DurationOf(&maxTTL),
 		},
 		{
 			Flag:        "test.provisioner",
@@ -216,7 +226,7 @@ type createValidTemplateVersionArgs struct {
 	Message      string
 	Client       *codersdk.Client
 	Organization codersdk.Organization
-	Provisioner  database.ProvisionerType
+	Provisioner  codersdk.ProvisionerType
 	FileID       uuid.UUID
 
 	VariablesFile string
@@ -250,7 +260,7 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 		Message:            args.Message,
 		StorageMethod:      codersdk.ProvisionerStorageMethodFile,
 		FileID:             args.FileID,
-		Provisioner:        codersdk.ProvisionerType(args.Provisioner),
+		Provisioner:        args.Provisioner,
 		ProvisionerTags:    args.ProvisionerTags,
 		UserVariableValues: variableValues,
 	}
@@ -276,7 +286,10 @@ func createValidTemplateVersion(inv *clibase.Invocation, args createValidTemplat
 	})
 	if err != nil {
 		var jobErr *cliui.ProvisionerJobError
-		if errors.As(err, &jobErr) && !provisionerd.IsMissingParameterErrorCode(string(jobErr.Code)) {
+		if errors.As(err, &jobErr) && !codersdk.JobIsMissingParameterErrorCode(jobErr.Code) {
+			return nil, err
+		}
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -322,12 +335,12 @@ func prettyDirectoryPath(dir string) string {
 	if err != nil {
 		return dir
 	}
-	pretty := dir
-	if strings.HasPrefix(pretty, homeDir) {
-		pretty = strings.TrimPrefix(pretty, homeDir)
-		pretty = "~" + pretty
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
 	}
-	return pretty
+	return prettyDir
 }
 
 func ParseProvisionerTags(rawTags []string) (map[string]string, error) {

@@ -1,21 +1,21 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import { CodeExample } from "components/CodeExample/CodeExample"
-import { SignInLayout } from "components/SignInLayout/SignInLayout"
-import { Welcome } from "components/Welcome/Welcome"
-import { FC } from "react"
-import { Link as RouterLink } from "react-router-dom"
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { SignInLayout } from "components/SignInLayout/SignInLayout";
+import { Welcome } from "components/Welcome/Welcome";
+import { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { FullScreenLoader } from "../../components/Loader/FullScreenLoader";
 
 export interface CliAuthPageViewProps {
-  sessionToken: string | null
+  sessionToken: string | null;
 }
 
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   if (!sessionToken) {
-    return <FullScreenLoader />
+    return <FullScreenLoader />;
   }
 
   return (
@@ -35,8 +35,8 @@ export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
         </Button>
       </div>
     </SignInLayout>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -63,4 +63,4 @@ const useStyles = makeStyles((theme) => ({
     justifyContent: "flex-end",
     paddingTop: theme.spacing(1),
   },
-}))
+}));

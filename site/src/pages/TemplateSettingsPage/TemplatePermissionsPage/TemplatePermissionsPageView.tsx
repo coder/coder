@@ -1,48 +1,48 @@
-import MenuItem from "@mui/material/MenuItem"
-import Select, { SelectProps } from "@mui/material/Select"
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import PersonAdd from "@mui/icons-material/PersonAdd"
+import MenuItem from "@mui/material/MenuItem";
+import Select, { SelectProps } from "@mui/material/Select";
+import { makeStyles } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import PersonAdd from "@mui/icons-material/PersonAdd";
 import {
   Group,
   TemplateACL,
   TemplateGroup,
   TemplateRole,
   TemplateUser,
-} from "api/typesGenerated"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { EmptyState } from "components/EmptyState/EmptyState"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { Stack } from "components/Stack/Stack"
-import { TableLoader } from "components/TableLoader/TableLoader"
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
+} from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { Stack } from "components/Stack/Stack";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import {
   UserOrGroupAutocomplete,
   UserOrGroupAutocompleteValue,
-} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete"
-import { FC, useState } from "react"
-import { Maybe } from "components/Conditionals/Maybe"
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar"
-import { getGroupSubtitle } from "utils/groups"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
+} from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete";
+import { FC, useState } from "react";
+import { Maybe } from "components/Conditionals/Maybe";
+import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
+import { getGroupSubtitle } from "utils/groups";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 
 type AddTemplateUserOrGroupProps = {
-  organizationId: string
-  templateID: string
-  isLoading: boolean
-  templateACL: TemplateACL | undefined
+  organizationId: string;
+  templateID: string;
+  isLoading: boolean;
+  templateACL: TemplateACL | undefined;
   onSubmit: (
     userOrGroup: TemplateUser | TemplateGroup,
     role: TemplateRole,
     reset: () => void,
-  ) => void
-}
+  ) => void;
+};
 
 const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   isLoading,
@@ -51,23 +51,23 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
   templateID,
   templateACL,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const [selectedOption, setSelectedOption] =
-    useState<UserOrGroupAutocompleteValue>(null)
-  const [selectedRole, setSelectedRole] = useState<TemplateRole>("use")
+    useState<UserOrGroupAutocompleteValue>(null);
+  const [selectedRole, setSelectedRole] = useState<TemplateRole>("use");
   const excludeFromAutocomplete = templateACL
     ? [...templateACL.group, ...templateACL.users]
-    : []
+    : [];
 
   const resetValues = () => {
-    setSelectedOption(null)
-    setSelectedRole("use")
-  }
+    setSelectedOption(null);
+    setSelectedRole("use");
+  };
 
   return (
     <form
       onSubmit={(e) => {
-        e.preventDefault()
+        e.preventDefault();
 
         if (selectedOption && selectedRole) {
           onSubmit(
@@ -77,7 +77,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
             },
             selectedRole,
             resetValues,
-          )
+          );
         }
       }}
     >
@@ -88,7 +88,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
           templateID={templateID}
           value={selectedOption}
           onChange={(newValue) => {
-            setSelectedOption(newValue)
+            setSelectedOption(newValue);
           }}
         />
 
@@ -98,7 +98,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
           className={styles.select}
           disabled={isLoading}
           onChange={(event) => {
-            setSelectedRole(event.target.value as TemplateRole)
+            setSelectedRole(event.target.value as TemplateRole);
           }}
         >
           <MenuItem key="use" value="use">
@@ -119,11 +119,11 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
         </LoadingButton>
       </Stack>
     </form>
-  )
-}
+  );
+};
 
 const RoleSelect: FC<SelectProps> = (props) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <Select
@@ -149,30 +149,34 @@ const RoleSelect: FC<SelectProps> = (props) => {
         </div>
       </MenuItem>
     </Select>
-  )
-}
+  );
+};
 
 export interface TemplatePermissionsPageViewProps {
-  templateACL: TemplateACL | undefined
-  templateID: string
-  organizationId: string
-  canUpdatePermissions: boolean
+  templateACL: TemplateACL | undefined;
+  templateID: string;
+  organizationId: string;
+  canUpdatePermissions: boolean;
   // User
-  onAddUser: (user: TemplateUser, role: TemplateRole, reset: () => void) => void
-  isAddingUser: boolean
-  onUpdateUser: (user: TemplateUser, role: TemplateRole) => void
-  updatingUser: TemplateUser | undefined
-  onRemoveUser: (user: TemplateUser) => void
+  onAddUser: (
+    user: TemplateUser,
+    role: TemplateRole,
+    reset: () => void,
+  ) => void;
+  isAddingUser: boolean;
+  onUpdateUser: (user: TemplateUser, role: TemplateRole) => void;
+  updatingUser: TemplateUser | undefined;
+  onRemoveUser: (user: TemplateUser) => void;
   // Group
   onAddGroup: (
     group: TemplateGroup,
     role: TemplateRole,
     reset: () => void,
-  ) => void
-  isAddingGroup: boolean
-  onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void
-  updatingGroup: TemplateGroup | undefined
-  onRemoveGroup: (group: Group) => void
+  ) => void;
+  isAddingGroup: boolean;
+  onUpdateGroup: (group: TemplateGroup, role: TemplateRole) => void;
+  updatingGroup: TemplateGroup | undefined;
+  onRemoveGroup: (group: Group) => void;
 }
 
 export const TemplatePermissionsPageView: FC<
@@ -195,12 +199,12 @@ export const TemplatePermissionsPageView: FC<
   onUpdateGroup,
   onRemoveGroup,
 }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const isEmpty = Boolean(
     templateACL &&
       templateACL.users.length === 0 &&
       templateACL.group.length === 0,
-  )
+  );
 
   return (
     <>
@@ -273,7 +277,7 @@ export const TemplatePermissionsPageView: FC<
                                 onUpdateGroup(
                                   group,
                                   event.target.value as TemplateRole,
-                                )
+                                );
                               }}
                             />
                           </Cond>
@@ -321,7 +325,7 @@ export const TemplatePermissionsPageView: FC<
                                 onUpdateUser(
                                   user,
                                   event.target.value as TemplateRole,
-                                )
+                                );
                               }}
                             />
                           </Cond>
@@ -354,8 +358,8 @@ export const TemplatePermissionsPageView: FC<
         </TableContainer>
       </Stack>
     </>
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles((theme) => ({
   select: {
@@ -401,4 +405,4 @@ export const useStyles = makeStyles((theme) => ({
   pageHeader: {
     paddingTop: 0,
   },
-}))
+}));

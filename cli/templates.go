@@ -5,9 +5,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templates() *clibase.Cmd {
@@ -37,7 +39,6 @@ func (r *RootCmd) templates() *clibase.Cmd {
 			r.templateEdit(),
 			r.templateInit(),
 			r.templateList(),
-			r.templatePlan(),
 			r.templatePush(),
 			r.templateVersions(),
 			r.templateDelete(),
@@ -76,7 +77,7 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			OrganizationID:  template.OrganizationID,
 			Provisioner:     template.Provisioner,
 			ActiveVersionID: template.ActiveVersionID,
-			UsedBy:          cliui.DefaultStyles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
+			UsedBy:          pretty.Sprint(cliui.DefaultStyles.Fuchsia, formatActiveDevelopers(template.ActiveUserCount)),
 			DefaultTTL:      (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 		}
 	}

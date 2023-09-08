@@ -1,15 +1,15 @@
-import { getTemplateExamples } from "api/api"
-import { TemplateExample } from "api/typesGenerated"
+import { getTemplateExamples } from "api/api";
+import { TemplateExample } from "api/typesGenerated";
 import {
   getTemplatesByTag,
   StarterTemplatesByTag,
-} from "utils/starterTemplates"
-import { assign, createMachine } from "xstate"
+} from "utils/starterTemplates";
+import { assign, createMachine } from "xstate";
 
 export interface StarterTemplatesContext {
-  organizationId: string
-  starterTemplatesByTag?: StarterTemplatesByTag
-  error?: unknown
+  organizationId: string;
+  starterTemplatesByTag?: StarterTemplatesByTag;
+  error?: unknown;
 }
 
 export const starterTemplatesMachine = createMachine(
@@ -20,8 +20,8 @@ export const starterTemplatesMachine = createMachine(
       context: {} as StarterTemplatesContext,
       services: {} as {
         loadStarterTemplates: {
-          data: TemplateExample[]
-        }
+          data: TemplateExample[];
+        };
       },
     },
     tsTypes: {} as import("./starterTemplatesXService.typegen").Typegen0,
@@ -63,4 +63,4 @@ export const starterTemplatesMachine = createMachine(
       }),
     },
   },
-)
+);

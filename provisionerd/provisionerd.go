@@ -12,7 +12,6 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/spf13/afero"
 	"github.com/valyala/fasthttp/fasthttputil"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
@@ -21,30 +20,39 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionerd/runner"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionerd/runner"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/retry"
 )
-
-// IsMissingParameterErrorCode returns whether the error is a missing parameter error.
-// This can indicate to consumers that they should check parameters.
-func IsMissingParameterErrorCode(code string) bool {
-	return code == runner.MissingParameterErrorCode
-}
 
 // Dialer represents the function to create a daemon client connection.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
-// Provisioners maps provisioner ID to implementation.
-type Provisioners map[string]sdkproto.DRPCProvisionerClient
+// ConnectResponse is the response returned asynchronously from Connector.Connect
+// containing either the Provisioner Client or an Error.  The Job is also returned
+// unaltered to disambiguate responses if the respCh is shared among multiple jobs
+type ConnectResponse struct {
+	Job    *proto.AcquiredJob
+	Client sdkproto.DRPCProvisionerClient
+	Error  error
+}
+
+// Connector allows the provisioner daemon to Connect to a provisioner
+// for the given job.
+type Connector interface {
+	// Connect to the correct provisioner for the given job. The response is
+	// delivered asynchronously over the respCh.  If the provided context expires,
+	// the Connector may stop waiting for the provisioner and return an error
+	// response.
+	Connect(ctx context.Context, job *proto.AcquiredJob, respCh chan<- ConnectResponse)
+}
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
-	Filesystem     afero.Fs
 	Logger         slog.Logger
 	TracerProvider trace.TracerProvider
 	Metrics        *Metrics
@@ -55,9 +63,7 @@ type Options struct {
 	JobPollInterval     time.Duration
 	JobPollJitter       time.Duration
 	JobPollDebounce     time.Duration
-	Provisioners        Provisioners
-	// WorkDirectory must not be used by multiple processes at once.
-	WorkDirectory string
+	Connector           Connector
 }
 
 // New creates and starts a provisioner daemon.
@@ -79,9 +85,6 @@ func New(clientDialer Dialer, opts *Options) *Server {
 	}
 	if opts.LogBufferInterval == 0 {
 		opts.LogBufferInterval = 250 * time.Millisecond
-	}
-	if opts.Filesystem == nil {
-		opts.Filesystem = afero.NewOsFs()
 	}
 	if opts.TracerProvider == nil {
 		opts.TracerProvider = trace.NewNoopTracerProvider()
@@ -204,7 +207,7 @@ func (p *Server) connect(ctx context.Context) {
 		p.clientValue.Store(ptr.Ref(client))
 		p.mutex.Unlock()
 
-		p.opts.Logger.Info(ctx, "provisionerd successfully connected to coderd")
+		p.opts.Logger.Debug(ctx, "successfully connected to coderd")
 		break
 	}
 	select {
@@ -315,6 +318,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	lastAcquireMutex.RLock()
 	if !lastAcquire.IsZero() && time.Since(lastAcquire) < p.opts.JobPollDebounce {
 		lastAcquireMutex.RUnlock()
+		p.opts.Logger.Debug(ctx, "debounce acquire job")
 		return
 	}
 	lastAcquireMutex.RUnlock()
@@ -326,6 +330,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 	}
 
 	job, err := client.AcquireJob(ctx, &proto.Empty{})
+	p.opts.Logger.Debug(ctx, "called AcquireJob on client", slog.F("job_id", job.GetJobId()), slog.Error(err))
 	if err != nil {
 		if errors.Is(err, context.Canceled) ||
 			errors.Is(err, yamux.ErrSessionShutdown) ||
@@ -386,11 +391,13 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	p.opts.Logger.Debug(ctx, "acquired job", fields...)
 
-	provisioner, ok := p.opts.Provisioners[job.Provisioner]
-	if !ok {
+	respCh := make(chan ConnectResponse)
+	p.opts.Connector.Connect(ctx, job, respCh)
+	resp := <-respCh
+	if resp.Error != nil {
 		err := p.FailJob(ctx, &proto.FailedJob{
 			JobId: job.JobId,
-			Error: fmt.Sprintf("no provisioner %s", job.Provisioner),
+			Error: fmt.Sprintf("failed to connect to provisioner: %s", resp.Error),
 		})
 		if err != nil {
 			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
@@ -404,10 +411,8 @@ func (p *Server) acquireJob(ctx context.Context) {
 		runner.Options{
 			Updater:             p,
 			QuotaCommitter:      p,
-			Logger:              p.opts.Logger,
-			Filesystem:          p.opts.Filesystem,
-			WorkDirectory:       p.opts.WorkDirectory,
-			Provisioner:         provisioner,
+			Logger:              p.opts.Logger.Named("runner"),
+			Provisioner:         resp.Client,
 			UpdateInterval:      p.opts.UpdateInterval,
 			ForceCancelInterval: p.opts.ForceCancelInterval,
 			LogDebounceInterval: p.opts.LogBufferInterval,

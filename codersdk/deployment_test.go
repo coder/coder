@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type exclusion struct {
@@ -55,6 +55,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 			yaml: true,
 		},
 		"SCIM API Key": {
+			yaml: true,
+		},
+		"External Token Encryption Keys": {
 			yaml: true,
 		},
 		// These complex objects should be configured through YAML.

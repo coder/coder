@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const AzureDevOpsIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 111 110">
@@ -22,4 +22,4 @@ export const AzureDevOpsIcon = (props: SvgIconProps): JSX.Element => (
       </clipPath>
     </defs>
   </SvgIcon>
-)
+);

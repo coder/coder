@@ -16,8 +16,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -35,19 +35,21 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                  FeatureName = "user_limit"
-	FeatureAuditLog                   FeatureName = "audit_log"
-	FeatureBrowserOnly                FeatureName = "browser_only"
-	FeatureSCIM                       FeatureName = "scim"
-	FeatureTemplateRBAC               FeatureName = "template_rbac"
-	FeatureUserRoleManagement         FeatureName = "user_role_management"
-	FeatureHighAvailability           FeatureName = "high_availability"
-	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
-	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                 FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
-	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
-	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureUserLimit                   FeatureName = "user_limit"
+	FeatureAuditLog                    FeatureName = "audit_log"
+	FeatureBrowserOnly                 FeatureName = "browser_only"
+	FeatureSCIM                        FeatureName = "scim"
+	FeatureTemplateRBAC                FeatureName = "template_rbac"
+	FeatureUserRoleManagement          FeatureName = "user_role_management"
+	FeatureHighAvailability            FeatureName = "high_availability"
+	FeatureMultipleGitAuth             FeatureName = "multiple_git_auth"
+	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                  FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
+	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
+	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -64,6 +66,9 @@ var FeatureNames = []FeatureName{
 	FeatureAdvancedTemplateScheduling,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureExternalTokenEncryption,
+	FeatureTemplateAutostopRequirement,
+	FeatureWorkspaceBatchActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -103,6 +108,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
+	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
@@ -151,6 +157,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
+	ExternalTokenEncryptionKeys     clibase.StringArray             `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
 	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
@@ -228,9 +235,10 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	URL         clibase.String `json:"url" typescript:",notnull"`
-	Path        clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL             clibase.String `json:"url" typescript:",notnull"`
+	Path            clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -308,6 +316,7 @@ type TraceConfig struct {
 	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
+	DataDog         clibase.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
 type GitAuthConfig struct {
@@ -797,6 +806,15 @@ when required by your organization's security policy.`,
 			YAML:  "blockDirect",
 		},
 		{
+			Name:        "DERP Force WebSockets",
+			Description: "Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.",
+			Flag:        "derp-force-websockets",
+			Env:         "CODER_DERP_FORCE_WEBSOCKETS",
+			Value:       &c.DERP.Config.ForceWebSockets,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "forceWebSockets",
+		},
+		{
 			Name:        "DERP Config URL",
 			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-url",
@@ -1157,7 +1175,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OpenID connect icon URL",
-			Description: "URL pointing to the icon to use on the OepnID Connect login button.",
+			Description: "URL pointing to the icon to use on the OpenID Connect login button.",
 			Flag:        "oidc-icon-url",
 			Env:         "CODER_OIDC_ICON_URL",
 			Value:       &c.OIDC.IconURL,
@@ -1224,6 +1242,22 @@ when required by your organization's security policy.`,
 			Value:       &c.Trace.CaptureLogs,
 			Group:       &deploymentGroupIntrospectionTracing,
 			YAML:        "captureLogs",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
+		{
+			Name:        "Send Go runtime traces to DataDog",
+			Description: "Enables sending Go runtime traces to the local DataDog agent.",
+			Flag:        "trace-datadog",
+			Env:         "CODER_TRACE_DATADOG",
+			Value:       &c.Trace.DataDog,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "dataDog",
+			// Hidden until an external user asks for it. For the time being,
+			// it's used to detect leaks in dogfood.
+			Hidden: true,
+			// Default is false because datadog creates a bunch of goroutines that
+			// don't get cleaned up and trip the leak detector.
+			Default:     "false",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
 		// Provisioner settings
@@ -1575,7 +1609,14 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
-
+		{
+			Name:        "External Token Encryption Keys",
+			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
+			Flag:        "external-token-encryption-keys",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Value:       &c.ExternalTokenEncryptionKeys,
+		},
 		{
 			Name:        "Disable Path Apps",
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
@@ -1753,7 +1794,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
-		case *clibase.String:
+		case *clibase.String, *clibase.StringArray:
 			err := v.Set("")
 			if err != nil {
 				panic(err)
@@ -1913,23 +1954,22 @@ const (
 	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
-	// ExperimentTemplateRestartRequirement allows template admins to have more
+	// ExperimentTemplateAutostopRequirement allows template admins to have more
 	// control over when workspaces created on a template are required to
-	// restart, and allows users to ensure these restarts never happen during
-	// their business hours.
+	// stop, and allows users to ensure these restarts never happen during their
+	// business hours.
+	//
+	// This will replace the MaxTTL setting on templates.
 	//
 	// Enables:
 	// - User quiet hours schedule settings
-	// - Template restart requirement settings
-	// - Changes the max_deadline algorithm to use restart requirement and user
+	// - Template autostop requirement settings
+	// - Changes the max_deadline algorithm to use autostop requirement and user
 	//   quiet hours instead of max_ttl.
-	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
+	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
 
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
-
-	// Template parameters insights
-	ExperimentTemplateParametersInsights Experiment = "template_parameters_insights"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1941,7 +1981,6 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
-	ExperimentTemplateParametersInsights,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

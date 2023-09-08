@@ -1,0 +1,15 @@
+Usage: coder server dbcrypt delete [flags]
+
+Delete all encrypted data from the database. THIS IS A DESTRUCTIVE OPERATION.
+
+Aliases: rm
+
+[1mOptions[0m
+      --postgres-url string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_POSTGRES_URL
+          The connection URL for the Postgres database.
+
+  -y, --yes bool
+          Bypass prompts.
+
+---
+Run `coder --help` for a list of global options.

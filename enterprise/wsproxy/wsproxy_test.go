@@ -15,19 +15,19 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps/apptest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestDERPOnly(t *testing.T) {
@@ -295,8 +295,8 @@ resourceLoop:
 				}
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				report := healthcheck.DERPReport{}
-				report.Run(ctx, &healthcheck.DERPReportOptions{
+				report := derphealth.Report{}
+				report.Run(ctx, &derphealth.ReportOptions{
 					DERPMap: derpMap,
 				})
 
@@ -478,6 +478,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -536,6 +537,7 @@ func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

@@ -7,14 +7,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestCreateGroup(t *testing.T) {
@@ -105,7 +105,7 @@ func TestCreateGroup(t *testing.T) {
 		}})
 		ctx := testutil.Context(t, testutil.WaitLong)
 		_, err := client.CreateGroup(ctx, user.OrganizationID, codersdk.CreateGroupRequest{
-			Name: database.AllUsersGroup,
+			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
@@ -399,7 +399,7 @@ func TestPatchGroup(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
 	})
 
-	t.Run("allUsers", func(t *testing.T) {
+	t.Run("ReservedName", func(t *testing.T) {
 		t.Parallel()
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
@@ -414,12 +414,113 @@ func TestPatchGroup(t *testing.T) {
 		require.NoError(t, err)
 
 		group, err = client.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
-			Name: database.AllUsersGroup,
+			Name: database.EveryoneGroup,
 		})
 		require.Error(t, err)
 		cerr, ok := codersdk.AsError(err)
 		require.True(t, ok)
 		require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+	})
+
+	t.Run("Everyone", func(t *testing.T) {
+		t.Parallel()
+		t.Run("NoUpdateName", func(t *testing.T) {
+			t.Parallel()
+
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+				Name: "hi",
+			})
+			require.Error(t, err)
+			cerr, ok := codersdk.AsError(err)
+			require.True(t, ok)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		})
+
+		t.Run("NoUpdateDisplayName", func(t *testing.T) {
+			t.Parallel()
+
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+				DisplayName: ptr.Ref("hi"),
+			})
+			require.Error(t, err)
+			cerr, ok := codersdk.AsError(err)
+			require.True(t, ok)
+			require.Equal(t, http.StatusBadRequest, cerr.StatusCode())
+		})
+
+		t.Run("NoAddUsers", func(t *testing.T) {
+			t.Parallel()
+
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+			_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+				AddUsers: []string{user2.ID.String()},
+			})
+			require.Error(t, err)
+			cerr, ok := codersdk.AsError(err)
+			require.True(t, ok)
+			require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		})
+
+		t.Run("NoRmUsers", func(t *testing.T) {
+			t.Parallel()
+
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			_, err := client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+				RemoveUsers: []string{user.UserID.String()},
+			})
+			require.Error(t, err)
+			cerr, ok := codersdk.AsError(err)
+			require.True(t, ok)
+			require.Equal(t, http.StatusForbidden, cerr.StatusCode())
+		})
+
+		t.Run("UpdateQuota", func(t *testing.T) {
+			t.Parallel()
+
+			client, user := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC: 1,
+				},
+			}})
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			group, err := client.Group(ctx, user.OrganizationID)
+			require.NoError(t, err)
+
+			require.Equal(t, 0, group.QuotaAllowance)
+
+			expectedQuota := 123
+			group, err = client.PatchGroup(ctx, user.OrganizationID, codersdk.PatchGroupRequest{
+				QuotaAllowance: ptr.Ref(expectedQuota),
+			})
+			require.NoError(t, err)
+			require.Equal(t, expectedQuota, group.QuotaAllowance)
+		})
 	})
 }
 
@@ -591,13 +692,17 @@ func TestGroup(t *testing.T) {
 				codersdk.FeatureTemplateRBAC: 1,
 			},
 		}})
+		_, user1 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 		// The 'Everyone' group always has an ID that matches the organization ID.
 		group, err := client.Group(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, group.Members, 0)
+		require.Len(t, group.Members, 3)
 		require.Equal(t, "Everyone", group.Name)
 		require.Equal(t, user.OrganizationID, group.OrganizationID)
+		require.Contains(t, group.Members, user1, user2)
 	})
 }
 
@@ -641,7 +746,8 @@ func TestGroups(t *testing.T) {
 
 		groups, err := client.GroupsByOrganization(ctx, user.OrganizationID)
 		require.NoError(t, err)
-		require.Len(t, groups, 2)
+		// 'Everyone' group + 2 custom groups.
+		require.Len(t, groups, 3)
 		require.Contains(t, groups, group1)
 		require.Contains(t, groups, group2)
 	})

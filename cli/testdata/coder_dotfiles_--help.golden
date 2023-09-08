@@ -2,9 +2,9 @@ Usage: coder dotfiles [flags] <git_repo_url>
 
 Personalize your workspace by applying a canonical dotfiles repository
 
-- Check out and install a dotfiles repository without prompts:                
+- Check out and install a dotfiles repository without prompts:
 
-     [40m [0m[91;40m$ coder dotfiles --yes git@github.com:example/dotfiles.git[0m[40m [0m
+     $ coder dotfiles --yes git@github.com:example/dotfiles.git
 
 [1mOptions[0m
   -b, --branch string

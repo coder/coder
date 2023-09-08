@@ -5,10 +5,11 @@ import (
 
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 func (r *RootCmd) groupDelete() *clibase.Cmd {
@@ -41,7 +42,7 @@ func (r *RootCmd) groupDelete() *clibase.Cmd {
 				return xerrors.Errorf("delete group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully deleted group %s!\n", cliui.DefaultStyles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully deleted group %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name))
 			return nil
 		},
 	}

@@ -1,59 +1,63 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import DeleteOutline from "@mui/icons-material/DeleteOutline"
-import PersonAdd from "@mui/icons-material/PersonAdd"
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined"
-import { useMachine } from "@xstate/react"
-import { User } from "api/typesGenerated"
-import { AvatarData } from "components/AvatarData/AvatarData"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog"
-import { EmptyState } from "components/EmptyState/EmptyState"
-import { Loader } from "components/Loader/Loader"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { Margins } from "components/Margins/Margins"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import DeleteOutline from "@mui/icons-material/DeleteOutline";
+import PersonAdd from "@mui/icons-material/PersonAdd";
+import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
+import { useMachine } from "@xstate/react";
+import { User } from "api/typesGenerated";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { Loader } from "components/Loader/Loader";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { TableRowMenu } from "components/TableRowMenu/TableRowMenu"
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
-import { useState } from "react"
-import { Helmet } from "react-helmet-async"
-import { Link as RouterLink, useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import { groupMachine } from "xServices/groups/groupXService"
-import { Maybe } from "components/Conditionals/Maybe"
-import { makeStyles } from "@mui/styles"
-import { PaginationStatus } from "components/PaginationStatus/PaginationStatus"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { groupMachine } from "xServices/groups/groupXService";
+import { Maybe } from "components/Conditionals/Maybe";
+import { makeStyles } from "@mui/styles";
+import {
+  PaginationStatus,
+  TableToolbar,
+} from "components/TableToolbar/TableToolbar";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { isEveryoneGroup } from "utils/groups";
 
 const AddGroupMember: React.FC<{
-  isLoading: boolean
-  onSubmit: (user: User, reset: () => void) => void
+  isLoading: boolean;
+  onSubmit: (user: User, reset: () => void) => void;
 }> = ({ isLoading, onSubmit }) => {
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const styles = useStyles()
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const styles = useStyles();
 
   const resetValues = () => {
-    setSelectedUser(null)
-  }
+    setSelectedUser(null);
+  };
 
   return (
     <form
       onSubmit={(e) => {
-        e.preventDefault()
+        e.preventDefault();
 
         if (selectedUser) {
-          onSubmit(selectedUser, resetValues)
+          onSubmit(selectedUser, resetValues);
         }
       }}
     >
@@ -62,7 +66,7 @@ const AddGroupMember: React.FC<{
           className={styles.autoComplete}
           value={selectedUser}
           onChange={(newValue) => {
-            setSelectedUser(newValue)
+            setSelectedUser(newValue);
           }}
         />
 
@@ -76,29 +80,29 @@ const AddGroupMember: React.FC<{
         </LoadingButton>
       </Stack>
     </form>
-  )
-}
+  );
+};
 
 export const GroupPage: React.FC = () => {
-  const { groupId } = useParams()
+  const { groupId } = useParams();
   if (!groupId) {
-    throw new Error("groupId is not defined.")
+    throw new Error("groupId is not defined.");
   }
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   const [state, send] = useMachine(groupMachine, {
     context: {
       groupId,
     },
     actions: {
       redirectToGroups: () => {
-        navigate("/groups")
+        navigate("/groups");
       },
     },
-  })
-  const { group, permissions } = state.context
-  const isLoading = group === undefined || permissions === undefined
-  const canUpdateGroup = permissions ? permissions.canUpdateGroup : false
+  });
+  const { group, permissions } = state.context;
+  const isLoading = group === undefined || permissions === undefined;
+  const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
   return (
     <>
@@ -121,8 +125,9 @@ export const GroupPage: React.FC = () => {
                     <Button startIcon={<SettingsOutlined />}>Settings</Button>
                   </Link>
                   <Button
+                    disabled={group?.id === group?.organization_id}
                     onClick={() => {
-                      send("DELETE")
+                      send("DELETE");
                     }}
                     startIcon={<DeleteOutline />}
                   >
@@ -143,7 +148,13 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              <Maybe condition={canUpdateGroup}>
+              <Maybe
+                condition={
+                  canUpdateGroup &&
+                  group !== undefined &&
+                  !isEveryoneGroup(group)
+                }
+              >
                 <AddGroupMember
                   isLoading={state.matches("addingMember")}
                   onSubmit={(user, reset) => {
@@ -151,16 +162,18 @@ export const GroupPage: React.FC = () => {
                       type: "ADD_MEMBER",
                       userId: user.id,
                       callback: reset,
-                    })
+                    });
                   }}
                 />
               </Maybe>
-              <PaginationStatus
-                isLoading={Boolean(isLoading)}
-                showing={group?.members.length ?? 0}
-                total={group?.members.length ?? 0}
-                label="members"
-              />
+              <TableToolbar>
+                <PaginationStatus
+                  isLoading={Boolean(isLoading)}
+                  showing={group?.members.length ?? 0}
+                  total={group?.members.length ?? 0}
+                  label="members"
+                />
+              </TableToolbar>
 
               <TableContainer>
                 <Table>
@@ -210,9 +223,10 @@ export const GroupPage: React.FC = () => {
                                         send({
                                           type: "REMOVE_MEMBER",
                                           userId: member.id,
-                                        })
+                                        });
                                       },
-                                      disabled: false,
+                                      disabled:
+                                        group.id === group.organization_id,
                                     },
                                   ]}
                                 />
@@ -237,21 +251,21 @@ export const GroupPage: React.FC = () => {
           name={group.name}
           entity="group"
           onConfirm={() => {
-            send("CONFIRM_DELETE")
+            send("CONFIRM_DELETE");
           }}
           onCancel={() => {
-            send("CANCEL_DELETE")
+            send("CANCEL_DELETE");
           }}
         />
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles(() => ({
   autoComplete: {
     width: 300,
   },
-}))
+}));
 
-export default GroupPage
+export default GroupPage;

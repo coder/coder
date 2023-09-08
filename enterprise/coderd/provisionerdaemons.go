@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -22,14 +23,14 @@ import (
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionerd/proto"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
@@ -116,6 +117,8 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, tags map[string]strin
 	if p.psk != "" {
 		psk := r.Header.Get(codersdk.ProvisionerDaemonPSK)
 		if subtle.ConstantTimeCompare([]byte(p.psk), []byte(psk)) == 1 {
+			// If using PSK auth, the daemon is, by definition, scoped to the organization.
+			tags[provisionerdserver.TagScope] = provisionerdserver.ScopeOrganization
 			return tags, true
 		}
 	}
@@ -171,10 +174,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 
 	tags, authorized := api.provisionerDaemonAuth.authorize(r, tags)
 	if !authorized {
+		api.Logger.Warn(ctx, "unauthorized provisioner daemon serve request", slog.F("tags", tags))
 		httpapi.Write(ctx, rw, http.StatusForbidden,
 			codersdk.Response{Message: "You aren't allowed to create provisioner daemons"})
 		return
 	}
+	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
 
 	provisioners := make([]database.ProvisionerType, 0)
 	for p := range provisionersMap {
@@ -186,8 +191,17 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	name := namesgenerator.GetRandomName(1)
+	log := api.Logger.With(
+		slog.F("name", name),
+		slog.F("provisioners", provisioners),
+		slog.F("tags", tags),
+	)
 	rawTags, err := json.Marshal(tags)
 	if err != nil {
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "marshal provisioner tags", slog.Error(err))
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error marshaling daemon tags.",
 			Detail:  err.Error(),
@@ -205,6 +219,9 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		CompressionMode: websocket.CompressionDisabled,
 	})
 	if err != nil {
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "accept provisioner websocket conn", slog.Error(err))
+		}
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Internal error accepting websocket connection.",
 			Detail:  err.Error(),
@@ -227,26 +244,38 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
-	daemonName := namesgenerator.GetRandomName(1)
-	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", daemonName))
+	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
 	logger.Info(ctx, "starting external provisioner daemon")
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:                   api.AccessURL,
-		GitAuthConfigs:              api.GitAuthConfigs,
-		OIDCConfig:                  api.OIDCConfig,
-		ID:                          uuid.New(),
-		Database:                    api.Database,
-		Pubsub:                      api.Pubsub,
-		Provisioners:                provisioners,
-		Telemetry:                   api.Telemetry,
-		Auditor:                     &api.AGPL.Auditor,
-		TemplateScheduleStore:       api.AGPL.TemplateScheduleStore,
-		UserQuietHoursScheduleStore: api.AGPL.UserQuietHoursScheduleStore,
-		Logger:                      logger,
-		Tags:                        rawTags,
-		Tracer:                      trace.NewNoopTracerProvider().Tracer("noop"),
-		DeploymentValues:            api.DeploymentValues,
-	})
+	srv, err := provisionerdserver.NewServer(
+		api.AccessURL,
+		uuid.New(),
+		logger,
+		provisioners,
+		rawTags,
+		api.Database,
+		api.Pubsub,
+		api.Telemetry,
+		trace.NewNoopTracerProvider().Tracer("noop"),
+		&api.AGPL.QuotaCommitter,
+		&api.AGPL.Auditor,
+		api.AGPL.TemplateScheduleStore,
+		api.AGPL.UserQuietHoursScheduleStore,
+		api.DeploymentValues,
+		// TODO(spikecurtis) - fix debounce to not cause flaky tests.
+		time.Duration(0),
+		provisionerdserver.Options{
+			GitAuthConfigs: api.GitAuthConfigs,
+			OIDCConfig:     api.OIDCConfig,
+		},
+	)
+	if err != nil {
+		if !xerrors.Is(err, context.Canceled) {
+			log.Error(ctx, "create provisioner daemon server", slog.Error(err))
+		}
+		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create provisioner daemon server: %s", err))
+		return
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("drpc register provisioner daemon: %s", err))
 		return

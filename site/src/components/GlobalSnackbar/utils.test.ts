@@ -6,52 +6,52 @@ import {
   NotificationMsg,
   NotificationTextPrefixed,
   SnackbarEventType,
-} from "./utils"
+} from "./utils";
 
 describe("Snackbar", () => {
   describe("isNotificationTextPrefixed", () => {
     // Regression test for case found in #10436
     it("does not crash on null values", () => {
       // Given
-      const msg = null
+      const msg = null;
 
       // When
-      const isTextPrefixed = isNotificationTextPrefixed(msg)
+      const isTextPrefixed = isNotificationTextPrefixed(msg);
 
       // Then
-      expect(isTextPrefixed).toBe(false)
-    })
+      expect(isTextPrefixed).toBe(false);
+    });
     it("returns true if prefixed", () => {
       // Given
       const msg: NotificationTextPrefixed = {
         prefix: "warning",
         text: "careful with this workspace",
-      }
+      };
 
       // When
-      const isTextPrefixed = isNotificationTextPrefixed(msg)
+      const isTextPrefixed = isNotificationTextPrefixed(msg);
 
       // Then
-      expect(isTextPrefixed).toBe(true)
-    })
+      expect(isTextPrefixed).toBe(true);
+    });
     it("returns false if not prefixed", () => {
       // Given
-      const msg = "plain ol' message"
+      const msg = "plain ol' message";
 
       // When
-      const isTextPrefixed = isNotificationTextPrefixed(msg)
+      const isTextPrefixed = isNotificationTextPrefixed(msg);
 
       // Then
-      expect(isTextPrefixed).toBe(false)
-    })
-  })
+      expect(isTextPrefixed).toBe(false);
+    });
+  });
 
   describe("displaySuccess", () => {
-    const originalWindowDispatchEvent = window.dispatchEvent
+    const originalWindowDispatchEvent = window.dispatchEvent;
     type TDispatchEventMock = jest.MockedFunction<
       (msg: CustomEvent<NotificationMsg>) => boolean
-    >
-    let dispatchEventMock: TDispatchEventMock
+    >;
+    let dispatchEventMock: TDispatchEventMock;
 
     // Helper function to extract the notification event
     // that was sent to `dispatchEvent`. This lets us validate
@@ -63,18 +63,18 @@ describe("Snackbar", () => {
       // calls[0][0] is the first argument of the first call
       // calls[0][0].detail is the 'detail' argument passed to the `CustomEvent` -
       // this is the `NotificationMsg` object that gets sent to `dispatchEvent`
-      return dispatchEventMock.mock.calls[0][0].detail
-    }
+      return dispatchEventMock.mock.calls[0][0].detail;
+    };
 
     beforeEach(() => {
-      dispatchEventMock = jest.fn()
+      dispatchEventMock = jest.fn();
       window.dispatchEvent =
-        dispatchEventMock as unknown as typeof window.dispatchEvent
-    })
+        dispatchEventMock as unknown as typeof window.dispatchEvent;
+    });
 
     afterEach(() => {
-      window.dispatchEvent = originalWindowDispatchEvent
-    })
+      window.dispatchEvent = originalWindowDispatchEvent;
+    });
 
     it("can be called with only a title", () => {
       // Given
@@ -82,17 +82,17 @@ describe("Snackbar", () => {
         msgType: MsgType.Success,
         msg: "Test",
         additionalMsgs: undefined,
-      }
+      };
 
       // When
-      displaySuccess("Test")
+      displaySuccess("Test");
 
       // Then
-      expect(dispatchEventMock).toBeCalledTimes(1)
+      expect(dispatchEventMock).toBeCalledTimes(1);
       expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(
         expected,
-      )
-    })
+      );
+    });
 
     it("can be called with a title and additional message", () => {
       // Given
@@ -100,30 +100,30 @@ describe("Snackbar", () => {
         msgType: MsgType.Success,
         msg: "Test",
         additionalMsgs: ["additional message"],
-      }
+      };
 
       // When
-      displaySuccess("Test", "additional message")
+      displaySuccess("Test", "additional message");
 
       // Then
-      expect(dispatchEventMock).toBeCalledTimes(1)
+      expect(dispatchEventMock).toBeCalledTimes(1);
       expect(extractNotificationEvent(dispatchEventMock)).toStrictEqual(
         expected,
-      )
-    })
-  })
+      );
+    });
+  });
 
   describe("displayError", () => {
     it("shows the title and the message", (done) => {
-      const message = "Some error happened"
+      const message = "Some error happened";
 
       window.addEventListener(SnackbarEventType, (event) => {
-        const notificationEvent = event as CustomEvent<NotificationMsg>
-        expect(notificationEvent.detail.msg).toEqual(message)
-        done()
-      })
+        const notificationEvent = event as CustomEvent<NotificationMsg>;
+        expect(notificationEvent.detail.msg).toEqual(message);
+        done();
+      });
 
-      displayError(message)
-    })
-  })
-})
+      displayError(message);
+    });
+  });
+});

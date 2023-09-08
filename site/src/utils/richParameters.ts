@@ -1,80 +1,53 @@
 import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
-} from "api/typesGenerated"
-import { useTranslation } from "react-i18next"
-import * as Yup from "yup"
+} from "api/typesGenerated";
+import { useTranslation } from "react-i18next";
+import * as Yup from "yup";
 
-export const selectInitialRichParametersValues = (
-  templateParameters?: TemplateVersionParameter[],
-  defaultBuildParameters?: WorkspaceBuildParameter[],
+export const getInitialRichParameterValues = (
+  templateParameters: TemplateVersionParameter[],
+  buildParameters?: WorkspaceBuildParameter[],
 ): WorkspaceBuildParameter[] => {
-  const defaults: WorkspaceBuildParameter[] = []
-  if (!templateParameters) {
-    return defaults
+  return templateParameters.map((parameter) => {
+    const existentBuildParameter = buildParameters?.find(
+      (p) => p.name === parameter.name,
+    );
+    const shouldReturnTheDefaultValue =
+      !existentBuildParameter ||
+      !isValidValue(parameter, existentBuildParameter) ||
+      parameter.ephemeral;
+    if (shouldReturnTheDefaultValue) {
+      return {
+        name: parameter.name,
+        value: parameter.default_value,
+      };
+    }
+    return existentBuildParameter;
+  });
+};
+
+const isValidValue = (
+  templateParam: TemplateVersionParameter,
+  buildParam: WorkspaceBuildParameter,
+) => {
+  if (templateParam.options.length > 0) {
+    const validValues = templateParam.options.map((option) => option.value);
+    return validValues.includes(buildParam.value);
   }
 
-  templateParameters.forEach((parameter) => {
-    let parameterValue = parameter.default_value
-
-    if (parameter.options.length > 0) {
-      parameterValue = parameterValue ?? parameter.options[0].value
-      const validValues = parameter.options.map((option) => option.value)
-
-      if (defaultBuildParameters) {
-        const defaultBuildParameter = defaultBuildParameters.find(
-          (p) => p.name === parameter.name,
-        )
-
-        // We don't want invalid values from default parameters to be set
-        if (
-          defaultBuildParameter &&
-          validValues.includes(defaultBuildParameter.value)
-        ) {
-          parameterValue = defaultBuildParameter?.value
-        }
-      }
-
-      const buildParameter: WorkspaceBuildParameter = {
-        name: parameter.name,
-        value: parameterValue,
-      }
-      defaults.push(buildParameter)
-      return
-    }
-
-    if (parameter.ephemeral) {
-      parameterValue = parameter.default_value
-    }
-
-    if (defaultBuildParameters) {
-      const buildParameter = defaultBuildParameters.find(
-        (p) => p.name === parameter.name,
-      )
-
-      if (buildParameter) {
-        parameterValue = buildParameter?.value
-      }
-    }
-
-    const buildParameter: WorkspaceBuildParameter = {
-      name: parameter.name,
-      value: parameterValue || "",
-    }
-    defaults.push(buildParameter)
-  })
-  return defaults
-}
+  return true;
+};
 
 export const useValidationSchemaForRichParameters = (
   ns: string,
   templateParameters?: TemplateVersionParameter[],
   lastBuildParameters?: WorkspaceBuildParameter[],
 ): Yup.AnySchema => {
-  const { t } = useTranslation(ns)
+  const { t } = useTranslation(ns);
 
   if (!templateParameters) {
-    return Yup.object()
+    return Yup.object();
   }
 
   return Yup.array()
@@ -82,10 +55,10 @@ export const useValidationSchemaForRichParameters = (
       Yup.object().shape({
         name: Yup.string().required(),
         value: Yup.string().test("verify with template", (val, ctx) => {
-          const name = ctx.parent.name
+          const name = ctx.parent.name;
           const templateParameter = templateParameters.find(
             (parameter) => parameter.name === name,
-          )
+          );
           if (templateParameter) {
             switch (templateParameter.type) {
               case "number":
@@ -99,7 +72,7 @@ export const useValidationSchemaForRichParameters = (
                       message: t("validationNumberLesserThan", {
                         min: templateParameter.validation_min,
                       }).toString(),
-                    })
+                    });
                   }
                 } else if (
                   !templateParameter.validation_min &&
@@ -111,7 +84,7 @@ export const useValidationSchemaForRichParameters = (
                       message: t("validationNumberGreaterThan", {
                         max: templateParameter.validation_max,
                       }).toString(),
-                    })
+                    });
                   }
                 } else if (
                   templateParameter.validation_min &&
@@ -127,7 +100,7 @@ export const useValidationSchemaForRichParameters = (
                         min: templateParameter.validation_min,
                         max: templateParameter.validation_max,
                       }).toString(),
-                    })
+                    });
                   }
                 }
 
@@ -137,7 +110,7 @@ export const useValidationSchemaForRichParameters = (
                 ) {
                   const lastBuildParameter = lastBuildParameters.find(
                     (last) => last.name === name,
-                  )
+                  );
                   if (lastBuildParameter) {
                     switch (templateParameter.validation_monotonic) {
                       case "increasing":
@@ -147,9 +120,9 @@ export const useValidationSchemaForRichParameters = (
                             message: t("validationNumberNotIncreasing", {
                               last: lastBuildParameter.value,
                             }).toString(),
-                          })
+                          });
                         }
-                        break
+                        break;
                       case "decreasing":
                         if (Number(lastBuildParameter.value) < Number(val)) {
                           return ctx.createError({
@@ -157,23 +130,23 @@ export const useValidationSchemaForRichParameters = (
                             message: t("validationNumberNotDecreasing", {
                               last: lastBuildParameter.value,
                             }).toString(),
-                          })
+                          });
                         }
-                        break
+                        break;
                     }
                   }
                 }
-                break
+                break;
               case "string":
                 {
                   if (
                     !templateParameter.validation_regex ||
                     templateParameter.validation_regex.length === 0
                   ) {
-                    return true
+                    return true;
                   }
 
-                  const regex = new RegExp(templateParameter.validation_regex)
+                  const regex = new RegExp(templateParameter.validation_regex);
                   if (val && !regex.test(val)) {
                     return ctx.createError({
                       path: ctx.path,
@@ -181,43 +154,15 @@ export const useValidationSchemaForRichParameters = (
                         error: templateParameter.validation_error,
                         pattern: templateParameter.validation_regex,
                       }).toString(),
-                    })
+                    });
                   }
                 }
-                break
+                break;
             }
           }
-          return true
+          return true;
         }),
       }),
     )
-    .required()
-}
-
-export const workspaceBuildParameterValue = (
-  workspaceBuildParameters: WorkspaceBuildParameter[],
-  parameter: TemplateVersionParameter,
-): string => {
-  const buildParameter = workspaceBuildParameters.find((buildParameter) => {
-    return buildParameter.name === parameter.name
-  })
-  return (buildParameter && buildParameter.value) || ""
-}
-
-export const getInitialParameterValues = (
-  templateParameters: TemplateVersionParameter[],
-  buildParameters: WorkspaceBuildParameter[],
-) => {
-  return templateParameters.map((parameter) => {
-    const buildParameter = buildParameters.find(
-      (p) => p.name === parameter.name,
-    )
-    if (!buildParameter || parameter.ephemeral) {
-      return {
-        name: parameter.name,
-        value: parameter.default_value,
-      }
-    }
-    return buildParameter
-  })
-}
+    .required();
+};

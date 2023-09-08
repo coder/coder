@@ -6,7 +6,7 @@ Override the stop time of a currently running workspace instance.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
 
- [40m [0m[91;40m$ coder schedule override-stop my-workspace 90m[0m[40m [0m
+ $ coder schedule override-stop my-workspace 90m
 
 ---
 Run `coder --help` for a list of global options.

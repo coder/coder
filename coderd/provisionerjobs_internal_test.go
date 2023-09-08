@@ -18,18 +18,19 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestConvertProvisionerJob_Unit(t *testing.T) {
 	t.Parallel()
 	validNullTimeMock := sql.NullTime{
-		Time:  database.Now(),
+		Time:  dbtime.Now(),
 		Valid: true,
 	}
 	invalidNullTimeMock := sql.NullTime{}
@@ -142,7 +143,7 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),
@@ -204,7 +205,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),
@@ -280,7 +281,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	now := database.Now()
+	now := dbtime.Now()
 	job := database.ProvisionerJob{
 		ID:        uuid.New(),
 		CreatedAt: now.Add(-10 * time.Second),

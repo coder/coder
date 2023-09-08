@@ -14,11 +14,12 @@ import (
 	"github.com/imulab/go-scim/pkg/v2/spec"
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
+	agpl "github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (api *API) scimEnabledMW(next http.Handler) http.Handler {
@@ -173,7 +174,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 				ID: dbUser.ID,
 				// The user will get transitioned to Active after logging in.
 				Status:    database.UserStatusDormant,
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 			})
 			if err != nil {
 				_ = handlerutil.WriteError(rw, err)
@@ -287,7 +288,7 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	_, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 		ID:        dbUser.ID,
 		Status:    status,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	if err != nil {
 		_ = handlerutil.WriteError(rw, err)

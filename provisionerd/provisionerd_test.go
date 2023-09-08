@@ -23,12 +23,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/provisionerd"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionerd/runner"
-	"github.com/coder/coder/provisionersdk"
-	sdkproto "github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/provisionerd"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -61,7 +60,7 @@ func TestProvisionerd(t *testing.T) {
 		})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.NoError(t, closer.Close())
 	})
 
@@ -75,7 +74,7 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
 			return nil, xerrors.New("an error")
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
@@ -102,7 +101,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 				updateJob: noopUpdateJob,
 			}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
@@ -129,7 +128,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -142,12 +141,17 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
+				parse: func(_ *provisionersdk.Session, _ *sdkproto.ParseRequest, _ <-chan struct{}) *sdkproto.ParseComplete {
 					closerMutex.Lock()
 					defer closerMutex.Unlock()
-					return closer.Close()
+					err := closer.Close()
+					c := &sdkproto.ParseComplete{}
+					if err != nil {
+						c.Error = err.Error()
+					}
+					return c
 				},
 			}),
 		})
@@ -180,7 +184,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -191,7 +195,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -220,7 +224,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -233,11 +237,15 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
-					<-stream.Context().Done()
-					return nil
+				parse: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ParseRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.ParseComplete {
+					<-cancelOrComplete
+					return &sdkproto.ParseComplete{}
 				},
 			}),
 		})
@@ -255,7 +263,6 @@ func TestProvisionerd(t *testing.T) {
 			didComplete   atomic.Bool
 			didLog        atomic.Bool
 			didAcquireJob atomic.Bool
-			didDryRun     = atomic.NewBool(true)
 			didReadme     atomic.Bool
 			completeChan  = make(chan struct{})
 			completeOnce  sync.Once
@@ -273,12 +280,12 @@ func TestProvisionerd(t *testing.T) {
 						JobId:       "test",
 						Provisioner: "someprovisioner",
 						TemplateSourceArchive: createTar(t, map[string]string{
-							"test.txt":        "content",
-							runner.ReadmeFile: "# A cool template 😎\n",
+							"test.txt":                "content",
+							provisionersdk.ReadmeFile: "# A cool template 😎\n",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
 							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -297,56 +304,36 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				parse: func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
-					data, err := os.ReadFile(filepath.Join(request.Directory, "test.txt"))
+				parse: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.ParseRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.ParseComplete {
+					data, err := os.ReadFile(filepath.Join(s.WorkDirectory, "test.txt"))
 					require.NoError(t, err)
 					require.Equal(t, "content", string(data))
-
-					err = stream.Send(&sdkproto.Parse_Response{
-						Type: &sdkproto.Parse_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_INFO,
-								Output: "hello",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					err = stream.Send(&sdkproto.Parse_Response{
-						Type: &sdkproto.Parse_Response_Complete{
-							Complete: &sdkproto.Parse_Complete{},
-						},
-					})
-					require.NoError(t, err)
-					return nil
+					s.ProvisionLog(sdkproto.LogLevel_INFO, "hello")
+					return &sdkproto.ParseComplete{}
 				},
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					request, err := stream.Recv()
-					require.NoError(t, err)
-					if request.GetApply() != nil {
-						didDryRun.Store(false)
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_INFO, "hello")
+					return &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{},
 					}
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_INFO,
-								Output: "hello",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Resources: []*sdkproto.Resource{},
-							},
-						},
-					})
-					require.NoError(t, err)
-					return nil
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("dry run should not apply")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -355,7 +342,6 @@ func TestProvisionerd(t *testing.T) {
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
 		assert.True(t, didComplete.Load(), "should complete the job")
-		assert.True(t, didDryRun.Load(), "should be a dry run")
 	})
 
 	t.Run("TemplateDryRun", func(t *testing.T) {
@@ -371,7 +357,7 @@ func TestProvisionerd(t *testing.T) {
 			completeChan  = make(chan struct{})
 			completeOnce  sync.Once
 
-			metadata = &sdkproto.Provision_Metadata{}
+			metadata = &sdkproto.Metadata{}
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
@@ -412,18 +398,24 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Resources: []*sdkproto.Resource{},
-							},
-						},
-					})
-					require.NoError(t, err)
-					return nil
+				plan: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{},
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("dry run should not apply")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -464,7 +456,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -480,26 +472,22 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_DEBUG,
-								Output: "wow",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{},
-						},
-					})
-					require.NoError(t, err)
-					return nil
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "wow")
+					return &sdkproto.PlanComplete{}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -540,7 +528,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -565,42 +553,48 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_DEBUG,
-								Output: "wow",
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "wow")
+					return &sdkproto.PlanComplete{
+						Resources: []*sdkproto.Resource{
+							{
+								DailyCost: 10,
+							},
+							{
+								DailyCost: 15,
 							},
 						},
-					})
-					require.NoError(t, err)
-
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Resources: []*sdkproto.Resource{
-									{
-										DailyCost: 10,
-									},
-									{
-										DailyCost: 15,
-									},
-								},
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should not apply when resources exceed quota")
+					return &sdkproto.ApplyComplete{
+						Resources: []*sdkproto.Resource{
+							{
+								DailyCost: 10,
+							},
+							{
+								DailyCost: 15,
 							},
 						},
-					})
-					require.NoError(t, err)
-					return nil
+					}
 				},
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 		assert.True(t, didLog.Load(), "should log some updates")
-		assert.False(t, didComplete.Load(), "should complete the job")
+		assert.False(t, didComplete.Load(), "should not complete the job")
 		assert.True(t, didFail.Load(), "should fail the job")
 	})
 
@@ -633,7 +627,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -644,16 +638,26 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					return stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Error: "some error",
-							},
-						},
-					})
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					cancelOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{
+						Error: "some error",
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should not apply when plan errors")
+					return &sdkproto.ApplyComplete{
+						Error: "some error",
+					}
 				},
 			}),
 		})
@@ -683,7 +687,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -710,33 +714,26 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					// Ignore the first provision message!
-					_, _ = stream.Recv()
-
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_DEBUG,
-								Output: "in progress",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					msg, err := stream.Recv()
-					require.NoError(t, err)
-					require.NotNil(t, msg.GetCancel())
-
-					return stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Error: "some error",
-							},
-						},
-					})
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					canceledOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "in progress")
+					<-canceledOrComplete
+					return &sdkproto.PlanComplete{
+						Error: "some error",
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should not apply when shut down during plan")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -768,7 +765,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -803,33 +800,26 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					// Ignore the first provision message!
-					_, _ = stream.Recv()
-
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_DEBUG,
-								Output: "in progress",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					msg, err := stream.Recv()
-					require.NoError(t, err)
-					require.NotNil(t, msg.GetCancel())
-
-					return stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Error: "some error",
-							},
-						},
-					})
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					canceledOrComplete <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "in progress")
+					<-canceledOrComplete
+					return &sdkproto.PlanComplete{
+						Error: "some error",
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should not apply when shut down during plan")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -867,7 +857,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -896,18 +886,24 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					// Ignore the first provision message!
-					_, _ = stream.Recv()
-					return stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{
-								Error: "some error",
-							},
-						},
-					})
+				plan: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{
+						Error: "some error",
+					}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					t.Error("should not apply when error during plan")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -945,7 +941,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -975,16 +971,21 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					// Ignore the first provision message!
-					_, _ = stream.Recv()
-					return stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{},
-						},
-					})
+				plan: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					return &sdkproto.PlanComplete{}
+				},
+				apply: func(
+					_ *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -1023,7 +1024,7 @@ func TestProvisionerd(t *testing.T) {
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
 							WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-								Metadata: &sdkproto.Provision_Metadata{},
+								Metadata: &sdkproto.Metadata{},
 							},
 						},
 					}, nil
@@ -1054,26 +1055,23 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
-				provision: func(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-					err := stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Log{
-							Log: &sdkproto.Log{
-								Level:  sdkproto.LogLevel_DEBUG,
-								Output: "wow",
-							},
-						},
-					})
-					require.NoError(t, err)
-
-					err = stream.Send(&sdkproto.Provision_Response{
-						Type: &sdkproto.Provision_Response_Complete{
-							Complete: &sdkproto.Provision_Complete{},
-						},
-					})
-					require.NoError(t, err)
-					return nil
+				plan: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.PlanRequest,
+					_ <-chan struct{},
+				) *sdkproto.PlanComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "wow")
+					return &sdkproto.PlanComplete{}
+				},
+				apply: func(
+					s *provisionersdk.Session,
+					_ *sdkproto.ApplyRequest,
+					_ <-chan struct{},
+				) *sdkproto.ApplyComplete {
+					s.ProvisionLog(sdkproto.LogLevel_DEBUG, "wow")
+					return &sdkproto.ApplyComplete{}
 				},
 			}),
 		})
@@ -1105,13 +1103,12 @@ func createTar(t *testing.T, files map[string]string) []byte {
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
-func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) *provisionerd.Server {
+func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector provisionerd.LocalProvisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
 		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval: 50 * time.Millisecond,
 		UpdateInterval:  50 * time.Millisecond,
-		Provisioners:    provisioners,
-		WorkDirectory:   t.TempDir(),
+		Connector:       connector,
 	})
 	t.Cleanup(func() {
 		_ = server.Close()
@@ -1172,15 +1169,15 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 		_ = clientPipe.Close()
 		_ = serverPipe.Close()
 	})
-	mux := drpcmux.New()
-	err := sdkproto.DRPCRegisterProvisioner(mux, &server)
-	require.NoError(t, err)
-	srv := drpcserver.New(mux)
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	closed := make(chan struct{})
 	go func() {
 		defer close(closed)
-		_ = srv.Serve(ctx, serverPipe)
+		_ = provisionersdk.Serve(ctx, &server, &provisionersdk.ServeOptions{
+			Listener:      serverPipe,
+			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("test-provisioner"),
+			WorkDirectory: t.TempDir(),
+		})
 	}()
 	t.Cleanup(func() {
 		cancelFunc()
@@ -1200,16 +1197,21 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 }
 
 type provisionerTestServer struct {
-	parse     func(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error
-	provision func(stream sdkproto.DRPCProvisioner_ProvisionStream) error
+	parse func(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete
+	plan  func(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete
+	apply func(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete
 }
 
-func (p *provisionerTestServer) Parse(request *sdkproto.Parse_Request, stream sdkproto.DRPCProvisioner_ParseStream) error {
-	return p.parse(request, stream)
+func (p *provisionerTestServer) Parse(s *provisionersdk.Session, r *sdkproto.ParseRequest, canceledOrComplete <-chan struct{}) *sdkproto.ParseComplete {
+	return p.parse(s, r, canceledOrComplete)
 }
 
-func (p *provisionerTestServer) Provision(stream sdkproto.DRPCProvisioner_ProvisionStream) error {
-	return p.provision(stream)
+func (p *provisionerTestServer) Plan(s *provisionersdk.Session, r *sdkproto.PlanRequest, canceledOrComplete <-chan struct{}) *sdkproto.PlanComplete {
+	return p.plan(s, r, canceledOrComplete)
+}
+
+func (p *provisionerTestServer) Apply(s *provisionersdk.Session, r *sdkproto.ApplyRequest, canceledOrComplete <-chan struct{}) *sdkproto.ApplyComplete {
+	return p.apply(s, r, canceledOrComplete)
 }
 
 // Fulfills the protobuf interface for a ProvisionerDaemon with

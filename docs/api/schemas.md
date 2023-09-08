@@ -201,6 +201,7 @@
       "url": "string"
     }
   ],
+  "derp_force_websockets": true,
   "derpmap": {
     "homeParams": {
       "regionScore": {
@@ -291,6 +292,7 @@
 | ---------------------------- | ------------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `agent_id`                   | string                                                                                            | false    |              |                                                                                                                                                            |
 | `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                           | false    |              |                                                                                                                                                            |
+| `derp_force_websockets`      | boolean                                                                                           | false    |              |                                                                                                                                                            |
 | `derpmap`                    | [tailcfg.DERPMap](#tailcfgderpmap)                                                                | false    |              |                                                                                                                                                            |
 | `directory`                  | string                                                                                            | false    |              |                                                                                                                                                            |
 | `disable_direct_connections` | boolean                                                                                           | false    |              |                                                                                                                                                            |
@@ -1476,43 +1478,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
-  "default_ttl_ms": 0,
-  "description": "string",
-  "disable_everyone_group_access": true,
-  "display_name": "string",
-  "failure_ttl_ms": 0,
-  "icon": "string",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
-  "max_ttl_ms": 0,
-  "name": "string",
-  "restart_requirement": {
+  "autostop_requirement": {
     "days_of_week": ["monday"],
     "weeks": 0
   },
+  "default_ttl_ms": 0,
+  "delete_ttl_ms": 0,
+  "description": "string",
+  "disable_everyone_group_access": true,
+  "display_name": "string",
+  "dormant_ttl_ms": 0,
+  "failure_ttl_ms": 0,
+  "icon": "string",
+  "max_ttl_ms": 0,
+  "name": "string",
   "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
 }
 ```
 
 ### Properties
 
-| Name                                                                                                                                                                                      | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow_user_autostart`                                                                                                                                                                    | boolean                                                                    | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
-| `allow_user_autostop`                                                                                                                                                                     | boolean                                                                    | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
-| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                    | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
-| `default_ttl_ms`                                                                                                                                                                          | integer                                                                    | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
-| `description`                                                                                                                                                                             | string                                                                     | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
-| `disable_everyone_group_access`                                                                                                                                                           | boolean                                                                    | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
-| `display_name`                                                                                                                                                                            | string                                                                     | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
-| `failure_ttl_ms`                                                                                                                                                                          | integer                                                                    | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
-| `icon`                                                                                                                                                                                    | string                                                                     | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
-| `inactivity_ttl_ms`                                                                                                                                                                       | integer                                                                    | false    |              | Inactivity ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                  |
-| `locked_ttl_ms`                                                                                                                                                                           | integer                                                                    | false    |              | Locked ttl ms allows optionally specifying the max lifetime before Coder permanently deletes locked workspaces created from this template.                                                                                                                                                                          |
-| `max_ttl_ms`                                                                                                                                                                              | integer                                                                    | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                                                                                                                                                       |
-| `name`                                                                                                                                                                                    | string                                                                     | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
-| `restart_requirement`                                                                                                                                                                     | [codersdk.TemplateRestartRequirement](#codersdktemplaterestartrequirement) | false    |              | Restart requirement allows optionally specifying the restart requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                  |
-| `template_version_id`                                                                                                                                                                     | string                                                                     | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
+| Name                                                                                                                                                                                      | Type                                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_user_autostart`                                                                                                                                                                    | boolean                                                                      | false    |              | Allow user autostart allows users to set a schedule for autostarting their workspace. By default this is true. This can only be disabled when using an enterprise license.                                                                                                                                          |
+| `allow_user_autostop`                                                                                                                                                                     | boolean                                                                      | false    |              | Allow user autostop allows users to set a custom workspace TTL to use in place of the template's DefaultTTL field. By default this is true. If false, the DefaultTTL will always be used. This can only be disabled when using an enterprise license.                                                               |
+| `allow_user_cancel_workspace_jobs`                                                                                                                                                        | boolean                                                                      | false    |              | Allow users to cancel in-progress workspace jobs. \*bool as the default value is "true".                                                                                                                                                                                                                            |
+| `autostop_requirement`                                                                                                                                                                    | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement) | false    |              | Autostop requirement allows optionally specifying the autostop requirement for workspaces created from this template. This is an enterprise feature.                                                                                                                                                                |
+| `default_ttl_ms`                                                                                                                                                                          | integer                                                                      | false    |              | Default ttl ms allows optionally specifying the default TTL for all workspaces created from this template.                                                                                                                                                                                                          |
+| `delete_ttl_ms`                                                                                                                                                                           | integer                                                                      | false    |              | Delete ttl ms allows optionally specifying the max lifetime before Coder permanently deletes dormant workspaces created from this template.                                                                                                                                                                         |
+| `description`                                                                                                                                                                             | string                                                                       | false    |              | Description is a description of what the template contains. It must be less than 128 bytes.                                                                                                                                                                                                                         |
+| `disable_everyone_group_access`                                                                                                                                                           | boolean                                                                      | false    |              | Disable everyone group access allows optionally disabling the default behavior of granting the 'everyone' group access to use the template. If this is set to true, the template will not be available to all users, and must be explicitly granted to users or groups in the permissions settings of the template. |
+| `display_name`                                                                                                                                                                            | string                                                                       | false    |              | Display name is the displayed name of the template.                                                                                                                                                                                                                                                                 |
+| `dormant_ttl_ms`                                                                                                                                                                          | integer                                                                      | false    |              | Dormant ttl ms allows optionally specifying the max lifetime before Coder locks inactive workspaces created from this template.                                                                                                                                                                                     |
+| `failure_ttl_ms`                                                                                                                                                                          | integer                                                                      | false    |              | Failure ttl ms allows optionally specifying the max lifetime before Coder stops all resources for failed workspaces created from this template.                                                                                                                                                                     |
+| `icon`                                                                                                                                                                                    | string                                                                       | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                                                                                                    |
+| `max_ttl_ms`                                                                                                                                                                              | integer                                                                      | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                                                                                                                                      |
+| `name`                                                                                                                                                                                    | string                                                                       | true     |              | Name is the name of the template.                                                                                                                                                                                                                                                                                   |
+| `template_version_id`                                                                                                                                                                     | string                                                                       | true     |              | Template version ID is an in-progress or completed job to use as an initial version of the template.                                                                                                                                                                                                                |
 | This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users. |
 
 ## codersdk.CreateTemplateVersionDryRunRequest
@@ -1755,19 +1757,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "ttl_ms": 0
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                     |
-| `name`                  | string                                                                        | true     |              |                                                                                                     |
-| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision. |
-| `template_id`           | string                                                                        | true     |              |                                                                                                     |
-| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                     |
+| Name                    | Type                                                                          | Required | Restrictions | Description                                                                                             |
+| ----------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`    | string                                                                        | false    |              |                                                                                                         |
+| `name`                  | string                                                                        | true     |              |                                                                                                         |
+| `rich_parameter_values` | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values allows for additional parameters to be provided during the initial provision.     |
+| `template_id`           | string                                                                        | false    |              | Template ID specifies which template should be used for creating the workspace.                         |
+| `template_version_id`   | string                                                                        | false    |              | Template version ID can be used to specify a specific version of a template for creating the workspace. |
+| `ttl_ms`                | integer                                                                       | false    |              |                                                                                                         |
 
 ## codersdk.DAUEntry
 
@@ -1812,6 +1816,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "config": {
     "block_direct": true,
+    "force_websockets": true,
     "path": "string",
     "url": "string"
   },
@@ -1850,6 +1855,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "block_direct": true,
+  "force_websockets": true,
   "path": "string",
   "url": "string"
 }
@@ -1857,11 +1863,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `block_direct` | boolean | false    |              |             |
-| `path`         | string  | false    |              |             |
-| `url`          | string  | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `block_direct`     | boolean | false    |              |             |
+| `force_websockets` | boolean | false    |              |             |
+| `path`             | string  | false    |              |             |
+| `url`              | string  | false    |              |             |
 
 ## codersdk.DERPRegion
 
@@ -1985,6 +1992,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "derp": {
       "config": {
         "block_direct": true,
+        "force_websockets": true,
         "path": "string",
         "url": "string"
       },
@@ -2028,6 +2036,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
+    "external_token_encryption_keys": ["string"],
     "git_auth": {
       "value": [
         {
@@ -2192,6 +2201,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "trace": {
       "capture_logs": true,
+      "data_dog": true,
       "enable": true,
       "honeycomb_api_key": "string"
     },
@@ -2347,6 +2357,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "derp": {
     "config": {
       "block_direct": true,
+      "force_websockets": true,
       "path": "string",
       "url": "string"
     },
@@ -2390,6 +2401,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "enable_terraform_debug_mode": true,
   "experiments": ["string"],
+  "external_token_encryption_keys": ["string"],
   "git_auth": {
     "value": [
       {
@@ -2554,6 +2566,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "trace": {
     "capture_logs": true,
+    "data_dog": true,
     "enable": true,
     "honeycomb_api_key": "string"
   },
@@ -2602,6 +2615,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `docs_url`                           | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
 | `experiments`                        | array of string                                                                            | false    |              |                                                                    |
+| `external_token_encryption_keys`     | array of string                                                                            | false    |              |                                                                    |
 | `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
 | `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
 | `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
@@ -2637,6 +2651,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
+
+## codersdk.DisplayApp
+
+```json
+"vscode"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                    |
+| ------------------------ |
+| `vscode`                 |
+| `vscode_insiders`        |
+| `web_terminal`           |
+| `port_forwarding_helper` |
+| `ssh_helper`             |
 
 ## codersdk.Entitlement
 
@@ -2674,6 +2706,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "has_license": true,
+  "refreshed_at": "2019-08-24T14:15:22Z",
   "require_telemetry": true,
   "trial": true,
   "warnings": ["string"]
@@ -2688,6 +2721,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `features`          | object                               | false    |              |             |
 | » `[any property]`  | [codersdk.Feature](#codersdkfeature) | false    |              |             |
 | `has_license`       | boolean                              | false    |              |             |
+| `refreshed_at`      | string                               | false    |              |             |
 | `require_telemetry` | boolean                              | false    |              |             |
 | `trial`             | boolean                              | false    |              |             |
 | `warnings`          | array of string                      | false    |              |             |
@@ -2702,15 +2736,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value                          |
-| ------------------------------ |
-| `moons`                        |
-| `workspace_actions`            |
-| `tailnet_pg_coordinator`       |
-| `single_tailnet`               |
-| `template_restart_requirement` |
-| `deployment_health_page`       |
-| `template_parameters_insights` |
+| Value                           |
+| ------------------------------- |
+| `moons`                         |
+| `workspace_actions`             |
+| `tailnet_pg_coordinator`        |
+| `single_tailnet`                |
+| `template_autostop_requirement` |
+| `deployment_health_page`        |
 
 ## codersdk.Feature
 
@@ -3088,7 +3121,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.JobErrorCode
 
 ```json
-"MISSING_TEMPLATE_PARAMETER"
+"REQUIRED_TEMPLATE_VARIABLES"
 ```
 
 ### Properties
@@ -3097,7 +3130,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Value                         |
 | ----------------------------- |
-| `MISSING_TEMPLATE_PARAMETER`  |
 | `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
@@ -3459,6 +3491,30 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `updated_at`      | string                                  | false    |              |             |
 | `user_id`         | string                                  | false    |              |             |
 
+## codersdk.PatchGroupRequest
+
+```json
+{
+  "add_users": ["string"],
+  "avatar_url": "string",
+  "display_name": "string",
+  "name": "string",
+  "quota_allowance": 0,
+  "remove_users": ["string"]
+}
+```
+
+### Properties
+
+| Name              | Type            | Required | Restrictions | Description |
+| ----------------- | --------------- | -------- | ------------ | ----------- |
+| `add_users`       | array of string | false    |              |             |
+| `avatar_url`      | string          | false    |              |             |
+| `display_name`    | string          | false    |              |             |
+| `name`            | string          | false    |              |             |
+| `quota_allowance` | integer         | false    |              |             |
+| `remove_users`    | array of string | false    |              |             |
+
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
@@ -3602,7 +3658,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
   "error": "string",
-  "error_code": "MISSING_TEMPLATE_PARAMETER",
+  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "queue_position": 0,
@@ -3640,7 +3696,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Property     | Value                         |
 | ------------ | ----------------------------- |
-| `error_code` | `MISSING_TEMPLATE_PARAMETER`  |
 | `error_code` | `REQUIRED_TEMPLATE_VARIABLES` |
 | `status`     | `pending`                     |
 | `status`     | `running`                     |
@@ -3963,6 +4018,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `group`            |
 | `license`          |
 | `convert_login`    |
+| `workspace_proxy`  |
+| `organization`     |
 
 ## codersdk.Response
 
@@ -4187,6 +4244,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "allow_user_autostart": true,
   "allow_user_autostop": true,
   "allow_user_cancel_workspace_jobs": true,
+  "autostop_requirement": {
+    "days_of_week": ["monday"],
+    "weeks": 0
+  },
   "build_time_stats": {
     "property1": {
       "p50": 123,
@@ -4206,47 +4267,43 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "failure_ttl_ms": 0,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "inactivity_ttl_ms": 0,
-  "locked_ttl_ms": 0,
   "max_ttl_ms": 0,
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "restart_requirement": {
-    "days_of_week": ["monday"],
-    "weeks": 0
-  },
+  "time_til_dormant_autodelete_ms": 0,
+  "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name                               | Type                                                                       | Required | Restrictions | Description                                                                                                                                                                     |
-| ---------------------------------- | -------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `active_user_count`                | integer                                                                    | false    |              | Active user count is set to -1 when loading.                                                                                                                                    |
-| `active_version_id`                | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `allow_user_autostart`             | boolean                                                                    | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.         |
-| `allow_user_autostop`              | boolean                                                                    | false    |              |                                                                                                                                                                                 |
-| `allow_user_cancel_workspace_jobs` | boolean                                                                    | false    |              |                                                                                                                                                                                 |
-| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)         | false    |              |                                                                                                                                                                                 |
-| `created_at`                       | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `created_by_id`                    | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `created_by_name`                  | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `default_ttl_ms`                   | integer                                                                    | false    |              |                                                                                                                                                                                 |
-| `description`                      | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `display_name`                     | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `failure_ttl_ms`                   | integer                                                                    | false    |              | Failure ttl ms InactivityTTLMillis, and LockedTTLMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
-| `icon`                             | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `id`                               | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `inactivity_ttl_ms`                | integer                                                                    | false    |              |                                                                                                                                                                                 |
-| `locked_ttl_ms`                    | integer                                                                    | false    |              |                                                                                                                                                                                 |
-| `max_ttl_ms`                       | integer                                                                    | false    |              | Max ttl ms remove max_ttl once restart_requirement is matured                                                                                                                   |
-| `name`                             | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `organization_id`                  | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `provisioner`                      | string                                                                     | false    |              |                                                                                                                                                                                 |
-| `restart_requirement`              | [codersdk.TemplateRestartRequirement](#codersdktemplaterestartrequirement) | false    |              | Restart requirement is an enterprise feature. Its value is only used if your license is entitled to use the advanced template scheduling feature.                               |
-| `updated_at`                       | string                                                                     | false    |              |                                                                                                                                                                                 |
+| Name                               | Type                                                                         | Required | Restrictions | Description                                                                                                                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `active_user_count`                | integer                                                                      | false    |              | Active user count is set to -1 when loading.                                                                                                                                                    |
+| `active_version_id`                | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `allow_user_autostart`             | boolean                                                                      | false    |              | Allow user autostart and AllowUserAutostop are enterprise-only. Their values are only used if your license is entitled to use the advanced template scheduling feature.                         |
+| `allow_user_autostop`              | boolean                                                                      | false    |              |                                                                                                                                                                                                 |
+| `allow_user_cancel_workspace_jobs` | boolean                                                                      | false    |              |                                                                                                                                                                                                 |
+| `autostop_requirement`             | [codersdk.TemplateAutostopRequirement](#codersdktemplateautostoprequirement) | false    |              | Autostop requirement is an enterprise feature. Its value is only used if your license is entitled to use the advanced template scheduling feature.                                              |
+| `build_time_stats`                 | [codersdk.TemplateBuildTimeStats](#codersdktemplatebuildtimestats)           | false    |              |                                                                                                                                                                                                 |
+| `created_at`                       | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `created_by_id`                    | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `created_by_name`                  | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `default_ttl_ms`                   | integer                                                                      | false    |              |                                                                                                                                                                                                 |
+| `description`                      | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `display_name`                     | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `failure_ttl_ms`                   | integer                                                                      | false    |              | Failure ttl ms TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their values are used if your license is entitled to use the advanced template scheduling feature. |
+| `icon`                             | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `id`                               | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `max_ttl_ms`                       | integer                                                                      | false    |              | Max ttl ms remove max_ttl once autostop_requirement is matured                                                                                                                                  |
+| `name`                             | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `organization_id`                  | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                                                 |
+| `time_til_dormant_autodelete_ms`   | integer                                                                      | false    |              |                                                                                                                                                                                                 |
+| `time_til_dormant_ms`              | integer                                                                      | false    |              |                                                                                                                                                                                                 |
+| `updated_at`                       | string                                                                       | false    |              |                                                                                                                                                                                                 |
 
 #### Enumerated Values
 
@@ -4291,6 +4348,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value     |
 | --------- |
 | `builtin` |
+| `app`     |
+
+## codersdk.TemplateAutostopRequirement
+
+```json
+{
+  "days_of_week": ["monday"],
+  "weeks": 0
+}
+```
+
+### Properties
+
+| Name                                                                                  | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------- | --------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `days_of_week`                                                                        | array of string | false    |              | Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.                                                              |
+| Restarts will only happen on weekdays in this list on weeks which line up with Weeks. |
+| `weeks`                                                                               | integer         | false    |              | Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc. |
 
 ## codersdk.TemplateBuildTimeStats
 
@@ -4532,23 +4607,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `count` | integer | false    |              |             |
 | `value` | string  | false    |              |             |
 
-## codersdk.TemplateRestartRequirement
-
-```json
-{
-  "days_of_week": ["monday"],
-  "weeks": 0
-}
-```
-
-### Properties
-
-| Name                                                                                  | Type            | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                    |
-| ------------------------------------------------------------------------------------- | --------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `days_of_week`                                                                        | array of string | false    |              | Days of week is a list of days of the week on which restarts are required. Restarts happen within the user's quiet hours (in their configured timezone). If no days are specified, restarts are not required. Weekdays cannot be specified twice.                                                              |
-| Restarts will only happen on weekdays in this list on weeks which line up with Weeks. |
-| `weeks`                                                                               | integer         | false    |              | Weeks is the number of weeks between required restarts. Weeks are synced across all workspaces (and Coder deployments) using modulo math on a hardcoded epoch week of January 2nd, 2023 (the first Monday of 2023). Values of 0 or 1 indicate weekly restarts. Values of 2 indicate fortnightly restarts, etc. |
-
 ## codersdk.TemplateRole
 
 ```json
@@ -4629,7 +4687,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -4837,6 +4895,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ```json
 {
   "capture_logs": true,
+  "data_dog": true,
   "enable": true,
   "honeycomb_api_key": "string"
 }
@@ -4847,6 +4906,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Name                | Type    | Required | Restrictions | Description |
 | ------------------- | ------- | -------- | ------------ | ----------- |
 | `capture_logs`      | boolean | false    |              |             |
+| `data_dog`          | boolean | false    |              |             |
 | `enable`            | boolean | false    |              |             |
 | `honeycomb_api_key` | string  | false    |              |             |
 
@@ -5017,19 +5077,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | ---------- | ------ | -------- | ------------ | ----------- |
 | `schedule` | string | false    |              |             |
 
-## codersdk.UpdateWorkspaceLock
+## codersdk.UpdateWorkspaceDormancy
 
 ```json
 {
-  "lock": true
+  "dormant": true
 }
 ```
 
 ### Properties
 
-| Name   | Type    | Required | Restrictions | Description |
-| ------ | ------- | -------- | ------------ | ----------- |
-| `lock` | boolean | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `dormant` | boolean | false    |              |             |
 
 ## codersdk.UpdateWorkspaceRequest
 
@@ -5323,6 +5383,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "autostart_schedule": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "deleting_at": "2019-08-24T14:15:22Z",
+  "dormant_at": "2019-08-24T14:15:22Z",
   "health": {
     "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
     "healthy": false
@@ -5342,7 +5403,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
       "error": "string",
-      "error_code": "MISSING_TEMPLATE_PARAMETER",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "queue_position": 0,
@@ -5385,6 +5446,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "created_at": "2019-08-24T14:15:22Z",
             "directory": "string",
             "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": ["vscode"],
             "environment_variables": {
               "property1": "string",
               "property2": "string"
@@ -5457,12 +5519,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
     "workspace_owner_name": "string"
   },
-  "locked_at": "2019-08-24T14:15:22Z",
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "outdated": true,
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
+  "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
   "template_allow_user_cancel_workspace_jobs": true,
   "template_display_name": "string",
   "template_icon": "string",
@@ -5475,28 +5537,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                                        | Type                                                 | Required | Restrictions | Description                                                                                                                                                                                                                                               |
-| ------------------------------------------- | ---------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `autostart_schedule`                        | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `created_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `deleting_at`                               | string                                               | false    |              | Deleting at indicates the time of the upcoming workspace deletion, if applicable; otherwise it is nil. Workspaces may have impending deletions if Template.InactivityTTL feature is turned on and the workspace is inactive.                              |
-| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth) | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                       |
-| `id`                                        | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `last_used_at`                              | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)   | false    |              |                                                                                                                                                                                                                                                           |
-| `locked_at`                                 | string                                               | false    |              | Locked at being non-nil indicates a workspace that has been locked. A locked workspace is no longer accessible by a user and must be unlocked by an admin. It is subject to deletion if it breaches the duration of the locked_ttl field on its template. |
-| `name`                                      | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `organization_id`                           | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `outdated`                                  | boolean                                              | false    |              |                                                                                                                                                                                                                                                           |
-| `owner_id`                                  | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `owner_name`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `template_allow_user_cancel_workspace_jobs` | boolean                                              | false    |              |                                                                                                                                                                                                                                                           |
-| `template_display_name`                     | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `template_icon`                             | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `template_id`                               | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `template_name`                             | string                                               | false    |              |                                                                                                                                                                                                                                                           |
-| `ttl_ms`                                    | integer                                              | false    |              |                                                                                                                                                                                                                                                           |
-| `updated_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                           |
+| Name                                        | Type                                                 | Required | Restrictions | Description                                                                                                                                                                                                                                           |
+| ------------------------------------------- | ---------------------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `autostart_schedule`                        | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `created_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `deleting_at`                               | string                                               | false    |              | Deleting at indicates the time at which the workspace will be permanently deleted. A workspace is eligible for deletion if it is dormant (a non-nil dormant_at value) and a value has been specified for time_til_dormant_autodelete on its template. |
+| `dormant_at`                                | string                                               | false    |              | Dormant at being non-nil indicates a workspace that is dormant. A dormant workspace is no longer accessible must be activated. It is subject to deletion if it breaches the duration of the time*til* field on its template.                          |
+| `health`                                    | [codersdk.WorkspaceHealth](#codersdkworkspacehealth) | false    |              | Health shows the health of the workspace and information about what is causing an unhealthy status.                                                                                                                                                   |
+| `id`                                        | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `last_used_at`                              | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)   | false    |              |                                                                                                                                                                                                                                                       |
+| `name`                                      | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `organization_id`                           | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `outdated`                                  | boolean                                              | false    |              |                                                                                                                                                                                                                                                       |
+| `owner_id`                                  | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `owner_name`                                | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `template_active_version_id`                | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `template_allow_user_cancel_workspace_jobs` | boolean                                              | false    |              |                                                                                                                                                                                                                                                       |
+| `template_display_name`                     | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `template_icon`                             | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `template_id`                               | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `template_name`                             | string                                               | false    |              |                                                                                                                                                                                                                                                       |
+| `ttl_ms`                                    | integer                                              | false    |              |                                                                                                                                                                                                                                                       |
+| `updated_at`                                | string                                               | false    |              |                                                                                                                                                                                                                                                       |
 
 ## codersdk.WorkspaceAgent
 
@@ -5526,6 +5589,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
+  "display_apps": ["vscode"],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -5581,6 +5645,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `created_at`                      | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `directory`                       | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `disconnected_at`                 | string                                                                                       | false    |              |                                                                                                                                                                                                            |
+| `display_apps`                    | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                            |
 | `environment_variables`           | object                                                                                       | false    |              |                                                                                                                                                                                                            |
 | » `[any property]`                | string                                                                                       | false    |              |                                                                                                                                                                                                            |
 | `expanded_directory`              | string                                                                                       | false    |              |                                                                                                                                                                                                            |
@@ -5615,6 +5680,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "derp_force_websockets": true,
   "derp_map": {
     "homeParams": {
       "regionScore": {
@@ -5682,6 +5748,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 | Name                         | Type                               | Required | Restrictions | Description |
 | ---------------------------- | ---------------------------------- | -------- | ------------ | ----------- |
+| `derp_force_websockets`      | boolean                            | false    |              |             |
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 
@@ -5949,7 +6016,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
     "error": "string",
-    "error_code": "MISSING_TEMPLATE_PARAMETER",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "queue_position": 0,
@@ -5992,6 +6059,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "created_at": "2019-08-24T14:15:22Z",
           "directory": "string",
           "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": ["vscode"],
           "environment_variables": {
             "property1": "string",
             "property2": "string"
@@ -6303,6 +6371,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "created_at": "2019-08-24T14:15:22Z",
       "directory": "string",
       "disconnected_at": "2019-08-24T14:15:22Z",
+      "display_apps": ["vscode"],
       "environment_variables": {
         "property1": "string",
         "property2": "string"
@@ -6457,6 +6526,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "autostart_schedule": "string",
       "created_at": "2019-08-24T14:15:22Z",
       "deleting_at": "2019-08-24T14:15:22Z",
+      "dormant_at": "2019-08-24T14:15:22Z",
       "health": {
         "failing_agents": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
         "healthy": false
@@ -6476,7 +6546,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
           "error": "string",
-          "error_code": "MISSING_TEMPLATE_PARAMETER",
+          "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "queue_position": 0,
@@ -6515,6 +6585,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "created_at": "2019-08-24T14:15:22Z",
                 "directory": "string",
                 "disconnected_at": "2019-08-24T14:15:22Z",
+                "display_apps": ["vscode"],
                 "environment_variables": {
                   "property1": "string",
                   "property2": "string"
@@ -6587,12 +6658,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
         "workspace_owner_name": "string"
       },
-      "locked_at": "2019-08-24T14:15:22Z",
       "name": "string",
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "outdated": true,
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
+      "template_active_version_id": "b0da9c29-67d8-4c87-888c-bafe356f7f3c",
       "template_allow_user_cancel_workspace_jobs": true,
       "template_display_name": "string",
       "template_icon": "string",
@@ -6630,31 +6701,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `tokenBucketBytesPerSecond`                                                                | integer | false    |              | Tokenbucketbytespersecond is how many bytes per second the server says it will accept, including all framing bytes.      |
 | Zero means unspecified. There might be a limit, but the client need not try to respect it. |
 
-## healthcheck.AccessURLReport
-
-```json
-{
-  "access_url": "string",
-  "error": "string",
-  "healthy": true,
-  "healthz_response": "string",
-  "reachable": true,
-  "status_code": 0
-}
-```
-
-### Properties
-
-| Name               | Type    | Required | Restrictions | Description |
-| ------------------ | ------- | -------- | ------------ | ----------- |
-| `access_url`       | string  | false    |              |             |
-| `error`            | string  | false    |              |             |
-| `healthy`          | boolean | false    |              |             |
-| `healthz_response` | string  | false    |              |             |
-| `reachable`        | boolean | false    |              |             |
-| `status_code`      | integer | false    |              |             |
-
-## healthcheck.DERPNodeReport
+## derphealth.NodeReport
 
 ```json
 {
@@ -6695,21 +6742,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                                     | Required | Restrictions | Description |
-| ----------------------- | -------------------------------------------------------- | -------- | ------------ | ----------- |
-| `can_exchange_messages` | boolean                                                  | false    |              |             |
-| `client_errs`           | array of array                                           | false    |              |             |
-| `client_logs`           | array of array                                           | false    |              |             |
-| `error`                 | string                                                   | false    |              |             |
-| `healthy`               | boolean                                                  | false    |              |             |
-| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)                     | false    |              |             |
-| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage)         | false    |              |             |
-| `round_trip_ping`       | string                                                   | false    |              |             |
-| `round_trip_ping_ms`    | integer                                                  | false    |              |             |
-| `stun`                  | [healthcheck.DERPStunReport](#healthcheckderpstunreport) | false    |              |             |
-| `uses_websocket`        | boolean                                                  | false    |              |             |
+| Name                    | Type                                             | Required | Restrictions | Description |
+| ----------------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `can_exchange_messages` | boolean                                          | false    |              |             |
+| `client_errs`           | array of array                                   | false    |              |             |
+| `client_logs`           | array of array                                   | false    |              |             |
+| `error`                 | string                                           | false    |              |             |
+| `healthy`               | boolean                                          | false    |              |             |
+| `node`                  | [tailcfg.DERPNode](#tailcfgderpnode)             | false    |              |             |
+| `node_info`             | [derp.ServerInfoMessage](#derpserverinfomessage) | false    |              |             |
+| `round_trip_ping`       | string                                           | false    |              |             |
+| `round_trip_ping_ms`    | integer                                          | false    |              |             |
+| `stun`                  | [derphealth.StunReport](#derphealthstunreport)   | false    |              |             |
+| `uses_websocket`        | boolean                                          | false    |              |             |
 
-## healthcheck.DERPRegionReport
+## derphealth.RegionReport
 
 ```json
 {
@@ -6780,14 +6827,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name           | Type                                                              | Required | Restrictions | Description |
-| -------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `error`        | string                                                            | false    |              |             |
-| `healthy`      | boolean                                                           | false    |              |             |
-| `node_reports` | array of [healthcheck.DERPNodeReport](#healthcheckderpnodereport) | false    |              |             |
-| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                          | false    |              |             |
+| Name           | Type                                                    | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`        | string                                                  | false    |              |             |
+| `healthy`      | boolean                                                 | false    |              |             |
+| `node_reports` | array of [derphealth.NodeReport](#derphealthnodereport) | false    |              |             |
+| `region`       | [tailcfg.DERPRegion](#tailcfgderpregion)                | false    |              |             |
 
-## healthcheck.DERPReport
+## derphealth.Report
 
 ```json
 {
@@ -6960,17 +7007,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                         | Required | Restrictions | Description |
-| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `error`            | string                                                       | false    |              |             |
-| `healthy`          | boolean                                                      | false    |              |             |
-| `netcheck`         | [netcheck.Report](#netcheckreport)                           | false    |              |             |
-| `netcheck_err`     | string                                                       | false    |              |             |
-| `netcheck_logs`    | array of string                                              | false    |              |             |
-| `regions`          | object                                                       | false    |              |             |
-| » `[any property]` | [healthcheck.DERPRegionReport](#healthcheckderpregionreport) | false    |              |             |
+| Name               | Type                                               | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------------- | -------- | ------------ | ----------- |
+| `error`            | string                                             | false    |              |             |
+| `healthy`          | boolean                                            | false    |              |             |
+| `netcheck`         | [netcheck.Report](#netcheckreport)                 | false    |              |             |
+| `netcheck_err`     | string                                             | false    |              |             |
+| `netcheck_logs`    | array of string                                    | false    |              |             |
+| `regions`          | object                                             | false    |              |             |
+| » `[any property]` | [derphealth.RegionReport](#derphealthregionreport) | false    |              |             |
 
-## healthcheck.DERPStunReport
+## derphealth.StunReport
 
 ```json
 {
@@ -6987,6 +7034,30 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `canSTUN` | boolean | false    |              |             |
 | `enabled` | boolean | false    |              |             |
 | `error`   | string  | false    |              |             |
+
+## healthcheck.AccessURLReport
+
+```json
+{
+  "access_url": "string",
+  "error": "string",
+  "healthy": true,
+  "healthz_response": "string",
+  "reachable": true,
+  "status_code": 0
+}
+```
+
+### Properties
+
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `access_url`       | string  | false    |              |             |
+| `error`            | string  | false    |              |             |
+| `healthy`          | boolean | false    |              |             |
+| `healthz_response` | string  | false    |              |             |
+| `reachable`        | boolean | false    |              |             |
+| `status_code`      | integer | false    |              |             |
 
 ## healthcheck.DatabaseReport
 
@@ -7215,7 +7286,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `access_url`       | [healthcheck.AccessURLReport](#healthcheckaccessurlreport) | false    |              |                                                                            |
 | `coder_version`    | string                                                     | false    |              | The Coder version of the server that the report was generated on.          |
 | `database`         | [healthcheck.DatabaseReport](#healthcheckdatabasereport)   | false    |              |                                                                            |
-| `derp`             | [healthcheck.DERPReport](#healthcheckderpreport)           | false    |              |                                                                            |
+| `derp`             | [derphealth.Report](#derphealthreport)                     | false    |              |                                                                            |
 | `failing_sections` | array of string                                            | false    |              | Failing sections is a list of sections that have failed their healthcheck. |
 | `healthy`          | boolean                                                    | false    |              | Healthy is true if the report returns no errors.                           |
 | `time`             | string                                                     | false    |              | Time is the time the report was generated at.                              |
@@ -7585,6 +7656,36 @@ _None_
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |
 | `workspace_name_or_id` | string                                                   | false    |              |                                                                                                                                                                                       |
 
+## workspaceapps.StatsReport
+
+```json
+{
+  "access_method": "path",
+  "agent_id": "string",
+  "requests": 0,
+  "session_ended_at": "string",
+  "session_id": "string",
+  "session_started_at": "string",
+  "slug_or_port": "string",
+  "user_id": "string",
+  "workspace_id": "string"
+}
+```
+
+### Properties
+
+| Name                 | Type                                                     | Required | Restrictions | Description                                                                             |
+| -------------------- | -------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------- |
+| `access_method`      | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                         |
+| `agent_id`           | string                                                   | false    |              |                                                                                         |
+| `requests`           | integer                                                  | false    |              |                                                                                         |
+| `session_ended_at`   | string                                                   | false    |              | Updated periodically while app is in use active and when the last connection is closed. |
+| `session_id`         | string                                                   | false    |              |                                                                                         |
+| `session_started_at` | string                                                   | false    |              |                                                                                         |
+| `slug_or_port`       | string                                                   | false    |              |                                                                                         |
+| `user_id`            | string                                                   | false    |              |                                                                                         |
+| `workspace_id`       | string                                                   | false    |              |                                                                                         |
+
 ## wsproxysdk.AgentIsLegacyResponse
 
 ```json
@@ -7665,6 +7766,66 @@ _None_
 ```json
 {
   "app_security_key": "string",
+  "derp_force_websockets": true,
+  "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
   "derp_mesh_key": "string",
   "derp_region_id": 0,
   "sibling_replicas": [
@@ -7683,9 +7844,37 @@ _None_
 
 ### Properties
 
-| Name               | Type                                          | Required | Restrictions | Description                                                                            |
-| ------------------ | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `app_security_key` | string                                        | false    |              |                                                                                        |
-| `derp_mesh_key`    | string                                        | false    |              |                                                                                        |
-| `derp_region_id`   | integer                                       | false    |              |                                                                                        |
-| `sibling_replicas` | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+| Name                    | Type                                          | Required | Restrictions | Description                                                                            |
+| ----------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
+| `app_security_key`      | string                                        | false    |              |                                                                                        |
+| `derp_force_websockets` | boolean                                       | false    |              |                                                                                        |
+| `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
+| `derp_mesh_key`         | string                                        | false    |              |                                                                                        |
+| `derp_region_id`        | integer                                       | false    |              |                                                                                        |
+| `sibling_replicas`      | array of [codersdk.Replica](#codersdkreplica) | false    |              | Sibling replicas is a list of all other replicas of the proxy that have not timed out. |
+
+## wsproxysdk.ReportAppStatsRequest
+
+```json
+{
+  "stats": [
+    {
+      "access_method": "path",
+      "agent_id": "string",
+      "requests": 0,
+      "session_ended_at": "string",
+      "session_id": "string",
+      "session_started_at": "string",
+      "slug_or_port": "string",
+      "user_id": "string",
+      "workspace_id": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                            | Required | Restrictions | Description |
+| ------- | --------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `stats` | array of [workspaceapps.StatsReport](#workspaceappsstatsreport) | false    |              |             |

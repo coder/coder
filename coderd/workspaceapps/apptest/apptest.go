@@ -12,10 +12,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"path"
-	"regexp"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,16 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
-
-const ansi = "[\u001B\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PRZcf-ntqry=><~]))"
-
-var re = regexp.MustCompile(ansi)
 
 // Run runs the entire workspace app test suite against deployments minted
 // by the provided factory.
@@ -69,8 +65,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:   appDetails.Agent.ID,
 				Reconnect: uuid.New(),
-				Height:    80,
-				Width:     80,
+				Height:    100,
+				Width:     100,
 				Command:   "bash",
 			})
 		})
@@ -103,8 +99,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
 				AgentID:     appDetails.Agent.ID,
 				Reconnect:   uuid.New(),
-				Height:      80,
-				Width:       80,
+				Height:      100,
+				Width:       100,
 				Command:     "bash",
 				SignedToken: issueRes.SignedToken,
 			})
@@ -129,7 +125,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appDetails.PathAppURL(appDetails.Apps.Owner).String(), nil)
 			require.NoError(t, err)
 			defer resp.Body.Close()
-			require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+			require.Equal(t, http.StatusForbidden, resp.StatusCode)
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			require.Contains(t, string(body), "Path-based applications are disabled")
@@ -261,7 +257,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -306,7 +302,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -404,30 +400,19 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			appDetails := setupProxyTest(t, nil)
 
 			cases := []struct {
-				name         string
-				appURL       *url.URL
-				verifyCookie func(t *testing.T, c *http.Cookie)
+				name                   string
+				appURL                 *url.URL
+				sessionTokenCookieName string
 			}{
 				{
-					name:   "Subdomain",
-					appURL: appDetails.SubdomainAppURL(appDetails.Apps.Owner),
-					verifyCookie: func(t *testing.T, c *http.Cookie) {
-						// TODO(@dean): fix these asserts, they don't seem to
-						// work. I wonder if Go strips the domain from the
-						// cookie object if it's invalid or something.
-						// domain := strings.SplitN(appDetails.Options.AppHost, ".", 2)
-						// require.Equal(t, "."+domain[1], c.Domain, "incorrect domain on app token cookie")
-					},
+					name:                   "Subdomain",
+					appURL:                 appDetails.SubdomainAppURL(appDetails.Apps.Owner),
+					sessionTokenCookieName: codersdk.SubdomainAppSessionTokenCookie,
 				},
 				{
-					name:   "Path",
-					appURL: appDetails.PathAppURL(appDetails.Apps.Owner),
-					verifyCookie: func(t *testing.T, c *http.Cookie) {
-						// TODO(@dean): fix these asserts, they don't seem to
-						// work. I wonder if Go strips the domain from the
-						// cookie object if it's invalid or something.
-						// require.Equal(t, "", c.Domain, "incorrect domain on app token cookie")
-					},
+					name:                   "Path",
+					appURL:                 appDetails.PathAppURL(appDetails.Apps.Owner),
+					sessionTokenCookieName: codersdk.PathAppSessionTokenCookie,
 				},
 			}
 
@@ -512,14 +497,13 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 					cookies := resp.Cookies()
 					var cookie *http.Cookie
-					for _, c := range cookies {
-						if c.Name == codersdk.DevURLSessionTokenCookie {
-							cookie = c
+					for _, co := range cookies {
+						if co.Name == c.sessionTokenCookieName {
+							cookie = co
 							break
 						}
 					}
 					require.NotNil(t, cookie, "no app session token cookie was set")
-					c.verifyCookie(t, cookie)
 					apiKey := cookie.Value
 
 					// Fetch the API key from the API.
@@ -719,7 +703,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -763,7 +747,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			var appTokenCookie *http.Cookie
 			for _, c := range resp.Cookies() {
-				if c.Name == codersdk.DevURLSignedAppTokenCookie {
+				if c.Name == codersdk.SignedAppTokenCookie {
 					appTokenCookie = c
 					break
 				}
@@ -1342,19 +1326,70 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
 		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
 	})
+
+	t.Run("ReportStats", func(t *testing.T) {
+		t.Parallel()
+
+		flush := make(chan chan<- struct{}, 1)
+
+		reporter := &fakeStatsReporter{}
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			StatsCollectorOptions: workspaceapps.StatsCollectorOptions{
+				Reporter:       reporter,
+				ReportInterval: time.Hour,
+				RollupWindow:   time.Minute,
+
+				Flush: flush,
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		u := appDetails.PathAppURL(appDetails.Apps.Owner)
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		_, err = io.Copy(io.Discard, resp.Body)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		var stats []workspaceapps.StatsReport
+		require.Eventually(t, func() bool {
+			// Keep flushing until we get a non-empty stats report.
+			flushDone := make(chan struct{}, 1)
+			flush <- flushDone
+			<-flushDone
+
+			stats = reporter.stats()
+			return len(stats) > 0
+		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
+
+		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
+		assert.Equal(t, 1, stats[0].Requests)
+	})
+}
+
+type fakeStatsReporter struct {
+	mu sync.Mutex
+	s  []workspaceapps.StatsReport
+}
+
+func (r *fakeStatsReporter) stats() []workspaceapps.StatsReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.s
+}
+
+func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.StatsReport) error {
+	r.mu.Lock()
+	r.s = append(r.s, stats...)
+	r.mu.Unlock()
+	return nil
 }
 
 func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
-	hasLine := func(scanner *bufio.Scanner, matcher func(string) bool) bool {
-		for scanner.Scan() {
-			line := scanner.Text()
-			t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-			if matcher(line) {
-				return true
-			}
-		}
-		return false
-	}
 	matchEchoCommand := func(line string) bool {
 		return strings.Contains(line, "echo test")
 	}
@@ -1375,13 +1410,12 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	// First attempt to resize the TTY.
 	// The websocket will close if it fails!
 	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Height: 250,
-		Width:  250,
+		Height: 80,
+		Width:  80,
 	})
 	require.NoError(t, err)
 	_, err = conn.Write(data)
 	require.NoError(t, err)
-	scanner := bufio.NewScanner(conn)
 
 	// Brief pause to reduce the likelihood that we send keystrokes while
 	// the shell is simultaneously sending a prompt.
@@ -1394,8 +1428,8 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	_, err = conn.Write(data)
 	require.NoError(t, err)
 
-	require.True(t, hasLine(scanner, matchEchoCommand), "find echo command")
-	require.True(t, hasLine(scanner, matchEchoOutput), "find echo output")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoCommand), "find echo command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
@@ -1406,12 +1440,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 
 	// Once for the input and again for the output.
-	require.True(t, hasLine(scanner, matchExitCommand), "find exit command")
-	require.True(t, hasLine(scanner, matchExitOutput), "find exit output")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitCommand), "find exit command")
+	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitOutput), "find exit output")
 
 	// Ensure the connection closes.
-	for scanner.Scan() {
-		line := scanner.Text()
-		t.Logf("bash tty stdout = %s", re.ReplaceAllString(line, ""))
-	}
+	require.ErrorIs(t, testutil.ReadUntil(ctx, t, conn, nil), io.EOF)
 }

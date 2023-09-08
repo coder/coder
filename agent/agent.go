@@ -34,14 +34,14 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/agent/reconnectingpty"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -523,7 +523,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	report := agentsdk.PostLifecycleRequest{
 		State:     state,
-		ChangedAt: database.Now(),
+		ChangedAt: dbtime.Now(),
 	}
 
 	a.lifecycleMu.Lock()
@@ -654,7 +654,7 @@ func (a *agent) run(ctx context.Context) error {
 			select {
 			case err = <-scriptDone:
 			case <-timeout:
-				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.ShutdownScriptTimeout))
+				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.StartupScriptTimeout))
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
 				err = <-scriptDone // The script can still complete after a timeout.
 			}
@@ -678,7 +678,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DERPForceWebSockets, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -701,8 +701,10 @@ func (a *agent) run(ctx context.Context) error {
 		if err != nil {
 			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
 		}
-		// Update the DERP map and allow/disallow direct connections.
+		// Update the DERP map, force WebSocket setting and allow/disallow
+		// direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetDERPForceWebSockets(manifest.DERPForceWebSockets)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
@@ -756,14 +758,15 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		ID:             agentID,
-		Addresses:      a.wireguardAddresses(agentID),
-		DERPMap:        derpMap,
-		Logger:         a.logger.Named("net.tailnet"),
-		ListenPort:     a.tailnetListenPort,
-		BlockEndpoints: disableDirectConnections,
+		ID:                  agentID,
+		Addresses:           a.wireguardAddresses(agentID),
+		DERPMap:             derpMap,
+		DERPForceWebSockets: derpForceWebSockets,
+		Logger:              a.logger.Named("net.tailnet"),
+		ListenPort:          a.tailnetListenPort,
+		BlockEndpoints:      disableDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)

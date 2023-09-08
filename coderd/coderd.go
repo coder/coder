@@ -37,37 +37,37 @@ import (
 	"tailscale.com/util/singleflight"
 
 	// Used for swagger docs.
-	_ "github.com/coder/coder/coderd/apidoc"
+	_ "github.com/coder/coder/v2/coderd/apidoc"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/awsidentity"
-	"github.com/coder/coder/coderd/batchstats"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/metricscache"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/updatecheck"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisionerd/proto"
-	"github.com/coder/coder/provisionersdk"
-	"github.com/coder/coder/site"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/batchstats"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/updatecheck"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisionerd/proto"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/site"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 // We must only ever instantiate one httpSwagger.Handler because of a data race
@@ -162,6 +162,8 @@ type Options struct {
 
 	UpdateAgentMetrics func(ctx context.Context, username, workspaceName, agentName string, metrics []agentsdk.AgentMetric)
 	StatsBatcher       *batchstats.Batcher
+
+	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 // @title Coder API
@@ -182,8 +184,6 @@ type Options struct {
 // @in header
 // @name Coder-Session-Token
 // New constructs a Coder API handler.
-//
-//nolint:gocyclo
 func New(options *Options) *API {
 	if options == nil {
 		options = &Options{}
@@ -402,7 +402,8 @@ func New(options *Options) *API {
 		api.agentProvider, err = NewServerTailnet(api.ctx,
 			options.Logger,
 			options.DERPServer,
-			options.BaseDERPMap,
+			api.DERPMap,
+			options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 			func(context.Context) (tailnet.MultiAgentConn, error) {
 				return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
 			},
@@ -418,8 +419,17 @@ func New(options *Options) *API {
 		}
 	}
 
+	workspaceAppsLogger := options.Logger.Named("workspaceapps")
+	if options.WorkspaceAppsStatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		options.WorkspaceAppsStatsCollectorOptions.Logger = &named
+	}
+	if options.WorkspaceAppsStatsCollectorOptions.Reporter == nil {
+		options.WorkspaceAppsStatsCollectorOptions.Reporter = workspaceapps.NewStatsDBReporter(options.Database, workspaceapps.DefaultStatsDBReporterBatchSize)
+	}
+
 	api.workspaceAppServer = &workspaceapps.Server{
-		Logger: options.Logger.Named("workspaceapps"),
+		Logger: workspaceAppsLogger,
 
 		DashboardURL:  api.AccessURL,
 		AccessURL:     api.AccessURL,
@@ -430,6 +440,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		AppSecurityKey:      options.AppSecurityKey,
+		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
 		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
 		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
@@ -842,7 +853,7 @@ func New(options *Options) *API {
 				})
 				r.Get("/watch", api.watchWorkspace)
 				r.Put("/extend", api.putExtendWorkspace)
-				r.Put("/lock", api.putWorkspaceLock)
+				r.Put("/dormant", api.putWorkspaceDormant)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -1020,6 +1031,7 @@ func (api *API) Close() error {
 	if api.updateChecker != nil {
 		api.updateChecker.Close()
 	}
+	_ = api.workspaceAppServer.Close()
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()
@@ -1076,27 +1088,33 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 	name := namesgenerator.GetRandomName(1)
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	logger.Info(ctx, "starting in-memory provisioner daemon")
-	err = proto.DRPCRegisterProvisionerDaemon(mux, &provisionerdserver.Server{
-		AccessURL:  api.AccessURL,
-		ID:         uuid.New(),
-		OIDCConfig: api.OIDCConfig,
-		Database:   api.Database,
-		Pubsub:     api.Pubsub,
-		Provisioners: []database.ProvisionerType{
+	srv, err := provisionerdserver.NewServer(
+		api.AccessURL,
+		uuid.New(),
+		logger,
+		[]database.ProvisionerType{
 			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
 		},
-		GitAuthConfigs:              api.GitAuthConfigs,
-		Telemetry:                   api.Telemetry,
-		Tracer:                      tracer,
-		Tags:                        tags,
-		QuotaCommitter:              &api.QuotaCommitter,
-		Auditor:                     &api.Auditor,
-		TemplateScheduleStore:       api.TemplateScheduleStore,
-		UserQuietHoursScheduleStore: api.UserQuietHoursScheduleStore,
-		AcquireJobDebounce:          debounce,
-		Logger:                      logger,
-		DeploymentValues:            api.DeploymentValues,
-	})
+		tags,
+		api.Database,
+		api.Pubsub,
+		api.Telemetry,
+		tracer,
+		&api.QuotaCommitter,
+		&api.Auditor,
+		api.TemplateScheduleStore,
+		api.UserQuietHoursScheduleStore,
+		api.DeploymentValues,
+		debounce,
+		provisionerdserver.Options{
+			OIDCConfig:     api.OIDCConfig,
+			GitAuthConfigs: api.GitAuthConfigs,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	err = proto.DRPCRegisterProvisionerDaemon(mux, srv)
 	if err != nil {
 		return nil, err
 	}

@@ -26,5 +26,5 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 
-  $ coder schedule stop my-workspace 2h30m
+ $ coder schedule stop my-workspace 2h30m
 ```

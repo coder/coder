@@ -1,6 +1,6 @@
-import { Meta, StoryObj } from "@storybook/react"
-import { mockApiError, MockDeploymentDAUResponse } from "testHelpers/entities"
-import { GeneralSettingsPageView } from "./GeneralSettingsPageView"
+import { Meta, StoryObj } from "@storybook/react";
+import { mockApiError, MockDeploymentDAUResponse } from "testHelpers/entities";
+import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
   title: "pages/GeneralSettingsPageView",
@@ -36,7 +36,6 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
           "workspace_actions",
           "single_tailnet",
           "deployment_health_page",
-          "template_parameters_insights",
         ],
         flag_shorthand: "",
         hidden: false,
@@ -44,18 +43,18 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof GeneralSettingsPageView>
+export default meta;
+type Story = StoryObj<typeof GeneralSettingsPageView>;
 
-export const Page: Story = {}
+export const Page: Story = {};
 
 export const NoDAUs: Story = {
   args: {
     deploymentDAUs: undefined,
   },
-}
+};
 
 export const DAUError: Story = {
   args: {
@@ -64,4 +63,4 @@ export const DAUError: Story = {
       message: "Error fetching DAUs.",
     }),
   },
-}
+};

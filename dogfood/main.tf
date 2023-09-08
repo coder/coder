@@ -6,7 +6,7 @@ terraform {
     }
     docker = {
       source  = "kreuzwerker/docker"
-      version = "~> 2.22.0"
+      version = "~> 3.0.0"
     }
   }
 }
@@ -40,9 +40,10 @@ data "coder_parameter" "dotfiles_url" {
 }
 
 data "coder_parameter" "region" {
-  type = "string"
-  name = "Region"
-  icon = "/emojis/1f30e.png"
+  type    = "string"
+  name    = "Region"
+  icon    = "/emojis/1f30e.png"
+  default = "us-pittsburgh"
   option {
     icon  = "/emojis/1f1fa-1f1f8.png"
     name  = "Pittsburgh"
@@ -89,6 +90,8 @@ resource "coder_agent" "dev" {
   env = {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
+    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
+    CODER_DEPLOYMENT_URL : data.coder_workspace.me.access_url
   }
   startup_script_behavior = "blocking"
 
@@ -182,10 +185,12 @@ resource "coder_agent" "dev" {
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
     filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
 
-    if [ ! -d ${data.coder_parameter.repo_dir.value} ]; then
-      mkdir -p ${data.coder_parameter.repo_dir.value}
+    repo_dir="${data.coder_parameter.repo_dir.value}"
+    repo_dir="$${repo_dir/#~\//$HOME\/}"
+    if [ ! -d "$repo_dir" ]; then
+      mkdir -p "$repo_dir"
 
-      git clone https://github.com/coder/coder ${data.coder_parameter.repo_dir.value}
+      git clone https://github.com/coder/coder "$repo_dir"
     fi
 
     sudo service docker start
@@ -199,6 +204,15 @@ resource "coder_agent" "dev" {
     elif [ -f ~/personalize ]; then
       echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
+
+    # Automatically authenticate the user if they are not
+    # logged in to another deployment
+    if ! coder list >/dev/null 2>&1; then
+      set +x; coder login --token=$CODER_USER_TOKEN --url=$CODER_DEPLOYMENT_URL
+    else
+      echo "You are already authenticated with coder"
+    fi
+
   EOT
 }
 
@@ -206,7 +220,7 @@ resource "coder_app" "code-server" {
   agent_id     = coder_agent.dev.id
   slug         = "code-server"
   display_name = "code-server"
-  url          = "http://localhost:13337/"
+  url          = "http://localhost:13337/?folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}"
   icon         = "/icon/code.svg"
   subdomain    = false
   share        = "owner"
@@ -260,15 +274,15 @@ locals {
   registry_name  = "codercom/oss-dogfood"
 }
 data "docker_registry_image" "dogfood" {
-  name = "${local.registry_name}:main"
+  // This is temporarily pinned to a pre-nix version of the image at commit
+  // 6cdf1c73c until the Nix kinks are worked out.
+  name = "${local.registry_name}:pre-nix"
 }
 
 resource "docker_image" "dogfood" {
   name = "${local.registry_name}@${data.docker_registry_image.dogfood.sha256_digest}"
   pull_triggers = [
-    data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("Dockerfile"),
+    data.docker_registry_image.dogfood.sha256_digest
   ]
   keep_locally = true
 }
@@ -325,5 +339,9 @@ resource "coder_metadata" "container_info" {
   item {
     key   = "runtime"
     value = docker_container.workspace[0].runtime
+  }
+  item {
+    key   = "region"
+    value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
 }

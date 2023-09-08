@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplateEdit(t *testing.T) {
@@ -242,7 +242,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
-	t.Run("RestartRequirement", func(t *testing.T) {
+	t.Run("AutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
 			t.Parallel()
@@ -252,7 +252,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.RestartRequirement = nil
+				ctr.AutostopRequirement = nil
 			})
 
 			cases := []struct {
@@ -263,20 +263,20 @@ func TestTemplateEdit(t *testing.T) {
 				{
 					name: "Weekdays",
 					flags: []string{
-						"--restart-requirement-weekdays", "monday",
+						"--autostop-requirement-weekdays", "monday",
 					},
 				},
 				{
 					name: "WeekdaysNoneAllowed",
 					flags: []string{
-						"--restart-requirement-weekdays", "none",
+						"--autostop-requirement-weekdays", "none",
 					},
 					ok: true,
 				},
 				{
 					name: "Weeks",
 					flags: []string{
-						"--restart-requirement-weeks", "1",
+						"--autostop-requirement-weeks", "1",
 					},
 				},
 			}
@@ -312,8 +312,8 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.Icon, updated.Icon)
 					assert.Equal(t, template.DisplayName, updated.DisplayName)
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 				})
 			}
 		})
@@ -326,7 +326,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.RestartRequirement = nil
+				ctr.AutostopRequirement = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -377,20 +377,20 @@ func TestTemplateEdit(t *testing.T) {
 				{
 					name: "Weekdays",
 					flags: []string{
-						"--restart-requirement-weekdays", "monday",
+						"--autostop-requirement-weekdays", "monday",
 					},
 				},
 				{
 					name: "WeekdaysNoneAllowed",
 					flags: []string{
-						"--restart-requirement-weekdays", "none",
+						"--autostop-requirement-weekdays", "none",
 					},
 					ok: true,
 				},
 				{
 					name: "Weeks",
 					flags: []string{
-						"--restart-requirement-weeks", "1",
+						"--autostop-requirement-weeks", "1",
 					},
 				},
 			}
@@ -426,8 +426,8 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.Icon, updated.Icon)
 					assert.Equal(t, template.DisplayName, updated.DisplayName)
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-					assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-					assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 				})
 			}
 		})
@@ -439,7 +439,7 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.RestartRequirement = nil
+				ctr.AutostopRequirement = nil
 			})
 
 			// Make a proxy server that will return a valid entitlements
@@ -475,8 +475,8 @@ func TestTemplateEdit(t *testing.T) {
 					var req codersdk.UpdateTemplateMeta
 					err = json.Unmarshal(body, &req)
 					require.NoError(t, err)
-					assert.Equal(t, req.RestartRequirement.DaysOfWeek, []string{"monday", "tuesday"})
-					assert.EqualValues(t, req.RestartRequirement.Weeks, 3)
+					assert.Equal(t, req.AutostopRequirement.DaysOfWeek, []string{"monday", "tuesday"})
+					assert.EqualValues(t, req.AutostopRequirement.Weeks, 3)
 
 					r.Body = io.NopCloser(bytes.NewReader(body))
 					atomic.AddInt64(&updateTemplateCalled, 1)
@@ -504,8 +504,8 @@ func TestTemplateEdit(t *testing.T) {
 				"templates",
 				"edit",
 				template.Name,
-				"--restart-requirement-weekdays", "monday,tuesday",
-				"--restart-requirement-weeks", "3",
+				"--autostop-requirement-weekdays", "monday,tuesday",
+				"--autostop-requirement-weeks", "3",
 			}
 			inv, root := clitest.New(t, cmdArgs...)
 			clitest.SetupConfig(t, proxyClient, root)
@@ -525,8 +525,8 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 		})
 	})
 	// TODO(@dean): remove this test when we remove max_ttl
@@ -750,9 +750,9 @@ func TestTemplateEdit(t *testing.T) {
 			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
-				ctr.RestartRequirement = nil
+				ctr.AutostopRequirement = nil
 				ctr.FailureTTLMillis = nil
-				ctr.InactivityTTLMillis = nil
+				ctr.TimeTilDormantMillis = nil
 			})
 
 			// Test the cli command with --allow-user-autostart.
@@ -793,12 +793,12 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 
 		t.Run("BlockedNotEntitled", func(t *testing.T) {
@@ -887,12 +887,12 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 		t.Run("Entitled", func(t *testing.T) {
 			t.Parallel()
@@ -985,12 +985,12 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.Icon, updated.Icon)
 			assert.Equal(t, template.DisplayName, updated.DisplayName)
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
-			assert.Equal(t, template.RestartRequirement.DaysOfWeek, updated.RestartRequirement.DaysOfWeek)
-			assert.Equal(t, template.RestartRequirement.Weeks, updated.RestartRequirement.Weeks)
+			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
+			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
-			assert.Equal(t, template.InactivityTTLMillis, updated.InactivityTTLMillis)
+			assert.Equal(t, template.TimeTilDormantMillis, updated.TimeTilDormantMillis)
 		})
 	})
 }

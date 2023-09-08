@@ -20,6 +20,7 @@ import (
 	"golang.org/x/xerrors"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
 	"tailscale.com/net/dns"
@@ -42,8 +43,8 @@ import (
 	"tailscale.com/wgengine/wgcfg/nmcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 const (
@@ -64,6 +65,22 @@ func init() {
 	// Globally disable network namespacing. All networking happens in
 	// userspace.
 	netns.SetEnabled(false)
+	// Tailscale, by default, "trims" the set of peers down to ones that we are
+	// "actively" communicating with in an effort to save memory. Since
+	// Tailscale removed keep-alives, it seems like open but idle connections
+	// (SSH, port-forward, etc) can get trimmed fairly easily, causing hangs for
+	// a few seconds while the connection is setup again.
+	//
+	// Note that Tailscale.com's use case is very different from ours: in their
+	// use case, users create one persistent tailnet per device, and it allows
+	// connections to every other thing in Tailscale that belongs to them.  The
+	// tailnet stays up as long as your laptop or phone is turned on.
+	//
+	// Our use case is different: for clients, it's a point-to-point connection
+	// to a single workspace, and lasts only as long as the connection.  For
+	// agents, it's connections to a small number of clients (CLI or Coderd)
+	// that are being actively used by the end user.
+	envknob.Setenv("TS_DEBUG_TRIM_WIREGUARD", "false")
 }
 
 type Options struct {
@@ -71,6 +88,11 @@ type Options struct {
 	Addresses  []netip.Prefix
 	DERPMap    *tailcfg.DERPMap
 	DERPHeader *http.Header
+	// DERPForceWebSockets determines whether websockets is always used for DERP
+	// connections, rather than trying `Upgrade: derp` first and potentially
+	// falling back. This is useful for misbehaving proxies that prevent
+	// fallback due to odd behavior, like Azure App Proxy.
+	DERPForceWebSockets bool
 
 	// BlockEndpoints specifies whether P2P endpoints are blocked.
 	// If so, only DERPs can establish connections.
@@ -197,6 +219,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	sys.Set(wireguardEngine)
 
 	magicConn := sys.MagicSock.Get()
+	magicConn.SetDERPForceWebsockets(options.DERPForceWebSockets)
 	if options.DERPHeader != nil {
 		magicConn.SetDERPHeader(options.DERPHeader.Clone())
 	}
@@ -260,6 +283,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	dialContext, dialCancel := context.WithCancel(context.Background())
 	server := &Conn{
 		blockEndpoints:           options.BlockEndpoints,
+		derpForceWebSockets:      options.DERPForceWebSockets,
 		dialContext:              dialContext,
 		dialCancel:               dialCancel,
 		closed:                   make(chan struct{}),
@@ -268,7 +292,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		dialer:                   dialer,
 		listeners:                map[listenKey]*listener{},
 		peerMap:                  map[tailcfg.NodeID]*tailcfg.Node{},
-		lastDERPForcedWebsockets: map[int]string{},
+		lastDERPForcedWebSockets: map[int]string{},
 		tunDevice:                sys.Tun.Get(),
 		netMap:                   netMap,
 		netStack:                 netStack,
@@ -321,11 +345,11 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	magicConn.SetDERPForcedWebsocketCallback(func(region int, reason string) {
 		server.logger.Debug(context.Background(), "derp forced websocket", slog.F("region", region), slog.F("reason", reason))
 		server.lastMutex.Lock()
-		if server.lastDERPForcedWebsockets[region] == reason {
+		if server.lastDERPForcedWebSockets[region] == reason {
 			server.lastMutex.Unlock()
 			return
 		}
-		server.lastDERPForcedWebsockets[region] = reason
+		server.lastDERPForcedWebSockets[region] = reason
 		server.lastMutex.Unlock()
 		server.sendNode()
 	})
@@ -366,12 +390,13 @@ func IPFromUUID(uid uuid.UUID) netip.Addr {
 
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
-	dialContext    context.Context
-	dialCancel     context.CancelFunc
-	mutex          sync.Mutex
-	closed         chan struct{}
-	logger         slog.Logger
-	blockEndpoints bool
+	dialContext         context.Context
+	dialCancel          context.CancelFunc
+	mutex               sync.Mutex
+	closed              chan struct{}
+	logger              slog.Logger
+	blockEndpoints      bool
+	derpForceWebSockets bool
 
 	dialer           *tsdial.Dialer
 	tunDevice        *tstun.Wrapper
@@ -391,7 +416,7 @@ type Conn struct {
 	// so the values must be stored for retrieval later on.
 	lastStatus               time.Time
 	lastEndpoints            []tailcfg.Endpoint
-	lastDERPForcedWebsockets map[int]string
+	lastDERPForcedWebSockets map[int]string
 	lastNetInfo              *tailcfg.NetInfo
 	nodeCallback             func(node *Node)
 
@@ -444,6 +469,10 @@ func (c *Conn) SetDERPMap(derpMap *tailcfg.DERPMap) {
 	c.wireguardEngine.SetNetworkMap(&netMapCopy)
 }
 
+func (c *Conn) SetDERPForceWebSockets(v bool) {
+	c.magicConn.SetDERPForceWebsockets(v)
+}
+
 // SetBlockEndpoints sets whether or not to block P2P endpoints. This setting
 // will only apply to new peers.
 func (c *Conn) SetBlockEndpoints(blockEndpoints bool) {
@@ -491,6 +520,10 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		if time.Since(peerStatus.LastHandshake) < 5*time.Minute {
 			continue
 		}
+
+		c.logger.Debug(context.Background(), "removing peer, last handshake >5m ago",
+			slog.F("peer", peer.Key), slog.F("last_handshake", peerStatus.LastHandshake),
+		)
 		delete(c.peerMap, peer.ID)
 	}
 
@@ -502,6 +535,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 		}
 		c.logger.Debug(context.Background(), "adding node", slog.F("node", node))
 
+		peerStatus, ok := status.Peer[node.Key]
 		peerNode := &tailcfg.Node{
 			ID:         node.ID,
 			Created:    time.Now(),
@@ -512,6 +546,16 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 			Endpoints:  node.Endpoints,
 			DERP:       fmt.Sprintf("%s:%d", tailcfg.DerpMagicIP, node.PreferredDERP),
 			Hostinfo:   (&tailcfg.Hostinfo{}).View(),
+			// Starting KeepAlive messages at the initialization of a connection
+			// causes a race condition. If we handshake before the peer has our
+			// node, we'll have wait for 5 seconds before trying again. Ideally,
+			// the first handshake starts when the user first initiates a
+			// connection to the peer. After a successful connection we enable
+			// keep alives to persist the connection and keep it from becoming
+			// idle. SSH connections don't send send packets while idle, so we
+			// use keep alives to avoid random hangs while we set up the
+			// connection again after inactivity.
+			KeepAlive: ok && peerStatus.Active,
 		}
 		if c.blockEndpoints {
 			peerNode.Endpoints = nil
@@ -821,14 +865,22 @@ func (c *Conn) selfNode() *Node {
 	if c.lastNetInfo != nil {
 		preferredDERP = c.lastNetInfo.PreferredDERP
 		derpLatency = c.lastNetInfo.DERPLatency
-		for k, v := range c.lastDERPForcedWebsockets {
-			derpForcedWebsocket[k] = v
+
+		if c.derpForceWebSockets {
+			// We only need to store this for a single region, since this is
+			// mostly used for debugging purposes and doesn't actually have a
+			// code purpose.
+			derpForcedWebsocket[preferredDERP] = "DERP is configured to always fallback to WebSockets"
+		} else {
+			for k, v := range c.lastDERPForcedWebSockets {
+				derpForcedWebsocket[k] = v
+			}
 		}
 	}
 
 	node := &Node{
 		ID:                  c.netMap.SelfNode.ID,
-		AsOf:                database.Now(),
+		AsOf:                dbtime.Now(),
 		Key:                 c.netMap.SelfNode.Key,
 		Addresses:           c.netMap.SelfNode.Addresses,
 		AllowedIPs:          c.netMap.SelfNode.AllowedIPs,

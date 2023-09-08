@@ -1,26 +1,30 @@
-import Button from "@mui/material/Button"
-import { makeStyles, useTheme } from "@mui/styles"
-import Skeleton from "@mui/material/Skeleton"
-import AddIcon from "@mui/icons-material/AddOutlined"
-import { GetLicensesResponse } from "api/api"
-import { Header } from "components/DeploySettingsLayout/Header"
-import { LicenseCard } from "components/LicenseCard/LicenseCard"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import Confetti from "react-confetti"
-import { Link } from "react-router-dom"
-import useWindowSize from "react-use/lib/useWindowSize"
-import MuiLink from "@mui/material/Link"
+import Button from "@mui/material/Button";
+import { makeStyles, useTheme } from "@mui/styles";
+import Skeleton from "@mui/material/Skeleton";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import { GetLicensesResponse } from "api/api";
+import { Header } from "components/DeploySettingsLayout/Header";
+import { LicenseCard } from "./LicenseCard";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import Confetti from "react-confetti";
+import { Link } from "react-router-dom";
+import useWindowSize from "react-use/lib/useWindowSize";
+import MuiLink from "@mui/material/Link";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import Tooltip from "@mui/material/Tooltip";
 
 type Props = {
-  showConfetti: boolean
-  isLoading: boolean
-  userLimitActual?: number
-  userLimitLimit?: number
-  licenses?: GetLicensesResponse[]
-  isRemovingLicense: boolean
-  removeLicense: (licenseId: number) => void
-}
+  showConfetti: boolean;
+  isLoading: boolean;
+  userLimitActual?: number;
+  userLimitLimit?: number;
+  licenses?: GetLicensesResponse[];
+  isRemovingLicense: boolean;
+  removeLicense: (licenseId: number) => void;
+  refreshEntitlements?: () => boolean;
+};
 
 const LicensesSettingsPageView: FC<Props> = ({
   showConfetti,
@@ -30,11 +34,12 @@ const LicensesSettingsPageView: FC<Props> = ({
   licenses,
   isRemovingLicense,
   removeLicense,
+  refreshEntitlements,
 }) => {
-  const styles = useStyles()
-  const { width, height } = useWindowSize()
+  const styles = useStyles();
+  const { width, height } = useWindowSize();
 
-  const theme = useTheme()
+  const theme = useTheme();
 
   return (
     <>
@@ -55,13 +60,29 @@ const LicensesSettingsPageView: FC<Props> = ({
           description="Manage licenses to unlock Enterprise features."
         />
 
-        <Button
-          component={Link}
-          to="/deployment/licenses/add"
-          startIcon={<AddIcon />}
-        >
-          Add a license
-        </Button>
+        <Stack direction="row" spacing={2}>
+          <Button
+            component={Link}
+            to="/deployment/licenses/add"
+            startIcon={<AddIcon />}
+          >
+            Add a license
+          </Button>
+          <Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
+            <Button
+              onClick={() => {
+                if (refreshEntitlements) {
+                  if (refreshEntitlements()) {
+                    displaySuccess("Successfully refreshed licenses");
+                  }
+                }
+              }}
+              startIcon={<RefreshIcon />}
+            >
+              Refresh
+            </Button>
+          </Tooltip>
+        </Stack>
       </Stack>
 
       {isLoading && <Skeleton variant="rectangular" height={200} />}
@@ -108,8 +129,8 @@ const LicensesSettingsPageView: FC<Props> = ({
         </div>
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -132,6 +153,6 @@ const useStyles = makeStyles((theme) => ({
     maxWidth: theme.spacing(58),
     marginTop: theme.spacing(1),
   },
-}))
+}));
 
-export default LicensesSettingsPageView
+export default LicensesSettingsPageView;

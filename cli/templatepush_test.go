@@ -13,14 +13,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/pty/ptytest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplatePush(t *testing.T) {
@@ -38,7 +38,7 @@ func TestTemplatePush(t *testing.T) {
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
@@ -82,7 +82,7 @@ func TestTemplatePush(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 
 		wantMessage := strings.Repeat("a", 72)
@@ -121,7 +121,7 @@ func TestTemplatePush(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -168,7 +168,7 @@ func TestTemplatePush(t *testing.T) {
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 
@@ -211,7 +211,7 @@ func TestTemplatePush(t *testing.T) {
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 
@@ -248,7 +248,7 @@ func TestTemplatePush(t *testing.T) {
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--activate=false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, client, root)
@@ -293,7 +293,7 @@ func TestTemplatePush(t *testing.T) {
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
@@ -340,7 +340,7 @@ func TestTemplatePush(t *testing.T) {
 
 		source, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionApply: echo.ProvisionComplete,
+			ProvisionApply: echo.ApplyComplete,
 		})
 		require.NoError(t, err)
 
@@ -619,10 +619,7 @@ func TestTemplatePush(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
-			source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
-				Parse:          echo.ParseComplete,
-				ProvisionApply: provisionCompleteWithAgent,
-			})
+			source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 
 			const templateName = "my-template"
 			args := []string{
@@ -665,16 +662,16 @@ func TestTemplatePush(t *testing.T) {
 
 func createEchoResponsesWithTemplateVariables(templateVariables []*proto.TemplateVariable) *echo.Responses {
 	return &echo.Responses{
-		Parse: []*proto.Parse_Response{
+		Parse: []*proto.Response{
 			{
-				Type: &proto.Parse_Response_Complete{
-					Complete: &proto.Parse_Complete{
+				Type: &proto.Response_Parse{
+					Parse: &proto.ParseComplete{
 						TemplateVariables: templateVariables,
 					},
 				},
 			},
 		},
-		ProvisionPlan:  echo.ProvisionComplete,
-		ProvisionApply: echo.ProvisionComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ApplyComplete,
 	}
 }

@@ -10,9 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 // test that transactions don't deadlock, and that we don't see intermediate state.
@@ -67,7 +68,7 @@ func TestUserOrder(t *testing.T) {
 	t.Parallel()
 
 	db := dbfake.New()
-	now := database.Now()
+	now := dbtime.Now()
 
 	usernames := []string{"b-user", "d-user", "a-user", "c-user", "e-user"}
 	for _, username := range usernames {

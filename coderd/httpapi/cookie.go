@@ -4,7 +4,7 @@ import (
 	"net/textproto"
 	"strings"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // StripCoderCookies removes the session token from the cookie header provided.
@@ -23,8 +23,9 @@ func StripCoderCookies(header string) string {
 		if name == codersdk.SessionTokenCookie ||
 			name == codersdk.OAuth2StateCookie ||
 			name == codersdk.OAuth2RedirectCookie ||
-			name == codersdk.DevURLSessionTokenCookie ||
-			name == codersdk.DevURLSignedAppTokenCookie {
+			name == codersdk.PathAppSessionTokenCookie ||
+			name == codersdk.SubdomainAppSessionTokenCookie ||
+			name == codersdk.SignedAppTokenCookie {
 			continue
 		}
 		cookies = append(cookies, part)

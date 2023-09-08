@@ -1,55 +1,55 @@
-import { deleteGroup, getGroup, patchGroup, checkAuthorization } from "api/api"
-import { getErrorMessage } from "api/errors"
-import { AuthorizationResponse, Group } from "api/typesGenerated"
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils"
-import { assign, createMachine } from "xstate"
+import { deleteGroup, getGroup, patchGroup, checkAuthorization } from "api/api";
+import { getErrorMessage } from "api/errors";
+import { AuthorizationResponse, Group } from "api/typesGenerated";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { assign, createMachine } from "xstate";
 
 export const groupMachine = createMachine(
   {
     id: "group",
     schema: {
       context: {} as {
-        groupId: string
-        group?: Group
-        permissions?: AuthorizationResponse
-        addMemberCallback?: () => void
-        removingMember?: string
+        groupId: string;
+        group?: Group;
+        permissions?: AuthorizationResponse;
+        addMemberCallback?: () => void;
+        removingMember?: string;
       },
       services: {} as {
         loadGroup: {
-          data: Group
-        }
+          data: Group;
+        };
         loadPermissions: {
-          data: AuthorizationResponse
-        }
+          data: AuthorizationResponse;
+        };
         addMember: {
-          data: Group
-        }
+          data: Group;
+        };
         removeMember: {
-          data: Group
-        }
+          data: Group;
+        };
         deleteGroup: {
-          data: unknown
-        }
+          data: unknown;
+        };
       },
       events: {} as
         | {
-            type: "ADD_MEMBER"
-            userId: string
-            callback: () => void
+            type: "ADD_MEMBER";
+            userId: string;
+            callback: () => void;
           }
         | {
-            type: "REMOVE_MEMBER"
-            userId: string
+            type: "REMOVE_MEMBER";
+            userId: string;
           }
         | {
-            type: "DELETE"
+            type: "DELETE";
           }
         | {
-            type: "CONFIRM_DELETE"
+            type: "CONFIRM_DELETE";
           }
         | {
-            type: "CANCEL_DELETE"
+            type: "CANCEL_DELETE";
           },
     },
     tsTypes: {} as import("./groupXService.typegen").Typegen0,
@@ -178,7 +178,7 @@ export const groupMachine = createMachine(
         }),
       addMember: ({ group }, { userId }) => {
         if (!group) {
-          throw new Error("Group not defined.")
+          throw new Error("Group not defined.");
         }
 
         return patchGroup(group.id, {
@@ -186,11 +186,11 @@ export const groupMachine = createMachine(
           display_name: "",
           add_users: [userId],
           remove_users: [],
-        })
+        });
       },
       removeMember: ({ group }, { userId }) => {
         if (!group) {
-          throw new Error("Group not defined.")
+          throw new Error("Group not defined.");
         }
 
         return patchGroup(group.id, {
@@ -198,14 +198,14 @@ export const groupMachine = createMachine(
           display_name: "",
           add_users: [],
           remove_users: [userId],
-        })
+        });
       },
       deleteGroup: ({ group }) => {
         if (!group) {
-          throw new Error("Group not defined.")
+          throw new Error("Group not defined.");
         }
 
-        return deleteGroup(group.id)
+        return deleteGroup(group.id);
       },
     },
     actions: {
@@ -216,26 +216,26 @@ export const groupMachine = createMachine(
         addMemberCallback: (_, { callback }) => callback,
       }),
       displayLoadGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to load the group.")
-        displayError(message)
+        const message = getErrorMessage(data, "Failed to load the group.");
+        displayError(message);
       },
       displayAddMemberError: (_, { data }) => {
         const message = getErrorMessage(
           data,
           "Failed to add member to the group.",
-        )
-        displayError(message)
+        );
+        displayError(message);
       },
       callAddMemberCallback: ({ addMemberCallback }) => {
         if (addMemberCallback) {
-          addMemberCallback()
+          addMemberCallback();
         }
       },
       // Optimistically remove the user from members
       removeUserFromMembers: assign({
         group: ({ group }, { userId }) => {
           if (!group) {
-            throw new Error("Group is not defined.")
+            throw new Error("Group is not defined.");
           }
 
           return {
@@ -243,30 +243,33 @@ export const groupMachine = createMachine(
             members: group.members.filter(
               (currentMember) => currentMember.id !== userId,
             ),
-          }
+          };
         },
       }),
       displayRemoveMemberError: (_, { data }) => {
         const message = getErrorMessage(
           data,
           "Failed to remove member from the group.",
-        )
-        displayError(message)
+        );
+        displayError(message);
       },
       displayRemoveMemberSuccess: () => {
-        displaySuccess("Member removed successfully.")
+        displaySuccess("Member removed successfully.");
       },
       displayDeleteGroupError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to delete group.")
-        displayError(message)
+        const message = getErrorMessage(data, "Failed to delete group.");
+        displayError(message);
       },
       assignPermissions: assign({
         permissions: (_, { data }) => data,
       }),
       displayLoadPermissionsError: (_, { data }) => {
-        const message = getErrorMessage(data, "Failed to load the permissions.")
-        displayError(message)
+        const message = getErrorMessage(
+          data,
+          "Failed to load the permissions.",
+        );
+        displayError(message);
       },
     },
   },
-)
+);

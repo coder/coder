@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 func TestNewDERPMap(t *testing.T) {

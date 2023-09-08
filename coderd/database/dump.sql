@@ -31,6 +31,14 @@ CREATE TYPE build_reason AS ENUM (
     'autodelete'
 );
 
+CREATE TYPE display_app AS ENUM (
+    'vscode',
+    'vscode_insiders',
+    'web_terminal',
+    'ssh_helper',
+    'port_forwarding_helper'
+);
+
 CREATE TYPE group_source AS ENUM (
     'user',
     'oidc'
@@ -267,6 +275,29 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE dbcrypt_keys (
+    number integer NOT NULL,
+    active_key_digest text,
+    revoked_key_digest text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    revoked_at timestamp with time zone,
+    test text NOT NULL
+);
+
+COMMENT ON TABLE dbcrypt_keys IS 'A table used to store the keys used to encrypt the database.';
+
+COMMENT ON COLUMN dbcrypt_keys.number IS 'An integer used to identify the key.';
+
+COMMENT ON COLUMN dbcrypt_keys.active_key_digest IS 'If the key is active, the digest of the active key.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_key_digest IS 'If the key has been revoked, the digest of the revoked key.';
+
+COMMENT ON COLUMN dbcrypt_keys.created_at IS 'The time at which the key was created.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revoked.';
+
+COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -283,8 +314,14 @@ CREATE TABLE git_auth_links (
     updated_at timestamp with time zone NOT NULL,
     oauth_access_token text NOT NULL,
     oauth_refresh_token text NOT NULL,
-    oauth_expiry timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text
 );
+
+COMMENT ON COLUMN git_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN git_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
@@ -635,10 +672,10 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL,
-    locked_ttl bigint DEFAULT 0 NOT NULL,
-    restart_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
-    restart_requirement_weeks bigint DEFAULT 0 NOT NULL
+    time_til_dormant bigint DEFAULT 0 NOT NULL,
+    time_til_dormant_autodelete bigint DEFAULT 0 NOT NULL,
+    autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
+    autostop_requirement_weeks bigint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -651,9 +688,9 @@ COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an a
 
 COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
 
-COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
+COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
 
-COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
+COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -676,10 +713,10 @@ CREATE VIEW template_with_users AS
     templates.allow_user_autostart,
     templates.allow_user_autostop,
     templates.failure_ttl,
-    templates.inactivity_ttl,
-    templates.locked_ttl,
-    templates.restart_requirement_days_of_week,
-    templates.restart_requirement_weeks,
+    templates.time_til_dormant,
+    templates.time_til_dormant_autodelete,
+    templates.autostop_requirement_days_of_week,
+    templates.autostop_requirement_weeks,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -693,8 +730,14 @@ CREATE TABLE user_links (
     linked_id text DEFAULT ''::text NOT NULL,
     oauth_access_token text DEFAULT ''::text NOT NULL,
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text
 );
+
+COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 CREATE TABLE workspace_agent_logs (
     agent_id uuid NOT NULL,
@@ -780,6 +823,7 @@ CREATE TABLE workspace_agents (
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
     CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
     CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
@@ -811,6 +855,50 @@ COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup scri
 COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+CREATE TABLE workspace_app_stats (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    access_method text NOT NULL,
+    slug_or_port text NOT NULL,
+    session_id uuid NOT NULL,
+    session_started_at timestamp with time zone NOT NULL,
+    session_ended_at timestamp with time zone NOT NULL,
+    requests integer NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_stats IS 'A record of workspace app usage statistics';
+
+COMMENT ON COLUMN workspace_app_stats.id IS 'The ID of the record';
+
+COMMENT ON COLUMN workspace_app_stats.user_id IS 'The user who used the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.workspace_id IS 'The workspace that the workspace app was used in';
+
+COMMENT ON COLUMN workspace_app_stats.agent_id IS 'The workspace agent that was used';
+
+COMMENT ON COLUMN workspace_app_stats.access_method IS 'The method used to access the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.slug_or_port IS 'The slug or port used to to identify the app';
+
+COMMENT ON COLUMN workspace_app_stats.session_id IS 'The unique identifier for the session';
+
+COMMENT ON COLUMN workspace_app_stats.session_started_at IS 'The time the session started';
+
+COMMENT ON COLUMN workspace_app_stats.session_ended_at IS 'The time the session ended';
+
+COMMENT ON COLUMN workspace_app_stats.requests IS 'The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one';
+
+CREATE SEQUENCE workspace_app_stats_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -959,7 +1047,7 @@ CREATE TABLE workspaces (
     autostart_schedule text,
     ttl bigint,
     last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    locked_at timestamp with time zone,
+    dormant_at timestamp with time zone,
     deleting_at timestamp with time zone
 );
 
@@ -968,6 +1056,8 @@ ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq':
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_agent_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+
+ALTER TABLE ONLY workspace_app_stats ALTER COLUMN id SET DEFAULT nextval('workspace_app_stats_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('workspace_proxies_region_id_seq'::regclass);
 
@@ -981,6 +1071,15 @@ ALTER TABLE ONLY api_keys
 
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_pkey PRIMARY KEY (number);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
@@ -1081,6 +1180,12 @@ ALTER TABLE ONLY workspace_agent_logs
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
+
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
 
@@ -1167,6 +1272,8 @@ CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (au
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
 
+CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
@@ -1185,6 +1292,12 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY git_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
@@ -1241,6 +1354,12 @@ ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_metadata
@@ -1251,6 +1370,15 @@ ALTER TABLE ONLY workspace_agent_logs
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

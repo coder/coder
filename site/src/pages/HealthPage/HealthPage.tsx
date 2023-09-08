@@ -1,38 +1,39 @@
-import Box from "@mui/material/Box"
-import { useQuery } from "@tanstack/react-query"
-import { getHealth } from "api/api"
-import { Loader } from "components/Loader/Loader"
-import { useTab } from "hooks"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { colors } from "theme/colors"
-import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined"
-import ErrorOutline from "@mui/icons-material/ErrorOutline"
-import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter"
-import { Stack } from "components/Stack/Stack"
+import Box from "@mui/material/Box";
+import { useQuery } from "@tanstack/react-query";
+import { getHealth } from "api/api";
+import { Loader } from "components/Loader/Loader";
+import { useTab } from "hooks";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { colors } from "theme/colors";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import ErrorOutline from "@mui/icons-material/ErrorOutline";
+import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighter";
+import { Stack } from "components/Stack/Stack";
 import {
   FullWidthPageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
-} from "components/PageHeader/FullWidthPageHeader"
-import { Stats, StatsItem } from "components/Stats/Stats"
-import { makeStyles } from "@mui/styles"
-import { createDayString } from "utils/createDayString"
+} from "components/PageHeader/FullWidthPageHeader";
+import { Stats, StatsItem } from "components/Stats/Stats";
+import { makeStyles } from "@mui/styles";
+import { createDayString } from "utils/createDayString";
+import { DashboardFullPage } from "components/Dashboard/DashboardLayout";
 
 const sections = {
   derp: "DERP",
   access_url: "Access URL",
   websocket: "Websocket",
   database: "Database",
-} as const
+} as const;
 
 export default function HealthPage() {
-  const tab = useTab("tab", "derp")
+  const tab = useTab("tab", "derp");
   const { data: healthStatus } = useQuery({
     queryKey: ["health"],
     queryFn: () => getHealth(),
     refetchInterval: 10_000,
-  })
+  });
 
   return (
     <>
@@ -46,27 +47,20 @@ export default function HealthPage() {
         <Loader />
       )}
     </>
-  )
+  );
 }
 
 export function HealthPageView({
   healthStatus,
   tab,
 }: {
-  healthStatus: Awaited<ReturnType<typeof getHealth>>["data"]
-  tab: ReturnType<typeof useTab>
+  healthStatus: Awaited<ReturnType<typeof getHealth>>["data"];
+  tab: ReturnType<typeof useTab>;
 }) {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
-    <Box
-      sx={{
-        height: "calc(100vh - 62px - 36px)",
-        overflow: "hidden",
-        // Remove padding added from dashboard layout (.siteContent)
-        marginBottom: "-48px",
-      }}
-    >
+    <DashboardFullPage>
       <FullWidthPageHeader sticky={false}>
         <Stack direction="row" spacing={2} alignItems="center">
           {healthStatus.healthy ? (
@@ -115,8 +109,9 @@ export function HealthPageView({
       <Box
         sx={{
           display: "flex",
-          alignItems: "start",
-          height: "100%",
+          flexBasis: 0,
+          flex: 1,
+          overflow: "hidden",
         }}
       >
         <Box
@@ -124,7 +119,6 @@ export function HealthPageView({
             width: (theme) => theme.spacing(32),
             flexShrink: 0,
             borderRight: (theme) => `1px solid ${theme.palette.divider}`,
-            height: "100%",
           }}
         >
           <Box
@@ -143,17 +137,17 @@ export function HealthPageView({
             {Object.keys(sections)
               .sort()
               .map((key) => {
-                const label = sections[key as keyof typeof sections]
-                const isActive = tab.value === key
+                const label = sections[key as keyof typeof sections];
+                const isActive = tab.value === key;
                 const isHealthy =
-                  healthStatus[key as keyof typeof sections].healthy
+                  healthStatus[key as keyof typeof sections].healthy;
 
                 return (
                   <Box
                     component="button"
                     key={key}
                     onClick={() => {
-                      tab.set(key)
+                      tab.set(key);
                     }}
                     sx={{
                       background: isActive ? colors.gray[13] : "none",
@@ -197,12 +191,12 @@ export function HealthPageView({
                     )}
                     {label}
                   </Box>
-                )
+                );
               })}
           </Box>
         </Box>
         {/* 62px - navbar and 36px - the bottom bar */}
-        <Box sx={{ height: "100%", overflowY: "auto", width: "100%" }}>
+        <Box sx={{ overflowY: "auto", width: "100%" }}>
           <SyntaxHighlighter
             language="json"
             editorProps={{ height: "100%" }}
@@ -214,8 +208,8 @@ export function HealthPageView({
           />
         </Box>
       </Box>
-    </Box>
-  )
+    </DashboardFullPage>
+  );
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -244,4 +238,4 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 500,
     },
   },
-}))
+}));

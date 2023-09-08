@@ -12,19 +12,20 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/searchquery"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/userpassword"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Returns whether the initial user has been created or not.
@@ -610,7 +611,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	aReq.New = updatedUserProfile
 
@@ -698,7 +699,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1080,8 +1081,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:        uuid.New(),
 				Name:      req.Username,
-				CreatedAt: database.Now(),
-				UpdatedAt: database.Now(),
+				CreatedAt: dbtime.Now(),
+				UpdatedAt: dbtime.Now(),
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization: %w", err)
@@ -1095,7 +1096,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
 			}
 		}
 
@@ -1103,8 +1104,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			ID:        uuid.New(),
 			Email:     req.Email,
 			Username:  req.Username,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
@@ -1130,8 +1131,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 			PrivateKey: privateKey,
 			PublicKey:  publicKey,
 		})
@@ -1141,8 +1142,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
 			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			// By default give them membership to the organization.
 			Roles: orgRoles,
 		})
