@@ -13,13 +13,6 @@
     "failed": "Failed",
     "pending": "Pending"
   },
-  "deleteDialog": {
-    "title": "Delete {{entity}}",
-    "intro": "Deleting this {{entity}} is irreversible!",
-    "confirm": "Are you sure you want to proceed? Type {{name}} below to confirm.",
-    "confirmLabel": "Name of {{entity}} to delete",
-    "incorrectName": "Incorrect {{entity}} name."
-  },
   "schedule": {
     "autostartLabel": "Starts at",
     "autostopLabel": "Stops at"
