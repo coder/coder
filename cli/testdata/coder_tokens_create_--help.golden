@@ -6,10 +6,10 @@ coder v0.0.0-devel
   Create a token
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mlifetime[0m duration, [94m$CODER_TOKEN_LIFETIME[0m (default: 720h0m0s)
+      [96m--[0m[96mlifetime[0m duration, [96m$CODER_TOKEN_LIFETIME[0m (default: 720h0m0s)
           Specify a duration for the lifetime of the token.
 
-  [94m-[0m[94mn[0m, [94m--[0m[94mname[0m string, [94m$CODER_TOKEN_NAME[0m
+  [96m-[0m[96mn[0m, [96m--[0m[96mname[0m string, [96m$CODER_TOKEN_NAME[0m
           Specify a human-readable name.
 
 ———

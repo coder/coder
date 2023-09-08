@@ -6,13 +6,13 @@ coder v0.0.0-devel
   Add license to Coder deployment
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mdebug[0m bool
+      [96m--[0m[96mdebug[0m bool
           Output license claims for debugging.
 
-  [94m-[0m[94mf[0m, [94m--[0m[94mfile[0m string
+  [96m-[0m[96mf[0m, [96m--[0m[96mfile[0m string
           Load license from file.
 
-  [94m-[0m[94ml[0m, [94m--[0m[94mlicense[0m string
+  [96m-[0m[96ml[0m, [96m--[0m[96mlicense[0m string
           License string.
 
 ———

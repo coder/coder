@@ -16,39 +16,39 @@ coder v0.0.0-devel
        $ coder config-ssh --dry-run
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mcoder-binary-path[0m string, [94m$CODER_SSH_CONFIG_BINARY_PATH[0m
+      [96m--[0m[96mcoder-binary-path[0m string, [96m$CODER_SSH_CONFIG_BINARY_PATH[0m
           Optionally specify the absolute path to the coder binary used in
           ProxyCommand. By default, the binary invoking this command ('config
           ssh') is used.
 
-  [94m-[0m[94mn[0m, [94m--[0m[94mdry-run[0m bool, [94m$CODER_SSH_DRY_RUN[0m
+  [96m-[0m[96mn[0m, [96m--[0m[96mdry-run[0m bool, [96m$CODER_SSH_DRY_RUN[0m
           Perform a trial run with no changes made, showing a diff at the end.
 
-      [94m--[0m[94mforce-unix-filepaths[0m bool, [94m$CODER_CONFIGSSH_UNIX_FILEPATHS[0m
+      [96m--[0m[96mforce-unix-filepaths[0m bool, [96m$CODER_CONFIGSSH_UNIX_FILEPATHS[0m
           By default, 'config-ssh' uses the os path separator when writing the
           ssh config. This might be an issue in Windows machine that use a
           unix-like shell. This flag forces the use of unix file paths (the
           forward slash '/').
 
-      [94m--[0m[94mssh-config-file[0m string, [94m$CODER_SSH_CONFIG_FILE[0m (default: ~/.ssh/config)
+      [96m--[0m[96mssh-config-file[0m string, [96m$CODER_SSH_CONFIG_FILE[0m (default: ~/.ssh/config)
           Specifies the path to an SSH config.
 
-      [94m--[0m[94mssh-host-prefix[0m string, [94m$CODER_CONFIGSSH_SSH_HOST_PREFIX[0m
+      [96m--[0m[96mssh-host-prefix[0m string, [96m$CODER_CONFIGSSH_SSH_HOST_PREFIX[0m
           Override the default host prefix.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94mssh-option[0m string-array, [94m$CODER_SSH_CONFIG_OPTS[0m
+  [96m-[0m[96mo[0m, [96m--[0m[96mssh-option[0m string-array, [96m$CODER_SSH_CONFIG_OPTS[0m
           Specifies additional SSH options to embed in each host stanza.
 
-      [94m--[0m[94muse-previous-options[0m bool, [94m$CODER_SSH_USE_PREVIOUS_OPTIONS[0m
+      [96m--[0m[96muse-previous-options[0m bool, [96m$CODER_SSH_USE_PREVIOUS_OPTIONS[0m
           Specifies whether or not to keep options from previous run of
           config-ssh.
 
-      [94m--[0m[94mwait[0m yes|no|auto, [94m$CODER_CONFIGSSH_WAIT[0m (default: auto)
+      [96m--[0m[96mwait[0m yes|no|auto, [96m$CODER_CONFIGSSH_WAIT[0m (default: auto)
           Specifies whether or not to wait for the startup script to finish
           executing. Auto means that the agent startup script behavior
           configured in the workspace template is used.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

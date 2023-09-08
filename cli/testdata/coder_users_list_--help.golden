@@ -6,11 +6,11 @@ coder v0.0.0-devel
   Aliases: ls
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: username,email,created_at,status)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: username,email,created_at,status)
           Columns to display in table output. Available columns: id, username,
           email, created at, status.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
 ———

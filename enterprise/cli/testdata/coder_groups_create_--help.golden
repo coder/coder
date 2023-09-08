@@ -6,10 +6,10 @@ coder v0.0.0-devel
   Create a user group
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mu[0m, [94m--[0m[94mavatar-url[0m string, [94m$CODER_AVATAR_URL[0m
+  [96m-[0m[96mu[0m, [96m--[0m[96mavatar-url[0m string, [96m$CODER_AVATAR_URL[0m
           Set an avatar for a group.
 
-      [94m--[0m[94mdisplay-name[0m string, [94m$CODER_DISPLAY_NAME[0m
+      [96m--[0m[96mdisplay-name[0m string, [96m$CODER_DISPLAY_NAME[0m
           Optional human friendly name for the group.
 
 ———

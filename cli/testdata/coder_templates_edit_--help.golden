@@ -6,54 +6,54 @@ coder v0.0.0-devel
   Edit the metadata of a template by name.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mallow-user-autostart[0m bool (default: true)
+      [96m--[0m[96mallow-user-autostart[0m bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.
 
-      [94m--[0m[94mallow-user-autostop[0m bool (default: true)
+      [96m--[0m[96mallow-user-autostop[0m bool (default: true)
           Allow users to customize the autostop TTL for workspaces on this
           template. This can only be disabled in enterprise.
 
-      [94m--[0m[94mallow-user-cancel-workspace-jobs[0m bool (default: true)
+      [96m--[0m[96mallow-user-cancel-workspace-jobs[0m bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 
-      [94m--[0m[94mdefault-ttl[0m duration
+      [96m--[0m[96mdefault-ttl[0m duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value. Maps to "Default autostop"
           in the UI.
 
-      [94m--[0m[94mdescription[0m string
+      [96m--[0m[96mdescription[0m string
           Edit the template description.
 
-      [94m--[0m[94mdisplay-name[0m string
+      [96m--[0m[96mdisplay-name[0m string
           Edit the template display name.
 
-      [94m--[0m[94mfailure-ttl[0m duration (default: 0h)
+      [96m--[0m[96mfailure-ttl[0m duration (default: 0h)
           Specify a failure TTL for workspaces created from this template. It is
           the amount of time after a failed "start" build before coder
           automatically schedules a "stop" build to cleanup.This licensed
           feature's default is 0h (off). Maps to "Failure cleanup" in the UI.
 
-      [94m--[0m[94micon[0m string
+      [96m--[0m[96micon[0m string
           Edit the template icon path.
 
-      [94m--[0m[94minactivity-ttl[0m duration (default: 0h)
+      [96m--[0m[96minactivity-ttl[0m duration (default: 0h)
           Specify an inactivity TTL for workspaces created from this template.
           It is the amount of time the workspace is not used before it is be
           stopped and auto-locked. This includes across multiple builds (e.g.
           auto-starts and stops). This licensed feature's default is 0h (off).
           Maps to "Dormancy threshold" in the UI.
 
-      [94m--[0m[94mmax-ttl[0m duration
+      [96m--[0m[96mmax-ttl[0m duration
           Edit the template maximum time before shutdown - workspaces created
           from this template must shutdown within the given duration after
           starting, regardless of user activity. This is an enterprise-only
           feature. Maps to "Max lifetime" in the UI.
 
-      [94m--[0m[94mname[0m string
+      [96m--[0m[96mname[0m string
           Edit the template name.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

@@ -11,7 +11,7 @@ coder v0.0.0-devel
    $ coder users suspend example_user
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: username,email,created_at,status)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: username,email,created_at,status)
           Specify a column to filter in the table.
 
 ———

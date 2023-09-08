@@ -6,38 +6,38 @@ coder v0.0.0-devel
   Starts the Coder workspace agent.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mlog-human[0m string, [94m$CODER_AGENT_LOGGING_HUMAN[0m (default: /dev/stderr)
+      [96m--[0m[96mlog-human[0m string, [96m$CODER_AGENT_LOGGING_HUMAN[0m (default: /dev/stderr)
           Output human-readable logs to a given file.
 
-      [94m--[0m[94mlog-json[0m string, [94m$CODER_AGENT_LOGGING_JSON[0m
+      [96m--[0m[96mlog-json[0m string, [96m$CODER_AGENT_LOGGING_JSON[0m
           Output JSON logs to a given file.
 
-      [94m--[0m[94mlog-stackdriver[0m string, [94m$CODER_AGENT_LOGGING_STACKDRIVER[0m
+      [96m--[0m[96mlog-stackdriver[0m string, [96m$CODER_AGENT_LOGGING_STACKDRIVER[0m
           Output Stackdriver compatible logs to a given file.
 
-      [94m--[0m[94mauth[0m string, [94m$CODER_AGENT_AUTH[0m (default: token)
+      [96m--[0m[96mauth[0m string, [96m$CODER_AGENT_AUTH[0m (default: token)
           Specify the authentication type to use for the agent.
 
-      [94m--[0m[94mdebug-address[0m string, [94m$CODER_AGENT_DEBUG_ADDRESS[0m (default: 127.0.0.1:2113)
+      [96m--[0m[96mdebug-address[0m string, [96m$CODER_AGENT_DEBUG_ADDRESS[0m (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 
-      [94m--[0m[94mlog-dir[0m string, [94m$CODER_AGENT_LOG_DIR[0m (default: /tmp)
+      [96m--[0m[96mlog-dir[0m string, [96m$CODER_AGENT_LOG_DIR[0m (default: /tmp)
           Specify the location for the agent log files.
 
-      [94m--[0m[94mno-reap[0m bool
+      [96m--[0m[96mno-reap[0m bool
           Do not start a process reaper.
 
-      [94m--[0m[94mpprof-address[0m string, [94m$CODER_AGENT_PPROF_ADDRESS[0m (default: 127.0.0.1:6060)
+      [96m--[0m[96mpprof-address[0m string, [96m$CODER_AGENT_PPROF_ADDRESS[0m (default: 127.0.0.1:6060)
           The address to serve pprof.
 
-      [94m--[0m[94mprometheus-address[0m string, [94m$CODER_AGENT_PROMETHEUS_ADDRESS[0m (default: 127.0.0.1:2112)
+      [96m--[0m[96mprometheus-address[0m string, [96m$CODER_AGENT_PROMETHEUS_ADDRESS[0m (default: 127.0.0.1:2112)
           The bind address to serve Prometheus metrics.
 
-      [94m--[0m[94mssh-max-timeout[0m duration, [94m$CODER_AGENT_SSH_MAX_TIMEOUT[0m (default: 72h)
+      [96m--[0m[96mssh-max-timeout[0m duration, [96m$CODER_AGENT_SSH_MAX_TIMEOUT[0m (default: 72h)
           Specify the max timeout for a SSH connection, it is advisable to set
           it to a minimum of 60s, but no more than 72h.
 
-      [94m--[0m[94mtailnet-listen-port[0m int, [94m$CODER_AGENT_TAILNET_LISTEN_PORT[0m (default: 0)
+      [96m--[0m[96mtailnet-listen-port[0m int, [96m$CODER_AGENT_TAILNET_LISTEN_PORT[0m (default: 0)
           Specify a static port for Tailscale to use for listening.
 
 ———

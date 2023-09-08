@@ -8,18 +8,18 @@ coder v0.0.0-devel
   Aliases: ls
 
 [93mOPTIONS:[0m
-  [94m-[0m[94ma[0m, [94m--[0m[94mall[0m bool
+  [96m-[0m[96ma[0m, [96m--[0m[96mall[0m bool
           Specifies whether all workspaces will be listed or not.
 
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: workspace,template,status,healthy,last built,outdated,starts at,stops after)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: workspace,template,status,healthy,last built,outdated,starts at,stops after)
           Columns to display in table output. Available columns: workspace,
           template, status, healthy, last built, outdated, starts at, stops
           after, daily cost.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
-      [94m--[0m[94msearch[0m string (default: owner:me)
+      [96m--[0m[96msearch[0m string (default: owner:me)
           Search for a workspace with a query.
 
 ———

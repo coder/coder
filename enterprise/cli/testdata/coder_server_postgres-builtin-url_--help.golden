@@ -6,7 +6,7 @@ coder v0.0.0-devel
   Output the connection URL for the built-in PostgreSQL deployment.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mraw-url[0m bool
+      [96m--[0m[96mraw-url[0m bool
           Output the raw connection URL instead of a psql command.
 
 ———
