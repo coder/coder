@@ -20,7 +20,6 @@ import {
 import * as Yup from "yup";
 import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
-import { useTranslation } from "react-i18next";
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void;
@@ -46,7 +45,6 @@ export const UpdateBuildParametersDialog: FC<
     enableReinitialize: true,
   });
   const getFieldHelpers = getFormHelpers(form);
-  const { t } = useTranslation("workspacePage");
 
   return (
     <Dialog
@@ -64,7 +62,8 @@ export const UpdateBuildParametersDialog: FC<
       </DialogTitle>
       <DialogContent className={styles.content}>
         <DialogContentText className={styles.info}>
-          {t("askParametersDialog.message")}
+          This template has new parameters that must be configured to complete
+          the update
         </DialogContentText>
         <VerticalForm
           className={styles.form}
