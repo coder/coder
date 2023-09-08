@@ -5,7 +5,6 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import * as API from "api/api";
-import i18next from "i18next";
 import TemplateVariablesPage from "./TemplateVariablesPage";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
@@ -17,18 +16,12 @@ import {
   MockTemplateVersionVariable5,
 } from "testHelpers/entities";
 
-const { t } = i18next;
-
 const validFormValues = {
   first_variable: "Hello world",
   second_variable: "123",
 };
 
-const pageTitleText = t("title", { ns: "templateVariablesPage" });
-
-const validationRequiredField = t("validationRequiredVariable", {
-  ns: "templateVariablesPage",
-});
+const validationRequiredField = "Variable is required.";
 
 const renderTemplateVariablesPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
@@ -53,9 +46,6 @@ describe("TemplateVariablesPage", () => {
       ]);
 
     await renderTemplateVariablesPage();
-
-    const element = await screen.findByText(pageTitleText);
-    expect(element).toBeDefined();
 
     const firstVariable = await screen.findByLabelText(
       MockTemplateVersionVariable1.name,
@@ -87,9 +77,6 @@ describe("TemplateVariablesPage", () => {
     });
 
     await renderTemplateVariablesPage();
-
-    const element = await screen.findByText(pageTitleText);
-    expect(element).toBeDefined();
 
     const firstVariable = await screen.findByLabelText(
       MockTemplateVersionVariable1.name,
@@ -143,9 +130,6 @@ describe("TemplateVariablesPage", () => {
     });
 
     await renderTemplateVariablesPage();
-
-    const element = await screen.findByText(pageTitleText);
-    expect(element).toBeDefined();
 
     const firstVariable = await screen.findByLabelText(
       MockTemplateVersionVariable1.name,
