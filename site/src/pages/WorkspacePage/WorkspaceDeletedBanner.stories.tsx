@@ -1,20 +1,12 @@
-import { action } from "@storybook/addon-actions";
-import { Story } from "@storybook/react";
-import {
-  WorkspaceDeletedBanner,
-  WorkspaceDeletedBannerProps,
-} from "./WorkspaceDeletedBanner";
+import { Meta, StoryObj } from "@storybook/react";
+import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 
-export default {
+const meta: Meta<typeof WorkspaceDeletedBanner> = {
   title: "components/WorkspaceDeletedBanner",
   component: WorkspaceDeletedBanner,
 };
 
-const Template: Story<WorkspaceDeletedBannerProps> = (args) => (
-  <WorkspaceDeletedBanner {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof WorkspaceDeletedBanner>;
 
-export const Example = Template.bind({});
-Example.args = {
-  handleClick: action("extend"),
-};
+export const Example: Story = {};

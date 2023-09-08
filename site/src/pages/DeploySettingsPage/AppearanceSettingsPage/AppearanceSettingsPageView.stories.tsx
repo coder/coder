@@ -1,10 +1,7 @@
-import { ComponentMeta, Story } from "@storybook/react";
-import {
-  AppearanceSettingsPageView,
-  AppearanceSettingsPageViewProps,
-} from "./AppearanceSettingsPageView";
+import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof AppearanceSettingsPageView> = {
   title: "pages/AppearanceSettingsPageView",
   component: AppearanceSettingsPageView,
   args: {
@@ -21,9 +18,9 @@ export default {
       return undefined;
     },
   },
-} as ComponentMeta<typeof AppearanceSettingsPageView>;
+};
 
-const Template: Story<AppearanceSettingsPageViewProps> = (args) => (
-  <AppearanceSettingsPageView {...args} />
-);
-export const Page = Template.bind({});
+export default meta;
+type Story = StoryObj<typeof AppearanceSettingsPageView>;
+
+export const Page: Story = {};

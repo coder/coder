@@ -1,4 +1,4 @@
-import { Story } from "@storybook/react";
+import { Meta, StoryObj } from "@storybook/react";
 import dayjs from "dayjs";
 import advancedFormat from "dayjs/plugin/advancedFormat";
 import timezone from "dayjs/plugin/timezone";
@@ -9,31 +9,19 @@ import {
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
 import { mockApiError } from "testHelpers/entities";
-import {
-  WorkspaceScheduleForm,
-  WorkspaceScheduleFormProps,
-} from "./WorkspaceScheduleForm";
+import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 
 dayjs.extend(advancedFormat);
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-export default {
+const meta: Meta<typeof WorkspaceScheduleForm> = {
   title: "components/WorkspaceScheduleForm",
   component: WorkspaceScheduleForm,
-  argTypes: {
-    onCancel: {
-      action: "onCancel",
-    },
-    onSubmit: {
-      action: "onSubmit",
-    },
-  },
 };
 
-const Template: Story<WorkspaceScheduleFormProps> = (args) => (
-  <WorkspaceScheduleForm {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof WorkspaceScheduleForm>;
 
 const defaultInitialValues = {
   autostartEnabled: true,
@@ -42,53 +30,62 @@ const defaultInitialValues = {
   ttl: 24,
 };
 
-export const AllDisabled = Template.bind({});
-AllDisabled.args = {
-  initialValues: {
-    autostartEnabled: false,
-    ...emptySchedule,
-    autostopEnabled: false,
-    ttl: emptyTTL,
+export const AllDisabled: Story = {
+  args: {
+    initialValues: {
+      autostartEnabled: false,
+      ...emptySchedule,
+      autostopEnabled: false,
+      ttl: emptyTTL,
+    },
   },
 };
 
-export const Autostart = Template.bind({});
-Autostart.args = {
-  initialValues: {
-    autostartEnabled: true,
-    ...defaultSchedule(),
-    autostopEnabled: false,
-    ttl: emptyTTL,
+export const Autostart: Story = {
+  args: {
+    initialValues: {
+      autostartEnabled: true,
+      ...defaultSchedule(),
+      autostopEnabled: false,
+      ttl: emptyTTL,
+    },
   },
 };
 
-export const WorkspaceWillShutdownInTwoHours = Template.bind({});
-WorkspaceWillShutdownInTwoHours.args = {
-  initialValues: { ...defaultInitialValues, ttl: 2 },
+export const WorkspaceWillShutdownInTwoHours: Story = {
+  args: {
+    initialValues: { ...defaultInitialValues, ttl: 2 },
+  },
 };
 
-export const WorkspaceWillShutdownInADay = Template.bind({});
-WorkspaceWillShutdownInADay.args = {
-  initialValues: { ...defaultInitialValues, ttl: 24 },
+export const WorkspaceWillShutdownInADay: Story = {
+  args: {
+    initialValues: { ...defaultInitialValues, ttl: 24 },
+  },
 };
 
-export const WorkspaceWillShutdownInTwoDays = Template.bind({});
-WorkspaceWillShutdownInTwoDays.args = {
-  initialValues: { ...defaultInitialValues, ttl: 48 },
+export const WorkspaceWillShutdownInTwoDays: Story = {
+  args: {
+    initialValues: { ...defaultInitialValues, ttl: 48 },
+  },
 };
 
-export const WithError = Template.bind({});
-WithError.args = {
-  initialValues: { ...defaultInitialValues, ttl: 100 },
-  initialTouched: { ttl: true },
-  submitScheduleError: mockApiError({
-    message: "Something went wrong.",
-    validations: [{ field: "ttl_ms", detail: "Invalid time until shutdown." }],
-  }),
+export const WithError: Story = {
+  args: {
+    initialValues: { ...defaultInitialValues, ttl: 100 },
+    initialTouched: { ttl: true },
+    submitScheduleError: mockApiError({
+      message: "Something went wrong.",
+      validations: [
+        { field: "ttl_ms", detail: "Invalid time until shutdown." },
+      ],
+    }),
+  },
 };
 
-export const Loading = Template.bind({});
-Loading.args = {
-  initialValues: defaultInitialValues,
-  isLoading: true,
+export const Loading: Story = {
+  args: {
+    initialValues: defaultInitialValues,
+    isLoading: true,
+  },
 };

@@ -1,5 +1,4 @@
 import { action } from "@storybook/addon-actions";
-import { Story } from "@storybook/react";
 import { UseTabResult } from "hooks/useTab";
 import {
   mockApiError,
@@ -11,15 +10,7 @@ import {
   TemplateVersionPageView,
   TemplateVersionPageViewProps,
 } from "./TemplateVersionPageView";
-
-export default {
-  title: "pages/TemplateVersionPageView",
-  component: TemplateVersionPageView,
-};
-
-const Template: Story<TemplateVersionPageViewProps> = (args) => (
-  <TemplateVersionPageView {...args} />
-);
+import type { Meta, StoryObj } from "@storybook/react";
 
 const tab: UseTabResult = {
   value: "0",
@@ -53,18 +44,26 @@ const defaultArgs: TemplateVersionPageViewProps = {
   },
 };
 
-export const Default = Template.bind({});
-Default.args = defaultArgs;
+const meta: Meta<typeof TemplateVersionPageView> = {
+  title: "pages/TemplateVersionPageView",
+  component: TemplateVersionPageView,
+  args: defaultArgs,
+};
 
-export const Error = Template.bind({});
-Error.args = {
-  ...defaultArgs,
-  context: {
-    ...defaultArgs.context,
-    currentVersion: undefined,
-    currentFiles: undefined,
-    error: mockApiError({
-      message: "Error on loading the template version",
-    }),
+export default meta;
+type Story = StoryObj<typeof TemplateVersionPageView>;
+
+export const Default: Story = {};
+
+export const Error: Story = {
+  args: {
+    context: {
+      ...defaultArgs.context,
+      currentVersion: undefined,
+      currentFiles: undefined,
+      error: mockApiError({
+        message: "Error on loading the template version",
+      }),
+    },
   },
 };

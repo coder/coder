@@ -1,48 +1,50 @@
 import { action } from "@storybook/addon-actions";
-import { ComponentMeta, Story } from "@storybook/react";
 import { MockTemplateVersion } from "testHelpers/entities";
-import { VersionsTable, VersionsTableProps } from "./VersionsTable";
+import { VersionsTable } from "./VersionsTable";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof VersionsTable> = {
   title: "components/VersionsTable",
   component: VersionsTable,
-} as ComponentMeta<typeof VersionsTable>;
-
-const Template: Story<VersionsTableProps> = (args) => (
-  <VersionsTable {...args} />
-);
-
-export const Example = Template.bind({});
-Example.args = {
-  activeVersionId: MockTemplateVersion.id,
-  versions: [
-    {
-      ...MockTemplateVersion,
-      id: "2",
-      name: "test-template-version-2",
-      created_at: "2022-05-18T18:39:01.382927298Z",
-    },
-    MockTemplateVersion,
-  ],
-  onPromoteClick: undefined,
 };
 
-export const CanPromote = Template.bind({});
-CanPromote.args = {
-  activeVersionId: MockTemplateVersion.id,
-  onPromoteClick: action("onPromoteClick"),
-  versions: [
-    {
-      ...MockTemplateVersion,
-      id: "2",
-      name: "test-template-version-2",
-      created_at: "2022-05-18T18:39:01.382927298Z",
-    },
-    MockTemplateVersion,
-  ],
+export default meta;
+type Story = StoryObj<typeof VersionsTable>;
+
+export const Example: Story = {
+  args: {
+    activeVersionId: MockTemplateVersion.id,
+    versions: [
+      {
+        ...MockTemplateVersion,
+        id: "2",
+        name: "test-template-version-2",
+        created_at: "2022-05-18T18:39:01.382927298Z",
+      },
+      MockTemplateVersion,
+    ],
+    onPromoteClick: undefined,
+  },
 };
 
-export const Empty = Template.bind({});
-Empty.args = {
-  versions: [],
+export const CanPromote: Story = {
+  args: {
+    activeVersionId: MockTemplateVersion.id,
+    onPromoteClick: action("onPromoteClick"),
+    versions: [
+      {
+        ...MockTemplateVersion,
+        id: "2",
+        name: "test-template-version-2",
+        created_at: "2022-05-18T18:39:01.382927298Z",
+      },
+      MockTemplateVersion,
+    ],
+  },
+};
+
+export const Empty: Story = {
+  args: {
+    versions: [],
+  },
 };

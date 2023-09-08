@@ -1,60 +1,71 @@
-import { ComponentMeta, Story } from "@storybook/react";
-import {
-  NetworkSettingsPageView,
-  NetworkSettingsPageViewProps,
-} from "./NetworkSettingsPageView";
+import { DeploymentGroup } from "api/types";
+import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const group: DeploymentGroup = {
+  name: "Networking",
+  description: "",
+  children: [] as DeploymentGroup[],
+};
+
+const meta: Meta<typeof NetworkSettingsPageView> = {
   title: "pages/NetworkSettingsPageView",
   component: NetworkSettingsPageView,
   args: {
     options: [
       {
         name: "DERP Server Enable",
-        usage: "Whether to enable or disable the embedded DERP relay server.",
+        description:
+          "Whether to enable or disable the embedded DERP relay server.",
         value: true,
-        group: {
-          name: "Networking",
-        },
+        group,
+        flag: "derp",
+        flag_shorthand: "d",
+        hidden: false,
       },
       {
         name: "DERP Server Region Name",
-        usage: "Region name that for the embedded DERP server.",
+        description: "Region name that for the embedded DERP server.",
         value: "aws-east",
-        group: {
-          name: "Networking",
-        },
+        group,
+        flag: "derp",
+        flag_shorthand: "d",
+        hidden: false,
       },
       {
         name: "DERP Server STUN Addresses",
-        usage:
+        description:
           "Addresses for STUN servers to establish P2P connections. Set empty to disable P2P connections.",
         value: ["stun.l.google.com:19302", "stun.l.google.com:19301"],
-        group: {
-          name: "Networking",
-        },
+        group,
+        flag: "derp",
+        flag_shorthand: "d",
+        hidden: false,
       },
       {
         name: "DERP Config URL",
-        usage:
+        description:
           "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/",
         value: "https://coder.com",
-        group: {
-          name: "Networking",
-        },
+        group,
+        flag: "derp",
+        flag_shorthand: "d",
+        hidden: false,
       },
       {
         name: "Wildcard Access URL",
+        description: "",
         value: "https://coder.com",
-        group: {
-          name: "Networking",
-        },
+        group,
+        flag: "derp",
+        flag_shorthand: "d",
+        hidden: false,
       },
     ],
   },
-} as ComponentMeta<typeof NetworkSettingsPageView>;
+};
 
-const Template: Story<NetworkSettingsPageViewProps> = (args) => (
-  <NetworkSettingsPageView {...args} />
-);
-export const Page = Template.bind({});
+export default meta;
+type Story = StoryObj<typeof NetworkSettingsPageView>;
+
+export const Page: Story = {};

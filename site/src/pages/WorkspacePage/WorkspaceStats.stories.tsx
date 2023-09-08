@@ -1,4 +1,4 @@
-import { Story } from "@storybook/react";
+import { Meta, StoryObj } from "@storybook/react";
 import {
   MockWorkspace,
   MockAppearance,
@@ -6,13 +6,8 @@ import {
   MockEntitlementsWithScheduling,
   MockExperiments,
 } from "testHelpers/entities";
-import { WorkspaceStats, WorkspaceStatsProps } from "./WorkspaceStats";
+import { WorkspaceStats } from "./WorkspaceStats";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
-
-export default {
-  title: "components/WorkspaceStats",
-  component: WorkspaceStats,
-};
 
 const MockedAppearance = {
   config: MockAppearance,
@@ -21,28 +16,39 @@ const MockedAppearance = {
   save: () => null,
 };
 
-const Template: Story<WorkspaceStatsProps> = (args) => (
-  <DashboardProviderContext.Provider
-    value={{
-      buildInfo: MockBuildInfo,
-      entitlements: MockEntitlementsWithScheduling,
-      experiments: MockExperiments,
-      appearance: MockedAppearance,
-    }}
-  >
-    <WorkspaceStats {...args} />
-  </DashboardProviderContext.Provider>
-);
-
-export const Example = Template.bind({});
-Example.args = {
-  workspace: MockWorkspace,
+const meta: Meta<typeof WorkspaceStats> = {
+  title: "components/WorkspaceStats",
+  component: WorkspaceStats,
+  decorators: [
+    (Story) => (
+      <DashboardProviderContext.Provider
+        value={{
+          buildInfo: MockBuildInfo,
+          entitlements: MockEntitlementsWithScheduling,
+          experiments: MockExperiments,
+          appearance: MockedAppearance,
+        }}
+      >
+        <Story />
+      </DashboardProviderContext.Provider>
+    ),
+  ],
 };
 
-export const Outdated = Template.bind({});
-Outdated.args = {
-  workspace: {
-    ...MockWorkspace,
-    outdated: true,
+export default meta;
+type Story = StoryObj<typeof WorkspaceStats>;
+
+export const Example: Story = {
+  args: {
+    workspace: MockWorkspace,
+  },
+};
+
+export const Outdated: Story = {
+  args: {
+    workspace: {
+      ...MockWorkspace,
+      outdated: true,
+    },
   },
 };

@@ -2,7 +2,7 @@ import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { CreateTokenPage } from "pages/CreateTokenPage/CreateTokenPage";
+import { CreateTokenPage } from "./CreateTokenPage";
 import * as API from "api/api";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
