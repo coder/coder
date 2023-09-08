@@ -1,12 +1,15 @@
-Usage: coder templates delete [flags] [name...]
+coder v0.0.0-devel
 
-Delete templates
+[93mUSAGE:[0m
+  coder templates delete [flags] [name...]
 
-Aliases: rm
+  Delete templates
 
-[1mOptions[0m
-  -y, --yes bool
+  Aliases: rm
+
+[93mOPTIONS:[0m
+  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

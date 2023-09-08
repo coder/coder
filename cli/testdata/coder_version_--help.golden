@@ -1,10 +1,13 @@
-Usage: coder version [flags]
+coder v0.0.0-devel
 
-Show coder version
+[93mUSAGE:[0m
+  coder version [flags]
 
-[1mOptions[0m
-  -o, --output string (default: text)
+  Show coder version
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: text)
           Output format. Available formats: text, json.
 
----
+———
 Run `coder --help` for a list of global options.

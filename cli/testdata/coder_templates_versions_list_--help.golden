@@ -1,14 +1,17 @@
-Usage: coder templates versions list [flags] <template>
+coder v0.0.0-devel
 
-List all the versions of the specified template
+[93mUSAGE:[0m
+  coder templates versions list [flags] <template>
 
-[1mOptions[0m
-  -c, --column string-array (default: name,created at,created by,status,active)
+  List all the versions of the specified template
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: name,created at,created by,status,active)
           Columns to display in table output. Available columns: name, created
           at, created by, status, active.
 
-  -o, --output string (default: table)
+  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
----
+———
 Run `coder --help` for a list of global options.

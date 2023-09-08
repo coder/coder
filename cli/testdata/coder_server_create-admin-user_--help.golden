@@ -1,32 +1,35 @@
-Usage: coder server create-admin-user [flags]
+coder v0.0.0-devel
 
-Create a new admin user with the given username, email and password and adds it
-to every organization.
+[93mUSAGE:[0m
+  coder server create-admin-user [flags]
 
-[1mOptions[0m
-      --email string, $CODER_EMAIL
+  Create a new admin user with the given username, email and password and adds
+  it to every organization.
+
+[93mOPTIONS:[0m
+      [94m--[0m[94memail[0m string, [94m$CODER_EMAIL[0m
           The email of the new user. If not specified, you will be prompted via
           stdin.
 
-      --password string, $CODER_PASSWORD
+      [94m--[0m[94mpassword[0m string, [94m$CODER_PASSWORD[0m
           The password of the new user. If not specified, you will be prompted
           via stdin.
 
-      --postgres-url string, $CODER_PG_CONNECTION_URL
+      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_PG_CONNECTION_URL[0m
           URL of a PostgreSQL database. If empty, the built-in PostgreSQL
           deployment will be used (Coder must not be already running in this
           case).
 
-      --raw-url bool
+      [94m--[0m[94mraw-url[0m bool
           Output the raw connection URL instead of a psql command.
 
-      --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
+      [94m--[0m[94mssh-keygen-algorithm[0m string, [94m$CODER_SSH_KEYGEN_ALGORITHM[0m (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
-      --username string, $CODER_USERNAME
+      [94m--[0m[94musername[0m string, [94m$CODER_USERNAME[0m
           The username of the new user. If not specified, you will be prompted
           via stdin.
 
----
+———
 Run `coder --help` for a list of global options.

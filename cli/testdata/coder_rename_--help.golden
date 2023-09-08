@@ -1,10 +1,13 @@
-Usage: coder rename [flags] <workspace> <new name>
+coder v0.0.0-devel
 
-Rename a workspace
+[93mUSAGE:[0m
+  coder rename [flags] <workspace> <new name>
 
-[1mOptions[0m
-  -y, --yes bool
+  Rename a workspace
+
+[93mOPTIONS:[0m
+  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

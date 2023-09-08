@@ -1,20 +1,23 @@
-Usage: coder server dbcrypt rotate [flags]
+coder v0.0.0-devel
 
-Rotate database encryption keys.
+[93mUSAGE:[0m
+  coder server dbcrypt rotate [flags]
 
-[1mOptions[0m
-      --new-key string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY
+  Rotate database encryption keys.
+
+[93mOPTIONS:[0m
+      [94m--[0m[94mnew-key[0m string, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY[0m
           The new external token encryption key. Must be base64-encoded.
 
-      --old-keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS
+      [94m--[0m[94mold-keys[0m string-array, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS[0m
           The old external token encryption keys. Must be a comma-separated list
           of base64-encoded keys.
 
-      --postgres-url string, $CODER_PG_CONNECTION_URL
+      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_PG_CONNECTION_URL[0m
           The connection URL for the Postgres database.
 
-  -y, --yes bool
+  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

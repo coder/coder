@@ -1,17 +1,20 @@
-Usage: coder templates list [flags]
+coder v0.0.0-devel
 
-List all the templates available for the organization
+[93mUSAGE:[0m
+  coder templates list [flags]
 
-Aliases: ls
+  List all the templates available for the organization
 
-[1mOptions[0m
-  -c, --column string-array (default: name,last updated,used by)
+  Aliases: ls
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: name,last updated,used by)
           Columns to display in table output. Available columns: name, created
           at, last updated, organization id, provisioner, active version id,
           used by, default ttl.
 
-  -o, --output string (default: table)
+  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
----
+———
 Run `coder --help` for a list of global options.

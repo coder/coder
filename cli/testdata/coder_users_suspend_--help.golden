@@ -1,15 +1,18 @@
-Usage: coder users suspend [flags] <username|user_id>
+coder v0.0.0-devel
 
-Update a user's status to 'suspended'. A suspended user cannot log into the
-platform
+[93mUSAGE:[0m
+  coder users suspend [flags] <username|user_id>
 
-Aliases: rm, delete
+  Update a user's status to 'suspended'. A suspended user cannot log into the
+  platform
 
-$ coder users suspend example_user
+  Aliases: rm, delete
 
-[1mOptions[0m
-  -c, --column string-array (default: username,email,created_at,status)
+   $ coder users suspend example_user
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: username,email,created_at,status)
           Specify a column to filter in the table.
 
----
+———
 Run `coder --help` for a list of global options.

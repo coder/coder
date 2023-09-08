@@ -1,16 +1,19 @@
-Usage: coder ping [flags] <workspace>
+coder v0.0.0-devel
 
-Ping a workspace
+[93mUSAGE:[0m
+  coder ping [flags] <workspace>
 
-[1mOptions[0m
-  -n, --num int (default: 10)
+  Ping a workspace
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mn[0m, [94m--[0m[94mnum[0m int (default: 10)
           Specifies the number of pings to perform.
 
-  -t, --timeout duration (default: 5s)
+  [94m-[0m[94mt[0m, [94m--[0m[94mtimeout[0m duration (default: 5s)
           Specifies how long to wait for a ping to complete.
 
-      --wait duration (default: 1s)
+      [94m--[0m[94mwait[0m duration (default: 1s)
           Specifies how long to wait between pings.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -1,58 +1,62 @@
-Usage: coder [global-flags] <subcommand>
+coder v0.0.0-devel
 
-Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
-  - Start a Coder server:
+[93mUSAGE:[0m
+  coder [global-flags] <subcommand>
 
-     $ coder server
+  Coder v0.0.0-devel — A tool for provisioning self-hosted development
+  environments with Terraform.
+    - Start a Coder server:
+  
+       $ coder server
+  
+    - Get started by creating a template from an example:
+  
+       $ coder templates init
 
-  - Get started by creating a template from an example:
-
-     $ coder templates init
-
-[1mSubcommands[0m
+[93mSUBCOMMANDS:[0m
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses
     provisionerd       Manage provisioner daemons
     server             Start a Coder server
 
-[1mGlobal Options[0m 
+[93mGLOBAL OPTIONS:[0m 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-      --debug-options bool
+      [94m--[0m[94mdebug-options[0m bool
           Print all options, how they're set, then exit.
 
-      --disable-direct-connections bool, $CODER_DISABLE_DIRECT_CONNECTIONS
+      [94m--[0m[94mdisable-direct-connections[0m bool, [94m$CODER_DISABLE_DIRECT_CONNECTIONS[0m
           Disable direct (P2P) connections to workspaces.
 
-      --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
+      [94m--[0m[94mglobal-config[0m string, [94m$CODER_CONFIG_DIR[0m (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 
-      --header string-array, $CODER_HEADER
+      [94m--[0m[94mheader[0m string-array, [94m$CODER_HEADER[0m
           Additional HTTP headers added to all requests. Provide as key=value.
           Can be specified multiple times.
 
-      --header-command string, $CODER_HEADER_COMMAND
+      [94m--[0m[94mheader-command[0m string, [94m$CODER_HEADER_COMMAND[0m
           An external command that outputs additional HTTP headers added to all
           requests. The command must output each header as `key=value` on its
           own line.
 
-      --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
+      [94m--[0m[94mno-feature-warning[0m bool, [94m$CODER_NO_FEATURE_WARNING[0m
           Suppress warnings about unlicensed features.
 
-      --no-version-warning bool, $CODER_NO_VERSION_WARNING
+      [94m--[0m[94mno-version-warning[0m bool, [94m$CODER_NO_VERSION_WARNING[0m
           Suppress warning when client and server versions do not match.
 
-      --token string, $CODER_SESSION_TOKEN
+      [94m--[0m[94mtoken[0m string, [94m$CODER_SESSION_TOKEN[0m
           Specify an authentication token. For security reasons setting
           CODER_SESSION_TOKEN is preferred.
 
-      --url url, $CODER_URL
+      [94m--[0m[94murl[0m url, [94m$CODER_URL[0m
           URL to a deployment.
 
-  -v, --verbose bool, $CODER_VERBOSE
+  [94m-[0m[94mv[0m, [94m--[0m[94mverbose[0m bool, [94m$CODER_VERBOSE[0m
           Enable verbose output.
 
----
+———
 Report bugs and request features at https://github.com/coder/coder/issues/new

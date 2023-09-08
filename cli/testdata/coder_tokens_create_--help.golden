@@ -1,13 +1,16 @@
-Usage: coder tokens create [flags]
+coder v0.0.0-devel
 
-Create a token
+[93mUSAGE:[0m
+  coder tokens create [flags]
 
-[1mOptions[0m
-      --lifetime duration, $CODER_TOKEN_LIFETIME (default: 720h0m0s)
+  Create a token
+
+[93mOPTIONS:[0m
+      [94m--[0m[94mlifetime[0m duration, [94m$CODER_TOKEN_LIFETIME[0m (default: 720h0m0s)
           Specify a duration for the lifetime of the token.
 
-  -n, --name string, $CODER_TOKEN_NAME
+  [94m-[0m[94mn[0m, [94m--[0m[94mname[0m string, [94m$CODER_TOKEN_NAME[0m
           Specify a human-readable name.
 
----
+———
 Run `coder --help` for a list of global options.

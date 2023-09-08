@@ -1,20 +1,23 @@
-Usage: coder tokens list [flags]
+coder v0.0.0-devel
 
-List tokens
+[93mUSAGE:[0m
+  coder tokens list [flags]
 
-Aliases: ls
+  List tokens
 
-[1mOptions[0m
-  -a, --all bool
+  Aliases: ls
+
+[93mOPTIONS:[0m
+  [94m-[0m[94ma[0m, [94m--[0m[94mall[0m bool
           Specifies whether all users' tokens will be listed or not (must have
           Owner role to see all tokens).
 
-  -c, --column string-array (default: id,name,last used,expires at,created at)
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: id,name,last used,expires at,created at)
           Columns to display in table output. Available columns: id, name, last
           used, expires at, created at, owner.
 
-  -o, --output string (default: table)
+  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
----
+———
 Run `coder --help` for a list of global options.

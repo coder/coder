@@ -1,11 +1,14 @@
-Usage: coder features
+coder v0.0.0-devel
 
-List Enterprise features
+[93mUSAGE:[0m
+  coder features
 
-Aliases: feature
+  List Enterprise features
 
-[1mSubcommands[0m
+  Aliases: feature
+
+[93mSUBCOMMANDS:[0m
     list    
 
----
+———
 Run `coder --help` for a list of global options.

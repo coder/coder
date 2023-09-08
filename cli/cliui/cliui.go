@@ -51,6 +51,11 @@ var (
 	Blue    = color.Color("#5000ff")
 )
 
+// Color returns a color for the given string.
+func Color(s string) termenv.Color {
+	return color.Color(s)
+}
+
 func isTerm() bool {
 	return color != termenv.Ascii
 }
