@@ -193,8 +193,10 @@ func (r *remoteConnector) handleConn(conn net.Conn) {
 	}
 }
 
-var errInvalidJobID = xerrors.New("invalid jobID")
-var errInvalidToken = xerrors.New("invalid token")
+var (
+	errInvalidJobID = xerrors.New("invalid jobID")
+	errInvalidToken = xerrors.New("invalid token")
+)
 
 func (r *remoteConnector) pullWaiter(jobID, token string) (waiter, error) {
 	r.mu.Lock()
@@ -304,7 +306,7 @@ func EphemeralEcho(
 	defer cancel()
 
 	workdir := filepath.Join(cacheDir, "echo")
-	err := os.MkdirAll(workdir, 0777)
+	err := os.MkdirAll(workdir, 0o777)
 	if err != nil {
 		return xerrors.Errorf("create workdir %s: %w", workdir, err)
 	}
@@ -380,9 +382,11 @@ func DialTLS(ctx context.Context, cert, addr string) (*tls.Conn, error) {
 
 // Responses are all exactly 3 bytes so that don't have to use a scanner
 // which might accidentally buffer some of the first dRPC request.
-const responseOK = "OK\n"
-const responseInvalidJobID = "IJ\n"
-const responseInvalidToken = "IT\n"
+const (
+	responseOK           = "OK\n"
+	responseInvalidJobID = "IJ\n"
+	responseInvalidToken = "IT\n"
+)
 
 // serverName is the name on the x509 certificate the daemon/connector generates
 // this name doesn't matter as long as both sides agree, since the provisioners
