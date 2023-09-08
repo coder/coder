@@ -65,15 +65,15 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	var eg errgroup.Group
 	eg.Go(func() (err error) {
 		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
-		return
+		return err
 	})
 	eg.Go(func() (err error) {
 		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
-		return
+		return err
 	})
 	eg.Go(func() (err error) {
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
-		return
+		return err
 	})
 	apiAgent, err := convertWorkspaceAgent(
 		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
