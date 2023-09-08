@@ -730,7 +730,15 @@ COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key use
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
-CREATE TABLE workspace_agent_logs (
+CREATE TABLE workspace_agent_log_sources (
+    workspace_agent_id uuid NOT NULL,
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    display_name character varying(127) NOT NULL,
+    icon text NOT NULL
+);
+
+CREATE UNLOGGED TABLE workspace_agent_logs (
     agent_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     output character varying(1024) NOT NULL,

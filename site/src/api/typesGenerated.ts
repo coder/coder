@@ -1337,9 +1337,6 @@ export interface WorkspaceAgent {
   readonly architecture: string;
   readonly environment_variables: Record<string, string>;
   readonly operating_system: string;
-  readonly startup_script?: string;
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
-  readonly startup_script_timeout_seconds: number;
   readonly logs_length: number;
   readonly logs_overflowed: boolean;
   readonly directory?: string;
@@ -1349,12 +1346,11 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>;
   readonly connection_timeout_seconds: number;
   readonly troubleshooting_url: string;
-  readonly login_before_ready: boolean;
-  readonly shutdown_script?: string;
-  readonly shutdown_script_timeout_seconds: number;
   readonly subsystems: AgentSubsystem[];
   readonly health: WorkspaceAgentHealth;
   readonly display_apps: DisplayApp[];
+  readonly log_sources: WorkspaceAgentLogSource[];
+  readonly scripts: WorkspaceAgentScript[];
 }
 
 // From codersdk/workspaceagents.go
@@ -1381,6 +1377,16 @@ export interface WorkspaceAgentLog {
   readonly created_at: string;
   readonly output: string;
   readonly level: LogLevel;
+  readonly source_id: string;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentLogSource {
+  readonly workspace_agent_id: string;
+  readonly id: string;
+  readonly created_at: string;
+  readonly display_name: string;
+  readonly icon: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -1901,23 +1907,6 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
-];
-
-// From codersdk/workspaceagents.go
-export type WorkspaceAgentLogSource =
-  | "envbox"
-  | "envbuilder"
-  | "external"
-  | "kubernetes"
-  | "shutdown_script"
-  | "startup_script";
-export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
-  "envbox",
-  "envbuilder",
-  "external",
-  "kubernetes",
-  "shutdown_script",
-  "startup_script",
 ];
 
 // From codersdk/workspaceagents.go
