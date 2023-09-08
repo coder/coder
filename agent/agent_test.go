@@ -2409,7 +2409,6 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		var (
 			expectedProcs = map[int32]agentproc.Process{}
 			fs            = afero.NewMemMapFs()
-			ticker        = make(chan time.Time)
 			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			modProcs      = make(chan []*agentproc.Process)
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
@@ -2439,7 +2438,6 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.ProcessManagementTick = ticker
 			o.Syscaller = syscaller
 			o.ModifiedProcesses = modProcs
 			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
@@ -2454,7 +2452,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			expected, ok := expectedProcs[actual.PID]
 			require.True(t, ok)
 			if expected.PID == 1 {
-				expectedScore = "-1000"
+				expectedScore = "-500"
 			}
 
 			score, err := afero.ReadFile(fs, filepath.Join(actual.Dir, "oom_score_adj"))
@@ -2469,7 +2467,6 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		var (
 			expectedProcs = map[int32]agentproc.Process{}
 			fs            = afero.NewMemMapFs()
-			ticker        = make(chan time.Time)
 			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			modProcs      = make(chan []*agentproc.Process)
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
@@ -2494,7 +2491,6 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.ProcessManagementTick = ticker
 			o.Syscaller = syscaller
 			o.ModifiedProcesses = modProcs
 			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}

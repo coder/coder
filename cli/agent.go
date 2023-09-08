@@ -287,15 +287,15 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS": executablePath,
+					"GIT_ASKPASS":        executablePath,
+					agent.EnvProcMemNice: os.Getenv(agent.EnvProcMemNice),
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
 				Subsystems:    subsystems,
 
-				PrometheusRegistry:    prometheusRegistry,
-				ProcessManagementTick: procTicker.C,
-				Syscaller:             agentproc.UnixSyscaller{},
+				PrometheusRegistry: prometheusRegistry,
+				Syscaller:          agentproc.NewSyscaller(),
 				// Intentionally set this to nil. It's mainly used
 				// for testing.
 				ModifiedProcesses: nil,

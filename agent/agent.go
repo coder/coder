@@ -53,6 +53,8 @@ const (
 	ProtocolDial            = "dial"
 )
 
+// EnvProcMemNice determines whether we attempt to manage
+// process CPU and OOM Killer priority.
 const EnvProcMemNice = "CODER_PROC_MEMNICE_ENABLE"
 
 type Options struct {
@@ -73,7 +75,6 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	Syscaller                    agentproc.Syscaller
-	ProcessManagementTick        <-chan time.Time
 	ModifiedProcesses            chan []*agentproc.Process
 }
 
@@ -128,7 +129,7 @@ func New(options Options) Agent {
 	}
 
 	if options.Syscaller == nil {
-		options.Syscaller = agentproc.UnixSyscaller{}
+		options.Syscaller = agentproc.NewSyscaller()
 	}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
@@ -155,7 +156,6 @@ func New(options Options) Agent {
 		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
 		syscaller:                    options.Syscaller,
-		processManagementTick:        options.ProcessManagementTick,
 		modifiedProcs:                options.ModifiedProcesses,
 
 		prometheusRegistry: prometheusRegistry,
@@ -209,11 +209,10 @@ type agent struct {
 
 	connCountReconnectingPTY atomic.Int64
 
-	prometheusRegistry    *prometheus.Registry
-	metrics               *agentMetrics
-	processManagementTick <-chan time.Time
-	modifiedProcs         chan []*agentproc.Process
-	syscaller             agentproc.Syscaller
+	prometheusRegistry *prometheus.Registry
+	metrics            *agentMetrics
+	modifiedProcs      chan []*agentproc.Process
+	syscaller          agentproc.Syscaller
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1299,9 +1298,12 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 
 	manage()
 
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-a.processManagementTick:
+		case <-ticker.C:
 			manage()
 		case <-ctx.Done():
 			return
@@ -1313,7 +1315,7 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 	const (
 		procDir     = agentproc.DefaultProcDir
 		niceness    = 10
-		oomScoreAdj = -1000
+		oomScoreAdj = -500
 	)
 
 	procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
@@ -1357,6 +1359,11 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			)
 			continue
 		}
+
+		// We only want processes that don't have a nice value set
+		// so we don't override user nice values.
+		// Getpriority actually returns priority for the nice value
+		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
 		if score != 20 {
 			a.logger.Error(ctx, "skipping process due to custom niceness",
 				slog.F("name", proc.Name()),
