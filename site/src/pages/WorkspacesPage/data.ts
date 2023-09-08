@@ -13,7 +13,6 @@ import {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useState } from "react";
-import { useTranslation } from "react-i18next";
 
 type UseWorkspacesDataParams = {
   page: number;
@@ -53,7 +52,6 @@ export const useWorkspacesData = ({
 
 export const useWorkspaceUpdate = (queryKey: QueryKey) => {
   const queryClient = useQueryClient();
-  const { t } = useTranslation("workspacesPage");
 
   return useMutation({
     mutationFn: updateWorkspaceVersion,
@@ -73,7 +71,10 @@ export const useWorkspaceUpdate = (queryKey: QueryKey) => {
       });
     },
     onError: (error) => {
-      const message = getErrorMessage(error, t("updateVersionError"));
+      const message = getErrorMessage(
+        error,
+        "Error updating workspace version",
+      );
       displayError(message);
     },
   });
