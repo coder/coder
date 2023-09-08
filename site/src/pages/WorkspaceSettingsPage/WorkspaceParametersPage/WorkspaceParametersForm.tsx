@@ -7,7 +7,6 @@ import {
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { useFormik } from "formik";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
@@ -38,8 +37,6 @@ export const WorkspaceParametersForm: FC<{
   error,
   isSubmitting,
 }) => {
-  const { t } = useTranslation("workspaceSettingsPage");
-
   const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
@@ -72,8 +69,8 @@ export const WorkspaceParametersForm: FC<{
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       {hasNonEphemeralParameters && (
         <FormSection
-          title={t("parameters").toString()}
-          description={t("parametersDescription").toString()}
+          title="Parameters"
+          description="Settings used by your template"
         >
           <FormFields>
             {templateVersionRichParameters.map((parameter, index) =>
