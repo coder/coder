@@ -9,7 +9,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 // activityBumpWorkspace automatically bumps the workspace's auto-off timer
@@ -21,10 +20,7 @@ func activityBumpWorkspace(ctx context.Context, log slog.Logger, db database.Sto
 	defer cancel()
 
 	err := db.InTx(func(s database.Store) error {
-		if err := s.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			WorkspaceID: workspaceID,
-			UpdatedAt:   dbtime.Now(),
-		}); err != nil {
+		if err := s.ActivityBumpWorkspace(ctx, workspaceID); err != nil {
 			return xerrors.Errorf("activity bump workspace: %w", err)
 		}
 		// build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspaceID)

@@ -685,6 +685,13 @@ func (q *FakeQuerier) GetActiveDBCryptKeys(_ context.Context) ([]database.DBCryp
 	return ks, nil
 }
 
+func minTime(t, u time.Time) time.Time {
+	if t.Before(u) {
+		return t
+	}
+	return u
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -744,13 +751,35 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 	return database.ProvisionerJob{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
-	err := validateDatabaseType(arg)
+func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	err := validateDatabaseType(workspaceID)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspace, err := q.getWorkspaceByIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	latestBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	for i := range q.workspaceBuilds {
+		if q.workspaceBuilds[i].BuildNumber != latestBuild.BuildNumber {
+			continue
+		}
+		newDeadline := q.workspaceBuilds[i].Deadline.Add(time.Duration(workspace.Ttl.Int64))
+		q.workspaceBuilds[i].UpdatedAt = latestBuild.UpdatedAt
+		q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
+		return nil
+	}
+
+	return sql.ErrNoRows
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
