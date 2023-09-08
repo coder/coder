@@ -28,7 +28,7 @@ func (h *HandlerWithContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/auth" {
 		token := r.URL.Query().Get("token")
 		h.resultChan <- TokenResponse{token: token, err: nil}
-		_, _ = fmt.Fprintf(w, "<html><head><script>alert('goobers')</script></head></html>")
+		_, _ = fmt.Fprintf(w, "<html><head><script><title>Token received!</title></head><body><a href='#' onclick='javascript:window.close();'>Close this Window</a></body></html>")
 
 		h.Server.Stop()
 	}
@@ -110,7 +110,9 @@ func getAvailablePort() (int, error) {
 	}
 
 	defer l.Close()
-	return l.Addr().(*net.TCPAddr).Port, nil
+
+	port := l.Addr().(*net.TCPAddr).Port
+	return port, nil
 }
 
 func (s *Server) GenerateCallbackPath() string {
