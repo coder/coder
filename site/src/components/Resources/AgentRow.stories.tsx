@@ -99,6 +99,7 @@ const meta: Meta<typeof AgentRow> = {
       level: "info",
       output: line,
       time: "",
+      source_id: "",
     })),
     agent: {
       ...MockWorkspaceAgent,
