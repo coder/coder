@@ -20,7 +20,13 @@ import {
   useWorkspacesToBeDeleted,
 } from "./useWorkspacesToBeDeleted";
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
-import { TTLHelperText } from "./TTLHelperText";
+import {
+  DefaultTTLHelperText,
+  DormancyAutoDeletionTTLHelperText,
+  DormancyTTLHelperText,
+  FailureTTLHelperText,
+  MaxTTLHelperText,
+} from "./TTLHelperText";
 import { docs } from "utils/docs";
 import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import MenuItem from "@mui/material/MenuItem";
@@ -312,10 +318,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <TextField
             {...getFieldHelpers(
               "default_ttl_ms",
-              <TTLHelperText
-                translationName="defaultTTLHelperText"
-                ttl={form.values.default_ttl_ms}
-              />,
+              <DefaultTTLHelperText ttl={form.values.default_ttl_ms} />,
             )}
             disabled={isSubmitting}
             fullWidth
@@ -329,10 +332,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               {...getFieldHelpers(
                 "max_ttl_ms",
                 allowAdvancedScheduling ? (
-                  <TTLHelperText
-                    translationName="maxTTLHelperText"
-                    ttl={form.values.max_ttl_ms}
-                  />
+                  <MaxTTLHelperText ttl={form.values.max_ttl_ms} />
                 ) : (
                   <>
                     You need an enterprise license to use it{" "}
@@ -478,10 +478,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <TextField
                 {...getFieldHelpers(
                   "failure_ttl_ms",
-                  <TTLHelperText
-                    translationName="failureTTLHelperText"
-                    ttl={form.values.failure_ttl_ms}
-                  />,
+                  <FailureTTLHelperText ttl={form.values.failure_ttl_ms} />,
                 )}
                 disabled={isSubmitting || !form.values.failure_cleanup_enabled}
                 fullWidth
@@ -509,8 +506,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <TextField
                 {...getFieldHelpers(
                   "time_til_dormant_ms",
-                  <TTLHelperText
-                    translationName="dormancyThresholdHelperText"
+                  <DormancyTTLHelperText
                     ttl={form.values.time_til_dormant_ms}
                   />,
                 )}
@@ -542,8 +538,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <TextField
                 {...getFieldHelpers(
                   "time_til_dormant_autodelete_ms",
-                  <TTLHelperText
-                    translationName="dormancyAutoDeletionHelperText"
+                  <DormancyAutoDeletionTTLHelperText
                     ttl={form.values.time_til_dormant_autodelete_ms}
                   />,
                 )}
