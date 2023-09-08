@@ -1,10 +1,13 @@
-Usage: coder server postgres-builtin-serve [flags]
+coder v0.0.0-devel
 
-Run the built-in PostgreSQL deployment.
+[93mUSAGE:[0m
+  coder server postgres-builtin-serve [flags]
 
-[1mOptions[0m
-      --raw-url bool
+  Run the built-in PostgreSQL deployment.
+
+[93mOPTIONS:[0m
+      [94m--[0m[94mraw-url[0m bool
           Output the raw connection URL instead of a psql command.
 
----
+———
 Run `coder --help` for a list of global options.

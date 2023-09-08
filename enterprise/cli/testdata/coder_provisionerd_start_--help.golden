@@ -1,22 +1,25 @@
-Usage: coder provisionerd start [flags]
+coder v0.0.0-devel
 
-Run a provisioner daemon
+[93mUSAGE:[0m
+  coder provisionerd start [flags]
 
-[1mOptions[0m
-  -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
+  Run a provisioner daemon
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mc[0m, [94m--[0m[94mcache-dir[0m string, [94m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
           Directory to store cached data.
 
-      --poll-interval duration, $CODER_PROVISIONERD_POLL_INTERVAL (default: 1s)
+      [94m--[0m[94mpoll-interval[0m duration, [94m$CODER_PROVISIONERD_POLL_INTERVAL[0m (default: 1s)
           How often to poll for provisioner jobs.
 
-      --poll-jitter duration, $CODER_PROVISIONERD_POLL_JITTER (default: 100ms)
+      [94m--[0m[94mpoll-jitter[0m duration, [94m$CODER_PROVISIONERD_POLL_JITTER[0m (default: 100ms)
           How much to jitter the poll interval by.
 
-      --psk string, $CODER_PROVISIONER_DAEMON_PSK
+      [94m--[0m[94mpsk[0m string, [94m$CODER_PROVISIONER_DAEMON_PSK[0m
           Pre-shared key to authenticate with Coder server.
 
-  -t, --tag string-array, $CODER_PROVISIONERD_TAGS
+  [94m-[0m[94mt[0m, [94m--[0m[94mtag[0m string-array, [94m$CODER_PROVISIONERD_TAGS[0m
           Tags to filter provisioner jobs by.
 
----
+———
 Run `coder --help` for a list of global options.

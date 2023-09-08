@@ -1,10 +1,13 @@
-Usage: coder state push [flags] <workspace> <file>
+coder v0.0.0-devel
 
-Push a Terraform state file to a workspace.
+[93mUSAGE:[0m
+  coder state push [flags] <workspace> <file>
 
-[1mOptions[0m
-  -b, --build int
+  Push a Terraform state file to a workspace.
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mb[0m, [94m--[0m[94mbuild[0m int
           Specify a workspace build to target by name. Defaults to latest.
 
----
+———
 Run `coder --help` for a list of global options.

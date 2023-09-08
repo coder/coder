@@ -1,48 +1,51 @@
-Usage: coder templates push [flags] [template]
+coder v0.0.0-devel
 
-Push a new template version from the current directory or as specified by flag
+[93mUSAGE:[0m
+  coder templates push [flags] [template]
 
-[1mOptions[0m
-      --activate bool (default: true)
+  Push a new template version from the current directory or as specified by flag
+
+[93mOPTIONS:[0m
+      [94m--[0m[94mactivate[0m bool (default: true)
           Whether the new template will be marked active.
 
-      --always-prompt bool
+      [94m--[0m[94malways-prompt[0m bool
           Always prompt all parameters. Does not pull parameter values from
           active template version.
 
-      --create bool (default: false)
+      [94m--[0m[94mcreate[0m bool (default: false)
           Create the template if it does not exist.
 
-  -d, --directory string (default: .)
+  [94m-[0m[94md[0m, [94m--[0m[94mdirectory[0m string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
-      --ignore-lockfile bool (default: false)
+      [94m--[0m[94mignore-lockfile[0m bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
 
-  -m, --message string
+  [94m-[0m[94mm[0m, [94m--[0m[94mmessage[0m string
           Specify a message describing the changes in this version of the
           template. Messages longer than 72 characters will be displayed as
           truncated.
 
-      --name string
+      [94m--[0m[94mname[0m string
           Specify a name for the new template version. It will be automatically
           generated if not provided.
 
-      --provisioner-tag string-array
+      [94m--[0m[94mprovisioner-tag[0m string-array
           Specify a set of tags to target provisioner daemons.
 
-      --var string-array
+      [94m--[0m[94mvar[0m string-array
           Alias of --variable.
 
-      --variable string-array
+      [94m--[0m[94mvariable[0m string-array
           Specify a set of values for Terraform-managed variables.
 
-      --variables-file string
+      [94m--[0m[94mvariables-file[0m string
           Specify a file path with values for Terraform-managed variables.
 
-  -y, --yes bool
+  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

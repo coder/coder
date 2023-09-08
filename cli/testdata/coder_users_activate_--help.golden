@@ -1,15 +1,18 @@
-Usage: coder users activate [flags] <username|user_id>
+coder v0.0.0-devel
 
-Update a user's status to 'active'. Active users can fully interact with the
-platform
+[93mUSAGE:[0m
+  coder users activate [flags] <username|user_id>
 
-Aliases: active
+  Update a user's status to 'active'. Active users can fully interact with the
+  platform
 
-$ coder users activate example_user
+  Aliases: active
 
-[1mOptions[0m
-  -c, --column string-array (default: username,email,created_at,status)
+   $ coder users activate example_user
+
+[93mOPTIONS:[0m
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: username,email,created_at,status)
           Specify a column to filter in the table.
 
----
+———
 Run `coder --help` for a list of global options.

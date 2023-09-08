@@ -1,14 +1,17 @@
-Usage: coder groups
+coder v0.0.0-devel
 
-Manage groups
+[93mUSAGE:[0m
+  coder groups
 
-Aliases: group
+  Manage groups
 
-[1mSubcommands[0m
+  Aliases: group
+
+[93mSUBCOMMANDS:[0m
     create    Create a user group
     delete    Delete a user group
     edit      Edit a user group
     list      List user groups
 
----
+———
 Run `coder --help` for a list of global options.

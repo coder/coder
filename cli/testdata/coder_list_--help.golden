@@ -1,23 +1,26 @@
-Usage: coder list [flags]
+coder v0.0.0-devel
 
-List workspaces
+[93mUSAGE:[0m
+  coder list [flags]
 
-Aliases: ls
+  List workspaces
 
-[1mOptions[0m
-  -a, --all bool
+  Aliases: ls
+
+[93mOPTIONS:[0m
+  [94m-[0m[94ma[0m, [94m--[0m[94mall[0m bool
           Specifies whether all workspaces will be listed or not.
 
-  -c, --column string-array (default: workspace,template,status,healthy,last built,outdated,starts at,stops after)
+  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: workspace,template,status,healthy,last built,outdated,starts at,stops after)
           Columns to display in table output. Available columns: workspace,
           template, status, healthy, last built, outdated, starts at, stops
           after, daily cost.
 
-  -o, --output string (default: table)
+  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
-      --search string (default: owner:me)
+      [94m--[0m[94msearch[0m string (default: owner:me)
           Search for a workspace with a query.
 
----
+———
 Run `coder --help` for a list of global options.
