@@ -3,7 +3,7 @@ import {
   screen,
   waitForElementToBeRemoved,
 } from "@testing-library/react";
-import { AppProviders } from "app";
+import { AppProviders } from "App";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { i18n } from "i18n";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
