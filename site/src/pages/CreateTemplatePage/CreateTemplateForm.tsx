@@ -26,7 +26,6 @@ import {
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import { LazyIconField } from "components/IconField/LazyIconField";
-import { Maybe } from "components/Conditionals/Maybe";
 import Link from "@mui/material/Link";
 import {
   HorizontalForm,
@@ -519,7 +518,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                   </Stack>
                   <span className={styles.optionHelperText}>
                     Depending on your template, canceling builds may leave
-                    workspaces in an unhealthy state. This option isn't
+                    workspaces in an unhealthy state. This option isn&apos;t
                     recommended for most use cases.
                   </span>
                 </Stack>

@@ -78,7 +78,8 @@ export const WorkspaceSchedulePage: FC = () => {
       )}
       {permissions && !permissions.updateWorkspace && (
         <Alert severity="error">
-          You don't have permissions to update the schedule for this workspace.
+          You don&apos;t have permissions to update the schedule for this
+          workspace.
         </Alert>
       )}
       {template &&

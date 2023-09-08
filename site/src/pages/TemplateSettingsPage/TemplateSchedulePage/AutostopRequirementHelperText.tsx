@@ -83,7 +83,7 @@ export const AutostopRequirementWeeksHelperText = ({
     return (
       <span>
         Workspaces are required to be automatically stopped every week on the
-        specified day in the user's quiet hours and timezone.
+        specified day in the user&apos;s quiet hours and timezone.
       </span>
     );
   }
@@ -91,7 +91,7 @@ export const AutostopRequirementWeeksHelperText = ({
   return (
     <span>
       Workspaces are required to be automatically stopped every {weeks} weeks on
-      the specified day in the user's quiet hours and timezone.
+      the specified day in the user&apos;s quiet hours and timezone.
     </span>
   );
 };

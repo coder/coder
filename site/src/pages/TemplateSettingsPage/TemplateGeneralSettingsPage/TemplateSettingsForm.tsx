@@ -160,8 +160,8 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
               </Stack>
               <span className={styles.optionHelperText}>
                 Depending on your template, canceling builds may leave
-                workspaces in an unhealthy state. This option isn't recommended
-                for most use cases.
+                workspaces in an unhealthy state. This option isn&apos;t
+                recommended for most use cases.
               </span>
             </Stack>
           </Stack>
