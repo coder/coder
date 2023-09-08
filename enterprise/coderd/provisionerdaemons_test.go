@@ -253,7 +253,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			errCh <- err
 		}()
 
-		provisioners := provisionerd.Provisioners{
+		connector := provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): proto.NewDRPCProvisionerClient(terraformClient),
 		}
 		another := codersdk.New(client.URL)
@@ -269,8 +269,8 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				PreSharedKey: "provisionersftw",
 			})
 		}, &provisionerd.Options{
-			Logger:       logger.Named("provisionerd"),
-			Provisioners: provisioners,
+			Logger:    logger.Named("provisionerd"),
+			Connector: connector,
 		})
 		defer pd.Close()
 
