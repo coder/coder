@@ -25,7 +25,7 @@ func (p *Process) SetOOMAdj(score int) error {
 	err := afero.WriteFile(p.FS,
 		path,
 		[]byte(strconv.Itoa(score)),
-		0644,
+		0o644,
 	)
 	if err != nil {
 		return xerrors.Errorf("write %q: %w", path, err)

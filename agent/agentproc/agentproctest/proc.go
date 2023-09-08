@@ -40,13 +40,13 @@ func GenerateProcess(t *testing.T, fs afero.Fs, dir string, muts ...func(*agentp
 
 	process.Dir = fmt.Sprintf("%s/%d", dir, process.PID)
 
-	err = fs.MkdirAll(process.Dir, 0555)
+	err = fs.MkdirAll(process.Dir, 0o555)
 	require.NoError(t, err)
 
-	err = afero.WriteFile(fs, fmt.Sprintf("%s/cmdline", process.Dir), []byte(process.CmdLine), 0444)
+	err = afero.WriteFile(fs, fmt.Sprintf("%s/cmdline", process.Dir), []byte(process.CmdLine), 0o444)
 	require.NoError(t, err)
 
-	err = afero.WriteFile(fs, fmt.Sprintf("%s/oom_score_adj", process.Dir), []byte("0"), 0444)
+	err = afero.WriteFile(fs, fmt.Sprintf("%s/oom_score_adj", process.Dir), []byte("0"), 0o444)
 	require.NoError(t, err)
 
 	return process
