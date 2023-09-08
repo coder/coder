@@ -51,7 +51,7 @@ export const SuccessLogin: Story = {
   },
 };
 
-export const UnsuccessfulLoginForUnkownUser: Story = {
+export const UnsuccessfulLoginForUnknownUser: Story = {
   args: {
     auditLog: MockAuditLogUnsuccessfulLoginKnownUser,
   },
