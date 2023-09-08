@@ -75,7 +75,10 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	Syscaller                    agentproc.Syscaller
-	ModifiedProcesses            chan []*agentproc.Process
+	// ModifiedProcesses is used for testing process priority management.
+	ModifiedProcesses chan []*agentproc.Process
+	// ProcessManagementTick is used for testing process priority management.
+	ProcessManagementTick <-chan time.Time
 }
 
 type Client interface {
@@ -157,6 +160,7 @@ func New(options Options) Agent {
 		addresses:                    options.Addresses,
 		syscaller:                    options.Syscaller,
 		modifiedProcs:                options.ModifiedProcesses,
+		processManagementTick:        options.ProcessManagementTick,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -211,8 +215,12 @@ type agent struct {
 
 	prometheusRegistry *prometheus.Registry
 	metrics            *agentMetrics
-	modifiedProcs      chan []*agentproc.Process
 	syscaller          agentproc.Syscaller
+
+	// podifiedProcs is used for testing process priority management.
+	modifiedProcs chan []*agentproc.Process
+	// processManagementTick is used for testing process priority management.
+	processManagementTick <-chan time.Time
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1283,7 +1291,6 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	}
 
 	manage := func() {
-		// Do once before falling into loop.
 		procs, err := a.manageProcessPriority(ctx)
 		if err != nil {
 			a.logger.Error(ctx, "manage process priority",
@@ -1296,14 +1303,18 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 		}
 	}
 
+	// Do once before falling into loop.
 	manage()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
+	if a.processManagementTick == nil {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		a.processManagementTick = ticker.C
+	}
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-a.processManagementTick:
 			manage()
 		case <-ctx.Done():
 			return

@@ -2410,13 +2410,16 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			expectedProcs = map[int32]agentproc.Process{}
 			fs            = afero.NewMemMapFs()
 			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			ticker        = make(chan time.Time)
 			modProcs      = make(chan []*agentproc.Process)
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
 		)
 
 		// Create some processes.
 		for i := 0; i < 4; i++ {
-			// Create a prioritized process.
+			// Create a prioritized process. This process should
+			// have it's oom_score_adj set to -500 and its nice
+			// score should be untouched.
 			var proc agentproc.Process
 			if i == 0 {
 				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir,
@@ -2426,6 +2429,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 					},
 				)
 			} else {
+				// The rest are peasants.
 				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
 				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
 				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
@@ -2443,6 +2447,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
 			o.Filesystem = fs
 			o.Logger = logger
+			o.ProcessManagementTick = ticker
 		})
 		actualProcs := <-modProcs
 		require.Len(t, actualProcs, 4)
@@ -2467,6 +2472,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		var (
 			expectedProcs = map[int32]agentproc.Process{}
 			fs            = afero.NewMemMapFs()
+			ticker        = make(chan time.Time)
 			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			modProcs      = make(chan []*agentproc.Process)
 			logger        = slog.Make(sloghuman.Sink(io.Discard))
@@ -2474,13 +2480,14 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 
 		// Create some processes.
 		for i := 0; i < 2; i++ {
-			// Create a prioritized process.
 			proc := agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
 			syscaller.EXPECT().
 				Kill(proc.PID, syscall.Signal(0)).
 				Return(nil)
 
 			if i == 0 {
+				// Set a random nice score. This one should not be adjusted by
+				// our management loop.
 				syscaller.EXPECT().GetPriority(proc.PID).Return(25, nil)
 			} else {
 				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
@@ -2496,6 +2503,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
 			o.Filesystem = fs
 			o.Logger = logger
+			o.ProcessManagementTick = ticker
 		})
 		actualProcs := <-modProcs
 		// We should ignore the process with a custom nice score.
@@ -2533,6 +2541,8 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Logger = log
+			// Try to enable it so that we can assert that non-linux
+			// environments are truly disabled.
 			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
 		})
 		require.Eventually(t, func() bool {
