@@ -8,10 +8,7 @@ import {
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import {
-  TemplateUpload,
-  TemplateUploadProps,
-} from "pages/CreateTemplatePage/TemplateUpload";
+import { TemplateUpload, TemplateUploadProps } from "./TemplateUpload";
 import { useFormik } from "formik";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { FC, useEffect } from "react";
