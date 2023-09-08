@@ -3,7 +3,6 @@ import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { FormikTouched, useFormik } from "formik";
 import { FC, ChangeEvent, useState, useEffect } from "react";
 import { getFormHelpers } from "utils/formUtils";
-import { useTranslation } from "react-i18next";
 import {
   FormSection,
   HorizontalForm,
@@ -62,7 +61,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
-  const { t: commonT } = useTranslation("common");
   const validationSchema = getValidationSchema();
   const form = useFormik<TemplateScheduleFormValues>({
     initialValues: {
@@ -140,7 +138,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     form,
     error,
   );
-  const { t } = useTranslation("templateSettingsPage");
   const styles = useStyles();
 
   const now = new Date();
@@ -305,11 +302,11 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel").toString()}
+      aria-label="Template settings form"
     >
       <FormSection
-        title={t("schedule.title").toString()}
-        description={t("schedule.description").toString()}
+        title="Schedule"
+        description="Define when workspaces created from this template are stopped."
       >
         <Stack direction="row" className={styles.ttlFields}>
           <TextField
@@ -323,7 +320,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
             disabled={isSubmitting}
             fullWidth
             inputProps={{ min: 0, step: 1 }}
-            label={t("defaultTtlLabel")}
+            label="Default autostop (hours)"
             type="number"
           />
 
@@ -338,18 +335,15 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
                   />
                 ) : (
                   <>
-                    {commonT("licenseFieldTextHelper")}{" "}
-                    <Link href={docs("/enterprise")}>
-                      {commonT("learnMore")}
-                    </Link>
-                    .
+                    You need an enterprise license to use it{" "}
+                    <Link href={docs("/enterprise")}>Learn more</Link>.
                   </>
                 ),
               )}
               disabled={isSubmitting || !allowAdvancedScheduling}
               fullWidth
               inputProps={{ min: 0, step: 1 }}
-              label={t("maxTtlLabel")}
+              label="Max lifetime (hours)"
               type="number"
             />
           )}
@@ -358,8 +352,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 
       {allowAutostopRequirement && (
         <FormSection
-          title={t("autostopRequirement.title").toString()}
-          description={t("autostopRequirement.description").toString()}
+          title="Autostop Requirement"
+          description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
         >
           <Stack direction="row" className={styles.ttlFields}>
             <TextField
@@ -373,19 +367,19 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               fullWidth
               select
               value={form.values.autostop_requirement_days_of_week}
-              label={t("autostopRequirementDaysLabel")}
+              label="Days with required stop"
             >
               <MenuItem key="off" value="off">
-                {t("autostopRequirementDays_off")}
+                Off
               </MenuItem>
               <MenuItem key="daily" value="daily">
-                {t("autostopRequirementDays_daily")}
+                Daily
               </MenuItem>
               <MenuItem key="saturday" value="saturday">
-                {t("autostopRequirementDays_saturday")}
+                Saturday
               </MenuItem>
               <MenuItem key="sunday" value="sunday">
-                {t("autostopRequirementDays_sunday")}
+                Sunday
               </MenuItem>
             </TextField>
 
@@ -405,7 +399,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               }
               fullWidth
               inputProps={{ min: 1, max: 16, step: 1 }}
-              label={t("autostopRequirementWeeksLabel")}
+              label="Weeks between required stops"
               type="number"
             />
           </Stack>
