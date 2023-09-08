@@ -264,8 +264,8 @@ func sendCtx[A any](ctx context.Context, c chan<- A, a A) (err error) {
 	}
 }
 
-// bKey, or "binding key" identifies a client or agent in a binding.  Agents have their client field set to uuid.Nil,
-// while clients have their agent field set to uuid.Nil.
+// bKey, or "binding key" identifies a client or agent in a binding. Agents and
+// clients are differentiated by the kind field.
 type bKey struct {
 	id   uuid.UUID
 	kind agpl.QueueKind
@@ -826,7 +826,7 @@ func (q *querier) cleanupConn(c agpl.Queue) {
 		cm, ok := q.mappers[mk]
 		if ok {
 			if err := sendCtx(cm.ctx, cm.del, c); err != nil {
-				return
+				continue
 			}
 			cm.count--
 			if cm.count == 0 {
