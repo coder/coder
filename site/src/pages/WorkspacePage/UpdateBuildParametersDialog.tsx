@@ -37,10 +37,8 @@ export const UpdateBuildParametersDialog: FC<
       rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
-      rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
-        missedParameters,
-      ),
+      rich_parameter_values:
+        useValidationSchemaForRichParameters(missedParameters),
     }),
     onSubmit: (values) => {
       onUpdate(values.rich_parameter_values);

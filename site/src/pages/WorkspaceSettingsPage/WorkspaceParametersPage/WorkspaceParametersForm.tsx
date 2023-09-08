@@ -50,7 +50,6 @@ export const WorkspaceParametersForm: FC<{
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
         templateVersionRichParameters,
       ),
     }),

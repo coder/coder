@@ -78,10 +78,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       },
       validationSchema: Yup.object({
         name: nameValidator("Workspace Name"),
-        rich_parameter_values: useValidationSchemaForRichParameters(
-          "createWorkspacePage",
-          parameters,
-        ),
+        rich_parameter_values: useValidationSchemaForRichParameters(parameters),
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
