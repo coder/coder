@@ -27,8 +27,7 @@ RUN apk add --no-cache \
 # Using wget for now. Note that busybox unzip doesn't support streaming.
 ARG ARCH
 RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.5.6/terraform_1.5.6_linux_${ARCH}.zip" && \
-    busybox unzip /tmp/terraform.zip -d / && \
-		mv /terraform /usr/local/bin/terraform && \
+		busybox unzip /tmp/terraform.zip -d /usr/local/bin && \
 		rm -f /tmp/terraform.zip && \
 		chmod +x /usr/local/bin/terraform && \
 		terraform --version
