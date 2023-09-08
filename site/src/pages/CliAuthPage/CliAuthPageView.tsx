@@ -17,10 +17,9 @@ const validateCallbackURL = (callbackUrl: string): boolean => {
 
 export const CliAuthPageView: FC<CliAuthPageViewProps> = ({ sessionToken }) => {
   const styles = useStyles()
-  const [searchParams, setSearchParams] = useSearchParams()
+  const [searchParams, _] = useSearchParams()
 
-  let callbackUrl = searchParams.get("callback")
-
+  const callbackUrl = searchParams.get("callback")
 
   if (!sessionToken) {
     return <FullScreenLoader />;
