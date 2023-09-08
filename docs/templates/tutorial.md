@@ -17,6 +17,9 @@ You'll need a computer or cloud computing instance with both
 [Docker](https://docs.docker.com/get-docker/) and
 [Coder](../install/index.md) installed on it.
 
+> When setting up your computer or computing instance, make sure to
+> install Docker first, then Coder.
+
 ## 1. Log in to Coder
 
 In your web browser, go to your Coder instance to log in.

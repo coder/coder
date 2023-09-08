@@ -1,41 +1,117 @@
-# Anatomy of a template
+# A guided tour of a template
 
-Coder templates are written in [Terraform](https://terraform.io).
+This guided tour introduces you to the different parts of a template
+by showing you how to create a template from scratch.
+
+In this tour you'll write a simple template that starts a Docker
+container with Ubuntu. This simple template is based on the same
+Docker starter template that the [tutorial](./tutorial.md) uses.
+
+## Before you start
+
+To follow this guide, you'll need:
+
+- A computer or cloud computing instance with both
+[Docker](https://docs.docker.com/get-docker/) and
+[Coder](../install/index.md) installed on it.
+
+> When setting up your computer or computing instance, make sure to
+> install Docker first, then Coder.
+
+- Access to the command-line on this computer or instance.
+
+- A text editor and a tar utility. This tour uses [GNU
+nano](https://nano-editor.org/) and [GNU
+tar](https://www.gnu.org/software/tar/).
+
+> Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
+
+## What's in a template
+
+The main part of a Coder template is a
+[Terraform](https://terraform.io) `tf` file. A template often has
+other files to configure other services that the template needs. In
+this tour you'll also create a Dockerfile.
+
 Coder can provision all Terraform modules, resources, and
 properties. The Coder server essentially runs a `terraform apply`
-every time a workspace is created/started/stopped.
-
-Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
-
-## Architecture
+every time a workspace is created, started, or stopped.
 
 This is a simplified diagram of our [Kubernetes starter
 template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes/main.tf):
 
 ![Template architecture](../images/templates/template-anatomy.png)
 
-Keep reading for a breakdown of each concept.
 
-## Coder Terraform Provider
+## 1. Create template files
 
-The [Coder Terraform
-provider](https://registry.terraform.io/providers/coder/coder/latest)
-makes it possible for standard Terraform resources
-(e.g. `kubernetes_deployment`) to connect to Coder. The Coder provider
-also lets you customize the behavior of workspaces using your
-template.
+On the command line, create a directory for your template and create the Dockerfile.
+
+This is a simple Dockerfile that starts with the [official ubuntu image](https://hub.docker.com/_/ubuntu/).
+
+```shell
+$ mkdir scratch-template
+$ cd scratch-template
+$ touch Dockerfile main.tf
+$ nano Dockerfile
+```
+
+In the editor, enter and save the following text in `Dockerfile` then
+exit the editor:
+
+```
+FROM ubuntu
+
+RUN apt-get update \
+	&& apt-get install -y \
+	sudo \
+	curl \
+	&& rm -rf /var/lib/apt/lists/*
+
+ARG USER=coder
+RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \
+	&& echo "${USER} ALL=(ALL) NOPASSWD:ALL" >/etc/sudoers.d/${USER} \
+	&& chmod 0440 /etc/sudoers.d/${USER}
+USER ${USER}
+WORKDIR /home/${USER}
+```
+
+Notice how `Dockerfile` adds a few things to the parent `ubuntu`
+image, which we'll refer to later:
+
+- It installs the `sudo` and `curl` packages.
+- It adds a `coder` user, including a home directory.
+
+
+## 2. Specify providers
+
+Now you can edit the Terraform file, which provisions the workspace's resources.
+
+```shell
+nano main.tf
+```
+
+A Terraform file starts with The Terraform file starts with the
+`terraform` block, which specifies providers. At a minimum, we need
+the `coder` provider. For this template, we also need the `docker`
+provider:
 
 ```hcl
 terraform {
   required_providers {
     coder = {
       source  = "coder/coder"
+      version = "~> 0.8.3"
+    }
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "~> 3.0.1"
     }
   }
 }
 ```
 
-### coder_agent
+## 3. coder_agent
 
 All templates need to create and run a Coder agent to let developers
 connect to their workspaces. The `coder_agent` resource runs inside
@@ -65,7 +141,7 @@ usage). See [coder_agent
 docs](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
 for more details.
 
-### coder_workspace
+## 3. coder_workspace
 
 This data source provides details about the state of a workspace, such
 as its name, owner, and whether the workspace is being started or
@@ -90,7 +166,7 @@ resource "kubernetes_deployment" "workspace" {
 resource "docker_volume" "projects" {}
 ```
 
-### coder_app
+## 4. coder_app
 
 Web apps that are running inside the workspace
 (e.g. `http://localhost:8080`) can be forwarded to the Coder dashboard
@@ -137,56 +213,36 @@ resource "coder_app" "getting-started" {
 }
 ```
 
-### coder_parameter
-
-Parameters are inputs that users fill in when creating their workspace.
-
-![Parameters in templates](../images/parameters.png)
+## 5. Persistent storage
 
 ```hcl
-data "coder_parameter" "repo" {
-  name         = "repo"
-  display_name = "Repository (auto)"
-  order        = 1
-  description  = "Select a repository to automatically clone and start working with a devcontainer."
-  mutable      = true
-  option {
-    name        = "vercel/next.js"
-    description = "The React Framework"
-    value       = "https://github.com/vercel/next.js"
+resource "docker_volume" "home_volume" {
+  name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
   }
-  option {
-    name        = "home-assistant/core"
-    description = "🏡 Open source home automation that puts local control and privacy first."
-    value       = "https://github.com/home-assistant/core"
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace.me.owner
   }
-  # ...
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace.me.owner_id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
 }
 ```
-
-## Terraform variables
-
-Coder supports Terraform variables for templates. You can managed them
-in a template settings.
-
-Use Terraform variables to keep secrets outside of the
-template. Variables are also useful for adjusting a template without
-having to commit a new version.
-
-![Template variables](../images/templates/template-variables.png)
-
-> Per-workspace settings can be defined via [Parameters](./parameters.md).
-
-## Best practices
-- [Resource Persistence](./resource-persistence.md): Control which resources are persistent/ephemeral and avoid accidental disk deletion.
-- [Provider Authentication](./provider-authentication.md): Securely authenticate with cloud APIs with Terraform
-- [Change Management](./change-management.md): Manage Coder templates in git with CI/CD pipelines.
-
-## Use cases
-
-- [Devcontainers](./devcontainers.md): Add devcontainer support to your Coder templates.
-- [Docker in Workspaces](./docker-in-workspaces.md): Add docker-in-Docker support or even run system-level services.
-- [Open in Coder](./open-in-coder.md): Auto-create a workspace from your GitHub repository or internal wiki with deep links.
 
 ## Next steps
 
