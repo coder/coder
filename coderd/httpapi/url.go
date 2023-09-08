@@ -34,10 +34,8 @@ func (a ApplicationURL) String() string {
 	var appURL strings.Builder
 	_, _ = appURL.WriteString(a.AppSlugOrPort)
 	_, _ = appURL.WriteString("--")
-	if a.AgentName != "" {
-		_, _ = appURL.WriteString(a.AgentName)
-		_, _ = appURL.WriteString("--")
-	}
+	_, _ = appURL.WriteString(a.AgentName)
+	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.WorkspaceName)
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.Username)
