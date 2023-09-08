@@ -6036,7 +6036,7 @@ func (*FakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetC
 	return database.TailnetClient{}, ErrUnimplemented
 }
 
-func (q *FakeQuerier) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
+func (*FakeQuerier) UpsertTailnetClientSubscription(context.Context, database.UpsertTailnetClientSubscriptionParams) error {
 	return ErrUnimplemented
 }
 
