@@ -1,7 +1,7 @@
 import { inspect } from "@xstate/inspect";
 import { createRoot } from "react-dom/client";
 import { Interpreter } from "xstate";
-import { App } from "./app";
+import { App } from "./App";
 import "./i18n";
 
 // if this is a development build and the developer wants to inspect
