@@ -71,7 +71,7 @@ const deleteUser = async (setupActionSpies: () => void) => {
   );
 
   // Confirm with text input
-  const textField = screen.getByLabelText("Name of user to delete");
+  const textField = screen.getByLabelText("Name of the user to delete");
   const dialog = screen.getByRole("dialog");
   await user.type(textField, MockUser2.username);
 

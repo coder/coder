@@ -135,7 +135,7 @@ export const useValidationSchemaForRichParameters = (
                   if (val && !regex.test(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: `${templateParameter.validation_error} (value does not match the pattern ${templateParameter.validation_regex}`,
+                      message: `${templateParameter.validation_error} (value does not match the pattern ${templateParameter.validation_regex})`,
                     });
                   }
                 }

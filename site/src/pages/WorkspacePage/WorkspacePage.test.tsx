@@ -118,7 +118,7 @@ describe("WorkspacePage", () => {
 
     // Get dialog and confirm
     const dialog = await screen.findByTestId("dialog");
-    const labelText = "Name of workspace to delete";
+    const labelText = "Name of the workspace to delete";
     const textField = within(dialog).getByLabelText(labelText);
     await user.type(textField, MockWorkspace.name);
     const confirmButton = within(dialog).getByRole("button", {
