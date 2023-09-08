@@ -46,7 +46,7 @@ import { docs } from "utils/docs";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText";
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
