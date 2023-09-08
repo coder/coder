@@ -3,7 +3,6 @@ import * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
 import { FC, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   getFormHelpers,
   nameValidator,
@@ -64,7 +63,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const { t } = useTranslation("createWorkspacePage");
   const styles = useStyles();
   const [owner, setOwner] = useState(defaultOwner);
   const { verifyGitAuth, gitAuthErrors } = useGitAuthVerification(gitAuth);
@@ -79,7 +77,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         ),
       },
       validationSchema: Yup.object({
-        name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
+        name: nameValidator("Workspace Name"),
         rich_parameter_values: useValidationSchemaForRichParameters(
           "createWorkspacePage",
           parameters,
@@ -124,7 +122,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   disabled
                   fullWidth
                   value={versionId}
-                  label={t("versionLabel")}
+                  label="Version ID"
                 />
                 <span className={styles.description}>
                   This parameter has been preset, and cannot be modified.
@@ -137,7 +135,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
-              label={t("nameLabel")}
+              label="Workspace Name"
             />
           </FormFields>
         </FormSection>
@@ -153,7 +151,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 onChange={(user) => {
                   setOwner(user ?? defaultOwner);
                 }}
-                label={t("ownerLabel").toString()}
+                label="Owner"
                 size="medium"
               />
             </FormFields>
@@ -222,7 +220,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         <FormFooter
           onCancel={onCancel}
           isLoading={creatingWorkspace}
-          submitLabel={t("createWorkspace").toString()}
+          submitLabel="Create Workspace"
         />
       </HorizontalForm>
     </FullPageHorizontalForm>
