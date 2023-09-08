@@ -7,7 +7,6 @@ import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 import { Permissions } from "xServices/auth/authXService";
@@ -42,13 +41,12 @@ export const EmptyTemplates: FC<{
   examples: TemplateExample[];
 }> = ({ permissions, examples }) => {
   const styles = useStyles();
-  const { t } = useTranslation("templatesPage");
   const featuredExamples = findFeaturedExamples(examples);
 
   if (permissions.createTemplates) {
     return (
       <TableEmpty
-        message={t("empty.message")}
+        message="Create a Template"
         description={
           <>
             Templates are written in Terraform and describe the infrastructure
@@ -93,8 +91,8 @@ export const EmptyTemplates: FC<{
   return (
     <TableEmpty
       className={styles.withImage}
-      message={t("empty.message")}
-      description={t("empty.descriptionWithoutPermissions")}
+      message="Create a Template"
+      description="Contact your Coder administrator to create a template. You can share the code below."
       cta={<CodeExample code="coder templates init" />}
       image={
         <div className={styles.emptyImage}>
