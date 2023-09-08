@@ -103,6 +103,7 @@ declare -A arch_map=(
 	[arm]="linux/arm/v7"
 	[armv7]="linux/arm/v7"
 )
+orig_arch="$arch"
 if [[ "${arch_map[$arch]+exists}" != "" ]]; then
 	arch="${arch_map[$arch]}"
 fi
@@ -124,6 +125,7 @@ if [[ "$build_base" != "" ]]; then
 	log "--- Building base Docker image for $arch ($build_base)"
 	docker build \
 		--platform "$arch" \
+		--build-arg "ARCH=${orig_arch}" \
 		--tag "$build_base" \
 		--no-cache \
 		-f Dockerfile.base \

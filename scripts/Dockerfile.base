@@ -12,9 +12,6 @@ RUN apk add --no-cache \
 		bash \
 		git \
 		openssh-client && \
-	# Use the edge repo, since Terraform doesn't seem to be backported to 3.18.
-	apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/community \
-		terraform=~1.5 && \
 	addgroup \
 		-g 1000 \
 		coder && \
@@ -25,6 +22,15 @@ RUN apk add --no-cache \
 		-u 1000 \
 		-G coder \
 		coder
+# Terraform was disabled in the edge repo due to a build issue.
+# https://gitlab.alpinelinux.org/alpine/aports/-/commit/f3e263d94cfac02d594bef83790c280e045eba35
+# Using wget for now. Note that busybox unzip doesn't support streaming.
+ARG ARCH
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.5.6/terraform_1.5.6_linux_${ARCH}.zip" && \
+		busybox unzip /tmp/terraform.zip -d /usr/local/bin && \
+		rm -f /tmp/terraform.zip && \
+		chmod +x /usr/local/bin/terraform && \
+		terraform --version
 
 USER 1000:1000
 ENV HOME=/home/coder
