@@ -7,15 +7,9 @@ import { PrimaryAgentButton } from "components/Resources/AgentButton";
 import { FC } from "react";
 import { combineClasses } from "utils/combineClasses";
 import * as TypesGen from "../../../api/typesGenerated";
-import { generateRandomString } from "../../../utils/random";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 import { useProxy } from "contexts/ProxyContext";
-
-const Language = {
-  appTitle: (appName: string, identifier: string): string =>
-    `${appName} - ${identifier}`,
-};
 
 export interface AppLinkProps {
   workspace: TypesGen.Workspace;
@@ -102,16 +96,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
           target="_blank"
           className={canClick ? styles.link : styles.disabledLink}
           onClick={
-            canClick
-              ? (event) => {
-                  event.preventDefault();
-                  window.open(
-                    href,
-                    Language.appTitle(appDisplayName, generateRandomString(12)),
-                    "width=900,height=600",
-                  );
-                }
-              : undefined
+            (event) => {
+              !canClick && event.preventDefault();
+            }
           }
         >
           {button}
