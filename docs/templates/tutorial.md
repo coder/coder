@@ -78,8 +78,53 @@ This starter template lets you connect to your workspace in a few ways:
   machine to configure your SSH client.
 
 You can edit the template to let developers connect to a workspace in
-[a few more ways](../ides.md].
+[a few more ways](../ides.md).
+
+## 7. Modify your template
+
+Now you can modify your template to suit your team's needs.
+
+Let's replace the `golang` package in the Docker image with the
+`python3` package. You can do this by editing the template's
+`Dockerfile` directly in your web browser.
+
+In Coder, select **Templates** then your first template.
+
+![Selecting the first template](../images/templates/select-template.png)
+
+In the drop-down menu, select **Edit files**.
+
+![Edit template files](../images/templates/edit-files.png)
+
+Expand the **build** directory and select **Dockerfile**.
+
+![Selecting source code](../images/templates/source-code.png)
+
+Edit `build\Dockerfile` to replace `golang` with `python3`.
+
+![Editing source code](../images/templates/edit-source-code.png)
+
+Select **Build template** and wait for Coder to prepare the template
+for workspaces.
+
+![Building a template](../images/templates/build-template.png)
+
+Select **Publish version**. In the **Publish new version** dialog,
+make sure **Promote to default version** is checked then select
+**Publish**.
+
+![Publish a template](../images/templates/publish.png)
+
+Now when developers create a new workspace, they can use Python 3
+instead of Go.
+
+For developers with workspaces that were created with a previous
+version of your template, Coder will notify them that there's a new
+version of the template.
+
+You can also handle [change management](./change-management.md)
+through your own repo and continuous integration.
 
 ## Next steps
-- [Anatomy of a template](./anatomy.md)
+- [Write your own template](./tour.md)
 - [Setting up templates](./best-practices.md)

@@ -1,6 +1,8 @@
 #  Creating, editing, and updating templates
 
-You create and edit Coder templates as [Terraform](./concepts.md) configuration files (`.tf`).
+You create and edit Coder templates as [Terraform](./concepts.md)
+configuration files (`.tf`) and any supporting files, like a README or
+configuration files for other services.
 
 ## Who creates templates?
 
@@ -38,4 +40,4 @@ Templates are versioned, keeping all developer workspaces up-to-date. When a new
 
 ## Next step
 
-- [Your first templates](./tutorial.md)
+- [Your first template](./tutorial.md)

@@ -145,13 +145,13 @@
         },
         {
           "title": "Your first template",
-          "description": "A tutorial for creating your first template",
+          "description": "A tutorial for creating and editing your first template",
           "path": "./templates/tutorial.md"
         },
         {
-          "title": "Anatomy of a template",
-          "description": "What makes up a template",
-          "path": "./templates/anatomy.md"
+          "title": "Guided tour",
+          "description": "Create a template from scratch",
+          "path": "./templates/tour.md"
         },
         {
           "title": "Setting up templates",
