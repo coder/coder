@@ -136,7 +136,7 @@ resource "coder_app" "code-server" {
 ## VS Code Server
 
 VS Code supports launching a local web client using the `code serve-web`
-command. To add VS COde web as a web IDE, Install and start this in your
+command. To add VS Code web as a web IDE, Install and start this in your
 `startup_script` and create a corresponding `coder_app`
 
 ```hcl
