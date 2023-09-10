@@ -5,7 +5,9 @@ By default, Coder workspaces allow connections via:
 - Web terminal
 - SSH (plus any [SSH-compatible IDE](../ides.md))
 
-It's common to also let developers to connect via web IDEs.
+It's common to also let developers to connect via web IDEs for uses cases like
+zero trust networks, data science, contractors, and infrequent code
+contributors.
 
 ![Row of IDEs](../images/ide-row.png)
 
@@ -32,9 +34,34 @@ resource "coder_app" "portainer" {
 }
 ```
 
-## code-server
+## External URLs
 
-![code-server in a workspace](../images/code-server-ide.png)
+Any URL external to the Coder deployment is accessible as a `coder_app`. e.g.,
+Dropbox, Slack, Discord, GitHub
+
+```hcl
+resource "coder_app" "pubslack" {
+  agent_id     = coder_agent.coder.id
+  display_name = "Coder Public Slack"
+  slug         = "pubslack"
+  url          = "https://coder-com.slack.com/"
+  icon         = "https://cdn2.hubspot.net/hubfs/521324/slack-logo.png"
+  external     = true
+}
+
+resource "coder_app" "discord" {
+  agent_id     = coder_agent.coder.id
+  display_name = "Coder Discord"
+  slug         = "discord"
+  url          = "https://discord.com/invite/coder"
+  icon         = "https://logodix.com/logo/573024.png"
+  external     = true
+}
+```
+
+![External URLs](../images/external-apps.png)
+
+## code-server
 
 [code-server](https://github.com/coder/coder) is our supported method of running
 VS Code in the web browser. A simple way to install code-server in Linux/macOS
@@ -104,10 +131,12 @@ resource "coder_app" "code-server" {
 }
 ```
 
-## VS Code Web
+![code-server in a workspace](../images/code-server-ide.png)
+
+## VS Code Server
 
 VS Code supports launching a local web client using the `code serve-web`
-command. To add VS COde web as a web IDE, Install and start this in your
+command. To add VS Code web as a web IDE, Install and start this in your
 `startup_script` and create a corresponding `coder_app`
 
 ```hcl
@@ -125,13 +154,28 @@ resource "coder_agent" "main" {
 }
 ```
 
-> [!NOTE] > `code serve-web` was introduced in version 1.82.0 (August 2023).
+> `code serve-web` was introduced in version 1.82.0 (August 2023).
 
-You also need to add a `coder_app` resource for this,
+You also need to add a `coder_app` resource for this.
 
-resource "coder_app" "vscode-web" { agent_id = coder_agent.coder.id slug =
-"vscode-web" display_name = "VS Code Web" url = "http://localhost:13338" icon =
-"/icon/code.svg" share = "owner" subdomain = true }
+```hcl
+# VS Code Server
+resource "coder_app" "vscode-server" {
+  agent_id      = coder_agent.coder.id
+  slug          = "vscode-server"
+  display_name  = "VS Code Server"
+  icon          = "/icon/code.svg"
+  url           = "http://localhost:13338?folder=/home/coder"
+  subdomain = false
+  share     = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13338/healthz"
+    interval  = 3
+    threshold = 10
+  }
+}
+```
 
 ## JupyterLab
 
@@ -168,7 +212,7 @@ resource "coder_app" "jupyter" {
 }
 ```
 
-![JupyterLab in Coder](../images/jupyter-on-docker.png)
+![JupyterLab in Coder](../images/jupyter.png)
 
 ## RStudio
 
@@ -243,6 +287,43 @@ resource "coder_app" "airflow" {
 ```
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
+
+## File Browser
+
+Show and manipulate the contents of the `/home/coder` directory in a browser.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
+
+EOT
+}
+
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.coder.id
+  display_name = "file browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:13339"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/healthz"
+    interval  = 3
+    threshold = 10
+  }
+}
+```
+
+![File Browser](../images/file-browser.png)
 
 ## SSH Fallback
 
