@@ -54,30 +54,6 @@ Object.defineProperty(window, "BroadcastChannel", {
 });
 
 describe("CreateWorkspacePage", () => {
-  it("renders", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1]);
-    renderCreateWorkspacePage();
-
-    const element = await screen.findByText(createWorkspaceText);
-    expect(element).toBeDefined();
-  });
-
-  it("renders with rich parameter", async () => {
-    jest
-      .spyOn(API, "getTemplateVersionRichParameters")
-      .mockResolvedValueOnce([MockTemplateVersionParameter1]);
-    renderCreateWorkspacePage();
-
-    const element = await screen.findByText(createWorkspaceText);
-    expect(element).toBeDefined();
-    const firstParameter = await screen.findByText(
-      MockTemplateVersionParameter1.description,
-    );
-    expect(firstParameter).toBeDefined();
-  });
-
   it("succeeds with default owner", async () => {
     jest
       .spyOn(API, "getUsers")

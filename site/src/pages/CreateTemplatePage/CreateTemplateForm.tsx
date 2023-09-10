@@ -8,10 +8,7 @@ import {
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import {
-  TemplateUpload,
-  TemplateUploadProps,
-} from "pages/CreateTemplatePage/TemplateUpload";
+import { TemplateUpload, TemplateUploadProps } from "./TemplateUpload";
 import { useFormik } from "formik";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { FC, useEffect } from "react";
@@ -46,7 +43,7 @@ import { docs } from "utils/docs";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText";
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import MenuItem from "@mui/material/MenuItem";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;

@@ -2,13 +2,13 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
 import { createMemoryRouter } from "react-router-dom";
-import { Language } from "./SignInForm/SignInForm";
+import { Language } from "./SignInForm";
 import {
   render,
   renderWithRouter,
   waitForLoaderToBeRemoved,
-} from "../../testHelpers/renderHelpers";
-import { server } from "../../testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import { LoginPage } from "./LoginPage";
 import * as TypesGen from "api/typesGenerated";
 import { i18n } from "i18n";
@@ -23,14 +23,6 @@ describe("LoginPage", () => {
         return res(ctx.status(401), ctx.json({ message: "no user here" }));
       }),
     );
-  });
-
-  it("renders the sign-in form", async () => {
-    // When
-    render(<LoginPage />);
-
-    // Then
-    await screen.findByText(Language.passwordSignIn);
   });
 
   it("shows an error message if SignIn fails", async () => {
@@ -57,28 +49,6 @@ describe("LoginPage", () => {
     // Then
     const errorMessage = await screen.findByText(apiErrorMessage);
     expect(errorMessage).toBeDefined();
-  });
-
-  it("shows github authentication when enabled", async () => {
-    const authMethods: TypesGen.AuthMethods = {
-      password: { enabled: true },
-      github: { enabled: true },
-      oidc: { enabled: true, signInText: "", iconUrl: "" },
-    };
-
-    // Given
-    server.use(
-      rest.get("/api/v2/users/authmethods", async (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(authMethods));
-      }),
-    );
-
-    // When
-    render(<LoginPage />);
-
-    // Then
-    expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument();
-    await screen.findByText(Language.githubSignIn);
   });
 
   it("redirects to the setup page if there is no first user", async () => {

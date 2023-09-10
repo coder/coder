@@ -61,6 +61,7 @@ const meta: Meta<typeof Workspace> = {
     }),
   ],
 };
+
 export default meta;
 type Story = StoryObj<typeof Workspace>;
 

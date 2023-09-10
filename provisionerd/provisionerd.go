@@ -32,8 +32,24 @@ import (
 // Dialer represents the function to create a daemon client connection.
 type Dialer func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error)
 
-// Provisioners maps provisioner ID to implementation.
-type Provisioners map[string]sdkproto.DRPCProvisionerClient
+// ConnectResponse is the response returned asynchronously from Connector.Connect
+// containing either the Provisioner Client or an Error.  The Job is also returned
+// unaltered to disambiguate responses if the respCh is shared among multiple jobs
+type ConnectResponse struct {
+	Job    *proto.AcquiredJob
+	Client sdkproto.DRPCProvisionerClient
+	Error  error
+}
+
+// Connector allows the provisioner daemon to Connect to a provisioner
+// for the given job.
+type Connector interface {
+	// Connect to the correct provisioner for the given job. The response is
+	// delivered asynchronously over the respCh.  If the provided context expires,
+	// the Connector may stop waiting for the provisioner and return an error
+	// response.
+	Connect(ctx context.Context, job *proto.AcquiredJob, respCh chan<- ConnectResponse)
+}
 
 // Options provides customizations to the behavior of a provisioner daemon.
 type Options struct {
@@ -47,7 +63,7 @@ type Options struct {
 	JobPollInterval     time.Duration
 	JobPollJitter       time.Duration
 	JobPollDebounce     time.Duration
-	Provisioners        Provisioners
+	Connector           Connector
 }
 
 // New creates and starts a provisioner daemon.
@@ -375,11 +391,13 @@ func (p *Server) acquireJob(ctx context.Context) {
 
 	p.opts.Logger.Debug(ctx, "acquired job", fields...)
 
-	provisioner, ok := p.opts.Provisioners[job.Provisioner]
-	if !ok {
+	respCh := make(chan ConnectResponse)
+	p.opts.Connector.Connect(ctx, job, respCh)
+	resp := <-respCh
+	if resp.Error != nil {
 		err := p.FailJob(ctx, &proto.FailedJob{
 			JobId: job.JobId,
-			Error: fmt.Sprintf("no provisioner %s", job.Provisioner),
+			Error: fmt.Sprintf("failed to connect to provisioner: %s", resp.Error),
 		})
 		if err != nil {
 			p.opts.Logger.Error(ctx, "provisioner job failed", slog.F("job_id", job.JobId), slog.Error(err))
@@ -394,7 +412,7 @@ func (p *Server) acquireJob(ctx context.Context) {
 			Updater:             p,
 			QuotaCommitter:      p,
 			Logger:              p.opts.Logger.Named("runner"),
-			Provisioner:         provisioner,
+			Provisioner:         resp.Client,
 			UpdateInterval:      p.opts.UpdateInterval,
 			ForceCancelInterval: p.opts.ForceCancelInterval,
 			LogDebounceInterval: p.opts.LogBufferInterval,

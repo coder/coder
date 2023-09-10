@@ -1,13 +1,16 @@
-Usage: coder stat cpu [flags]
+coder v0.0.0-devel
 
-Show CPU usage, in cores.
+[93mUSAGE:[0m
+  coder stat cpu [flags]
 
-[1mOptions[0m
-      --host bool
+  Show CPU usage, in cores.
+
+[93mOPTIONS:[0m
+      [96m--[0m[96mhost[0m bool
           Force host CPU measurement.
 
-  -o, --output string (default: text)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: text)
           Output format. Available formats: text, json.
 
----
+———
 Run `coder --help` for a list of global options.

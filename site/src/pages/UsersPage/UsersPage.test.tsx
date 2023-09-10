@@ -179,12 +179,6 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
 };
 
 describe("UsersPage", () => {
-  it("shows users", async () => {
-    renderPage();
-    const users = await screen.findAllByText(/.*@coder.com/);
-    expect(users.length).toEqual(3);
-  });
-
   describe("suspend user", () => {
     describe("when it is success", () => {
       it("shows a success message and refresh the page", async () => {

@@ -25,7 +25,6 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -198,25 +197,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
-	daemon, err := api.Database.InsertProvisionerDaemon(ctx, database.InsertProvisionerDaemonParams{
-		ID:           uuid.New(),
-		CreatedAt:    dbtime.Now(),
-		Name:         name,
-		Provisioners: provisioners,
-		Tags:         tags,
-	})
-	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
-			log.Error(ctx, "write provisioner daemon", slog.Error(err))
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error writing provisioner daemon.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	rawTags, err := json.Marshal(daemon.Tags)
+	rawTags, err := json.Marshal(tags)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
 			log.Error(ctx, "marshal provisioner tags", slog.Error(err))
@@ -263,11 +244,13 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	mux := drpcmux.New()
+	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
+	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
 		api.AccessURL,
-		daemon.ID,
-		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		daemon.Provisioners,
+		uuid.New(),
+		logger,
+		provisioners,
 		rawTags,
 		api.Database,
 		api.Pubsub,
@@ -302,12 +285,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			if xerrors.Is(err, io.EOF) {
 				return
 			}
-			api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+			logger.Debug(ctx, "drpc server error", slog.Error(err))
 		},
 	})
 	err = server.Serve(ctx, session)
+	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
-		api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
 	}
