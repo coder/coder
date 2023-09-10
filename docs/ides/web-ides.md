@@ -124,8 +124,8 @@ resource "coder_agent" "main" {
     EOF
 }
 ```
-> [!NOTE]
-> `code serve-web` was introduced in version 1.82.0 (August 2023).
+
+> [!NOTE] > `code serve-web` was introduced in version 1.82.0 (August 2023).
 
 You also need to add a `coder_app` resource for this,
 
