@@ -104,6 +104,35 @@ resource "coder_app" "code-server" {
 }
 ```
 
+## VS Code Web
+
+VS Code supports launching a local web client using the `code serve-web`
+command. To add VS COde web as a web IDE, Install and start this in your
+`startup_script` and create a corresponding `coder_app`
+
+```hcl
+resource "coder_agent" "main" {
+    arch           = "amd64"
+    os             = "linux"
+    startup_script = <<EOF
+    #!/bin/sh
+    # install VS Code
+    curl -L "https://update.code.visualstudio.com/1.82.0/linux-deb-x64/stable" -o /tmp/code.deb
+    sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
+    # start the web server on a specific port
+    code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
+    EOF
+}
+```
+
+> [!NOTE] > `code serve-web` was introduced in version 1.82.0 (August 2023).
+
+You also need to add a `coder_app` resource for this,
+
+resource "coder_app" "vscode-web" { agent_id = coder_agent.coder.id slug =
+"vscode-web" display_name = "VS Code Web" url = "http://localhost:13338" icon =
+"/icon/code.svg" share = "owner" subdomain = true }
+
 ## JupyterLab
 
 Configure your agent and `coder_app` like so to use Jupyter. Notice the
