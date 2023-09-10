@@ -117,13 +117,15 @@ resource "coder_agent" "main" {
     startup_script = <<EOF
     #!/bin/sh
     # install VS Code
-    curl -L "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" -o /tmp/code.deb
+    curl -L "https://update.code.visualstudio.com/1.82.0/linux-deb-x64/stable" -o /tmp/code.deb
     sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
     # start the web server on a specific port
     code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
     EOF
 }
 ```
+> [!NOTE]
+> `code serve-web` was introduced in version 1.82.0 (August 2023).
 
 You also need to add a `coder_app` resource for this,
 
