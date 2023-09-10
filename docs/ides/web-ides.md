@@ -288,6 +288,43 @@ resource "coder_app" "airflow" {
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
 
+## File Browser
+
+Show and manipulate the contents of the `/home/coder` directory in a browser.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
+
+EOT
+}
+
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.coder.id
+  display_name = "file browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:13339"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/healthz"
+    interval  = 3
+    threshold = 10
+  }
+}
+```
+
+![File Browser](../images/file-browser.png)
+
 ## SSH Fallback
 
 If you prefer to run web IDEs in localhost, you can port forward using
