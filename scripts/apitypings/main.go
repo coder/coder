@@ -830,6 +830,11 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// We would need to add more logic to determine this, but for now
 		// just hard code them.
 		switch n.String() {
+		case "github.com/coder/coder/v2/cli/clibase.HostPort":
+			// Custom marshal json to be a string
+			return TypescriptType{ValueType: "string"}, nil
+		case "github.com/coder/coder/v2/cli/clibase.StringArray":
+			return TypescriptType{ValueType: "string[]"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.String":
 			return TypescriptType{ValueType: "string"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.YAMLConfigPath":
@@ -861,6 +866,17 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			return TypescriptType{ValueType: "Record<string, string>"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.URL":
 			return TypescriptType{ValueType: "string"}, nil
+		}
+
+		// Some hard codes are a bit trickier.
+		switch {
+		// Struct is a generic, so the type has generic constraints in the string.
+		case regexp.MustCompile(`github.com/coder/coder/v2/cli/clibase.Struct\[.*\]`).MatchString(n.String()):
+			// The marshal json just marshals the underlying value.
+			str, ok := ty.Underlying().(*types.Struct)
+			if ok {
+				return g.typescriptType(str.Field(0).Type())
+			}
 		}
 
 		// Then see if the type is defined elsewhere. If it is, we can just
