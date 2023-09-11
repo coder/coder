@@ -1,6 +1,9 @@
-Usage: coder show <workspace>
+coder v0.0.0-devel
 
-Display details of a workspace's resources and agents
+[93mUSAGE:[0m
+  coder show <workspace>
 
----
+  Display details of a workspace's resources and agents
+
+———
 Run `coder --help` for a list of global options.

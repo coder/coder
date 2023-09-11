@@ -196,6 +196,8 @@ require (
 	tailscale.com v1.46.1
 )
 
+require github.com/djherbis/times v1.5.0
+
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
 	cloud.google.com/go/logging v1.8.1 // indirect
@@ -246,7 +248,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/clbanning/mxj/v2 v2.7.0 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/coder/pretty v0.0.0-20230907185834-1d3e21235f75
+	github.com/coder/pretty v0.0.0-20230907215737-666f1c793d10
 	github.com/containerd/continuity v0.4.2-0.20230616210509-1e0d26eb2381 // indirect
 	github.com/coreos/go-iptables v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect

@@ -4,7 +4,7 @@ import GitHubIcon from "@mui/icons-material/GitHub";
 import KeyIcon from "@mui/icons-material/VpnKey";
 import Box from "@mui/material/Box";
 import { Language } from "./SignInForm";
-import { AuthMethods } from "../../../api/typesGenerated";
+import { AuthMethods } from "api/typesGenerated";
 import { FC } from "react";
 import { makeStyles } from "@mui/styles";
 

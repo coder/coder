@@ -1,9 +1,9 @@
 import { makeStyles } from "@mui/styles";
 import { FormikTouched } from "formik";
 import { FC, useState } from "react";
-import { AuthMethods } from "../../../api/typesGenerated";
+import { AuthMethods } from "api/typesGenerated";
 import { useTranslation } from "react-i18next";
-import { Maybe } from "../../../components/Conditionals/Maybe";
+import { Maybe } from "components/Conditionals/Maybe";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { BuiltInAuthFormValues } from "./SignInForm.types";

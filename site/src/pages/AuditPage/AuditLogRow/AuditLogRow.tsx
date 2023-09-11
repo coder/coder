@@ -12,10 +12,11 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useState } from "react";
 import userAgentParser from "ua-parser-js";
-import { AuditLogDiff, determineGroupDiff } from "./AuditLogDiff";
+import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { useTranslation } from "react-i18next";
-import { AuditLogDescription } from "./AuditLogDescription";
+import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { PaletteIndex } from "theme/theme";
+import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
 const httpStatusColor = (httpStatus: number): PaletteIndex => {
   // redirects are successful
