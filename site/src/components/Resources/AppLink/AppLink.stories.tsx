@@ -144,6 +144,7 @@ export const InternalApp: Story = {
     workspace: MockWorkspace,
     app: {
       ...MockWorkspaceApp,
+      display_name: "Check my URL",
       subdomain: true,
       subdomain_name: "slug--agent_name--workspace_name--username",
     },
