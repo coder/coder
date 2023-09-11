@@ -1324,35 +1324,31 @@ func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.Workspace
 func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
-		/*
-		  let appSlug = app.slug;
-		  let appDisplayName = app.display_name;
-		  if (!appSlug) {
-		    appSlug = appDisplayName;
-		  }
-		  if (!appDisplayName) {
-		    appDisplayName = appSlug;
-		  }
-
-
-
-		  if (appsHost && app.subdomain) {
-		    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`;
-		    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain);
-		  }
-
-		*/
+		var subdomainName string
+		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
+			var appSlug = dbApp.Slug
+			if appSlug == "" {
+				appSlug = dbApp.DisplayName
+			}
+			subdomainName = httpapi.ApplicationURL{
+				AppSlugOrPort: appSlug,
+				AgentName:     agent.Name,
+				WorkspaceName: workspace.Name,
+				Username:      owner.Username,
+			}.String()
+		}
 
 		apps = append(apps, codersdk.WorkspaceApp{
-			ID:           dbApp.ID,
-			URL:          dbApp.Url.String,
-			External:     dbApp.External,
-			Slug:         dbApp.Slug,
-			DisplayName:  dbApp.DisplayName,
-			Command:      dbApp.Command.String,
-			Icon:         dbApp.Icon,
-			Subdomain:    dbApp.Subdomain,
-			SharingLevel: codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
+			ID:            dbApp.ID,
+			URL:           dbApp.Url.String,
+			External:      dbApp.External,
+			Slug:          dbApp.Slug,
+			DisplayName:   dbApp.DisplayName,
+			Command:       dbApp.Command.String,
+			Icon:          dbApp.Icon,
+			Subdomain:     dbApp.Subdomain,
+			SubdomainName: subdomainName,
+			SharingLevel:  codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
 			Healthcheck: codersdk.Healthcheck{
 				URL:       dbApp.HealthcheckUrl,
 				Interval:  dbApp.HealthcheckInterval,
