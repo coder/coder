@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMachine } from "@xstate/react";
 import { getLicenses, removeLicense } from "api/api";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC, useEffect } from "react";
@@ -7,22 +6,35 @@ import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router-dom";
 import useToggle from "react-use/lib/useToggle";
 import { pageTitle } from "utils/page";
-import { entitlementsMachine } from "xServices/entitlements/entitlementsXService";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 import { getErrorMessage } from "api/errors";
+import {
+  useEntitlements,
+  useRefreshEntitlements,
+} from "api/queries/entitlements";
 
 const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient();
-  const [entitlementsState, sendEvent] = useMachine(entitlementsMachine);
-  const { entitlements, getEntitlementsError } = entitlementsState.context;
   const [searchParams, setSearchParams] = useSearchParams();
   const success = searchParams.get("success");
   const [confettiOn, toggleConfettiOn] = useToggle(false);
-  if (getEntitlementsError) {
-    displayError(
-      getErrorMessage(getEntitlementsError, "Failed to fetch entitlements"),
-    );
-  }
+  const entitlements = useEntitlements();
+  const refreshEntitlements = useRefreshEntitlements({
+    onSuccess: () => {
+      displaySuccess("Successfully refreshed licenses");
+    },
+    onError: (error) => {
+      displayError(getErrorMessage(error, "Failed to refresh entitlements"));
+    },
+  });
+
+  useEffect(() => {
+    if (entitlements.error) {
+      displayError(
+        getErrorMessage(entitlements.error, "Failed to fetch entitlements"),
+      );
+    }
+  }, [entitlements.error]);
 
   const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
     useMutation(removeLicense, {
@@ -59,14 +71,14 @@ const LicensesSettingsPage: FC = () => {
       <LicensesSettingsPageView
         showConfetti={confettiOn}
         isLoading={isLoading}
-        userLimitActual={entitlements?.features.user_limit.actual}
-        userLimitLimit={entitlements?.features.user_limit.limit}
+        isRefreshing={refreshEntitlements.isLoading}
+        userLimitActual={entitlements.data?.features.user_limit.actual}
+        userLimitLimit={entitlements.data?.features.user_limit.limit}
         licenses={licenses}
         isRemovingLicense={isRemovingLicense}
         removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
         refreshEntitlements={() => {
-          const x = sendEvent("REFRESH");
-          return !x.context.getEntitlementsError;
+          refreshEntitlements.mutate();
         }}
       />
     </>
