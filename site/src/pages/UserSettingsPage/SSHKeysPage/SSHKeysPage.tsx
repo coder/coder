@@ -1,9 +1,9 @@
-import { useMachine } from "@xstate/react";
-import { PropsWithChildren, FC } from "react";
-import { sshKeyMachine } from "xServices/sshKey/sshKeyXService";
+import { PropsWithChildren, FC, useState } from "react";
 import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Section } from "../../../components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
+import { useRegenerateUserSSHKey, useUserSSHKey } from "api/queries/sshKeys";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const Language = {
   title: "SSH keys",
@@ -15,40 +15,40 @@ export const Language = {
 };
 
 export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
-  const [sshState, sshSend] = useMachine(sshKeyMachine);
-  const isLoading = sshState.matches("gettingSSHKey");
-  const hasLoaded = sshState.matches("loaded");
-  const { getSSHKeyError, regenerateSSHKeyError, sshKey } = sshState.context;
-
-  const onRegenerateClick = () => {
-    sshSend({ type: "REGENERATE_SSH_KEY" });
-  };
+  const [isConfirmingRegeneration, setIsConfirmingRegeneration] =
+    useState(false);
+  const userSSHKeyQuery = useUserSSHKey("me");
+  const regenerateUserSSHKeyMutation = useRegenerateUserSSHKey("me", () => {
+    displaySuccess("SSH Key regenerated successfully.");
+    setIsConfirmingRegeneration(false);
+  });
 
   return (
     <>
       <Section title={Language.title}>
         <SSHKeysPageView
-          isLoading={isLoading}
-          hasLoaded={hasLoaded}
-          getSSHKeyError={getSSHKeyError}
-          regenerateSSHKeyError={regenerateSSHKeyError}
-          sshKey={sshKey}
-          onRegenerateClick={onRegenerateClick}
+          isLoading={userSSHKeyQuery.isLoading}
+          getSSHKeyError={userSSHKeyQuery.error}
+          regenerateSSHKeyError={regenerateUserSSHKeyMutation.error}
+          sshKey={userSSHKeyQuery.data}
+          onRegenerateClick={() => {
+            setIsConfirmingRegeneration(true);
+          }}
         />
       </Section>
 
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={sshState.matches("confirmSSHKeyRegenerate")}
-        confirmLoading={sshState.matches("regeneratingSSHKey")}
+        open={isConfirmingRegeneration}
+        confirmLoading={regenerateUserSSHKeyMutation.isLoading}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
         onConfirm={() => {
-          sshSend({ type: "CONFIRM_REGENERATE_SSH_KEY" });
+          regenerateUserSSHKeyMutation.mutate();
         }}
         onClose={() => {
-          sshSend({ type: "CANCEL_REGENERATE_SSH_KEY" });
+          setIsConfirmingRegeneration(false);
         }}
         description={<>{Language.regenerateDialogMessage}</>}
       />
