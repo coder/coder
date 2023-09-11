@@ -14,6 +14,8 @@ import (
 	"strings"
 	"text/template"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/fatih/structtag"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -64,10 +66,22 @@ func main() {
 	}
 
 	for i, ext := range external {
-		ts, err := ext.generateAll()
-		if err != nil {
-			log.Fatal(ctx, fmt.Sprintf("generate external: %s", err.Error()))
+		var ts *TypescriptTypes
+		for {
+			var err error
+			start := len(ext.allowList)
+			ts, err = ext.generateAll()
+			if err != nil {
+				log.Fatal(ctx, fmt.Sprintf("generate external: %s", err.Error()))
+			}
+			if len(ext.allowList) != start {
+				// This is so dumb, but basically the allowList can grow, and if
+				// it does, we need to regenerate.
+				continue
+			}
+			break
 		}
+
 		dir := externalTypeDirs[i]
 		_, _ = fmt.Printf("// The code below is generated from %s.\n\n", strings.TrimPrefix(dir, "./"))
 		_, _ = fmt.Print(ts.String(), "\n\n")
@@ -359,10 +373,15 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 
 	// If we have allowed types, only allow those to be generated.
 	if _, ok := m.AllowedTypes[obj.Name()]; (len(m.AllowedTypes) > 0 || g.onlyOptIn) && !ok {
-		return nil
+		// Allow constants to pass through, they are only included if the enum
+		// is allowed.
+		_, ok := obj.(*types.Const)
+		if !ok {
+			return nil
+		}
 	}
 
-	objName := objName(obj)
+	objectName := objName(obj)
 
 	switch obj := obj.(type) {
 	// All named types are type declarations
@@ -377,13 +396,13 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// Structs are obvious.
 			codeBlock, err := g.buildStruct(obj, underNamed)
 			if err != nil {
-				return xerrors.Errorf("generate %q: %w", objName, err)
+				return xerrors.Errorf("generate %q: %w", objectName, err)
 			}
-			m.Structs[objName] = codeBlock
+			m.Structs[objectName] = codeBlock
 		case *types.Basic:
 			// type <Name> string
 			// These are enums. Store to expand later.
-			m.Enums[objName] = obj
+			m.Enums[objectName] = obj
 		case *types.Map, *types.Array, *types.Slice:
 			// Declared maps that are not structs are still valid codersdk objects.
 			// Handle them custom by calling 'typescriptType' directly instead of
@@ -392,7 +411,7 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 			// These are **NOT** enums, as a map in Go would never be used for an enum.
 			ts, err := g.typescriptType(obj.Type().Underlying())
 			if err != nil {
-				return xerrors.Errorf("(map) generate %q: %w", objName, err)
+				return xerrors.Errorf("(map) generate %q: %w", objectName, err)
 			}
 
 			var str strings.Builder
@@ -402,8 +421,8 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 				_, _ = str.WriteRune('\n')
 			}
 			// Use similar output syntax to enums.
-			_, _ = str.WriteString(fmt.Sprintf("export type %s = %s\n", objName, ts.ValueType))
-			m.Structs[objName] = str.String()
+			_, _ = str.WriteString(fmt.Sprintf("export type %s = %s\n", objectName, ts.ValueType))
+			m.Structs[objectName] = str.String()
 		case *types.Interface:
 			// Interfaces are used as generics. Non-generic interfaces are
 			// not supported.
@@ -421,9 +440,9 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 
 				block, err := g.buildUnion(obj, union)
 				if err != nil {
-					return xerrors.Errorf("generate union %q: %w", objName, err)
+					return xerrors.Errorf("generate union %q: %w", objectName, err)
 				}
-				m.Generics[objName] = block
+				m.Generics[objectName] = block
 			}
 		case *types.Signature:
 		// Ignore named functions.
@@ -438,13 +457,13 @@ func (g *Generator) generateOne(m *Maps, obj types.Object) error {
 	case *types.Const:
 		// We only care about named constant types, since they are enums
 		if named, ok := obj.Type().(*types.Named); ok {
-			name := named.Obj().Name()
-			m.EnumConsts[name] = append(m.EnumConsts[name], obj)
+			enumObjName := objName(named.Obj())
+			m.EnumConsts[enumObjName] = append(m.EnumConsts[enumObjName], obj)
 		}
 	case *types.Func:
 		// Noop
 	default:
-		_, _ = fmt.Println(objName)
+		_, _ = fmt.Println(objectName)
 	}
 	return nil
 }
@@ -806,8 +825,14 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		n := ty
 
 		// These are external named types that we handle uniquely.
+		// This is unfortunate, but our current code assumes all defined
+		// types are enums, but these are really just basic primitives.
+		// We would need to add more logic to determine this, but for now
+		// just hard code them.
 		switch n.String() {
 		case "github.com/coder/coder/v2/cli/clibase.String":
+			return TypescriptType{ValueType: "string"}, nil
+		case "github.com/coder/coder/v2/cli/clibase.YAMLConfigPath":
 			return TypescriptType{ValueType: "string"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.Strings":
 			return TypescriptType{ValueType: "string[]"}, nil
@@ -847,8 +872,16 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 
 		obj, objGen, local := g.lookupNamedReference(n)
 		if obj != nil {
+			if g.onlyOptIn && !slices.Contains(g.allowList, n.Obj().Name()) {
+				// This is kludgy, but if we are an external package,
+				// we need to also include dependencies. There is no
+				// good way to return all extra types we need to include,
+				// so just add them to the allow list and hope the caller notices
+				// the slice grew...
+				g.allowList = append(g.allowList, n.Obj().Name())
+			}
 			if !local {
-				objGen.allowList = append(objGen.allowList, objName)
+				objGen.allowList = append(objGen.allowList, n.Obj().Name())
 				g.log.Debug(context.Background(), "found external type",
 					"name", objName,
 					"ext_pkg", objGen.pkg.String(),
@@ -882,9 +915,6 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			}
 
 			cmt := ""
-			if !local {
-				indentedComment("external reference")
-			}
 			return TypescriptType{
 				GenericTypes:  genericTypes,
 				GenericValue:  genericName,
@@ -911,7 +941,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		if err != nil {
 			return TypescriptType{}, xerrors.Errorf("named underlying: %w", err)
 		}
-		ts.AboveTypeLine = indentedComment(fmt.Sprintf("This is likely an enum in an external package (%q)", n.String()))
+		if ts.AboveTypeLine == "" {
+			// If no comment exists explaining where this type comes from, add one.
+			ts.AboveTypeLine = indentedComment(fmt.Sprintf("This is likely an enum in an external package (%q)", n.String()))
+		}
 		return ts, nil
 	case *types.Pointer:
 		// Dereference pointers.
@@ -937,6 +970,20 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 				),
 			}, nil
 		}
+
+		// Do support "Stringer" interfaces, they likely can get string
+		// marshalled.
+		for i := 0; i < intf.NumMethods(); i++ {
+			meth := intf.Method(i)
+			if meth.Name() == "String" {
+				return TypescriptType{
+					ValueType:     "string",
+					AboveTypeLine: indentedComment("actual value is an interface that implements 'String()'"),
+					Optional:      false,
+				}, nil
+			}
+		}
+
 		// All complex interfaces should be named. So if we get here, that means
 		// we are using anonymous interfaces. Which is just weird and not supported.
 		// Example:
