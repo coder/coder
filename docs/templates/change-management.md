@@ -1,6 +1,8 @@
 # Template Change Management
 
-We recommend source controlling your templates as you would other code. [Install Coder](../install/) in CI/CD pipelines to push new template versions.
+We recommend source controlling your templates as you would other
+code. [Install Coder](../install/) in CI/CD pipelines to push new
+template versions.
 
 ```console
 # Install the Coder CLI
