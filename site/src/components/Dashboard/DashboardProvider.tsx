@@ -31,17 +31,14 @@ export const DashboardProviderContext = createContext<
 >(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const buildInfoQuery = useBuildInfo();
-  const entitlementsQuery = useEntitlements();
+  const buildInfo = useBuildInfo();
+  const entitlements = useEntitlements();
   const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
   const [experimentsState] = useMachine(experimentsMachine);
   const { appearance, preview } = appearanceState.context;
   const { experiments } = experimentsState.context;
   const isLoading =
-    !buildInfoQuery.data ||
-    !entitlementsQuery.data ||
-    !appearance ||
-    !experiments;
+    !buildInfo.data || !entitlements.data || !appearance || !experiments;
 
   const setAppearancePreview = (config: AppearanceConfig) => {
     appearanceSend({
@@ -64,8 +61,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardProviderContext.Provider
       value={{
-        buildInfo: buildInfoQuery.data,
-        entitlements: entitlementsQuery.data,
+        buildInfo: buildInfo.data,
+        entitlements: entitlements.data,
         experiments,
         appearance: {
           preview,
