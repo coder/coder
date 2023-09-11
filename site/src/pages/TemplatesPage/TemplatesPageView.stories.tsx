@@ -54,6 +54,7 @@ export const WithTemplatesSmallViewPort: Story = {
 
 export const EmptyCanCreate: Story = {
   args: {
+    canCreateTemplates: true,
     error: undefined,
     templates: [],
     examples: [MockTemplateExample, MockTemplateExample2],
