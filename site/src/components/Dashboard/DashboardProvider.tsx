@@ -1,4 +1,5 @@
 import { useMachine } from "@xstate/react";
+import { useBuildInfo } from "api/queries/buildInfo";
 import {
   AppearanceConfig,
   BuildInfoResponse,
@@ -8,7 +9,6 @@ import {
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { createContext, FC, PropsWithChildren, useContext } from "react";
 import { appearanceMachine } from "xServices/appearance/appearanceXService";
-import { buildInfoMachine } from "xServices/buildInfo/buildInfoXService";
 import { entitlementsMachine } from "xServices/entitlements/entitlementsXService";
 import { experimentsMachine } from "xServices/experiments/experimentsMachine";
 
@@ -31,15 +31,15 @@ export const DashboardProviderContext = createContext<
 >(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const [buildInfoState] = useMachine(buildInfoMachine);
+  const buildInfoQuery = useBuildInfo();
   const [entitlementsState] = useMachine(entitlementsMachine);
   const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
   const [experimentsState] = useMachine(experimentsMachine);
-  const { buildInfo } = buildInfoState.context;
   const { entitlements } = entitlementsState.context;
   const { appearance, preview } = appearanceState.context;
   const { experiments } = experimentsState.context;
-  const isLoading = !buildInfo || !entitlements || !appearance || !experiments;
+  const isLoading =
+    !buildInfoQuery.data || !entitlements || !appearance || !experiments;
 
   const setAppearancePreview = (config: AppearanceConfig) => {
     appearanceSend({
@@ -62,7 +62,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardProviderContext.Provider
       value={{
-        buildInfo,
+        buildInfo: buildInfoQuery.data,
         entitlements,
         experiments,
         appearance: {
