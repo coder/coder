@@ -14,42 +14,42 @@ coder v0.0.0-devel
                               PostgreSQL deployment.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mcache-dir[0m string, [94m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
+      [96m--[0m[96mcache-dir[0m string, [96m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
           systemd.
 
-      [94m--[0m[94mdisable-owner-workspace-access[0m bool, [94m$CODER_DISABLE_OWNER_WORKSPACE_ACCESS[0m
+      [96m--[0m[96mdisable-owner-workspace-access[0m bool, [96m$CODER_DISABLE_OWNER_WORKSPACE_ACCESS[0m
           Remove the permission for the 'owner' role to have workspace execution
           on all workspaces. This prevents the 'owner' from ssh, apps, and
           terminal access based on the 'owner' role. They still have their user
           permissions to access their own workspaces.
 
-      [94m--[0m[94mdisable-path-apps[0m bool, [94m$CODER_DISABLE_PATH_APPS[0m
+      [96m--[0m[96mdisable-path-apps[0m bool, [96m$CODER_DISABLE_PATH_APPS[0m
           Disable workspace apps that are not served from subdomains. Path-based
           apps can make requests to the Coder API and pose a security risk when
           the workspace serves malicious JavaScript. This is recommended for
           security purposes if a --wildcard-access-url is configured.
 
-      [94m--[0m[94mswagger-enable[0m bool, [94m$CODER_SWAGGER_ENABLE[0m
+      [96m--[0m[96mswagger-enable[0m bool, [96m$CODER_SWAGGER_ENABLE[0m
           Expose the swagger endpoint via /swagger.
 
-      [94m--[0m[94mexperiments[0m string-array, [94m$CODER_EXPERIMENTS[0m
+      [96m--[0m[96mexperiments[0m string-array, [96m$CODER_EXPERIMENTS[0m
           Enable one or more experiments. These are not ready for production.
           Separate multiple experiments with commas, or enter '*' to opt-in to
           all available experiments.
 
-      [94m--[0m[94mpostgres-url[0m string, [94m$CODER_PG_CONNECTION_URL[0m
+      [96m--[0m[96mpostgres-url[0m string, [96m$CODER_PG_CONNECTION_URL[0m
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
           server postgres-builtin-url".
 
-      [94m--[0m[94mssh-keygen-algorithm[0m string, [94m$CODER_SSH_KEYGEN_ALGORITHM[0m (default: ed25519)
+      [96m--[0m[96mssh-keygen-algorithm[0m string, [96m$CODER_SSH_KEYGEN_ALGORITHM[0m (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
           "ed25519", "ecdsa", or "rsa4096".
 
-      [94m--[0m[94mupdate-check[0m bool, [94m$CODER_UPDATE_CHECK[0m (default: false)
+      [96m--[0m[96mupdate-check[0m bool, [96m$CODER_UPDATE_CHECK[0m (default: false)
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
@@ -57,99 +57,99 @@ coder v0.0.0-devel
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
 
-      [94m--[0m[94mssh-config-options[0m string-array, [94m$CODER_SSH_CONFIG_OPTIONS[0m
+      [96m--[0m[96mssh-config-options[0m string-array, [96m$CODER_SSH_CONFIG_OPTIONS[0m
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
           commas.Using this incorrectly can break SSH to your deployment, use
           cautiously.
 
-      [94m--[0m[94mssh-hostname-prefix[0m string, [94m$CODER_SSH_HOSTNAME_PREFIX[0m (default: coder.)
+      [96m--[0m[96mssh-hostname-prefix[0m string, [96m$CODER_SSH_HOSTNAME_PREFIX[0m (default: coder.)
           The SSH deployment prefix is used in the Host of the ssh config.
 
 [93mCONFIG OPTIONS:[0m 
 Use a YAML configuration file when your server launch become unwieldy.
 
-  [94m-[0m[94mc[0m, [94m--[0m[94mconfig[0m yaml-config-path, [94m$CODER_CONFIG_PATH[0m
+  [96m-[0m[96mc[0m, [96m--[0m[96mconfig[0m yaml-config-path, [96m$CODER_CONFIG_PATH[0m
           Specify a YAML file to load configuration from.
 
-      [94m--[0m[94mwrite-config[0m bool
+      [96m--[0m[96mwrite-config[0m bool
           
           Write out the current server config as YAML to stdout.
 
 [93mINTROSPECTION / LOGGING OPTIONS:[0m 
-      [94m--[0m[94menable-terraform-debug-mode[0m bool, [94m$CODER_ENABLE_TERRAFORM_DEBUG_MODE[0m (default: false)
+      [96m--[0m[96menable-terraform-debug-mode[0m bool, [96m$CODER_ENABLE_TERRAFORM_DEBUG_MODE[0m (default: false)
           Allow administrators to enable Terraform debug output.
 
-      [94m--[0m[94mlog-human[0m string, [94m$CODER_LOGGING_HUMAN[0m (default: /dev/stderr)
+      [96m--[0m[96mlog-human[0m string, [96m$CODER_LOGGING_HUMAN[0m (default: /dev/stderr)
           Output human-readable logs to a given file.
 
-      [94m--[0m[94mlog-json[0m string, [94m$CODER_LOGGING_JSON[0m
+      [96m--[0m[96mlog-json[0m string, [96m$CODER_LOGGING_JSON[0m
           Output JSON logs to a given file.
 
-  [94m-[0m[94ml[0m, [94m--[0m[94mlog-filter[0m string-array, [94m$CODER_LOG_FILTER[0m
+  [96m-[0m[96ml[0m, [96m--[0m[96mlog-filter[0m string-array, [96m$CODER_LOG_FILTER[0m
           Filter debug logs by matching against a given regex. Use .* to match
           all debug logs.
 
-      [94m--[0m[94mlog-stackdriver[0m string, [94m$CODER_LOGGING_STACKDRIVER[0m
+      [96m--[0m[96mlog-stackdriver[0m string, [96m$CODER_LOGGING_STACKDRIVER[0m
           Output Stackdriver compatible logs to a given file.
 
 [93mINTROSPECTION / PROMETHEUS OPTIONS:[0m 
-      [94m--[0m[94mprometheus-address[0m host:port, [94m$CODER_PROMETHEUS_ADDRESS[0m (default: 127.0.0.1:2112)
+      [96m--[0m[96mprometheus-address[0m host:port, [96m$CODER_PROMETHEUS_ADDRESS[0m (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
-      [94m--[0m[94mprometheus-collect-agent-stats[0m bool, [94m$CODER_PROMETHEUS_COLLECT_AGENT_STATS[0m
+      [96m--[0m[96mprometheus-collect-agent-stats[0m bool, [96m$CODER_PROMETHEUS_COLLECT_AGENT_STATS[0m
           Collect agent stats (may increase charges for metrics storage).
 
-      [94m--[0m[94mprometheus-collect-db-metrics[0m bool, [94m$CODER_PROMETHEUS_COLLECT_DB_METRICS[0m (default: false)
+      [96m--[0m[96mprometheus-collect-db-metrics[0m bool, [96m$CODER_PROMETHEUS_COLLECT_DB_METRICS[0m (default: false)
           Collect database metrics (may increase charges for metrics storage).
 
-      [94m--[0m[94mprometheus-enable[0m bool, [94m$CODER_PROMETHEUS_ENABLE[0m
+      [96m--[0m[96mprometheus-enable[0m bool, [96m$CODER_PROMETHEUS_ENABLE[0m
           Serve prometheus metrics on the address defined by prometheus address.
 
 [93mINTROSPECTION / TRACING OPTIONS:[0m 
-      [94m--[0m[94mtrace-logs[0m bool, [94m$CODER_TRACE_LOGS[0m
+      [96m--[0m[96mtrace-logs[0m bool, [96m$CODER_TRACE_LOGS[0m
           Enables capturing of logs as events in traces. This is useful for
           debugging, but may result in a very large amount of events being sent
           to the tracing backend which may incur significant costs.
 
-      [94m--[0m[94mtrace[0m bool, [94m$CODER_TRACE_ENABLE[0m
+      [96m--[0m[96mtrace[0m bool, [96m$CODER_TRACE_ENABLE[0m
           Whether application tracing data is collected. It exports to a backend
           configured by environment variables. See:
           https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
-      [94m--[0m[94mtrace-honeycomb-api-key[0m string, [94m$CODER_TRACE_HONEYCOMB_API_KEY[0m
+      [96m--[0m[96mtrace-honeycomb-api-key[0m string, [96m$CODER_TRACE_HONEYCOMB_API_KEY[0m
           Enables trace exporting to Honeycomb.io using the provided API Key.
 
 [93mINTROSPECTION / PPROF OPTIONS:[0m 
-      [94m--[0m[94mpprof-address[0m host:port, [94m$CODER_PPROF_ADDRESS[0m (default: 127.0.0.1:6060)
+      [96m--[0m[96mpprof-address[0m host:port, [96m$CODER_PPROF_ADDRESS[0m (default: 127.0.0.1:6060)
           The bind address to serve pprof.
 
-      [94m--[0m[94mpprof-enable[0m bool, [94m$CODER_PPROF_ENABLE[0m
+      [96m--[0m[96mpprof-enable[0m bool, [96m$CODER_PPROF_ENABLE[0m
           Serve pprof metrics on the address defined by pprof address.
 
 [93mNETWORKING OPTIONS:[0m 
-      [94m--[0m[94maccess-url[0m url, [94m$CODER_ACCESS_URL[0m
+      [96m--[0m[96maccess-url[0m url, [96m$CODER_ACCESS_URL[0m
           The URL that users will use to access the Coder deployment.
 
-      [94m--[0m[94mdocs-url[0m url, [94m$CODER_DOCS_URL[0m
+      [96m--[0m[96mdocs-url[0m url, [96m$CODER_DOCS_URL[0m
           Specifies the custom docs URL.
 
-      [94m--[0m[94mproxy-trusted-headers[0m string-array, [94m$CODER_PROXY_TRUSTED_HEADERS[0m
+      [96m--[0m[96mproxy-trusted-headers[0m string-array, [96m$CODER_PROXY_TRUSTED_HEADERS[0m
           Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
           True-Client-Ip, X-Forwarded-For.
 
-      [94m--[0m[94mproxy-trusted-origins[0m string-array, [94m$CODER_PROXY_TRUSTED_ORIGINS[0m
+      [96m--[0m[96mproxy-trusted-origins[0m string-array, [96m$CODER_PROXY_TRUSTED_ORIGINS[0m
           Origin addresses to respect "proxy-trusted-headers". e.g.
           192.168.1.0/24.
 
-      [94m--[0m[94mredirect-to-access-url[0m bool, [94m$CODER_REDIRECT_TO_ACCESS_URL[0m
+      [96m--[0m[96mredirect-to-access-url[0m bool, [96m$CODER_REDIRECT_TO_ACCESS_URL[0m
           Specifies whether to redirect requests that do not match the access
           URL host.
 
-      [94m--[0m[94msecure-auth-cookie[0m bool, [94m$CODER_SECURE_AUTH_COOKIE[0m
+      [96m--[0m[96msecure-auth-cookie[0m bool, [96m$CODER_SECURE_AUTH_COOKIE[0m
           Controls if the 'Secure' property is set on browser session cookies.
 
-      [94m--[0m[94mwildcard-access-url[0m url, [94m$CODER_WILDCARD_ACCESS_URL[0m
+      [96m--[0m[96mwildcard-access-url[0m url, [96m$CODER_WILDCARD_ACCESS_URL[0m
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 
@@ -159,7 +159,7 @@ between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
 backed by Tailscale and WireGuard.
 
-      [94m--[0m[94mblock-direct-connections[0m bool, [94m$CODER_BLOCK_DIRECT[0m
+      [96m--[0m[96mblock-direct-connections[0m bool, [96m$CODER_BLOCK_DIRECT[0m
           Block peer-to-peer (aka. direct) workspace connections. All workspace
           connections from the CLI will be proxied through Coder (or custom
           configured DERP servers) and will never be peer-to-peer when enabled.
@@ -167,28 +167,28 @@ backed by Tailscale and WireGuard.
           until they are restarted after this change has been made, but new
           connections will still be proxied regardless.
 
-      [94m--[0m[94mderp-config-path[0m string, [94m$CODER_DERP_CONFIG_PATH[0m
+      [96m--[0m[96mderp-config-path[0m string, [96m$CODER_DERP_CONFIG_PATH[0m
           Path to read a DERP mapping from. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.
 
-      [94m--[0m[94mderp-config-url[0m string, [94m$CODER_DERP_CONFIG_URL[0m
+      [96m--[0m[96mderp-config-url[0m string, [96m$CODER_DERP_CONFIG_URL[0m
           URL to fetch a DERP mapping on startup. See:
           https://tailscale.com/kb/1118/custom-derp-servers/.
 
-      [94m--[0m[94mderp-force-websockets[0m bool, [94m$CODER_DERP_FORCE_WEBSOCKETS[0m
+      [96m--[0m[96mderp-force-websockets[0m bool, [96m$CODER_DERP_FORCE_WEBSOCKETS[0m
           Force clients and agents to always use WebSocket to connect to DERP
           relay servers. By default, DERP uses `Upgrade: derp`, which may cause
           issues with some reverse proxies. Clients may automatically fallback
           to WebSocket if they detect an issue with `Upgrade: derp`, but this
           does not work in all situations.
 
-      [94m--[0m[94mderp-server-enable[0m bool, [94m$CODER_DERP_SERVER_ENABLE[0m (default: true)
+      [96m--[0m[96mderp-server-enable[0m bool, [96m$CODER_DERP_SERVER_ENABLE[0m (default: true)
           Whether to enable or disable the embedded DERP relay server.
 
-      [94m--[0m[94mderp-server-region-name[0m string, [94m$CODER_DERP_SERVER_REGION_NAME[0m (default: Coder Embedded Relay)
+      [96m--[0m[96mderp-server-region-name[0m string, [96m$CODER_DERP_SERVER_REGION_NAME[0m (default: Coder Embedded Relay)
           Region name that for the embedded DERP server.
 
-      [94m--[0m[94mderp-server-stun-addresses[0m string-array, [94m$CODER_DERP_SERVER_STUN_ADDRESSES[0m (default: stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302)
+      [96m--[0m[96mderp-server-stun-addresses[0m string-array, [96m$CODER_DERP_SERVER_STUN_ADDRESSES[0m (default: stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302)
           Addresses for STUN servers to establish P2P connections. It's
           recommended to have at least two STUN servers to give users the best
           chance of connecting P2P to workspaces. Each STUN server will get it's
@@ -196,7 +196,7 @@ backed by Tailscale and WireGuard.
           + 1`. Use special value 'disable' to turn off STUN completely.
 
 [93mNETWORKING / HTTP OPTIONS:[0m 
-      [94m--[0m[94mdisable-password-auth[0m bool, [94m$CODER_DISABLE_PASSWORD_AUTH[0m
+      [96m--[0m[96mdisable-password-auth[0m bool, [96m$CODER_DISABLE_PASSWORD_AUTH[0m
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
           Any user with the owner role will be able to sign in with their
@@ -205,23 +205,23 @@ backed by Tailscale and WireGuard.
           create-admin` command to create a new admin user directly in the
           database.
 
-      [94m--[0m[94mdisable-session-expiry-refresh[0m bool, [94m$CODER_DISABLE_SESSION_EXPIRY_REFRESH[0m
+      [96m--[0m[96mdisable-session-expiry-refresh[0m bool, [96m$CODER_DISABLE_SESSION_EXPIRY_REFRESH[0m
           Disable automatic session expiry bumping due to activity. This forces
           all sessions to become invalid after the session expiry duration has
           been reached.
 
-      [94m--[0m[94mhttp-address[0m string, [94m$CODER_HTTP_ADDRESS[0m (default: 127.0.0.1:3000)
+      [96m--[0m[96mhttp-address[0m string, [96m$CODER_HTTP_ADDRESS[0m (default: 127.0.0.1:3000)
           HTTP bind address of the server. Unset to disable the HTTP endpoint.
 
-      [94m--[0m[94mmax-token-lifetime[0m duration, [94m$CODER_MAX_TOKEN_LIFETIME[0m (default: 876600h0m0s)
+      [96m--[0m[96mmax-token-lifetime[0m duration, [96m$CODER_MAX_TOKEN_LIFETIME[0m (default: 876600h0m0s)
           The maximum lifetime duration users can specify when creating an API
           token.
 
-      [94m--[0m[94mproxy-health-interval[0m duration, [94m$CODER_PROXY_HEALTH_INTERVAL[0m (default: 1m0s)
+      [96m--[0m[96mproxy-health-interval[0m duration, [96m$CODER_PROXY_HEALTH_INTERVAL[0m (default: 1m0s)
           The interval in which coderd should be checking the status of
           workspace proxies.
 
-      [94m--[0m[94msession-duration[0m duration, [94m$CODER_SESSION_DURATION[0m (default: 24h0m0s)
+      [96m--[0m[96msession-duration[0m duration, [96m$CODER_SESSION_DURATION[0m (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
           longer if they are actively making requests, but this functionality
           can be disabled via --disable-session-expiry-refresh.
@@ -231,178 +231,178 @@ Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind
 a TLS-terminating reverse proxy or are accessing Coder over a secure link, you
 can safely ignore these settings.
 
-      [94m--[0m[94mstrict-transport-security[0m int, [94m$CODER_STRICT_TRANSPORT_SECURITY[0m (default: 0)
+      [96m--[0m[96mstrict-transport-security[0m int, [96m$CODER_STRICT_TRANSPORT_SECURITY[0m (default: 0)
           Controls if the 'Strict-Transport-Security' header is set on all
           static file responses. This header should only be set if the server is
           accessed via HTTPS. This value is the MaxAge in seconds of the header.
 
-      [94m--[0m[94mstrict-transport-security-options[0m string-array, [94m$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS[0m
+      [96m--[0m[96mstrict-transport-security-options[0m string-array, [96m$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS[0m
           Two optional fields can be set in the Strict-Transport-Security
           header; 'includeSubDomains' and 'preload'. The
           'strict-transport-security' flag must be set to a non-zero value for
           these options to be used.
 
-      [94m--[0m[94mtls-address[0m host:port, [94m$CODER_TLS_ADDRESS[0m (default: 127.0.0.1:3443)
+      [96m--[0m[96mtls-address[0m host:port, [96m$CODER_TLS_ADDRESS[0m (default: 127.0.0.1:3443)
           HTTPS bind address of the server.
 
-      [94m--[0m[94mtls-cert-file[0m string-array, [94m$CODER_TLS_CERT_FILE[0m
+      [96m--[0m[96mtls-cert-file[0m string-array, [96m$CODER_TLS_CERT_FILE[0m
           Path to each certificate for TLS. It requires a PEM-encoded file. To
           configure the listener to use a CA certificate, concatenate the
           primary certificate and the CA certificate together. The primary
           certificate should appear first in the combined file.
 
-      [94m--[0m[94mtls-client-auth[0m string, [94m$CODER_TLS_CLIENT_AUTH[0m (default: none)
+      [96m--[0m[96mtls-client-auth[0m string, [96m$CODER_TLS_CLIENT_AUTH[0m (default: none)
           Policy the server will follow for TLS Client Authentication. Accepted
           values are "none", "request", "require-any", "verify-if-given", or
           "require-and-verify".
 
-      [94m--[0m[94mtls-client-ca-file[0m string, [94m$CODER_TLS_CLIENT_CA_FILE[0m
+      [96m--[0m[96mtls-client-ca-file[0m string, [96m$CODER_TLS_CLIENT_CA_FILE[0m
           PEM-encoded Certificate Authority file used for checking the
           authenticity of client.
 
-      [94m--[0m[94mtls-client-cert-file[0m string, [94m$CODER_TLS_CLIENT_CERT_FILE[0m
+      [96m--[0m[96mtls-client-cert-file[0m string, [96m$CODER_TLS_CLIENT_CERT_FILE[0m
           Path to certificate for client TLS authentication. It requires a
           PEM-encoded file.
 
-      [94m--[0m[94mtls-client-key-file[0m string, [94m$CODER_TLS_CLIENT_KEY_FILE[0m
+      [96m--[0m[96mtls-client-key-file[0m string, [96m$CODER_TLS_CLIENT_KEY_FILE[0m
           Path to key for client TLS authentication. It requires a PEM-encoded
           file.
 
-      [94m--[0m[94mtls-enable[0m bool, [94m$CODER_TLS_ENABLE[0m
+      [96m--[0m[96mtls-enable[0m bool, [96m$CODER_TLS_ENABLE[0m
           Whether TLS will be enabled.
 
-      [94m--[0m[94mtls-key-file[0m string-array, [94m$CODER_TLS_KEY_FILE[0m
+      [96m--[0m[96mtls-key-file[0m string-array, [96m$CODER_TLS_KEY_FILE[0m
           Paths to the private keys for each of the certificates. It requires a
           PEM-encoded file.
 
-      [94m--[0m[94mtls-min-version[0m string, [94m$CODER_TLS_MIN_VERSION[0m (default: tls12)
+      [96m--[0m[96mtls-min-version[0m string, [96m$CODER_TLS_MIN_VERSION[0m (default: tls12)
           Minimum supported version of TLS. Accepted values are "tls10",
           "tls11", "tls12" or "tls13".
 
 [93mOAUTH2 / GITHUB OPTIONS:[0m 
-      [94m--[0m[94moauth2-github-allow-everyone[0m bool, [94m$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE[0m
+      [96m--[0m[96moauth2-github-allow-everyone[0m bool, [96m$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE[0m
           Allow all logins, setting this option means allowed orgs and teams
           must be empty.
 
-      [94m--[0m[94moauth2-github-allow-signups[0m bool, [94m$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS[0m
+      [96m--[0m[96moauth2-github-allow-signups[0m bool, [96m$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS[0m
           Whether new users can sign up with GitHub.
 
-      [94m--[0m[94moauth2-github-allowed-orgs[0m string-array, [94m$CODER_OAUTH2_GITHUB_ALLOWED_ORGS[0m
+      [96m--[0m[96moauth2-github-allowed-orgs[0m string-array, [96m$CODER_OAUTH2_GITHUB_ALLOWED_ORGS[0m
           Organizations the user must be a member of to Login with GitHub.
 
-      [94m--[0m[94moauth2-github-allowed-teams[0m string-array, [94m$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS[0m
+      [96m--[0m[96moauth2-github-allowed-teams[0m string-array, [96m$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS[0m
           Teams inside organizations the user must be a member of to Login with
           GitHub. Structured as: <organization-name>/<team-slug>.
 
-      [94m--[0m[94moauth2-github-client-id[0m string, [94m$CODER_OAUTH2_GITHUB_CLIENT_ID[0m
+      [96m--[0m[96moauth2-github-client-id[0m string, [96m$CODER_OAUTH2_GITHUB_CLIENT_ID[0m
           Client ID for Login with GitHub.
 
-      [94m--[0m[94moauth2-github-client-secret[0m string, [94m$CODER_OAUTH2_GITHUB_CLIENT_SECRET[0m
+      [96m--[0m[96moauth2-github-client-secret[0m string, [96m$CODER_OAUTH2_GITHUB_CLIENT_SECRET[0m
           Client secret for Login with GitHub.
 
-      [94m--[0m[94moauth2-github-enterprise-base-url[0m string, [94m$CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL[0m
+      [96m--[0m[96moauth2-github-enterprise-base-url[0m string, [96m$CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL[0m
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
 [93mOIDC OPTIONS:[0m 
-      [94m--[0m[94moidc-group-auto-create[0m bool, [94m$CODER_OIDC_GROUP_AUTO_CREATE[0m (default: false)
+      [96m--[0m[96moidc-group-auto-create[0m bool, [96m$CODER_OIDC_GROUP_AUTO_CREATE[0m (default: false)
           Automatically creates missing groups from a user's groups claim.
 
-      [94m--[0m[94moidc-allow-signups[0m bool, [94m$CODER_OIDC_ALLOW_SIGNUPS[0m (default: true)
+      [96m--[0m[96moidc-allow-signups[0m bool, [96m$CODER_OIDC_ALLOW_SIGNUPS[0m (default: true)
           Whether new users can sign up with OIDC.
 
-      [94m--[0m[94moidc-auth-url-params[0m struct[map[string]string], [94m$CODER_OIDC_AUTH_URL_PARAMS[0m (default: {"access_type": "offline"})
+      [96m--[0m[96moidc-auth-url-params[0m struct[map[string]string], [96m$CODER_OIDC_AUTH_URL_PARAMS[0m (default: {"access_type": "offline"})
           OIDC auth URL parameters to pass to the upstream provider.
 
-      [94m--[0m[94moidc-client-cert-file[0m string, [94m$CODER_OIDC_CLIENT_CERT_FILE[0m
+      [96m--[0m[96moidc-client-cert-file[0m string, [96m$CODER_OIDC_CLIENT_CERT_FILE[0m
           Pem encoded certificate file to use for oauth2 PKI/JWT authorization.
           The public certificate that accompanies oidc-client-key-file. A
           standard x509 certificate is expected.
 
-      [94m--[0m[94moidc-client-id[0m string, [94m$CODER_OIDC_CLIENT_ID[0m
+      [96m--[0m[96moidc-client-id[0m string, [96m$CODER_OIDC_CLIENT_ID[0m
           Client ID to use for Login with OIDC.
 
-      [94m--[0m[94moidc-client-key-file[0m string, [94m$CODER_OIDC_CLIENT_KEY_FILE[0m
+      [96m--[0m[96moidc-client-key-file[0m string, [96m$CODER_OIDC_CLIENT_KEY_FILE[0m
           Pem encoded RSA private key to use for oauth2 PKI/JWT authorization.
           This can be used instead of oidc-client-secret if your IDP supports
           it.
 
-      [94m--[0m[94moidc-client-secret[0m string, [94m$CODER_OIDC_CLIENT_SECRET[0m
+      [96m--[0m[96moidc-client-secret[0m string, [96m$CODER_OIDC_CLIENT_SECRET[0m
           Client secret to use for Login with OIDC.
 
-      [94m--[0m[94moidc-email-domain[0m string-array, [94m$CODER_OIDC_EMAIL_DOMAIN[0m
+      [96m--[0m[96moidc-email-domain[0m string-array, [96m$CODER_OIDC_EMAIL_DOMAIN[0m
           Email domains that clients logging in with OIDC must match.
 
-      [94m--[0m[94moidc-email-field[0m string, [94m$CODER_OIDC_EMAIL_FIELD[0m (default: email)
+      [96m--[0m[96moidc-email-field[0m string, [96m$CODER_OIDC_EMAIL_FIELD[0m (default: email)
           OIDC claim field to use as the email.
 
-      [94m--[0m[94moidc-group-field[0m string, [94m$CODER_OIDC_GROUP_FIELD[0m
+      [96m--[0m[96moidc-group-field[0m string, [96m$CODER_OIDC_GROUP_FIELD[0m
           This field must be set if using the group sync feature and the scope
           name is not 'groups'. Set to the claim to be used for groups.
 
-      [94m--[0m[94moidc-group-mapping[0m struct[map[string]string], [94m$CODER_OIDC_GROUP_MAPPING[0m (default: {})
+      [96m--[0m[96moidc-group-mapping[0m struct[map[string]string], [96m$CODER_OIDC_GROUP_MAPPING[0m (default: {})
           A map of OIDC group IDs and the group in Coder it should map to. This
           is useful for when OIDC providers only return group IDs.
 
-      [94m--[0m[94moidc-ignore-email-verified[0m bool, [94m$CODER_OIDC_IGNORE_EMAIL_VERIFIED[0m
+      [96m--[0m[96moidc-ignore-email-verified[0m bool, [96m$CODER_OIDC_IGNORE_EMAIL_VERIFIED[0m
           Ignore the email_verified claim from the upstream provider.
 
-      [94m--[0m[94moidc-ignore-userinfo[0m bool, [94m$CODER_OIDC_IGNORE_USERINFO[0m (default: false)
+      [96m--[0m[96moidc-ignore-userinfo[0m bool, [96m$CODER_OIDC_IGNORE_USERINFO[0m (default: false)
           Ignore the userinfo endpoint and only use the ID token for user
           information.
 
-      [94m--[0m[94moidc-issuer-url[0m string, [94m$CODER_OIDC_ISSUER_URL[0m
+      [96m--[0m[96moidc-issuer-url[0m string, [96m$CODER_OIDC_ISSUER_URL[0m
           Issuer URL to use for Login with OIDC.
 
-      [94m--[0m[94moidc-group-regex-filter[0m regexp, [94m$CODER_OIDC_GROUP_REGEX_FILTER[0m (default: .*)
+      [96m--[0m[96moidc-group-regex-filter[0m regexp, [96m$CODER_OIDC_GROUP_REGEX_FILTER[0m (default: .*)
           If provided any group name not matching the regex is ignored. This
           allows for filtering out groups that are not needed. This filter is
           applied after the group mapping.
 
-      [94m--[0m[94moidc-scopes[0m string-array, [94m$CODER_OIDC_SCOPES[0m (default: openid,profile,email)
+      [96m--[0m[96moidc-scopes[0m string-array, [96m$CODER_OIDC_SCOPES[0m (default: openid,profile,email)
           Scopes to grant when authenticating with OIDC.
 
-      [94m--[0m[94moidc-user-role-default[0m string-array, [94m$CODER_OIDC_USER_ROLE_DEFAULT[0m
+      [96m--[0m[96moidc-user-role-default[0m string-array, [96m$CODER_OIDC_USER_ROLE_DEFAULT[0m
           If user role sync is enabled, these roles are always included for all
           authenticated users. The 'member' role is always assigned.
 
-      [94m--[0m[94moidc-user-role-field[0m string, [94m$CODER_OIDC_USER_ROLE_FIELD[0m
+      [96m--[0m[96moidc-user-role-field[0m string, [96m$CODER_OIDC_USER_ROLE_FIELD[0m
           This field must be set if using the user roles sync feature. Set this
           to the name of the claim used to store the user's role. The roles
           should be sent as an array of strings.
 
-      [94m--[0m[94moidc-user-role-mapping[0m struct[map[string][]string], [94m$CODER_OIDC_USER_ROLE_MAPPING[0m (default: {})
+      [96m--[0m[96moidc-user-role-mapping[0m struct[map[string][]string], [96m$CODER_OIDC_USER_ROLE_MAPPING[0m (default: {})
           A map of the OIDC passed in user roles and the groups in Coder it
           should map to. This is useful if the group names do not match. If
           mapped to the empty string, the role will ignored.
 
-      [94m--[0m[94moidc-username-field[0m string, [94m$CODER_OIDC_USERNAME_FIELD[0m (default: preferred_username)
+      [96m--[0m[96moidc-username-field[0m string, [96m$CODER_OIDC_USERNAME_FIELD[0m (default: preferred_username)
           OIDC claim field to use as the username.
 
-      [94m--[0m[94moidc-sign-in-text[0m string, [94m$CODER_OIDC_SIGN_IN_TEXT[0m (default: OpenID Connect)
+      [96m--[0m[96moidc-sign-in-text[0m string, [96m$CODER_OIDC_SIGN_IN_TEXT[0m (default: OpenID Connect)
           The text to show on the OpenID Connect sign in button.
 
-      [94m--[0m[94moidc-icon-url[0m url, [94m$CODER_OIDC_ICON_URL[0m
+      [96m--[0m[96moidc-icon-url[0m url, [96m$CODER_OIDC_ICON_URL[0m
           URL pointing to the icon to use on the OpenID Connect login button.
 
 [93mPROVISIONING OPTIONS:[0m 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
-      [94m--[0m[94mprovisioner-force-cancel-interval[0m duration, [94m$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL[0m (default: 10m0s)
+      [96m--[0m[96mprovisioner-force-cancel-interval[0m duration, [96m$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL[0m (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.
 
-      [94m--[0m[94mprovisioner-daemon-poll-interval[0m duration, [94m$CODER_PROVISIONER_DAEMON_POLL_INTERVAL[0m (default: 1s)
+      [96m--[0m[96mprovisioner-daemon-poll-interval[0m duration, [96m$CODER_PROVISIONER_DAEMON_POLL_INTERVAL[0m (default: 1s)
           Time to wait before polling for a new job.
 
-      [94m--[0m[94mprovisioner-daemon-poll-jitter[0m duration, [94m$CODER_PROVISIONER_DAEMON_POLL_JITTER[0m (default: 100ms)
+      [96m--[0m[96mprovisioner-daemon-poll-jitter[0m duration, [96m$CODER_PROVISIONER_DAEMON_POLL_JITTER[0m (default: 100ms)
           Random jitter added to the poll interval.
 
-      [94m--[0m[94mprovisioner-daemon-psk[0m string, [94m$CODER_PROVISIONER_DAEMON_PSK[0m
+      [96m--[0m[96mprovisioner-daemon-psk[0m string, [96m$CODER_PROVISIONER_DAEMON_PSK[0m
           Pre-shared key to authenticate external provisioner daemons to Coder
           server.
 
-      [94m--[0m[94mprovisioner-daemons[0m int, [94m$CODER_PROVISIONER_DAEMONS[0m (default: 3)
+      [96m--[0m[96mprovisioner-daemons[0m int, [96m$CODER_PROVISIONER_DAEMONS[0m (default: 3)
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
 
@@ -411,11 +411,11 @@ Telemetry is critical to our ability to improve Coder. We strip all
 personalinformation before sending data to our servers. Please only disable
 telemetrywhen required by your organization's security policy.
 
-      [94m--[0m[94mtelemetry[0m bool, [94m$CODER_TELEMETRY_ENABLE[0m (default: false)
+      [96m--[0m[96mtelemetry[0m bool, [96m$CODER_TELEMETRY_ENABLE[0m (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
-      [94m--[0m[94mtelemetry-trace[0m bool, [94m$CODER_TELEMETRY_TRACE[0m (default: false)
+      [96m--[0m[96mtelemetry-trace[0m bool, [96m$CODER_TELEMETRY_TRACE[0m (default: false)
           Whether Opentelemetry traces are sent to Coder. Coder collects
           anonymized application tracing to help improve our product. Disabling
           telemetry also disables this option.
@@ -424,7 +424,7 @@ telemetrywhen required by your organization's security policy.
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template max TTL.
 
-      [94m--[0m[94mdefault-quiet-hours-schedule[0m string, [94m$CODER_QUIET_HOURS_DEFAULT_SCHEDULE[0m
+      [96m--[0m[96mdefault-quiet-hours-schedule[0m string, [96m$CODER_QUIET_HOURS_DEFAULT_SCHEDULE[0m
           The default daily cron schedule applied to users that haven't set a
           custom quiet hours schedule themselves. The quiet hours schedule
           determines when workspaces will be force stopped due to the template's
@@ -435,7 +435,7 @@ workspaces stopping during the day due to template max TTL.
           are not supported).
 
 [93m⚠️ DANGEROUS OPTIONS:[0m 
-      [94m--[0m[94mdangerous-allow-path-app-sharing[0m bool, [94m$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING[0m
+      [96m--[0m[96mdangerous-allow-path-app-sharing[0m bool, [96m$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING[0m
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
           Path-based apps can make requests to the Coder API and pose a security
@@ -443,7 +443,7 @@ workspaces stopping during the day due to template max TTL.
           can be disabled entirely with --disable-path-apps for further
           security.
 
-      [94m--[0m[94mdangerous-allow-path-app-site-owner-access[0m bool, [94m$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS[0m
+      [96m--[0m[96mdangerous-allow-path-app-site-owner-access[0m bool, [96m$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS[0m
           Allow site-owners to access workspace apps from workspaces they do not
           own. Owners cannot access path-based apps they do not own by default.
           Path-based apps can make requests to the Coder API and pose a security
@@ -454,14 +454,14 @@ workspaces stopping during the day due to template max TTL.
 [93mENTERPRISE OPTIONS:[0m 
 These options are only available in the Enterprise Edition.
 
-      [94m--[0m[94mbrowser-only[0m bool, [94m$CODER_BROWSER_ONLY[0m
+      [96m--[0m[96mbrowser-only[0m bool, [96m$CODER_BROWSER_ONLY[0m
           Whether Coder only allows connections to workspaces via the browser.
 
-      [94m--[0m[94mderp-server-relay-url[0m url, [94m$CODER_DERP_SERVER_RELAY_URL[0m
+      [96m--[0m[96mderp-server-relay-url[0m url, [96m$CODER_DERP_SERVER_RELAY_URL[0m
           An HTTP URL that is accessible by other replicas to relay DERP
           traffic. Required for high availability.
 
-      [94m--[0m[94mexternal-token-encryption-keys[0m string-array, [94m$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS[0m
+      [96m--[0m[96mexternal-token-encryption-keys[0m string-array, [96m$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS[0m
           Encrypt OIDC and Git authentication tokens with AES-256-GCM in the
           database. The value must be a comma-separated list of base64-encoded
           keys. Each key, when base64-decoded, must be exactly 32 bytes in
@@ -471,7 +471,7 @@ These options are only available in the Enterprise Edition.
           process of rotating keys with the `coder server dbcrypt rotate`
           command.
 
-      [94m--[0m[94mscim-auth-header[0m string, [94m$CODER_SCIM_AUTH_HEADER[0m
+      [96m--[0m[96mscim-auth-header[0m string, [96m$CODER_SCIM_AUTH_HEADER[0m
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
 

@@ -8,7 +8,7 @@ coder v0.0.0-devel
    $ coder users show me
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
 ———

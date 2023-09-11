@@ -196,6 +196,8 @@ require (
 	tailscale.com v1.46.1
 )
 
+require github.com/djherbis/times v1.5.0
+
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect
 	cloud.google.com/go/logging v1.8.1 // indirect

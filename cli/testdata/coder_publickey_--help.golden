@@ -8,11 +8,11 @@ coder v0.0.0-devel
   Aliases: pubkey
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mreset[0m bool
+      [96m--[0m[96mreset[0m bool
           Regenerate your public key. This will require updating the key on any
           services it's registered with.
 
-  [94m-[0m[94my[0m, [94m--[0m[94myes[0m bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
 ———

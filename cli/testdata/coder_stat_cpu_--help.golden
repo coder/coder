@@ -6,10 +6,10 @@ coder v0.0.0-devel
   Show CPU usage, in cores.
 
 [93mOPTIONS:[0m
-      [94m--[0m[94mhost[0m bool
+      [96m--[0m[96mhost[0m bool
           Force host CPU measurement.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: text)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: text)
           Output format. Available formats: text, json.
 
 ———

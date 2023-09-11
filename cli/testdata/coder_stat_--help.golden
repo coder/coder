@@ -11,11 +11,11 @@ coder v0.0.0-devel
     mem     Show memory usage, in gigabytes.
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: host_cpu,host_memory,home_disk,container_cpu,container_memory)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: host_cpu,host_memory,home_disk,container_cpu,container_memory)
           Columns to display in table output. Available columns: host cpu, host
           memory, home disk, container cpu, container memory.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
 ———

@@ -8,15 +8,15 @@ coder v0.0.0-devel
   Aliases: ls
 
 [93mOPTIONS:[0m
-  [94m-[0m[94ma[0m, [94m--[0m[94mall[0m bool
+  [96m-[0m[96ma[0m, [96m--[0m[96mall[0m bool
           Specifies whether all users' tokens will be listed or not (must have
           Owner role to see all tokens).
 
-  [94m-[0m[94mc[0m, [94m--[0m[94mcolumn[0m string-array (default: id,name,last used,expires at,created at)
+  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: id,name,last used,expires at,created at)
           Columns to display in table output. Available columns: id, name, last
           used, expires at, created at, owner.
 
-  [94m-[0m[94mo[0m, [94m--[0m[94moutput[0m string (default: table)
+  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
           Output format. Available formats: table, json.
 
 ———

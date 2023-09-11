@@ -6,19 +6,19 @@ coder v0.0.0-devel
   Run a provisioner daemon
 
 [93mOPTIONS:[0m
-  [94m-[0m[94mc[0m, [94m--[0m[94mcache-dir[0m string, [94m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
+  [96m-[0m[96mc[0m, [96m--[0m[96mcache-dir[0m string, [96m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
           Directory to store cached data.
 
-      [94m--[0m[94mpoll-interval[0m duration, [94m$CODER_PROVISIONERD_POLL_INTERVAL[0m (default: 1s)
+      [96m--[0m[96mpoll-interval[0m duration, [96m$CODER_PROVISIONERD_POLL_INTERVAL[0m (default: 1s)
           How often to poll for provisioner jobs.
 
-      [94m--[0m[94mpoll-jitter[0m duration, [94m$CODER_PROVISIONERD_POLL_JITTER[0m (default: 100ms)
+      [96m--[0m[96mpoll-jitter[0m duration, [96m$CODER_PROVISIONERD_POLL_JITTER[0m (default: 100ms)
           How much to jitter the poll interval by.
 
-      [94m--[0m[94mpsk[0m string, [94m$CODER_PROVISIONER_DAEMON_PSK[0m
+      [96m--[0m[96mpsk[0m string, [96m$CODER_PROVISIONER_DAEMON_PSK[0m
           Pre-shared key to authenticate with Coder server.
 
-  [94m-[0m[94mt[0m, [94m--[0m[94mtag[0m string-array, [94m$CODER_PROVISIONERD_TAGS[0m
+  [96m-[0m[96mt[0m, [96m--[0m[96mtag[0m string-array, [96m$CODER_PROVISIONERD_TAGS[0m
           Tags to filter provisioner jobs by.
 
 ———
