@@ -830,6 +830,8 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		// We would need to add more logic to determine this, but for now
 		// just hard code them.
 		switch n.String() {
+		case "github.com/coder/coder/v2/cli/clibase.Regexp":
+			return TypescriptType{ValueType: "string"}, nil
 		case "github.com/coder/coder/v2/cli/clibase.HostPort":
 			// Custom marshal json to be a string
 			return TypescriptType{ValueType: "string"}, nil
