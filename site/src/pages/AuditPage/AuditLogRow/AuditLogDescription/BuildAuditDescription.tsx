@@ -29,15 +29,14 @@ export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
 
   return (
     <span>
-      {user}
+      {user} <strong>{action}</strong> workspace{" "}
       {auditLog.resource_link ? (
         <Link component={RouterLink} to={auditLog.resource_link}>
-          {action}
+          <strong>{workspaceName}</strong>
         </Link>
       ) : (
-        action
+        <strong>{workspaceName}</strong>
       )}
-      {action} workspace {workspaceName}
     </span>
   );
 };

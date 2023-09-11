@@ -28,7 +28,7 @@ export const AuditLogDescription: FC<{ auditLog: AuditLog }> = ({
     auditLog.additional_fields.workspace_owner &&
     auditLog.additional_fields.workspace_owner !== "unknown" &&
     auditLog.additional_fields.workspace_owner.trim() !== user
-      ? `on behalf of ${auditLog.additional_fields.workspace_owner}`
+      ? ` on behalf of ${auditLog.additional_fields.workspace_owner}`
       : "";
 
   return (

@@ -131,9 +131,8 @@ export const WorkspaceParametersForm: FC<{
           title="Immutable parameters"
           description={
             <>
-              These parameters are also provided by your Terraform configuration
-              but they{" "}
-              <strong>cannot be changed after creating the workspace.</strong>
+              These settings <strong>cannot be changed</strong> after creating
+              the workspace.
             </>
           }
         >

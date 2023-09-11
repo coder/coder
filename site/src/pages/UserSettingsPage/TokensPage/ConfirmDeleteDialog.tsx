@@ -36,7 +36,12 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
     <ConfirmDialog
       type="delete"
       title="Delete Token"
-      description={`Are you sure you want to permanently delete token ${tokenName}?`}
+      description={
+        <>
+          Are you sure you want to permanently delete token{" "}
+          <strong>{tokenName}</strong>?
+        </>
+      }
       open={Boolean(token) || isDeleting}
       confirmLoading={isDeleting}
       onConfirm={() => {
