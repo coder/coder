@@ -51,9 +51,11 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     }/terminal?command=${encodeURIComponent(app.command)}`;
   }
 
-  if (appsHost && app.subdomain) {
-    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`;
-    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain);
+  if (appsHost && app.subdomain && app.subdomain_name) {
+    href = `${window.location.protocol}//${appsHost}/`.replace(
+      "*",
+      app.subdomain_name,
+    );
   }
   if (app.external) {
     href = app.url;

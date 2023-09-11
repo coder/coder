@@ -1324,6 +1324,25 @@ func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.Workspace
 func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
+		/*
+		  let appSlug = app.slug;
+		  let appDisplayName = app.display_name;
+		  if (!appSlug) {
+		    appSlug = appDisplayName;
+		  }
+		  if (!appDisplayName) {
+		    appDisplayName = appSlug;
+		  }
+
+
+
+		  if (appsHost && app.subdomain) {
+		    const subdomain = `${appSlug}--${agent.name}--${workspace.name}--${username}`;
+		    href = `${window.location.protocol}//${appsHost}/`.replace("*", subdomain);
+		  }
+
+		*/
+
 		apps = append(apps, codersdk.WorkspaceApp{
 			ID:           dbApp.ID,
 			URL:          dbApp.Url.String,
