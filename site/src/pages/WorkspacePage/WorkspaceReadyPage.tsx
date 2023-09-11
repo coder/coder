@@ -12,7 +12,6 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { quotaMachine } from "xServices/quotas/quotasXService";
 import { StateFrom } from "xstate";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
@@ -39,14 +38,14 @@ import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
-  quotaState: StateFrom<typeof quotaMachine>;
   workspaceSend: (event: WorkspaceEvent) => void;
+  quota?: TypesGen.WorkspaceQuota;
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
-  quotaState,
   workspaceSend,
+  quota,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -188,7 +187,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         sshPrefix={sshPrefix}
         template={template}
-        quota_budget={quotaState.context.quota?.budget}
+        quota_budget={quota?.budget}
         templateWarnings={templateVersion?.warnings}
         buildLogs={
           shouldDisplayBuildLogs && (

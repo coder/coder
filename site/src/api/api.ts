@@ -963,9 +963,9 @@ export const deleteGroup = async (groupId: string): Promise<void> => {
 };
 
 export const getWorkspaceQuota = async (
-  userID: string,
+  username: string,
 ): Promise<TypesGen.WorkspaceQuota> => {
-  const response = await axios.get(`/api/v2/workspace-quota/${userID}`);
+  const response = await axios.get(`/api/v2/workspace-quota/${username}`);
   return response.data;
 };
 
