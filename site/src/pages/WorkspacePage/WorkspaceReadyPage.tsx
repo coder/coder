@@ -4,7 +4,6 @@ import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   getDeadline,
@@ -75,7 +74,6 @@ export const WorkspaceReadyPage = ({
   const canRetryDebugMode =
     Boolean(permissions?.viewDeploymentValues) &&
     Boolean(deploymentValues?.enable_terraform_debug_mode);
-  const { t } = useTranslation("workspacePage");
   const favicon = getFaviconByStatus(workspace.latest_build);
   const navigate = useNavigate();
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
@@ -199,9 +197,9 @@ export const WorkspaceReadyPage = ({
       <DeleteDialog
         entity="workspace"
         name={workspace.name}
-        info={t("deleteDialog.info", {
-          timeAgo: dayjs(workspace.created_at).fromNow(),
-        }).toString()}
+        info={`This workspace was created ${dayjs(
+          workspace.created_at,
+        ).fromNow()}.`}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {

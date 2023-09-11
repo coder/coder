@@ -11,7 +11,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { useTranslation } from "react-i18next";
 
 type AgentOutdatedTooltipProps = ComponentProps<typeof HelpPopover> & {
   agent: WorkspaceAgent;
@@ -30,7 +29,6 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   anchorEl,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("workspacePage");
 
   return (
     <HelpPopover
@@ -43,25 +41,21 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
       <HelpTooltipContext.Provider value={{ open, onClose }}>
         <Stack spacing={1}>
           <div>
-            <HelpTooltipTitle>
-              {t("agentOutdatedTooltip.title")}
-            </HelpTooltipTitle>
+            <HelpTooltipTitle>Agent Outdated</HelpTooltipTitle>
             <HelpTooltipText>
-              {t("agentOutdatedTooltip.description")}
+              This agent is an older version than the Coder server. This can
+              happen after you update Coder with running workspaces. To fix
+              this, you can stop and start the workspace.
             </HelpTooltipText>
           </div>
 
           <Stack spacing={0.5}>
-            <span className={styles.versionLabel}>
-              {t("agentOutdatedTooltip.agentVersionLabel")}
-            </span>
+            <span className={styles.versionLabel}>Agent version</span>
             <span>{agent.version}</span>
           </Stack>
 
           <Stack spacing={0.5}>
-            <span className={styles.versionLabel}>
-              {t("agentOutdatedTooltip.serverVersionLabel")}
-            </span>
+            <span className={styles.versionLabel}>Server version</span>
             <span>{serverVersion}</span>
           </Stack>
 
@@ -71,7 +65,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
               onClick={onUpdate}
               ariaLabel="Update workspace"
             >
-              {t("agentOutdatedTooltip.updateWorkspaceLabel")}
+              Update workspace
             </HelpTooltipAction>
           </HelpTooltipLinksGroup>
         </Stack>

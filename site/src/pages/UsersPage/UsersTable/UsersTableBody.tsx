@@ -4,8 +4,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
-import { FC } from "react";
-import { useTranslation } from "react-i18next";
+import { FC, ReactNode } from "react";
 import * as TypesGen from "../../../api/typesGenerated";
 import { combineClasses } from "../../../utils/combineClasses";
 import { AvatarData } from "../../../components/AvatarData/AvatarData";
@@ -91,7 +90,6 @@ export const UsersTableBody: FC<
   oidcRoleSyncEnabled,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("usersPage");
 
   return (
     <ChooseOne>
@@ -126,7 +124,7 @@ export const UsersTableBody: FC<
             <TableRow>
               <TableCell colSpan={999}>
                 <Box p={4}>
-                  <EmptyState message={t("emptyPageMessage")} />
+                  <EmptyState message="No users found on this page" />
                 </Box>
               </TableCell>
             </TableRow>
@@ -135,7 +133,7 @@ export const UsersTableBody: FC<
             <TableRow>
               <TableCell colSpan={999}>
                 <Box p={4}>
-                  <EmptyState message={t("emptyMessage")} />
+                  <EmptyState message="No users found" />
                 </Box>
               </TableCell>
             </TableRow>
@@ -222,35 +220,31 @@ export const UsersTableBody: FC<
                           (user.status === "active" || user.status === "dormant"
                             ? [
                                 {
-                                  label: t(
-                                    "suspendMenuItem",
-                                  ) as React.ReactNode,
+                                  label: "Suspend" as ReactNode,
                                   onClick: onSuspendUser,
                                   disabled: false,
                                 },
                               ]
                             : [
                                 {
-                                  label: t(
-                                    "activateMenuItem",
-                                  ) as React.ReactNode,
+                                  label: "Activate" as ReactNode,
                                   onClick: onActivateUser,
                                   disabled: false,
                                 },
                               ]
                           ).concat(
                             {
-                              label: t("deleteMenuItem"),
+                              label: "Delete",
                               onClick: onDeleteUser,
                               disabled: user.id === actorID,
                             },
                             {
-                              label: t("resetPasswordMenuItem"),
+                              label: "Reset password",
                               onClick: onResetUserPassword,
                               disabled: user.login_type !== "password",
                             },
                             {
-                              label: t("listWorkspacesMenuItem"),
+                              label: "View workspaces",
                               onClick: onListWorkspaces,
                               disabled: false,
                             },

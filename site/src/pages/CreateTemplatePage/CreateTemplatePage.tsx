@@ -8,7 +8,6 @@ import { Stack } from "components/Stack/Stack";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService";
@@ -16,7 +15,6 @@ import { CreateTemplateForm } from "./CreateTemplateForm";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const CreateTemplatePage: FC = () => {
-  const { t } = useTranslation("createTemplatePage");
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();
@@ -57,7 +55,7 @@ const CreateTemplatePage: FC = () => {
         <title>{pageTitle("Create Template")}</title>
       </Helmet>
 
-      <FullPageHorizontalForm title={t("title")} onCancel={onCancel}>
+      <FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
         <Maybe condition={state.hasTag("loading")}>
           <Loader />
         </Maybe>

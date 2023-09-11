@@ -18,7 +18,6 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import { Timeline } from "components/Timeline/Timeline";
 import { AuditHelpTooltip } from "./AuditHelpTooltip";
 import { ComponentProps, FC } from "react";
-import { useTranslation } from "react-i18next";
 import { AuditPaywall } from "./AuditPaywall";
 import { AuditFilter } from "./AuditFilter";
 import {
@@ -55,8 +54,6 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
   error,
   filterProps,
 }) => {
-  const { t } = useTranslation("auditLog");
-
   const isLoading = (auditLogs === undefined || count === undefined) && !error;
   const isEmpty = !isLoading && auditLogs?.length === 0;
 
@@ -93,7 +90,7 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                   <Cond condition={Boolean(error)}>
                     <TableRow>
                       <TableCell colSpan={999}>
-                        <EmptyState message={t("table.noLogs")} />
+                        <EmptyState message="An error occurred while loading audit logs" />
                       </TableCell>
                     </TableRow>
                   </Cond>
@@ -105,14 +102,14 @@ export const AuditPageView: FC<AuditPageViewProps> = ({
                       <Cond condition={isNonInitialPage}>
                         <TableRow>
                           <TableCell colSpan={999}>
-                            <EmptyState message={t("table.emptyPage")} />
+                            <EmptyState message="No audit logs available on this page" />
                           </TableCell>
                         </TableRow>
                       </Cond>
                       <Cond>
                         <TableRow>
                           <TableCell colSpan={999}>
-                            <EmptyState message={t("table.noLogs")} />
+                            <EmptyState message="No audit logs available" />
                           </TableCell>
                         </TableRow>
                       </Cond>

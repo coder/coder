@@ -2,7 +2,6 @@ import IconButton from "@mui/material/IconButton";
 import { EditSquare } from "components/Icons/EditSquare";
 import { useRef, useState, FC } from "react";
 import { makeStyles } from "@mui/styles";
-import { useTranslation } from "react-i18next";
 import Popover from "@mui/material/Popover";
 import { Stack } from "components/Stack/Stack";
 import Checkbox from "@mui/material/Checkbox";
@@ -14,6 +13,16 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Maybe } from "components/Conditionals/Maybe";
+
+const roleDescriptions: Record<string, string> = {
+  owner:
+    "Owner can manage all resources, including users, groups, templates, and workspaces.",
+  "user-admin": "User admin can manage all users and groups.",
+  "template-admin": "Template admin can manage all templates and workspaces.",
+  auditor: "Auditor can access the audit logs.",
+  member:
+    "Everybody is a member. This is a shared and default role for all users.",
+};
 
 const Option: React.FC<{
   value: string;
@@ -66,7 +75,6 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
   oidcRoleSync,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("usersPage");
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(defaultIsOpen);
   const id = isOpen ? "edit-roles-popover" : undefined;
@@ -91,7 +99,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
           ref={anchorRef}
           size="small"
           className={styles.editButton}
-          title={t("editUserRolesTooltip") || ""}
+          title="Edit user roles"
           onClick={() => setIsOpen(true)}
         >
           <EditSquare />
@@ -124,7 +132,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         <fieldset
           className={styles.fieldset}
           disabled={isLoading}
-          title={t("fieldSetRolesTooltip") || ""}
+          title="Available roles"
         >
           <Stack className={styles.options} spacing={3}>
             {roles.map((role) => (
@@ -134,7 +142,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
                 isChecked={selectedRoleNames.includes(role.name)}
                 value={role.name}
                 name={role.display_name}
-                description={t(`roleDescription.${role.name}`)}
+                description={roleDescriptions[role.name] ?? ""}
               />
             ))}
           </Stack>
@@ -143,9 +151,9 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
           <Stack direction="row" alignItems="flex-start">
             <UserIcon className={styles.userIcon} />
             <Stack spacing={0}>
-              <strong>{t("member")}</strong>
+              <strong>Member</strong>
               <span className={styles.optionDescription}>
-                {t("roleDescription.member")}
+                {roleDescriptions.member}
               </span>
             </Stack>
           </Stack>

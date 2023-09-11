@@ -13,7 +13,6 @@ import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useState } from "react";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
-import { useTranslation } from "react-i18next";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { PaletteIndex } from "theme/theme";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
@@ -46,7 +45,6 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
   defaultIsDiffOpen = false,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("auditLog");
   const [isDiffOpen, setIsDiffOpen] = useState(defaultIsDiffOpen);
   const diffs = Object.entries(auditLog.diff);
   const shouldDisplayDiff = diffs.length > 0;
@@ -114,7 +112,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <AuditLogDescription auditLog={auditLog} />
                   {auditLog.is_deleted && (
                     <span className={styles.deletedLabel}>
-                      <>{t("table.logRow.deletedLabel")}</>
+                      <>(deleted)</>
                     </span>
                   )}
                   <span className={styles.auditLogTime}>
@@ -126,19 +124,19 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
                   <Stack direction="row" spacing={1} alignItems="baseline">
                     {auditLog.ip && (
                       <span className={styles.auditLogInfo}>
-                        <>{t("table.logRow.ip")}</>
+                        <>IP: </>
                         <strong>{auditLog.ip}</strong>
                       </span>
                     )}
                     {os.name && (
                       <span className={styles.auditLogInfo}>
-                        <>{t("table.logRow.os")}</>
+                        <>OS: </>
                         <strong>{os.name}</strong>
                       </span>
                     )}
                     {browser.name && (
                       <span className={styles.auditLogInfo}>
-                        <>{t("table.logRow.browser")}</>
+                        <>Browser: </>
                         <strong>
                           {browser.name} {browser.version}
                         </strong>

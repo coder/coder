@@ -2,7 +2,6 @@ import { makeStyles } from "@mui/styles";
 import { FormikTouched } from "formik";
 import { FC, useState } from "react";
 import { AuthMethods } from "api/typesGenerated";
-import { useTranslation } from "react-i18next";
 import { Maybe } from "components/Conditionals/Maybe";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
@@ -92,14 +91,11 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
   const styles = useStyles();
-  const commonTranslation = useTranslation("common");
-  const loginPageTranslation = useTranslation("loginPage");
 
   return (
     <div className={styles.root}>
       <h1 className={styles.title}>
-        {loginPageTranslation.t("signInTo")}{" "}
-        <strong>{commonTranslation.t("coder")}</strong>
+        Sign in to <strong>Coder</strong>
       </h1>
       <Maybe condition={error !== undefined}>
         <div className={styles.alert}>
@@ -150,7 +146,7 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
           onClick={() => setShowPasswordAuth(true)}
           startIcon={<EmailIcon className={styles.icon} />}
         >
-          {loginPageTranslation.t("showPassword")}
+          Email and password
         </Button>
       </Maybe>
     </div>
