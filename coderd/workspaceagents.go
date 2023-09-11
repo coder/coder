@@ -1326,7 +1326,7 @@ func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, 
 	for _, dbApp := range dbApps {
 		var subdomainName string
 		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
-			var appSlug = dbApp.Slug
+			appSlug := dbApp.Slug
 			if appSlug == "" {
 				appSlug = dbApp.DisplayName
 			}
