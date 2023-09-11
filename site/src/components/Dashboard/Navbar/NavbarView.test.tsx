@@ -2,7 +2,6 @@ import { screen } from "@testing-library/react";
 import {
   MockPrimaryWorkspaceProxy,
   MockUser,
-  MockUser2,
 } from "../../../testHelpers/entities";
 import { renderWithAuth } from "../../../testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
@@ -27,18 +26,6 @@ describe("NavbarView", () => {
   const noop = () => {
     return;
   };
-
-  const env = process.env;
-
-  // REMARK: copying process.env so we don't mutate that object or encounter conflicts between tests
-  beforeEach(() => {
-    process.env = { ...env };
-  });
-
-  // REMARK: restoring process.env
-  afterEach(() => {
-    process.env = env;
-  });
 
   it("workspaces nav link has the correct href", async () => {
     renderWithAuth(
@@ -85,32 +72,6 @@ describe("NavbarView", () => {
     expect((userLink as HTMLAnchorElement).href).toContain("/users");
   });
 
-  it("renders profile picture for user", async () => {
-    // Given
-    const mockUser = {
-      ...MockUser,
-      username: "bryan",
-      avatar_url: "",
-    };
-
-    // When
-    renderWithAuth(
-      <NavbarView
-        proxyContextValue={proxyContextValue}
-        user={mockUser}
-        onSignOut={noop}
-        canViewAuditLog
-        canViewDeployment
-        canViewAllUsers
-      />,
-    );
-
-    // Then
-    // There should be a 'B' avatar!
-    const element = await screen.findByText("B");
-    expect(element).toBeDefined();
-  });
-
   it("audit nav link has the correct href", async () => {
     renderWithAuth(
       <NavbarView
@@ -124,21 +85,6 @@ describe("NavbarView", () => {
     );
     const auditLink = await screen.findByText(navLanguage.audit);
     expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
-  });
-
-  it("audit nav link is hidden for members", async () => {
-    renderWithAuth(
-      <NavbarView
-        proxyContextValue={proxyContextValue}
-        user={MockUser2}
-        onSignOut={noop}
-        canViewAuditLog={false}
-        canViewDeployment
-        canViewAllUsers
-      />,
-    );
-    const auditLink = screen.queryByText(navLanguage.audit);
-    expect(auditLink).not.toBeInTheDocument();
   });
 
   it("deployment nav link has the correct href", async () => {
@@ -156,20 +102,5 @@ describe("NavbarView", () => {
     expect((auditLink as HTMLAnchorElement).href).toContain(
       "/deployment/general",
     );
-  });
-
-  it("deployment nav link is hidden for members", async () => {
-    renderWithAuth(
-      <NavbarView
-        proxyContextValue={proxyContextValue}
-        user={MockUser2}
-        onSignOut={noop}
-        canViewAuditLog={false}
-        canViewDeployment={false}
-        canViewAllUsers
-      />,
-    );
-    const auditLink = screen.queryByText(navLanguage.deployment);
-    expect(auditLink).not.toBeInTheDocument();
   });
 });

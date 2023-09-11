@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/pretty"
 )
 
 type WorkspaceResourcesOptions struct {
@@ -78,7 +79,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 
 		// Display a line for the resource.
 		tableWriter.AppendRow(table.Row{
-			DefaultStyles.Bold.Render(resourceAddress),
+			Bold(resourceAddress),
 			"",
 			"",
 			"",
@@ -107,7 +108,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 				if totalAgents > 1 {
 					sshCommand += "." + agent.Name
 				}
-				sshCommand = DefaultStyles.Code.Render(sshCommand)
+				sshCommand = pretty.Sprint(DefaultStyles.Code, sshCommand)
 				row = append(row, sshCommand)
 			}
 			tableWriter.AppendRow(row)
@@ -122,31 +123,31 @@ func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
 	switch agent.Status {
 	case codersdk.WorkspaceAgentConnecting:
 		since := dbtime.Now().Sub(agent.CreatedAt)
-		return DefaultStyles.Warn.Render("⦾ connecting") + " " +
-			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+		return pretty.Sprint(DefaultStyles.Warn, "⦾ connecting") + " " +
+			pretty.Sprint(DefaultStyles.Placeholder, "["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentDisconnected:
 		since := dbtime.Now().Sub(*agent.DisconnectedAt)
-		return DefaultStyles.Error.Render("⦾ disconnected") + " " +
-			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]")
+		return pretty.Sprint(DefaultStyles.Error, "⦾ disconnected") + " " +
+			pretty.Sprint(DefaultStyles.Placeholder, "["+strconv.Itoa(int(since.Seconds()))+"s]")
 	case codersdk.WorkspaceAgentTimeout:
 		since := dbtime.Now().Sub(agent.CreatedAt)
 		return fmt.Sprintf(
 			"%s %s",
-			DefaultStyles.Warn.Render("⦾ timeout"),
-			DefaultStyles.Placeholder.Render("["+strconv.Itoa(int(since.Seconds()))+"s]"),
+			pretty.Sprint(DefaultStyles.Warn, "⦾ timeout"),
+			pretty.Sprint(DefaultStyles.Placeholder, "["+strconv.Itoa(int(since.Seconds()))+"s]"),
 		)
 	case codersdk.WorkspaceAgentConnected:
-		return DefaultStyles.Keyword.Render("⦿ connected")
+		return pretty.Sprint(DefaultStyles.Keyword, "⦿ connected")
 	default:
-		return DefaultStyles.Warn.Render("○ unknown")
+		return pretty.Sprint(DefaultStyles.Warn, "○ unknown")
 	}
 }
 
 func renderAgentHealth(agent codersdk.WorkspaceAgent) string {
 	if agent.Health.Healthy {
-		return DefaultStyles.Keyword.Render("✔ healthy")
+		return pretty.Sprint(DefaultStyles.Keyword, "✔ healthy")
 	}
-	return DefaultStyles.Error.Render("✘ " + agent.Health.Reason)
+	return pretty.Sprint(DefaultStyles.Error, "✘ "+agent.Health.Reason)
 }
 
 func renderAgentVersion(agentVersion, serverVersion string) string {
@@ -154,11 +155,11 @@ func renderAgentVersion(agentVersion, serverVersion string) string {
 		agentVersion = "(unknown)"
 	}
 	if !semver.IsValid(serverVersion) || !semver.IsValid(agentVersion) {
-		return DefaultStyles.Placeholder.Render(agentVersion)
+		return pretty.Sprint(DefaultStyles.Placeholder, agentVersion)
 	}
 	outdated := semver.Compare(agentVersion, serverVersion) < 0
 	if outdated {
-		return DefaultStyles.Warn.Render(agentVersion + " (outdated)")
+		return pretty.Sprint(DefaultStyles.Warn, agentVersion+" (outdated)")
 	}
-	return DefaultStyles.Keyword.Render(agentVersion)
+	return pretty.Sprint(DefaultStyles.Keyword, agentVersion)
 }

@@ -1,7 +1,7 @@
 import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
-import TextField from "@mui/material/TextField";
+import TextField, { TextFieldProps } from "@mui/material/TextField";
 import { OpenDropdown } from "components/DropdownArrows/DropdownArrows";
 import { useRef, FC, useState } from "react";
 import Picker from "@emoji-mart/react";
@@ -9,8 +9,11 @@ import { makeStyles } from "@mui/styles";
 import { colors } from "theme/colors";
 import { useTranslation } from "react-i18next";
 import data from "@emoji-mart/data/sets/14/twitter.json";
-import { IconFieldProps } from "./types";
 import { Stack } from "components/Stack/Stack";
+
+type IconFieldProps = TextFieldProps & {
+  onPickEmoji: (value: string) => void;
+};
 
 const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   if (

@@ -30,6 +30,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
@@ -42,7 +44,7 @@ import (
 )
 
 var (
-	Caret = cliui.DefaultStyles.Prompt.String()
+	Caret = pretty.Sprint(cliui.DefaultStyles.Prompt, "")
 
 	// Applied as annotations to workspace commands
 	// so they display in a separated "help" section.
@@ -581,15 +583,13 @@ func (r *RootCmd) initClientInternal(client *codersdk.Client, allowTokenMissing 
 			if err = <-versionErr; err != nil {
 				// Just log the error here. We never want to fail a command
 				// due to a pre-run.
-				_, _ = fmt.Fprintf(inv.Stderr,
-					cliui.DefaultStyles.Warn.Render("check versions error: %s"), err)
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check versions error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
 			if err = <-warningErr; err != nil {
 				// Same as above
-				_, _ = fmt.Fprintf(inv.Stderr,
-					cliui.DefaultStyles.Warn.Render("check entitlement warnings error: %s"), err)
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Warn, "check entitlement warnings error: %s", err)
 				_, _ = fmt.Fprintln(inv.Stderr)
 			}
 
@@ -753,18 +753,18 @@ type example struct {
 func formatExamples(examples ...example) string {
 	var sb strings.Builder
 
-	padStyle := cliui.DefaultStyles.Wrap.Copy().PaddingLeft(4)
+	padStyle := cliui.DefaultStyles.Wrap.With(pretty.XPad(4, 0))
 	for i, e := range examples {
 		if len(e.Description) > 0 {
 			wordwrap.WrapString(e.Description, 80)
 			_, _ = sb.WriteString(
-				"  - " + padStyle.Render(e.Description + ":")[4:] + "\n\n    ",
+				"  - " + pretty.Sprint(padStyle, e.Description+":")[4:] + "\n\n    ",
 			)
 		}
 		// We add 1 space here because `cliui.DefaultStyles.Code` adds an extra
 		// space. This makes the code block align at an even 2 or 6
 		// spaces for symmetry.
-		_, _ = sb.WriteString(" " + cliui.DefaultStyles.Code.Render(fmt.Sprintf("$ %s", e.Command)))
+		_, _ = sb.WriteString(" " + pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("$ %s", e.Command)))
 		if i < len(examples)-1 {
 			_, _ = sb.WriteString("\n\n")
 		}
@@ -802,8 +802,8 @@ func (r *RootCmd) checkVersions(i *clibase.Invocation, client *codersdk.Client) 
 	}
 
 	if !buildinfo.VersionsMatch(clientVersion, info.Version) {
-		warn := cliui.DefaultStyles.Warn.Copy().Align(lipgloss.Left)
-		_, _ = fmt.Fprintf(i.Stderr, warn.Render(fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
+		warn := cliui.DefaultStyles.Warn
+		_, _ = fmt.Fprintf(i.Stderr, pretty.Sprint(warn, fmtWarningText), clientVersion, info.Version, strings.TrimPrefix(info.CanonicalVersion(), "v"))
 		_, _ = fmt.Fprintln(i.Stderr)
 	}
 
@@ -821,7 +821,7 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 	entitlements, err := client.Entitlements(ctx)
 	if err == nil {
 		for _, w := range entitlements.Warnings {
-			_, _ = fmt.Fprintln(i.Stderr, cliui.DefaultStyles.Warn.Render(w))
+			_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
 		}
 	}
 	return nil
@@ -1022,7 +1022,7 @@ func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...
 
 //nolint:unused
 func SlimUnsupported(w io.Writer, cmd string) {
-	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", cliui.DefaultStyles.Code.Render(cmd))
+	_, _ = fmt.Fprintf(w, "You are using a 'slim' build of Coder, which does not support the %s subcommand.\n", pretty.Sprint(cliui.DefaultStyles.Code, cmd))
 	_, _ = fmt.Fprintln(w, "")
 	_, _ = fmt.Fprintln(w, "Please use a build of Coder from GitHub releases:")
 	_, _ = fmt.Fprintln(w, "  https://github.com/coder/coder/releases")

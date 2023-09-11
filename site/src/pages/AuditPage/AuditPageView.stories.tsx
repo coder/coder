@@ -1,7 +1,6 @@
 import { Meta, StoryObj } from "@storybook/react";
 import { MockAuditLog, MockAuditLog2, MockUser } from "testHelpers/entities";
 import { AuditPageView } from "./AuditPageView";
-import { WorkspacesPageView } from "pages/WorkspacesPage/WorkspacesPageView";
 import { ComponentProps } from "react";
 import {
   MockMenu,
@@ -38,7 +37,7 @@ const meta: Meta<typeof AuditPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof WorkspacesPageView>;
+type Story = StoryObj<typeof AuditPageView>;
 
 export const AuditPage: Story = {};
 

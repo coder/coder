@@ -1,8 +1,8 @@
-import { Story } from "@storybook/react";
-import { PaginationWidget, PaginationWidgetProps } from "./PaginationWidget";
+import { PaginationWidget } from "./PaginationWidget";
 import { createPaginationRef } from "./utils";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof PaginationWidget> = {
   title: "components/PaginationWidget",
   component: PaginationWidget,
   args: {
@@ -13,28 +13,31 @@ export default {
   },
 };
 
-const Template: Story<PaginationWidgetProps> = (
-  args: PaginationWidgetProps,
-) => <PaginationWidget {...args} />;
+export default meta;
+type Story = StoryObj<typeof PaginationWidget>;
 
-export const LessThan8Pages = Template.bind({});
-LessThan8Pages.args = {
-  numRecords: 84,
+export const MoreThan8Pages: Story = {};
+
+export const LessThan8Pages: Story = {
+  args: {
+    numRecords: 84,
+  },
 };
 
-export const MoreThan8Pages = Template.bind({});
-
-export const MoreThan7PagesWithActivePageCloseToStart = Template.bind({});
-MoreThan7PagesWithActivePageCloseToStart.args = {
-  paginationRef: createPaginationRef({ page: 2, limit: 12 }),
+export const MoreThan7PagesWithActivePageCloseToStart: Story = {
+  args: {
+    paginationRef: createPaginationRef({ page: 2, limit: 12 }),
+  },
 };
 
-export const MoreThan7PagesWithActivePageFarFromBoundaries = Template.bind({});
-MoreThan7PagesWithActivePageFarFromBoundaries.args = {
-  paginationRef: createPaginationRef({ page: 4, limit: 12 }),
+export const MoreThan7PagesWithActivePageFarFromBoundaries: Story = {
+  args: {
+    paginationRef: createPaginationRef({ page: 4, limit: 12 }),
+  },
 };
 
-export const MoreThan7PagesWithActivePageCloseToEnd = Template.bind({});
-MoreThan7PagesWithActivePageCloseToEnd.args = {
-  paginationRef: createPaginationRef({ page: 17, limit: 12 }),
+export const MoreThan7PagesWithActivePageCloseToEnd: Story = {
+  args: {
+    paginationRef: createPaginationRef({ page: 17, limit: 12 }),
+  },
 };

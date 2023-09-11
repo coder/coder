@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -144,11 +146,13 @@ func (r *RootCmd) templateCreate() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+cliui.DefaultStyles.Wrap.Render(
-				"The "+cliui.DefaultStyles.Keyword.Render(templateName)+" template has been created at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"! "+
+			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
+				"The "+pretty.Sprint(
+					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
+					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
 					"Developers can provision a workspace with this template using:")+"\n")
 
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.DefaultStyles.Code.Render(fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
+			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q [workspace name]", templateName)))
 			_, _ = fmt.Fprintln(inv.Stdout)
 
 			return nil
@@ -331,12 +335,12 @@ func prettyDirectoryPath(dir string) string {
 	if err != nil {
 		return dir
 	}
-	pretty := dir
-	if strings.HasPrefix(pretty, homeDir) {
-		pretty = strings.TrimPrefix(pretty, homeDir)
-		pretty = "~" + pretty
+	prettyDir := dir
+	if strings.HasPrefix(prettyDir, homeDir) {
+		prettyDir = strings.TrimPrefix(prettyDir, homeDir)
+		prettyDir = "~" + prettyDir
 	}
-	return pretty
+	return prettyDir
 }
 
 func ParseProvisionerTags(rawTags []string) (map[string]string, error) {

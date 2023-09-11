@@ -23,7 +23,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import {
   TemplateAutostopRequirementDaysValue,
   calculateAutostopRequirementDaysValue,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/TemplateScheduleForm/AutostopRequirementHelperText";
+} from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import { delay } from "utils/delay";
 import { assign, createMachine } from "xstate";
 

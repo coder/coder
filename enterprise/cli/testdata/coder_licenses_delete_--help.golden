@@ -1,8 +1,11 @@
-Usage: coder licenses delete <id>
+coder v0.0.0-devel
 
-Delete license by ID
+[93mUSAGE:[0m
+  coder licenses delete <id>
 
-Aliases: del, rm
+  Delete license by ID
 
----
+  Aliases: del, rm
+
+———
 Run `coder --help` for a list of global options.

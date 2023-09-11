@@ -30,12 +30,14 @@ import {
 import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
 import { GitAuth } from "./GitAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Stack } from "components/Stack/Stack";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
   defaultName: string;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
+  versionId?: string;
   gitAuth: TypesGen.TemplateVersionGitAuth[];
   parameters: TypesGen.TemplateVersionParameter[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
@@ -53,6 +55,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   defaultName,
   defaultOwner,
   template,
+  versionId,
   gitAuth,
   parameters,
   defaultBuildParameters,
@@ -115,6 +118,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
+            {versionId && (
+              <Stack spacing={1} className={styles.hasDescription}>
+                <TextField
+                  disabled
+                  fullWidth
+                  value={versionId}
+                  label={t("versionLabel")}
+                />
+                <span className={styles.description}>
+                  This parameter has been preset, and cannot be modified.
+                </span>
+              </Stack>
+            )}
             <TextField
               {...getFieldHelpers("name")}
               disabled={form.isSubmitting}
@@ -252,6 +268,13 @@ const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
 };
 
 const useStyles = makeStyles((theme) => ({
+  hasDescription: {
+    paddingBottom: theme.spacing(2),
+  },
+  description: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  },
   warningText: {
     color: theme.palette.warning.light,
   },

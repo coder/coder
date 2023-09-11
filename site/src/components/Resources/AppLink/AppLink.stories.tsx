@@ -1,4 +1,3 @@
-import { Story } from "@storybook/react";
 import {
   MockPrimaryWorkspaceProxy,
   MockWorkspaceProxies,
@@ -7,116 +6,132 @@ import {
   MockWorkspaceApp,
   MockProxyLatencies,
 } from "testHelpers/entities";
-import { AppLink, AppLinkProps } from "./AppLink";
+import { AppLink } from "./AppLink";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof AppLink> = {
   title: "components/AppLink",
   component: AppLink,
+  decorators: [
+    (Story) => (
+      <ProxyContext.Provider
+        value={{
+          proxyLatencies: MockProxyLatencies,
+          proxy: getPreferredProxy(
+            MockWorkspaceProxies,
+            MockPrimaryWorkspaceProxy,
+          ),
+          proxies: MockWorkspaceProxies,
+          isLoading: false,
+          isFetched: true,
+          setProxy: () => {
+            return;
+          },
+          clearProxy: () => {
+            return;
+          },
+          refetchProxyLatencies: (): Date => {
+            return new Date();
+          },
+        }}
+      >
+        <Story />
+      </ProxyContext.Provider>
+    ),
+  ],
 };
 
-const Template: Story<AppLinkProps> = (args) => (
-  <ProxyContext.Provider
-    value={{
-      proxyLatencies: MockProxyLatencies,
-      proxy: getPreferredProxy(MockWorkspaceProxies, MockPrimaryWorkspaceProxy),
-      proxies: MockWorkspaceProxies,
-      isLoading: false,
-      isFetched: true,
-      setProxy: () => {
-        return;
-      },
-      clearProxy: () => {
-        return;
-      },
-      refetchProxyLatencies: (): Date => {
-        return new Date();
-      },
-    }}
-  >
-    <AppLink {...args} />
-  </ProxyContext.Provider>
-);
+export default meta;
+type Story = StoryObj<typeof AppLink>;
 
-export const WithIcon = Template.bind({});
-WithIcon.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    icon: "/icon/code.svg",
-    sharing_level: "owner",
-    health: "healthy",
+export const WithIcon: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      icon: "/icon/code.svg",
+      sharing_level: "owner",
+      health: "healthy",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const ExternalApp = Template.bind({});
-ExternalApp.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    external: true,
+export const ExternalApp: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      external: true,
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const SharingLevelOwner = Template.bind({});
-SharingLevelOwner.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    sharing_level: "owner",
+export const SharingLevelOwner: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      sharing_level: "owner",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const SharingLevelAuthenticated = Template.bind({});
-SharingLevelAuthenticated.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    sharing_level: "authenticated",
+export const SharingLevelAuthenticated: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      sharing_level: "authenticated",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const SharingLevelPublic = Template.bind({});
-SharingLevelPublic.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    sharing_level: "public",
+export const SharingLevelPublic: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      sharing_level: "public",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const HealthDisabled = Template.bind({});
-HealthDisabled.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    sharing_level: "owner",
-    health: "disabled",
+export const HealthDisabled: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      sharing_level: "owner",
+      health: "disabled",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const HealthInitializing = Template.bind({});
-HealthInitializing.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    health: "initializing",
+export const HealthInitializing: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      health: "initializing",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };
 
-export const HealthUnhealthy = Template.bind({});
-HealthUnhealthy.args = {
-  workspace: MockWorkspace,
-  app: {
-    ...MockWorkspaceApp,
-    health: "unhealthy",
+export const HealthUnhealthy: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      health: "unhealthy",
+    },
+    agent: MockWorkspaceAgent,
   },
-  agent: MockWorkspaceAgent,
 };

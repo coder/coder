@@ -1,15 +1,17 @@
-import { Story } from "@storybook/react";
 import { MockWorkspace } from "testHelpers/entities";
-import { TerminalLink, TerminalLinkProps } from "./TerminalLink";
+import { TerminalLink } from "./TerminalLink";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TerminalLink> = {
   title: "components/TerminalLink",
   component: TerminalLink,
 };
 
-const Template: Story<TerminalLinkProps> = (args) => <TerminalLink {...args} />;
+export default meta;
+type Story = StoryObj<typeof TerminalLink>;
 
-export const Example = Template.bind({});
-Example.args = {
-  workspaceName: MockWorkspace.name,
+export const Example: Story = {
+  args: {
+    workspaceName: MockWorkspace.name,
+  },
 };

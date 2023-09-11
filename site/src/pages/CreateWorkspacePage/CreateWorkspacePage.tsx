@@ -42,6 +42,7 @@ const CreateWorkspacePage: FC = () => {
       defaultBuildParameters,
       defaultName:
         mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "",
+      versionId: searchParams.get("version") ?? undefined,
     },
     actions: {
       onCreateWorkspace: (_, event) => {
@@ -49,8 +50,15 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   });
-  const { template, error, parameters, permissions, gitAuth, defaultName } =
-    createWorkspaceState.context;
+  const {
+    template,
+    error,
+    parameters,
+    permissions,
+    gitAuth,
+    defaultName,
+    versionId,
+  } = createWorkspaceState.context;
   const title = createWorkspaceState.matches("autoCreating")
     ? "Creating workspace..."
     : "Create Workspace";
@@ -74,6 +82,7 @@ const CreateWorkspacePage: FC = () => {
           defaultBuildParameters={defaultBuildParameters}
           error={error}
           template={template as Template}
+          versionId={versionId}
           gitAuth={gitAuth as TemplateVersionGitAuth[]}
           permissions={permissions as CreateWSPermissions}
           parameters={parameters as TemplateVersionParameter[]}

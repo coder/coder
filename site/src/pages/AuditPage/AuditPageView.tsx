@@ -4,7 +4,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import { AuditLog } from "api/typesGenerated";
-import { AuditLogRow } from "pages/AuditPage/AuditLogRow/AuditLogRow";
+import { AuditLogRow } from "./AuditLogRow/AuditLogRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";

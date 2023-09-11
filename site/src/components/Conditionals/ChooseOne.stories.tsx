@@ -1,46 +1,71 @@
-import { Story } from "@storybook/react";
+import { Meta, StoryObj } from "@storybook/react";
 import { ChooseOne, Cond } from "./ChooseOne";
 
-export default {
+const meta: Meta<typeof ChooseOne> = {
   title: "components/Conditionals/ChooseOne",
   component: ChooseOne,
-  subcomponents: { Cond },
 };
 
-export const FirstIsTrue: Story = () => (
-  <ChooseOne>
-    <Cond condition>The first one shows.</Cond>
-    <Cond condition={false}>The second one does not show.</Cond>
-    <Cond>The default does not show.</Cond>
-  </ChooseOne>
-);
+export default meta;
+type Story = StoryObj<typeof ChooseOne>;
 
-export const SecondIsTrue: Story = () => (
-  <ChooseOne>
-    <Cond condition={false}>The first one does not show.</Cond>
-    <Cond condition>The second one shows.</Cond>
-    <Cond>The default does not show.</Cond>
-  </ChooseOne>
-);
+export const FirstIsTrue: Story = {
+  args: {
+    children: [
+      <Cond key="1" condition>
+        The first one shows.
+      </Cond>,
+      <Cond key="2" condition={false}>
+        The second one does not show.
+      </Cond>,
+      <Cond key="3">The default does not show.</Cond>,
+    ],
+  },
+};
 
-export const AllAreTrue: Story = () => (
-  <ChooseOne>
-    <Cond condition>Only the first one shows.</Cond>
-    <Cond condition>The second one does not show.</Cond>
-    <Cond>The default does not show.</Cond>
-  </ChooseOne>
-);
+export const SecondIsTrue: Story = {
+  args: {
+    children: [
+      <Cond key="1" condition={false}>
+        The first one does not show.
+      </Cond>,
+      <Cond key="2" condition>
+        The second one shows.
+      </Cond>,
+      <Cond key="3">The default does not show.</Cond>,
+    ],
+  },
+};
+export const AllAreTrue: Story = {
+  args: {
+    children: [
+      <Cond key="1" condition>
+        Only the first one shows.
+      </Cond>,
+      <Cond key="2" condition>
+        The second one does not show.
+      </Cond>,
+      <Cond key="3">The default does not show.</Cond>,
+    ],
+  },
+};
 
-export const NoneAreTrue: Story = () => (
-  <ChooseOne>
-    <Cond condition={false}>The first one does not show.</Cond>
-    <Cond condition={false}>The second one does not show.</Cond>
-    <Cond>The default shows.</Cond>
-  </ChooseOne>
-);
+export const NoneAreTrue: Story = {
+  args: {
+    children: [
+      <Cond key="1" condition={false}>
+        The first one does not show.
+      </Cond>,
+      <Cond key="2" condition={false}>
+        The second one does not show.
+      </Cond>,
+      <Cond key="3">The default shows.</Cond>,
+    ],
+  },
+};
 
-export const OneCond: Story = () => (
-  <ChooseOne>
-    <Cond>An only child renders.</Cond>
-  </ChooseOne>
-);
+export const OneCond: Story = {
+  args: {
+    children: <Cond>An only child renders.</Cond>,
+  },
+};

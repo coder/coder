@@ -1,8 +1,8 @@
 import { makeStyles } from "@mui/styles";
 import { useCallback, useState, FC } from "react";
-import { useCustomEvent } from "../../hooks/events";
-import { CustomEventListener } from "../../utils/events";
-import { EnterpriseSnackbar } from "./EnterpriseSnackbar/EnterpriseSnackbar";
+import { useCustomEvent } from "hooks/events";
+import { CustomEventListener } from "utils/events";
+import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { Typography } from "../Typography/Typography";
 import {

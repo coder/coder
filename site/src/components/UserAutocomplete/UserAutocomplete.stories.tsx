@@ -1,23 +1,24 @@
-import { Story } from "@storybook/react";
 import { MockUser } from "testHelpers/entities";
-import { UserAutocomplete, UserAutocompleteProps } from "./UserAutocomplete";
+import { UserAutocomplete } from "./UserAutocomplete";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof UserAutocomplete> = {
   title: "components/UserAutocomplete",
   component: UserAutocomplete,
 };
 
-const Template: Story<UserAutocompleteProps> = (
-  args: UserAutocompleteProps,
-) => <UserAutocomplete {...args} />;
+export default meta;
+type Story = StoryObj<typeof UserAutocomplete>;
 
-export const Example = Template.bind({});
-Example.args = {
-  value: MockUser,
-  label: "User",
+export const Example: Story = {
+  args: {
+    value: MockUser,
+    label: "User",
+  },
 };
 
-export const NoLabel = Template.bind({});
-NoLabel.args = {
-  value: MockUser,
+export const NoLabel: Story = {
+  args: {
+    value: MockUser,
+  },
 };

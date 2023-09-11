@@ -1,17 +1,16 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.7.0"
+      source = "coder/coder"
     }
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 4.55"
+      source = "hashicorp/aws"
     }
   }
 }
 
 provider "coder" {
+  feature_use_managed_variables = true
 }
 
 variable "ecs-cluster" {

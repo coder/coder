@@ -1,6 +1,5 @@
 import { Alert } from "./Alert";
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof Alert> = {
@@ -21,7 +20,6 @@ export const Success: Story = {
   args: {
     children: "You're doing great!",
     severity: "success",
-    onRetry: undefined,
   },
 };
 
@@ -54,16 +52,5 @@ export const WarningWithActionAndDismiss: Story = {
     actions: [ExampleAction],
     dismissible: true,
     severity: "warning",
-  },
-};
-
-export const WithChildren: Story = {
-  args: {
-    severity: "warning",
-    children: (
-      <div>
-        This is a message with a <Link href="#">link</Link>
-      </div>
-    ),
   },
 };

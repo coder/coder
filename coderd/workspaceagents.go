@@ -151,13 +151,14 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	vscodeProxyURI := strings.ReplaceAll(api.AppHostname, "*",
-		fmt.Sprintf("%s://{{port}}--%s--%s--%s",
-			api.AccessURL.Scheme,
-			workspaceAgent.Name,
-			workspace.Name,
-			owner.Username,
-		))
+	appHost := httpapi.ApplicationURL{
+		AppSlugOrPort: "{{port}}",
+		AgentName:     workspaceAgent.Name,
+		WorkspaceName: workspace.Name,
+		Username:      owner.Username,
+	}
+	vscodeProxyURI := api.AccessURL.Scheme + "://" + strings.ReplaceAll(api.AppHostname, "*", appHost.String())
+
 	if api.AccessURL.Port() != "" {
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
