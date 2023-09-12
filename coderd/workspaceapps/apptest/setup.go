@@ -350,11 +350,13 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Verify app subdomains
-	for i, app := range workspaceBuild.Resources[0].Agents[0].Apps {
+	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
 		require.True(t, app.Subdomain)
 
 		appURL := httpapi.ApplicationURL{
-			AppSlugOrPort: protoApps[i].Slug,
+			// findProtoApp is needed as the order of apps returned from PG database
+			// is not guaranteed.
+			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
 			Username:      me.Username,
@@ -404,6 +406,16 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	require.Len(t, agents, 1)
 
 	return workspace, agents[0]
+}
+
+func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) proto.App {
+	for _, protoApp := range protoApps {
+		if protoApp.Slug == slug {
+			return *protoApp
+		}
+	}
+	require.FailNowf(t, "proto app not found (slug: %q)", slug)
+	return proto.App{}
 }
 
 func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Request) (*http.Response, error) {
