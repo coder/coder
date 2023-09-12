@@ -719,9 +719,7 @@ export const updateUserPassword = async (
 ): Promise<undefined> =>
   axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 
-export const getSiteRoles = async (): Promise<
-  Array<TypesGen.AssignableRoles>
-> => {
+export const getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
   const response = await axios.get<Array<TypesGen.AssignableRoles>>(
     `/api/v2/users/roles`,
   );
