@@ -213,7 +213,7 @@ resource "coder_agent" "dev" {
 
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
+    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
 
     repo_dir="${data.coder_parameter.repo_dir.value}"
     repo_dir="$${repo_dir/#~\//$HOME\/}"
@@ -265,7 +265,7 @@ resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.dev.id
   display_name = "File Browser"
   slug         = "filebrowser"
-  url          = "http://localhost:13339"
+  url          = "http://localhost:13338"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   subdomain    = true
   share        = "owner"
