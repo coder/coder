@@ -14,7 +14,6 @@ export const Language = {
 
 export interface SSHKeysPageViewProps {
   isLoading: boolean;
-  hasLoaded: boolean;
   getSSHKeyError?: unknown;
   regenerateSSHKeyError?: unknown;
   sshKey?: GitSSHKey;
@@ -25,7 +24,6 @@ export const SSHKeysPageView: FC<
   React.PropsWithChildren<SSHKeysPageViewProps>
 > = ({
   isLoading,
-  hasLoaded,
   getSSHKeyError,
   regenerateSSHKeyError,
   sshKey,
@@ -49,7 +47,7 @@ export const SSHKeysPageView: FC<
       {Boolean(regenerateSSHKeyError) && (
         <ErrorAlert error={regenerateSSHKeyError} dismissible />
       )}
-      {hasLoaded && sshKey && (
+      {sshKey && (
         <>
           <p className={styles.description}>
             The following public key is used to authenticate Git in workspaces.
