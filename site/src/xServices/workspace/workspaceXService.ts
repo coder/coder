@@ -2,13 +2,9 @@ import { getErrorMessage } from "api/errors";
 import dayjs from "dayjs";
 import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService";
 import { assign, createMachine, send } from "xstate";
-import * as API from "../../api/api";
-import * as Types from "../../api/types";
-import * as TypesGen from "../../api/typesGenerated";
-import {
-  displayError,
-  displaySuccess,
-} from "../../components/GlobalSnackbar/utils";
+import * as API from "api/api";
+import * as TypesGen from "api/typesGenerated";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
   // Cloning builds to not change the origin object with the sort()
@@ -65,7 +61,7 @@ export interface WorkspaceContext {
   missedParameters?: TypesGen.TemplateVersionParameter[];
   // error creating a new WorkspaceBuild
   buildError?: unknown;
-  cancellationMessage?: Types.Message;
+  cancellationMessage?: TypesGen.Response;
   cancellationError?: unknown;
   // debug
   createBuildLogLevel?: TypesGen.CreateWorkspaceBuildRequest["log_level"];
@@ -171,10 +167,10 @@ export const workspaceMachine = createMachine(
           data: TypesGen.WorkspaceBuild;
         };
         cancelWorkspace: {
-          data: Types.Message;
+          data: TypesGen.Response;
         };
         activateWorkspace: {
-          data: Types.Message;
+          data: TypesGen.Response;
         };
         listening: {
           data: TypesGen.ServerSentEvent;

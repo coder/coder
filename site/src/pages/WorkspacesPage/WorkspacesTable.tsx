@@ -7,7 +7,6 @@ import TableRow from "@mui/material/TableRow";
 import { Workspace } from "api/typesGenerated";
 import { FC, ReactNode } from "react";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { useTranslation } from "react-i18next";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
@@ -56,7 +55,6 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   onCheckChange,
   canCheckWorkspaces,
 }) => {
-  const { t } = useTranslation("workspacesPage");
   const styles = useStyles();
 
   return (
@@ -103,14 +101,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
           {workspaces && workspaces.length === 0 && (
             <ChooseOne>
               <Cond condition={isUsingFilter}>
-                <TableEmpty message={t("emptyResultsMessage")} />
+                <TableEmpty message="No results matched your search" />
               </Cond>
 
               <Cond>
                 <TableEmpty
                   className={styles.withImage}
-                  message={t("emptyCreateWorkspaceMessage")}
-                  description={t("emptyCreateWorkspaceDescription")}
+                  message="Create a workspace"
+                  description="A workspace is your personal, customizable development environment in the cloud"
                   cta={
                     <Button
                       component={RouterLink}
@@ -118,7 +116,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                       startIcon={<AddOutlined />}
                       variant="contained"
                     >
-                      {t("createFromTemplateButton")}
+                      Select a Template
                     </Button>
                   }
                   image={

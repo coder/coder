@@ -4,7 +4,6 @@ import { WorkspaceBuild } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickable } from "hooks/useClickable";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import {
@@ -17,9 +16,14 @@ export interface BuildRowProps {
   build: WorkspaceBuild;
 }
 
+const transitionMessages = {
+  start: "started",
+  stop: "stopped",
+  delete: "deleted",
+};
+
 export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   const styles = useStyles();
-  const { t } = useTranslation("workspacePage");
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build);
   const navigate = useNavigate();
   const clickableProps = useClickable(() =>
@@ -54,11 +58,9 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
               >
                 <span>
                   <strong>{initiatedBy}</strong>{" "}
-                  {build.reason !== "initiator"
-                    ? t("buildMessage.automatically")
-                    : ""}
-                  <strong>{t(`buildMessage.${build.transition}`)}</strong>{" "}
-                  {t("buildMessage.theWorkspace")}
+                  {build.reason !== "initiator" ? "automatically" : ""}
+                  <strong>{transitionMessages[build.transition]}</strong> the
+                  workspace
                 </span>
 
                 <span className={styles.buildTime}>
@@ -68,17 +70,16 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
 
               <Stack direction="row" spacing={1}>
                 <span className={styles.buildInfo}>
-                  {t("buildData.reason")}: <strong>{build.reason}</strong>
+                  Reason: <strong>{build.reason}</strong>
                 </span>
 
                 <span className={styles.buildInfo}>
-                  {t("buildData.duration")}:{" "}
+                  Duration:{" "}
                   <strong>{displayWorkspaceBuildDuration(build)}</strong>
                 </span>
 
                 <span className={styles.buildInfo}>
-                  {t("buildData.version")}:{" "}
-                  <strong>{build.template_version_name}</strong>
+                  Version: <strong>{build.template_version_name}</strong>
                 </span>
               </Stack>
             </Stack>

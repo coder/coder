@@ -1,6 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { i18n } from "i18n";
 import { rest } from "msw";
 import {
   MockUser,
@@ -17,8 +16,6 @@ import { renderWithAuth } from "../../testHelpers/renderHelpers";
 import { server } from "../../testHelpers/server";
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage";
 
-const { t } = i18n;
-
 const renderPage = () => {
   return renderWithAuth(<UsersPage />);
 };
@@ -32,8 +29,7 @@ const suspendUser = async (setupActionSpies: () => void) => {
   await user.click(firstMoreButton);
 
   const menu = await screen.findByRole("menu");
-  const text = t("suspendMenuItem", { ns: "usersPage" });
-  const suspendButton = within(menu).getByText(text);
+  const suspendButton = within(menu).getByText("Suspend");
 
   await user.click(suspendButton);
 
@@ -64,27 +60,18 @@ const deleteUser = async (setupActionSpies: () => void) => {
   await user.click(selectedMoreButton);
 
   const menu = await screen.findByRole("menu");
-  const text = t("deleteMenuItem", { ns: "usersPage" });
-  const deleteButton = within(menu).getByText(text);
+  const deleteButton = within(menu).getByText("Delete");
 
   await user.click(deleteButton);
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog");
   expect(confirmDialog).toHaveTextContent(
-    t("deleteDialog.confirm", {
-      ns: "common",
-      entity: "user",
-      name: MockUser2.username,
-    }).toString(),
+    `Type ${MockUser2.username} below to confirm.`,
   );
 
   // Confirm with text input
-  const labelText = t("deleteDialog.confirmLabel", {
-    ns: "common",
-    entity: "user",
-  });
-  const textField = screen.getByLabelText(labelText);
+  const textField = screen.getByLabelText("Name of the user to delete");
   const dialog = screen.getByRole("dialog");
   await user.type(textField, MockUser2.username);
 
@@ -102,8 +89,7 @@ const activateUser = async (setupActionSpies: () => void) => {
   fireEvent.click(suspendedMoreButton);
 
   const menu = screen.getByRole("menu");
-  const text = t("activateMenuItem", { ns: "usersPage" });
-  const activateButton = within(menu).getByText(text);
+  const activateButton = within(menu).getByText("Activate");
   fireEvent.click(activateButton);
 
   // Check if the confirm message is displayed
@@ -129,8 +115,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(firstMoreButton);
 
   const menu = screen.getByRole("menu");
-  const text = t("resetPasswordMenuItem", { ns: "usersPage" });
-  const resetPasswordButton = within(menu).getByText(text);
+  const resetPasswordButton = within(menu).getByText("Reset password");
 
   fireEvent.click(resetPasswordButton);
 
@@ -160,16 +145,14 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   }
 
   // Click on the "edit icon" to display the role options
-  const buttonTitle = t("editUserRolesTooltip", { ns: "usersPage" });
-  const editButton = within(userRow).getByTitle(buttonTitle);
+  const editButton = within(userRow).getByTitle("Edit user roles");
   fireEvent.click(editButton);
 
   // Setup spies to check the actions after
   setupActionSpies();
 
   // Click on the role option
-  const fieldsetTitle = t("fieldSetRolesTooltip", { ns: "usersPage" });
-  const fieldset = await screen.findByTitle(fieldsetTitle);
+  const fieldset = await screen.findByTitle("Available roles");
   const auditorOption = within(fieldset).getByText(role.display_name);
   fireEvent.click(auditorOption);
 

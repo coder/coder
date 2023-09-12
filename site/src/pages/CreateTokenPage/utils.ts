@@ -1,5 +1,3 @@
-import i18next from "i18next";
-
 export const NANO_HOUR = 3600000000000;
 
 export interface CreateTokenData {
@@ -14,25 +12,25 @@ export interface LifetimeDay {
 
 export const lifetimeDayPresets: LifetimeDay[] = [
   {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.7"),
+    label: "7 days",
     value: 7,
   },
   {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.30"),
+    label: "30 days",
     value: 30,
   },
   {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.60"),
+    label: "60 days",
     value: 60,
   },
   {
-    label: i18next.t("tokensPage:createToken.lifetimeSection.90"),
+    label: "90 days",
     value: 90,
   },
 ];
 
 export const customLifetimeDay: LifetimeDay = {
-  label: i18next.t("tokensPage:createToken.lifetimeSection.custom"),
+  label: "Custom",
   value: "custom",
 };
 

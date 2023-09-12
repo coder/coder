@@ -10,8 +10,6 @@ import {
   iconValidator,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import i18next from "i18next";
-import { useTranslation } from "react-i18next";
 import { LazyIconField } from "components/IconField/LazyIconField";
 import {
   FormFields,
@@ -31,17 +29,11 @@ const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
 export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
-    name: nameValidator(i18next.t("nameLabel", { ns: "templateSettingsPage" })),
-    display_name: templateDisplayNameValidator(
-      i18next.t("displayNameLabel", {
-        ns: "templateSettingsPage",
-      }),
-    ),
+    name: nameValidator("Name"),
+    display_name: templateDisplayNameValidator("Display name"),
     description: Yup.string().max(
       MAX_DESCRIPTION_CHAR_LIMIT,
-      i18next
-        .t("descriptionMaxError", { ns: "templateSettingsPage" })
-        .toString(),
+      "Please enter a description that is less than or equal to 128 characters.",
     ),
     allow_user_cancel_workspace_jobs: Yup.boolean(),
     icon: iconValidator,
@@ -83,17 +75,16 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
       initialTouched,
     });
   const getFieldHelpers = getFormHelpers(form, error);
-  const { t } = useTranslation("templateSettingsPage");
   const styles = useStyles();
 
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel").toString()}
+      aria-label="Template settings form"
     >
       <FormSection
-        title={t("generalInfo.title").toString()}
-        description={t("generalInfo.description").toString()}
+        title="General info"
+        description="The name is used to identify the template in URLs and the API."
       >
         <FormFields>
           <TextField
@@ -102,21 +93,21 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
-            label={t("nameLabel")}
+            label="Name"
           />
         </FormFields>
       </FormSection>
 
       <FormSection
-        title={t("displayInfo.title").toString()}
-        description={t("displayInfo.description").toString()}
+        title="Display info"
+        description="A friendly name, description, and icon to help developers identify your template."
       >
         <FormFields>
           <TextField
             {...getFieldHelpers("display_name")}
             disabled={isSubmitting}
             fullWidth
-            label={t("displayNameLabel")}
+            label="Display name"
           />
 
           <TextField
@@ -124,7 +115,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             multiline
             disabled={isSubmitting}
             fullWidth
-            label={t("descriptionLabel")}
+            label="Description"
             rows={2}
           />
 
@@ -133,15 +124,15 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label={t("iconLabel")}
+            label="Icon"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
       </FormSection>
 
       <FormSection
-        title={t("operations.title").toString()}
-        description={t("operations.description").toString()}
+        title="Operations"
+        description="Regulate actions allowed on workspaces created from this template."
       >
         <label htmlFor="allow_user_cancel_workspace_jobs">
           <Stack direction="row" spacing={1}>
@@ -160,16 +151,17 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
                 spacing={0.5}
                 className={styles.optionText}
               >
-                {t("allowUserCancelWorkspaceJobsLabel")}
-
+                Allow users to cancel in-progress workspace jobs.
                 <HelpTooltip>
                   <HelpTooltipText>
-                    {t("allowUserCancelWorkspaceJobsNotice")}
+                    If checked, users may be able to corrupt their workspace.
                   </HelpTooltipText>
                 </HelpTooltip>
               </Stack>
               <span className={styles.optionHelperText}>
-                {t("allowUsersCancelHelperText")}
+                Depending on your template, canceling builds may leave
+                workspaces in an unhealthy state. This option isn&apos;t
+                recommended for most use cases.
               </span>
             </Stack>
           </Stack>

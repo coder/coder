@@ -11,17 +11,16 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
 import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService";
 
-const getTagLabel = (tag: string, t: (key: string) => string) => {
+const getTagLabel = (tag: string) => {
   const labelByTag: Record<string, string> = {
-    all: t("tags.all"),
-    digitalocean: t("tags.digitalocean"),
-    aws: t("tags.aws"),
-    google: t("tags.google"),
+    all: "All templates",
+    digitalocean: "DigitalOcean",
+    aws: "AWS",
+    google: "Google Cloud",
   };
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- this can be undefined
   return labelByTag[tag] ?? tag;
@@ -39,7 +38,6 @@ export interface StarterTemplatesPageViewProps {
 export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   context,
 }) => {
-  const { t } = useTranslation("starterTemplatesPage");
   const [urlParams] = useSearchParams();
   const styles = useStyles();
   const { starterTemplatesByTag } = context;
@@ -52,8 +50,10 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
   return (
     <Margins>
       <PageHeader>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
-        <PageHeaderSubtitle>{t("subtitle")}</PageHeaderSubtitle>
+        <PageHeaderTitle>Starter Templates</PageHeaderTitle>
+        <PageHeaderSubtitle>
+          Import a built-in template to start developing in the cloud
+        </PageHeaderSubtitle>
       </PageHeader>
 
       <Maybe condition={Boolean(context.error)}>
@@ -67,7 +67,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
       <Stack direction="row" spacing={4}>
         {starterTemplatesByTag && tags && (
           <Stack className={styles.filter}>
-            <span className={styles.filterCaption}>{t("filterCaption")}</span>
+            <span className={styles.filterCaption}>Filter</span>
             {tags.map((tag) => (
               <Link
                 key={tag}
@@ -77,7 +77,7 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
                   [styles.tagLinkActive]: tag === activeTag,
                 })}
               >
-                {getTagLabel(tag, t)} ({starterTemplatesByTag[tag].length})
+                {getTagLabel(tag)} ({starterTemplatesByTag[tag].length})
               </Link>
             ))}
           </Stack>

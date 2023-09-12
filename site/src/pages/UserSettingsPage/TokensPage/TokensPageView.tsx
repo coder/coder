@@ -13,7 +13,6 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import dayjs from "dayjs";
 import { FC } from "react";
 import IconButton from "@mui/material/IconButton/IconButton";
-import { useTranslation } from "react-i18next";
 import { APIKeyWithOwner } from "api/typesGenerated";
 import relativeTime from "dayjs/plugin/relativeTime";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -46,7 +45,6 @@ export const TokensPageView: FC<
   deleteTokenError,
 }) => {
   const theme = useTheme();
-  const { t } = useTranslation("tokensPage");
 
   return (
     <Stack>
@@ -56,11 +54,11 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="20%">{t("table.id")}</TableCell>
-              <TableCell width="20%">{t("table.name")}</TableCell>
-              <TableCell width="20%">{t("table.lastUsed")}</TableCell>
-              <TableCell width="20%">{t("table.expiresAt")}</TableCell>
-              <TableCell width="20%">{t("table.createdAt")}</TableCell>
+              <TableCell width="20%">ID</TableCell>
+              <TableCell width="20%">Name</TableCell>
+              <TableCell width="20%">Last Used</TableCell>
+              <TableCell width="20%">Expires At</TableCell>
+              <TableCell width="20%">Created At</TableCell>
               <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
@@ -70,7 +68,7 @@ export const TokensPageView: FC<
                 <TableLoader />
               </Cond>
               <Cond condition={hasLoaded && tokens?.length === 0}>
-                <TableEmpty message={t("emptyState")} />
+                <TableEmpty message="No tokens found" />
               </Cond>
               <Cond>
                 {tokens?.map((token) => {
@@ -116,9 +114,7 @@ export const TokensPageView: FC<
                               onDelete(token);
                             }}
                             size="medium"
-                            aria-label={t(
-                              "tokenActions.deleteToken.delete",
-                            ).toString()}
+                            aria-label="Delete token"
                           >
                             <DeleteOutlineIcon />
                           </IconButton>

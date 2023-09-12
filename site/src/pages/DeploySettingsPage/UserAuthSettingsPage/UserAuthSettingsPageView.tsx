@@ -1,4 +1,4 @@
-import { DeploymentOption } from "api/types";
+import { DeploymentOption } from "api/api";
 import {
   Badges,
   DisabledBadge,
