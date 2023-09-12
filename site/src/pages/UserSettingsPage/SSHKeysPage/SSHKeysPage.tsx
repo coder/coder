@@ -54,9 +54,7 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         confirmLoading={regenerateSSHKeyMutation.isLoading}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
-        onConfirm={() => {
-          regenerateSSHKeyMutation.mutate();
-        }}
+        onConfirm={regenerateSSHKeyMutation.mutate}
         onClose={() => {
           setIsConfirmingRegeneration(false);
         }}
