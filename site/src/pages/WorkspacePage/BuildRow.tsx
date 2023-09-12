@@ -58,7 +58,7 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
               >
                 <span>
                   <strong>{initiatedBy}</strong>{" "}
-                  {build.reason !== "initiator" ? "automatically" : ""}
+                  {build.reason !== "initiator" ? "automatically " : ""}
                   <strong>{transitionMessages[build.transition]}</strong> the
                   workspace
                 </span>
