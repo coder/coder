@@ -169,7 +169,7 @@
     "storybook-addon-react-router-v6": "2.0.0",
     "storybook-react-context": "0.6.0",
     "ts-node": "10.9.1",
-    "ts-proto": "1.156.0",
+    "ts-proto": "1.157.0",
     "typescript": "5.1.6",
     "vite-plugin-checker": "0.6.0",
     "vite-plugin-turbosnap": "1.0.2"

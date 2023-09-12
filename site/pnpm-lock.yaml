@@ -420,8 +420,8 @@ devDependencies:
     specifier: 10.9.1
     version: 10.9.1(@swc/core@1.3.38)(@types/node@18.17.0)(typescript@5.1.6)
   ts-proto:
-    specifier: 1.156.0
-    version: 1.156.0
+    specifier: 1.157.0
+    version: 1.157.0
   typescript:
     specifier: 5.1.6
     version: 5.1.6
@@ -13302,21 +13302,21 @@ packages:
       dprint-node: 1.0.7
     dev: true
 
-  /ts-proto-descriptors@1.14.0:
-    resolution: {integrity: sha512-xqLA6cBTfof+mZ/sIw/pZviyhnWWcWqRBjyjaMW5O4fIogpawT4aa0wI8rKh0rYIrQzoHxLugmFu4+rdiWaGEQ==}
+  /ts-proto-descriptors@1.15.0:
+    resolution: {integrity: sha512-TYyJ7+H+7Jsqawdv+mfsEpZPTIj9siDHS6EMCzG/z3b/PZiphsX+mWtqFfFVe5/N0Th6V3elK9lQqjnrgTOfrg==}
     dependencies:
       long: 5.2.3
       protobufjs: 7.2.4
     dev: true
 
-  /ts-proto@1.156.0:
-    resolution: {integrity: sha512-GnOxEAD1mRkiqV9VLv48GrNdps8gXp+vE9rWToCPyIxCIjVjkH3ls8iXxRXOS9LSwueJT8F+N9w7Xy3zftUecA==}
+  /ts-proto@1.157.0:
+    resolution: {integrity: sha512-0f9rvHb+1aLG66UpFHh1QbZ5SMvKqV5EudUerHRF+C47g2wd8ZYXiVrK3VmsmLcNxmMrdi4vWgFNCH6qRg1SrA==}
     hasBin: true
     dependencies:
       case-anything: 2.1.13
       protobufjs: 7.2.4
       ts-poet: 6.5.0
-      ts-proto-descriptors: 1.14.0
+      ts-proto-descriptors: 1.15.0
     dev: true
 
   /ts-prune@0.10.3:
