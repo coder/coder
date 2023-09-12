@@ -1,7 +1,12 @@
 import { assign, createMachine } from "xstate";
-import * as API from "../../api/api";
-import * as Types from "../../api/types";
-import * as TypesGen from "../../api/typesGenerated";
+import * as API from "api/api";
+import * as TypesGen from "api/typesGenerated";
+
+interface ReconnectingPTYRequest {
+  readonly data?: string;
+  readonly height?: number;
+  readonly width?: number;
+}
 
 export interface TerminalContext {
   workspaceError?: unknown;
@@ -33,7 +38,7 @@ export type TerminalEvent =
       workspaceName?: string;
       username?: string;
     }
-  | { type: "WRITE"; request: Types.ReconnectingPTYRequest }
+  | { type: "WRITE"; request: ReconnectingPTYRequest }
   | { type: "READ"; data: ArrayBuffer }
   | { type: "DISCONNECT" };
 

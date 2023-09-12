@@ -16,18 +16,18 @@ import {
   formatTemplateBuildTime,
   formatTemplateActiveDevelopers,
 } from "utils/templates";
-import { AvatarData } from "../../components/AvatarData/AvatarData";
-import { Margins } from "../../components/Margins/Margins";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "../../components/PageHeader/PageHeader";
-import { Stack } from "../../components/Stack/Stack";
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "../../components/TableLoader/TableLoader";
+} from "components/TableLoader/TableLoader";
 import {
   HelpTooltip,
   HelpTooltipLink,
@@ -36,9 +36,8 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { EmptyTemplates } from "./EmptyTemplates";
-import { TemplatesContext } from "xServices/templates/templatesXService";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { Template } from "api/typesGenerated";
+import { Template, TemplateExample } from "api/typesGenerated";
 import { combineClasses } from "utils/combineClasses";
 import { colors } from "theme/colors";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
@@ -141,13 +140,18 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
 };
 
 export interface TemplatesPageViewProps {
-  context: TemplatesContext;
+  error?: unknown;
+  examples: TemplateExample[] | undefined;
+  templates: Template[] | undefined;
+  canCreateTemplates: boolean;
 }
 
-export const TemplatesPageView: FC<
-  React.PropsWithChildren<TemplatesPageViewProps>
-> = ({ context }) => {
-  const { templates, error, examples, permissions } = context;
+export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
+  templates,
+  error,
+  examples,
+  canCreateTemplates,
+}) => {
   const isLoading = !templates;
   const isEmpty = Boolean(templates && templates.length === 0);
 
@@ -155,7 +159,7 @@ export const TemplatesPageView: FC<
     <Margins>
       <PageHeader
         actions={
-          <Maybe condition={permissions.createTemplates}>
+          <Maybe condition={canCreateTemplates}>
             <Button component={RouterLink} to="/starter-templates">
               Starter Templates
             </Button>
@@ -208,7 +212,7 @@ export const TemplatesPageView: FC<
                 <ChooseOne>
                   <Cond condition={isEmpty}>
                     <EmptyTemplates
-                      permissions={permissions}
+                      canCreateTemplates={canCreateTemplates}
                       examples={examples ?? []}
                     />
                   </Cond>

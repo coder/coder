@@ -1,7 +1,5 @@
 import axios from "axios";
 import dayjs from "dayjs";
-import * as Types from "./types";
-import { DeploymentConfig } from "./types";
 import * as TypesGen from "./typesGenerated";
 import { delay } from "utils/delay";
 import userAgentParser from "ua-parser-js";
@@ -365,8 +363,8 @@ export const createTemplate = async (
 export const updateActiveTemplateVersion = async (
   templateId: string,
   data: TypesGen.UpdateActiveTemplateVersion,
-): Promise<Types.Message> => {
-  const response = await axios.patch<Types.Message>(
+) => {
+  const response = await axios.patch<TypesGen.Response>(
     `/api/v2/templates/${templateId}/versions`,
     data,
   );
@@ -547,7 +545,7 @@ export const deleteWorkspace = (
 
 export const cancelWorkspaceBuild = async (
   workspaceBuildId: TypesGen.WorkspaceBuild["id"],
-): Promise<Types.Message> => {
+): Promise<TypesGen.Response> => {
   const response = await axios.patch(
     `/api/v2/workspacebuilds/${workspaceBuildId}/cancel`,
   );
@@ -595,7 +593,7 @@ export const restartWorkspace = async ({
 
 export const cancelTemplateVersionBuild = async (
   templateVersionId: TypesGen.TemplateVersion["id"],
-): Promise<Types.Message> => {
+): Promise<TypesGen.Response> => {
   const response = await axios.patch(
     `/api/v2/templateversions/${templateVersionId}/cancel`,
   );
@@ -984,6 +982,29 @@ export const getDeploymentSSHConfig =
     const response = await axios.get(`/api/v2/deployment/ssh`);
     return response.data;
   };
+
+// The Deployment types are not generated on from the Go generator yet because
+// it does not know how to generate OptionSet
+export interface DeploymentGroup {
+  readonly name: string;
+  readonly parent?: DeploymentGroup;
+  readonly description: string;
+  readonly children: DeploymentGroup[];
+}
+export interface DeploymentOption {
+  readonly name: string;
+  readonly description: string;
+  readonly flag: string;
+  readonly flag_shorthand: string;
+  readonly value: unknown;
+  readonly hidden: boolean;
+  readonly group?: DeploymentGroup;
+}
+
+export type DeploymentConfig = {
+  readonly config: TypesGen.DeploymentValues;
+  readonly options: DeploymentOption[];
+};
 
 export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
   const response = await axios.get(`/api/v2/deployment/config`);
