@@ -1,25 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import * as API from "api/api";
+import { GitSSHKey } from "api/typesGenerated";
 
 const getUserSSHKeyQueryKey = (userId: string) => [userId, "sshKey"];
 
-export const useUserSSHKey = (userId: string) => {
-  return useQuery({
+export const userSSHKey = (userId: string) => {
+  return {
     queryKey: getUserSSHKeyQueryKey(userId),
     queryFn: () => API.getUserSSHKey(userId),
-  });
+  };
 };
 
-export const useRegenerateUserSSHKey = (
+export const regenerateUserSSHKey = (
   userId: string,
-  onSuccess: () => void,
+  queryClient: QueryClient,
 ) => {
-  const queryClient = useQueryClient();
-  return useMutation({
+  return {
     mutationFn: () => API.regenerateUserSSHKey(userId),
-    onSuccess: (newKey) => {
+    onSuccess: (newKey: GitSSHKey) => {
       queryClient.setQueryData(getUserSSHKeyQueryKey(userId), newKey);
-      onSuccess();
     },
-  });
+  };
 };
