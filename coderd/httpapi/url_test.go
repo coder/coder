@@ -42,6 +42,16 @@ func TestApplicationURLString(t *testing.T) {
 			},
 			Expected: "8080--agent--workspace--user",
 		},
+		{
+			Name: "LongAppName",
+			URL: httpapi.ApplicationURL{
+				AppSlugOrPort: "0123456789012345678901234567890123456789",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "app-90667f72",
+		},
 	}
 
 	for _, c := range testCases {

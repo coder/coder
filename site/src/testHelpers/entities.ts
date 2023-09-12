@@ -1,7 +1,10 @@
-import { withDefaultFeatures, GetLicensesResponse } from "api/api";
+import {
+  withDefaultFeatures,
+  GetLicensesResponse,
+  DeploymentConfig,
+} from "api/api";
 import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
-import * as Types from "api/types";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import { Permissions } from "xServices/auth/authXService";
@@ -1114,7 +1117,7 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   ],
 };
 
-export const MockUserAgent: Types.UserAgent = {
+export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
   device: "Other",
   ip_address: "11.22.33.44",
@@ -2049,7 +2052,7 @@ export const MockPermissions: Permissions = {
   editWorkspaceProxies: true,
 };
 
-export const MockDeploymentConfig: Types.DeploymentConfig = {
+export const MockDeploymentConfig: DeploymentConfig = {
   config: {
     enable_terraform_debug_mode: true,
   },

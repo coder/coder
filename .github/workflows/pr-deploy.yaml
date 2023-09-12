@@ -48,7 +48,7 @@ jobs:
       PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check if PR is open
         id: check_pr
@@ -78,7 +78,7 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -202,7 +202,7 @@ jobs:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -296,7 +296,7 @@ jobs:
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Check and Create Certificate
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'

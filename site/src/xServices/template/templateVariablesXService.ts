@@ -6,13 +6,13 @@ import {
 } from "api/api";
 import {
   CreateTemplateVersionRequest,
+  Response,
   Template,
   TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import { delay } from "utils/delay";
-import { Message } from "api/types";
 
 type TemplateVariablesContext = {
   organizationId: string;
@@ -57,7 +57,7 @@ export const templateVariablesMachine = createMachine(
           data: TemplateVersion;
         };
         updateTemplate: {
-          data: Message;
+          data: Response;
         };
       },
     },

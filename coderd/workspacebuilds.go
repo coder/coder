@@ -832,7 +832,7 @@ func (api *API) convertWorkspaceBuild(
 		for _, agent := range agents {
 			apps := appsByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps, agent, owner, workspace), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
