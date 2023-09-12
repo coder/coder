@@ -7,7 +7,6 @@ import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { colors } from "theme/colors";
 import { combineClasses } from "utils/combineClasses";
@@ -26,7 +25,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   onPromoteClick,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("templatePage");
   const navigate = useNavigate();
   const clickableProps = useClickableTableRow(() => {
     navigate(version.name);
@@ -61,8 +59,8 @@ export const VersionRow: React.FC<VersionRowProps> = ({
               spacing={1}
             >
               <span>
-                <strong>{version.created_by.username}</strong>{" "}
-                {t("createdVersion")} <strong>{version.name}</strong>
+                <strong>{version.created_by.username}</strong> created the
+                version <strong>{version.name}</strong>
               </span>
 
               <span className={styles.versionTime}>

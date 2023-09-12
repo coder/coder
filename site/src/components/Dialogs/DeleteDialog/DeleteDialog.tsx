@@ -2,7 +2,6 @@ import makeStyles from "@mui/styles/makeStyles";
 import TextField from "@mui/material/TextField";
 import { Maybe } from "components/Conditionals/Maybe";
 import { ChangeEvent, useState, PropsWithChildren, FC } from "react";
-import { useTranslation } from "react-i18next";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
 export interface DeleteDialogProps {
@@ -25,7 +24,6 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   confirmLoading,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("common");
   const [nameValue, setNameValue] = useState("");
   const confirmed = name === nameValue;
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -35,11 +33,12 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
 
   const content = (
     <>
-      <p>{t("deleteDialog.intro", { entity })}</p>
+      <p>Deleting this {entity} is irreversible!</p>
       <Maybe condition={info !== undefined}>
         <p className={styles.warning}>{info}</p>
       </Maybe>
-      <p>{t("deleteDialog.confirm", { entity, name })}</p>
+      <p>Are you sure you want to proceed?</p>
+      <p>Type {name} below to confirm.</p>
 
       <form
         onSubmit={(e) => {
@@ -59,9 +58,12 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
           placeholder={name}
           value={nameValue}
           onChange={handleChange}
-          label={t("deleteDialog.confirmLabel", { entity })}
+          label={`Name of the ${entity} to delete`}
           error={hasError}
-          helperText={hasError && t("deleteDialog.incorrectName", { entity })}
+          helperText={
+            hasError && `${nameValue} does not match the name of this ${entity}`
+          }
+          inputProps={{ ["data-testid"]: "delete-dialog-name-confirmation" }}
         />
       </form>
     </>
@@ -72,7 +74,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       type="delete"
       hideCancel={false}
       open={isOpen}
-      title={t("deleteDialog.title", { entity })}
+      title={`Delete ${entity}`}
       onConfirm={onConfirm}
       onClose={onCancel}
       description={content}

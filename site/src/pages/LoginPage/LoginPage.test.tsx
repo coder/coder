@@ -11,9 +11,6 @@ import {
 import { server } from "testHelpers/server";
 import { LoginPage } from "./LoginPage";
 import * as TypesGen from "api/typesGenerated";
-import { i18n } from "i18n";
-
-const { t } = i18n;
 
 describe("LoginPage", () => {
   beforeEach(() => {
@@ -101,8 +98,7 @@ describe("LoginPage", () => {
     expect(screen.queryByText(Language.passwordSignIn)).not.toBeInTheDocument();
     await screen.findByText(Language.githubSignIn);
 
-    const showPasswordLabel = t("showPassword", { ns: "loginPage" });
-    const showPasswordAuthLink = screen.getByText(showPasswordLabel);
+    const showPasswordAuthLink = screen.getByText("Email and password");
     await userEvent.click(showPasswordAuthLink);
 
     await screen.findByText(Language.passwordSignIn);

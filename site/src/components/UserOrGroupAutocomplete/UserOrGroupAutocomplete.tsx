@@ -95,8 +95,6 @@ export const UserOrGroupAutocomplete: React.FC<
       className={styles.autocomplete}
       renderInput={(params) => (
         <>
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
-          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
           <TextField
             {...params}
             margin="none"

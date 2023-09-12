@@ -1416,6 +1416,7 @@ export interface WorkspaceApp {
   readonly command?: string;
   readonly icon?: string;
   readonly subdomain: boolean;
+  readonly subdomain_name?: string;
   readonly sharing_level: WorkspaceAppSharingLevel;
   readonly healthcheck: Healthcheck;
   readonly health: WorkspaceAppHealth;

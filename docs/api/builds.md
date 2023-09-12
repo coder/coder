@@ -74,6 +74,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
+              "subdomain_name": "string",
               "url": "string"
             }
           ],
@@ -237,6 +238,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
+              "subdomain_name": "string",
               "url": "string"
             }
           ],
@@ -539,6 +541,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "sharing_level": "owner",
             "slug": "string",
             "subdomain": true,
+            "subdomain_name": "string",
             "url": "string"
           }
         ],
@@ -640,6 +643,7 @@ Status Code **200**
 | `»»» sharing_level`                  | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                           | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»» subdomain`                      | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `»»» subdomain_name`                 | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `»»» url`                            | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»» architecture`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» connection_timeout_seconds`      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -798,6 +802,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
+              "subdomain_name": "string",
               "url": "string"
             }
           ],
@@ -966,6 +971,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],
@@ -1103,6 +1109,7 @@ Status Code **200**
 | `»»»» sharing_level`                  | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» slug`                           | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»»» subdomain`                      | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `»»»» subdomain_name`                 | string                                                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
 | `»»»» url`                            | string                                                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 | `»»» architecture`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» connection_timeout_seconds`      | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1314,6 +1321,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
+              "subdomain_name": "string",
               "url": "string"
             }
           ],

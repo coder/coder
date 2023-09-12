@@ -8,7 +8,6 @@ import { LazyIconField } from "components/IconField/LazyIconField";
 import { Margins } from "components/Margins/Margins";
 import { useFormik } from "formik";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import {
   getFormHelpers,
   nameValidator,
@@ -48,7 +47,6 @@ const UpdateGroupForm: FC<{
     onSubmit,
   });
   const getFieldHelpers = getFormHelpers<FormData>(form, errors);
-  const { t } = useTranslation("common");
 
   return (
     <FullPageForm title="Group settings">
@@ -83,7 +81,7 @@ const UpdateGroupForm: FC<{
                 {...getFieldHelpers("avatar_url")}
                 onChange={onChangeTrimmed(form)}
                 fullWidth
-                label={t("form.fields.icon")}
+                label="Avatar URL"
                 onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
               />
             </>

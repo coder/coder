@@ -1,7 +1,6 @@
 import { makeStyles } from "@mui/styles";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ComponentProps, FC } from "react";
-import { useTranslation } from "react-i18next";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
 import { Workspace } from "api/typesGenerated";
 
@@ -20,13 +19,12 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   error,
   workspace,
 }) => {
-  const { t } = useTranslation("workspaceSettingsPage");
   const styles = useStyles();
 
   return (
     <>
       <PageHeader className={styles.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+        <PageHeaderTitle>Workspace Settings</PageHeaderTitle>
       </PageHeader>
 
       <WorkspaceSettingsForm
