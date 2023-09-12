@@ -71,6 +71,50 @@ data "coder_parameter" "region" {
   # }
 }
 
+
+data "coder_parameter" "security_groups" {
+  name        = "Security groups"
+  icon        = "/icon/aws.png"
+ 
+  description = "Select appropriate security groups."
+  mutable     = true
+  default = jsonencode([
+    "Web Server Security Group",
+    "Database Security Group",
+    "Backend Security Group"
+  ])
+}
+
+data "coder_parameter" "jetbrains_ide" {
+  type         = "list(string)"
+  name         = "jetbrains_ide"
+  display_name = "JetBrains IDE" 
+  icon         = "/icon/gateway.svg"
+  default      = jsonencode([
+    "GO",
+    "232.9559.64",
+    "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
+  ])
+  option {
+    icon  = "/icon/goland.svg"
+    name  = "GoLand"
+    value = jsonencode([
+      "GO",
+      "232.9559.64",
+      "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
+    ])
+  }
+  option {
+    icon  = "/icon/webstorm.svg"
+    name  = "WebStorm"
+    value = jsonencode([
+      "WS",
+      "232.9559.54",
+      "https://download.jetbrains.com/webstorm/WebStorm-2023.2.1.tar.gz"
+    ])
+  }
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -183,13 +227,12 @@ resource "coder_agent" "dev" {
 
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
+    filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
 
     repo_dir="${data.coder_parameter.repo_dir.value}"
     repo_dir="$${repo_dir/#~\//$HOME\/}"
     if [ ! -d "$repo_dir" ]; then
       mkdir -p "$repo_dir"
-
       git clone https://github.com/coder/coder "$repo_dir"
     fi
 
@@ -236,10 +279,24 @@ resource "coder_app" "filebrowser" {
   agent_id     = coder_agent.dev.id
   display_name = "File Browser"
   slug         = "filebrowser"
-  url          = "http://localhost:13338"
+  url          = "http://localhost:13339"
   icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
   subdomain    = true
   share        = "owner"
+}
+
+resource "coder_app" "gateway" {
+  agent_id     = coder_agent.dev.id
+  display_name = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].name
+  slug         = "gateway"
+  url          = "jetbrains-gateway://connect#type=coder&workspace=${data.coder_workspace.me.name}&agent=dev&folder=${data.coder_parameter.repo_dir.value}&url=${data.coder_workspace.me.access_url}&token=${data.coder_workspace.me.owner_session_token}&ide_product_code=${jsondecode(data.coder_parameter.jetbrains_ide.value)[0]}&ide_build_number=${jsondecode(data.coder_parameter.jetbrains_ide.value)[1]}&ide_download_link=${jsondecode(data.coder_parameter.jetbrains_ide.value)[2]}"
+  icon         = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].icon
+  external     = true
+}
+
+
+output "debug_value" {
+  value = data.coder_parameter.jetbrains_ide.value
 }
 
 resource "docker_volume" "home_volume" {
