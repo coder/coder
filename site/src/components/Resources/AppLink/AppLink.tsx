@@ -11,6 +11,7 @@ import { generateRandomString } from "../../../utils/random";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 import { useProxy } from "contexts/ProxyContext";
+import { createAppLinkHref } from "utils/apps";
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -40,26 +41,16 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     appDisplayName = appSlug;
   }
 
-  // The backend redirects if the trailing slash isn't included, so we add it
-  // here to avoid extra roundtrips.
-  let href = `${preferredPathBase}/@${username}/${workspace.name}.${
-    agent.name
-  }/apps/${encodeURIComponent(appSlug)}/`;
-  if (app.command) {
-    href = `${preferredPathBase}/@${username}/${workspace.name}.${
-      agent.name
-    }/terminal?command=${encodeURIComponent(app.command)}`;
-  }
-
-  if (appsHost && app.subdomain && app.subdomain_name) {
-    href = `${window.location.protocol}//${appsHost}/`.replace(
-      "*",
-      app.subdomain_name,
-    );
-  }
-  if (app.external) {
-    href = app.url;
-  }
+  const href = createAppLinkHref(
+    window.location.protocol,
+    preferredPathBase,
+    appsHost,
+    appSlug,
+    username,
+    workspace,
+    agent,
+    app,
+  );
 
   let canClick = true;
   let icon = <BaseIcon app={app} />;
