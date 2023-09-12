@@ -963,7 +963,7 @@ export const deleteGroup = async (groupId: string): Promise<void> => {
 export const getWorkspaceQuota = async (
   username: string,
 ): Promise<TypesGen.WorkspaceQuota> => {
-  const response = await axios.get(`/api/v2/workspace-quota/${username}`);
+  const response = await axios.get(`/api/v2/workspace-quota/${encodeURIComponent(username)}`);
   return response.data;
 };
 
