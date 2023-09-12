@@ -38,7 +38,7 @@ export const WorkspaceSettingsLayout: FC = () => {
     error,
     isLoading,
     isError,
-  } = useQuery(workspaceByOwnerAndName(params.username, params.workspace));
+  } = useQuery(workspaceByOwnerAndName(username, workspaceName));
 
   if (isLoading) {
     return <Loader />;
