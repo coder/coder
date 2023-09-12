@@ -14,9 +14,8 @@ import (
 	"strings"
 	"text/template"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/fatih/structtag"
+	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/tools/go/packages"
