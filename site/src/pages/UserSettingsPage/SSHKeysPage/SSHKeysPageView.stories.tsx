@@ -29,6 +29,7 @@ export const Loading: Story = {
 
 export const WithGetSSHKeyError: Story = {
   args: {
+    sshKey: undefined,
     getSSHKeyError: mockApiError({
       message: "Failed to get SSH key",
     }),
