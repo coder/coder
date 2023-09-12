@@ -139,7 +139,7 @@ jobs:
       - name: Lint with Vale
         uses: errata-ai/vale-action@reviewdog
         with:
-          files: 'docs/about,docs/admin,docs/api,docs/changelogs,docs/contributing,docs/ides,docs/images,docs/install,docs/networking,docs/platforms,docs/security,docs/templates,docs/*.md'
+          files: '["docs/about","docs/admin","docs/api","docs/changelogs","docs/contributing","docs/ides","docs/images","docs/install","docs/networking","docs/platforms","docs/security","docs/templates","docs/*.md"]'
           filter_mode: nofilter
           fail_on_error: false
           vale_flags: "--no-exit"
