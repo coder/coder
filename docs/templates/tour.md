@@ -50,10 +50,10 @@ On the command line, create a directory for your template and create the Dockerf
 This is a simple Dockerfile that starts with the [official ubuntu image](https://hub.docker.com/_/ubuntu/).
 
 ```shell
-$ mkdir scratch-template
-$ cd scratch-template
-$ touch Dockerfile main.tf
-$ nano Dockerfile
+mkdir scratch-template
+cd scratch-template
+mkdir build
+nano build/Dockerfile
 ```
 
 In the editor, enter and save the following text in `Dockerfile` then
@@ -83,7 +83,7 @@ image, which we'll refer to later:
 - It adds a `coder` user, including a home directory.
 
 
-## 2. Specify providers
+## 2. Set up template providers
 
 Now you can edit the Terraform file, which provisions the workspace's resources.
 
@@ -91,9 +91,8 @@ Now you can edit the Terraform file, which provisions the workspace's resources.
 nano main.tf
 ```
 
-A Terraform file starts with The Terraform file starts with the
-`terraform` block, which specifies providers. At a minimum, we need
-the `coder` provider. For this template, we also need the `docker`
+We'll start by setting up our providers. At a minimum, we need the
+`coder` provider. For this template, we also need the `docker`
 provider:
 
 ```hcl
@@ -109,111 +108,157 @@ terraform {
     }
   }
 }
+
+provider "coder" {
+}
+
+provider "docker" {
+}
+
+locals {
+  username = data.coder_workspace.me.owner
+}
+
+data "coder_provisioner" "me" {
+}
+
+data "coder_workspace" "me" {
+}
+
 ```
+
+Notice that the `provider` blocks for `coder` and `docker` are empty.
+In a more practical template, you would add arguments to these blocks
+to configure the providers, if needed.
+
+The `coder_workspace` data source provides details about the state of
+a workspace, such as its name, owner, and so on. Its also lets us know
+when a workspace is being started or stopped. We'll use this
+information in later steps to make sure our workspace's home directory
+is persistent.
 
 ## 3. coder_agent
 
-All templates need to create and run a Coder agent to let developers
-connect to their workspaces. The `coder_agent` resource runs inside
-the compute aspect of your workspace (typically a VM or
-container). You do not need to have any open ports on the compute
-aspect, but the agent needs `curl` access to the Coder server.
+All templates need to create and run a [Coder
+agent](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
+This lets developers connect to their workspaces. The `coder_agent`
+resource runs inside the compute aspect of your workspace, typically a
+VM or container. In our case, it will run in Docker.
 
-This snippet creates the agent, runs it inside the container via the
-`entrypoint`, and authenticates to Coder via the agent's token.
+You do not need to have any open ports on the compute aspect, but the
+agent needs `curl` access to the Coder server. Remember that we
+install `curl` in `Dockerfile`, above.
+
+This snippet creates the agent and specifies a startup script. This
+script installs [code-server](https://coder.com/docs/code-server), a
+browser-based [VS Code](https://code.visualstudio.com/) app that runs
+in the workspace. We'll let users access code-server through
+`coder_app`, later.
+
+Because Docker is running locally to the Coder server, there is no
+need to authenticate `coder_agent`. But if your `coder_agent` were
+running on a remote host, you would also refer to [authentication
+credentials](./authentication.md).
 
 ```hcl
 resource "coder_agent" "main" {
-  os = "linux"
-  arch = "amd64"
-}
+  arch                   = data.coder_provisioner.me.arch
+  os                     = "linux"
+  startup_script_timeout = 180
+  startup_script         = <<-EOT
+    set -e
 
-resource "kubernetes_deployment" "workspace" {
-  entrypoint = ["sh", "-c", coder_agent.main.init_script]
-  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
-  # ...
+    # install and start code-server
+    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
+    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+  EOT
+
+  metadata {
+    display_name = "CPU Usage"
+    key          = "0_cpu_usage"
+    script       = "coder stat cpu"
+    interval     = 10
+    timeout      = 1
+  }
+
+  metadata {
+    display_name = "RAM Usage"
+    key          = "1_ram_usage"
+    script       = "coder stat mem"
+    interval     = 10
+    timeout      = 1
+  }
 }
 ```
+Agents can also run startup scripts, set environment variables and
+provide `metadata`. `
 
-Agents can also run startup scripts, set environment variables, and
-provide [metadata](../agent-metadata.md) about the workspace (e.g. CPU
-usage). See [coder_agent
-docs](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
-for more details.
+These example `metadata` blocks are optional. Coder displays this
+information in the Coder dashboard. For basic information, you can
+invoke the [`coder stat`](../cli.md) command. If you need more
+control, you can write your own script.
 
-## 3. coder_workspace
-
-This data source provides details about the state of a workspace, such
-as its name, owner, and whether the workspace is being started or
-stopped.
-
-The following snippet creates a container when the workspace is being
-started, and deletes the container when it is stopped. It does this
-with Terraform's
-[count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
-meta-argument.
-
-```hcl
-data "coder_workspace" "me" {}
-
-# Delete the container when workspace is stopped (count = 0)
-resource "kubernetes_deployment" "workspace" {
-  count = data.coder_workspace.me.transition == "start" ? 1 : 0
-  # ...
-}
-
-# Persist the volume, even if stopped
-resource "docker_volume" "projects" {}
-```
 
 ## 4. coder_app
 
-Web apps that are running inside the workspace
-(e.g. `http://localhost:8080`) can be forwarded to the Coder dashboard
-with the `coder_app` resource. This is commonly used for [web
-IDEs](../ides/web-ides.md) such as code-server, RStudio, and
-JupyterLab. External apps, such as links to internal wikis or cloud
-consoles can also be embedded here.
-
-Apps are rendered on the workspace page:
+A
+['coder_app'](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+resource lets a developer use an app from the workspace's Coder
+dashboard.
 
 ![Apps in a Coder workspace](../images/templates/workspace-apps.png)
 
-The apps themselves have to be installed and running on the
-workspace. You can do this in the agent's `startup_script`. See [web
+This is commonly used for [web IDEs](../ides/web-ides.md) such as
+[code-server](https://coder.com/docs/code-server/latest), RStudio, and
+JupyterLab.
+
+To install and run an app in the workspace, add it to the
+`startup_script` argument in `coder_agent` then add a `coder_app`
+resource to make it available in the workspace. See [web
 IDEs](../ides/web-ides.md) for some examples.
 
 ```hcl
-# coder_agent will install and start code-server
-resource "coder_agent" "main" {
-  # ...
-  startup_script =<<EOF
-  curl -L https://code-server.dev/install.sh | sh
-  code-server --port 8080 &
-  EOF
-}
-
-# expose code-server on workspace via a coder_app
 resource "coder_app" "code-server" {
   agent_id     = coder_agent.main.id
-  icon         = "/icon/code.svg"
+  slug         = "code-server"
   display_name = "code-server"
-  slug         = "code"
-  url          = "http://localhost:8080"
-}
+  url          = "http://localhost:13337/?folder=/home/${local.username}"
+  icon         = "/icon/code.svg"
+  subdomain    = false
+  share        = "owner"
 
-# link to an external site
-resource "coder_app" "getting-started" {
+  healthcheck {
+    url       = "http://localhost:13337/healthz"
+    interval  = 5
+    threshold = 6
+  }
+}
+```
+
+You can also use a `coder_app` resource to link to
+external apps, such as links to wikis or cloud consoles.
+
+```hcl
+resource "coder_app" "coder-server-doc" {
   agent_id     = coder_agent.main.id
   icon         = "/emojis/1f4dd.png"
-  display_name = "getting-started"
   slug         = "getting-started"
-  url          = "https://wiki.example.com/coder/quickstart"
+  url          = "https://coder.com/docs/code-server"
   external     = true
 }
 ```
 
 ## 5. Persistent storage
+
+We want our workspace's home directory to persist after the workspace
+is stopped so that a developer can continue their work when they start
+the workspace again.
+
+We do this in 2 parts:
+
+- Our `docker_volume` resource uses the `ignore_changes` argument
+- Later, our `docker_container` resource uses the Terraform [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
+meta-argument.
 
 ```hcl
 resource "docker_volume" "home_volume" {
@@ -222,27 +267,55 @@ resource "docker_volume" "home_volume" {
   lifecycle {
     ignore_changes = all
   }
-  # Add labels in Docker to keep track of orphan resources.
-  labels {
-    label = "coder.owner"
-    value = data.coder_workspace.me.owner
+}
+```
+For details, see [Resource persistence](./resource-persistence.md).
+
+## 6. Set up the Docker container
+
+Setting up our Docker container is straightfoward. The `docker_image` resource uses our `build/Dockerfile` we created earlier.
+
+```hcl
+resource "docker_image" "main" {
+  name = "coder-${data.coder_workspace.me.id}"
+  build {
+    context = "./build"
+    build_args = {
+      USER = local.username
+    }
   }
-  labels {
-    label = "coder.owner_id"
-    value = data.coder_workspace.me.owner_id
-  }
-  labels {
-    label = "coder.workspace_id"
-    value = data.coder_workspace.me.id
-  }
-  # This field becomes outdated if the workspace is renamed but can
-  # be useful for debugging or cleaning out dangling volumes.
-  labels {
-    label = "coder.workspace_name_at_creation"
-    value = data.coder_workspace.me.name
+  triggers = {
+    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
   }
 }
 ```
+
+Our `docker_container` resource uses the `coder_workspace`
+`start_count` to start and stop the Docker container:
+
+```hcl
+resource "docker_container" "workspace" {
+  count = data.coder_workspace.me.start_count
+  image = docker_image.main.name
+  # Uses lower() to avoid Docker restriction on container names.
+  name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+  # Hostname makes the shell more user friendly: coder@my-workspace:~$
+  hostname = data.coder_workspace.me.name
+  # Use the docker gateway if the access URL is 127.0.0.1
+  entrypoint = ["sh", "-c", replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal")]
+  env        = ["CODER_AGENT_TOKEN=${coder_agent.main.token}"]
+  host {
+    host = "host.docker.internal"
+    ip   = "host-gateway"
+  }
+  volumes {
+    container_path = "/home/${local.username}"
+    volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+}
+```
+
 
 ## Next steps
 
