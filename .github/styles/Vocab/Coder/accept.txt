@@ -1,0 +1,7 @@
+[Cc]oderd
+[Aa]utostart
+[Aa]utostop
+[Pp]rovisionerd
+[Pp]rometheus
+(Tt)emplated
+codersdk

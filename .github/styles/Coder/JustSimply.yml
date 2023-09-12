@@ -1,0 +1,12 @@
+extends: existence
+message: Consider removing '%s'
+link: https://justsimply.dev/
+level: warning
+ignorecase: true
+tokens:
+  - easy
+  - painless 
+  - straightforward
+  - trivial
+  - simple
+  - just
