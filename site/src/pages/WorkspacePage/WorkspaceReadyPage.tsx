@@ -185,7 +185,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         sshPrefix={sshPrefix}
         template={template}
-        quota_budget={quota?.budget}
+        quotaBudget={quota?.budget}
         templateWarnings={templateVersion?.warnings}
         buildLogs={
           shouldDisplayBuildLogs && (
