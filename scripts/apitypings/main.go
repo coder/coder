@@ -870,9 +870,10 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 
 		// Some hard codes are a bit trickier.
+		//nolint:gocritic // I prefer the switch for extensibility later.
 		switch {
 		// Struct is a generic, so the type has generic constraints in the string.
-		case regexp.MustCompile(`github.com/coder/coder/v2/cli/clibase.Struct\[.*\]`).MatchString(n.String()):
+		case regexp.MustCompile(`github\.com/coder/coder/v2/cli/clibase.Struct\[.*\]`).MatchString(n.String()):
 			// The marshal json just marshals the underlying value.
 			str, ok := ty.Underlying().(*types.Struct)
 			if ok {
