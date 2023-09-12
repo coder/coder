@@ -1,91 +1,81 @@
-import { action } from "@storybook/addon-actions";
-import { Story } from "@storybook/react";
-import * as Mocks from "../../../testHelpers/entities";
-import { WorkspaceActions, WorkspaceActionsProps } from "./WorkspaceActions";
+import { Meta, StoryObj } from "@storybook/react";
+import * as Mocks from "testHelpers/entities";
+import { WorkspaceActions } from "./WorkspaceActions";
 
-export default {
+const meta: Meta<typeof WorkspaceActions> = {
   title: "components/WorkspaceActions",
   component: WorkspaceActions,
+  args: {
+    isUpdating: false,
+  },
 };
 
-const Template: Story<WorkspaceActionsProps> = (args) => (
-  <WorkspaceActions {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof WorkspaceActions>;
 
-const defaultArgs = {
-  handleStart: action("start"),
-  handleStop: action("stop"),
-  handleRestart: action("restart"),
-  handleDelete: action("delete"),
-  handleUpdate: action("update"),
-  handleCancel: action("cancel"),
-  isOutdated: false,
-  isUpdating: false,
+export const Starting: Story = {
+  args: {
+    workspace: Mocks.MockStartingWorkspace,
+  },
 };
 
-export const Starting = Template.bind({});
-Starting.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockStartingWorkspace,
+export const Running: Story = {
+  args: {
+    workspace: Mocks.MockWorkspace,
+  },
 };
 
-export const Running = Template.bind({});
-Running.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockWorkspace,
+export const Stopping: Story = {
+  args: {
+    workspace: Mocks.MockStoppingWorkspace,
+  },
 };
 
-export const Stopping = Template.bind({});
-Stopping.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockStoppingWorkspace,
+export const Stopped: Story = {
+  args: {
+    workspace: Mocks.MockStoppedWorkspace,
+  },
 };
 
-export const Stopped = Template.bind({});
-Stopped.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockStoppedWorkspace,
+export const Canceling: Story = {
+  args: {
+    workspace: Mocks.MockCancelingWorkspace,
+  },
 };
 
-export const Canceling = Template.bind({});
-Canceling.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockCancelingWorkspace,
+export const Canceled: Story = {
+  args: {
+    workspace: Mocks.MockCanceledWorkspace,
+  },
 };
 
-export const Canceled = Template.bind({});
-Canceled.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockCanceledWorkspace,
+export const Deleting: Story = {
+  args: {
+    workspace: Mocks.MockDeletingWorkspace,
+  },
 };
 
-export const Deleting = Template.bind({});
-Deleting.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockDeletingWorkspace,
+export const Deleted: Story = {
+  args: {
+    workspace: Mocks.MockDeletedWorkspace,
+  },
 };
 
-export const Deleted = Template.bind({});
-Deleted.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockDeletedWorkspace,
+export const Outdated: Story = {
+  args: {
+    workspace: Mocks.MockOutdatedWorkspace,
+  },
 };
 
-export const Outdated = Template.bind({});
-Outdated.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockOutdatedWorkspace,
+export const Failed: Story = {
+  args: {
+    workspace: Mocks.MockFailedWorkspace,
+  },
 };
 
-export const Failed = Template.bind({});
-Failed.args = {
-  ...defaultArgs,
-  workspace: Mocks.MockFailedWorkspace,
-};
-
-export const Updating = Template.bind({});
-Updating.args = {
-  ...defaultArgs,
-  isUpdating: true,
-  workspace: Mocks.MockOutdatedWorkspace,
+export const Updating: Story = {
+  args: {
+    isUpdating: true,
+    workspace: Mocks.MockOutdatedWorkspace,
+  },
 };

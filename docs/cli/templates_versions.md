@@ -19,7 +19,7 @@ coder templates versions
 ```console
   - List versions of a specific template:
 
-      $ coder templates versions list my-template
+     $ coder templates versions list my-template
 ```
 
 ## Subcommands

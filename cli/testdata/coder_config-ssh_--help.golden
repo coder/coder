@@ -1,51 +1,55 @@
-Usage: coder config-ssh [flags]
+coder v0.0.0-devel
 
-Add an SSH Host entry for your workspaces "ssh coder.workspace"
+[93mUSAGE:[0m
+  coder config-ssh [flags]
 
-- You can use -o (or --ssh-option) so set SSH options to be used for all your 
-    workspaces:                                                                 
+  Add an SSH Host entry for your workspaces "ssh coder.workspace"
 
-     [40m [0m[91;40m$ coder config-ssh -o ForwardAgent=yes[0m[40m [0m
+    - You can use -o (or --ssh-option) so set SSH options to be used for all
+  your
+  workspaces:
+  
+       $ coder config-ssh -o ForwardAgent=yes
+  
+    - You can use --dry-run (or -n) to see the changes that would be made:
+  
+       $ coder config-ssh --dry-run
 
-  - You can use --dry-run (or -n) to see the changes that would be made:        
-
-     [40m [0m[91;40m$ coder config-ssh --dry-run[0m[40m [0m
-
-[1mOptions[0m
-      --coder-binary-path string, $CODER_SSH_CONFIG_BINARY_PATH
+[93mOPTIONS:[0m
+      [96m--[0m[96mcoder-binary-path[0m string, [96m$CODER_SSH_CONFIG_BINARY_PATH[0m
           Optionally specify the absolute path to the coder binary used in
           ProxyCommand. By default, the binary invoking this command ('config
           ssh') is used.
 
-  -n, --dry-run bool, $CODER_SSH_DRY_RUN
+  [96m-[0m[96mn[0m, [96m--[0m[96mdry-run[0m bool, [96m$CODER_SSH_DRY_RUN[0m
           Perform a trial run with no changes made, showing a diff at the end.
 
-      --force-unix-filepaths bool, $CODER_CONFIGSSH_UNIX_FILEPATHS
+      [96m--[0m[96mforce-unix-filepaths[0m bool, [96m$CODER_CONFIGSSH_UNIX_FILEPATHS[0m
           By default, 'config-ssh' uses the os path separator when writing the
           ssh config. This might be an issue in Windows machine that use a
           unix-like shell. This flag forces the use of unix file paths (the
           forward slash '/').
 
-      --ssh-config-file string, $CODER_SSH_CONFIG_FILE (default: ~/.ssh/config)
+      [96m--[0m[96mssh-config-file[0m string, [96m$CODER_SSH_CONFIG_FILE[0m (default: ~/.ssh/config)
           Specifies the path to an SSH config.
 
-      --ssh-host-prefix string, $CODER_CONFIGSSH_SSH_HOST_PREFIX
+      [96m--[0m[96mssh-host-prefix[0m string, [96m$CODER_CONFIGSSH_SSH_HOST_PREFIX[0m
           Override the default host prefix.
 
-  -o, --ssh-option string-array, $CODER_SSH_CONFIG_OPTS
+  [96m-[0m[96mo[0m, [96m--[0m[96mssh-option[0m string-array, [96m$CODER_SSH_CONFIG_OPTS[0m
           Specifies additional SSH options to embed in each host stanza.
 
-      --use-previous-options bool, $CODER_SSH_USE_PREVIOUS_OPTIONS
+      [96m--[0m[96muse-previous-options[0m bool, [96m$CODER_SSH_USE_PREVIOUS_OPTIONS[0m
           Specifies whether or not to keep options from previous run of
           config-ssh.
 
-      --wait yes|no|auto, $CODER_CONFIGSSH_WAIT (default: auto)
+      [96m--[0m[96mwait[0m yes|no|auto, [96m$CODER_CONFIGSSH_WAIT[0m (default: auto)
           Specifies whether or not to wait for the startup script to finish
           executing. Auto means that the agent startup script behavior
           configured in the workspace template is used.
 
-  -y, --yes bool
+  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

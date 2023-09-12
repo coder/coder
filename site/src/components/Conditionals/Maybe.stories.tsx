@@ -1,21 +1,25 @@
-import { Story } from "@storybook/react";
-import { Maybe, MaybeProps } from "./Maybe";
+import { StoryObj, Meta } from "@storybook/react";
+import { Maybe } from "./Maybe";
 
-export default {
+const meta: Meta<typeof Maybe> = {
   title: "components/Conditionals/Maybe",
   component: Maybe,
+  args: {
+    children: "Now you see me",
+  },
 };
 
-const Template: Story<MaybeProps> = (args: MaybeProps) => (
-  <Maybe {...args}>Now you see me</Maybe>
-);
+export default meta;
+type Story = StoryObj<typeof Maybe>;
 
-export const ConditionIsTrue = Template.bind({});
-ConditionIsTrue.args = {
-  condition: true,
+export const ConditionIsTrue: Story = {
+  args: {
+    condition: true,
+  },
 };
 
-export const ConditionIsFalse = Template.bind({});
-ConditionIsFalse.args = {
-  condition: false,
+export const ConditionIsFalse: Story = {
+  args: {
+    condition: false,
+  },
 };

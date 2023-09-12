@@ -124,7 +124,7 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 
 			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags))
 
-			provisioners := provisionerd.Provisioners{
+			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
 			}
 			srv := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
@@ -140,14 +140,14 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 				JobPollInterval: pollInterval,
 				JobPollJitter:   pollJitter,
 				UpdateInterval:  500 * time.Millisecond,
-				Provisioners:    provisioners,
+				Connector:       connector,
 			})
 
 			var exitErr error
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			case exitErr = <-errCh:

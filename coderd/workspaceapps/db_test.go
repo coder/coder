@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -760,8 +761,13 @@ func Test_ResolveRequest(t *testing.T) {
 		redirectURI, err := url.Parse(redirectURIStr)
 		require.NoError(t, err)
 
-		appHost := fmt.Sprintf("%s--%s--%s--%s", req.AppSlugOrPort, req.AgentNameOrID, req.WorkspaceNameOrID, req.UsernameOrID)
-		host := strings.Replace(api.AppHostname, "*", appHost, 1)
+		appHost := httpapi.ApplicationURL{
+			AppSlugOrPort: req.AppSlugOrPort,
+			AgentName:     req.AgentNameOrID,
+			WorkspaceName: req.WorkspaceNameOrID,
+			Username:      req.UsernameOrID,
+		}
+		host := strings.Replace(api.AppHostname, "*", appHost.String(), 1)
 
 		require.Equal(t, "http", redirectURI.Scheme)
 		require.Equal(t, host, redirectURI.Host)

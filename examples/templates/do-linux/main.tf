@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.7.0"
+      source = "coder/coder"
     }
     digitalocean = {
-      source  = "digitalocean/digitalocean"
-      version = "~> 2.0"
+      source = "digitalocean/digitalocean"
     }
   }
 }

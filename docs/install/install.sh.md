@@ -4,27 +4,20 @@ and macOS.
 
 To install, run:
 
-```shell
-# This will automatically use supported package managers when available
+```bash
 curl -fsSL https://coder.com/install.sh | sh
-```
-
-To install without using a system package manager:
-
-```shell
-curl -fsSL https://coder.com/install.sh | sh -s -- --method standalone
 ```
 
 You can preview what occurs during the install process:
 
-```shell
+```bash
 curl -fsSL https://coder.com/install.sh | sh -s -- --dry-run
 ```
 
 You can modify the installation process by including flags. Run the help command
 for reference:
 
-```shell
+```bash
 curl -fsSL https://coder.com/install.sh | sh -s -- --help
 ```
 
@@ -34,7 +27,7 @@ manually via `coder server` or as a system package.
 By default, the Coder server runs on `http://127.0.0.1:3000` and uses a
 [public tunnel](../admin/configure.md#tunnel) for workspace connections.
 
-## `PATH` conflicts
+## PATH conflicts
 
 It's possible to end up in situations where you have multiple `coder` binaries
 in your `PATH`, and your system may use a version that you don't intend. Your
@@ -54,7 +47,7 @@ $ which -a coder
 Whichever binary comes first in this list will be used when running `coder`
 commands.
 
-### Reordering your `PATH`
+### Reordering your PATH
 
 If you use bash or zsh, you can update your `PATH` like this:
 

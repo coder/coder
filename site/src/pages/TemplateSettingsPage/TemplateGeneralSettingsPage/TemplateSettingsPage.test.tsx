@@ -10,9 +10,6 @@ import {
 } from "../../../testHelpers/renderHelpers";
 import { getValidationSchema } from "./TemplateSettingsForm";
 import { TemplateSettingsPage } from "./TemplateSettingsPage";
-import i18next from "i18next";
-
-const { t } = i18next;
 
 type FormValues = Required<
   Omit<UpdateTemplateMeta, "default_ttl_ms" | "max_ttl_ms">
@@ -52,28 +49,19 @@ const fillAndSubmitForm = async ({
   icon,
   allow_user_cancel_workspace_jobs,
 }: FormValues) => {
-  const label = t("nameLabel", { ns: "templateSettingsPage" });
-  const nameField = await screen.findByLabelText(label);
+  const nameField = await screen.findByLabelText("Name");
   await userEvent.clear(nameField);
   await userEvent.type(nameField, name);
 
-  const displayNameLabel = t("displayNameLabel", {
-    ns: "templateSettingsPage",
-  });
-
-  const displayNameField = await screen.findByLabelText(displayNameLabel);
+  const displayNameField = await screen.findByLabelText("Display name");
   await userEvent.clear(displayNameField);
   await userEvent.type(displayNameField, display_name);
 
-  const descriptionLabel = t("descriptionLabel", {
-    ns: "templateSettingsPage",
-  });
-  const descriptionField = await screen.findByLabelText(descriptionLabel);
+  const descriptionField = await screen.findByLabelText("Description");
   await userEvent.clear(descriptionField);
   await userEvent.type(descriptionField, description);
 
-  const iconLabel = t("iconLabel", { ns: "templateSettingsPage" });
-  const iconField = await screen.findByLabelText(iconLabel);
+  const iconField = await screen.findByLabelText("Icon");
   await userEvent.clear(iconField);
   await userEvent.type(iconField, icon);
 
@@ -118,7 +106,7 @@ describe("TemplateSettingsPage", () => {
     };
     const validate = () => getValidationSchema().validateSync(values);
     expect(validate).toThrowError(
-      t("descriptionMaxError", { ns: "templateSettingsPage" }).toString(),
+      "Please enter a description that is less than or equal to 128 characters.",
     );
   });
 });

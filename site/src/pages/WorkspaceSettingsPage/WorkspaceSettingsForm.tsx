@@ -6,7 +6,6 @@ import {
 } from "components/Form/Form";
 import { useFormik } from "formik";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import * as Yup from "yup";
 import {
   nameValidator,
@@ -27,15 +26,13 @@ export const WorkspaceSettingsForm: FC<{
   onCancel: () => void;
   onSubmit: (values: WorkspaceSettingsFormValues) => void;
 }> = ({ onCancel, onSubmit, workspace, error, isSubmitting }) => {
-  const { t } = useTranslation("workspaceSettingsPage");
-
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
       name: workspace.name,
     },
     validationSchema: Yup.object({
-      name: nameValidator(t("nameLabel")),
+      name: nameValidator("Name"),
     }),
   });
   const getFieldHelpers = getFormHelpers<WorkspaceSettingsFormValues>(
@@ -56,7 +53,7 @@ export const WorkspaceSettingsForm: FC<{
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
-            label={t("nameLabel")}
+            label="Name"
           />
         </FormFields>
       </FormSection>

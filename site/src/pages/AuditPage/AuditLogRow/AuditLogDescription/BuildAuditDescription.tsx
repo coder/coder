@@ -1,14 +1,11 @@
-import { Trans, useTranslation } from "react-i18next";
 import { AuditLog } from "api/typesGenerated";
-import { FC } from "react";
+import { FC, useMemo } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
 
 export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
   auditLog,
 }): JSX.Element => {
-  const { t } = useTranslation("auditLog");
-
   const workspaceName = auditLog.additional_fields?.workspace_name?.trim();
   // workspaces can be started/stopped/deleted by a user, or kicked off automatically by Coder
   const user =
@@ -17,7 +14,7 @@ export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
       ? "Coder automatically"
       : auditLog.user?.username.trim();
 
-  const action: string = (() => {
+  const action = useMemo(() => {
     switch (auditLog.action) {
       case "start":
         return "started";
@@ -28,36 +25,18 @@ export const BuildAuditDescription: FC<{ auditLog: AuditLog }> = ({
       default:
         return auditLog.action;
     }
-  })();
-
-  if (auditLog.resource_link) {
-    return (
-      <span>
-        <Trans
-          t={t}
-          i18nKey="table.logRow.description.linkedWorkspaceBuild"
-          values={{ user, action, workspaceName }}
-        >
-          {"{{user}}"}
-          <Link component={RouterLink} to={auditLog.resource_link}>
-            {"{{action}}"}
-          </Link>
-          workspace{"{{workspaceName}}"}
-        </Trans>
-      </span>
-    );
-  }
+  }, [auditLog.action]);
 
   return (
     <span>
-      <Trans
-        t={t}
-        i18nKey="table.logRow.description.unlinkedWorkspaceBuild"
-        values={{ user, action, workspaceName }}
-      >
-        {"{{user}}"}
-        {"{{action}}"}workspace{"{{workspaceName}}"}
-      </Trans>
+      {user} <strong>{action}</strong> workspace{" "}
+      {auditLog.resource_link ? (
+        <Link component={RouterLink} to={auditLog.resource_link}>
+          <strong>{workspaceName}</strong>
+        </Link>
+      ) : (
+        <strong>{workspaceName}</strong>
+      )}
     </span>
   );
 };

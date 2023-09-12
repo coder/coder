@@ -2,7 +2,6 @@ import { FC, PropsWithChildren, useState } from "react";
 import { Section } from "components/SettingsLayout/Section";
 import { TokensPageView } from "./TokensPageView";
 import makeStyles from "@mui/styles/makeStyles";
-import { useTranslation } from "react-i18next";
 import { useTokensData } from "./hooks";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { Stack } from "components/Stack/Stack";
@@ -13,14 +12,13 @@ import { APIKeyWithOwner } from "api/typesGenerated";
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   const styles = useStyles();
-  const { t } = useTranslation("tokensPage");
 
   const cliCreateCommand = "coder tokens create";
 
   const TokenActions = () => (
     <Stack direction="row" justifyContent="end" className={styles.tokenActions}>
       <Button startIcon={<AddIcon />} component={RouterLink} to="new">
-        {t("tokenActions.addToken")}
+        Add token
       </Button>
     </Stack>
   );
@@ -44,7 +42,7 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
   return (
     <>
       <Section
-        title={t("title")}
+        title="Tokens"
         className={styles.section}
         description={
           <>

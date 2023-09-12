@@ -15,7 +15,7 @@ coder dotfiles [flags] <git_repo_url>
 ```console
   - Check out and install a dotfiles repository without prompts:
 
-      $ coder dotfiles --yes git@github.com:example/dotfiles.git
+     $ coder dotfiles --yes git@github.com:example/dotfiles.git
 ```
 
 ## Options

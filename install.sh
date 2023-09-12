@@ -100,13 +100,15 @@ echo_standalone_postinstall() {
 
 	cath <<EOF
 
-Standalone release has been installed into $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
+Coder has been installed to
+
+  $STANDALONE_INSTALL_PREFIX/bin/$STANDALONE_BINARY_NAME
 
 EOF
 
-	CODER_COMMAND="$(command -v "$STANDALONE_BINARY_NAME")"
+	CODER_COMMAND="$(command -v "$STANDALONE_BINARY_NAME" || true)"
 
-	if [ ! "$CODER_COMMAND" ]; then
+	if [ -z "${CODER_COMMAND}" ]; then
 		cath <<EOF
 Extend your path to use Coder:
 
@@ -114,7 +116,7 @@ Extend your path to use Coder:
 
 EOF
 	elif [ "$CODER_COMMAND" != "$STANDALONE_BINARY_LOCATION" ]; then
-		echo_path_conflict "$CODER_COMMAND" "$STANDALONE_INSTALL_PREFIX"
+		echo_path_conflict "$CODER_COMMAND"
 	else
 		cath <<EOF
 To run a Coder server:
@@ -135,16 +137,23 @@ echo_brew_postinstall() {
 		return
 	fi
 
-	CODER_COMMAND="$(command -v "coder")"
 	BREW_PREFIX="$(brew --prefix)"
 
+	cath <<EOF
+
+Coder has been installed to
+
+  $BREW_PREFIX/bin/coder
+
+EOF
+
+	CODER_COMMAND="$(command -v "coder" || true)"
+
 	if [ "$CODER_COMMAND" != "$BREW_PREFIX/bin/coder" ]; then
-		echo_path_conflict "$CODER_COMMAND" "$BREW_PREFIX"
+		echo_path_conflict "$CODER_COMMAND"
 	fi
 
 	cath <<EOF
-Homebrew formula has been installed.
-
 To run a Coder server:
 
   $ coder server
@@ -199,7 +208,7 @@ There is another binary in your PATH that conflicts with the binary we've instal
 
   $1
 
-This is likely because of an existing installation of Coder. See our documentation for suggests on how to resolve this.
+This is likely because of an existing installation of Coder. See our documentation for suggestions on how to resolve this.
 
 	https://coder.com/docs/v2/latest/install/install.sh#path-conflicts
 

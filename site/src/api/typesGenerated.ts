@@ -381,6 +381,8 @@ export interface DeploymentValues {
   readonly agent_fallback_troubleshooting_url?: string;
   readonly browser_only?: boolean;
   readonly scim_api_key?: string;
+  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
+  readonly external_token_encryption_keys?: string[];
   readonly provisioner?: ProvisionerConfig;
   readonly rate_limit?: RateLimitConfig;
   readonly experiments?: string[];
@@ -1385,6 +1387,7 @@ export interface WorkspaceApp {
   readonly command?: string;
   readonly icon?: string;
   readonly subdomain: boolean;
+  readonly subdomain_name?: string;
   readonly sharing_level: WorkspaceAppSharingLevel;
   readonly healthcheck: Healthcheck;
   readonly health: WorkspaceAppHealth;
@@ -1610,6 +1613,7 @@ export type FeatureName =
   | "audit_log"
   | "browser_only"
   | "external_provisioner_daemons"
+  | "external_token_encryption"
   | "high_availability"
   | "multiple_git_auth"
   | "scim"
@@ -1625,6 +1629,7 @@ export const FeatureNames: FeatureName[] = [
   "audit_log",
   "browser_only",
   "external_provisioner_daemons",
+  "external_token_encryption",
   "high_availability",
   "multiple_git_auth",
   "scim",

@@ -3,7 +3,7 @@ import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { FC } from "react";
 import { useLocation } from "react-router-dom";
 import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService";
-import { SignInForm } from "pages/LoginPage/SignInForm/SignInForm";
+import { SignInForm } from "./SignInForm";
 import { retrieveRedirect } from "utils/redirect";
 import { CoderIcon } from "components/Icons/CoderIcon";
 

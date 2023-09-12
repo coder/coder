@@ -1,7 +1,0 @@
-{
-  "forbiddenError": "You don't have permissions to update the schedule for this workspace.",
-  "dialogTitle": "Restart workspace?",
-  "dialogDescription": "Would you like to restart your workspace now to apply your new autostop setting, or let it apply after your next workspace start?",
-  "restart": "Restart workspace",
-  "applyLater": "Apply update later"
-}

@@ -1,24 +1,25 @@
-import { Story } from "@storybook/react";
-import { ServiceBannerView, ServiceBannerViewProps } from "./ServiceBannerView";
+import type { Meta, StoryObj } from "@storybook/react";
+import { ServiceBannerView } from "./ServiceBannerView";
 
-export default {
+const meta: Meta<typeof ServiceBannerView> = {
   title: "components/ServiceBannerView",
   component: ServiceBannerView,
 };
 
-const Template: Story<ServiceBannerViewProps> = (args) => (
-  <ServiceBannerView {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof ServiceBannerView>;
 
-export const Production = Template.bind({});
-Production.args = {
-  message: "weeeee",
-  backgroundColor: "#FFFFFF",
+export const Production: Story = {
+  args: {
+    message: "weeeee",
+    backgroundColor: "#FFFFFF",
+  },
 };
 
-export const Preview = Template.bind({});
-Preview.args = {
-  message: "weeeee",
-  backgroundColor: "#000000",
-  preview: true,
+export const Preview: Story = {
+  args: {
+    message: "weeeee",
+    backgroundColor: "#000000",
+    preview: true,
+  },
 };

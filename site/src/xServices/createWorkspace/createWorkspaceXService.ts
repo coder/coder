@@ -25,6 +25,9 @@ type CreateWorkspaceContext = {
   templateName: string;
   mode: CreateWorkspaceMode;
   defaultName: string;
+  // Not exposed in the form yet, but can be set as a search param to
+  // create a workspace with a specific version of a template
+  versionId?: string;
   error?: unknown;
   // Form
   template?: Template;
@@ -149,21 +152,39 @@ export const createWorkspaceMachine =
     },
     {
       services: {
-        createWorkspace: ({ organizationId }, { request, owner }) => {
+        createWorkspace: (
+          { organizationId, versionId },
+          { request, owner },
+        ) => {
+          if (versionId) {
+            request = {
+              ...request,
+              template_id: undefined,
+              template_version_id: versionId,
+            };
+          }
+
           return createWorkspace(organizationId, owner.id, request);
         },
         autoCreateWorkspace: async ({
           templateName,
+          versionId,
           organizationId,
           defaultBuildParameters,
           defaultName,
         }) => {
-          const template = await getTemplateByName(
-            organizationId,
-            templateName,
-          );
+          let templateVersionParameters;
+          if (versionId) {
+            templateVersionParameters = { template_version_id: versionId };
+          } else {
+            const template = await getTemplateByName(
+              organizationId,
+              templateName,
+            );
+            templateVersionParameters = { template_id: template.id };
+          }
           return createWorkspace(organizationId, "me", {
-            template_id: template.id,
+            ...templateVersionParameters,
             name: defaultName,
             rich_parameter_values: defaultBuildParameters,
           });

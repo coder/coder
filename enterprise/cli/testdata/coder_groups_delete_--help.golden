@@ -1,8 +1,11 @@
-Usage: coder groups delete <name>
+coder v0.0.0-devel
 
-Delete a user group
+[93mUSAGE:[0m
+  coder groups delete <name>
 
-Aliases: rm
+  Delete a user group
 
----
+  Aliases: rm
+
+———
 Run `coder --help` for a list of global options.

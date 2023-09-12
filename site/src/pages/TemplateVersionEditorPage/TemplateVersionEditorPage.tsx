@@ -1,5 +1,5 @@
 import { useMachine } from "@xstate/react";
-import { TemplateVersionEditor } from "pages/TemplateVersionEditorPage/TemplateVersionEditor/TemplateVersionEditor";
+import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { usePermissions } from "hooks/usePermissions";
 import { FC } from "react";
@@ -77,11 +77,16 @@ export const TemplateVersionEditorPage: FC = () => {
           isPublishing={editorState.matches("publishingVersion")}
           publishingError={editorState.context.publishingError}
           publishedVersion={editorState.context.lastSuccessfulPublishedVersion}
-          publishedVersionIsDefault={
-            editorState.context.lastSuccessfulPublishIsDefault
-          }
           onCreateWorkspace={() => {
-            navigate(`/templates/${templateName}/workspace`);
+            const params = new URLSearchParams();
+            const publishedVersion =
+              editorState.context.lastSuccessfulPublishedVersion;
+            if (publishedVersion) {
+              params.set("version", publishedVersion.id);
+            }
+            navigate(
+              `/templates/${templateName}/workspace?${params.toString()}`,
+            );
           }}
           disablePreview={editorState.hasTag("loading")}
           disableUpdate={

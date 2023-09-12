@@ -645,25 +645,19 @@ func initCipher(t *testing.T) *aes256 {
 
 func setup(t *testing.T) (db database.Store, cryptDB *dbCrypt, cs []Cipher) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	rawDB, _ := dbtestutil.NewDB(t)
-
 	cs = append(cs, initCipher(t))
-	cdb, err := New(ctx, rawDB, cs...)
+	cdb, err := New(context.Background(), rawDB, cs...)
 	require.NoError(t, err)
 	cryptDB, ok := cdb.(*dbCrypt)
 	require.True(t, ok)
-
 	return rawDB, cryptDB, cs
 }
 
 func setupNoCiphers(t *testing.T) (db database.Store, cryptodb *dbCrypt) {
 	t.Helper()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
 	rawDB, _ := dbtestutil.NewDB(t)
-	cdb, err := New(ctx, rawDB)
+	cdb, err := New(context.Background(), rawDB)
 	require.NoError(t, err)
 	cryptDB, ok := cdb.(*dbCrypt)
 	require.True(t, ok)

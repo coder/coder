@@ -2,7 +2,6 @@ import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
-import { useTranslation } from "react-i18next";
 import * as Yup from "yup";
 
 export const getInitialRichParameterValues = (
@@ -40,12 +39,9 @@ const isValidValue = (
 };
 
 export const useValidationSchemaForRichParameters = (
-  ns: string,
   templateParameters?: TemplateVersionParameter[],
   lastBuildParameters?: WorkspaceBuildParameter[],
 ): Yup.AnySchema => {
-  const { t } = useTranslation(ns);
-
   if (!templateParameters) {
     return Yup.object();
   }
@@ -69,9 +65,7 @@ export const useValidationSchemaForRichParameters = (
                   if (Number(val) < templateParameter.validation_min) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: t("validationNumberLesserThan", {
-                        min: templateParameter.validation_min,
-                      }).toString(),
+                      message: `Value must be greater than ${templateParameter.validation_min}.`,
                     });
                   }
                 } else if (
@@ -81,9 +75,7 @@ export const useValidationSchemaForRichParameters = (
                   if (templateParameter.validation_max < Number(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: t("validationNumberGreaterThan", {
-                        max: templateParameter.validation_max,
-                      }).toString(),
+                      message: `Value must be lesser than ${templateParameter.validation_max}.`,
                     });
                   }
                 } else if (
@@ -96,10 +88,7 @@ export const useValidationSchemaForRichParameters = (
                   ) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: t("validationNumberNotInRange", {
-                        min: templateParameter.validation_min,
-                        max: templateParameter.validation_max,
-                      }).toString(),
+                      message: `Value must be between ${templateParameter.validation_min} and ${templateParameter.validation_max}.`,
                     });
                   }
                 }
@@ -117,9 +106,7 @@ export const useValidationSchemaForRichParameters = (
                         if (Number(lastBuildParameter.value) > Number(val)) {
                           return ctx.createError({
                             path: ctx.path,
-                            message: t("validationNumberNotIncreasing", {
-                              last: lastBuildParameter.value,
-                            }).toString(),
+                            message: `Value must only ever increase (last value was ${lastBuildParameter.value})`,
                           });
                         }
                         break;
@@ -127,9 +114,7 @@ export const useValidationSchemaForRichParameters = (
                         if (Number(lastBuildParameter.value) < Number(val)) {
                           return ctx.createError({
                             path: ctx.path,
-                            message: t("validationNumberNotDecreasing", {
-                              last: lastBuildParameter.value,
-                            }).toString(),
+                            message: `Value must only ever decrease (last value was ${lastBuildParameter.value})`,
                           });
                         }
                         break;
@@ -150,10 +135,7 @@ export const useValidationSchemaForRichParameters = (
                   if (val && !regex.test(val)) {
                     return ctx.createError({
                       path: ctx.path,
-                      message: t("validationPatternNotMatched", {
-                        error: templateParameter.validation_error,
-                        pattern: templateParameter.validation_regex,
-                      }).toString(),
+                      message: `${templateParameter.validation_error} (value does not match the pattern ${templateParameter.validation_regex})`,
                     });
                   }
                 }

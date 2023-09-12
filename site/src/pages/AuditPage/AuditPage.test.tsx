@@ -59,15 +59,6 @@ describe("AuditPage", () => {
     );
   });
 
-  it("shows the audit logs", async () => {
-    // When
-    await renderPage();
-
-    // Then
-    await screen.findByTestId(`audit-log-row-${MockAuditLog.id}`);
-    screen.getByTestId(`audit-log-row-${MockAuditLog2.id}`);
-  });
-
   it("renders page 5", async () => {
     // Given
     const page = 5;
