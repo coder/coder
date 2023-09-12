@@ -67,8 +67,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   isSubmitting,
   initialTouched,
 }) => {
-  console.log("template", template);
-
   const validationSchema = getValidationSchema();
   const form = useFormik<TemplateScheduleFormValues>({
     initialValues: {

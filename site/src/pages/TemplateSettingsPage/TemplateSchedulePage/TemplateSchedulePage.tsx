@@ -37,11 +37,9 @@ const TemplateSchedulePage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
-        console.log("oh pls no");
         await queryClient.invalidateQueries(
           templateByNameKey(orgId, templateName),
         );
-        console.log("I did everything you asked :sob:");
         displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion
         clearLocal("dismissedWorkspaceList"); // workspaces page
