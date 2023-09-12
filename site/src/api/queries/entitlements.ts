@@ -1,33 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
 import * as API from "api/api";
 
 const ENTITLEMENTS_QUERY_KEY = ["entitlements"];
 
-export const useEntitlements = () => {
-  return useQuery({
+export const entitlements = () => {
+  return {
     queryKey: ENTITLEMENTS_QUERY_KEY,
     queryFn: fetchEntitlements,
-  });
+  };
 };
 
-export const useRefreshEntitlements = ({
-  onSuccess,
-  onError,
-}: {
-  onSuccess: () => void;
-  onError: (error: unknown) => void;
-}) => {
-  const queryClient = useQueryClient();
-  return useMutation({
+export const refreshEntitlements = (queryClient: QueryClient) => {
+  return {
     mutationFn: API.refreshEntitlements,
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ENTITLEMENTS_QUERY_KEY,
       });
-      onSuccess();
     },
-    onError,
-  });
+  };
 };
 
 const fetchEntitlements = () => {

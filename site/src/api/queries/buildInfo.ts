@@ -1,11 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
 import * as API from "api/api";
 
-export const useBuildInfo = () => {
-  return useQuery({
+export const buildInfo = () => {
+  return {
     queryKey: ["buildInfo"],
     queryFn: fetchBuildInfo,
-  });
+  };
 };
 
 const fetchBuildInfo = async () => {

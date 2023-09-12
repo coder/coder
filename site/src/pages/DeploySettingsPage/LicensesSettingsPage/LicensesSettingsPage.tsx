@@ -8,20 +8,20 @@ import useToggle from "react-use/lib/useToggle";
 import { pageTitle } from "utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
 import { getErrorMessage } from "api/errors";
-import {
-  useEntitlements,
-  useRefreshEntitlements,
-} from "api/queries/entitlements";
+import { entitlements, refreshEntitlements } from "api/queries/entitlements";
 
 const LicensesSettingsPage: FC = () => {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const success = searchParams.get("success");
   const [confettiOn, toggleConfettiOn] = useToggle(false);
-  const entitlements = useEntitlements();
-  const refreshEntitlements = useRefreshEntitlements({
-    onSuccess: () => {
+  const entitlementsQuery = useQuery(entitlements());
+  const refreshEntitlementsMutationOptions = refreshEntitlements(queryClient);
+  const refreshEntitlementsMutation = useMutation({
+    ...refreshEntitlementsMutationOptions,
+    onSuccess: async () => {
       displaySuccess("Successfully refreshed licenses");
+      await refreshEntitlementsMutationOptions.onSuccess();
     },
     onError: (error) => {
       displayError(getErrorMessage(error, "Failed to refresh entitlements"));
@@ -29,12 +29,15 @@ const LicensesSettingsPage: FC = () => {
   });
 
   useEffect(() => {
-    if (entitlements.error) {
+    if (entitlementsQuery.error) {
       displayError(
-        getErrorMessage(entitlements.error, "Failed to fetch entitlements"),
+        getErrorMessage(
+          entitlementsQuery.error,
+          "Failed to fetch entitlements",
+        ),
       );
     }
-  }, [entitlements.error]);
+  }, [entitlementsQuery.error]);
 
   const { mutate: removeLicenseApi, isLoading: isRemovingLicense } =
     useMutation(removeLicense, {
@@ -71,15 +74,13 @@ const LicensesSettingsPage: FC = () => {
       <LicensesSettingsPageView
         showConfetti={confettiOn}
         isLoading={isLoading}
-        isRefreshing={refreshEntitlements.isLoading}
-        userLimitActual={entitlements.data?.features.user_limit.actual}
-        userLimitLimit={entitlements.data?.features.user_limit.limit}
+        isRefreshing={refreshEntitlementsMutation.isLoading}
+        userLimitActual={entitlementsQuery.data?.features.user_limit.actual}
+        userLimitLimit={entitlementsQuery.data?.features.user_limit.limit}
         licenses={licenses}
         isRemovingLicense={isRemovingLicense}
         removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
-        refreshEntitlements={() => {
-          refreshEntitlements.mutate();
-        }}
+        refreshEntitlements={refreshEntitlementsMutation.mutate}
       />
     </>
   );

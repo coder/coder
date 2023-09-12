@@ -1,6 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
-import { useBuildInfo } from "api/queries/buildInfo";
-import { useEntitlements } from "api/queries/entitlements";
+import { buildInfo } from "api/queries/buildInfo";
+import { entitlements } from "api/queries/entitlements";
 import {
   AppearanceConfig,
   BuildInfoResponse,
@@ -31,14 +32,17 @@ export const DashboardProviderContext = createContext<
 >(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const buildInfo = useBuildInfo();
-  const entitlements = useEntitlements();
+  const buildInfoQuery = useQuery(buildInfo());
+  const entitlementsQuery = useQuery(entitlements());
   const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
   const [experimentsState] = useMachine(experimentsMachine);
   const { appearance, preview } = appearanceState.context;
   const { experiments } = experimentsState.context;
   const isLoading =
-    !buildInfo.data || !entitlements.data || !appearance || !experiments;
+    !buildInfoQuery.data ||
+    !entitlementsQuery.data ||
+    !appearance ||
+    !experiments;
 
   const setAppearancePreview = (config: AppearanceConfig) => {
     appearanceSend({
@@ -61,8 +65,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardProviderContext.Provider
       value={{
-        buildInfo: buildInfo.data,
-        entitlements: entitlements.data,
+        buildInfo: buildInfoQuery.data,
+        entitlements: entitlementsQuery.data,
         experiments,
         appearance: {
           preview,
