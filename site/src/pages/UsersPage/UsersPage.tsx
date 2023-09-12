@@ -21,7 +21,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthMethods } from "api/api";
-import { useRoles } from "api/queries/roles";
+import { roles } from "api/queries/roles";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -64,7 +64,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   } = usersState.context;
 
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
-  const rolesQuery = useRoles({ enabled: canEditUsers });
+  const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
 
   // Ideally this only runs if 'canViewDeployment' is true.
   // TODO: Prevent api call if the user does not have the perms.
