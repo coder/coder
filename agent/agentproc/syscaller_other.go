@@ -13,7 +13,7 @@ func NewSyscaller() Syscaller {
 	return nopSyscaller{}
 }
 
-var errUnimplimented = xerrors.New("unimplemented")
+var errUnimplemented = xerrors.New("unimplemented")
 
 type nopSyscaller struct{}
 

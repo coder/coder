@@ -8,15 +8,15 @@ import (
 )
 
 func (p *Process) SetOOMAdj(score int) error {
-	return errUnimplimented
+	return errUnimplemented
 }
 
 func (p *Process) Niceness(sc Syscaller) (int, error) {
-	return 0, errUnimplimented
+	return 0, errUnimplemented
 }
 
 func (p *Process) SetNiceness(sc Syscaller, score int) error {
-	return errUnimplimented
+	return errUnimplemented
 }
 
 func (p *Process) Name() string {
@@ -24,5 +24,5 @@ func (p *Process) Name() string {
 }
 
 func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
-	return nil, errUnimplimented
+	return nil, errUnimplemented
 }
