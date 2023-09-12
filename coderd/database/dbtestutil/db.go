@@ -33,6 +33,7 @@ func NewDB(t testing.TB) (database.Store, pubsub.Pubsub) {
 			)
 			connectionURL, closePg, err = postgres.Open()
 			require.NoError(t, err)
+			t.Logf("using postgres connection url: %s", connectionURL)
 			t.Cleanup(closePg)
 		}
 		sqlDB, err := sql.Open("postgres", connectionURL)
