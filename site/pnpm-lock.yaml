@@ -100,8 +100,8 @@ dependencies:
     specifier: 4.9.0
     version: 4.9.0
   cronstrue:
-    specifier: 2.31.0
-    version: 2.31.0
+    specifier: 2.32.0
+    version: 2.32.0
   date-fns:
     specifier: 2.30.0
     version: 2.30.0
@@ -7154,8 +7154,8 @@ packages:
       luxon: 3.3.0
     dev: false
 
-  /cronstrue@2.31.0:
-    resolution: {integrity: sha512-A1cyfGyLSRdvT9MNn/pggoCTlvxnJyiCUItU9XHSXk89ZyK2YY9q9q7Rf4j8NhV9YwN1BjB0wimZlvKYb/9Bwg==}
+  /cronstrue@2.32.0:
+    resolution: {integrity: sha512-dmNflOCNJL6lZEj0dp2YhGIPY83VTjFue6d9feFhnNtrER6mAjBrUvSgK95j3IB/xNGpLjaZDIDG6ACKTZr9Yw==}
     hasBin: true
     dev: false
 
