@@ -56,7 +56,7 @@ export const GitAuthSettingsPageView = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {((config.git_auth === null || config.git_auth.length === 0) && (
+            {((config.git_auth === null || config.git_auth?.length === 0) && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.empty}>
@@ -65,7 +65,7 @@ export const GitAuthSettingsPageView = ({
                 </TableCell>
               </TableRow>
             )) ||
-              config.git_auth.map((git: GitAuthConfig) => {
+              config.git_auth?.map((git: GitAuthConfig) => {
                 const name = git.id || git.type;
                 return (
                   <TableRow key={name}>
