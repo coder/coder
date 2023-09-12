@@ -1,7 +1,0 @@
-extends: metric
-message: "Try to keep the Gunning-Fog index (%s) below 12."
-link: https://en.wikipedia.org/wiki/Gunning_fog_index
-level: warning
-formula: |
-    0.4 * ((words / sentences) + 100 * (complex_words / words))
-condition: "> 12"
