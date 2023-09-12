@@ -73,9 +73,9 @@ data "coder_parameter" "region" {
 
 
 data "coder_parameter" "security_groups" {
-  name        = "Security groups"
-  icon        = "/icon/aws.png"
- 
+  name = "Security groups"
+  icon = "/icon/aws.png"
+
   description = "Select appropriate security groups."
   mutable     = true
   default = jsonencode([
@@ -88,16 +88,16 @@ data "coder_parameter" "security_groups" {
 data "coder_parameter" "jetbrains_ide" {
   type         = "list(string)"
   name         = "jetbrains_ide"
-  display_name = "JetBrains IDE" 
+  display_name = "JetBrains IDE"
   icon         = "/icon/gateway.svg"
-  default      = jsonencode([
+  default = jsonencode([
     "GO",
     "232.9559.64",
     "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
   ])
   option {
-    icon  = "/icon/goland.svg"
-    name  = "GoLand"
+    icon = "/icon/goland.svg"
+    name = "GoLand"
     value = jsonencode([
       "GO",
       "232.9559.64",
@@ -105,8 +105,8 @@ data "coder_parameter" "jetbrains_ide" {
     ])
   }
   option {
-    icon  = "/icon/webstorm.svg"
-    name  = "WebStorm"
+    icon = "/icon/webstorm.svg"
+    name = "WebStorm"
     value = jsonencode([
       "WS",
       "232.9559.54",
