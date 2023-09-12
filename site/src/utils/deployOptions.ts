@@ -1,5 +1,5 @@
+import { DeploymentOption, DeploymentGroup } from "api/api";
 import { useMemo } from "react";
-import { DeploymentGroup, DeploymentOption } from "../api/types";
 
 const deploymentOptions = (
   options: DeploymentOption[],

@@ -1,5 +1,4 @@
 import { rest } from "msw";
-import { WorkspaceBuildTransition } from "../api/types";
 import { CreateWorkspaceBuildRequest } from "../api/typesGenerated";
 import { permissionsToCheck } from "../xServices/auth/authXService";
 import * as M from "./entities";
@@ -238,7 +237,7 @@ export const handlers = [
       stop: M.MockWorkspaceBuildStop,
       delete: M.MockWorkspaceBuildDelete,
     };
-    const result = transitionToBuild[transition as WorkspaceBuildTransition];
+    const result = transitionToBuild[transition];
     return res(ctx.status(200), ctx.json(result));
   }),
   rest.get("/api/v2/workspaces/:workspaceId/builds", async (req, res, ctx) => {

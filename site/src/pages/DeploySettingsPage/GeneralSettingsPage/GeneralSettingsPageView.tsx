@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import { DeploymentOption } from "api/types";
 import { DAUsResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
@@ -9,6 +8,7 @@ import { Stack } from "components/Stack/Stack";
 import { ChartSection } from "./ChartSection";
 import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
+import { DeploymentOption } from "api/api";
 
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[];
