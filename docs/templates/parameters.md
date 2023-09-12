@@ -335,14 +335,14 @@ data "coder_parameter" "cpu" {
    - Remove properties `legacy_variable` and `legacy_variable_name` from
      `coder_parameter`s.
 
-4. Update all workspaces to the updated template version (2nd).
+4. Update all workspaces to the updated template version (second time).
 5. Prepare a third template version:
 
    - Enable the `feature_use_managed_variables` provider flag to use managed
      Terraform variables for template customization. Once the flag is enabled,
      legacy variables won't be used.
 
-6. Update all workspaces to the updated template version (3rd).
+6. Update all workspaces to the updated template version (third time).
 7. Delete legacy parameters.
 
 As a template improvement, the template author can consider making some of the

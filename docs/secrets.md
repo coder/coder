@@ -7,7 +7,7 @@ workspace provisioner, see <a href="/admin/auth">this</a>.
 
 Coder is open-minded about how you get your secrets into your workspaces.
 
-## Wait a minute...
+## Wait a minute
 
 Your first stab at secrets with Coder should be your local method. You can do
 everything you can locally and more with your Coder workspace, so whatever

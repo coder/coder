@@ -5,7 +5,7 @@ full list of the options, run `coder server --help` or see our
 ## Access URL
 
 `CODER_ACCESS_URL` is required if you are not using the tunnel. Set this to the
-external URL that users and workspaces use to connect to Coder (e.g.
+external URL that users and workspaces use to connect to Coder (for example
 <https://coder.example.com>). This should not be localhost.
 
 > Access URL should be a external IP address or domain with DNS records pointing
@@ -14,7 +14,7 @@ external URL that users and workspaces use to connect to Coder (e.g.
 ### Tunnel
 
 If an access URL is not specified, Coder will create a publicly accessible URL
-to reverse proxy your deployment for simple setup.
+to reverse proxy your deployment for standard setup.
 
 ## Address
 
@@ -40,7 +40,7 @@ coder server
 `CODER_WILDCARD_ACCESS_URL` is necessary for
 [port forwarding](../networking/port-forwarding.md#dashboard) via the dashboard
 or running [coder_apps](../templates/index.md#coder-apps) on an absolute path.
-Set this to a wildcard subdomain that resolves to Coder (e.g.
+Set this to a wildcard subdomain that resolves to Coder (for example
 `*.coder.example.com`).
 
 If you are providing TLS certificates directly to the Coder server, either
@@ -183,7 +183,7 @@ sudo systemctl restart coder
 
 To configure Coder behind a corporate proxy, set the environment variables
 `HTTP_PROXY` and `HTTPS_PROXY`. Be sure to restart the server. Lowercase values
-(e.g. `http_proxy`) are also respected in this case.
+(for example `http_proxy`) are also respected in this case.
 
 ## Up Next
 

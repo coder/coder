@@ -98,7 +98,7 @@ RUN curl -fL https://install-cli.jfrog.io | sh && chmod 755 $(which jf)
 
 Create a `locals` block to store the Artifactory repository keys for each
 package manager you want to use in your workspace. For example, if you want to
-use artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a
+use Artifactory repositories with keys `npm`, `pypi`, and `go`, you can create a
 `locals` block like this:
 
 ```hcl

@@ -5,7 +5,7 @@ failover within a single region. When in HA mode, Coder continues using a single
 Postgres endpoint.
 [GCP](https://cloud.google.com/sql/docs/postgres/high-availability),
 [AWS](https://docs.aws.amazon.com/prescriptive-guidance/latest/saas-multitenant-managed-postgresql/availability.html),
-and other cloud vendors offer fully-managed HA Postgres services that pair
+and other cloud vendors offer fully managed HA Postgres services that pair
 nicely with Coder.
 
 For Coder to operate correctly, Coderd instances should have low-latency
@@ -51,7 +51,7 @@ Here's an example 3-node network configuration setup:
 ## Kubernetes
 
 If you installed Coder via
-[our Helm Chart](../install/kubernetes.md#install-coder-with-helm), just
+[our Helm Chart](../install/kubernetes.md#install-coder-with-helm),
 increase `coder.replicaCount` in `values.yaml`.
 
 If you installed Coder into Kubernetes by some other means, insert the relay URL

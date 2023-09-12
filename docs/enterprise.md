@@ -22,7 +22,7 @@ paid license. [Contact Sales](https://coder.com/contact) for pricing or
 
 ## Adding your license key
 
-There are two ways to add an enterprise license to a Coder deployment: In the
+There are two ways to add an enterprise license to a Coder deployment: in the
 Coder UI or with the Coder CLI.
 
 ### Coder UI

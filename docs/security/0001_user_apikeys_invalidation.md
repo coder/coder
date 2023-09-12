@@ -77,7 +77,7 @@ If the output is similar to the below, then you are not affected:
 Otherwise, the following information will be reported:
 
 - User email
-- Time the user was last modified (i.e. deleted)
+- Time the user was last modified (for example, deleted)
 - User API key ID
 - Time the affected API key was last used
 

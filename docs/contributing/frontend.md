@@ -65,7 +65,7 @@ conventions to help people to navigate through it.
 ## Routing
 
 We use [react-router](https://reactrouter.com/en/main) as our routing engine and
-adding a new route is very easy. If the new route needs to be authenticated, put
+adding a new route is straightforward. If the new route needs to be authenticated, put
 it under the `<RequireAuth>` route and if it needs to live inside of the
 dashboard, put it under the `<DashboardLayout>` route.
 
@@ -110,7 +110,7 @@ states and transitions.
 Finding the right place to fetch data in React apps is the one million dollar
 question but we decided to make it only in the page components and pass the
 props down to the views. This makes it easier to find where data is being loaded
-and easy to test using Storybook. So you will see components like `UsersPage`
+and quicker to test using Storybook. So you will see components like `UsersPage`
 and `UsersPageView`.
 
 ### API
@@ -159,12 +159,12 @@ of course, it can change in the future.
 
 Each component gets its own folder. Make sure you add a test and Storybook
 stories for the component as well. By keeping these tidy, the codebase will
-remain easy to navigate, healthy and maintainable for all contributors.
+remain navigable, healthy, and maintainable for all contributors.
 
 ### Accessibility
 
 We strive to keep our UI accessible. When using colors, avoid adding new
-elements with low color contrast. Always use labels on inputs, not just
+elements with low color contrast. Always use labels on inputs, not only
 placeholders. These are important for screen-readers.
 
 ### Should I create a new component?
@@ -182,7 +182,7 @@ Testing**.
 
 ### E2E (end-to-end)
 
-Are useful to test complete flows like "Create a user", "Import template", etc.
+Are useful to test complete flows like "Create a user," "Import template," etc.
 For this one, we use [Playwright](https://playwright.dev/). If you only need to
 test if the page is being rendered correctly, you should probably consider using
 the **Visual Testing** approach.
@@ -192,8 +192,8 @@ the **Visual Testing** approach.
 
 ### Integration
 
-Test user interactions like "Click in a button shows a dialog", "Submit the form
-sends the correct data", etc. For this, we use [Jest](https://jestjs.io/) and
+Test user interactions like "Click in a button shows a dialog," "Submit the form
+sends the correct data," etc. For this, we use [Jest](https://jestjs.io/) and
 [react-testing-library](https://testing-library.com/docs/react-testing-library/intro/).
 If the test involves routing checks like redirects or maybe checking the info on
 another page, you should probably consider using the **E2E** approach.
@@ -209,7 +209,7 @@ since it is way easier to maintain. For this, we use
 
 ### What should I test?
 
-Choosing what to test is not always easy since there are a lot of flows and a
+Choosing what to test is not always clear since there are a lot of flows and a
 lot of things can happen but these are a few indicators that can help you with
 that:
 

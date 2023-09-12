@@ -11,9 +11,9 @@ be limited to the number of provisioner daemons across all coderd replicas.
   [Coder’s architecture](../about/architecture.md)
 - **coderd replicas**: Replicas (often via Kubernetes) for high availability,
   this is an [enterprise feature](../enterprise.md)
-- **concurrent workspace builds**: Workspace operations (e.g.
+- **concurrent workspace builds**: Workspace operations (
   create/stop/delete/apply) across all users
-- **concurrent connections**: Any connection to a workspace (e.g. SSH, web
+- **concurrent connections**: Any connection to a workspace (SSH, web
   terminal, `coder_app`)
 - **provisioner daemons**: Coder runs one workspace build per provisioner
   daemon. One coderd replica can host many daemons
@@ -150,7 +150,7 @@ The test does the following:
 1. establish SSH connection to each workspace
 1. run `sleep 3 && echo hello` on each workspace via the web terminal
 1. close connections, attempt to delete all workspaces
-1. return results (e.g. `998 succeeded, 2 failed to connect`)
+1. return results (for example: `998 succeeded, 2 failed to connect`)
 
 Concurrency is configurable. `concurrency 0` means the scaletest test will
 attempt to create & connect to all workspaces immediately.
@@ -191,7 +191,7 @@ We generally do not recommend using an autoscaler that modifies the number of
 coderd replicas. In particular, scale down events can cause interruptions for a
 large number of users.
 
-Coderd is different from a simple request-response HTTP service in that it
+Coderd is different from a request-response HTTP service in that it
 services long-lived connections whenever it proxies HTTP applications like IDEs
 or terminals that rely on websockets, or when it relays tunneled connections to
 workspaces. Loss of a coderd replica will drop these long-lived connections and
@@ -213,7 +213,7 @@ interruptions.
 
 ### A note for Kubernetes users
 
-When running on Kubernetes on cloud infrastructure (i.e. not bare metal), many
+When running on Kubernetes on cloud infrastructure (that is not bare metal), many
 operators choose to employ a _cluster_ autoscaler that adds and removes
 Kubernetes _nodes_ according to load. Coder can coexist with such cluster
 autoscalers, but we recommend you take steps to prevent the autoscaler from

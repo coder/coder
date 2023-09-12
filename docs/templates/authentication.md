@@ -31,7 +31,7 @@ Additional providers may be supported; check the
 for details.
 
 The way these generally work is via the credentials being available to Coder
-either in some well-known location on disk (e.g. `~/.aws/credentials` for AWS on
+either in some well-known location on disk (`~/.aws/credentials` for AWS on
 posix systems), or via environment variables. It is usually sufficient to
 authenticate using the CLI or SDK for the cloud provider before running Coder
 for this to work, but check the Terraform provider documentation for details.

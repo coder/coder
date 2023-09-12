@@ -162,7 +162,7 @@ You can also reset a password via the CLI:
 coder reset-password <username>
 ```
 
-> Resetting a user's password, e.g., the initial `owner` role-based user, only
+> Resetting a user's password, for example, the initial `owner` role-based user, only
 > works when run on the host running the Coder control plane.
 
 ### Resetting a password on Kubernetes

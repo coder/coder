@@ -4,7 +4,7 @@ Coder's network topology has three types of nodes: workspaces, coder servers,
 and users.
 
 The coder server must have an inbound address reachable by users and workspaces,
-but otherwise, all topologies _just work_ with Coder.
+but otherwise, all topologies are compatible with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
@@ -52,7 +52,7 @@ Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
 
-If a direct connection is not available (e.g. client or server is behind NAT),
+If a direct connection is not available (for example, client or server is behind NAT),
 Coder will use a relayed connection. By default,
 [Coder uses Google's public STUN server](../cli/server.md#--derp-server-stun-addresses),
 but this can be disabled or changed for

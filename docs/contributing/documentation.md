@@ -8,7 +8,7 @@ This style guide is primarily for use with authoring documentation.
 - Use the second person
 - Use the active voice
 - Use plural nouns and pronouns (_they_, _their_, or _them_), especially when
-  the specific number is uncertain (i.e., "Set up your environments" even though
+  the specific number is uncertain (that is, "Set up your environments" even though
   you don't know if the user will have one or many environments)
 - When writing documentation titles, use the noun form, not the gerund form
   (e.g., "Environment Management" instead of "Managing Environments")

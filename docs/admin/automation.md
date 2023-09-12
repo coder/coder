@@ -53,7 +53,7 @@ Workspace agents have a special token that can send logs, metrics, and workspace
 activity.
 
 - [Custom workspace logs](../api/agents.md#patch-workspace-agent-logs): Expose
-  messages prior to the Coder init script running (e.g. pulling image, VM
+  messages prior to the Coder init script running (for example: pulling image, VM
   starting, restoring snapshot).
   [coder-logstream-kube](https://github.com/coder/coder-logstream-kube) uses
   this to show Kubernetes events, such as image pulls or ResourceQuota
@@ -74,7 +74,7 @@ activity.
   ```
 
 - [Manually send workspace activity](../api/agents.md#submit-workspace-agent-stats):
-  Keep a workspace "active," even if there is not an open connection (e.g. for a
+  Keep a workspace "active," even if there is not an open connection (for example, a
   long-running machine learning job).
 
   ```shell
