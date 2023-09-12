@@ -18,13 +18,13 @@ var errUnimplemented = xerrors.New("unimplemented")
 type nopSyscaller struct{}
 
 func (nopSyscaller) SetPriority(pid int32, priority int) error {
-	return errUnimplimented
+	return errUnimplemented
 }
 
 func (nopSyscaller) GetPriority(pid int32) (int, error) {
-	return 0, errUnimplimented
+	return 0, errUnimplemented
 }
 
 func (nopSyscaller) Kill(pid int32, sig syscall.Signal) error {
-	return errUnimplimented
+	return errUnimplemented
 }
