@@ -10970,6 +10970,10 @@ const docTemplate = `{
                     "description": "Subdomain denotes whether the app should be accessed via a path on the\n` + "`" + `coder server` + "`" + ` or via a hostname-based dev URL. If this is set to true\nand there is no app wildcard configured on the server, the app will not\nbe accessible in the UI.",
                     "type": "boolean"
                 },
+                "subdomain_name": {
+                    "description": "SubdomainName is the application domain exposed on the ` + "`" + `coder server` + "`" + `.",
+                    "type": "string"
+                },
                 "url": {
                     "description": "URL is the address being proxied to inside the workspace.\nIf external is specified, this will be opened on the client.",
                     "type": "string"

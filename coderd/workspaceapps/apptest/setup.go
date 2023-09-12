@@ -291,6 +291,37 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	}
 
 	appURL := fmt.Sprintf("%s://127.0.0.1:%d?%s", scheme, port, proxyTestAppQuery)
+	protoApps := []*proto.App{
+		{
+			Slug:         proxyTestAppNameFake,
+			DisplayName:  proxyTestAppNameFake,
+			SharingLevel: proto.AppSharingLevel_OWNER,
+			// Hopefully this IP and port doesn't exist.
+			Url:       "http://127.1.0.1:65535",
+			Subdomain: true,
+		},
+		{
+			Slug:         proxyTestAppNameOwner,
+			DisplayName:  proxyTestAppNameOwner,
+			SharingLevel: proto.AppSharingLevel_OWNER,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticated,
+			DisplayName:  proxyTestAppNameAuthenticated,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNamePublic,
+			DisplayName:  proxyTestAppNamePublic,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+	}
 	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
 		Parse:         echo.ParseComplete,
 		ProvisionPlan: echo.PlanComplete,
@@ -306,33 +337,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 							Auth: &proto.Agent_Token{
 								Token: authToken,
 							},
-							Apps: []*proto.App{
-								{
-									Slug:         proxyTestAppNameFake,
-									DisplayName:  proxyTestAppNameFake,
-									SharingLevel: proto.AppSharingLevel_OWNER,
-									// Hopefully this IP and port doesn't exist.
-									Url: "http://127.1.0.1:65535",
-								},
-								{
-									Slug:         proxyTestAppNameOwner,
-									DisplayName:  proxyTestAppNameOwner,
-									SharingLevel: proto.AppSharingLevel_OWNER,
-									Url:          appURL,
-								},
-								{
-									Slug:         proxyTestAppNameAuthenticated,
-									DisplayName:  proxyTestAppNameAuthenticated,
-									SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
-									Url:          appURL,
-								},
-								{
-									Slug:         proxyTestAppNamePublic,
-									DisplayName:  proxyTestAppNamePublic,
-									SharingLevel: proto.AppSharingLevel_PUBLIC,
-									Url:          appURL,
-								},
-							},
+							Apps: protoApps,
 						}},
 					}},
 				},
@@ -342,7 +347,22 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID, workspaceMutators...)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	// Verify app subdomains
+	for _, app := range workspaceBuild.Resources[0].Agents[0].Apps {
+		require.True(t, app.Subdomain)
+
+		appURL := httpapi.ApplicationURL{
+			// findProtoApp is needed as the order of apps returned from PG database
+			// is not guaranteed.
+			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
+			AgentName:     proxyTestAgentName,
+			WorkspaceName: workspace.Name,
+			Username:      me.Username,
+		}
+		require.Equal(t, appURL.String(), app.SubdomainName)
+	}
 
 	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(authToken)
@@ -386,6 +406,16 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	require.Len(t, agents, 1)
 
 	return workspace, agents[0]
+}
+
+func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) *proto.App {
+	for _, protoApp := range protoApps {
+		if protoApp.Slug == slug {
+			return protoApp
+		}
+	}
+	require.FailNowf(t, "proto app not found (slug: %q)", slug)
+	return nil
 }
 
 func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Request) (*http.Response, error) {
