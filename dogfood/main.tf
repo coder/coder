@@ -280,11 +280,6 @@ resource "coder_app" "gateway" {
   external     = true
 }
 
-
-output "debug_value" {
-  value = data.coder_parameter.jetbrains_ide.value
-}
-
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
   # Protect the volume from being deleted due to changes in attributes.
