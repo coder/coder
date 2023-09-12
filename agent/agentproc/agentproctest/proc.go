@@ -11,7 +11,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-func GenerateProcess(t *testing.T, fs afero.Fs, dir string, muts ...func(*agentproc.Process)) agentproc.Process {
+func GenerateProcess(t *testing.T, fs afero.Fs, muts ...func(*agentproc.Process)) agentproc.Process {
 	t.Helper()
 
 	pid, err := cryptorand.Intn(1<<31 - 1)
@@ -38,7 +38,7 @@ func GenerateProcess(t *testing.T, fs afero.Fs, dir string, muts ...func(*agentp
 		mut(&process)
 	}
 
-	process.Dir = fmt.Sprintf("%s/%d", dir, process.PID)
+	process.Dir = fmt.Sprintf("%s/%d", "/proc", process.PID)
 
 	err = fs.MkdirAll(process.Dir, 0o555)
 	require.NoError(t, err)

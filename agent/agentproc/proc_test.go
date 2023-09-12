@@ -25,11 +25,10 @@ func TestList(t *testing.T) {
 			fs            = afero.NewMemMapFs()
 			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
-			rootDir       = agentproc.DefaultProcDir
 		)
 
 		for i := 0; i < 4; i++ {
-			proc := agentproctest.GenerateProcess(t, fs, rootDir)
+			proc := agentproctest.GenerateProcess(t, fs)
 			expectedProcs[proc.PID] = proc
 
 			sc.EXPECT().
@@ -37,9 +36,9 @@ func TestList(t *testing.T) {
 				Return(nil)
 		}
 
-		actualProcs, err := agentproc.List(fs, sc, rootDir)
+		actualProcs, err := agentproc.List(fs, sc)
 		require.NoError(t, err)
-		require.Len(t, actualProcs, 4)
+		require.Len(t, actualProcs, len(expectedProcs))
 		for _, proc := range actualProcs {
 			expected, ok := expectedProcs[proc.PID]
 			require.True(t, ok)
@@ -56,11 +55,10 @@ func TestList(t *testing.T) {
 			fs            = afero.NewMemMapFs()
 			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
-			rootDir       = agentproc.DefaultProcDir
 		)
 
 		for i := 0; i < 3; i++ {
-			proc := agentproctest.GenerateProcess(t, fs, rootDir)
+			proc := agentproctest.GenerateProcess(t, fs)
 			expectedProcs[proc.PID] = proc
 
 			sc.EXPECT().
@@ -70,14 +68,14 @@ func TestList(t *testing.T) {
 
 		// Create a process that's already finished. We're not adding
 		// it to the map because it should be skipped over.
-		proc := agentproctest.GenerateProcess(t, fs, rootDir)
+		proc := agentproctest.GenerateProcess(t, fs)
 		sc.EXPECT().
 			Kill(proc.PID, syscall.Signal(0)).
 			Return(xerrors.New("os: process already finished"))
 
-		actualProcs, err := agentproc.List(fs, sc, rootDir)
+		actualProcs, err := agentproc.List(fs, sc)
 		require.NoError(t, err)
-		require.Len(t, actualProcs, 3)
+		require.Len(t, actualProcs, len(expectedProcs))
 		for _, proc := range actualProcs {
 			expected, ok := expectedProcs[proc.PID]
 			require.True(t, ok)
@@ -94,11 +92,10 @@ func TestList(t *testing.T) {
 			fs            = afero.NewMemMapFs()
 			sc            = agentproctest.NewMockSyscaller(gomock.NewController(t))
 			expectedProcs = make(map[int32]agentproc.Process)
-			rootDir       = agentproc.DefaultProcDir
 		)
 
 		for i := 0; i < 3; i++ {
-			proc := agentproctest.GenerateProcess(t, fs, rootDir)
+			proc := agentproctest.GenerateProcess(t, fs)
 			expectedProcs[proc.PID] = proc
 
 			sc.EXPECT().
@@ -108,14 +105,14 @@ func TestList(t *testing.T) {
 
 		// Create a process that doesn't exist. We're not adding
 		// it to the map because it should be skipped over.
-		proc := agentproctest.GenerateProcess(t, fs, rootDir)
+		proc := agentproctest.GenerateProcess(t, fs)
 		sc.EXPECT().
 			Kill(proc.PID, syscall.Signal(0)).
 			Return(syscall.ESRCH)
 
-		actualProcs, err := agentproc.List(fs, sc, rootDir)
+		actualProcs, err := agentproc.List(fs, sc)
 		require.NoError(t, err)
-		require.Len(t, actualProcs, 3)
+		require.Len(t, actualProcs, len(expectedProcs))
 		for _, proc := range actualProcs {
 			expected, ok := expectedProcs[proc.PID]
 			require.True(t, ok)
@@ -136,15 +133,14 @@ func TestProcess(t *testing.T) {
 
 		var (
 			fs            = afero.NewMemMapFs()
-			dir           = agentproc.DefaultProcDir
-			proc          = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
+			proc          = agentproctest.GenerateProcess(t, fs)
 			expectedScore = -1000
 		)
 
 		err := proc.SetOOMAdj(expectedScore)
 		require.NoError(t, err)
 
-		actualScore, err := afero.ReadFile(fs, fmt.Sprintf("%s/%d/oom_score_adj", dir, proc.PID))
+		actualScore, err := afero.ReadFile(fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID))
 		require.NoError(t, err)
 		require.Equal(t, fmt.Sprintf("%d", expectedScore), strings.TrimSpace(string(actualScore)))
 	})

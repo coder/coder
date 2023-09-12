@@ -2422,7 +2422,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			// score should be untouched.
 			var proc agentproc.Process
 			if i == 0 {
-				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir,
+				proc = agentproctest.GenerateProcess(t, fs,
 					func(p *agentproc.Process) {
 						p.CmdLine = "./coder\x00agent\x00--no-reap"
 						p.PID = 1
@@ -2430,7 +2430,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 				)
 			} else {
 				// The rest are peasants.
-				proc = agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
+				proc = agentproctest.GenerateProcess(t, fs)
 				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
 				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
 			}
@@ -2444,7 +2444,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Syscaller = syscaller
 			o.ModifiedProcesses = modProcs
-			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
 			o.Filesystem = fs
 			o.Logger = logger
 			o.ProcessManagementTick = ticker
@@ -2480,7 +2480,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 
 		// Create some processes.
 		for i := 0; i < 2; i++ {
-			proc := agentproctest.GenerateProcess(t, fs, agentproc.DefaultProcDir)
+			proc := agentproctest.GenerateProcess(t, fs)
 			syscaller.EXPECT().
 				Kill(proc.PID, syscall.Signal(0)).
 				Return(nil)
@@ -2500,7 +2500,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Syscaller = syscaller
 			o.ModifiedProcesses = modProcs
-			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
 			o.Filesystem = fs
 			o.Logger = logger
 			o.ProcessManagementTick = ticker
@@ -2518,7 +2518,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		log := slog.Make(sloghuman.Sink(&buf))
+		log := slog.Make(sloghuman.Sink(&buf)).Leveled(slog.LevelDebug)
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Logger = log
@@ -2537,13 +2537,13 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 
 		var buf bytes.Buffer
-		log := slog.Make(sloghuman.Sink(&buf))
+		log := slog.Make(sloghuman.Sink(&buf)).Leveled(slog.LevelDebug)
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Logger = log
 			// Try to enable it so that we can assert that non-linux
 			// environments are truly disabled.
-			o.EnvironmentVariables = map[string]string{agent.EnvProcMemNice: "1"}
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
 		})
 		require.Eventually(t, func() bool {
 			return strings.Contains(buf.String(), "process priority not enabled")

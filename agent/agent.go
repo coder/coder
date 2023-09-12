@@ -53,9 +53,9 @@ const (
 	ProtocolDial            = "dial"
 )
 
-// EnvProcMemNice determines whether we attempt to manage
+// EnvProcPrioMgmt determines whether we attempt to manage
 // process CPU and OOM Killer priority.
-const EnvProcMemNice = "CODER_PROC_MEMNICE_ENABLE"
+const EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
 
 type Options struct {
 	Filesystem                   afero.Fs
@@ -217,7 +217,7 @@ type agent struct {
 	metrics            *agentMetrics
 	syscaller          agentproc.Syscaller
 
-	// podifiedProcs is used for testing process priority management.
+	// modifiedProcs is used for testing process priority management.
 	modifiedProcs chan []*agentproc.Process
 	// processManagementTick is used for testing process priority management.
 	processManagementTick <-chan time.Time
@@ -1281,30 +1281,14 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 var prioritizedProcs = []string{"coder"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
-	if val := a.envVars[EnvProcMemNice]; val == "" || runtime.GOOS != "linux" {
-		a.logger.Info(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
-			slog.F("env_var", EnvProcMemNice),
+	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
+		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
+			slog.F("env_var", EnvProcPrioMgmt),
 			slog.F("value", val),
 			slog.F("goos", runtime.GOOS),
 		)
 		return
 	}
-
-	manage := func() {
-		procs, err := a.manageProcessPriority(ctx)
-		if err != nil {
-			a.logger.Error(ctx, "manage process priority",
-				slog.F("dir", agentproc.DefaultProcDir),
-				slog.Error(err),
-			)
-		}
-		if a.modifiedProcs != nil {
-			a.modifiedProcs <- procs
-		}
-	}
-
-	// Do once before falling into loop.
-	manage()
 
 	if a.processManagementTick == nil {
 		ticker := time.NewTicker(time.Second)
@@ -1313,9 +1297,18 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	}
 
 	for {
+		procs, err := a.manageProcessPriority(ctx)
+		if err != nil {
+			a.logger.Error(ctx, "manage process priority",
+				slog.Error(err),
+			)
+		}
+		if a.modifiedProcs != nil {
+			a.modifiedProcs <- procs
+		}
+
 		select {
 		case <-a.processManagementTick:
-			manage()
 		case <-ctx.Done():
 			return
 		}
@@ -1324,18 +1317,26 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 
 func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
 	const (
-		procDir     = agentproc.DefaultProcDir
 		niceness    = 10
 		oomScoreAdj = -500
 	)
 
-	procs, err := agentproc.List(a.filesystem, a.syscaller, agentproc.DefaultProcDir)
+	procs, err := agentproc.List(a.filesystem, a.syscaller)
 	if err != nil {
 		return nil, xerrors.Errorf("list: %w", err)
 	}
 
-	modProcs := []*agentproc.Process{}
+	var (
+		modProcs = []*agentproc.Process{}
+		logger   slog.Logger
+	)
+
 	for _, proc := range procs {
+		logger = a.logger.With(
+			slog.F("name", proc.Name()),
+			slog.F("pid", proc.PID),
+		)
+
 		// Trim off the path e.g. "./coder" -> "coder"
 		name := filepath.Base(proc.Name())
 		// If the process is prioritized we should adjust
@@ -1343,29 +1344,19 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		if slices.Contains(prioritizedProcs, name) {
 			err = proc.SetOOMAdj(oomScoreAdj)
 			if err != nil {
-				a.logger.Error(ctx, "unable to set proc oom_score_adj",
-					slog.F("name", proc.Name()),
-					slog.F("pid", proc.PID),
+				logger.Warn(ctx, "unable to set proc oom_score_adj",
 					slog.F("oom_score_adj", oomScoreAdj),
 					slog.Error(err),
 				)
 				continue
 			}
 			modProcs = append(modProcs, proc)
-
-			a.logger.Debug(ctx, "decreased process oom_score",
-				slog.F("name", proc.Name()),
-				slog.F("pid", proc.PID),
-				slog.F("oom_score_adj", oomScoreAdj),
-			)
 			continue
 		}
 
 		score, err := proc.Niceness(a.syscaller)
 		if err != nil {
-			a.logger.Error(ctx, "unable to get proc niceness",
-				slog.F("name", proc.Name()),
-				slog.F("pid", proc.PID),
+			logger.Warn(ctx, "unable to get proc niceness",
 				slog.Error(err),
 			)
 			continue
@@ -1376,9 +1367,7 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		// Getpriority actually returns priority for the nice value
 		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
 		if score != 20 {
-			a.logger.Error(ctx, "skipping process due to custom niceness",
-				slog.F("name", proc.Name()),
-				slog.F("pid", proc.PID),
+			logger.Debug(ctx, "skipping process due to custom niceness",
 				slog.F("niceness", score),
 			)
 			continue
@@ -1386,20 +1375,13 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 
 		err = proc.SetNiceness(a.syscaller, niceness)
 		if err != nil {
-			a.logger.Error(ctx, "unable to set proc niceness",
-				slog.F("name", proc.Name()),
-				slog.F("pid", proc.PID),
+			logger.Warn(ctx, "unable to set proc niceness",
 				slog.F("niceness", niceness),
 				slog.Error(err),
 			)
 			continue
 		}
 
-		a.logger.Debug(ctx, "deprioritized process",
-			slog.F("name", proc.Name()),
-			slog.F("pid", proc.PID),
-			slog.F("niceness", niceness),
-		)
 		modProcs = append(modProcs, proc)
 	}
 	return modProcs, nil

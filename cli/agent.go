@@ -287,8 +287,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS":        executablePath,
-					agent.EnvProcMemNice: os.Getenv(agent.EnvProcMemNice),
+					"GIT_ASKPASS":         executablePath,
+					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
