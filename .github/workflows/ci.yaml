@@ -143,6 +143,7 @@ jobs:
           filter_mode: nofilter
           fail_on_error: false
           vale_flags: "--no-exit"
+          reporter: github-check
 
       # Check for any typos
       - name: Check for typos
