@@ -408,14 +408,14 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	return workspace, agents[0]
 }
 
-func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) proto.App {
+func findProtoApp(t *testing.T, protoApps []*proto.App, slug string) *proto.App {
 	for _, protoApp := range protoApps {
 		if protoApp.Slug == slug {
-			return *protoApp
+			return protoApp
 		}
 	}
 	require.FailNowf(t, "proto app not found (slug: %q)", slug)
-	return proto.App{}
+	return nil
 }
 
 func doWithRetries(t require.TestingT, client *codersdk.Client, req *http.Request) (*http.Response, error) {
