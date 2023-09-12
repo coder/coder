@@ -10,7 +10,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
-import { useWorkspaceQuota } from "api/queries/workspaceQuota";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { useQuery } from "@tanstack/react-query";
 
 export const WorkspacePage: FC = () => {
   const params = useParams() as {
@@ -28,7 +29,7 @@ export const WorkspacePage: FC = () => {
     },
   });
   const { workspace, error } = workspaceState.context;
-  const quotaQuery = useWorkspaceQuota(username);
+  const quotaQuery = useQuery(workspaceQuota(username));
   const pageError = error ?? quotaQuery.error;
 
   return (
