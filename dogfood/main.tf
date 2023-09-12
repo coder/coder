@@ -71,20 +71,6 @@ data "coder_parameter" "region" {
   # }
 }
 
-
-data "coder_parameter" "security_groups" {
-  name = "Security groups"
-  icon = "/icon/aws.png"
-
-  description = "Select appropriate security groups."
-  mutable     = true
-  default = jsonencode([
-    "Web Server Security Group",
-    "Database Security Group",
-    "Backend Security Group"
-  ])
-}
-
 data "coder_parameter" "jetbrains_ide" {
   type         = "list(string)"
   name         = "jetbrains_ide"
