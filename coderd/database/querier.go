@@ -24,6 +24,8 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
+	// Workspace shutdown is manual.
+	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, dollar_1 uuid.UUID) error
 	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error

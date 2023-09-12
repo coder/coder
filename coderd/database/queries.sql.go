@@ -40,17 +40,24 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00'
+		-- We bump by the original TTL to prevent counter-intuitive behavior
+		-- as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
+		-- work at midnight, come back at 10am, I would want another full day
+		-- of uptime. In the prior implementation, the workspace would enter
+		-- a state of always expiring 1 hour in the future.
 		THEN l.now_utc + l.ttl_interval
 		ELSE LEAST(l.now_utc + l.ttl_interval, l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
+AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
 AND l.build_deadline != '0001-01-01 00:00:00'
-AND l.job_completed_at IS NOT NULL
-AND l.build_deadline + (l.ttl_interval * 0.05) < NOW()
+AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 
+// Workspace shutdown is manual.
+// We only bump when 5% of the deadline has elapsed.
 func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, dollar_1 uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, activityBumpWorkspace, dollar_1)
 	return err

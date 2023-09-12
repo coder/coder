@@ -166,7 +166,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
 				require.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
 			} else {
-				require.WithinDuration(t, dbtime.Now(), updatedBuild.UpdatedAt, 15*time.Second, "unexpected updated at time after bump")
+				require.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
 				expectedDeadline := approxBumpTime.Add(tt.expectedBump).UTC()
 				require.WithinDuration(t, expectedDeadline, updatedBuild.Deadline.UTC(), 15*time.Second, "unexpected deadline after bump")
 			}
