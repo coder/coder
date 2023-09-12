@@ -185,7 +185,7 @@ require (
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
 	google.golang.org/api v0.138.0
-	google.golang.org/grpc v1.57.0
+	google.golang.org/grpc v1.58.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.54.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -195,6 +195,8 @@ require (
 	storj.io/drpc v0.0.33-0.20230420154621-9716137f6037
 	tailscale.com v1.46.1
 )
+
+require github.com/djherbis/times v1.5.0
 
 require (
 	cloud.google.com/go/compute v1.23.0 // indirect

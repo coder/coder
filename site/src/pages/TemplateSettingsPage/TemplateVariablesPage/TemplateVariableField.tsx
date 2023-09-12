@@ -4,11 +4,13 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
 import { TemplateVersionVariable } from "api/typesGenerated";
 import { FC, useState } from "react";
-import { useTranslation } from "react-i18next";
 
 export const SensitiveVariableHelperText = () => {
-  const { t } = useTranslation("templateVariablesPage");
-  return <span>{t("sensitiveVariableHelperText")}</span>;
+  return (
+    <span>
+      This variable is sensitive. The previous value will be used if empty.
+    </span>
+  );
 };
 
 export interface TemplateVariableFieldProps {

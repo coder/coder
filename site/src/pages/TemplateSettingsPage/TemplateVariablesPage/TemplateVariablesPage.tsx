@@ -8,7 +8,6 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { templateVariablesMachine } from "xServices/template/templateVariablesXService";
 import { pageTitle } from "../../../utils/page";
@@ -42,11 +41,10 @@ export const TemplateVariablesPage: FC = () => {
     jobError,
   } = state.context;
 
-  const { t } = useTranslation("templateVariablesPage");
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, t("title")])}</title>
+        <title>{pageTitle([template.name, "Template variables"])}</title>
       </Helmet>
 
       <TemplateVariablesPageView
