@@ -5,7 +5,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { DeploymentOption } from "api/types";
 import {
   OptionDescription,
   OptionName,
@@ -13,6 +12,7 @@ import {
 } from "components/DeploySettingsLayout/Option";
 import { FC } from "react";
 import { optionValue } from "./optionValue";
+import { DeploymentOption } from "api/api";
 
 const OptionsTable: FC<{
   options: DeploymentOption[];

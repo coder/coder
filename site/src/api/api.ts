@@ -1001,7 +1001,7 @@ export interface DeploymentOption {
   readonly group?: DeploymentGroup;
 }
 
-type DeploymentConfig = {
+export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
   readonly options: DeploymentOption[];
 };
