@@ -4,7 +4,6 @@ import { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import {
@@ -15,7 +14,6 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
-  const { t } = useTranslation("templateSettingsPage");
   const navigate = useNavigate();
   const { template } = useTemplateSettingsContext();
   const queryClient = useQueryClient();
@@ -38,7 +36,7 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, t("title")])}</title>
+        <title>{pageTitle([template.name, "General Settings"])}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={isSubmitting}

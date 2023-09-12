@@ -6,7 +6,6 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import makeStyles from "@mui/styles/makeStyles";
-import { useTranslation } from "react-i18next";
 import { onChangeTrimmed, getFormHelpers } from "utils/formUtils";
 import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
@@ -40,7 +39,6 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
   creationFailed,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("tokensPage");
   const navigate = useNavigate();
 
   const [expDays, setExpDays] = useState<number>(1);
@@ -69,7 +67,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
         <FormFields>
           <TextField
             {...getFieldHelpers("name")}
-            label={t("createToken.fields.name")}
+            label="Name"
             required
             onChange={onChangeTrimmed(form, () => setFormError(undefined))}
             autoFocus
@@ -93,7 +91,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
           <Stack direction="row">
             <TextField
               select
-              label={t("createToken.fields.lifetime")}
+              label="Lifetime"
               required
               defaultValue={determineDefaultLtValue(maxTokenLifetime)}
               onChange={(event) => {
@@ -117,7 +115,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
             {lifetimeDays === "custom" && (
               <TextField
                 type="date"
-                label={t("createToken.lifetimeSection.expiresOn")}
+                label="Expires on"
                 defaultValue={dayjs().add(expDays, "day").format("YYYY-MM-DD")}
                 onChange={(event) => {
                   const lt = Math.ceil(

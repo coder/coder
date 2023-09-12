@@ -8,7 +8,6 @@ import { FormikContextType, FormikTouched, useFormik } from "formik";
 import { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
-import { useTranslation } from "react-i18next";
 import {
   FormFields,
   FormSection,
@@ -64,12 +63,11 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
     form,
     error,
   );
-  const { t } = useTranslation("templateVariablesPage");
 
   return (
     <HorizontalForm
       onSubmit={form.handleSubmit}
-      aria-label={t("formAriaLabel").toString()}
+      aria-label="Template variables"
     >
       {templateVariables.map((templateVariable, index) => {
         let fieldHelpers;
@@ -155,8 +153,6 @@ const ValidationSchemaForTemplateVariables = (
   ns: string,
   templateVariables: TemplateVersionVariable[],
 ): Yup.AnySchema => {
-  const { t } = useTranslation(ns);
-
   return Yup.array()
     .of(
       Yup.object().shape({
@@ -175,7 +171,7 @@ const ValidationSchemaForTemplateVariables = (
             if (!val || val.length === 0) {
               return ctx.createError({
                 path: ctx.path,
-                message: t("validationRequiredVariable").toString(),
+                message: "Variable is required.",
               });
             }
           }

@@ -1,7 +1,6 @@
 import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { ComponentProps, FC } from "react";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
-import { useTranslation } from "react-i18next";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { makeStyles } from "@mui/styles";
 
@@ -24,13 +23,12 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   submitError,
   initialTouched,
 }) => {
-  const { t } = useTranslation("templateSettingsPage");
   const styles = useStyles();
 
   return (
     <>
       <PageHeader className={styles.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+        <PageHeaderTitle>General Settings</PageHeaderTitle>
       </PageHeader>
 
       <TemplateSettingsForm

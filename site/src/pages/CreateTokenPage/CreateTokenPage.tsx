@@ -1,5 +1,4 @@
 import { FC, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
@@ -22,7 +21,6 @@ const initialValues: CreateTokenData = {
 };
 
 export const CreateTokenPage: FC = () => {
-  const { t } = useTranslation("tokensPage");
   const styles = useStyles();
   const navigate = useNavigate();
 
@@ -46,13 +44,13 @@ export const CreateTokenPage: FC = () => {
   const [formError, setFormError] = useState<unknown>(undefined);
 
   const onCreateSuccess = () => {
-    displaySuccess(t("createToken.createSuccess"));
+    displaySuccess("Token has been created");
     navigate("/settings/tokens");
   };
 
   const onCreateError = (error: unknown) => {
     setFormError(error);
-    displayError(t("createToken.createError"));
+    displayError("Failed to create token");
   };
 
   const form = useFormik<CreateTokenData>({
@@ -73,7 +71,7 @@ export const CreateTokenPage: FC = () => {
 
   const tokenDescription = (
     <>
-      <p>{t("createToken.successModal.description")}</p>
+      <p>Make sure you copy the below token before proceeding:</p>
       <CodeExample code={newToken?.key ?? ""} className={styles.codeExample} />
     </>
   );
@@ -89,8 +87,8 @@ export const CreateTokenPage: FC = () => {
       </Helmet>
       {tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
       <FullPageHorizontalForm
-        title={t("createToken.title")}
-        detail={t("createToken.detail")}
+        title="Create Token"
+        detail="All tokens are unscoped and therefore have full resource access."
       >
         <CreateTokenForm
           form={form}
@@ -104,7 +102,7 @@ export const CreateTokenPage: FC = () => {
         <ConfirmDialog
           type="info"
           hideCancel
-          title={t("createToken.successModal.title")}
+          title="Creation successful"
           description={tokenDescription}
           open={creationSuccessful && Boolean(newToken.key)}
           confirmLoading={isCreating}

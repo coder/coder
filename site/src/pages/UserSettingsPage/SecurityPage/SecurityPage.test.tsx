@@ -6,7 +6,6 @@ import {
   waitForLoaderToBeRemoved,
 } from "../../../testHelpers/renderHelpers";
 import { SecurityPage } from "./SecurityPage";
-import i18next from "i18next";
 import {
   MockAuthMethodsWithPasswordType,
   mockApiError,
@@ -14,8 +13,6 @@ import {
 import userEvent from "@testing-library/user-event";
 import * as SSO from "./SingleSignOnSection";
 import { OAuthConversionResponse } from "api/typesGenerated";
-
-const { t } = i18next;
 
 const renderPage = async () => {
   const utils = renderWithAuth(<SecurityPage />);
@@ -58,10 +55,7 @@ test("update password successfully", async () => {
   const { user } = await renderPage();
   fillAndSubmitSecurityForm();
 
-  const expectedMessage = t("securityUpdateSuccessMessage", {
-    ns: "userSettingsPage",
-  });
-  const successMessage = await screen.findByText(expectedMessage);
+  const successMessage = await screen.findByText("Updated password.");
   expect(successMessage).toBeDefined();
   expect(API.updateUserPassword).toBeCalledTimes(1);
   expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
@@ -113,10 +107,7 @@ test("update password when submit returns an unknown error", async () => {
   const { user } = await renderPage();
   fillAndSubmitSecurityForm();
 
-  const errorText = t("warningsAndErrors.somethingWentWrong", {
-    ns: "common",
-  });
-  const errorMessage = await screen.findByText(errorText);
+  const errorMessage = await screen.findByText("Something went wrong.");
   expect(errorMessage).toBeDefined();
   expect(API.updateUserPassword).toBeCalledTimes(1);
   expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);

@@ -1,7 +1,6 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
-import i18next from "i18next";
 import {
   MockTemplate,
   MockUser,
@@ -20,20 +19,10 @@ import {
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
-const { t } = i18next;
-
-const nameLabelText = t("nameLabel", { ns: "createWorkspacePage" });
-const createWorkspaceText = t("createWorkspace", { ns: "createWorkspacePage" });
-const validationNumberNotInRangeText = t("validationNumberNotInRange", {
-  ns: "createWorkspacePage",
-  min: "1",
-  max: "3",
-});
-const validationPatternNotMatched = t("validationPatternNotMatched", {
-  ns: "createWorkspacePage",
-  error: MockTemplateVersionParameter3.validation_error,
-  pattern: "^[a-z]{3}$",
-});
+const nameLabelText = "Workspace Name";
+const createWorkspaceText = "Create Workspace";
+const validationNumberNotInRangeText = "Value must be between 1 and 3.";
+const validationPatternNotMatched = `${MockTemplateVersionParameter3.validation_error} (value does not match the pattern ^[a-z]{3}$)`;
 
 const renderCreateWorkspacePage = () => {
   return renderWithAuth(<CreateWorkspacePage />, {

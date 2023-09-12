@@ -3,7 +3,6 @@ import { useOrganizationId } from "hooks/useOrganizationId";
 import { useTab } from "hooks/useTab";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { templateVersionMachine } from "xServices/templateVersion/templateVersionXService";
@@ -22,14 +21,11 @@ export const TemplateVersionPage: FC = () => {
     context: { templateName, versionName, orgId },
   });
   const tab = useTab("file", "0");
-  const { t } = useTranslation("templateVersionPage");
 
   return (
     <>
       <Helmet>
-        <title>
-          {pageTitle(`${t("title")} ${versionName} · ${templateName}`)}
-        </title>
+        <title>{pageTitle(`Version ${versionName} · ${templateName}`)}</title>
       </Helmet>
 
       <TemplateVersionPageView

@@ -2,9 +2,6 @@ import { getUserSSHKey, regenerateUserSSHKey } from "api/api";
 import { GitSSHKey } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { createMachine, assign } from "xstate";
-import { i18n } from "i18n";
-
-const { t } = i18n;
 
 interface Context {
   sshKey?: GitSSHKey;
@@ -116,9 +113,7 @@ export const sshKeyMachine = createMachine(
         regenerateSSHKeyError: (_) => undefined,
       }),
       notifySuccessSSHKeyRegenerated: () => {
-        displaySuccess(
-          t("sshRegenerateSuccessMessage", { ns: "userSettingsPage" }),
-        );
+        displaySuccess("SSH Key regenerated successfully.");
       },
     },
   },

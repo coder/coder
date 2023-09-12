@@ -1,6 +1,5 @@
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import * as Yup from "yup";
-import i18next from "i18next";
 import { TemplateAutostopRequirementDaysValue } from "./AutostopRequirementHelperText";
 
 export interface TemplateScheduleFormValues
@@ -18,27 +17,17 @@ export const getValidationSchema = (): Yup.AnyObjectSchema =>
   Yup.object({
     default_ttl_ms: Yup.number()
       .integer()
-      .min(
-        0,
-        i18next
-          .t("defaultTTLMinError", { ns: "templateSettingsPage" })
-          .toString(),
-      )
+      .min(0, "Default time until autostop must not be less than 0.")
       .max(
         24 * MAX_TTL_DAYS /* 30 days in hours */,
-        i18next
-          .t("defaultTTLMaxError", { ns: "templateSettingsPage" })
-          .toString(),
+        "Please enter a limit that is less than or equal to 720 hours (30 days).",
       ),
     max_ttl_ms: Yup.number()
       .integer()
-      .min(
-        0,
-        i18next.t("maxTTLMinError", { ns: "templateSettingsPage" }).toString(),
-      )
+      .min(0, "Maximum time until autostop must not be less than 0.")
       .max(
         24 * MAX_TTL_DAYS /* 30 days in hours */,
-        i18next.t("maxTTLMaxError", { ns: "templateSettingsPage" }).toString(),
+        "Please enter a limit that is less than or equal to 720 hours (30 days).",
       ),
     failure_ttl_ms: Yup.number()
       .min(0, "Failure cleanup days must not be less than 0.")

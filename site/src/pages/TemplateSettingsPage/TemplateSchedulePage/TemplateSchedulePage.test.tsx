@@ -12,9 +12,6 @@ import {
 } from "testHelpers/renderHelpers";
 import { TemplateScheduleFormValues, getValidationSchema } from "./formHelpers";
 import TemplateSchedulePage from "./TemplateSchedulePage";
-import i18next from "i18next";
-
-const { t } = i18next;
 
 const validFormValues: TemplateScheduleFormValues = {
   default_ttl_ms: 1,
@@ -55,17 +52,15 @@ const fillAndSubmitForm = async ({
   const user = userEvent.setup();
 
   if (default_ttl_ms) {
-    const defaultTtlLabel = t("defaultTtlLabel", {
-      ns: "templateSettingsPage",
-    });
-    const defaultTtlField = await screen.findByLabelText(defaultTtlLabel);
+    const defaultTtlField = await screen.findByLabelText(
+      "Default autostop (hours)",
+    );
     await user.clear(defaultTtlField);
     await user.type(defaultTtlField, default_ttl_ms.toString());
   }
 
   if (max_ttl_ms) {
-    const maxTtlLabel = t("maxTtlLabel", { ns: "templateSettingsPage" });
-    const maxTtlField = await screen.findByLabelText(maxTtlLabel);
+    const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
     await user.clear(maxTtlField);
     await user.type(maxTtlField, max_ttl_ms.toString());
   }
@@ -203,7 +198,7 @@ describe("TemplateSchedulePage", () => {
     };
     const validate = () => getValidationSchema().validateSync(values);
     expect(validate).toThrowError(
-      t("defaultTTLMaxError", { ns: "templateSettingsPage" }).toString(),
+      "Please enter a limit that is less than or equal to 720 hours (30 days).",
     );
   });
 

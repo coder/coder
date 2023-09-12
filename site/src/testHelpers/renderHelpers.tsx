@@ -5,10 +5,8 @@ import {
 } from "@testing-library/react";
 import { AppProviders } from "App";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
-import { i18n } from "i18n";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import { I18nextProvider } from "react-i18next";
 import {
   RouterProvider,
   createMemoryRouter,
@@ -18,19 +16,15 @@ import { RequireAuth } from "../components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
 import { ReactNode } from "react";
 
-const baseRender = (element: ReactNode) => {
-  return tlRender(
-    <I18nextProvider i18n={i18n}>
-      <AppProviders>{element}</AppProviders>
-    </I18nextProvider>,
-  );
-};
-
 export const renderWithRouter = (
   router: ReturnType<typeof createMemoryRouter>,
 ) => {
   return {
-    ...baseRender(<RouterProvider router={router} />),
+    ...tlRender(
+      <AppProviders>
+        (<RouterProvider router={router} />)
+      </AppProviders>,
+    ),
     router,
   };
 };
