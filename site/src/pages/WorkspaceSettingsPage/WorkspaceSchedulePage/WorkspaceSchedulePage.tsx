@@ -100,7 +100,7 @@ export const WorkspaceSchedulePage: FC = () => {
             onCancel={() => {
               navigate(`/@${username}/${workspaceName}`);
             }}
-            onSubmit={(values) => {
+            onSubmit={async (values) => {
               scheduleSend({
                 type: "SUBMIT_SCHEDULE",
                 autostart: formValuesToAutostartRequest(values),
@@ -115,7 +115,7 @@ export const WorkspaceSchedulePage: FC = () => {
                 ),
               });
 
-              queryClient.invalidateQueries(
+              await queryClient.invalidateQueries(
                 workspaceByOwnerAndNameKey(params.username, params.workspace),
               );
             }}
