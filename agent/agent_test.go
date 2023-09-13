@@ -2406,6 +2406,10 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
 		var (
 			expectedProcs = map[int32]agentproc.Process{}
 			fs            = afero.NewMemMapFs()
@@ -2468,6 +2472,10 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 
 	t.Run("IgnoreCustomNice", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
 
 		var (
 			expectedProcs = map[int32]agentproc.Process{}
