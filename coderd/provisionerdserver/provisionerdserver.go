@@ -79,6 +79,30 @@ type server struct {
 	TimeNowFn func() time.Time
 }
 
+// We use the null byte (0x00) in generating a canonical map key for tags, so
+// it cannot be used in the tag keys or values.
+
+var ErrorTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
+
+type Tags map[string]string
+
+func (t Tags) ToJSON() (json.RawMessage, error) {
+	r, err := json.Marshal(t)
+	if err != nil {
+		return nil, err
+	}
+	return r, err
+}
+
+func (t Tags) Valid() error {
+	for k, v := range t {
+		if slices.Contains([]byte(k), 0x00) || slices.Contains([]byte(v), 0x00) {
+			return ErrorTagsContainNullByte
+		}
+	}
+	return nil
+}
+
 func NewServer(
 	accessURL *url.URL,
 	id uuid.UUID,

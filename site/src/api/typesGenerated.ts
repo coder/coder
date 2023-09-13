@@ -323,7 +323,6 @@ export interface DERPServerConfig {
   readonly region_id: number;
   readonly region_code: string;
   readonly region_name: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly stun_addresses: string[];
   readonly relay_url: string;
 }
@@ -333,6 +332,12 @@ export interface DangerousConfig {
   readonly allow_path_app_sharing: boolean;
   readonly allow_path_app_site_owner_access: boolean;
   readonly allow_all_cors: boolean;
+}
+
+// From codersdk/deployment.go
+export interface DeploymentConfig {
+  readonly config?: DeploymentValues;
+  readonly options?: ClibaseOptionSet;
 }
 
 // From codersdk/deployment.go
@@ -357,9 +362,7 @@ export interface DeploymentValues {
   readonly derp?: DERP;
   readonly prometheus?: PrometheusConfig;
   readonly pprof?: PprofConfig;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly proxy_trusted_headers?: string[];
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly proxy_trusted_origins?: string[];
   readonly cache_directory?: string;
   readonly in_memory_database?: boolean;
@@ -371,7 +374,6 @@ export interface DeploymentValues {
   readonly trace?: TraceConfig;
   readonly secure_auth_cookie?: boolean;
   readonly strict_transport_security?: number;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly strict_transport_security_options?: string[];
   readonly ssh_keygen_algorithm?: string;
   readonly metrics_cache_refresh_interval?: number;
@@ -379,11 +381,9 @@ export interface DeploymentValues {
   readonly agent_fallback_troubleshooting_url?: string;
   readonly browser_only?: boolean;
   readonly scim_api_key?: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly external_token_encryption_keys?: string[];
   readonly provisioner?: ProvisionerConfig;
   readonly rate_limit?: RateLimitConfig;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly experiments?: string[];
   readonly update_check?: boolean;
   readonly max_token_lifetime?: number;
@@ -395,21 +395,16 @@ export interface DeploymentValues {
   readonly disable_session_expiry_refresh?: boolean;
   readonly disable_password_auth?: boolean;
   readonly support?: SupportConfig;
-  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.GitAuthConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly git_auth?: any;
+  readonly git_auth?: GitAuthConfig[];
   readonly config_ssh?: SSHConfig;
   readonly wgtunnel_host?: string;
   readonly disable_owner_workspace_exec?: boolean;
   readonly proxy_health_status_interval?: number;
   readonly enable_terraform_debug_mode?: boolean;
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.YAMLConfigPath")
   readonly config?: string;
   readonly write_config?: boolean;
-  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address?: any;
+  readonly address?: string;
 }
 
 // From codersdk/deployment.go
@@ -559,7 +554,6 @@ export interface LinkConfig {
 
 // From codersdk/deployment.go
 export interface LoggingConfig {
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly log_filter: string[];
   readonly human: string;
   readonly json: string;
@@ -593,9 +587,7 @@ export interface OAuth2Config {
 export interface OAuth2GithubConfig {
   readonly client_id: string;
   readonly client_secret: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly allowed_orgs: string[];
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly allowed_teams: string[];
   readonly allow_signups: boolean;
   readonly allow_everyone: boolean;
@@ -623,31 +615,20 @@ export interface OIDCConfig {
   readonly client_secret: string;
   readonly client_key_file: string;
   readonly client_cert_file: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly email_domain: string[];
   readonly issuer_url: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly scopes: string[];
   readonly ignore_email_verified: boolean;
   readonly username_field: string;
   readonly email_field: string;
-  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly auth_url_params: any;
+  readonly auth_url_params: Record<string, string>;
   readonly ignore_user_info: boolean;
   readonly group_auto_create: boolean;
-  // Named type "github.com/coder/coder/v2/cli/clibase.Regexp" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly group_regex_filter: any;
+  readonly group_regex_filter: string;
   readonly groups_field: string;
-  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string]string]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly group_mapping: any;
+  readonly group_mapping: Record<string, string>;
   readonly user_role_field: string;
-  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[map[string][]string]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly user_role_mapping: any;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
+  readonly user_role_mapping: Record<string, string[]>;
   readonly user_roles_default: string[];
   readonly sign_in_text: string;
   readonly icon_url: string;
@@ -705,17 +686,13 @@ export interface PatchWorkspaceProxy {
 // From codersdk/deployment.go
 export interface PprofConfig {
   readonly enable: boolean;
-  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any;
+  readonly address: string;
 }
 
 // From codersdk/deployment.go
 export interface PrometheusConfig {
   readonly enable: boolean;
-  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any;
+  readonly address: string;
   readonly collect_agent_stats: boolean;
   readonly collect_db_metrics: boolean;
 }
@@ -827,7 +804,6 @@ export interface Role {
 // From codersdk/deployment.go
 export interface SSHConfig {
   readonly DeploymentName: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly SSHConfigOptions: string[];
 }
 
@@ -862,9 +838,7 @@ export interface SessionCountDeploymentStats {
 
 // From codersdk/deployment.go
 export interface SupportConfig {
-  // Named type "github.com/coder/coder/v2/cli/clibase.Struct[[]github.com/coder/coder/v2/codersdk.LinkConfig]" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly links: any;
+  readonly links: LinkConfig[];
 }
 
 // From codersdk/deployment.go
@@ -875,15 +849,11 @@ export interface SwaggerConfig {
 // From codersdk/deployment.go
 export interface TLSConfig {
   readonly enable: boolean;
-  // Named type "github.com/coder/coder/v2/cli/clibase.HostPort" unknown, using "any"
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- External type
-  readonly address: any;
+  readonly address: string;
   readonly redirect_http: boolean;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly cert_file: string[];
   readonly client_auth: string;
   readonly client_ca_file: string;
-  // This is likely an enum in an external package ("github.com/coder/coder/v2/cli/clibase.StringArray")
   readonly key_file: string[];
   readonly min_version: string;
   readonly client_cert_file: string;
@@ -2076,3 +2046,48 @@ export interface DerphealthStunReport {
   readonly CanSTUN: boolean;
   readonly Error?: string;
 }
+
+// The code below is generated from cli/clibase.
+
+// From clibase/clibase.go
+export type ClibaseAnnotations = Record<string, string>;
+
+// From clibase/clibase.go
+export interface ClibaseGroup {
+  readonly parent?: ClibaseGroup;
+  readonly name?: string;
+  readonly yaml?: string;
+  readonly description?: string;
+}
+
+// From clibase/option.go
+export interface ClibaseOption {
+  readonly name?: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly flag?: string;
+  readonly flag_shorthand?: string;
+  readonly env?: string;
+  readonly yaml?: string;
+  readonly default?: string;
+  // actual value is an interface that implements 'String()'
+  readonly value?: string;
+  readonly annotations?: ClibaseAnnotations;
+  readonly group?: ClibaseGroup;
+  readonly use_instead?: ClibaseOption[];
+  readonly hidden?: boolean;
+  readonly value_source?: ClibaseValueSource;
+}
+
+// From clibase/option.go
+export type ClibaseOptionSet = ClibaseOption[];
+
+// From clibase/option.go
+export type ClibaseValueSource = "" | "default" | "env" | "flag" | "yaml";
+export const ClibaseValueSources: ClibaseValueSource[] = [
+  "",
+  "default",
+  "env",
+  "flag",
+  "yaml",
+];

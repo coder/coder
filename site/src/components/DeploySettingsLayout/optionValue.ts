@@ -1,4 +1,4 @@
-import { DeploymentOption } from "api/types";
+import { DeploymentOption } from "api/api";
 import { intervalToDuration, formatDuration } from "date-fns";
 
 // optionValue is a helper function to format the value of a specific deployment options

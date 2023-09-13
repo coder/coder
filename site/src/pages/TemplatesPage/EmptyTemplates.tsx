@@ -9,7 +9,6 @@ import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExam
 import { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
-import { Permissions } from "xServices/auth/authXService";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
 const featuredExampleIds = [
@@ -37,13 +36,13 @@ const findFeaturedExamples = (examples: TemplateExample[]) => {
 };
 
 export const EmptyTemplates: FC<{
-  permissions: Permissions;
+  canCreateTemplates: boolean;
   examples: TemplateExample[];
-}> = ({ permissions, examples }) => {
+}> = ({ canCreateTemplates, examples }) => {
   const styles = useStyles();
   const featuredExamples = findFeaturedExamples(examples);
 
-  if (permissions.createTemplates) {
+  if (canCreateTemplates) {
     return (
       <TableEmpty
         message="Create a Template"

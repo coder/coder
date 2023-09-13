@@ -32,10 +32,10 @@ import (
 
 const (
 	proxyTestAgentName            = "agent-name"
-	proxyTestAppNameFake          = "test-app-fake"
-	proxyTestAppNameOwner         = "test-app-owner"
-	proxyTestAppNameAuthenticated = "test-app-authenticated"
-	proxyTestAppNamePublic        = "test-app-public"
+	proxyTestAppNameFake          = "taf"
+	proxyTestAppNameOwner         = "tao"
+	proxyTestAppNameAuthenticated = "taa"
+	proxyTestAppNamePublic        = "tap"
 	proxyTestAppQuery             = "query=true"
 	proxyTestAppBody              = "hello world from apps test"
 

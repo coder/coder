@@ -3,7 +3,6 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Loader } from "components/Loader/Loader";
 import { FC } from "react";
 import { useParams } from "react-router-dom";
-import { quotaMachine } from "xServices/quotas/quotasXService";
 import { workspaceMachine } from "xServices/workspace/workspaceXService";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { RequirePermission } from "components/RequirePermission/RequirePermission";
@@ -11,6 +10,8 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
+import { workspaceQuota } from "api/queries/workspaceQuota";
+import { useQuery } from "@tanstack/react-query";
 
 export const WorkspacePage: FC = () => {
   const params = useParams() as {
@@ -28,9 +29,8 @@ export const WorkspacePage: FC = () => {
     },
   });
   const { workspace, error } = workspaceState.context;
-  const [quotaState] = useMachine(quotaMachine, { context: { username } });
-  const { getQuotaError } = quotaState.context;
-  const pageError = error ?? getQuotaError;
+  const quotaQuery = useQuery(workspaceQuota(username));
+  const pageError = error ?? quotaQuery.error;
 
   return (
     <RequirePermission
@@ -48,12 +48,12 @@ export const WorkspacePage: FC = () => {
           condition={
             Boolean(workspace) &&
             workspaceState.matches("ready") &&
-            quotaState.matches("success")
+            quotaQuery.isSuccess
           }
         >
           <WorkspaceReadyPage
             workspaceState={workspaceState}
-            quotaState={quotaState}
+            quota={quotaQuery.data}
             workspaceSend={workspaceSend}
           />
         </Cond>

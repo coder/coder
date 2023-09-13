@@ -10,7 +10,6 @@ import { usePermissions } from "hooks/usePermissions";
 import { FC, ReactNode, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { siteRolesMachine } from "xServices/roles/siteRolesXService";
 import { usersMachine } from "xServices/users/usersXService";
 import { ConfirmDialog } from "../../components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -22,6 +21,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthMethods } from "api/api";
+import { roles } from "api/queries/roles";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -64,12 +64,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   } = usersState.context;
 
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
-  const [rolesState] = useMachine(siteRolesMachine, {
-    context: {
-      hasPermission: canEditUsers,
-    },
-  });
-  const { roles } = rolesState.context;
+  const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
 
   // Ideally this only runs if 'canViewDeployment' is true.
   // TODO: Prevent api call if the user does not have the perms.
@@ -109,7 +104,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   // - the user can edit the users but the roles are loading
   const isLoading =
     usersState.matches("gettingUsers") ||
-    (canEditUsers && rolesState.matches("gettingRoles")) ||
+    rolesQuery.isLoading ||
     authMethods.isLoading;
 
   return (
@@ -119,7 +114,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       </Helmet>
       <UsersPageView
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
-        roles={roles}
+        roles={rolesQuery.data}
         users={users}
         authMethods={authMethods.data}
         count={count}
