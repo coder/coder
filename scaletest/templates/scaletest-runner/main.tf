@@ -40,12 +40,8 @@ resource "null_resource" "permission_check" {
   # for the plan, and consequently, updating the template.
   lifecycle {
     precondition {
-      condition     = can(regex("^(default|scaletest)$", data.coder_workspace.me.owner))
-      error_message = "User is not allowed, expected 'scaletest'."
-    }
-    precondition {
-      condition     = can(regex("^(default|runner)$", data.coder_workspace.me.name))
-      error_message = "Workspace name is not allowed, expected 'runner'."
+      condition     = can(regex("^(default/default|scaletest/runner)$", "${data.coder_workspace.me.owner}/${data.coder_workspace.me.name}"))
+      error_message = "User and workspace name is not allowed, expected 'scaletest/runner'."
     }
   }
 }
