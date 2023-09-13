@@ -40,7 +40,7 @@ import (
 // version; right now, only the unit tests implement this interface.
 type Executor interface {
 	// Execute a provisioner that connects back to the remoteConnector.  errCh
-	// allows signalling of errors asynchronously and is closed on completion
+	// allows signaling of errors asynchronously and is closed on completion
 	// with no error.
 	Execute(
 		ctx context.Context,
