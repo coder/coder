@@ -305,7 +305,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			case exitErr = <-errCh:
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			}

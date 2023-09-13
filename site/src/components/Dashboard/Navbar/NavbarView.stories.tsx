@@ -1,45 +1,34 @@
-import { Story } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react";
 import { MockUser, MockUser2 } from "../../../testHelpers/entities";
-import { NavbarView, NavbarViewProps } from "./NavbarView";
+import { NavbarView } from "./NavbarView";
 
-export default {
+const meta: Meta<typeof NavbarView> = {
   title: "components/NavbarView",
   component: NavbarView,
-  argTypes: {
-    onSignOut: { action: "Sign Out" },
+  args: {
+    user: MockUser,
   },
 };
 
-const Template: Story<NavbarViewProps> = (args: NavbarViewProps) => (
-  <NavbarView {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof NavbarView>;
 
-export const ForAdmin = Template.bind({});
-ForAdmin.args = {
-  user: MockUser,
-  onSignOut: () => {
-    return Promise.resolve();
+export const ForAdmin: Story = {};
+
+export const ForMember: Story = {
+  args: {
+    user: MockUser2,
+    canViewAuditLog: false,
+    canViewDeployment: false,
+    canViewAllUsers: false,
   },
 };
 
-export const ForMember = Template.bind({});
-ForMember.args = {
-  user: MockUser2,
-  onSignOut: () => {
-    return Promise.resolve();
+export const SmallViewport: Story = {
+  parameters: {
+    viewport: {
+      defaultViewport: "tablet",
+    },
+    chromatic: { viewports: [420] },
   },
-};
-
-export const SmallViewport = Template.bind({});
-SmallViewport.args = {
-  user: MockUser,
-  onSignOut: () => {
-    return Promise.resolve();
-  },
-};
-SmallViewport.parameters = {
-  viewport: {
-    defaultViewport: "tablet",
-  },
-  chromatic: { viewports: [420] },
 };

@@ -5,6 +5,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -203,7 +205,7 @@ func (pr *ParameterResolver) resolveWithInput(resolved []codersdk.WorkspaceBuild
 				Value: parameterValue,
 			})
 		} else if action == WorkspaceUpdate && !tvp.Mutable && !firstTimeUse {
-			_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Warn.Render(fmt.Sprintf("Parameter %q is not mutable, and cannot be customized after workspace creation.", tvp.Name)))
+			_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Warn, fmt.Sprintf("Parameter %q is not mutable, and cannot be customized after workspace creation.", tvp.Name)))
 		}
 	}
 	return resolved, nil

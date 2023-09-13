@@ -52,6 +52,8 @@ import (
 	"gopkg.in/yaml.v3"
 	"tailscale.com/tailcfg"
 
+	"github.com/coder/pretty"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
@@ -512,7 +514,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				cliui.Warnf(
 					inv.Stderr,
 					"The access URL %s %s, this may cause unexpected problems when creating workspaces. Generate a unique *.try.coder.app URL by not specifying an access URL.\n",
-					cliui.DefaultStyles.Field.Render(vals.AccessURL.String()), reason,
+					pretty.Sprint(cliui.DefaultStyles.Field, vals.AccessURL.String()), reason,
 				)
 			}
 
@@ -691,7 +693,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbfake.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, err := connectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
+				sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, vals.PostgresURL.String())
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -1026,9 +1028,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			select {
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
-					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
-				))
+				_, _ = io.WriteString(inv.Stdout, cliui.Bold("Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit"))
 			case <-tunnelDone:
 				exitErr = xerrors.New("dev tunnel closed unexpectedly")
 			case exitErr = <-errCh:
@@ -1134,7 +1134,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("psql %q", url)))
 			}
 			return nil
 		},
@@ -1164,7 +1164,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if pgRawURL {
 				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", url)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", cliui.DefaultStyles.Code.Render(fmt.Sprintf("psql %q", url)))
+				_, _ = fmt.Fprintf(inv.Stdout, "%s\n", pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("psql %q", url)))
 			}
 
 			<-ctx.Done()
@@ -1309,7 +1309,7 @@ func newProvisionerDaemon(
 		return nil, xerrors.Errorf("mkdir work dir: %w", err)
 	}
 
-	provisioners := provisionerd.Provisioners{}
+	connector := provisionerd.LocalProvisioners{}
 	if cfg.Provisioner.DaemonsEcho {
 		echoClient, echoServer := provisionersdk.MemTransportPipe()
 		wg.Add(1)
@@ -1336,7 +1336,7 @@ func newProvisionerDaemon(
 				}
 			}
 		}()
-		provisioners[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
+		connector[string(database.ProvisionerTypeEcho)] = sdkproto.NewDRPCProvisionerClient(echoClient)
 	} else {
 		tfDir := filepath.Join(cacheDir, "tf")
 		err = os.MkdirAll(tfDir, 0o700)
@@ -1375,7 +1375,7 @@ func newProvisionerDaemon(
 			}
 		}()
 
-		provisioners[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
+		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
 
 	debounce := time.Second
@@ -1390,7 +1390,7 @@ func newProvisionerDaemon(
 		JobPollDebounce:     debounce,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
-		Provisioners:        provisioners,
+		Connector:           connector,
 		TracerProvider:      coderAPI.TracerProvider,
 		Metrics:             &metrics,
 	}), nil
@@ -1403,7 +1403,7 @@ func PrintLogo(inv *clibase.Invocation, daemonTitle string) {
 		return
 	}
 
-	versionString := cliui.DefaultStyles.Bold.Render(daemonTitle + " " + buildinfo.Version())
+	versionString := cliui.Bold(daemonTitle + " " + buildinfo.Version())
 
 	_, _ = fmt.Fprintf(inv.Stdout, "%s - Your Self-Hosted Remote Development Platform\n", versionString)
 }
@@ -1953,7 +1953,7 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 	}, nil
 }
 
-func connectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.

@@ -7,6 +7,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -119,9 +121,9 @@ func (r *RootCmd) list() *clibase.Cmd {
 				return err
 			}
 			if len(res.Workspaces) == 0 {
-				_, _ = fmt.Fprintln(inv.Stderr, cliui.DefaultStyles.Prompt.String()+"No workspaces found! Create one:")
+				pretty.Fprintf(inv.Stderr, cliui.DefaultStyles.Prompt, "No workspaces found! Create one:\n")
 				_, _ = fmt.Fprintln(inv.Stderr)
-				_, _ = fmt.Fprintln(inv.Stderr, "  "+cliui.DefaultStyles.Code.Render("coder create <name>"))
+				_, _ = fmt.Fprintln(inv.Stderr, "  "+pretty.Sprint(cliui.DefaultStyles.Code, "coder create <name>"))
 				_, _ = fmt.Fprintln(inv.Stderr)
 				return nil
 			}

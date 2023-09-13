@@ -3,7 +3,6 @@ import { makeStyles } from "@mui/styles";
 import { combineClasses } from "utils/combineClasses";
 import { WorkspaceAgent } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { useTranslation } from "react-i18next";
 import WarningRounded from "@mui/icons-material/WarningRounded";
 import {
   HelpPopover,
@@ -21,13 +20,12 @@ import Link from "@mui/material/Link";
 
 const ReadyLifecycle = () => {
   const styles = useStyles();
-  const { t } = useTranslation("workspacePage");
 
   return (
     <div
       role="status"
       data-testid="agent-status-ready"
-      aria-label={t("agentStatus.connected.ready") || "Ready"}
+      aria-label="Ready"
       className={combineClasses([styles.status, styles.connected])}
     />
   );
@@ -50,7 +48,6 @@ const StartingLifecycle: React.FC = () => {
 const StartTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent");
   const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -63,7 +60,7 @@ const StartTimeoutLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.startTimeout")}
+        aria-label="Start timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -73,15 +70,15 @@ const StartTimeoutLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("startTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to start</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("startTimeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to start.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("startTimeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
@@ -93,7 +90,6 @@ const StartTimeoutLifecycle: React.FC<{
 const StartErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent");
   const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -106,7 +102,7 @@ const StartErrorLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.error")}
+        aria-label="Start error"
         className={styles.errorWarning}
       />
       <HelpPopover
@@ -116,15 +112,15 @@ const StartErrorLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("startErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Error starting the agent</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("startErrorTooltip.message")}{" "}
+          Something went wrong during the agent startup.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("startErrorTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
@@ -150,7 +146,6 @@ const ShuttingDownLifecycle: React.FC = () => {
 const ShutdownTimeoutLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent");
   const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -163,7 +158,7 @@ const ShutdownTimeoutLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.shutdownTimeout")}
+        aria-label="Stop timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -173,15 +168,15 @@ const ShutdownTimeoutLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("shutdownTimeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to stop</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("shutdownTimeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to stop.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("shutdownTimeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
@@ -193,7 +188,6 @@ const ShutdownTimeoutLifecycle: React.FC<{
 const ShutdownErrorLifecycle: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent");
   const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -206,7 +200,7 @@ const ShutdownErrorLifecycle: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.error")}
+        aria-label="Stop error"
         className={styles.errorWarning}
       />
       <HelpPopover
@@ -216,15 +210,15 @@ const ShutdownErrorLifecycle: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("shutdownErrorTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Error stopping the agent</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("shutdownErrorTooltip.message")}{" "}
+          Something went wrong while trying to stop the agent.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("shutdownErrorTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>
@@ -316,7 +310,6 @@ const ConnectingStatus: React.FC = () => {
 const TimeoutStatus: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  const { t } = useTranslation("agent");
   const styles = useStyles();
   const anchorRef = useRef<SVGSVGElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -329,7 +322,7 @@ const TimeoutStatus: React.FC<{
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
         role="status"
-        aria-label={t("status.timeout")}
+        aria-label="Timeout"
         className={styles.timeoutWarning}
       />
       <HelpPopover
@@ -339,15 +332,15 @@ const TimeoutStatus: React.FC<{
         onOpen={() => setIsOpen(true)}
         onClose={() => setIsOpen(false)}
       >
-        <HelpTooltipTitle>{t("timeoutTooltip.title")}</HelpTooltipTitle>
+        <HelpTooltipTitle>Agent is taking too long to connect</HelpTooltipTitle>
         <HelpTooltipText>
-          {t("timeoutTooltip.message")}{" "}
+          We noticed this agent is taking longer than expected to connect.{" "}
           <Link
             target="_blank"
             rel="noreferrer"
             href={agent.troubleshooting_url}
           >
-            {t("timeoutTooltip.link")}
+            Troubleshoot
           </Link>
           .
         </HelpTooltipText>

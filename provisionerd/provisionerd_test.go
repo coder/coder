@@ -60,7 +60,7 @@ func TestProvisionerd(t *testing.T) {
 		})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.NoError(t, closer.Close())
 	})
 
@@ -74,7 +74,7 @@ func TestProvisionerd(t *testing.T) {
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			defer close(completeChan)
 			return nil, xerrors.New("an error")
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
@@ -101,7 +101,7 @@ func TestProvisionerd(t *testing.T) {
 				},
 				updateJob: noopUpdateJob,
 			}), nil
-		}, provisionerd.Provisioners{})
+		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		require.NoError(t, closer.Close())
 	})
@@ -141,7 +141,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(_ *provisionersdk.Session, _ *sdkproto.ParseRequest, _ <-chan struct{}) *sdkproto.ParseComplete {
 					closerMutex.Lock()
@@ -195,7 +195,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
@@ -237,7 +237,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(
 					_ *provisionersdk.Session,
@@ -304,7 +304,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				parse: func(
 					s *provisionersdk.Session,
@@ -398,7 +398,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -472,7 +472,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -553,7 +553,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -638,7 +638,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -714,7 +714,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -800,7 +800,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -886,7 +886,7 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -971,7 +971,7 @@ func TestProvisionerd(t *testing.T) {
 				}()
 			}
 			return client, nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					_ *provisionersdk.Session,
@@ -1055,7 +1055,7 @@ func TestProvisionerd(t *testing.T) {
 					return &proto.Empty{}, nil
 				},
 			}), nil
-		}, provisionerd.Provisioners{
+		}, provisionerd.LocalProvisioners{
 			"someprovisioner": createProvisionerClient(t, done, provisionerTestServer{
 				plan: func(
 					s *provisionersdk.Session,
@@ -1103,12 +1103,12 @@ func createTar(t *testing.T, files map[string]string) []byte {
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
-func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, provisioners provisionerd.Provisioners) *provisionerd.Server {
+func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector provisionerd.LocalProvisioners) *provisionerd.Server {
 	server := provisionerd.New(dialer, &provisionerd.Options{
 		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Named("provisionerd").Leveled(slog.LevelDebug),
 		JobPollInterval: 50 * time.Millisecond,
 		UpdateInterval:  50 * time.Millisecond,
-		Provisioners:    provisioners,
+		Connector:       connector,
 	})
 	t.Cleanup(func() {
 		_ = server.Close()

@@ -1,24 +1,22 @@
-import { Story } from "@storybook/react";
-import { AvatarData, AvatarDataProps } from "./AvatarData";
+import type { Meta, StoryObj } from "@storybook/react";
+import { AvatarData } from "./AvatarData";
 
-export default {
+const meta: Meta<typeof AvatarData> = {
   title: "components/AvatarData",
   component: AvatarData,
+  args: {
+    title: "coder",
+    subtitle: "coder@coder.com",
+  },
 };
 
-const Template: Story<AvatarDataProps> = (args: AvatarDataProps) => (
-  <AvatarData {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof AvatarData>;
 
-export const Example = Template.bind({});
-Example.args = {
-  title: "coder",
-  subtitle: "coder@coder.com",
-};
+export const WithTitleAndSubtitle: Story = {};
 
-export const WithImage = Template.bind({});
-WithImage.args = {
-  title: "coder",
-  subtitle: "coder@coder.com",
-  src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+export const WithImage: Story = {
+  args: {
+    src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+  },
 };

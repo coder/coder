@@ -1,17 +1,12 @@
 import TextField from "@mui/material/TextField";
 import { action } from "@storybook/addon-actions";
-import { ComponentMeta, Story } from "@storybook/react";
 import { FormFooter } from "../FormFooter/FormFooter";
 import { Stack } from "../Stack/Stack";
 import { FullPageForm, FullPageFormProps } from "./FullPageForm";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
-  title: "components/FullPageForm",
-  component: FullPageForm,
-} as ComponentMeta<typeof FullPageForm>;
-
-const Template: Story<FullPageFormProps> = (args) => (
-  <FullPageForm {...args}>
+const Template = (props: FullPageFormProps) => (
+  <FullPageForm {...props}>
     <form
       onSubmit={(e) => {
         e.preventDefault();
@@ -26,8 +21,17 @@ const Template: Story<FullPageFormProps> = (args) => (
   </FullPageForm>
 );
 
-export const Example = Template.bind({});
-Example.args = {
-  title: "My Form",
-  detail: "Lorem ipsum dolor",
+const meta: Meta<typeof FullPageForm> = {
+  title: "components/FullPageForm",
+  component: Template,
+};
+
+export default meta;
+type Story = StoryObj<typeof FullPageForm>;
+
+export const Example: Story = {
+  args: {
+    title: "My Form",
+    detail: "Lorem ipsum dolor",
+  },
 };

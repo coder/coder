@@ -1,6 +1,6 @@
 import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { ComponentProps, FC } from "react";
-import { TemplateScheduleForm } from "./TemplateScheduleForm/TemplateScheduleForm";
+import { TemplateScheduleForm } from "./TemplateScheduleForm";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { makeStyles } from "@mui/styles";
 

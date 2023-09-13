@@ -1,44 +1,43 @@
-import { Story } from "@storybook/react";
 import { MockWorkspaceAgent, MockWorkspaceApp } from "testHelpers/entities";
-import { AgentRowPreview, AgentRowPreviewProps } from "./AgentRowPreview";
+import { AgentRowPreview } from "./AgentRowPreview";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof AgentRowPreview> = {
   title: "components/AgentRowPreview",
   component: AgentRowPreview,
-};
-
-const Template: Story<AgentRowPreviewProps> = (args) => (
-  <AgentRowPreview {...args} />
-);
-
-export const Example = Template.bind({});
-Example.args = {
-  agent: MockWorkspaceAgent,
-};
-
-export const BunchOfApps = Template.bind({});
-BunchOfApps.args = {
-  ...Example.args,
-  agent: {
-    ...MockWorkspaceAgent,
-    apps: [
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-      MockWorkspaceApp,
-    ],
+  args: {
+    agent: MockWorkspaceAgent,
   },
 };
 
-export const NoApps = Template.bind({});
-NoApps.args = {
-  ...Example.args,
-  agent: {
-    ...MockWorkspaceAgent,
-    apps: [],
+export default meta;
+type Story = StoryObj<typeof AgentRowPreview>;
+
+export const Example: Story = {};
+
+export const BunchOfApps: Story = {
+  args: {
+    agent: {
+      ...MockWorkspaceAgent,
+      apps: [
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+        MockWorkspaceApp,
+      ],
+    },
+  },
+};
+
+export const NoApps: Story = {
+  args: {
+    agent: {
+      ...MockWorkspaceAgent,
+      apps: [],
+    },
   },
 };

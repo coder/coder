@@ -1,26 +1,22 @@
-import { ComponentMeta, Story } from "@storybook/react";
-import { TableRowMenu, TableRowMenuProps } from "./TableRowMenu";
+import { TableRowMenu } from "./TableRowMenu";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TableRowMenu> = {
   title: "components/TableRowMenu",
   component: TableRowMenu,
-} as ComponentMeta<typeof TableRowMenu>;
-
-type DataType = {
-  id: string;
 };
 
-const Template: Story<TableRowMenuProps<DataType>> = (args) => (
-  <TableRowMenu {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof TableRowMenu<{ id: string }>>;
 
-export const Example = Template.bind({});
-Example.args = {
-  data: { id: "123" },
-  menuItems: [
-    { label: "Suspend", onClick: (data) => alert(data.id), disabled: false },
-    { label: "Update", onClick: (data) => alert(data.id), disabled: false },
-    { label: "Delete", onClick: (data) => alert(data.id), disabled: false },
-    { label: "Explode", onClick: (data) => alert(data.id), disabled: true },
-  ],
+export const Example: Story = {
+  args: {
+    data: { id: "123" },
+    menuItems: [
+      { label: "Suspend", onClick: (data) => alert(data.id), disabled: false },
+      { label: "Update", onClick: (data) => alert(data.id), disabled: false },
+      { label: "Delete", onClick: (data) => alert(data.id), disabled: false },
+      { label: "Explode", onClick: (data) => alert(data.id), disabled: true },
+    ],
+  },
 };

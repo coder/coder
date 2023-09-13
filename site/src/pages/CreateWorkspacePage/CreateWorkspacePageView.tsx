@@ -3,7 +3,6 @@ import * as TypesGen from "api/typesGenerated";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { FormikContextType, useFormik } from "formik";
 import { FC, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import {
   getFormHelpers,
   nameValidator,
@@ -30,12 +29,14 @@ import {
 import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
 import { GitAuth } from "./GitAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Stack } from "components/Stack/Stack";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
   defaultName: string;
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
+  versionId?: string;
   gitAuth: TypesGen.TemplateVersionGitAuth[];
   parameters: TypesGen.TemplateVersionParameter[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
@@ -53,6 +54,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   defaultName,
   defaultOwner,
   template,
+  versionId,
   gitAuth,
   parameters,
   defaultBuildParameters,
@@ -61,7 +63,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const { t } = useTranslation("createWorkspacePage");
   const styles = useStyles();
   const [owner, setOwner] = useState(defaultOwner);
   const { verifyGitAuth, gitAuthErrors } = useGitAuthVerification(gitAuth);
@@ -76,11 +77,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         ),
       },
       validationSchema: Yup.object({
-        name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-        rich_parameter_values: useValidationSchemaForRichParameters(
-          "createWorkspacePage",
-          parameters,
-        ),
+        name: nameValidator("Workspace Name"),
+        rich_parameter_values: useValidationSchemaForRichParameters(parameters),
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
@@ -115,13 +113,26 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
+            {versionId && (
+              <Stack spacing={1} className={styles.hasDescription}>
+                <TextField
+                  disabled
+                  fullWidth
+                  value={versionId}
+                  label="Version ID"
+                />
+                <span className={styles.description}>
+                  This parameter has been preset, and cannot be modified.
+                </span>
+              </Stack>
+            )}
             <TextField
               {...getFieldHelpers("name")}
               disabled={form.isSubmitting}
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
-              label={t("nameLabel")}
+              label="Workspace Name"
             />
           </FormFields>
         </FormSection>
@@ -137,7 +148,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                 onChange={(user) => {
                   setOwner(user ?? defaultOwner);
                 }}
-                label={t("ownerLabel").toString()}
+                label="Owner"
                 size="medium"
               />
             </FormFields>
@@ -206,7 +217,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         <FormFooter
           onCancel={onCancel}
           isLoading={creatingWorkspace}
-          submitLabel={t("createWorkspace").toString()}
+          submitLabel="Create Workspace"
         />
       </HorizontalForm>
     </FullPageHorizontalForm>
@@ -252,6 +263,13 @@ const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
 };
 
 const useStyles = makeStyles((theme) => ({
+  hasDescription: {
+    paddingBottom: theme.spacing(2),
+  },
+  description: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  },
   warningText: {
     color: theme.palette.warning.light,
   },

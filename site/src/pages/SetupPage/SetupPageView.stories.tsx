@@ -1,32 +1,27 @@
-import { action } from "@storybook/addon-actions";
-import { Story } from "@storybook/react";
-import { SetupPageView, SetupPageViewProps } from "./SetupPageView";
+import { SetupPageView } from "./SetupPageView";
 import { mockApiError } from "testHelpers/entities";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof SetupPageView> = {
   title: "pages/SetupPageView",
   component: SetupPageView,
 };
 
-const Template: Story<SetupPageViewProps> = (args: SetupPageViewProps) => (
-  <SetupPageView {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof SetupPageView>;
 
-export const Ready = Template.bind({});
-Ready.args = {
-  onSubmit: action("submit"),
+export const Ready: Story = {};
+
+export const FormError: Story = {
+  args: {
+    error: mockApiError({
+      validations: [{ field: "username", detail: "Username taken" }],
+    }),
+  },
 };
 
-export const FormError = Template.bind({});
-FormError.args = {
-  onSubmit: action("submit"),
-  error: mockApiError({
-    validations: [{ field: "username", detail: "Username taken" }],
-  }),
-};
-
-export const Loading = Template.bind({});
-Loading.args = {
-  onSubmit: action("submit"),
-  isLoading: true,
+export const Loading: Story = {
+  args: {
+    isLoading: true,
+  },
 };

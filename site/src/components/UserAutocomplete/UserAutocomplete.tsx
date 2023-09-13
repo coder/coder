@@ -9,7 +9,6 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import debounce from "just-debounce-it";
 import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react";
 import { searchUserMachine } from "xServices/users/searchUserXService";
-import { useTranslation } from "react-i18next";
 import Box from "@mui/material/Box";
 
 export type UserAutocompleteProps = {
@@ -28,7 +27,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   size = "small",
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("common");
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const [searchState, sendSearch] = useMachine(searchUserMachine);
   const { searchResults } = searchState.context;
@@ -51,7 +49,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
 
   return (
     <Autocomplete
-      noOptionsText={t("forms.typeToSearch")}
+      noOptionsText="Start typing to search..."
       className={className}
       options={searchResults ?? []}
       loading={searchState.matches("searching")}
@@ -86,8 +84,6 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       )}
       renderInput={(params) => (
         <>
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
-          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
           <TextField
             {...params}
             fullWidth

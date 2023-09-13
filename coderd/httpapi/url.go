@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"fmt"
+	"hash/crc32"
 	"net"
 	"regexp"
 	"strings"
@@ -18,6 +19,8 @@ var (
 		nameRegex))
 
 	validHostnameLabelRegex = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
+
+	crcTable = crc32.MakeTable(crc32.IEEE)
 )
 
 // ApplicationURL is a parsed application URL hostname.
@@ -31,7 +34,20 @@ type ApplicationURL struct {
 // String returns the application URL hostname without scheme. You will likely
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
-	return fmt.Sprintf("%s--%s--%s--%s", a.AppSlugOrPort, a.AgentName, a.WorkspaceName, a.Username)
+	var appURL strings.Builder
+	_, _ = appURL.WriteString(a.AppSlugOrPort)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.AgentName)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.WorkspaceName)
+	_, _ = appURL.WriteString("--")
+	_, _ = appURL.WriteString(a.Username)
+	hostname := appURL.String()
+
+	if len(hostname) < 64 { // max length for the subdomain level
+		return hostname
+	}
+	return fmt.Sprintf("app-%08x", crc32.Checksum([]byte(hostname), crcTable))
 }
 
 // ParseSubdomainAppURL parses an ApplicationURL from the given subdomain. If

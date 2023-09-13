@@ -1,22 +1,25 @@
-Usage: coder groups edit [flags] <name>
+coder v0.0.0-devel
 
-Edit a user group
+[93mUSAGE:[0m
+  coder groups edit [flags] <name>
 
-[1mOptions[0m
-  -a, --add-users string-array
+  Edit a user group
+
+[93mOPTIONS:[0m
+  [96m-[0m[96ma[0m, [96m--[0m[96madd-users[0m string-array
           Add users to the group. Accepts emails or IDs.
 
-  -u, --avatar-url string
+  [96m-[0m[96mu[0m, [96m--[0m[96mavatar-url[0m string
           Update the group avatar.
 
-      --display-name string, $CODER_DISPLAY_NAME
+      [96m--[0m[96mdisplay-name[0m string, [96m$CODER_DISPLAY_NAME[0m
           Optional human friendly name for the group.
 
-  -n, --name string
+  [96m-[0m[96mn[0m, [96m--[0m[96mname[0m string
           Update the group name.
 
-  -r, --rm-users string-array
+  [96m-[0m[96mr[0m, [96m--[0m[96mrm-users[0m string-array
           Remove users to the group. Accepts emails or IDs.
 
----
+———
 Run `coder --help` for a list of global options.

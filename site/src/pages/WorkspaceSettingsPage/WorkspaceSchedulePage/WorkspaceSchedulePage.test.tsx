@@ -19,12 +19,9 @@ import {
   Language as FormLanguage,
 } from "./WorkspaceScheduleForm";
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
-import i18next from "i18next";
 import { server } from "testHelpers/server";
 import { rest } from "msw";
 import { MockUser, MockWorkspace } from "testHelpers/entities";
-
-const { t } = i18next;
 
 const validValues: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -306,8 +303,7 @@ describe("WorkspaceSchedulePage", () => {
         name: /submit/i,
       });
       await user.click(submitButton);
-      const title = t("dialogTitle", { ns: "workspaceSchedulePage" });
-      const dialog = await screen.findByText(title);
+      const dialog = await screen.findByText("Restart workspace?");
       expect(dialog).toBeInTheDocument();
     });
 
@@ -328,8 +324,7 @@ describe("WorkspaceSchedulePage", () => {
         name: /submit/i,
       });
       await user.click(submitButton);
-      const title = t("dialogTitle", { ns: "workspaceSchedulePage" });
-      const dialog = screen.queryByText(title);
+      const dialog = screen.queryByText("Restart workspace?");
       expect(dialog).not.toBeInTheDocument();
     });
   });

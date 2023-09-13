@@ -20,15 +20,15 @@ coder tokens
 Tokens are used to authenticate automated clients to Coder.
   - Create a token for automation:
 
-      $ coder tokens create
+     $ coder tokens create
 
   - List your tokens:
 
-      $ coder tokens ls
+     $ coder tokens ls
 
   - Remove a token by ID:
 
-      $ coder tokens rm WuoWs4ZsMX
+     $ coder tokens rm WuoWs4ZsMX
 ```
 
 ## Subcommands

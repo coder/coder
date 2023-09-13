@@ -1,26 +1,16 @@
-import Box from "@mui/material/Box";
-import { Story } from "@storybook/react";
 import { MockUser } from "../../../../testHelpers/entities";
-import { UserDropdown, UserDropdownProps } from "./UserDropdown";
+import { UserDropdown } from "./UserDropdown";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof UserDropdown> = {
   title: "components/UserDropdown",
   component: UserDropdown,
-  argTypes: {
-    onSignOut: { action: "Sign Out" },
+  args: {
+    user: MockUser,
   },
 };
 
-const Template: Story<UserDropdownProps> = (args: UserDropdownProps) => (
-  <Box style={{ backgroundColor: "#000", width: 88 }}>
-    <UserDropdown {...args} />
-  </Box>
-);
+export default meta;
+type Story = StoryObj<typeof UserDropdown>;
 
-export const Example = Template.bind({});
-Example.args = {
-  user: MockUser,
-  onSignOut: () => {
-    return Promise.resolve();
-  },
-};
+export const Example: Story = {};

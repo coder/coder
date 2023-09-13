@@ -71,7 +71,10 @@ func (r *RootCmd) start() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been started at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(
+				inv.Stdout, "\nThe %s workspace has been started at %s!\n",
+				cliui.Keyword(workspace.Name), cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

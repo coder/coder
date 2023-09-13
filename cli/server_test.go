@@ -34,10 +34,13 @@ import (
 	"go.uber.org/goleak"
 	"gopkg.in/yaml.v3"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -1656,4 +1659,27 @@ func TestServerYAMLConfig(t *testing.T) {
 	got = clitest.NormalizeGoldenFile(t, got)
 
 	require.Equal(t, string(wantByt), string(got))
+}
+
+func TestConnectToPostgres(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test does not make sense without postgres")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	t.Cleanup(cancel)
+
+	log := slogtest.Make(t, nil)
+
+	dbURL, closeFunc, err := postgres.Open()
+	require.NoError(t, err)
+	t.Cleanup(closeFunc)
+
+	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	require.NoError(t, sqlDB.PingContext(ctx))
 }

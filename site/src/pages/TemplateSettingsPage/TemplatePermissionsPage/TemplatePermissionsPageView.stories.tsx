@@ -1,38 +1,37 @@
-import { Story } from "@storybook/react";
 import {
   MockOrganization,
   MockTemplateACL,
   MockTemplateACLEmpty,
 } from "testHelpers/entities";
-import {
-  TemplatePermissionsPageView,
-  TemplatePermissionsPageViewProps,
-} from "./TemplatePermissionsPageView";
+import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TemplatePermissionsPageView> = {
   title: "pages/TemplatePermissionsPageView",
   component: TemplatePermissionsPageView,
 };
 
-const Template: Story<TemplatePermissionsPageViewProps> = (
-  args: TemplatePermissionsPageViewProps,
-) => <TemplatePermissionsPageView {...args} />;
+export default meta;
+type Story = StoryObj<typeof TemplatePermissionsPageView>;
 
-export const Empty = Template.bind({});
-Empty.args = {
-  templateACL: MockTemplateACLEmpty,
-  canUpdatePermissions: false,
+export const Empty: Story = {
+  args: {
+    templateACL: MockTemplateACLEmpty,
+    canUpdatePermissions: false,
+  },
 };
 
-export const WithTemplateACL = Template.bind({});
-WithTemplateACL.args = {
-  templateACL: MockTemplateACL,
-  canUpdatePermissions: false,
+export const WithTemplateACL: Story = {
+  args: {
+    templateACL: MockTemplateACL,
+    canUpdatePermissions: false,
+  },
 };
 
-export const WithUpdatePermissions = Template.bind({});
-WithUpdatePermissions.args = {
-  templateACL: MockTemplateACL,
-  canUpdatePermissions: true,
-  organizationId: MockOrganization.id,
+export const WithUpdatePermissions: Story = {
+  args: {
+    templateACL: MockTemplateACL,
+    canUpdatePermissions: true,
+    organizationId: MockOrganization.id,
+  },
 };

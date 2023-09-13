@@ -8,7 +8,6 @@ import { Loader } from "components/Loader/Loader";
 import { ComponentProps, FC } from "react";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 import { makeStyles } from "@mui/styles";
-import { useTranslation } from "react-i18next";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 
@@ -43,12 +42,11 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
     !templateVariables &&
     !errors.getTemplateDataError &&
     !errors.updateTemplateError;
-  const { t } = useTranslation("templateVariablesPage");
   const hasError = Object.values(errors).some((error) => Boolean(error));
   return (
     <>
       <PageHeader className={classes.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+        <PageHeaderTitle>Template variables</PageHeaderTitle>
       </PageHeader>
       {hasError && (
         <div className={classes.errorContainer}>
@@ -74,7 +72,9 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
-        <Alert severity="info">{t("unusedVariablesNotice")}</Alert>
+        <Alert severity="info">
+          This template does not use managed variables.
+        </Alert>
       )}
     </>
   );
