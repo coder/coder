@@ -2,9 +2,6 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import * as API from "../../../api/api";
 import { renderWithAuth } from "../../../testHelpers/renderHelpers";
 import { SchedulePage } from "./SchedulePage";
-import i18next from "i18next";
-
-const { t } = i18next;
 
 const renderPage = () => {
   return renderWithAuth(<SchedulePage />);
@@ -127,10 +124,7 @@ describe("SchedulePage", () => {
       await fillForm(cronTests[0]);
       await submitForm();
 
-      const errorText = t("warningsAndErrors.somethingWentWrong", {
-        ns: "common",
-      });
-      const errorMessage = await screen.findByText(errorText);
+      const errorMessage = await screen.findByText("Something went wrong");
       expect(errorMessage).toBeDefined();
     });
   });
