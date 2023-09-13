@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	EventJobPosted     = "provisioner_job_posted"
-	dbMaxBackoff       = 10 * time.Second
+	EventJobPosted = "provisioner_job_posted"
+	dbMaxBackoff   = 10 * time.Second
+	// backPollDuration is the period for the backup polling described in Acquirer comment
 	backupPollDuration = 30 * time.Second
 )
 
@@ -201,17 +202,17 @@ func (a *Acquirer) cancel(dk dKey, clearance chan<- struct{}) error {
 	defer a.mu.Unlock()
 	d, ok := a.q[dk]
 	if !ok {
-		// this is a code error, as something removed the dKey early, or cancel
+		// this is a code error, as something removed the domain early, or cancel
 		// was called twice.
-		err := xerrors.New("canceled non-existent job acquisition")
+		err := xerrors.New("cancel for domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
 	w, ok := d.acquirees[clearance]
 	if !ok {
-		// this is a code error, as something removed the dKey early, or cancel
+		// this is a code error, as something removed the acquiree early, or cancel
 		// was called twice.
-		err := xerrors.New("canceled non-existent job acquisition")
+		err := xerrors.New("cancel for an acquiree that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -245,9 +246,9 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	defer a.mu.Unlock()
 	d, ok := a.q[dk]
 	if !ok {
-		// this is a code error, as something removed the dKey early, or done
+		// this is a code error, as something removed the domain early, or done
 		// was called twice.
-		err := xerrors.New("done with non-existent job acquisition")
+		err := xerrors.New("done for a domain that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -255,7 +256,7 @@ func (a *Acquirer) done(dk dKey, clearance chan struct{}) error {
 	if !ok {
 		// this is a code error, as something removed the dKey early, or done
 		// was called twice.
-		err := xerrors.New("canceled non-existent job acquisition")
+		err := xerrors.New("done for an acquiree that doesn't exist")
 		a.logger.Critical(a.ctx, "internal error", slog.Error(err))
 		return err
 	}
@@ -401,9 +402,19 @@ func (*Acquirer) clearOrPendLocked(d domain) {
 
 type dKey string
 
+// domainKey generates a canonical map key for the given provisioner types and
+// tags.  It uses the null byte (0x00) as a delimiter because it is an
+// unprintable control character and won't show up in any "reasonable" set of
+// string tags, even in non-Latin scripts.  It is important that Tags are
+// validated not to contain this control character prior to use.
 func domainKey(pt []database.ProvisionerType, tags Tags) dKey {
+	// make a copy of pt before sorting, so that we don't mutate the original
+	// slice or underlying array.
+	pts := make([]database.ProvisionerType, len(pt))
+	copy(pts, pt)
+	slices.Sort(pts)
 	sb := strings.Builder{}
-	for _, t := range pt {
+	for _, t := range pts {
 		_, _ = sb.WriteString(string(t))
 		_ = sb.WriteByte(0x00)
 	}

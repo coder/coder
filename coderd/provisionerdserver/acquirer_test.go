@@ -54,10 +54,8 @@ func TestAcquirer_Single(t *testing.T) {
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
-	go func() {
-		err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
-		assert.NoError(t, err)
-	}()
+	err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
+	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
 	job := acquiree.success(ctx)
 	require.Equal(t, jobID, job.ID)
@@ -89,14 +87,12 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 		acquirees = append(acquirees, a)
 		a.startAcquire(ctx, uut)
 	}
-	go func() {
-		for i := 0; i < 10; i++ {
-			jobID := uuid.New()
-			jobIDs[jobID] = true
-			err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
-			assert.NoError(t, err)
-		}
-	}()
+	for i := 0; i < 10; i++ {
+		jobID := uuid.New()
+		jobIDs[jobID] = true
+		err := fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
+		require.NoError(t, err)
+	}
 	gotJobIDs := make(map[uuid.UUID]bool)
 	for i := 0; i < 10; i++ {
 		j := acquirees[i].success(ctx)
@@ -129,12 +125,10 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
-	go func() {
-		err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
-		assert.NoError(t, err)
-		err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
-		assert.NoError(t, err)
-	}()
+	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
+	require.NoError(t, err)
+	err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
+	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
 	require.Eventually(t, func() bool {
 		fs.mu.Lock()
@@ -274,12 +268,10 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	}
 	acquiree := newTestAcquiree(t, workerID, pt, tags)
 	jobID := uuid.New()
-	go func() {
-		err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
-		assert.NoError(t, err)
-		err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
-		assert.NoError(t, err)
-	}()
+	err := fs.sendCtx(ctx, database.ProvisionerJob{}, sql.ErrNoRows)
+	require.NoError(t, err)
+	err = fs.sendCtx(ctx, database.ProvisionerJob{ID: jobID}, nil)
+	require.NoError(t, err)
 	acquiree.startAcquire(ctx, uut)
 	job := acquiree.success(ctx)
 	require.Equal(t, jobID, job.ID)
@@ -323,6 +315,7 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 }
 
 func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags provisionerdserver.Tags) {
+	t.Helper()
 	msg, err := json.Marshal(provisionerdserver.JobPosting{
 		ProvisionerType: pt,
 		Tags:            tags,
