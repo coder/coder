@@ -475,6 +475,8 @@ func TestPatchTemplateMeta(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
 		req := codersdk.UpdateTemplateMeta{
 			Name:                         "new-template-name",
 			DisplayName:                  "Displayed Name 456",
@@ -483,6 +485,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
 		}
+
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
@@ -524,6 +527,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: 0,
 		}
@@ -553,6 +557,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
+
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -1,
 		}
@@ -764,7 +769,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				ctr.TimeTilDormantMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
-
+			q
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
@@ -819,6 +824,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 			})
+
 			require.Equal(t, allowAutostart.Load(), template.AllowUserAutostart)
 			require.Equal(t, allowAutostop.Load(), template.AllowUserAutostop)
 
