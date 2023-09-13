@@ -769,13 +769,43 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		return err
 	}
 
+	now := dbtime.Now()
 	for i := range q.workspaceBuilds {
 		if q.workspaceBuilds[i].BuildNumber != latestBuild.BuildNumber {
 			continue
 		}
-		newDeadline := q.workspaceBuilds[i].Deadline.Add(time.Duration(workspace.Ttl.Int64))
-		q.workspaceBuilds[i].UpdatedAt = latestBuild.UpdatedAt
-		q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
+		// If the build is not active, do not bump.
+		if q.workspaceBuilds[i].Transition != database.WorkspaceTransitionStart {
+			return nil
+		}
+		// If the provisioner job is not completed, do not bump.
+		pj, err := q.getProvisionerJobByIDNoLock(ctx, q.workspaceBuilds[i].JobID)
+		if err != nil {
+			return err
+		}
+		if !pj.CompletedAt.Valid {
+			return nil
+		}
+		// Do not bump if the deadline is not set.
+		if q.workspaceBuilds[i].Deadline.IsZero() {
+			return nil
+		}
+		// Only bump if 5% of the deadline has passed.
+		ttlDur := time.Duration(workspace.Ttl.Int64)
+		ttlDur95 := ttlDur - (ttlDur / 20)
+		minBumpDeadline := q.workspaceBuilds[i].Deadline.Add(-ttlDur95)
+		if now.Before(minBumpDeadline) {
+			return nil
+		}
+
+		// Bump.
+		newDeadline := now.Add(ttlDur)
+		q.workspaceBuilds[i].UpdatedAt = now
+		if !q.workspaceBuilds[i].MaxDeadline.IsZero() {
+			q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
+		} else {
+			q.workspaceBuilds[i].Deadline = newDeadline
+		}
 		return nil
 	}
 
