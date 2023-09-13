@@ -46,7 +46,6 @@ import (
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
@@ -1078,32 +1077,24 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		}
 	}()
 
-	name := namesgenerator.GetRandomName(1)
-	// nolint:gocritic // Inserting a provisioner daemon is a system function.
-	daemon, err := api.Database.InsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerDaemonParams{
-		ID:           uuid.New(),
-		CreatedAt:    dbtime.Now(),
-		Name:         name,
-		Provisioners: []database.ProvisionerType{database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform},
-		Tags: database.StringMap{
-			provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
-		},
+	tags, err := json.Marshal(database.StringMap{
+		provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
 	})
-	if err != nil {
-		return nil, xerrors.Errorf("insert provisioner daemon %q: %w", name, err)
-	}
-
-	tags, err := json.Marshal(daemon.Tags)
 	if err != nil {
 		return nil, xerrors.Errorf("marshal tags: %w", err)
 	}
 
 	mux := drpcmux.New()
+	name := namesgenerator.GetRandomName(1)
+	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
+	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
 		api.AccessURL,
-		daemon.ID,
-		api.Logger.Named(fmt.Sprintf("provisionerd-%s", daemon.Name)),
-		daemon.Provisioners,
+		uuid.New(),
+		logger,
+		[]database.ProvisionerType{
+			database.ProvisionerTypeEcho, database.ProvisionerTypeTerraform,
+		},
 		tags,
 		api.Database,
 		api.Pubsub,
@@ -1133,16 +1124,14 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 				if xerrors.Is(err, io.EOF) {
 					return
 				}
-				api.Logger.Debug(ctx, "drpc server error", slog.Error(err))
+				logger.Debug(ctx, "drpc server error", slog.Error(err))
 			},
 		},
 	)
 	go func() {
 		err := server.Serve(ctx, serverSession)
-		if err != nil && !xerrors.Is(err, io.EOF) {
-			api.Logger.Debug(ctx, "provisioner daemon disconnected", slog.Error(err))
-		}
-		// close the sessions so we don't leak goroutines serving them.
+		logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
+		// close the sessions, so we don't leak goroutines serving them.
 		_ = clientSession.Close()
 		_ = serverSession.Close()
 	}()

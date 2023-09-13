@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { App } from "app";
+import { App } from "App";
 import { Language } from "./NavbarView";
 import { rest } from "msw";
 import {

@@ -1,57 +1,61 @@
-import { Story } from "@storybook/react";
 import { MockTemplate, MockTemplateVersion } from "testHelpers/entities";
-import { TemplateStats, TemplateStatsProps } from "./TemplateStats";
+import { TemplateStats } from "./TemplateStats";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TemplateStats> = {
   title: "components/TemplateStats",
   component: TemplateStats,
 };
 
-const Template: Story<TemplateStatsProps> = (args) => (
-  <TemplateStats {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof TemplateStats>;
 
-export const Example = Template.bind({});
-Example.args = {
-  template: MockTemplate,
-  activeVersion: MockTemplateVersion,
-};
-
-export const UsedByMany = Template.bind({});
-UsedByMany.args = {
-  template: {
-    ...MockTemplate,
-    active_user_count: 15,
-  },
-  activeVersion: MockTemplateVersion,
-};
-
-export const ActiveUsersNotLoaded = Template.bind({});
-ActiveUsersNotLoaded.args = {
-  template: {
-    ...MockTemplate,
-    active_user_count: -1,
-  },
-  activeVersion: MockTemplateVersion,
-};
-
-export const LongTemplateVersion = Template.bind({});
-LongTemplateVersion.args = {
-  template: MockTemplate,
-  activeVersion: {
-    ...MockTemplateVersion,
-    name: "thisisareallyreallylongnamefortesting",
+export const Example: Story = {
+  args: {
+    template: MockTemplate,
+    activeVersion: MockTemplateVersion,
   },
 };
-LongTemplateVersion.parameters = {
-  chromatic: { viewports: [960] },
+
+export const UsedByMany: Story = {
+  args: {
+    template: {
+      ...MockTemplate,
+      active_user_count: 15,
+    },
+    activeVersion: MockTemplateVersion,
+  },
 };
 
-export const SmallViewport = Template.bind({});
-SmallViewport.args = {
-  template: MockTemplate,
-  activeVersion: MockTemplateVersion,
+export const ActiveUsersNotLoaded: Story = {
+  args: {
+    template: {
+      ...MockTemplate,
+      active_user_count: -1,
+    },
+    activeVersion: MockTemplateVersion,
+  },
 };
-SmallViewport.parameters = {
-  chromatic: { viewports: [600] },
+
+export const LongTemplateVersion: Story = {
+  args: {
+    template: MockTemplate,
+    activeVersion: {
+      ...MockTemplateVersion,
+      name: "thisisareallyreallylongnamefortesting",
+    },
+  },
+  parameters: {
+    chromatic: { viewports: [960] },
+  },
+};
+
+export const SmallViewport: Story = {
+  args: {
+    template: MockTemplate,
+    activeVersion: MockTemplateVersion,
+  },
+  parameters: {
+    chromatic: { viewports: [600] },
+  },
 };

@@ -1,8 +1,11 @@
-Usage: coder tokens remove <name>
+coder v0.0.0-devel
 
-Delete a token
+[93mUSAGE:[0m
+  coder tokens remove <name>
 
-Aliases: delete, rm
+  Delete a token
 
----
+  Aliases: delete, rm
+
+———
 Run `coder --help` for a list of global options.

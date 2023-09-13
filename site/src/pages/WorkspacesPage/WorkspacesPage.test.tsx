@@ -8,12 +8,9 @@ import {
 } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import WorkspacesPage from "./WorkspacesPage";
-import { i18n } from "i18n";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
 import { Workspace } from "api/typesGenerated";
-
-const { t } = i18n;
 
 describe("WorkspacesPage", () => {
   beforeEach(() => {
@@ -34,8 +31,7 @@ describe("WorkspacesPage", () => {
     renderWithAuth(<WorkspacesPage />);
 
     // Then
-    const text = t("emptyCreateWorkspaceMessage", { ns: "workspacesPage" });
-    await screen.findByText(text);
+    await screen.findByText("Create a workspace");
   });
 
   it("renders a filled workspaces page", async () => {

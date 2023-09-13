@@ -1,7 +1,6 @@
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout";
 import { UsersLayout } from "components/UsersLayout/UsersLayout";
-import IndexPage from "pages";
 import AuditPage from "pages/AuditPage/AuditPage";
 import GroupsPage from "pages/GroupsPage/GroupsPage";
 import LoginPage from "pages/LoginPage/LoginPage";
@@ -11,7 +10,12 @@ import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
 import UsersPage from "pages/UsersPage/UsersPage";
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
 import { FC, lazy, Suspense } from "react";
-import { Route, Routes, BrowserRouter as Router } from "react-router-dom";
+import {
+  Route,
+  Routes,
+  BrowserRouter as Router,
+  Navigate,
+} from "react-router-dom";
 import { DashboardLayout } from "./components/Dashboard/DashboardLayout";
 import { RequireAuth } from "./components/RequireAuth/RequireAuth";
 import { SettingsLayout } from "./components/SettingsLayout/SettingsLayout";
@@ -195,7 +199,7 @@ export const AppRouter: FC = () => {
           {/* Dashboard routes */}
           <Route element={<RequireAuth />}>
             <Route element={<DashboardLayout />}>
-              <Route index element={<IndexPage />} />
+              <Route index element={<Navigate to="/workspaces" replace />} />
 
               <Route path="health" element={<HealthPage />} />
 

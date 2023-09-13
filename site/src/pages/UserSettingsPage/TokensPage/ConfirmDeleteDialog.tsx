@@ -1,6 +1,5 @@
 import { FC } from "react";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { useTranslation, Trans } from "react-i18next";
 import { useDeleteToken } from "./hooks";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
@@ -17,31 +16,18 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
   token,
   setToken,
 }) => {
-  const { t } = useTranslation("tokensPage");
   const tokenName = token?.token_name;
-  const description = (
-    <Trans
-      t={t}
-      i18nKey="tokenActions.deleteToken.deleteCaption"
-      values={{ tokenName }}
-    >
-      Are you sure you want to permanently delete token {{ tokenName }}?
-    </Trans>
-  );
 
   const { mutate: deleteToken, isLoading: isDeleting } =
     useDeleteToken(queryKey);
 
   const onDeleteSuccess = () => {
-    displaySuccess(t("tokenActions.deleteToken.deleteSuccess"));
+    displaySuccess("Token has been deleted");
     setToken(undefined);
   };
 
   const onDeleteError = (error: unknown) => {
-    const message = getErrorMessage(
-      error,
-      t("tokenActions.deleteToken.deleteFailure"),
-    );
+    const message = getErrorMessage(error, "Failed to delete token");
     displayError(message);
     setToken(undefined);
   };
@@ -49,8 +35,13 @@ export const ConfirmDeleteDialog: FC<ConfirmDeleteDialogProps> = ({
   return (
     <ConfirmDialog
       type="delete"
-      title={t("tokenActions.deleteToken.delete")}
-      description={description}
+      title="Delete Token"
+      description={
+        <>
+          Are you sure you want to permanently delete token{" "}
+          <strong>{tokenName}</strong>?
+        </>
+      }
       open={Boolean(token) || isDeleting}
       confirmLoading={isDeleting}
       onConfirm={() => {

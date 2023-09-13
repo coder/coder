@@ -87,7 +87,7 @@ if you need to rotate keys, you can perform the following procedure:
 1. Generate a new encryption key following the same procedure as above.
 
 1. Add the above key to the list of
-   [external token encryption keys](../cli/server.md#external-token-encryption-keys).
+   [external token encryption keys](../cli/server.md#--external-token-encryption-keys).
    **The new key must appear first in the list**. For example, in the Kubernetes
    secret created above:
 
@@ -127,14 +127,19 @@ To disable encryption, perform the following actions:
 1. Ensure you have a valid backup of your database. **Do not skip this step.**
 
 1. Stop all active coderd instances. This will prevent new encrypted data from
-   being written.
+   being written, which may cause the next step to fail.
 
 1. Run [`coder server dbcrypt decrypt`](../cli/server_dbcrypt_decrypt.md). This
    command will decrypt all encrypted user tokens and revoke all active
    encryption keys.
 
+   > Note: for `decrypt` command, the equivalent environment variable for
+   > `--keys` is `CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS` and not
+   > `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`. This is explicitly named
+   > differently to help prevent accidentally decrypting data.
+
 1. Remove all
-   [external token encryption keys](../cli/server.md#external-token-encryption-keys)
+   [external token encryption keys](../cli/server.md#--external-token-encryption-keys)
    from Coder's configuration.
 
 1. Start coderd. You can now safely delete the encryption keys from your secret
@@ -156,7 +161,7 @@ To delete all encrypted data from your database, perform the following actions:
    encryption keys.
 
 1. Remove all
-   [external token encryption keys](../cli/server.md#external-token-encryption-keys)
+   [external token encryption keys](../cli/server.md#--external-token-encryption-keys)
    from Coder's configuration.
 
 1. Start coderd. You can now safely delete the encryption keys from your secret
@@ -171,3 +176,6 @@ To delete all encrypted data from your database, perform the following actions:
   that is no longer active, it will refuse to start. If you are seeing this
   behaviour, ensure that the encryption keys provided are correct and that you
   have not revoked any keys that are still in use.
+- Decryption may fail if newly encrypted data is written while decryption is in
+  progress. If this happens, ensure that all active coder instances are stopped,
+  and retry.

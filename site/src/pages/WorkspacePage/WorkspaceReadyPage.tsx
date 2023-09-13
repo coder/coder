@@ -4,7 +4,6 @@ import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import {
   getDeadline,
@@ -12,7 +11,6 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
 } from "utils/schedule";
-import { quotaMachine } from "xServices/quotas/quotasXService";
 import { StateFrom } from "xstate";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Workspace, WorkspaceErrors } from "./Workspace";
@@ -39,14 +37,14 @@ import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
-  quotaState: StateFrom<typeof quotaMachine>;
   workspaceSend: (event: WorkspaceEvent) => void;
+  quota?: TypesGen.WorkspaceQuota;
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
-  quotaState,
   workspaceSend,
+  quota,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -75,7 +73,6 @@ export const WorkspaceReadyPage = ({
   const canRetryDebugMode =
     Boolean(permissions?.viewDeploymentValues) &&
     Boolean(deploymentValues?.enable_terraform_debug_mode);
-  const { t } = useTranslation("workspacePage");
   const favicon = getFaviconByStatus(workspace.latest_build);
   const navigate = useNavigate();
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
@@ -188,7 +185,7 @@ export const WorkspaceReadyPage = ({
         buildInfo={buildInfo}
         sshPrefix={sshPrefix}
         template={template}
-        quota_budget={quotaState.context.quota?.budget}
+        quotaBudget={quota?.budget}
         templateWarnings={templateVersion?.warnings}
         buildLogs={
           shouldDisplayBuildLogs && (
@@ -199,9 +196,9 @@ export const WorkspaceReadyPage = ({
       <DeleteDialog
         entity="workspace"
         name={workspace.name}
-        info={t("deleteDialog.info", {
-          timeAgo: dayjs(workspace.created_at).fromNow(),
-        }).toString()}
+        info={`This workspace was created ${dayjs(
+          workspace.created_at,
+        ).fromNow()}.`}
         isOpen={workspaceState.matches({ ready: { build: "askingDelete" } })}
         onCancel={() => workspaceSend({ type: "CANCEL_DELETE" })}
         onConfirm={() => {

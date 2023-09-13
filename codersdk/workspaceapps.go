@@ -41,8 +41,10 @@ type WorkspaceApp struct {
 	// `coder server` or via a hostname-based dev URL. If this is set to true
 	// and there is no app wildcard configured on the server, the app will not
 	// be accessible in the UI.
-	Subdomain    bool                     `json:"subdomain"`
-	SharingLevel WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,public"`
+	Subdomain bool `json:"subdomain"`
+	// SubdomainName is the application domain exposed on the `coder server`.
+	SubdomainName string                   `json:"subdomain_name,omitempty"`
+	SharingLevel  WorkspaceAppSharingLevel `json:"sharing_level" enums:"owner,authenticated,public"`
 	// Healthcheck specifies the configuration for checking app health.
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`

@@ -1,12 +1,15 @@
-Usage: coder schedule show <workspace-name>
+coder v0.0.0-devel
 
-Show workspace schedule
+[93mUSAGE:[0m
+  coder schedule show <workspace-name>
 
-Shows the following information for the given workspace:
-  * The automatic start schedule
-  * The next scheduled start time
-  * The duration after which it will stop
-  * The next scheduled stop time
+  Show workspace schedule
 
----
+  Shows the following information for the given workspace:
+    * The automatic start schedule
+    * The next scheduled start time
+    * The duration after which it will stop
+    * The next scheduled stop time
+
+———
 Run `coder --help` for a list of global options.
