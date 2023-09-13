@@ -3,7 +3,7 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
-# shellcheck source=../../../../scripts/lib.sh
+# shellcheck source=scripts/lib.sh
 . ~/coder/scripts/lib.sh
 
 coder() {
