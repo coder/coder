@@ -201,6 +201,7 @@ export const WorkspaceScheduleForm: FC<
     onSubmit,
     validationSchema,
     initialTouched,
+    enableReinitialize: true,
   });
   const formHelpers = getFormHelpers<WorkspaceScheduleFormValues>(
     form,
