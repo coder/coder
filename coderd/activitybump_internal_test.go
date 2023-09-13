@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"runtime"
 	"testing"
 	"time"
 
@@ -165,6 +166,8 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			require.Equal(t, tt.maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 			require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
+			workaroundWindowsTimeResolution(t)
+
 			start := dbtime.Now()
 			activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
 			elapsed := time.Since(start)
@@ -207,4 +210,12 @@ func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, work
 		TemplateVersionID: tvID,
 		Transition:        transition,
 	})
+}
+
+func workaroundWindowsTimeResolution(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Logf("workaround: sleeping for a short time to avoid time resolution issues on Windows")
+		<-time.After(testutil.IntervalSlow)
+	}
 }
