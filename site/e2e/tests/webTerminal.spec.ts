@@ -41,14 +41,18 @@ test("web terminal", async ({ context, page }) => {
   const terminal = await pagePromise;
   await terminal.waitForLoadState("domcontentloaded");
 
-  // FIXME Wait until $ is present.
+  const xtermRows = await terminal.waitForSelector("div.xterm-rows", {
+    state: "visible",
+  });
 
   // Ensure that we can type in it
   await terminal.keyboard.type("echo he${justabreak}llo");
   await terminal.keyboard.press("Enter");
 
   // Check if "echo" command was executed
-  await terminal.waitForSelector("text=hello"); // FIXME it is canvas, it won't work
+  await xtermRows.waitForSelector('div:text-matches("hello")', {
+    state: "visible",
+  });
 
   await stopAgent(agent);
 });

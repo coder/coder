@@ -35,7 +35,7 @@ export default defineConfig({
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
     launchOptions: {
-      args: ["--use-angle=egl"],
+      args: ["--disable-gpu"],
     },
   },
   webServer: {
