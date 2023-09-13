@@ -1,6 +1,6 @@
-import { Story } from "@storybook/react"
-import { ScheduleForm, ScheduleFormProps } from "./ScheduleForm"
-import { mockApiError } from "testHelpers/entities"
+import { Story } from "@storybook/react";
+import { ScheduleForm, ScheduleFormProps } from "./ScheduleForm";
+import { mockApiError } from "testHelpers/entities";
 
 export default {
   title: "pages/UserSettingsPage/SchedulePage/ScheduleForm",
@@ -8,13 +8,13 @@ export default {
   argTypes: {
     onSubmit: { action: "Submit" },
   },
-}
+};
 
 const Template: Story<ScheduleFormProps> = (args: ScheduleFormProps) => (
   <ScheduleForm {...args} />
-)
+);
 
-export const ExampleDefault = Template.bind({})
+export const ExampleDefault = Template.bind({});
 ExampleDefault.args = {
   submitting: false,
   initialValues: {
@@ -26,12 +26,12 @@ ExampleDefault.args = {
   },
   updateErr: undefined,
   onSubmit: () => {
-    return Promise.resolve()
+    return Promise.resolve();
   },
   now: new Date("2023-09-04T15:00:00+10:00"),
-}
+};
 
-export const ExampleUserSet = Template.bind({})
+export const ExampleUserSet = Template.bind({});
 ExampleUserSet.args = {
   ...ExampleDefault.args,
   initialValues: {
@@ -42,15 +42,15 @@ ExampleUserSet.args = {
     next: "2023-09-05T02:00:00-05:00",
   },
   now: new Date("2023-09-04T15:00:00-05:00"),
-}
+};
 
-export const Submitting = Template.bind({})
+export const Submitting = Template.bind({});
 Submitting.args = {
   ...ExampleDefault.args,
   submitting: true,
-}
+};
 
-export const WithError = Template.bind({})
+export const WithError = Template.bind({});
 WithError.args = {
   ...ExampleDefault.args,
   updateErr: mockApiError({
@@ -62,4 +62,4 @@ WithError.args = {
       },
     ],
   }),
-}
+};

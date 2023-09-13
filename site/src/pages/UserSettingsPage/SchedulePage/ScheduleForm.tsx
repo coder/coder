@@ -1,46 +1,46 @@
-import TextField from "@mui/material/TextField"
-import { FormikContextType, useFormik } from "formik"
-import { FC, useEffect, useState } from "react"
-import * as Yup from "yup"
-import { getFormHelpers } from "utils/formUtils"
-import { LoadingButton } from "components/LoadingButton/LoadingButton"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
-import { Form, FormFields } from "components/Form/Form"
+import TextField from "@mui/material/TextField";
+import { FormikContextType, useFormik } from "formik";
+import { FC, useEffect, useState } from "react";
+import * as Yup from "yup";
+import { getFormHelpers } from "utils/formUtils";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Form, FormFields } from "components/Form/Form";
 import {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,
-} from "api/typesGenerated"
-import cronParser from "cron-parser"
-import MenuItem from "@mui/material/MenuItem"
-import Stack from "@mui/material/Stack"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
-import timezone from "dayjs/plugin/timezone"
-import utc from "dayjs/plugin/utc"
+} from "api/typesGenerated";
+import cronParser from "cron-parser";
+import MenuItem from "@mui/material/MenuItem";
+import Stack from "@mui/material/Stack";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import timezone from "dayjs/plugin/timezone";
+import utc from "dayjs/plugin/utc";
 
-dayjs.extend(timezone)
-dayjs.extend(relativeTime)
-dayjs.extend(utc)
+dayjs.extend(timezone);
+dayjs.extend(relativeTime);
+dayjs.extend(utc);
 
 export interface ScheduleFormValues {
-  hours: number
-  minutes: number
-  timezone: string
+  hours: number;
+  minutes: number;
+  timezone: string;
 }
 
 const validationSchema = Yup.object({
   hours: Yup.number().min(0).max(23).required(),
   minutes: Yup.number().min(0).max(59).required(),
   timezone: Yup.string().required(),
-})
+});
 
 export interface ScheduleFormProps {
-  submitting: boolean
-  initialValues: UserQuietHoursScheduleResponse
-  updateErr: unknown
-  onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void
+  submitting: boolean;
+  initialValues: UserQuietHoursScheduleResponse;
+  updateErr: unknown;
+  onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void;
   // now can be set to force the time used for "Next occurrence" in tests.
-  now?: Date
+  now?: Date;
 }
 
 export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
@@ -53,23 +53,23 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   // Force a re-render every 15 seconds to update the "Next occurrence" field.
   // The app re-renders by itself occasionally but this is just to be sure it
   // doesn't get stale.
-  const [_, setTime] = useState<number>(Date.now())
+  const [_, setTime] = useState<number>(Date.now());
   useEffect(() => {
-    const interval = setInterval(() => setTime(Date.now()), 15000)
+    const interval = setInterval(() => setTime(Date.now()), 15000);
     return () => {
-      clearInterval(interval)
-    }
-  }, [])
+      clearInterval(interval);
+    };
+  }, []);
 
-  const preferredTimezone = getPreferredTimezone()
-  const allTimezones = getAllTimezones()
+  const preferredTimezone = getPreferredTimezone();
+  const allTimezones = getAllTimezones();
   if (!allTimezones.includes(initialValues.timezone)) {
-    allTimezones.push(initialValues.timezone)
+    allTimezones.push(initialValues.timezone);
   }
   if (!allTimezones.includes(preferredTimezone)) {
-    allTimezones.push(preferredTimezone)
+    allTimezones.push(preferredTimezone);
   }
-  allTimezones.sort()
+  allTimezones.sort();
 
   // If the user has a custom schedule, use that as the initial values.
   // Otherwise, use midnight in their preferred timezone.
@@ -77,11 +77,11 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
     hours: 0,
     minutes: 0,
     timezone: preferredTimezone,
-  }
+  };
   if (initialValues.user_set) {
-    formInitialValues.hours = parseInt(initialValues.time.split(":")[0], 10)
-    formInitialValues.minutes = parseInt(initialValues.time.split(":")[1], 10)
-    formInitialValues.timezone = initialValues.timezone
+    formInitialValues.hours = parseInt(initialValues.time.split(":")[0], 10);
+    formInitialValues.minutes = parseInt(initialValues.time.split(":")[1], 10);
+    formInitialValues.timezone = initialValues.timezone;
   }
 
   const form: FormikContextType<ScheduleFormValues> =
@@ -91,10 +91,10 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
       onSubmit: (values) => {
         return onSubmit({
           schedule: timeToCron(values.hours, values.minutes, values.timezone),
-        })
+        });
       },
-    })
-  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, updateErr)
+    });
+  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, updateErr);
 
   return (
     <>
@@ -190,8 +190,8 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         </FormFields>
       </Form>
     </>
-  )
-}
+  );
+};
 
 // Taken from https://stackoverflow.com/a/54500197
 const allTimezonesFallback = [
@@ -541,27 +541,27 @@ const allTimezonesFallback = [
   "Pacific/Tongatapu",
   "Pacific/Wake",
   "Pacific/Wallis",
-]
+];
 
 const getAllTimezones = () => {
   if (Intl.supportedValuesOf) {
-    return Intl.supportedValuesOf("timeZone").sort()
+    return Intl.supportedValuesOf("timeZone").sort();
   }
 
-  return allTimezonesFallback
-}
+  return allTimezonesFallback;
+};
 
 const getPreferredTimezone = () => {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone
-}
+  return Intl.DateTimeFormat().resolvedOptions().timeZone;
+};
 
 const timeToCron = (hours: number, minutes: number, tz: string) => {
-  let prefix = ""
+  let prefix = "";
   if (tz !== "") {
-    prefix = `CRON_TZ=${tz} `
+    prefix = `CRON_TZ=${tz} `;
   }
-  return `${prefix}${minutes} ${hours} * * *`
-}
+  return `${prefix}${minutes} ${hours} * * *`;
+};
 
 // evaluateNextRun returns a Date object of the next cron run time.
 const evaluateNextRun = (
@@ -572,16 +572,16 @@ const evaluateNextRun = (
 ): Date => {
   // The cron-parser package doesn't accept a timezone in the cron string, but
   // accepts it as an option.
-  const cron = timeToCron(hours, minutes, "")
+  const cron = timeToCron(hours, minutes, "");
   const parsed = cronParser.parseExpression(cron, {
     currentDate: now,
     iterator: false,
     utc: false,
     tz: tz,
-  })
+  });
 
-  return parsed.next().toDate()
-}
+  return parsed.next().toDate();
+};
 
 const formatNextRun = (
   hours: number,
@@ -589,21 +589,21 @@ const formatNextRun = (
   tz: string,
   now: Date | undefined,
 ): string => {
-  const nowDjs = dayjs(now).tz(tz)
-  const djs = dayjs(evaluateNextRun(hours, minutes, tz, now)).tz(tz)
-  let str = djs.format("h:mm A")
+  const nowDjs = dayjs(now).tz(tz);
+  const djs = dayjs(evaluateNextRun(hours, minutes, tz, now)).tz(tz);
+  let str = djs.format("h:mm A");
   if (djs.isSame(nowDjs, "day")) {
-    str += " today"
+    str += " today";
   } else if (djs.isSame(nowDjs.add(1, "day"), "day")) {
-    str += " tomorrow"
+    str += " tomorrow";
   } else {
     // This case will rarely ever be hit, as we're dealing with only times and
     // not dates, but it can be hit due to mismatched browser timezone to cron
     // timezone or due to daylight savings changes.
-    str += ` on ${djs.format("dddd, MMMM D")}`
+    str += ` on ${djs.format("dddd, MMMM D")}`;
   }
 
-  str += ` (${djs.from(now)})`
+  str += ` (${djs.from(now)})`;
 
-  return str
-}
+  return str;
+};

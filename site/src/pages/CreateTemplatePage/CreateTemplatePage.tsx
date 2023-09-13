@@ -32,17 +32,17 @@ const CreateTemplatePage: FC = () => {
   });
 
   const { starterTemplate, error, file, jobError, jobLogs, variables } =
-    state.context
-  const shouldDisplayForm = !state.hasTag("loading")
-  const { entitlements } = useDashboard()
+    state.context;
+  const shouldDisplayForm = !state.hasTag("loading");
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // Requires the template RBAC feature, otherwise disabling everyone access
   // means no one can access.
   const allowDisableEveryoneAccess =
-    entitlements.features["template_rbac"].enabled
+    entitlements.features["template_rbac"].enabled;
   const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled
+    entitlements.features["template_autostop_requirement"].enabled;
 
   const onCancel = () => {
     navigate(-1);

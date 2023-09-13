@@ -668,17 +668,17 @@ export const updateProfile = async (
 export const getUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await axios.get(`/api/v2/users/${userId}/quiet-hours`)
-  return response.data
-}
+  const response = await axios.get(`/api/v2/users/${userId}/quiet-hours`);
+  return response.data;
+};
 
 export const updateUserQuietHoursSchedule = async (
   userId: TypesGen.User["id"],
   data: TypesGen.UpdateUserQuietHoursScheduleRequest,
 ): Promise<TypesGen.UserQuietHoursScheduleResponse> => {
-  const response = await axios.put(`/api/v2/users/${userId}/quiet-hours`, data)
-  return response.data
-}
+  const response = await axios.put(`/api/v2/users/${userId}/quiet-hours`, data);
+  return response.data;
+};
 
 export const activateUser = async (
   userId: TypesGen.User["id"],

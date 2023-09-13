@@ -20,10 +20,10 @@ const TemplateSchedulePage: FC = () => {
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
+  const allowWorkspaceActions = experiments.includes("workspace_actions");
   const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled
-  const { clearLocal } = useLocalStorage()
+    entitlements.features["template_autostop_requirement"].enabled;
+  const { clearLocal } = useLocalStorage();
 
   const {
     mutate: updateTemplate,

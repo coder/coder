@@ -32,10 +32,10 @@ const CliAuthenticationPage = lazy(
 );
 const AccountPage = lazy(
   () => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
-)
+);
 const SchedulePage = lazy(
   () => import("./pages/UserSettingsPage/SchedulePage/SchedulePage"),
-)
+);
 const SecurityPage = lazy(
   () => import("./pages/UserSettingsPage/SecurityPage/SecurityPage"),
 );

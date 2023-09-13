@@ -1,16 +1,16 @@
-import { makeStyles } from "@mui/styles"
-import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined"
-import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined"
-import { User } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { UserAvatar } from "components/UserAvatar/UserAvatar"
-import { FC, ElementType, PropsWithChildren, ReactNode } from "react"
-import { NavLink } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import AccountIcon from "@mui/icons-material/Person"
-import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined"
-import SecurityIcon from "@mui/icons-material/LockOutlined"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
+import { makeStyles } from "@mui/styles";
+import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
+import FingerprintOutlinedIcon from "@mui/icons-material/FingerprintOutlined";
+import { User } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
+import { NavLink } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import AccountIcon from "@mui/icons-material/Person";
+import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
+import SecurityIcon from "@mui/icons-material/LockOutlined";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -42,10 +42,10 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 };
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
-  const styles = useStyles()
-  const { entitlements } = useDashboard()
+  const styles = useStyles();
+  const { entitlements } = useDashboard();
   const allowAutostopRequirement =
-    entitlements.features.template_autostop_requirement.enabled
+    entitlements.features.template_autostop_requirement.enabled;
 
   return (
     <nav className={styles.sidebar}>
