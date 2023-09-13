@@ -1,4 +1,4 @@
-import { DeploymentGroup, DeploymentOption } from "api/types";
+import { DeploymentGroup, DeploymentOption } from "api/api";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 

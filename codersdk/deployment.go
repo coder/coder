@@ -409,9 +409,6 @@ func DefaultCacheDir() string {
 }
 
 // DeploymentConfig contains both the deployment values and how they're set.
-//
-// @typescript-ignore DeploymentConfig
-// apitypings doesn't know how to generate the OptionSet... yet.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
 	Options clibase.OptionSet `json:"options,omitempty"`

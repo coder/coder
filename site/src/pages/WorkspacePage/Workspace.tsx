@@ -68,7 +68,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
-  quota_budget?: number;
+  quotaBudget?: number;
   handleBuildRetry: () => void;
   buildLogs?: React.ReactNode;
 }
@@ -101,7 +101,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   sshPrefix,
   template,
-  quota_budget,
+  quotaBudget,
   handleBuildRetry,
   templateWarnings,
   buildLogs,
@@ -183,7 +183,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats
           workspace={workspace}
-          quota_budget={quota_budget}
+          quotaBudget={quotaBudget}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}

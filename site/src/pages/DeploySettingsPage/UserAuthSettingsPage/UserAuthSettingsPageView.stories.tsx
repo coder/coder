@@ -1,4 +1,4 @@
-import { DeploymentGroup } from "api/types";
+import { DeploymentGroup } from "api/api";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 

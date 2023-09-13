@@ -1,7 +1,10 @@
-import { withDefaultFeatures, GetLicensesResponse } from "api/api";
+import {
+  withDefaultFeatures,
+  GetLicensesResponse,
+  DeploymentConfig,
+} from "api/api";
 import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
-import * as Types from "api/types";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
 import { Permissions } from "xServices/auth/authXService";
@@ -802,6 +805,50 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
   daily_cost: 20,
 };
 
+export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockProvisionerJob,
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
+  transition: "start",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "autostart",
+  resources: [MockWorkspaceResource],
+  status: "running",
+  daily_cost: 20,
+};
+
+export const MockWorkspaceBuildAutostop: TypesGen.WorkspaceBuild = {
+  build_number: 1,
+  created_at: "2022-05-17T17:39:01.382927298Z",
+  id: "1",
+  initiator_id: MockUser.id,
+  initiator_name: MockUser.username,
+  job: MockProvisionerJob,
+  template_version_id: MockTemplateVersion.id,
+  template_version_name: MockTemplateVersion.name,
+  transition: "start",
+  updated_at: "2022-05-17T17:39:01.382927298Z",
+  workspace_name: "test-workspace",
+  workspace_owner_id: MockUser.id,
+  workspace_owner_name: MockUser.username,
+  workspace_id: "759f1d46-3174-453d-aa60-980a9c1442f3",
+  deadline: "2022-05-17T23:39:00.00Z",
+  reason: "autostop",
+  resources: [MockWorkspaceResource],
+  status: "running",
+  daily_cost: 20,
+};
+
 export const MockFailedWorkspaceBuild = (
   transition: TypesGen.WorkspaceTransition = "start",
 ): TypesGen.WorkspaceBuild => ({
@@ -840,6 +887,8 @@ export const MockWorkspaceBuildDelete: TypesGen.WorkspaceBuild = {
 
 export const MockBuilds = [
   MockWorkspaceBuild,
+  MockWorkspaceBuildAutostart,
+  MockWorkspaceBuildAutostop,
   MockWorkspaceBuildStop,
   MockWorkspaceBuildDelete,
 ];
@@ -1114,7 +1163,7 @@ export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   ],
 };
 
-export const MockUserAgent: Types.UserAgent = {
+export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
   device: "Other",
   ip_address: "11.22.33.44",
@@ -2049,7 +2098,7 @@ export const MockPermissions: Permissions = {
   editWorkspaceProxies: true,
 };
 
-export const MockDeploymentConfig: Types.DeploymentConfig = {
+export const MockDeploymentConfig: DeploymentConfig = {
   config: {
     enable_terraform_debug_mode: true,
   },

@@ -10,7 +10,7 @@ import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentCo
 import { RequirePermission } from "components/RequirePermission/RequirePermission";
 import { usePermissions } from "hooks/usePermissions";
 import { Outlet } from "react-router-dom";
-import { DeploymentConfig } from "api/types";
+import { DeploymentConfig } from "api/api";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
