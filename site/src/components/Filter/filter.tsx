@@ -130,6 +130,18 @@ export const MenuSkeleton = () => (
   <BaseSkeleton sx={{ minWidth: 200, flexShrink: 0 }} />
 );
 
+type FilterProps = {
+  filter: ReturnType<typeof useFilter>;
+  skeleton: ReactNode;
+  isLoading: boolean;
+  learnMoreLink: string;
+  learnMoreLabel2?: string;
+  learnMoreLink2?: string;
+  error?: unknown;
+  options?: ReactNode;
+  presets: PresetFilter[];
+};
+
 export const Filter = ({
   filter,
   isLoading,
@@ -140,17 +152,7 @@ export const Filter = ({
   learnMoreLabel2,
   learnMoreLink2,
   presets,
-}: {
-  filter: ReturnType<typeof useFilter>;
-  skeleton: ReactNode;
-  isLoading: boolean;
-  learnMoreLink: string;
-  learnMoreLabel2?: string;
-  learnMoreLink2?: string;
-  error?: unknown;
-  options?: ReactNode;
-  presets: PresetFilter[];
-}) => {
+}: FilterProps) => {
   const shouldDisplayError = hasError(error) && isApiValidationError(error);
   const hasFilterQuery = filter.query !== "";
   const [searchQuery, setSearchQuery] = useState(filter.query);
