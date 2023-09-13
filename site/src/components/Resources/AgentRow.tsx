@@ -29,6 +29,7 @@ import {
 import {
   Workspace,
   WorkspaceAgent,
+  WorkspaceAgentLogSource,
   WorkspaceAgentMetadata,
 } from "../../api/typesGenerated";
 import { Stack } from "../Stack/Stack";
@@ -40,6 +41,7 @@ import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
+import Tooltip from "@mui/material/Tooltip";
 
 export interface AgentRowProps {
   agent: WorkspaceAgent;
@@ -89,6 +91,13 @@ export const AgentRow: FC<AgentRowProps> = ({
       agent.status === "connecting");
   const hasStartupFeatures =
     Boolean(agent.logs_length) || Boolean(logsMachine.context.logs?.length);
+  const logSourceByID = useMemo(() => {
+    const sources: { [id: string]: WorkspaceAgentLogSource } = {};
+    for (const source of agent.log_sources) {
+      sources[source.id] = source;
+    }
+    return sources;
+  }, [agent.log_sources]);
   const { proxy } = useProxy();
 
   const [showLogs, setShowLogs] = useState(
@@ -302,13 +311,88 @@ export const AgentRow: FC<AgentRowProps> = ({
                   className={styles.startupLogs}
                   onScroll={handleLogScroll}
                 >
-                  {({ index, style }) => (
-                    <LogLine
-                      line={startupLogs[index]}
-                      number={index + 1}
-                      style={style}
-                    />
-                  )}
+                  {({ index, style }) => {
+                    const log = startupLogs[index];
+                    let sourceIcon: string | undefined =
+                      logSourceByID[log.source_id].icon;
+                    if (
+                      index > 0 &&
+                      logSourceByID[startupLogs[index - 1].source_id].id ===
+                        log.source_id
+                    ) {
+                      sourceIcon = undefined;
+                    }
+
+                    let icon = (
+                      <Tooltip
+                        title={logSourceByID[log.source_id].display_name}
+                      >
+                        <img
+                          src={sourceIcon}
+                          alt=""
+                          width={16}
+                          height={16}
+                          style={{
+                            marginRight: 8,
+                          }}
+                        />
+                      </Tooltip>
+                    );
+                    let nextChangesSource = false;
+                    if (index < startupLogs.length - 1) {
+                      nextChangesSource =
+                        logSourceByID[startupLogs[index + 1].source_id].id !==
+                        log.source_id;
+                    }
+
+                    if (!sourceIcon) {
+                      icon = (
+                        <div
+                          style={{
+                            minWidth: 16,
+                            width: 16,
+                            height: 16,
+                            marginRight: 8,
+                            display: "flex",
+                            justifyContent: "center",
+                            position: "relative",
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: nextChangesSource ? "50%" : "100%",
+                              width: 4,
+                              background: "hsl(222, 31%, 25%)",
+                              borderRadius: 2,
+                            }}
+                          />
+                          {nextChangesSource && (
+                            <div
+                              style={{
+                                height: 4,
+                                width: "50%",
+                                top: "calc(50% - 2px)",
+                                left: "calc(50% - 1px)",
+                                background: "hsl(222, 31%, 25%)",
+                                borderRadius: 2,
+                                position: "absolute",
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <LogLine
+                        line={startupLogs[index]}
+                        number={index + 1}
+                        maxNumber={startupLogs.length}
+                        style={style}
+                        sourceIcon={icon}
+                      />
+                    );
+                  }}
                 </List>
               )}
             </AutoSizer>
@@ -326,7 +410,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 }}
               >
                 <CloseDropdown />
-                Hide startup logs
+                Hide logs
               </button>
             ) : (
               <button
@@ -339,7 +423,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 }}
               >
                 <OpenDropdown />
-                Show startup logs
+                Show logs
               </button>
             )}
           </div>

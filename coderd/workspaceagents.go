@@ -1322,7 +1322,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 		scripts = append(scripts, codersdk.WorkspaceAgentScript{
 			LogPath:          dbScript.LogPath,
 			LogSourceID:      dbScript.LogSourceID,
-			Source:           dbScript.Source,
+			Script:           dbScript.Script,
 			CRON:             dbScript.Cron,
 			RunOnStart:       dbScript.RunOnStart,
 			RunOnStop:        dbScript.RunOnStop,

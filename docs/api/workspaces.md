@@ -159,7 +159,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }
@@ -364,7 +364,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }
@@ -568,7 +568,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                     "run_on_start": true,
                     "run_on_stop": true,
-                    "source": "string",
+                    "script": "string",
                     "start_blocks_login": true,
                     "timeout_seconds": 0
                   }
@@ -774,7 +774,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }
@@ -1059,7 +1059,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }

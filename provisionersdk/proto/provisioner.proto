@@ -139,7 +139,7 @@ message DisplayApps {
 message Script {
 	string display_name = 1;
 	string icon = 2;
-	string source = 3;
+	string script = 3;
 	string cron = 4;
 	bool start_blocks_login = 5;
 	bool run_on_start = 6;

@@ -2004,7 +2004,7 @@ type WorkspaceAgentScript struct {
 	LogSourceID      uuid.UUID `db:"log_source_id" json:"log_source_id"`
 	LogPath          string    `db:"log_path" json:"log_path"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
-	Source           string    `db:"source" json:"source"`
+	Script           string    `db:"script" json:"script"`
 	Cron             string    `db:"cron" json:"cron"`
 	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`

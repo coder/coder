@@ -81,7 +81,7 @@ type agentScriptAttributes struct {
 	AgentID          string `mapstructure:"agent_id"`
 	DisplayName      string `mapstructure:"display_name"`
 	Icon             string `mapstructure:"icon"`
-	Source           string `mapstructure:"source"`
+	Script           string `mapstructure:"script"`
 	Cron             string `mapstructure:"cron"`
 	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
 	RunOnStart       bool   `mapstructure:"run_on_start"`
@@ -236,7 +236,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				agent.Scripts = append(agent.Scripts, &proto.Script{
 					LogPath:          "coder-startup-script.log",
 					DisplayName:      "Startup Script",
-					Source:           attrs.StartupScript,
+					Script:           attrs.StartupScript,
 					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
 					Timeout:          attrs.StartupScriptTimeoutSeconds,
 					RunOnStart:       true,
@@ -246,7 +246,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				agent.Scripts = append(agent.Scripts, &proto.Script{
 					LogPath:     "coder-shutdown-script.log",
 					DisplayName: "Shutdown Script",
-					Source:      attrs.ShutdownScript,
+					Script:      attrs.ShutdownScript,
 					Timeout:     attrs.ShutdownScriptTimeoutSeconds,
 					RunOnStop:   true,
 				})
@@ -451,7 +451,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 					agent.Scripts = append(agent.Scripts, &proto.Script{
 						DisplayName:      attrs.DisplayName,
 						Icon:             attrs.Icon,
-						Source:           attrs.Source,
+						Script:           attrs.Script,
 						Cron:             attrs.Cron,
 						StartBlocksLogin: attrs.StartBlocksLogin,
 						RunOnStart:       attrs.RunOnStart,

@@ -56,7 +56,9 @@ export const LogLine: FC<{
   hideTimestamp?: boolean;
   number?: number;
   style?: React.CSSProperties;
-}> = ({ line, hideTimestamp, number, style }) => {
+  sourceIcon?: JSX.Element;
+  maxNumber?: number;
+}> = ({ line, hideTimestamp, number, maxNumber, sourceIcon, style }) => {
   const styles = useStyles();
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
@@ -64,9 +66,12 @@ export const LogLine: FC<{
 
   return (
     <div className={combineClasses([styles.line, line.level])} style={style}>
+      {sourceIcon}
       {!hideTimestamp && (
         <>
-          <span className={styles.time}>
+          <span className={styles.time} style={{
+            minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
+          }}>
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
           <span className={styles.space} />
@@ -100,6 +105,7 @@ const useStyles = makeStyles((theme) => ({
   line: {
     wordBreak: "break-all",
     display: "flex",
+    alignItems: "center",
     fontSize: 14,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
@@ -128,7 +134,6 @@ const useStyles = makeStyles((theme) => ({
   },
   time: {
     userSelect: "none",
-    width: theme.spacing(12.5),
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,

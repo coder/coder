@@ -25,7 +25,7 @@ var (
 	// ErrTimeout is returned when a script times out.
 	ErrTimeout = xerrors.New("script timed out")
 
-	parser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
 
 // Options are a set of options for the runner.
@@ -82,6 +82,12 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 	return nil
 }
 
+// StartCRON starts the cron scheduler.
+// This is done async to allow for the caller to execute scripts prior.
+func (r *Runner) StartCRON() {
+	r.cron.Start()
+}
+
 // Execute runs a set of scripts according to a filter.
 func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool) error {
 	if filter == nil {
@@ -114,7 +120,7 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 	logger := r.Logger.With(slog.F("log_source", script.LogPath))
 	ctx := r.ctx
-	logger.Info(ctx, "running agent script", slog.F("script", script.Source))
+	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
 	logPath := script.LogPath
 	if logPath == "" {
@@ -142,7 +148,7 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 		defer cancel()
 	}
 
-	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Source, nil)
+	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Script, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}

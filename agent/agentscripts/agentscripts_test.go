@@ -31,7 +31,7 @@ func TestExecuteBasic(t *testing.T) {
 	})
 	defer runner.Close()
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
-		Source: "echo hello",
+		Script: "echo hello",
 	}})
 	require.NoError(t, err)
 	require.NoError(t, runner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
@@ -46,7 +46,7 @@ func TestTimeout(t *testing.T) {
 	runner := setup(t, nil)
 	defer runner.Close()
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
-		Source:  "sleep 3",
+		Script:  "sleep 3",
 		Timeout: time.Nanosecond,
 	}})
 	require.NoError(t, err)

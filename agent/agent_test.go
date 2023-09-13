@@ -1209,7 +1209,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:     "sleep 3",
+				Script:     "sleep 3",
 				Timeout:    time.Nanosecond,
 				RunOnStart: true,
 			}},
@@ -1234,7 +1234,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:     "false",
+				Script:     "false",
 				Timeout:    30 * time.Second,
 				RunOnStart: true,
 			}},
@@ -1259,7 +1259,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:     "true",
+				Script:     "true",
 				Timeout:    30 * time.Second,
 				RunOnStart: true,
 			}},
@@ -1284,7 +1284,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:    "sleep 3",
+				Script:    "sleep 3",
 				Timeout:   30 * time.Second,
 				RunOnStop: true,
 			}},
@@ -1325,7 +1325,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:    "sleep 3",
+				Script:    "sleep 3",
 				Timeout:   time.Nanosecond,
 				RunOnStop: true,
 			}},
@@ -1367,7 +1367,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Source:    "false",
+				Script:    "false",
 				Timeout:   30 * time.Second,
 				RunOnStop: true,
 			}},
@@ -1417,11 +1417,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 				DERPMap: derpMap,
 				Scripts: []codersdk.WorkspaceAgentScript{{
 					LogPath:    "coder-startup-script.log",
-					Source:     "echo 1",
+					Script:     "echo 1",
 					RunOnStart: true,
 				}, {
 					LogPath:   "coder-shutdown-script.log",
-					Source:    "echo " + expected,
+					Script:    "echo " + expected,
 					RunOnStop: true,
 				}},
 			},

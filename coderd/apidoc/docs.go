@@ -10907,7 +10907,7 @@ const docTemplate = `{
                 "run_on_stop": {
                     "type": "boolean"
                 },
-                "source": {
+                "script": {
                     "type": "string"
                 },
                 "start_blocks_login": {

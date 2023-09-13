@@ -129,7 +129,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
               "run_on_start": true,
               "run_on_stop": true,
-              "source": "string",
+              "script": "string",
               "start_blocks_login": true,
               "timeout_seconds": 0
             }
@@ -307,7 +307,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
               "run_on_start": true,
               "run_on_stop": true,
-              "source": "string",
+              "script": "string",
               "start_blocks_login": true,
               "timeout_seconds": 0
             }
@@ -624,7 +624,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
             "run_on_start": true,
             "run_on_stop": true,
-            "source": "string",
+            "script": "string",
             "start_blocks_login": true,
             "timeout_seconds": 0
           }
@@ -725,7 +725,7 @@ Status Code **200**
 | `»»» log_source_id`             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_start`              | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_stop`               | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
-| `»»» source`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» script`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» timeout_seconds`           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -905,7 +905,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
               "run_on_start": true,
               "run_on_stop": true,
-              "source": "string",
+              "script": "string",
               "start_blocks_login": true,
               "timeout_seconds": 0
             }
@@ -1088,7 +1088,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }
@@ -1225,7 +1225,7 @@ Status Code **200**
 | `»»»» log_source_id`             | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» run_on_start`              | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» run_on_stop`               | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» source`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» script`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» start_blocks_login`        | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» timeout_seconds`           | integer                                                                          | false    |              |                                                                                                                                                                                                                                                |
 | `»»» started_at`                 | string(date-time)                                                                | false    |              |                                                                                                                                                                                                                                                |
@@ -1458,7 +1458,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
               "run_on_start": true,
               "run_on_stop": true,
-              "source": "string",
+              "script": "string",
               "start_blocks_login": true,
               "timeout_seconds": 0
             }

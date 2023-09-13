@@ -283,7 +283,7 @@
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
       "run_on_start": true,
       "run_on_stop": true,
-      "source": "string",
+      "script": "string",
       "start_blocks_login": true,
       "timeout_seconds": 0
     }
@@ -5497,7 +5497,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                 "run_on_start": true,
                 "run_on_stop": true,
-                "source": "string",
+                "script": "string",
                 "start_blocks_login": true,
                 "timeout_seconds": 0
               }
@@ -5655,7 +5655,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
       "run_on_start": true,
       "run_on_stop": true,
-      "source": "string",
+      "script": "string",
       "start_blocks_login": true,
       "timeout_seconds": 0
     }
@@ -5933,7 +5933,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
   "run_on_start": true,
   "run_on_stop": true,
-  "source": "string",
+  "script": "string",
   "start_blocks_login": true,
   "timeout_seconds": 0
 }
@@ -5948,7 +5948,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `log_source_id`      | string  | false    |              |             |
 | `run_on_start`       | boolean | false    |              |             |
 | `run_on_stop`        | boolean | false    |              |             |
-| `source`             | string  | false    |              |             |
+| `script`             | string  | false    |              |             |
 | `start_blocks_login` | boolean | false    |              |             |
 | `timeout_seconds`    | integer | false    |              |             |
 
@@ -6154,7 +6154,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
               "run_on_start": true,
               "run_on_stop": true,
-              "source": "string",
+              "script": "string",
               "start_blocks_login": true,
               "timeout_seconds": 0
             }
@@ -6481,7 +6481,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
           "run_on_start": true,
           "run_on_stop": true,
-          "source": "string",
+          "script": "string",
           "start_blocks_login": true,
           "timeout_seconds": 0
         }
@@ -6710,7 +6710,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
                     "run_on_start": true,
                     "run_on_stop": true,
-                    "source": "string",
+                    "script": "string",
                     "start_blocks_login": true,
                     "timeout_seconds": 0
                   }

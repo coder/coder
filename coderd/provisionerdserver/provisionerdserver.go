@@ -1299,7 +1299,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
 			logSourceIcons = append(logSourceIcons, script.Icon)
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
-			scriptSources = append(scriptSources, script.Source)
+			scriptSources = append(scriptSources, script.Script)
 			scriptCron = append(scriptCron, script.Cron)
 			scriptTimeout = append(scriptTimeout, script.Timeout)
 			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
@@ -1323,7 +1323,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			LogSourceID:      logSourceIDs,
 			LogPath:          scriptLogPaths,
 			CreatedAt:        logSourceCreatedAt,
-			Source:           scriptSources,
+			Script:           scriptSources,
 			Cron:             scriptCron,
 			Timeout:          scriptTimeout,
 			StartBlocksLogin: scriptStartBlocksLogin,

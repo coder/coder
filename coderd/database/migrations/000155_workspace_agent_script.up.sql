@@ -13,7 +13,7 @@ CREATE TABLE workspace_agent_scripts (
 	log_source_id uuid NOT NULL,
 	log_path text NOT NULL,
 	created_at timestamptz NOT NULL,
-	source text NOT NULL,
+	script text NOT NULL,
 	cron text NOT NULL,
 	start_blocks_login boolean NOT NULL,
 	run_on_start boolean NOT NULL,

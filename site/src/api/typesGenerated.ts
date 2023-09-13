@@ -1416,7 +1416,7 @@ export interface WorkspaceAgentMetadataResult {
 export interface WorkspaceAgentScript {
   readonly log_source_id: string;
   readonly log_path: string;
-  readonly source: string;
+  readonly script: string;
   readonly cron: string;
   readonly run_on_start: boolean;
   readonly run_on_stop: boolean;

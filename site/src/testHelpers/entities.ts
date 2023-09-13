@@ -550,7 +550,7 @@ export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
   log_path: "",
   run_on_start: true,
   run_on_stop: false,
-  source: "echo 'hello world'",
+  script: "echo 'hello world'",
   start_blocks_login: false,
   timeout_seconds: 0,
 };
