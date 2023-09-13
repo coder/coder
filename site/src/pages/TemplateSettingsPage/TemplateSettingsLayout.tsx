@@ -7,68 +7,36 @@ import { pageTitle } from "../../utils/page";
 import { Loader } from "components/Loader/Loader";
 import { Outlet, useParams } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import { checkAuthorization, getTemplateByName } from "api/api";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganizationId } from "hooks/useOrganizationId";
+import { templateByName } from "api/queries/templates";
+import { type AuthorizationResponse, type Template } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
-const templatePermissions = (templateId: string) =>
-  ({
-    canUpdateTemplate: {
-      object: {
-        resource_type: "template",
-        resource_id: templateId,
-      },
-      action: "update",
-    },
-  }) as const;
-
-const fetchTemplateSettings = async (orgId: string, name: string) => {
-  const template = await getTemplateByName(orgId, name);
-  const permissions = await checkAuthorization({
-    checks: templatePermissions(template.id),
-  });
-
-  return {
-    template,
-    permissions,
-  };
-};
-
-export const getTemplateQuery = (name: string) => [
-  "template",
-  name,
-  "settings",
-];
-
-const useTemplate = (orgId: string, name: string) => {
-  return useQuery({
-    queryKey: getTemplateQuery(name),
-    queryFn: () => fetchTemplateSettings(orgId, name),
-    keepPreviousData: true,
-  });
-};
-
-const TemplateSettingsContext = createContext<
-  Awaited<ReturnType<typeof fetchTemplateSettings>> | undefined
+const TemplateSettings = createContext<
+  { template: Template; permissions: AuthorizationResponse } | undefined
 >(undefined);
 
-export const useTemplateSettingsContext = () => {
-  const context = useContext(TemplateSettingsContext);
-
-  if (!context) {
-    throw new Error(
-      "useTemplateSettingsContext must be used within a TemplateSettingsContext.Provider",
-    );
+export function useTemplateSettings() {
+  const value = useContext(TemplateSettings);
+  if (!value) {
+    throw new Error("This hook can only be used from a template settings page");
   }
 
-  return context;
-};
+  return value;
+}
 
 export const TemplateSettingsLayout: FC = () => {
   const styles = useStyles();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
-  const { data: settings } = useTemplate(orgId, templateName);
+  const { data, error, isLoading, isError } = useQuery(
+    templateByName(orgId, templateName),
+  );
+
+  if (isLoading) {
+    return <Loader />;
+  }
 
   return (
     <>
@@ -76,22 +44,22 @@ export const TemplateSettingsLayout: FC = () => {
         <title>{pageTitle([templateName, "Settings"])}</title>
       </Helmet>
 
-      {settings ? (
-        <TemplateSettingsContext.Provider value={settings}>
-          <Margins>
-            <Stack className={styles.wrapper} direction="row" spacing={10}>
-              <Sidebar template={settings.template} />
+      <Margins>
+        <Stack className={styles.wrapper} direction="row" spacing={10}>
+          {isError ? (
+            <ErrorAlert error={error} />
+          ) : (
+            <TemplateSettings.Provider value={data}>
+              <Sidebar template={data.template} />
               <Suspense fallback={<Loader />}>
                 <main className={styles.content}>
                   <Outlet />
                 </main>
               </Suspense>
-            </Stack>
-          </Margins>
-        </TemplateSettingsContext.Provider>
-      ) : (
-        <Loader />
-      )}
+            </TemplateSettings.Provider>
+          )}
+        </Stack>
+      </Margins>
     </>
   );
 };
