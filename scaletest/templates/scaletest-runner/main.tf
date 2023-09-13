@@ -116,7 +116,7 @@ data "coder_parameter" "num_workspaces" {
   type        = "number"
   name        = "Number of workspaces to create"
   default     = 100
-  description = "The scaletest suite will create this numer of workspaces."
+  description = "The scaletest suite will create this number of workspaces."
   mutable     = true
   ephemeral   = true
 
