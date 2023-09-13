@@ -16,17 +16,9 @@ const LicensesSettingsPage: FC = () => {
   const success = searchParams.get("success");
   const [confettiOn, toggleConfettiOn] = useToggle(false);
   const entitlementsQuery = useQuery(entitlements());
-  const refreshEntitlementsMutationOptions = refreshEntitlements(queryClient);
-  const refreshEntitlementsMutation = useMutation({
-    ...refreshEntitlementsMutationOptions,
-    onSuccess: async () => {
-      displaySuccess("Successfully refreshed licenses");
-      await refreshEntitlementsMutationOptions.onSuccess();
-    },
-    onError: (error) => {
-      displayError(getErrorMessage(error, "Failed to refresh entitlements"));
-    },
-  });
+  const refreshEntitlementsMutation = useMutation(
+    refreshEntitlements(queryClient),
+  );
 
   useEffect(() => {
     if (entitlementsQuery.error) {
@@ -80,7 +72,14 @@ const LicensesSettingsPage: FC = () => {
         licenses={licenses}
         isRemovingLicense={isRemovingLicense}
         removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
-        refreshEntitlements={refreshEntitlementsMutation.mutate}
+        refreshEntitlements={async () => {
+          try {
+            await refreshEntitlementsMutation.mutateAsync();
+            displaySuccess("Successfully removed license");
+          } catch (error) {
+            displayError(getErrorMessage(error, "Failed to remove license"));
+          }
+        }}
       />
     </>
   );
