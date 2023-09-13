@@ -165,9 +165,14 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			require.Equal(t, tt.maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 			require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
-			// new deadline is calculated from the time of the bump
-			approxBumpTime := dbtime.Now()
+			start := dbtime.Now()
 			activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
+			elapsed := time.Since(start)
+			if elapsed > 15*time.Second {
+				t.Logf("warning: activityBumpWorkspace took longer than 15 seconds: %s", elapsed)
+			}
+			// Guessing at the approximate time of the bump here, if it happened.
+			approxBumpTime := start.Add(elapsed / 2)
 
 			// Validate our state after bump
 			updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, bld.WorkspaceID)
@@ -178,6 +183,8 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			} else {
 				require.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
 				expectedDeadline := approxBumpTime.Add(tt.expectedBump).UTC()
+				// Note: if CI is especially slow, this test may fail. There is an internal 15-second
+				// deadline in activityBumpWorkspace, so we allow the same window here.
 				require.WithinDuration(t, expectedDeadline, updatedBuild.Deadline.UTC(), 15*time.Second, "unexpected deadline after bump")
 			}
 		})
