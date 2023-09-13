@@ -27,7 +27,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 		transition          database.WorkspaceTransition
 		jobCompletedAt      sql.NullTime
 		buildDeadlineOffset *time.Duration
-		maxDeadline         time.Time
+		maxDeadlineOffset   *time.Duration
 		workspaceTTL        time.Duration
 		expectedBump        time.Duration
 	}{
@@ -67,7 +67,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			transition:          database.WorkspaceTransitionStart,
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(time.Minute), // last chance to bump!
-			maxDeadline:         dbtime.Now().Add(time.Hour),
+			maxDeadlineOffset:   ptr.Ref(time.Hour),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        1 * time.Hour,
 		},
@@ -147,6 +147,10 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			if tt.buildDeadlineOffset != nil {
 				buildDeadline = now.Add(*tt.buildDeadlineOffset)
 			}
+			var maxDeadline time.Time
+			if tt.maxDeadlineOffset != nil {
+				maxDeadline = now.Add(*tt.maxDeadlineOffset)
+			}
 			err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                buildID,
 				CreatedAt:         dbtime.Now(),
@@ -159,7 +163,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				TemplateVersionID: templateVersion.ID,
 				Transition:        tt.transition,
 				Deadline:          buildDeadline,
-				MaxDeadline:       tt.maxDeadline,
+				MaxDeadline:       maxDeadline,
 			})
 			require.NoError(t, err, "unexpected error inserting workspace build")
 			bld, err := db.GetWorkspaceBuildByID(ctx, buildID)
@@ -169,7 +173,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			require.Equal(t, tt.transition, bld.Transition, "unexpected transition before bump")
 			require.Equal(t, tt.jobCompletedAt.Time.UTC(), job.CompletedAt.Time.UTC(), "unexpected job completed at before bump")
 			require.Equal(t, buildDeadline.UTC(), bld.Deadline.UTC(), "unexpected build deadline before bump")
-			require.Equal(t, tt.maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
+			require.Equal(t, maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 			require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
 			workaroundWindowsTimeResolution(t)
