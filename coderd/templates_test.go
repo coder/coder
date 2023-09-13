@@ -769,7 +769,7 @@ func TestPatchTemplateMeta(t *testing.T) {
 				ctr.TimeTilDormantMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 				ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref(0 * time.Hour.Milliseconds())
 			})
-			q
+
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
