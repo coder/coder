@@ -1,4 +1,4 @@
-import { FC, useEffect, useState } from "react";
+import { FC, useState } from "react";
 import { Section } from "../../../components/SettingsLayout/Section";
 import { ScheduleForm } from "./ScheduleForm";
 import { useMe } from "hooks/useMe";
@@ -9,11 +9,18 @@ import {
 import * as API from "api/api";
 import { Loader } from "components/Loader/Loader";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  userQuietHoursSchedule,
+  userQuietHoursScheduleKey,
+} from "api/queries/settings";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const SchedulePage: FC = () => {
   const me = useMe();
+  const queryClient = useQueryClient();
 
-  const [quietHoursSchedule, setQuietHoursSchedule] = useState<
+  const [, setQuietHoursSchedule] = useState<
     UserQuietHoursScheduleResponse | undefined
   >(undefined);
   const [quietHoursSubmitting, setQuietHoursSubmitting] =
@@ -21,19 +28,12 @@ export const SchedulePage: FC = () => {
   const [quietHoursScheduleError, setQuietHoursScheduleError] =
     useState<unknown>("");
 
-  useEffect(() => {
-    setQuietHoursSchedule(undefined);
-    setQuietHoursScheduleError(undefined);
-    API.getUserQuietHoursSchedule(me.id)
-      .then((response) => {
-        setQuietHoursSchedule(response);
-        setQuietHoursScheduleError(undefined);
-      })
-      .catch((error) => {
-        setQuietHoursSchedule(undefined);
-        setQuietHoursScheduleError(error);
-      });
-  }, [me.id]);
+  const {
+    data: quietHoursSchedule,
+    error,
+    isLoading,
+    isError,
+  } = useQuery(userQuietHoursSchedule(me.id));
 
   const onSubmit = async (data: UpdateUserQuietHoursScheduleRequest) => {
     setQuietHoursSubmitting(true);
@@ -50,18 +50,29 @@ export const SchedulePage: FC = () => {
       });
   };
 
-  return (
-    <Section title="Schedule" description="Manage your quiet hours schedule">
-      {quietHoursSchedule === undefined && <Loader />}
+  if (isLoading) {
+    return <Loader />;
+  }
 
-      {quietHoursSchedule !== undefined && (
-        <ScheduleForm
-          submitting={quietHoursSubmitting}
-          initialValues={quietHoursSchedule}
-          updateErr={quietHoursScheduleError}
-          onSubmit={onSubmit}
-        />
-      )}
+  if (isError) {
+    return <ErrorAlert error={error} />;
+  }
+
+  return (
+    <Section
+      title="Quiet hours"
+      layout="fluid"
+      description="Workspaces may be automatically updated during your quiet hours, as configured by your administrators."
+    >
+      <ScheduleForm
+        isLoading={quietHoursSubmitting}
+        initialValues={quietHoursSchedule}
+        refetch={async () => {
+          queryClient.invalidateQueries(userQuietHoursScheduleKey(me.id));
+        }}
+        updateErr={quietHoursScheduleError}
+        onSubmit={onSubmit}
+      />
     </Section>
   );
 };

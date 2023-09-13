@@ -45,7 +45,7 @@ export const ExampleUserSet: Story = {
 export const Submitting: Story = {
   args: {
     ...defaultArgs,
-    submitting: true,
+    isLoading: true,
   },
 };
 
