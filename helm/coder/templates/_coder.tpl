@@ -30,9 +30,11 @@ args:
   {{- end }}
 - server
 {{- end }}
+{{- if .Values.coder.envFrom }}
 envFrom:
 {{- with .Values.coder.envFrom }}
 {{ toYaml . }}
+{{- end }}
 {{- end }}
 env:
 - name: CODER_HTTP_ADDRESS
@@ -54,7 +56,7 @@ env:
 {{- $hasAccessURL = true }}
 {{- end }}
 {{- end }}
-{{- if not $hasAccessURL }}
+{{- if and (not $hasAccessURL) .Values.coder.envUseClusterAccessURL }}
 - name: CODER_ACCESS_URL
   value: {{ include "coder.defaultAccessURL" . | quote }}
 {{- end }}
