@@ -20,6 +20,7 @@ import { appearance } from "api/queries/appearance";
 
 interface Appearance {
   config: AppearanceConfig;
+  isPreview: boolean;
   setPreview: (config: AppearanceConfig) => void;
 }
 
@@ -59,6 +60,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
         appearance: {
           config: configPreview ?? appearanceQuery.data,
           setPreview: setConfigPreview,
+          isPreview: configPreview !== undefined,
         },
       }}
     >
