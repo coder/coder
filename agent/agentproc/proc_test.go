@@ -2,6 +2,7 @@ package agentproc_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -17,6 +18,10 @@ import (
 
 func TestList(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skipf("skipping non-linux environment")
+	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
@@ -127,6 +132,10 @@ func TestList(t *testing.T) {
 // confidence.
 func TestProcess(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skipf("skipping non-linux environment")
+	}
 
 	t.Run("SetOOMAdj", func(t *testing.T) {
 		t.Parallel()
