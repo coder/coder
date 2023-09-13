@@ -178,7 +178,7 @@ func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.Work
 	sources, err := db.InsertWorkspaceAgentLogSources(genCtx, database.InsertWorkspaceAgentLogSourcesParams{
 		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
 		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
-		CreatedAt:        []time.Time{takeFirst(orig.CreatedAt, dbtime.Now())},
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
 		DisplayName:      []string{takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1))},
 		Icon:             []string{takeFirst(orig.Icon, namesgenerator.GetRandomName(1))},
 	})

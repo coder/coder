@@ -1,7 +1,7 @@
 BEGIN;
 CREATE TABLE workspace_agent_log_sources (
 	workspace_agent_id uuid NOT NULL,
-	id uuid NOT NULL,
+	id uuid NOT NULL UNIQUE,
 	created_at timestamptz NOT NULL,
 	display_name varchar(127) NOT NULL,
 	icon text NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE workspace_agent_log_sources (
 
 CREATE TABLE workspace_agent_scripts (
 	workspace_agent_id uuid NOT NULL,
-	log_source_id uuid NOT NULL,
+	log_source_id uuid NOT NULL REFERENCES workspace_agent_log_sources(id) ON DELETE CASCADE,
 	log_path text NOT NULL,
 	created_at timestamptz NOT NULL,
 	script text NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE workspace_agent_scripts (
 	start_blocks_login boolean NOT NULL,
 	run_on_start boolean NOT NULL,
 	run_on_stop boolean NOT NULL,
-	timeout integer NOT NULL
+	timeout_seconds integer NOT NULL
 );
 
 ALTER TABLE workspace_agent_logs ADD COLUMN log_source_id uuid NOT NULL;

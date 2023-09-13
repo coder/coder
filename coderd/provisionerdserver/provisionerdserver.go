@@ -1282,7 +1282,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		}
 
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
-		logSourceCreatedAt := make([]time.Time, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
 		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
@@ -1295,7 +1294,6 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 		for _, script := range prAgent.Scripts {
 			logSourceIDs = append(logSourceIDs, uuid.New())
-			logSourceCreatedAt = append(logSourceCreatedAt, dbtime.Now())
 			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
 			logSourceIcons = append(logSourceIcons, script.Icon)
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
@@ -1310,7 +1308,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
 			WorkspaceAgentID: agentID,
 			ID:               logSourceIDs,
-			CreatedAt:        logSourceCreatedAt,
+			CreatedAt:        dbtime.Now(),
 			DisplayName:      logSourceDisplayNames,
 			Icon:             logSourceIcons,
 		})
@@ -1322,10 +1320,10 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			WorkspaceAgentID: agentID,
 			LogSourceID:      logSourceIDs,
 			LogPath:          scriptLogPaths,
-			CreatedAt:        logSourceCreatedAt,
+			CreatedAt:        dbtime.Now(),
 			Script:           scriptSources,
 			Cron:             scriptCron,
-			Timeout:          scriptTimeout,
+			TimeoutSeconds:   scriptTimeout,
 			StartBlocksLogin: scriptStartBlocksLogin,
 			RunOnStart:       scriptRunOnStart,
 			RunOnStop:        scriptRunOnStop,

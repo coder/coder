@@ -1209,9 +1209,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "sleep 3",
-				Timeout:    time.Nanosecond,
-				RunOnStart: true,
+				Script:         "sleep 3",
+				TimeoutSeconds: time.Nanosecond,
+				RunOnStart:     true,
 			}},
 		}, 0)
 
@@ -1234,9 +1234,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "false",
-				Timeout:    30 * time.Second,
-				RunOnStart: true,
+				Script:         "false",
+				TimeoutSeconds: 30 * time.Second,
+				RunOnStart:     true,
 			}},
 		}, 0)
 
@@ -1259,9 +1259,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:     "true",
-				Timeout:    30 * time.Second,
-				RunOnStart: true,
+				Script:         "true",
+				TimeoutSeconds: 30 * time.Second,
+				RunOnStart:     true,
 			}},
 		}, 0)
 
@@ -1284,9 +1284,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "sleep 3",
-				Timeout:   30 * time.Second,
-				RunOnStop: true,
+				Script:         "sleep 3",
+				TimeoutSeconds: 30 * time.Second,
+				RunOnStop:      true,
 			}},
 		}, 0)
 
@@ -1325,9 +1325,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "sleep 3",
-				Timeout:   time.Nanosecond,
-				RunOnStop: true,
+				Script:         "sleep 3",
+				TimeoutSeconds: time.Nanosecond,
+				RunOnStop:      true,
 			}},
 		}, 0)
 
@@ -1367,9 +1367,9 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
-				Script:    "false",
-				Timeout:   30 * time.Second,
-				RunOnStop: true,
+				Script:         "false",
+				TimeoutSeconds: 30 * time.Second,
+				RunOnStop:      true,
 			}},
 		}, 0)
 

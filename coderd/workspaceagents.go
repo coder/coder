@@ -299,12 +299,10 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	createdAt := make([]time.Time, 0)
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
-		createdAt = append(createdAt, logEntry.CreatedAt)
 		output = append(output, logEntry.Output)
 		outputLength += len(logEntry.Output)
 		if logEntry.Level == "" {
@@ -324,7 +322,7 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 
 	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
-		CreatedAt:    createdAt,
+		CreatedAt:    dbtime.Now(),
 		Output:       output,
 		Level:        level,
 		LogSourceID:  req.LogSourceID,
@@ -1327,8 +1325,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 			RunOnStart:       dbScript.RunOnStart,
 			RunOnStop:        dbScript.RunOnStop,
 			StartBlocksLogin: dbScript.StartBlocksLogin,
-			// In the database it's stored as seconds!
-			Timeout: time.Duration(dbScript.Timeout) * time.Second,
+			TimeoutSeconds:   time.Duration(dbScript.TimeoutSeconds) * time.Second,
 		})
 	}
 	return scripts

@@ -154,7 +154,7 @@ INSERT INTO
 		workspace_agent_logs (agent_id, created_at, output, level, log_source_id)
 	SELECT
 		@agent_id :: uuid AS agent_id,
-		unnest(@created_at :: timestamptz [ ]) AS created_at,
+		@created_at :: timestamptz AS created_at,
 		unnest(@output :: VARCHAR(1024) [ ]) AS output,
 		unnest(@level :: log_level [ ]) AS level,
 		@log_source_id :: uuid AS log_source_id
@@ -165,8 +165,8 @@ INSERT INTO
 		workspace_agent_log_sources (workspace_agent_id, id, created_at, display_name, icon)
 	SELECT
 		@workspace_agent_id :: uuid AS workspace_agent_id,
+		@created_at :: timestamptz AS created_at,
 		unnest(@id :: uuid [ ]) AS id,
-		unnest(@created_at :: timestamptz [ ]) AS created_at,
 		unnest(@display_name :: VARCHAR(127) [ ]) AS display_name,
 		unnest(@icon :: text [ ]) AS icon
 	RETURNING workspace_agent_log_sources.*;

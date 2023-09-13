@@ -141,10 +141,10 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 	}()
 
 	var cmd *exec.Cmd
-	if script.Timeout > 0 {
+	if script.TimeoutSeconds > 0 {
 		var cancel context.CancelFunc
 		// Add a buffer to forcefully kill with the context.
-		ctx, cancel = context.WithTimeout(ctx, script.Timeout+(3*time.Second))
+		ctx, cancel = context.WithTimeout(ctx, script.TimeoutSeconds+(3*time.Second))
 		defer cancel()
 	}
 
@@ -196,9 +196,9 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 
 	// timeout stores whether the process timed out then was gracefully killed.
 	var timeout chan struct{}
-	if script.Timeout > 0 {
+	if script.TimeoutSeconds > 0 {
 		timeout = make(chan struct{})
-		timer := time.AfterFunc(script.Timeout, func() {
+		timer := time.AfterFunc(script.TimeoutSeconds, func() {
 			close(timeout)
 			err := cmd.Process.Signal(os.Interrupt)
 			if err != nil {
@@ -232,6 +232,7 @@ func (r *Runner) Close() error {
 		return nil
 	}
 	close(r.closed)
+	r.cron.Stop()
 	r.cmdCloseWait.Wait()
 	return nil
 }

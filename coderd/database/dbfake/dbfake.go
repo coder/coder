@@ -4557,7 +4557,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogSources(_ context.Context, arg data
 		logSource := database.WorkspaceAgentLogSource{
 			ID:               source,
 			WorkspaceAgentID: arg.WorkspaceAgentID,
-			CreatedAt:        arg.CreatedAt[index],
+			CreatedAt:        arg.CreatedAt,
 			DisplayName:      arg.DisplayName[index],
 			Icon:             arg.Icon[index],
 		}
@@ -4586,7 +4586,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 		logs = append(logs, database.WorkspaceAgentLog{
 			ID:          id,
 			AgentID:     arg.AgentID,
-			CreatedAt:   arg.CreatedAt[index],
+			CreatedAt:   arg.CreatedAt,
 			Level:       arg.Level[index],
 			LogSourceID: arg.LogSourceID,
 			Output:      output,
@@ -4650,8 +4650,8 @@ func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg databas
 			StartBlocksLogin: arg.StartBlocksLogin[index],
 			RunOnStart:       arg.RunOnStart[index],
 			RunOnStop:        arg.RunOnStop[index],
-			Timeout:          arg.Timeout[index],
-			CreatedAt:        arg.CreatedAt[index],
+			TimeoutSeconds:   arg.TimeoutSeconds[index],
+			CreatedAt:        arg.CreatedAt,
 		}
 		scripts = append(scripts, script)
 	}

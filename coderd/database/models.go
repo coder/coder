@@ -2009,7 +2009,7 @@ type WorkspaceAgentScript struct {
 	StartBlocksLogin bool      `db:"start_blocks_login" json:"start_blocks_login"`
 	RunOnStart       bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
-	Timeout          int32     `db:"timeout" json:"timeout"`
+	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 }
 
 type WorkspaceAgentStat struct {

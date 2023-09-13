@@ -134,7 +134,8 @@ func TestConvertResources(t *testing.T) {
 					Scripts: []*proto.Script{{
 						DisplayName: "Shutdown Script",
 						RunOnStop:   true,
-						Source:      "echo bye bye",
+						LogPath:     "coder-shutdown-script.log",
+						Script:      "echo bye bye",
 						Timeout:     30,
 					}},
 				}, {
@@ -305,7 +306,8 @@ func TestConvertResources(t *testing.T) {
 						Scripts: []*proto.Script{{
 							DisplayName: "Startup Script",
 							RunOnStart:  true,
-							Source:      "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
+							LogPath:     "coder-startup-script.log",
+							Script:      "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
 						}},
 					}},
 				},

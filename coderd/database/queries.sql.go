@@ -7188,8 +7188,8 @@ INSERT INTO
 		workspace_agent_log_sources (workspace_agent_id, id, created_at, display_name, icon)
 	SELECT
 		$1 :: uuid AS workspace_agent_id,
-		unnest($2 :: uuid [ ]) AS id,
-		unnest($3 :: timestamptz [ ]) AS created_at,
+		$2 :: timestamptz AS created_at,
+		unnest($3 :: uuid [ ]) AS id,
 		unnest($4 :: VARCHAR(127) [ ]) AS display_name,
 		unnest($5 :: text [ ]) AS icon
 	RETURNING workspace_agent_log_sources.workspace_agent_id, workspace_agent_log_sources.id, workspace_agent_log_sources.created_at, workspace_agent_log_sources.display_name, workspace_agent_log_sources.icon
@@ -7197,8 +7197,8 @@ INSERT INTO
 
 type InsertWorkspaceAgentLogSourcesParams struct {
 	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 	ID               []uuid.UUID `db:"id" json:"id"`
-	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
 	DisplayName      []string    `db:"display_name" json:"display_name"`
 	Icon             []string    `db:"icon" json:"icon"`
 }
@@ -7206,8 +7206,8 @@ type InsertWorkspaceAgentLogSourcesParams struct {
 func (q *sqlQuerier) InsertWorkspaceAgentLogSources(ctx context.Context, arg InsertWorkspaceAgentLogSourcesParams) ([]WorkspaceAgentLogSource, error) {
 	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentLogSources,
 		arg.WorkspaceAgentID,
+		arg.CreatedAt,
 		pq.Array(arg.ID),
-		pq.Array(arg.CreatedAt),
 		pq.Array(arg.DisplayName),
 		pq.Array(arg.Icon),
 	)
@@ -7247,7 +7247,7 @@ INSERT INTO
 		workspace_agent_logs (agent_id, created_at, output, level, log_source_id)
 	SELECT
 		$1 :: uuid AS agent_id,
-		unnest($2 :: timestamptz [ ]) AS created_at,
+		$2 :: timestamptz AS created_at,
 		unnest($3 :: VARCHAR(1024) [ ]) AS output,
 		unnest($4 :: log_level [ ]) AS level,
 		$5 :: uuid AS log_source_id
@@ -7255,18 +7255,18 @@ INSERT INTO
 `
 
 type InsertWorkspaceAgentLogsParams struct {
-	AgentID      uuid.UUID   `db:"agent_id" json:"agent_id"`
-	CreatedAt    []time.Time `db:"created_at" json:"created_at"`
-	Output       []string    `db:"output" json:"output"`
-	Level        []LogLevel  `db:"level" json:"level"`
-	LogSourceID  uuid.UUID   `db:"log_source_id" json:"log_source_id"`
-	OutputLength int32       `db:"output_length" json:"output_length"`
+	AgentID      uuid.UUID  `db:"agent_id" json:"agent_id"`
+	CreatedAt    time.Time  `db:"created_at" json:"created_at"`
+	Output       []string   `db:"output" json:"output"`
+	Level        []LogLevel `db:"level" json:"level"`
+	LogSourceID  uuid.UUID  `db:"log_source_id" json:"log_source_id"`
+	OutputLength int32      `db:"output_length" json:"output_length"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentLogs(ctx context.Context, arg InsertWorkspaceAgentLogsParams) ([]WorkspaceAgentLog, error) {
 	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentLogs,
 		arg.AgentID,
-		pq.Array(arg.CreatedAt),
+		arg.CreatedAt,
 		pq.Array(arg.Output),
 		pq.Array(arg.Level),
 		arg.LogSourceID,
@@ -9250,7 +9250,7 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
 `
 
 func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
@@ -9272,7 +9272,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 			&i.StartBlocksLogin,
 			&i.RunOnStart,
 			&i.RunOnStop,
-			&i.Timeout,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
@@ -9289,46 +9289,46 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout)
+	workspace_agent_scripts (workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
-	unnest($2 :: uuid [ ]) AS log_source_id,
-	unnest($3 :: text [ ]) AS log_path,
-	unnest($4 :: timestamptz [ ]) AS created_at,
+	$2 :: timestamptz AS created_at,
+	unnest($3 :: uuid [ ]) AS log_source_id,
+	unnest($4 :: text [ ]) AS log_path,
 	unnest($5 :: text [ ]) AS script,
 	unnest($6 :: text [ ]) AS cron,
 	unnest($7 :: boolean [ ]) AS start_blocks_login,
 	unnest($8 :: boolean [ ]) AS run_on_start,
 	unnest($9 :: boolean [ ]) AS run_on_stop,
-	unnest($10 :: integer [ ]) AS timeout
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout
+	unnest($10 :: integer [ ]) AS timeout_seconds
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
 `
 
 type InsertWorkspaceAgentScriptsParams struct {
 	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
 	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
 	LogPath          []string    `db:"log_path" json:"log_path"`
-	CreatedAt        []time.Time `db:"created_at" json:"created_at"`
 	Script           []string    `db:"script" json:"script"`
 	Cron             []string    `db:"cron" json:"cron"`
 	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
 	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
 	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
-	Timeout          []int32     `db:"timeout" json:"timeout"`
+	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
 	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
 		arg.WorkspaceAgentID,
+		arg.CreatedAt,
 		pq.Array(arg.LogSourceID),
 		pq.Array(arg.LogPath),
-		pq.Array(arg.CreatedAt),
 		pq.Array(arg.Script),
 		pq.Array(arg.Cron),
 		pq.Array(arg.StartBlocksLogin),
 		pq.Array(arg.RunOnStart),
 		pq.Array(arg.RunOnStop),
-		pq.Array(arg.Timeout),
+		pq.Array(arg.TimeoutSeconds),
 	)
 	if err != nil {
 		return nil, err
@@ -9347,7 +9347,7 @@ func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg Insert
 			&i.StartBlocksLogin,
 			&i.RunOnStart,
 			&i.RunOnStop,
-			&i.Timeout,
+			&i.TimeoutSeconds,
 		); err != nil {
 			return nil, err
 		}
