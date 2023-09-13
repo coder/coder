@@ -25,7 +25,7 @@ import { colors } from "theme/colors";
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
   isEntitled: boolean;
-  updateAppearance: (
+  onSaveAppearance: (
     newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => void;
@@ -33,7 +33,7 @@ export type AppearanceSettingsPageViewProps = {
 export const AppearanceSettingsPageView = ({
   appearance,
   isEntitled,
-  updateAppearance,
+  onSaveAppearance,
 }: AppearanceSettingsPageViewProps): JSX.Element => {
   const styles = useStyles();
   const theme = useTheme();
@@ -43,7 +43,7 @@ export const AppearanceSettingsPageView = ({
     initialValues: {
       logo_url: appearance.logo_url,
     },
-    onSubmit: (values) => updateAppearance(values, false),
+    onSubmit: (values) => onSaveAppearance(values, false),
   });
   const logoFieldHelpers = getFormHelpers(logoForm);
 
@@ -56,7 +56,7 @@ export const AppearanceSettingsPageView = ({
           appearance.service_banner.background_color ?? colors.blue[7],
       },
       onSubmit: (values) =>
-        updateAppearance(
+        onSaveAppearance(
           {
             service_banner: values,
           },
@@ -123,7 +123,7 @@ export const AppearanceSettingsPageView = ({
           !isEntitled && (
             <Button
               onClick={() => {
-                updateAppearance(
+                onSaveAppearance(
                   {
                     service_banner: {
                       message:
@@ -162,7 +162,7 @@ export const AppearanceSettingsPageView = ({
                       ...serviceBannerForm.values,
                       enabled: newState,
                     };
-                    updateAppearance(
+                    onSaveAppearance(
                       {
                         service_banner: newBanner,
                       },
@@ -196,7 +196,7 @@ export const AppearanceSettingsPageView = ({
                     "background_color",
                     color.hex,
                   );
-                  updateAppearance(
+                  onSaveAppearance(
                     {
                       service_banner: {
                         ...serviceBannerForm.values,

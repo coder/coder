@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMachine } from "@xstate/react";
 import { buildInfo } from "api/queries/buildInfo";
 import { experiments } from "api/queries/experiments";
 import { entitlements } from "api/queries/entitlements";
@@ -10,14 +9,18 @@ import {
   Experiments,
 } from "api/typesGenerated";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { createContext, FC, PropsWithChildren, useContext } from "react";
-import { appearanceMachine } from "xServices/appearance/appearanceXService";
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  useContext,
+  useState,
+} from "react";
+import { appearance } from "api/queries/appearance";
 
 interface Appearance {
   config: AppearanceConfig;
-  preview: boolean;
   setPreview: (config: AppearanceConfig) => void;
-  save: (config: AppearanceConfig) => void;
 }
 
 interface DashboardProviderValue {
@@ -35,27 +38,13 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const buildInfoQuery = useQuery(buildInfo());
   const entitlementsQuery = useQuery(entitlements());
   const experimentsQuery = useQuery(experiments());
-  const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
-  const { appearance, preview } = appearanceState.context;
+  const appearanceQuery = useQuery(appearance());
   const isLoading =
     !buildInfoQuery.data ||
     !entitlementsQuery.data ||
-    !appearance ||
+    !appearanceQuery.data ||
     !experimentsQuery.data;
-
-  const setAppearancePreview = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SET_PREVIEW_APPEARANCE",
-      appearance: config,
-    });
-  };
-
-  const saveAppearance = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SAVE_APPEARANCE",
-      appearance: config,
-    });
-  };
+  const [configPreview, setConfigPreview] = useState<AppearanceConfig>();
 
   if (isLoading) {
     return <FullScreenLoader />;
@@ -68,10 +57,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
         entitlements: entitlementsQuery.data,
         experiments: experimentsQuery.data,
         appearance: {
-          preview,
-          config: appearance,
-          setPreview: setAppearancePreview,
-          save: saveAppearance,
+          config: configPreview ?? appearanceQuery.data,
+          setPreview: setConfigPreview,
         },
       }}
     >
