@@ -41,19 +41,14 @@ test("web terminal", async ({ context, page }) => {
   const terminal = await pagePromise;
   await terminal.waitForLoadState("domcontentloaded");
 
+  // FIXME Wait until $ is present.
+
   // Ensure that we can type in it
-  await terminal.keyboard.type("echo hello");
+  await terminal.keyboard.type("echo he${justabreak}llo");
   await terminal.keyboard.press("Enter");
 
-  const locator = terminal.locator("text=hello");
+  // Check if "echo" command was executed
+  await terminal.waitForSelector("text=hello"); // FIXME it is canvas, it won't work
 
-  for (let i = 0; i < 10; i++) {
-    const items = await locator.all();
-    // Make sure the text came back
-    if (items.length === 2) {
-      break;
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
   await stopAgent(agent);
 });
