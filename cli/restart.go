@@ -6,6 +6,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -92,7 +94,10 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(out, "\nThe %s workspace has been restarted at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(out,
+				"\nThe %s workspace has been restarted at %s!\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, workspace.Name), cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

@@ -15,7 +15,7 @@ import { useDashboard } from "components/Dashboard/DashboardProvider"
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
 > = ({ children, href, icon }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <NavLink
       to={href}
@@ -31,15 +31,15 @@ const SidebarNavItem: FC<
         {children}
       </Stack>
     </NavLink>
-  )
-}
+  );
+};
 
 const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
   icon: Icon,
 }) => {
-  const styles = useStyles()
-  return <Icon className={styles.sidebarNavItemIcon} />
-}
+  const styles = useStyles();
+  return <Icon className={styles.sidebarNavItemIcon} />;
+};
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles()
@@ -90,8 +90,8 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
         Tokens
       </SidebarNavItem>
     </nav>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   sidebar: {
@@ -152,4 +152,4 @@ const useStyles = makeStyles((theme) => ({
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-}))
+}));

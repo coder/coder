@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -65,7 +67,7 @@ func TestGroupEdit(t *testing.T) {
 		err = inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", cliui.DefaultStyles.Keyword.Render(expectedName)))
+		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, expectedName)))
 	})
 
 	t.Run("InvalidUserInput", func(t *testing.T) {

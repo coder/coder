@@ -1,9 +1,9 @@
-import { Workspace } from "api/typesGenerated"
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider"
-import { Alert } from "components/Alert/Alert"
-import { formatDistanceToNow } from "date-fns"
-import Link from "@mui/material/Link"
-import { Link as RouterLink } from "react-router-dom"
+import { Workspace } from "api/typesGenerated";
+import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { Alert } from "components/Alert/Alert";
+import { formatDistanceToNow } from "date-fns";
+import Link from "@mui/material/Link";
+import { Link as RouterLink } from "react-router-dom";
 
 export enum Count {
   Singular,
@@ -16,24 +16,24 @@ export const DormantWorkspaceBanner = ({
   shouldRedisplayBanner,
   count = Count.Singular,
 }: {
-  workspaces?: Workspace[]
-  onDismiss: () => void
-  shouldRedisplayBanner: boolean
-  count?: Count
+  workspaces?: Workspace[];
+  onDismiss: () => void;
+  shouldRedisplayBanner: boolean;
+  count?: Count;
 }): JSX.Element | null => {
-  const experimentEnabled = useIsWorkspaceActionsEnabled()
+  const experimentEnabled = useIsWorkspaceActionsEnabled();
 
   if (!workspaces) {
-    return null
+    return null;
   }
 
   const hasDormantWorkspaces = workspaces.find(
     (workspace) => workspace.dormant_at,
-  )
+  );
 
   const hasDeletionScheduledWorkspaces = workspaces.find(
     (workspace) => workspace.deleting_at,
-  )
+  );
 
   if (
     // Only show this if the experiment is included.
@@ -42,17 +42,17 @@ export const DormantWorkspaceBanner = ({
     // Banners should be redisplayed after dismissal when additional workspaces are newly scheduled for deletion
     !shouldRedisplayBanner
   ) {
-    return null
+    return null;
   }
 
   const formatDate = (dateStr: string): string => {
-    const date = new Date(dateStr)
+    const date = new Date(dateStr);
     return date.toLocaleDateString(undefined, {
       month: "long",
       day: "numeric",
       year: "numeric",
-    })
-  }
+    });
+  };
 
   const alertText = (): string => {
     if (workspaces.length === 1) {
@@ -65,7 +65,7 @@ export const DormantWorkspaceBanner = ({
           Date.parse(hasDeletionScheduledWorkspaces.dormant_at),
         )} and is scheduled to be deleted on ${formatDate(
           hasDeletionScheduledWorkspaces.deleting_at,
-        )} . To keep it you must activate the workspace.`
+        )} . To keep it you must activate the workspace.`;
       } else if (hasDormantWorkspaces && hasDormantWorkspaces.dormant_at) {
         return `This workspace has been dormant for ${formatDistanceToNow(
           Date.parse(hasDormantWorkspaces.dormant_at),
@@ -73,11 +73,11 @@ export const DormantWorkspaceBanner = ({
         and cannot be interacted
 		with. Dormant workspaces are eligible for
 		permanent deletion. To prevent deletion, activate
-		the workspace.`
+		the workspace.`;
       }
     }
-    return ""
-  }
+    return "";
+  };
 
   return (
     <Alert severity="warning" onDismiss={onDismiss} dismissible>
@@ -97,5 +97,5 @@ export const DormantWorkspaceBanner = ({
         </>
       )}
     </Alert>
-  )
-}
+  );
+};

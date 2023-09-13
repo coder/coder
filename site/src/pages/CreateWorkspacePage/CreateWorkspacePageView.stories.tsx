@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react"
+import { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockTemplate,
@@ -6,11 +6,11 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockUser,
-} from "../../testHelpers/entities"
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
+} from "../../testHelpers/entities";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
-  title: "components/Alert",
+  title: "pages/CreateWorkspacePageView",
   component: CreateWorkspacePageView,
   args: {
     defaultName: "",
@@ -23,12 +23,12 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
       createWorkspaceForUser: true,
     },
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof CreateWorkspacePageView>
+export default meta;
+type Story = StoryObj<typeof CreateWorkspacePageView>;
 
-export const NoParameters: Story = {}
+export const NoParameters: Story = {};
 
 export const CreateWorkspaceError: Story = {
   args: {
@@ -43,7 +43,7 @@ export const CreateWorkspaceError: Story = {
       ],
     }),
   },
-}
+};
 
 export const Parameters: Story = {
   args: {
@@ -84,7 +84,7 @@ export const Parameters: Story = {
       },
     ],
   },
-}
+};
 
 export const GitAuth: Story = {
   args: {
@@ -103,4 +103,4 @@ export const GitAuth: Story = {
       },
     ],
   },
-}
+};

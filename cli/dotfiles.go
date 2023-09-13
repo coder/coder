@@ -13,6 +13,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 )
@@ -143,7 +145,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 					return err
 				}
 				// if the repo exists we soft fail the update operation and try to continue
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Failed to update repo, continuing..."))
+				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Error, "Failed to update repo, continuing..."))
 			}
 
 			if dotfilesExists && gitbranch != "" {
@@ -159,7 +161,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				if err != nil {
 					// Do not block on this error, just log it and continue
 					_, _ = fmt.Fprintln(inv.Stdout,
-						cliui.DefaultStyles.Error.Render(fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
+						pretty.Sprint(cliui.DefaultStyles.Error, fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
 				}
 			}
 

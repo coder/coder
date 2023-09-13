@@ -6,28 +6,27 @@ import {
   UploadResponse,
   VariableValue,
   WorkspaceResource,
-} from "api/typesGenerated"
-import { assign, createMachine } from "xstate"
-import * as API from "api/api"
-import { FileTree, traverse } from "utils/filetree"
-import { isAllowedFile } from "utils/templateVersion"
-import { TarReader, TarWriter } from "utils/tar"
-import { PublishVersionData } from "pages/TemplateVersionPage/TemplateVersionEditorPage/types"
+} from "api/typesGenerated";
+import { assign, createMachine } from "xstate";
+import * as API from "api/api";
+import { FileTree, traverse } from "utils/filetree";
+import { isAllowedFile } from "utils/templateVersion";
+import { TarReader, TarWriter } from "utils/tar";
+import { PublishVersionData } from "pages/TemplateVersionEditorPage/types";
 
 export interface TemplateVersionEditorMachineContext {
-  orgId: string
-  templateId?: string
-  fileTree?: FileTree
-  uploadResponse?: UploadResponse
-  version?: TemplateVersion
-  resources?: WorkspaceResource[]
-  buildLogs?: ProvisionerJobLog[]
-  tarReader?: TarReader
-  publishingError?: unknown
-  lastSuccessfulPublishedVersion?: TemplateVersion
-  lastSuccessfulPublishIsDefault?: boolean
-  missingVariables?: TemplateVersionVariable[]
-  missingVariableValues?: VariableValue[]
+  orgId: string;
+  templateId?: string;
+  fileTree?: FileTree;
+  uploadResponse?: UploadResponse;
+  version?: TemplateVersion;
+  resources?: WorkspaceResource[];
+  buildLogs?: ProvisionerJobLog[];
+  tarReader?: TarReader;
+  publishingError?: unknown;
+  lastSuccessfulPublishedVersion?: TemplateVersion;
+  missingVariables?: TemplateVersionVariable[];
+  missingVariableValues?: VariableValue[];
 }
 
 export const templateVersionEditorMachine = createMachine(
@@ -40,9 +39,9 @@ export const templateVersionEditorMachine = createMachine(
       events: {} as
         | { type: "INITIALIZE"; tarReader: TarReader }
         | {
-            type: "CREATE_VERSION"
-            fileTree: FileTree
-            templateId: string
+            type: "CREATE_VERSION";
+            fileTree: FileTree;
+            templateId: string;
           }
         | { type: "CANCEL_VERSION" }
         | { type: "SET_MISSING_VARIABLE_VALUES"; values: VariableValue[] }
@@ -55,26 +54,26 @@ export const templateVersionEditorMachine = createMachine(
 
       services: {} as {
         uploadTar: {
-          data: UploadResponse
-        }
+          data: UploadResponse;
+        };
         createBuild: {
-          data: TemplateVersion
-        }
+          data: TemplateVersion;
+        };
         cancelBuild: {
-          data: void
-        }
+          data: void;
+        };
         fetchVersion: {
-          data: TemplateVersion
-        }
+          data: TemplateVersion;
+        };
         getResources: {
-          data: WorkspaceResource[]
-        }
+          data: WorkspaceResource[];
+        };
         publishingVersion: {
-          data: { isActiveVersion: boolean }
-        }
+          data: void;
+        };
         loadMissingVariables: {
-          data: TemplateVersionVariable[]
-        }
+          data: TemplateVersionVariable[];
+        };
       },
     },
     tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
@@ -261,14 +260,12 @@ export const templateVersionEditorMachine = createMachine(
       }),
       assignLastSuccessfulPublishedVersion: assign({
         lastSuccessfulPublishedVersion: (ctx) => ctx.version,
-        lastSuccessfulPublishIsDefault: (_, event) =>
-          event.data.isActiveVersion,
         version: () => undefined,
       }),
       addBuildLog: assign({
         buildLogs: (context, event) => {
-          const previousLogs = context.buildLogs ?? []
-          return [...previousLogs, event.log]
+          const previousLogs = context.buildLogs ?? [];
+          return [...previousLogs, event.log];
         },
         // Instead of periodically fetching the version,
         // we just assume the state is running after the first log.
@@ -276,7 +273,7 @@ export const templateVersionEditorMachine = createMachine(
         // The machine fetches the version after the log stream ends anyways!
         version: (context) => {
           if (!context.version || context.buildLogs?.length !== 0) {
-            return context.version
+            return context.version;
           }
           return {
             ...context.version,
@@ -284,7 +281,7 @@ export const templateVersionEditorMachine = createMachine(
               ...context.version.job,
               status: "running" as ProvisionerJobStatus,
             },
-          }
+          };
         },
       }),
       assignTarReader: assign({
@@ -307,12 +304,12 @@ export const templateVersionEditorMachine = createMachine(
     services: {
       uploadTar: async ({ fileTree, tarReader }) => {
         if (!fileTree) {
-          throw new Error("file tree must to be set")
+          throw new Error("file tree must to be set");
         }
         if (!tarReader) {
-          throw new Error("tar reader must to be set")
+          throw new Error("tar reader must to be set");
         }
-        const tar = new TarWriter()
+        const tar = new TarWriter();
 
         // Add previous non editable files
         for (const file of tarReader.fileInfo) {
@@ -323,7 +320,7 @@ export const templateVersionEditorMachine = createMachine(
                 mtime: file.mtime,
                 user: file.user,
                 group: file.group,
-              })
+              });
             } else {
               tar.addFile(
                 file.name,
@@ -334,7 +331,7 @@ export const templateVersionEditorMachine = createMachine(
                   user: file.user,
                   group: file.group,
                 },
-              )
+              );
             }
           }
         }
@@ -342,22 +339,22 @@ export const templateVersionEditorMachine = createMachine(
         traverse(fileTree, (content, _filename, fullPath) => {
           // When a file is deleted. Don't add it to the tar.
           if (content === undefined) {
-            return
+            return;
           }
 
           if (typeof content === "string") {
-            tar.addFile(fullPath, content)
-            return
+            tar.addFile(fullPath, content);
+            return;
           }
 
-          tar.addFolder(fullPath)
-        })
-        const blob = (await tar.write()) as Blob
-        return API.uploadTemplateFile(new File([blob], "template.tar"))
+          tar.addFolder(fullPath);
+        });
+        const blob = (await tar.write()) as Blob;
+        return API.uploadTemplateFile(new File([blob], "template.tar"));
       },
       createBuild: (ctx) => {
         if (!ctx.uploadResponse) {
-          throw new Error("no upload response")
+          throw new Error("no upload response");
         }
         return API.createTemplateVersion(ctx.orgId, {
           provisioner: "terraform",
@@ -366,49 +363,49 @@ export const templateVersionEditorMachine = createMachine(
           template_id: ctx.templateId,
           file_id: ctx.uploadResponse.hash,
           user_variable_values: ctx.missingVariableValues,
-        })
+        });
       },
       fetchVersion: (ctx) => {
         if (!ctx.version) {
-          throw new Error("template version must be set")
+          throw new Error("template version must be set");
         }
-        return API.getTemplateVersion(ctx.version.id)
+        return API.getTemplateVersion(ctx.version.id);
       },
       watchBuildLogs:
         ({ version }) =>
         async (callback) => {
           if (!version) {
-            throw new Error("version must be set")
+            throw new Error("version must be set");
           }
 
           const socket = API.watchBuildLogsByTemplateVersionId(version.id, {
             onMessage: (log) => {
-              callback({ type: "ADD_BUILD_LOG", log })
+              callback({ type: "ADD_BUILD_LOG", log });
             },
             onDone: () => {
-              callback({ type: "BUILD_DONE" })
+              callback({ type: "BUILD_DONE" });
             },
             onError: (error) => {
-              console.error(error)
+              console.error(error);
             },
-          })
+          });
 
           return () => {
-            socket.close()
-          }
+            socket.close();
+          };
         },
       getResources: (ctx) => {
         if (!ctx.version) {
-          throw new Error("template version must be set")
+          throw new Error("template version must be set");
         }
-        return API.getTemplateVersionResources(ctx.version.id)
+        return API.getTemplateVersionResources(ctx.version.id);
       },
       cancelBuild: async (ctx) => {
         if (!ctx.version) {
-          return
+          return;
         }
         if (ctx.version.job.status === "running") {
-          await API.cancelTemplateVersionBuild(ctx.version.id)
+          await API.cancelTemplateVersionBuild(ctx.version.id);
         }
       },
       publishingVersion: async (
@@ -416,12 +413,13 @@ export const templateVersionEditorMachine = createMachine(
         { name, message, isActiveVersion },
       ) => {
         if (!version) {
-          throw new Error("Version is not set")
+          throw new Error("Version is not set");
         }
         if (!templateId) {
-          throw new Error("Template is not set")
+          throw new Error("Template is not set");
         }
-        const haveChanges = name !== version.name || message !== version.message
+        const haveChanges =
+          name !== version.name || message !== version.message;
         await Promise.all([
           haveChanges
             ? API.patchTemplateVersion(version.id, { name, message })
@@ -431,22 +429,20 @@ export const templateVersionEditorMachine = createMachine(
                 id: version.id,
               })
             : Promise.resolve(),
-        ])
-
-        return { isActiveVersion }
+        ]);
       },
       loadMissingVariables: ({ version }) => {
         if (!version) {
-          throw new Error("Version is not set")
+          throw new Error("Version is not set");
         }
-        const variables = API.getTemplateVersionVariables(version.id)
-        return variables
+        const variables = API.getTemplateVersionVariables(version.id);
+        return variables;
       },
     },
     guards: {
       jobFailedWithMissingVariables: (_, { data }) => {
-        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES"
+        return data.job.error_code === "REQUIRED_TEMPLATE_VARIABLES";
       },
     },
   },
-)
+);

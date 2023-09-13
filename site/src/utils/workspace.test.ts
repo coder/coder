@@ -1,13 +1,13 @@
-import dayjs from "dayjs"
-import * as TypesGen from "../api/typesGenerated"
-import * as Mocks from "../testHelpers/entities"
+import dayjs from "dayjs";
+import * as TypesGen from "../api/typesGenerated";
+import * as Mocks from "../testHelpers/entities";
 import {
   defaultWorkspaceExtension,
   getDisplayVersionStatus,
   getDisplayWorkspaceBuildInitiatedBy,
   getDisplayWorkspaceTemplateName,
   isWorkspaceOn,
-} from "./workspace"
+} from "./workspace";
 
 describe("util > workspace", () => {
   describe("isWorkspaceOn", () => {
@@ -47,11 +47,11 @@ describe("util > workspace", () => {
             },
             transition,
           },
-        }
-        expect(isWorkspaceOn(workspace)).toBe(isOn)
+        };
+        expect(isWorkspaceOn(workspace)).toBe(isOn);
       },
-    )
-  })
+    );
+  });
 
   describe("defaultWorkspaceExtension", () => {
     it.each<[string, TypesGen.PutExtendWorkspaceRequest]>([
@@ -71,9 +71,9 @@ describe("util > workspace", () => {
         },
       ],
     ])(`defaultWorkspaceExtension(%p) returns %p`, (startTime, request) => {
-      expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request)
-    })
-  })
+      expect(defaultWorkspaceExtension(dayjs(startTime))).toEqual(request);
+    });
+  });
 
   describe("getDisplayWorkspaceBuildInitiatedBy", () => {
     it.each<[TypesGen.WorkspaceBuild, string]>([
@@ -95,10 +95,10 @@ describe("util > workspace", () => {
     ])(
       `getDisplayWorkspaceBuildInitiatedBy(%p) returns %p`,
       (build, initiatedBy) => {
-        expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy)
+        expect(getDisplayWorkspaceBuildInitiatedBy(build)).toEqual(initiatedBy);
       },
-    )
-  })
+    );
+  });
 
   describe("getDisplayVersionStatus", () => {
     it.each<[string, string, string, boolean]>([
@@ -115,28 +115,28 @@ describe("util > workspace", () => {
         const { displayVersion, outdated } = getDisplayVersionStatus(
           agentVersion,
           serverVersion,
-        )
-        expect(displayVersion).toEqual(expectedVersion)
-        expect(expectedOutdated).toEqual(outdated)
+        );
+        expect(displayVersion).toEqual(expectedVersion);
+        expect(expectedOutdated).toEqual(outdated);
       },
-    )
-  })
+    );
+  });
 
   describe("getDisplayWorkspaceTemplateName", () => {
     it("display name is not set", async () => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
         template_display_name: "",
-      }
-      const displayed = getDisplayWorkspaceTemplateName(workspace)
-      expect(displayed).toEqual(workspace.template_name)
-    })
+      };
+      const displayed = getDisplayWorkspaceTemplateName(workspace);
+      expect(displayed).toEqual(workspace.template_name);
+    });
     it("display name is set", async () => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
-      }
-      const displayed = getDisplayWorkspaceTemplateName(workspace)
-      expect(displayed).toEqual(workspace.template_display_name)
-    })
-  })
-})
+      };
+      const displayed = getDisplayWorkspaceTemplateName(workspace);
+      expect(displayed).toEqual(workspace.template_display_name);
+    });
+  });
+});

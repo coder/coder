@@ -1,24 +1,21 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined"
-import { Paywall } from "components/Paywall/Paywall"
-import { Stack } from "components/Stack/Stack"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { docs } from "utils/docs"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
+import { Paywall } from "components/Paywall/Paywall";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { docs } from "utils/docs";
 
 export const AuditPaywall: FC = () => {
-  const { t } = useTranslation("auditLog")
-
   return (
     <Paywall
-      message={t("paywall.title")}
-      description={t("paywall.description")}
+      message="Audit logs"
+      description="Audit Logs allows Auditors to monitor user operations in their deployment. To use this feature, you have to upgrade your account."
       cta={
         <Stack direction="row" alignItems="center">
           <Link href={docs("/admin/upgrade")} target="_blank" rel="noreferrer">
             <Button size="small" startIcon={<ArrowRightAltOutlined />}>
-              {t("paywall.actions.upgrade")}
+              See how to upgrade
             </Button>
           </Link>
           <Link
@@ -26,10 +23,10 @@ export const AuditPaywall: FC = () => {
             target="_blank"
             rel="noreferrer"
           >
-            {t("paywall.actions.readDocs")}
+            Read the documentation
           </Link>
         </Stack>
       }
     />
-  )
-}
+  );
+};

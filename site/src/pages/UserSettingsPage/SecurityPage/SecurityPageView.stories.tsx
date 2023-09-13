@@ -1,12 +1,12 @@
-import type { Meta, StoryObj } from "@storybook/react"
-import { SecurityPageView } from "./SecurityPage"
-import { action } from "@storybook/addon-actions"
+import type { Meta, StoryObj } from "@storybook/react";
+import { SecurityPageView } from "./SecurityPage";
+import { action } from "@storybook/addon-actions";
 import {
   MockAuthMethods,
   MockAuthMethodsWithPasswordType,
-} from "testHelpers/entities"
-import { ComponentProps } from "react"
-import set from "lodash/fp/set"
+} from "testHelpers/entities";
+import { ComponentProps } from "react";
+import set from "lodash/fp/set";
 
 const defaultArgs: ComponentProps<typeof SecurityPageView> = {
   security: {
@@ -31,25 +31,25 @@ const defaultArgs: ComponentProps<typeof SecurityPageView> = {
       openConfirmation: action("openConfirmation"),
     },
   },
-}
+};
 
 const meta: Meta<typeof SecurityPageView> = {
   title: "pages/SecurityPageView",
   component: SecurityPageView,
   args: defaultArgs,
-}
+};
 
-export default meta
-type Story = StoryObj<typeof SecurityPageView>
+export default meta;
+type Story = StoryObj<typeof SecurityPageView>;
 
-export const UsingOIDC: Story = {}
+export const UsingOIDC: Story = {};
 
 export const NoOIDCAvailable: Story = {
   args: {
     ...defaultArgs,
     oidc: undefined,
   },
-}
+};
 
 export const UserLoginTypeIsPassword: Story = {
   args: set(
@@ -57,7 +57,7 @@ export const UserLoginTypeIsPassword: Story = {
     MockAuthMethodsWithPasswordType,
     defaultArgs,
   ),
-}
+};
 
 export const ConfirmingOIDCConversion: Story = {
   args: set(
@@ -69,4 +69,4 @@ export const ConfirmingOIDCConversion: Story = {
     },
     defaultArgs,
   ),
-}
+};

@@ -1,53 +1,51 @@
-import { useState } from "react"
-import { Header } from "components/DeploySettingsLayout/Header"
+import { useState } from "react";
+import { Header } from "components/DeploySettingsLayout/Header";
 import {
   Badges,
   DisabledBadge,
   EnterpriseBadge,
   EntitledBadge,
-} from "components/DeploySettingsLayout/Badges"
-import InputAdornment from "@mui/material/InputAdornment"
-import { Fieldset } from "components/DeploySettingsLayout/Fieldset"
-import { getFormHelpers } from "utils/formUtils"
-import Button from "@mui/material/Button"
-import FormControlLabel from "@mui/material/FormControlLabel"
-import { BlockPicker } from "react-color"
-import { useTranslation } from "react-i18next"
-import makeStyles from "@mui/styles/makeStyles"
-import Switch from "@mui/material/Switch"
-import TextField from "@mui/material/TextField"
-import { UpdateAppearanceConfig } from "api/typesGenerated"
-import { Stack } from "components/Stack/Stack"
-import { useFormik } from "formik"
-import { useTheme } from "@mui/styles"
-import Link from "@mui/material/Link"
-import { colors } from "theme/colors"
+} from "components/DeploySettingsLayout/Badges";
+import InputAdornment from "@mui/material/InputAdornment";
+import { Fieldset } from "components/DeploySettingsLayout/Fieldset";
+import { getFormHelpers } from "utils/formUtils";
+import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import { BlockPicker } from "react-color";
+import makeStyles from "@mui/styles/makeStyles";
+import Switch from "@mui/material/Switch";
+import TextField from "@mui/material/TextField";
+import { UpdateAppearanceConfig } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { useFormik } from "formik";
+import { useTheme } from "@mui/styles";
+import Link from "@mui/material/Link";
+import { colors } from "theme/colors";
 
 export type AppearanceSettingsPageViewProps = {
-  appearance: UpdateAppearanceConfig
-  isEntitled: boolean
+  appearance: UpdateAppearanceConfig;
+  isEntitled: boolean;
   updateAppearance: (
     newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
-  ) => void
-}
+  ) => void;
+};
 export const AppearanceSettingsPageView = ({
   appearance,
   isEntitled,
   updateAppearance,
 }: AppearanceSettingsPageViewProps): JSX.Element => {
-  const styles = useStyles()
-  const theme = useTheme()
-  const [t] = useTranslation("appearanceSettings")
+  const styles = useStyles();
+  const theme = useTheme();
   const logoForm = useFormik<{
-    logo_url: string
+    logo_url: string;
   }>({
     initialValues: {
       logo_url: appearance.logo_url,
     },
     onSubmit: (values) => updateAppearance(values, false),
-  })
-  const logoFieldHelpers = getFormHelpers(logoForm)
+  });
+  const logoFieldHelpers = getFormHelpers(logoForm);
 
   const serviceBannerForm = useFormik<UpdateAppearanceConfig["service_banner"]>(
     {
@@ -65,11 +63,11 @@ export const AppearanceSettingsPageView = ({
           false,
         ),
     },
-  )
-  const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm)
+  );
+  const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm);
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
-  )
+  );
   return (
     <>
       <Header
@@ -135,10 +133,10 @@ export const AppearanceSettingsPageView = ({
                     },
                   },
                   true,
-                )
+                );
               }}
             >
-              {t("showPreviewLabel")}
+              Show Preview
             </Button>
           )
         }
@@ -159,18 +157,18 @@ export const AppearanceSettingsPageView = ({
                 <Switch
                   checked={serviceBannerForm.values.enabled}
                   onChange={async () => {
-                    const newState = !serviceBannerForm.values.enabled
+                    const newState = !serviceBannerForm.values.enabled;
                     const newBanner = {
                       ...serviceBannerForm.values,
                       enabled: newState,
-                    }
+                    };
                     updateAppearance(
                       {
                         service_banner: newBanner,
                       },
                       false,
-                    )
-                    await serviceBannerForm.setFieldValue("enabled", newState)
+                    );
+                    await serviceBannerForm.setFieldValue("enabled", newState);
                   }}
                 />
               }
@@ -180,7 +178,7 @@ export const AppearanceSettingsPageView = ({
               <TextField
                 {...serviceBannerFieldHelpers(
                   "message",
-                  t("messageHelperText"),
+                  "Markdown bold, italics, and links are supported.",
                 )}
                 fullWidth
                 label="Message"
@@ -193,11 +191,11 @@ export const AppearanceSettingsPageView = ({
               <BlockPicker
                 color={backgroundColor}
                 onChange={async (color) => {
-                  setBackgroundColor(color.hex)
+                  setBackgroundColor(color.hex);
                   await serviceBannerForm.setFieldValue(
                     "background_color",
                     color.hex,
-                  )
+                  );
                   updateAppearance(
                     {
                       service_banner: {
@@ -206,7 +204,7 @@ export const AppearanceSettingsPageView = ({
                       },
                     },
                     true,
-                  )
+                  );
                 }}
                 triangle="hide"
                 colors={["#004852", "#D65D0F", "#4CD473", "#D94A5D", "#5A00CF"]}
@@ -231,8 +229,8 @@ export const AppearanceSettingsPageView = ({
         )}
       </Fieldset>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   form: {
@@ -246,4 +244,4 @@ const useStyles = makeStyles((theme) => ({
       maxWidth: "100%",
     },
   },
-}))
+}));

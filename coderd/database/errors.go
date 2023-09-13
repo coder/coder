@@ -37,6 +37,28 @@ func IsUniqueViolation(err error, uniqueConstraints ...UniqueConstraint) bool {
 	return false
 }
 
+// IsForeignKeyViolation checks if the error is due to a foreign key violation.
+// If one or more specific foreign key constraints are given as arguments,
+// the error must be caused by one of them. If no constraints are given,
+// this function returns true for any foreign key violation.
+func IsForeignKeyViolation(err error, foreignKeyConstraints ...ForeignKeyConstraint) bool {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) {
+		if pqErr.Code.Name() == "foreign_key_violation" {
+			if len(foreignKeyConstraints) == 0 {
+				return true
+			}
+			for _, fc := range foreignKeyConstraints {
+				if pqErr.Constraint == string(fc) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
 // IsQueryCanceledError checks if the error is due to a query being canceled.
 func IsQueryCanceledError(err error) bool {
 	var pqErr *pq.Error

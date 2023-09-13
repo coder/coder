@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const BuildingIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 24 24">
@@ -9,4 +9,4 @@ export const BuildingIcon = (props: SvgIconProps): JSX.Element => (
       fill="currentColor"
     />
   </SvgIcon>
-)
+);

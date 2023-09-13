@@ -1,33 +1,32 @@
-import Button from "@mui/material/Button"
-import Link from "@mui/material/Link"
-import EditIcon from "@mui/icons-material/Edit"
-import { Loader } from "components/Loader/Loader"
-import { Margins } from "components/Margins/Margins"
+import Button from "@mui/material/Button";
+import Link from "@mui/material/Link";
+import EditIcon from "@mui/icons-material/Edit";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderCaption,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { Stack } from "components/Stack/Stack"
-import { Stats, StatsItem } from "components/Stats/Stats"
-import { TemplateFiles } from "components/TemplateFiles/TemplateFiles"
-import { UseTabResult } from "hooks/useTab"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import { Link as RouterLink } from "react-router-dom"
-import { createDayString } from "utils/createDayString"
-import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "components/PageHeader/PageHeader";
+import { Stack } from "components/Stack/Stack";
+import { Stats, StatsItem } from "components/Stats/Stats";
+import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
+import { UseTabResult } from "hooks/useTab";
+import { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
+import { createDayString } from "utils/createDayString";
+import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface TemplateVersionPageViewProps {
   /**
    * Used to display the version name before loading the version in the API
    */
-  versionName: string
-  templateName: string
-  tab: UseTabResult
-  context: TemplateVersionMachineContext
+  versionName: string;
+  templateName: string;
+  tab: UseTabResult;
+  context: TemplateVersionMachineContext;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
@@ -36,8 +35,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   versionName,
   templateName,
 }) => {
-  const { currentFiles, error, currentVersion, previousFiles } = context
-  const { t } = useTranslation("templateVersionPage")
+  const { currentFiles, error, currentVersion, previousFiles } = context;
 
   return (
     <Margins>
@@ -51,7 +49,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
           </Link>
         }
       >
-        <PageHeaderCaption>{t("header.caption")}</PageHeaderCaption>
+        <PageHeaderCaption>Version</PageHeaderCaption>
         <PageHeaderTitle>{versionName}</PageHeaderTitle>
         {currentVersion &&
           currentVersion.message &&
@@ -68,7 +66,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
           <>
             <Stats>
               <StatsItem
-                label={t("stats.template")}
+                label="Template"
                 value={
                   <RouterLink to={`/templates/${templateName}`}>
                     {templateName}
@@ -76,11 +74,11 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
                 }
               />
               <StatsItem
-                label={t("stats.createdBy")}
+                label="Created by"
                 value={currentVersion.created_by.username}
               />
               <StatsItem
-                label={t("stats.created")}
+                label="Created"
                 value={createDayString(currentVersion.created_at)}
               />
             </Stats>
@@ -94,7 +92,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
         )}
       </Stack>
     </Margins>
-  )
-}
+  );
+};
 
-export default TemplateVersionPageView
+export default TemplateVersionPageView;

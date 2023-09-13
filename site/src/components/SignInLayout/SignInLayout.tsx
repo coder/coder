@@ -1,5 +1,5 @@
-import { makeStyles } from "@mui/styles"
-import { FC, ReactNode } from "react"
+import { makeStyles } from "@mui/styles";
+import { FC, ReactNode } from "react";
 
 export const useStyles = makeStyles((theme) => ({
   root: {
@@ -25,10 +25,10 @@ export const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     marginTop: theme.spacing(3),
   },
-}))
+}));
 
 export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div className={styles.root}>
@@ -39,5 +39,5 @@ export const SignInLayout: FC<{ children: ReactNode }> = ({ children }) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};

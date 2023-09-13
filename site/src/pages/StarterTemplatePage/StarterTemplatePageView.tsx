@@ -1,43 +1,41 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
-import { Loader } from "components/Loader/Loader"
-import { Margins } from "components/Margins/Margins"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
+import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import {
   PageHeader,
   PageHeaderSubtitle,
   PageHeaderTitle,
-} from "components/PageHeader/PageHeader"
-import { FC } from "react"
-import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService"
-import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined"
-import PlusIcon from "@mui/icons-material/AddOutlined"
-import { useTranslation } from "react-i18next"
-import { Stack } from "components/Stack/Stack"
-import { Link } from "react-router-dom"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "components/PageHeader/PageHeader";
+import { FC } from "react";
+import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService";
+import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
+import PlusIcon from "@mui/icons-material/AddOutlined";
+import { Stack } from "components/Stack/Stack";
+import { Link } from "react-router-dom";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface StarterTemplatePageViewProps {
-  context: StarterTemplateContext
+  context: StarterTemplateContext;
 }
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
   context,
 }) => {
-  const styles = useStyles()
-  const { starterTemplate } = context
-  const { t } = useTranslation("starterTemplatePage")
+  const styles = useStyles();
+  const { starterTemplate } = context;
 
   if (context.error) {
     return (
       <Margins>
         <ErrorAlert error={context.error} />
       </Margins>
-    )
+    );
   }
 
   if (!starterTemplate) {
-    return <Loader />
+    return <Loader />;
   }
 
   return (
@@ -52,7 +50,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               rel="noreferrer"
               startIcon={<ViewCodeIcon />}
             >
-              {t("actions.viewSourceCode")}
+              View source code
             </Button>
             <Button
               variant="contained"
@@ -60,7 +58,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               to={`/templates/new?exampleId=${starterTemplate.id}`}
               startIcon={<PlusIcon />}
             >
-              {t("actions.useTemplate")}
+              Use template
             </Button>
           </>
         }
@@ -84,8 +82,8 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
         </div>
       </div>
     </Margins>
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles((theme) => {
   return {
@@ -112,5 +110,5 @@ export const useStyles = makeStyles((theme) => {
       maxWidth: 800,
       margin: "auto",
     },
-  }
-})
+  };
+});

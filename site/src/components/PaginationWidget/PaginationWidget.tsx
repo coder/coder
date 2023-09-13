@@ -1,23 +1,23 @@
-import Button from "@mui/material/Button"
-import { makeStyles, useTheme } from "@mui/styles"
-import useMediaQuery from "@mui/material/useMediaQuery"
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft"
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
-import { useActor } from "@xstate/react"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Maybe } from "components/Conditionals/Maybe"
-import { CSSProperties } from "react"
-import { PaginationMachineRef } from "xServices/pagination/paginationXService"
-import { PageButton } from "./PageButton"
-import { buildPagedList } from "./utils"
+import Button from "@mui/material/Button";
+import { makeStyles, useTheme } from "@mui/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { useActor } from "@xstate/react";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Maybe } from "components/Conditionals/Maybe";
+import { CSSProperties } from "react";
+import { PaginationMachineRef } from "xServices/pagination/paginationXService";
+import { PageButton } from "./PageButton";
+import { buildPagedList } from "./utils";
 
 export type PaginationWidgetProps = {
-  prevLabel?: string
-  nextLabel?: string
-  numRecords?: number
-  containerStyle?: CSSProperties
-  paginationRef: PaginationMachineRef
-}
+  prevLabel?: string;
+  nextLabel?: string;
+  numRecords?: number;
+  containerStyle?: CSSProperties;
+  paginationRef: PaginationMachineRef;
+};
 
 export const PaginationWidget = ({
   prevLabel = "",
@@ -26,19 +26,19 @@ export const PaginationWidget = ({
   containerStyle,
   paginationRef,
 }: PaginationWidgetProps): JSX.Element | null => {
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"))
-  const styles = useStyles()
-  const [paginationState, send] = useActor(paginationRef)
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const styles = useStyles();
+  const [paginationState, send] = useActor(paginationRef);
 
-  const currentPage = paginationState.context.page
-  const numRecordsPerPage = paginationState.context.limit
+  const currentPage = paginationState.context.page;
+  const numRecordsPerPage = paginationState.context.limit;
 
-  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0
-  const firstPageActive = currentPage === 1 && numPages !== 0
-  const lastPageActive = currentPage === numPages && numPages !== 0
+  const numPages = numRecords ? Math.ceil(numRecords / numRecordsPerPage) : 0;
+  const firstPageActive = currentPage === 1 && numPages !== 0;
+  const lastPageActive = currentPage === numPages && numPages !== 0;
   // if beyond page 1, show pagination widget even if there's only one true page, so user can navigate back
-  const showWidget = numPages > 1 || currentPage > 1
+  const showWidget = numPages > 1 || currentPage > 1;
 
   return (
     <Maybe condition={showWidget}>
@@ -91,8 +91,8 @@ export const PaginationWidget = ({
         </Button>
       </div>
     </Maybe>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   defaultContainerStyles: {
@@ -106,4 +106,4 @@ const useStyles = makeStyles((theme) => ({
   prevLabelStyles: {
     marginRight: theme.spacing(0.5),
   },
-}))
+}));

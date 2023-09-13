@@ -1,30 +1,28 @@
-import { FC, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
-import { useNavigate } from "react-router-dom"
-import { useFormik } from "formik"
-import { Loader } from "components/Loader/Loader"
-import { displaySuccess, displayError } from "components/GlobalSnackbar/utils"
-import { useMutation, useQuery } from "@tanstack/react-query"
-import { createToken, getTokenConfig } from "api/api"
-import { CreateTokenForm } from "./CreateTokenForm"
-import { NANO_HOUR, CreateTokenData } from "./utils"
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog"
-import { CodeExample } from "components/CodeExample/CodeExample"
-import { makeStyles } from "@mui/styles"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { useNavigate } from "react-router-dom";
+import { useFormik } from "formik";
+import { Loader } from "components/Loader/Loader";
+import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createToken, getTokenConfig } from "api/api";
+import { CreateTokenForm } from "./CreateTokenForm";
+import { NANO_HOUR, CreateTokenData } from "./utils";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { CodeExample } from "components/CodeExample/CodeExample";
+import { makeStyles } from "@mui/styles";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const initialValues: CreateTokenData = {
   name: "",
   lifetime: 30,
-}
+};
 
 export const CreateTokenPage: FC = () => {
-  const { t } = useTranslation("tokensPage")
-  const styles = useStyles()
-  const navigate = useNavigate()
+  const styles = useStyles();
+  const navigate = useNavigate();
 
   const {
     mutate: saveToken,
@@ -32,7 +30,7 @@ export const CreateTokenPage: FC = () => {
     isError: creationFailed,
     isSuccess: creationSuccessful,
     data: newToken,
-  } = useMutation(createToken)
+  } = useMutation(createToken);
   const {
     data: tokenConfig,
     isLoading: fetchingTokenConfig,
@@ -41,19 +39,19 @@ export const CreateTokenPage: FC = () => {
   } = useQuery({
     queryKey: ["tokenconfig"],
     queryFn: getTokenConfig,
-  })
+  });
 
-  const [formError, setFormError] = useState<unknown>(undefined)
+  const [formError, setFormError] = useState<unknown>(undefined);
 
   const onCreateSuccess = () => {
-    displaySuccess(t("createToken.createSuccess"))
-    navigate("/settings/tokens")
-  }
+    displaySuccess("Token has been created");
+    navigate("/settings/tokens");
+  };
 
   const onCreateError = (error: unknown) => {
-    setFormError(error)
-    displayError(t("createToken.createError"))
-  }
+    setFormError(error);
+    displayError("Failed to create token");
+  };
 
   const form = useFormik<CreateTokenData>({
     initialValues,
@@ -67,19 +65,19 @@ export const CreateTokenPage: FC = () => {
         {
           onError: onCreateError,
         },
-      )
+      );
     },
-  })
+  });
 
   const tokenDescription = (
     <>
-      <p>{t("createToken.successModal.description")}</p>
+      <p>Make sure you copy the below token before proceeding:</p>
       <CodeExample code={newToken?.key ?? ""} className={styles.codeExample} />
     </>
-  )
+  );
 
   if (fetchingTokenConfig) {
-    return <Loader />
+    return <Loader />;
   }
 
   return (
@@ -89,8 +87,8 @@ export const CreateTokenPage: FC = () => {
       </Helmet>
       {tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
       <FullPageHorizontalForm
-        title={t("createToken.title")}
-        detail={t("createToken.detail")}
+        title="Create Token"
+        detail="All tokens are unscoped and therefore have full resource access."
       >
         <CreateTokenForm
           form={form}
@@ -104,7 +102,7 @@ export const CreateTokenPage: FC = () => {
         <ConfirmDialog
           type="info"
           hideCancel
-          title={t("createToken.successModal.title")}
+          title="Creation successful"
           description={tokenDescription}
           open={creationSuccessful && Boolean(newToken.key)}
           confirmLoading={isCreating}
@@ -113,8 +111,8 @@ export const CreateTokenPage: FC = () => {
         />
       </FullPageHorizontalForm>
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   codeExample: {
@@ -123,6 +121,6 @@ const useStyles = makeStyles((theme) => ({
     width: "100%",
     marginTop: theme.spacing(3),
   },
-}))
+}));
 
-export default CreateTokenPage
+export default CreateTokenPage;

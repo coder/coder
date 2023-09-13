@@ -1,37 +1,38 @@
-import Button from "@mui/material/Button"
-import InputAdornment from "@mui/material/InputAdornment"
-import Popover from "@mui/material/Popover"
-import TextField from "@mui/material/TextField"
-import { OpenDropdown } from "components/DropdownArrows/DropdownArrows"
-import { useRef, FC, useState } from "react"
-import Picker from "@emoji-mart/react"
-import { makeStyles } from "@mui/styles"
-import { colors } from "theme/colors"
-import { useTranslation } from "react-i18next"
-import data from "@emoji-mart/data/sets/14/twitter.json"
-import { IconFieldProps } from "./types"
-import { Stack } from "components/Stack/Stack"
+import Button from "@mui/material/Button";
+import InputAdornment from "@mui/material/InputAdornment";
+import Popover from "@mui/material/Popover";
+import TextField, { TextFieldProps } from "@mui/material/TextField";
+import { OpenDropdown } from "components/DropdownArrows/DropdownArrows";
+import { useRef, FC, useState } from "react";
+import Picker from "@emoji-mart/react";
+import { makeStyles } from "@mui/styles";
+import { colors } from "theme/colors";
+import data from "@emoji-mart/data/sets/14/twitter.json";
+import { Stack } from "components/Stack/Stack";
+
+type IconFieldProps = TextFieldProps & {
+  onPickEmoji: (value: string) => void;
+};
 
 const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   if (
     typeof textFieldProps.value !== "string" &&
     typeof textFieldProps.value !== "undefined"
   ) {
-    throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`)
+    throw new Error(`Invalid icon value "${typeof textFieldProps.value}"`);
   }
 
-  const styles = useStyles()
-  const emojiButtonRef = useRef<HTMLButtonElement>(null)
-  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
-  const { t } = useTranslation("templateSettingsPage")
-  const hasIcon = textFieldProps.value && textFieldProps.value !== ""
+  const styles = useStyles();
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
     <Stack spacing={1}>
       <TextField
         {...textFieldProps}
         fullWidth
-        label={t("iconLabel")}
+        label="Icon"
         InputProps={{
           endAdornment: hasIcon ? (
             <InputAdornment position="end" className={styles.adornment}>
@@ -53,10 +54,10 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         ref={emojiButtonRef}
         endIcon={<OpenDropdown />}
         onClick={() => {
-          setIsEmojiPickerOpen((v) => !v)
+          setIsEmojiPickerOpen((v) => !v);
         }}
       >
-        {t("selectEmoji")}
+        Select emoji
       </Button>
 
       <Popover
@@ -64,7 +65,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         open={isEmojiPickerOpen}
         anchorEl={emojiButtonRef.current}
         onClose={() => {
-          setIsEmojiPickerOpen(false)
+          setIsEmojiPickerOpen(false);
         }}
       >
         <Picker
@@ -75,15 +76,15 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
             const value = `/emojis/${emojiData.unified.replace(
               /-fe0f$/,
               "",
-            )}.png`
-            onPickEmoji(value)
-            setIsEmojiPickerOpen(false)
+            )}.png`;
+            onPickEmoji(value);
+            setIsEmojiPickerOpen(false);
           }}
         />
       </Popover>
     </Stack>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   "@global": {
@@ -104,6 +105,6 @@ const useStyles = makeStyles((theme) => ({
       maxWidth: "100%",
     },
   },
-}))
+}));
 
-export default IconField
+export default IconField;

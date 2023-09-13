@@ -8,6 +8,8 @@ import (
 	"github.com/fatih/color"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -206,7 +208,7 @@ func (r *RootCmd) deleteProxy() *clibase.Cmd {
 
 			// Confirm deletion of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Delete this workspace proxy: %s?", cliui.DefaultStyles.Code.Render(wsproxy.DisplayName)),
+				Text:      fmt.Sprintf("Delete this workspace proxy: %s?", pretty.Sprint(cliui.DefaultStyles.Code, wsproxy.DisplayName)),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -428,14 +430,14 @@ func newUpdateProxyResponseFormatter() *updateProxyResponseFormatter {
 			}
 
 			return fmt.Sprintf("Workspace Proxy %[1]q updated successfully.\n"+
-				cliui.DefaultStyles.Placeholder.Render("—————————————————————————————————————————————————")+"\n"+
+				pretty.Sprint(cliui.DefaultStyles.Placeholder, "—————————————————————————————————————————————————")+"\n"+
 				"Save this authentication token, it will not be shown again.\n"+
 				"Token: %[2]s\n"+
 				"\n"+
 				"Start the proxy by running:\n"+
-				cliui.DefaultStyles.Code.Render("CODER_PROXY_SESSION_TOKEN=%[2]s coder wsproxy server --primary-access-url %[3]s --http-address=0.0.0.0:3001")+
+				cliui.Code("CODER_PROXY_SESSION_TOKEN=%[2]s coder wsproxy server --primary-access-url %[3]s --http-address=0.0.0.0:3001")+
 				// This is required to turn off the code style. Otherwise it appears in the code block until the end of the line.
-				cliui.DefaultStyles.Placeholder.Render(""),
+				pretty.Sprint(cliui.DefaultStyles.Placeholder, ""),
 				response.Proxy.Name, response.ProxyToken, up.primaryAccessURL), nil
 		}),
 		cliui.JSONFormat(),

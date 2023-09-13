@@ -1,12 +1,11 @@
-import { lazy, FC, Suspense } from "react"
-import { IconFieldProps } from "./types"
+import { lazy, Suspense, ComponentProps } from "react";
 
-const IconField = lazy(() => import("./IconField"))
+const IconField = lazy(() => import("./IconField"));
 
-export const LazyIconField: FC<IconFieldProps> = (props) => {
+export const LazyIconField = (props: ComponentProps<typeof IconField>) => {
   return (
     <Suspense fallback={<div role="progressbar" data-testid="loader" />}>
       <IconField {...props} />
     </Suspense>
-  )
-}
+  );
+};

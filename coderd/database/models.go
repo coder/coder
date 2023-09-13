@@ -1591,6 +1591,22 @@ type AuditLog struct {
 	ResourceIcon     string          `db:"resource_icon" json:"resource_icon"`
 }
 
+// A table used to store the keys used to encrypt the database.
+type DBCryptKey struct {
+	// An integer used to identify the key.
+	Number int32 `db:"number" json:"number"`
+	// If the key is active, the digest of the active key.
+	ActiveKeyDigest sql.NullString `db:"active_key_digest" json:"active_key_digest"`
+	// If the key has been revoked, the digest of the revoked key.
+	RevokedKeyDigest sql.NullString `db:"revoked_key_digest" json:"revoked_key_digest"`
+	// The time at which the key was created.
+	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+	// The time at which the key was revoked.
+	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
+	// A column used to test the encryption.
+	Test string `db:"test" json:"test"`
+}
+
 type File struct {
 	Hash      string    `db:"hash" json:"hash"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
@@ -1608,6 +1624,10 @@ type GitAuthLink struct {
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	// The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted
+	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
 type GitSSHKey struct {
@@ -1949,6 +1969,10 @@ type UserLink struct {
 	OAuthAccessToken  string    `db:"oauth_access_token" json:"oauth_access_token"`
 	OAuthRefreshToken string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
 	OAuthExpiry       time.Time `db:"oauth_expiry" json:"oauth_expiry"`
+	// The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted
+	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.

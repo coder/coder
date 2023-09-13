@@ -1,20 +1,20 @@
-import { makeStyles } from "@mui/styles"
-import { useOrganizationId } from "hooks/useOrganizationId"
-import { createContext, FC, Suspense, useContext } from "react"
-import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom"
-import { combineClasses } from "utils/combineClasses"
-import { Margins } from "components/Margins/Margins"
-import { Stack } from "components/Stack/Stack"
-import { Loader } from "components/Loader/Loader"
-import { TemplatePageHeader } from "./TemplatePageHeader"
+import { makeStyles } from "@mui/styles";
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { createContext, FC, Suspense, useContext } from "react";
+import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
+import { combineClasses } from "utils/combineClasses";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
+import { Loader } from "components/Loader/Loader";
+import { TemplatePageHeader } from "./TemplatePageHeader";
 import {
   checkAuthorization,
   getTemplateByName,
   getTemplateVersion,
-} from "api/api"
-import { useQuery } from "@tanstack/react-query"
-import { AuthorizationRequest } from "api/typesGenerated"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "api/api";
+import { useQuery } from "@tanstack/react-query";
+import { AuthorizationRequest } from "api/typesGenerated";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 const templatePermissions = (
   templateId: string,
@@ -26,63 +26,63 @@ const templatePermissions = (
     },
     action: "update",
   },
-})
+});
 
 const fetchTemplate = async (orgId: string, templateName: string) => {
-  const template = await getTemplateByName(orgId, templateName)
+  const template = await getTemplateByName(orgId, templateName);
   const [activeVersion, permissions] = await Promise.all([
     getTemplateVersion(template.active_version_id),
     checkAuthorization({
       checks: templatePermissions(template.id),
     }),
-  ])
+  ]);
 
   return {
     template,
     activeVersion,
     permissions,
-  }
-}
+  };
+};
 
-type TemplateLayoutContextValue = Awaited<ReturnType<typeof fetchTemplate>>
+type TemplateLayoutContextValue = Awaited<ReturnType<typeof fetchTemplate>>;
 
 const TemplateLayoutContext = createContext<
   TemplateLayoutContextValue | undefined
->(undefined)
+>(undefined);
 
 export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
-  const context = useContext(TemplateLayoutContext)
+  const context = useContext(TemplateLayoutContext);
   if (!context) {
     throw new Error(
       "useTemplateLayoutContext only can be used inside of TemplateLayout",
-    )
+    );
   }
-  return context
-}
+  return context;
+};
 
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
-  const navigate = useNavigate()
-  const styles = useStyles()
-  const orgId = useOrganizationId()
-  const { template: templateName } = useParams() as { template: string }
+  const navigate = useNavigate();
+  const styles = useStyles();
+  const orgId = useOrganizationId();
+  const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
     queryKey: ["template", templateName],
     queryFn: () => fetchTemplate(orgId, templateName),
-  })
-  const shouldShowInsights = data?.permissions?.canUpdateTemplate
+  });
+  const shouldShowInsights = data?.permissions?.canUpdateTemplate;
 
   if (error) {
     return (
       <div className={styles.error}>
         <ErrorAlert error={error} />
       </div>
-    )
+    );
   }
 
   if (isLoading || !data) {
-    return <Loader />
+    return <Loader />;
   }
 
   return (
@@ -92,7 +92,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         activeVersion={data.activeVersion}
         permissions={data.permissions}
         onDeleteTemplate={() => {
-          navigate("/templates")
+          navigate("/templates");
         }}
       />
 
@@ -181,8 +181,8 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         </TemplateLayoutContext.Provider>
       </Margins>
     </>
-  )
-}
+  );
+};
 
 export const useStyles = makeStyles((theme) => {
   return {
@@ -220,5 +220,5 @@ export const useStyles = makeStyles((theme) => {
         position: "absolute",
       },
     },
-  }
-})
+  };
+});

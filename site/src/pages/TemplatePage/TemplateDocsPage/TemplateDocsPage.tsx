@@ -1,15 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import { MemoizedMarkdown } from "components/Markdown/Markdown"
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout"
-import frontMatter from "front-matter"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
+import { makeStyles } from "@mui/styles";
+import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import frontMatter from "front-matter";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
 
 export default function TemplateDocsPage() {
-  const { template, activeVersion } = useTemplateLayoutContext()
-  const styles = useStyles()
+  const { template, activeVersion } = useTemplateLayoutContext();
+  const styles = useStyles();
 
-  const readme = frontMatter(activeVersion.readme)
+  const readme = frontMatter(activeVersion.readme);
 
   return (
     <>
@@ -24,7 +24,7 @@ export default function TemplateDocsPage() {
         </div>
       </div>
     </>
-  )
+  );
 }
 
 export const useStyles = makeStyles((theme) => {
@@ -47,5 +47,5 @@ export const useStyles = makeStyles((theme) => {
       maxWidth: 800,
       margin: "auto",
     },
-  }
-})
+  };
+});

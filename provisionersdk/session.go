@@ -12,15 +12,21 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
-// ReadmeFile is the location we look for to extract documentation from template
-// versions.
-const ReadmeFile = "README.md"
+const (
+	// ReadmeFile is the location we look for to extract documentation from template versions.
+	ReadmeFile = "README.md"
+
+	sessionDirPrefix      = "Session"
+	staleSessionRetention = 7 * 24 * time.Hour
+)
 
 // protoServer is a wrapper that translates the dRPC protocol into a Session with method calls into the Server.
 type protoServer struct {
@@ -35,9 +41,14 @@ func (p *protoServer) Session(stream proto.DRPCProvisioner_SessionStream) error 
 		stream: stream,
 		server: p.server,
 	}
-	sessDir := fmt.Sprintf("Session%s", sessID)
-	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, sessDir)
-	err := os.MkdirAll(s.WorkDirectory, 0o700)
+
+	err := CleanStaleSessions(s.Context(), p.opts.WorkDirectory, afero.NewOsFs(), time.Now(), s.Logger)
+	if err != nil {
+		return xerrors.Errorf("unable to clean stale sessions %q: %w", s.WorkDirectory, err)
+	}
+
+	s.WorkDirectory = filepath.Join(p.opts.WorkDirectory, SessionDir(sessID))
+	err = os.MkdirAll(s.WorkDirectory, 0o700)
 	if err != nil {
 		return xerrors.Errorf("create work directory %q: %w", s.WorkDirectory, err)
 	}
@@ -315,4 +326,9 @@ func (r *request[R, C]) do() (C, error) {
 		close(canceledOrComplete)
 		return c, nil
 	}
+}
+
+// SessionDir returns the directory name with mandatory prefix.
+func SessionDir(sessID string) string {
+	return sessionDirPrefix + sessID
 }

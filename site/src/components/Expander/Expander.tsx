@@ -1,17 +1,16 @@
-import Link from "@mui/material/Link"
-import makeStyles from "@mui/styles/makeStyles"
+import Link from "@mui/material/Link";
+import makeStyles from "@mui/styles/makeStyles";
 import {
   CloseDropdown,
   OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows"
-import { PropsWithChildren, FC } from "react"
-import Collapse from "@mui/material/Collapse"
-import { useTranslation } from "react-i18next"
-import { combineClasses } from "utils/combineClasses"
+} from "components/DropdownArrows/DropdownArrows";
+import { PropsWithChildren, FC } from "react";
+import Collapse from "@mui/material/Collapse";
+import { combineClasses } from "utils/combineClasses";
 
 export interface ExpanderProps {
-  expanded: boolean
-  setExpanded: (val: boolean) => void
+  expanded: boolean;
+  setExpanded: (val: boolean) => void;
 }
 
 export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
@@ -19,17 +18,16 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
   setExpanded,
   children,
 }) => {
-  const styles = useStyles()
-  const { t } = useTranslation("common")
+  const styles = useStyles();
 
-  const toggleExpanded = () => setExpanded(!expanded)
+  const toggleExpanded = () => setExpanded(!expanded);
 
   return (
     <>
       {!expanded && (
         <Link onClick={toggleExpanded} className={styles.expandLink}>
           <span className={styles.text}>
-            {t("ctas.expand")}
+            Click here to learn more
             <OpenDropdown margin={false} />
           </span>
         </Link>
@@ -43,14 +41,14 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
           className={combineClasses([styles.expandLink, styles.collapseLink])}
         >
           <span className={styles.text}>
-            {t("ctas.collapse")}
+            Click here to hide
             <CloseDropdown margin={false} />
           </span>
         </Link>
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   expandLink: {
@@ -66,4 +64,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     fontSize: theme.typography.caption.fontSize,
   },
-}))
+}));

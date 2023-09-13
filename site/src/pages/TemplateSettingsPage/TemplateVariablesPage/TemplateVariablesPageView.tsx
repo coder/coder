@@ -2,30 +2,29 @@ import {
   CreateTemplateVersionRequest,
   TemplateVersion,
   TemplateVersionVariable,
-} from "api/typesGenerated"
-import { Alert } from "components/Alert/Alert"
-import { Loader } from "components/Loader/Loader"
-import { ComponentProps, FC } from "react"
-import { TemplateVariablesForm } from "./TemplateVariablesForm"
-import { makeStyles } from "@mui/styles"
-import { useTranslation } from "react-i18next"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "api/typesGenerated";
+import { Alert } from "components/Alert/Alert";
+import { Loader } from "components/Loader/Loader";
+import { ComponentProps, FC } from "react";
+import { TemplateVariablesForm } from "./TemplateVariablesForm";
+import { makeStyles } from "@mui/styles";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export interface TemplateVariablesPageViewProps {
-  templateVersion?: TemplateVersion
-  templateVariables?: TemplateVersionVariable[]
-  onSubmit: (data: CreateTemplateVersionRequest) => void
-  onCancel: () => void
-  isSubmitting: boolean
+  templateVersion?: TemplateVersion;
+  templateVariables?: TemplateVersionVariable[];
+  onSubmit: (data: CreateTemplateVersionRequest) => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
   errors?: {
-    getTemplateDataError?: unknown
-    updateTemplateError?: unknown
-    jobError?: TemplateVersion["job"]["error"]
-  }
+    getTemplateDataError?: unknown;
+    updateTemplateError?: unknown;
+    jobError?: TemplateVersion["job"]["error"];
+  };
   initialTouched?: ComponentProps<
     typeof TemplateVariablesForm
-  >["initialTouched"]
+  >["initialTouched"];
 }
 
 export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
@@ -37,18 +36,17 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   errors = {},
   initialTouched,
 }) => {
-  const classes = useStyles()
+  const classes = useStyles();
   const isLoading =
     !templateVersion &&
     !templateVariables &&
     !errors.getTemplateDataError &&
-    !errors.updateTemplateError
-  const { t } = useTranslation("templateVariablesPage")
-  const hasError = Object.values(errors).some((error) => Boolean(error))
+    !errors.updateTemplateError;
+  const hasError = Object.values(errors).some((error) => Boolean(error));
   return (
     <>
       <PageHeader className={classes.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+        <PageHeaderTitle>Template variables</PageHeaderTitle>
       </PageHeader>
       {hasError && (
         <div className={classes.errorContainer}>
@@ -74,11 +72,13 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
-        <Alert severity="info">{t("unusedVariablesNotice")}</Alert>
+        <Alert severity="info">
+          This template does not use managed variables.
+        </Alert>
       )}
     </>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   errorContainer: {
@@ -92,4 +92,4 @@ const useStyles = makeStyles((theme) => ({
   pageHeader: {
     paddingTop: 0,
   },
-}))
+}));

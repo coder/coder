@@ -8,6 +8,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -114,7 +116,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}

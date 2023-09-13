@@ -1,9 +1,7 @@
-import dayjs from "dayjs"
-import duration from "dayjs/plugin/duration"
-import { emptySchedule } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule"
-import { emptyTTL } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl"
-import { Workspace } from "../api/typesGenerated"
-import * as Mocks from "../testHelpers/entities"
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import { Workspace } from "../api/typesGenerated";
+import * as Mocks from "../testHelpers/entities";
 import {
   deadlineExtensionMax,
   deadlineExtensionMin,
@@ -12,12 +10,11 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
   stripTimezone,
-  scheduleChanged,
-} from "./schedule"
+} from "./schedule";
 
-dayjs.extend(duration)
-const now = dayjs()
-const startTime = dayjs(Mocks.MockWorkspaceBuild.updated_at)
+dayjs.extend(duration);
+const now = dayjs();
+const startTime = dayjs(Mocks.MockWorkspaceBuild.updated_at);
 
 describe("util/schedule", () => {
   describe("stripTimezone", () => {
@@ -26,9 +23,9 @@ describe("util/schedule", () => {
       ["CRON_TZ=America/Central 0 8 1,2,4,5", "0 8 1,2,4,5"],
       ["30 9 1-5", "30 9 1-5"],
     ])(`stripTimezone(%p) returns %p`, (input, expected) => {
-      expect(stripTimezone(input)).toBe(expected)
-    })
-  })
+      expect(stripTimezone(input)).toBe(expected);
+    });
+  });
 
   describe("extractTimezone", () => {
     it.each<[string, string]>([
@@ -36,10 +33,10 @@ describe("util/schedule", () => {
       ["CRON_TZ=America/Central 0 8 1,2,4,5", "America/Central"],
       ["30 9 1-5", "UTC"],
     ])(`extractTimezone(%p) returns %p`, (input, expected) => {
-      expect(extractTimezone(input)).toBe(expected)
-    })
-  })
-})
+      expect(extractTimezone(input)).toBe(expected);
+    });
+  });
+});
 
 describe("maxDeadline", () => {
   const workspace: Workspace = {
@@ -48,100 +45,32 @@ describe("maxDeadline", () => {
       ...Mocks.MockWorkspaceBuild,
       deadline: startTime.add(8, "hours").utc().format(),
     },
-  }
+  };
   it("should be 24 hours from the workspace start time", () => {
-    const delta = getMaxDeadline(workspace).diff(startTime)
-    expect(delta).toEqual(deadlineExtensionMax.asMilliseconds())
-  })
-})
+    const delta = getMaxDeadline(workspace).diff(startTime);
+    expect(delta).toEqual(deadlineExtensionMax.asMilliseconds());
+  });
+});
 
 describe("minDeadline", () => {
   it("should never be less than 30 minutes", () => {
-    const delta = getMinDeadline().diff(now)
-    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds())
-  })
-})
+    const delta = getMinDeadline().diff(now);
+    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds());
+  });
+});
 
 describe("getMaxDeadlineChange", () => {
   it("should return the number of hours you can add before hitting the max deadline", () => {
-    const deadline = dayjs()
-    const maxDeadline = dayjs().add(1, "hour").add(40, "minutes")
+    const deadline = dayjs();
+    const maxDeadline = dayjs().add(1, "hour").add(40, "minutes");
     // you can only add one hour even though the max is 1:40 away
-    expect(getMaxDeadlineChange(deadline, maxDeadline)).toEqual(1)
-  })
+    expect(getMaxDeadlineChange(deadline, maxDeadline)).toEqual(1);
+  });
 
   it("should return the number of hours you can subtract before hitting the min deadline", () => {
-    const deadline = dayjs().add(2, "hours").add(40, "minutes")
-    const minDeadline = dayjs()
+    const deadline = dayjs().add(2, "hours").add(40, "minutes");
+    const minDeadline = dayjs();
     // you can only subtract 2 hours even though the min is 2:40 less
-    expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2)
-  })
-})
-
-describe("scheduleChanged", () => {
-  describe("autostart", () => {
-    it("should be true if toggle values are different", () => {
-      const autostart = { autostartEnabled: true, ...emptySchedule }
-      const formValues = {
-        autostartEnabled: false,
-        ...emptySchedule,
-        autostopEnabled: false,
-        ttl: emptyTTL,
-      }
-      expect(scheduleChanged(autostart, formValues)).toBe(true)
-    })
-    it("should be true if schedule values are different", () => {
-      const autostart = { autostartEnabled: true, ...emptySchedule }
-      const formValues = {
-        autostartEnabled: true,
-        ...{ ...emptySchedule, monday: true, startTime: "09:00" },
-        autostopEnabled: false,
-        ttl: emptyTTL,
-      }
-      expect(scheduleChanged(autostart, formValues)).toBe(true)
-    })
-    it("should be false if all autostart values are the same", () => {
-      const autostart = { autostartEnabled: true, ...emptySchedule }
-      const formValues = {
-        autostartEnabled: true,
-        ...emptySchedule,
-        autostopEnabled: false,
-        ttl: emptyTTL,
-      }
-      expect(scheduleChanged(autostart, formValues)).toBe(false)
-    })
-  })
-
-  describe("autostop", () => {
-    it("should be true if toggle values are different", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000 }
-      const formValues = {
-        autostartEnabled: false,
-        ...emptySchedule,
-        autostopEnabled: false,
-        ttl: 1000,
-      }
-      expect(scheduleChanged(autostop, formValues)).toBe(true)
-    })
-    it("should be true if ttl values are different", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000 }
-      const formValues = {
-        autostartEnabled: false,
-        ...emptySchedule,
-        autostopEnabled: true,
-        ttl: 2000,
-      }
-      expect(scheduleChanged(autostop, formValues)).toBe(true)
-    })
-    it("should be false if all autostop values are the same", () => {
-      const autostop = { autostopEnabled: true, ttl: 1000 }
-      const formValues = {
-        autostartEnabled: false,
-        ...emptySchedule,
-        autostopEnabled: true,
-        ttl: 1000,
-      }
-      expect(scheduleChanged(autostop, formValues)).toBe(false)
-    })
-  })
-})
+    expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+  });
+});

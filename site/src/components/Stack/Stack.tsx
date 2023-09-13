@@ -1,22 +1,22 @@
-import { makeStyles } from "@mui/styles"
-import { CSSProperties } from "@mui/styles/withStyles"
-import { FC } from "react"
-import { ReactNode } from "react-markdown/lib/react-markdown"
-import { combineClasses } from "../../utils/combineClasses"
+import { makeStyles } from "@mui/styles";
+import { CSSProperties } from "@mui/styles/withStyles";
+import { FC } from "react";
+import { ReactNode } from "react-markdown/lib/react-markdown";
+import { combineClasses } from "../../utils/combineClasses";
 
-type Direction = "column" | "row"
+type Direction = "column" | "row";
 
 export type StackProps = {
-  className?: string
-  direction?: Direction
-  spacing?: number
-  alignItems?: CSSProperties["alignItems"]
-  justifyContent?: CSSProperties["justifyContent"]
-  maxWidth?: CSSProperties["maxWidth"]
-  wrap?: CSSProperties["flexWrap"]
-} & React.HTMLProps<HTMLDivElement>
+  className?: string;
+  direction?: Direction;
+  spacing?: number;
+  alignItems?: CSSProperties["alignItems"];
+  justifyContent?: CSSProperties["justifyContent"];
+  maxWidth?: CSSProperties["maxWidth"];
+  wrap?: CSSProperties["flexWrap"];
+} & React.HTMLProps<HTMLDivElement>;
 
-type StyleProps = Omit<StackProps, "className">
+type StyleProps = Omit<StackProps, "className">;
 
 const useStyles = makeStyles((theme) => ({
   stack: {
@@ -32,7 +32,7 @@ const useStyles = makeStyles((theme) => ({
       width: "100%",
     },
   },
-}))
+}));
 
 export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
   children,
@@ -52,11 +52,11 @@ export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
     justifyContent,
     wrap,
     maxWidth,
-  })
+  });
 
   return (
     <div {...divProps} className={combineClasses([styles.stack, className])}>
       {children}
     </div>
-  )
-}
+  );
+};

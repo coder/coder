@@ -1,0 +1,5 @@
+# If you would like `git blame` to ignore commits from this file, run...
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# chore: format code with semicolons when using prettier (#9555)
+988c9af0153561397686c119da9d1336d2433fdd

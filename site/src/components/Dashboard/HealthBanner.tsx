@@ -1,18 +1,18 @@
-import { Alert } from "components/Alert/Alert"
-import { Link as RouterLink } from "react-router-dom"
-import Link from "@mui/material/Link"
-import { colors } from "theme/colors"
-import { useQuery } from "@tanstack/react-query"
-import { getHealth } from "api/api"
-import { useDashboard } from "./DashboardProvider"
+import { Alert } from "components/Alert/Alert";
+import { Link as RouterLink } from "react-router-dom";
+import Link from "@mui/material/Link";
+import { colors } from "theme/colors";
+import { useQuery } from "@tanstack/react-query";
+import { getHealth } from "api/api";
+import { useDashboard } from "./DashboardProvider";
 
 export const HealthBanner = () => {
   const { data: healthStatus } = useQuery({
     queryKey: ["health"],
     queryFn: () => getHealth(),
-  })
-  const dashboard = useDashboard()
-  const hasHealthIssues = healthStatus && !healthStatus.data.healthy
+  });
+  const dashboard = useDashboard();
+  const hasHealthIssues = healthStatus && !healthStatus.data.healthy;
 
   if (
     dashboard.experiments.includes("deployment_health_page") &&
@@ -38,8 +38,8 @@ export const HealthBanner = () => {
         </Link>
         .
       </Alert>
-    )
+    );
   }
 
-  return null
-}
+  return null;
+};

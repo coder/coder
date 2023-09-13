@@ -1,28 +1,23 @@
-import { ComponentMeta, Story } from "@storybook/react"
 import {
   mockApiError,
-  MockOrganization,
-  MockPermissions,
   MockTemplate,
   MockTemplateExample,
   MockTemplateExample2,
-} from "../../testHelpers/entities"
-import { TemplatesPageView, TemplatesPageViewProps } from "./TemplatesPageView"
+} from "../../testHelpers/entities";
+import { TemplatesPageView } from "./TemplatesPageView";
+import type { Meta, StoryObj } from "@storybook/react";
 
-export default {
+const meta: Meta<typeof TemplatesPageView> = {
   title: "pages/TemplatesPageView",
   component: TemplatesPageView,
-} as ComponentMeta<typeof TemplatesPageView>
+};
 
-const Template: Story<TemplatesPageViewProps> = (args) => (
-  <TemplatesPageView {...args} />
-)
+export default meta;
+type Story = StoryObj<typeof TemplatesPageView>;
 
-export const WithTemplates = Template.bind({})
-WithTemplates.args = {
-  context: {
-    organizationId: MockOrganization.id,
-    permissions: MockPermissions,
+export const WithTemplates: Story = {
+  args: {
+    canCreateTemplates: true,
     error: undefined,
     templates: [
       MockTemplate,
@@ -46,53 +41,42 @@ WithTemplates.args = {
     ],
     examples: [],
   },
-}
+};
 
-export const WithTemplatesSmallViewPort = Template.bind({})
-WithTemplatesSmallViewPort.args = {
-  ...WithTemplates.args,
-}
-WithTemplatesSmallViewPort.parameters = {
-  chromatic: { viewports: [600] },
-}
+export const WithTemplatesSmallViewPort: Story = {
+  args: {
+    ...WithTemplates.args,
+  },
+  parameters: {
+    chromatic: { viewports: [600] },
+  },
+};
 
-export const EmptyCanCreate = Template.bind({})
-EmptyCanCreate.args = {
-  context: {
-    organizationId: MockOrganization.id,
-    permissions: MockPermissions,
+export const EmptyCanCreate: Story = {
+  args: {
+    canCreateTemplates: true,
     error: undefined,
     templates: [],
     examples: [MockTemplateExample, MockTemplateExample2],
   },
-}
+};
 
-export const EmptyCannotCreate = Template.bind({})
-EmptyCannotCreate.args = {
-  context: {
-    organizationId: MockOrganization.id,
-    permissions: {
-      ...MockPermissions,
-      createTemplates: false,
-    },
+export const EmptyCannotCreate: Story = {
+  args: {
     error: undefined,
     templates: [],
     examples: [MockTemplateExample, MockTemplateExample2],
+    canCreateTemplates: false,
   },
-}
+};
 
-export const Error = Template.bind({})
-Error.args = {
-  context: {
-    organizationId: MockOrganization.id,
-    permissions: {
-      ...MockPermissions,
-      createTemplates: false,
-    },
+export const Error: Story = {
+  args: {
     error: mockApiError({
       message: "Something went wrong fetching templates.",
     }),
     templates: undefined,
     examples: undefined,
+    canCreateTemplates: false,
   },
-}
+};

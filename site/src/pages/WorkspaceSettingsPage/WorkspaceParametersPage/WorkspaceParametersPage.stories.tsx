@@ -1,9 +1,5 @@
-import { ComponentMeta, Story } from "@storybook/react"
-import {
-  WorkspaceParametersPageView,
-  WorkspaceParametersPageViewProps,
-} from "./WorkspaceParametersPage"
-import { action } from "@storybook/addon-actions"
+import { Meta, StoryObj } from "@storybook/react";
+import { WorkspaceParametersPageView } from "./WorkspaceParametersPage";
 import {
   MockWorkspaceBuildParameter1,
   MockWorkspaceBuildParameter2,
@@ -11,15 +7,15 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockWorkspaceBuildParameter3,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 
-export default {
+const meta: Meta<typeof WorkspaceParametersPageView> = {
   title: "pages/WorkspaceParametersPageView",
   component: WorkspaceParametersPageView,
   args: {
     submitError: undefined,
     isSubmitting: false,
-    onCancel: action("cancel"),
+
     data: {
       buildParameters: [
         MockWorkspaceBuildParameter1,
@@ -36,11 +32,9 @@ export default {
       ],
     },
   },
-} as ComponentMeta<typeof WorkspaceParametersPageView>
+};
 
-const Template: Story<WorkspaceParametersPageViewProps> = (args) => (
-  <WorkspaceParametersPageView {...args} />
-)
+export default meta;
+type Story = StoryObj<typeof WorkspaceParametersPageView>;
 
-export const Example = Template.bind({})
-Example.args = {}
+export const Example: Story = {};

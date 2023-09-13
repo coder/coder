@@ -1,38 +1,37 @@
-import { useTheme } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { Stack } from "components/Stack/Stack"
-import { TableEmpty } from "components/TableEmpty/TableEmpty"
-import { TableLoader } from "components/TableLoader/TableLoader"
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline"
-import dayjs from "dayjs"
-import { FC } from "react"
-import IconButton from "@mui/material/IconButton/IconButton"
-import { useTranslation } from "react-i18next"
-import { APIKeyWithOwner } from "api/typesGenerated"
-import relativeTime from "dayjs/plugin/relativeTime"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+import { useTheme } from "@mui/styles";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import { Stack } from "components/Stack/Stack";
+import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { TableLoader } from "components/TableLoader/TableLoader";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import dayjs from "dayjs";
+import { FC } from "react";
+import IconButton from "@mui/material/IconButton/IconButton";
+import { APIKeyWithOwner } from "api/typesGenerated";
+import relativeTime from "dayjs/plugin/relativeTime";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 
-dayjs.extend(relativeTime)
+dayjs.extend(relativeTime);
 
 const lastUsedOrNever = (lastUsed: string) => {
-  const t = dayjs(lastUsed)
-  const now = dayjs()
-  return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never"
-}
+  const t = dayjs(lastUsed);
+  const now = dayjs();
+  return now.isBefore(t.add(100, "year")) ? t.fromNow() : "Never";
+};
 
 export interface TokensPageViewProps {
-  tokens?: APIKeyWithOwner[]
-  getTokensError?: unknown
-  isLoading: boolean
-  hasLoaded: boolean
-  onDelete: (token: APIKeyWithOwner) => void
-  deleteTokenError?: unknown
+  tokens?: APIKeyWithOwner[];
+  getTokensError?: unknown;
+  isLoading: boolean;
+  hasLoaded: boolean;
+  onDelete: (token: APIKeyWithOwner) => void;
+  deleteTokenError?: unknown;
 }
 
 export const TokensPageView: FC<
@@ -45,8 +44,7 @@ export const TokensPageView: FC<
   onDelete,
   deleteTokenError,
 }) => {
-  const theme = useTheme()
-  const { t } = useTranslation("tokensPage")
+  const theme = useTheme();
 
   return (
     <Stack>
@@ -56,11 +54,11 @@ export const TokensPageView: FC<
         <Table>
           <TableHead>
             <TableRow>
-              <TableCell width="20%">{t("table.id")}</TableCell>
-              <TableCell width="20%">{t("table.name")}</TableCell>
-              <TableCell width="20%">{t("table.lastUsed")}</TableCell>
-              <TableCell width="20%">{t("table.expiresAt")}</TableCell>
-              <TableCell width="20%">{t("table.createdAt")}</TableCell>
+              <TableCell width="20%">ID</TableCell>
+              <TableCell width="20%">Name</TableCell>
+              <TableCell width="20%">Last Used</TableCell>
+              <TableCell width="20%">Expires At</TableCell>
+              <TableCell width="20%">Created At</TableCell>
               <TableCell width="0%"></TableCell>
             </TableRow>
           </TableHead>
@@ -70,7 +68,7 @@ export const TokensPageView: FC<
                 <TableLoader />
               </Cond>
               <Cond condition={hasLoaded && tokens?.length === 0}>
-                <TableEmpty message={t("emptyState")} />
+                <TableEmpty message="No tokens found" />
               </Cond>
               <Cond>
                 {tokens?.map((token) => {
@@ -113,19 +111,17 @@ export const TokensPageView: FC<
                         <span style={{ color: theme.palette.text.secondary }}>
                           <IconButton
                             onClick={() => {
-                              onDelete(token)
+                              onDelete(token);
                             }}
                             size="medium"
-                            aria-label={t(
-                              "tokenActions.deleteToken.delete",
-                            ).toString()}
+                            aria-label="Delete token"
                           >
                             <DeleteOutlineIcon />
                           </IconButton>
                         </span>
                       </TableCell>
                     </TableRow>
-                  )
+                  );
                 })}
               </Cond>
             </ChooseOne>
@@ -133,5 +129,5 @@ export const TokensPageView: FC<
         </Table>
       </TableContainer>
     </Stack>
-  )
-}
+  );
+};

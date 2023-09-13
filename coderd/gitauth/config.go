@@ -60,17 +60,30 @@ type Config struct {
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
-// It returns the token and a bool indicating if the token was refreshed.
+// It returns the token and a bool indicating if the token is valid.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
-	if c.NoRefresh && gitAuthLink.OAuthExpiry.Before(dbtime.Now()) {
+	if c.NoRefresh &&
+		// If the time is set to 0, then it should never expire.
+		// This is true for github, which has no expiry.
+		!gitAuthLink.OAuthExpiry.IsZero() &&
+		gitAuthLink.OAuthExpiry.Before(dbtime.Now()) {
 		return gitAuthLink, false, nil
+	}
+
+	// This is additional defensive programming. Because TokenSource is an interface,
+	// we cannot be sure that the implementation will treat an 'IsZero' time
+	// as "not-expired". The default implementation does, but a custom implementation
+	// might not. Removing the refreshToken will guarantee a refresh will fail.
+	refreshToken := gitAuthLink.OAuthRefreshToken
+	if c.NoRefresh {
+		refreshToken = ""
 	}
 
 	token, err := c.TokenSource(ctx, &oauth2.Token{
 		AccessToken:  gitAuthLink.OAuthAccessToken,
-		RefreshToken: gitAuthLink.OAuthRefreshToken,
+		RefreshToken: refreshToken,
 		Expiry:       gitAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
@@ -130,8 +143,13 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 	if err != nil {
 		return false, nil, err
 	}
+
+	cli := http.DefaultClient
+	if v, ok := ctx.Value(oauth2.HTTPClient).(*http.Client); ok {
+		cli = v
+	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-	res, err := http.DefaultClient.Do(req)
+	res, err := cli.Do(req)
 	if err != nil {
 		return false, nil, err
 	}

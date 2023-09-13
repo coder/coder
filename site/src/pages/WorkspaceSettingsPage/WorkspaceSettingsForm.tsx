@@ -3,41 +3,42 @@ import {
   FormFooter,
   FormSection,
   HorizontalForm,
-} from "components/Form/Form"
-import { useFormik } from "formik"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
-import * as Yup from "yup"
-import { nameValidator, getFormHelpers, onChangeTrimmed } from "utils/formUtils"
-import TextField from "@mui/material/TextField"
-import { Workspace } from "api/typesGenerated"
+} from "components/Form/Form";
+import { useFormik } from "formik";
+import { FC } from "react";
+import * as Yup from "yup";
+import {
+  nameValidator,
+  getFormHelpers,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import TextField from "@mui/material/TextField";
+import { Workspace } from "api/typesGenerated";
 
 export type WorkspaceSettingsFormValues = {
-  name: string
-}
+  name: string;
+};
 
 export const WorkspaceSettingsForm: FC<{
-  isSubmitting: boolean
-  workspace: Workspace
-  error: unknown
-  onCancel: () => void
-  onSubmit: (values: WorkspaceSettingsFormValues) => void
+  isSubmitting: boolean;
+  workspace: Workspace;
+  error: unknown;
+  onCancel: () => void;
+  onSubmit: (values: WorkspaceSettingsFormValues) => void;
 }> = ({ onCancel, onSubmit, workspace, error, isSubmitting }) => {
-  const { t } = useTranslation("workspaceSettingsPage")
-
   const form = useFormik<WorkspaceSettingsFormValues>({
     onSubmit,
     initialValues: {
       name: workspace.name,
     },
     validationSchema: Yup.object({
-      name: nameValidator(t("nameLabel")),
+      name: nameValidator("Name"),
     }),
-  })
+  });
   const getFieldHelpers = getFormHelpers<WorkspaceSettingsFormValues>(
     form,
     error,
-  )
+  );
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
@@ -52,11 +53,11 @@ export const WorkspaceSettingsForm: FC<{
             onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
-            label={t("nameLabel")}
+            label="Name"
           />
         </FormFields>
       </FormSection>
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
-  )
-}
+  );
+};

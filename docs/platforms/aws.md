@@ -56,7 +56,8 @@ or using the console:
 ```shell
 ssh ubuntu@<ec2-public-IPv4>
 sudo vim /etc/coder.d/coder.env # edit config
-sudo service coder restart # restart Coder
+sudo systemctl daemon-reload
+sudo systemctl restart coder # restart Coder
 ```
 
 ## Give developers EC2 workspaces (optional)
