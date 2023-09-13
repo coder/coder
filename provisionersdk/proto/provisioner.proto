@@ -144,7 +144,7 @@ message Script {
 	bool start_blocks_login = 5;
 	bool run_on_start = 6;
 	bool run_on_stop = 7;
-	int32 timeout = 8;
+	int32 timeout_seconds = 8;
 	string log_path = 9;
 }
 

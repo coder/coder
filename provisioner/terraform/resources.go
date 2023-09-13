@@ -238,7 +238,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 					DisplayName:      "Startup Script",
 					Script:           attrs.StartupScript,
 					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
-					Timeout:          attrs.StartupScriptTimeoutSeconds,
 					RunOnStart:       true,
 				})
 			}
@@ -247,7 +246,6 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 					LogPath:     "coder-shutdown-script.log",
 					DisplayName: "Shutdown Script",
 					Script:      attrs.ShutdownScript,
-					Timeout:     attrs.ShutdownScriptTimeoutSeconds,
 					RunOnStop:   true,
 				})
 			}
@@ -456,7 +454,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						StartBlocksLogin: attrs.StartBlocksLogin,
 						RunOnStart:       attrs.RunOnStart,
 						RunOnStop:        attrs.RunOnStop,
-						Timeout:          attrs.TimeoutSeconds,
+						TimeoutSeconds:   attrs.TimeoutSeconds,
 					})
 				}
 			}

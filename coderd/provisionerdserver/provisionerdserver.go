@@ -1299,7 +1299,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
 			scriptSources = append(scriptSources, script.Script)
 			scriptCron = append(scriptCron, script.Cron)
-			scriptTimeout = append(scriptTimeout, script.Timeout)
+			scriptTimeout = append(scriptTimeout, script.TimeoutSeconds)
 			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
 			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
 			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
