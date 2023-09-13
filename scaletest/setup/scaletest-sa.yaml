@@ -12,17 +12,17 @@ metadata:
   namespace: coder-big
 rules:
   - apiGroups:
-    - ""
+      - ""
     resources: ["*"]
     verbs:
-    - get
-    - list
-    - watch
-    - create
-    - update
-    - patch
-    - delete
-    - deletecollection
+      - get
+      - list
+      - watch
+      - create
+      - update
+      - patch
+      - delete
+      - deletecollection
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -48,3 +48,4 @@ roleRef:
   kind: Role
   name: coder-podmonitor
 ---
+
