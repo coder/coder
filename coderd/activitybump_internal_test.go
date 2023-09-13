@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 
 	"github.com/stretchr/testify/require"
@@ -22,72 +23,72 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 	t.Parallel()
 
 	for _, tt := range []struct {
-		name           string
-		transition     database.WorkspaceTransition
-		jobCompletedAt sql.NullTime
-		buildDeadline  time.Time
-		maxDeadline    time.Time
-		workspaceTTL   time.Duration
-		expectedBump   time.Duration
+		name                string
+		transition          database.WorkspaceTransition
+		jobCompletedAt      sql.NullTime
+		buildDeadlineOffset *time.Duration
+		maxDeadline         time.Time
+		workspaceTTL        time.Duration
+		expectedBump        time.Duration
 	}{
 		{
-			name:           "NotFinishedYet",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{},
-			buildDeadline:  dbtime.Now().Add(8 * time.Hour),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   0,
+			name:                "NotFinishedYet",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{},
+			buildDeadlineOffset: ptr.Ref(8 * time.Hour),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        0,
 		},
 		{
-			name:           "ManualShutdown",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
-			buildDeadline:  time.Time{},
-			expectedBump:   0,
+			name:                "ManualShutdown",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+			buildDeadlineOffset: nil,
+			expectedBump:        0,
 		},
 		{
-			name:           "NotTimeToBumpYet",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
-			buildDeadline:  dbtime.Now().Add(8 * time.Hour),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   0,
+			name:                "NotTimeToBumpYet",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now()},
+			buildDeadlineOffset: ptr.Ref(8 * time.Hour),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        0,
 		},
 		{
-			name:           "TimeToBump",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadline:  dbtime.Now().Add(8*time.Hour - 24*time.Minute),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   8 * time.Hour,
+			name:                "TimeToBump",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(8*time.Hour - 24*time.Minute),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        8 * time.Hour,
 		},
 		{
-			name:           "MaxDeadline",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadline:  dbtime.Now().Add(time.Minute), // last chance to bump!
-			maxDeadline:    dbtime.Now().Add(time.Hour),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   1 * time.Hour,
+			name:                "MaxDeadline",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(time.Minute), // last chance to bump!
+			maxDeadline:         dbtime.Now().Add(time.Hour),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        1 * time.Hour,
 		},
 		{
 			// A workspace that is still running, has passed its deadline, but has not
 			// yet been auto-stopped should still bump the deadline.
-			name:           "PastDeadlineStillBumps",
-			transition:     database.WorkspaceTransitionStart,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadline:  dbtime.Now().Add(-time.Minute),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   8 * time.Hour,
+			name:                "PastDeadlineStillBumps",
+			transition:          database.WorkspaceTransitionStart,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
+			buildDeadlineOffset: ptr.Ref(-time.Minute),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        8 * time.Hour,
 		},
 		{
 			// A stopped workspace should never bump.
-			name:           "StoppedWorkspace",
-			transition:     database.WorkspaceTransitionStop,
-			jobCompletedAt: sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Minute)},
-			buildDeadline:  dbtime.Now().Add(-time.Minute),
-			workspaceTTL:   8 * time.Hour,
-			expectedBump:   0,
+			name:                "StoppedWorkspace",
+			transition:          database.WorkspaceTransitionStop,
+			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Minute)},
+			buildDeadlineOffset: ptr.Ref(-time.Minute),
+			workspaceTTL:        8 * time.Hour,
+			expectedBump:        0,
 		},
 	} {
 		tt := tt
@@ -95,6 +96,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			t.Parallel()
 
 			var (
+				now   = dbtime.Now()
 				ctx   = testutil.Context(t, testutil.WaitShort)
 				log   = slogtest.Make(t, nil)
 				db, _ = dbtestutil.NewDB(t)
@@ -141,6 +143,10 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			}
 
 			// dbgen.WorkspaceBuild automatically sets deadline to now+1 hour if not set
+			var buildDeadline time.Time
+			if tt.buildDeadlineOffset != nil {
+				buildDeadline = now.Add(*tt.buildDeadlineOffset)
+			}
 			err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                buildID,
 				CreatedAt:         dbtime.Now(),
@@ -152,7 +158,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				JobID:             job.ID,
 				TemplateVersionID: templateVersion.ID,
 				Transition:        tt.transition,
-				Deadline:          tt.buildDeadline,
+				Deadline:          buildDeadline,
 				MaxDeadline:       tt.maxDeadline,
 			})
 			require.NoError(t, err, "unexpected error inserting workspace build")
@@ -162,19 +168,21 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			// Validate our initial state before bump
 			require.Equal(t, tt.transition, bld.Transition, "unexpected transition before bump")
 			require.Equal(t, tt.jobCompletedAt.Time.UTC(), job.CompletedAt.Time.UTC(), "unexpected job completed at before bump")
-			require.Equal(t, tt.buildDeadline.UTC(), bld.Deadline.UTC(), "unexpected build deadline before bump")
+			require.Equal(t, buildDeadline.UTC(), bld.Deadline.UTC(), "unexpected build deadline before bump")
 			require.Equal(t, tt.maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 			require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
 			workaroundWindowsTimeResolution(t)
 
+			// Bump duration is measured from the time of the bump, so we measure from here.
 			start := dbtime.Now()
 			activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
 			elapsed := time.Since(start)
 			if elapsed > 15*time.Second {
 				t.Logf("warning: activityBumpWorkspace took longer than 15 seconds: %s", elapsed)
 			}
-			// Guessing at the approximate time of the bump here, if it happened.
+			// The actual bump could have happened anywhere in the elapsed time, so we
+			// guess at the approximate time of the bump.
 			approxBumpTime := start.Add(elapsed / 2)
 
 			// Validate our state after bump
