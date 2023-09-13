@@ -1,15 +1,18 @@
 # Parameters
 
-Templates can contain _parameters_, which allow prompting the user for additional information when creating workspaces in both the UI and CLI.
-
-You'll likely want to hardcode certain template properties for workspaces (e.g. "security group, VPC"). You can expose other properties via parameters to give developers flexibility (e.g. instance size, GitHub repo URL).
-
-![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
-
-> Parameters are defined via the template's Terraform code. [Learn more](./parameters.md)
-
+A template can prompt the user for additional information when creating workspaces with  [_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
 
 ![Parameters in Create Workspace screen](../images/parameters.png)
+
+The user can set parameters in the UI and CLI.
+
+You'll likely want to hardcode certain template properties for
+workspaces, such as security group, VPC. You can expose other
+properties with parameters to give developers the flexibility to
+specify their own instance size, repo URL, and so on.
+
+This example lets a developer choose the Docker host for the
+workspace:
 
 ```hcl
 data "coder_parameter" "docker_host" {
@@ -39,7 +42,7 @@ data "coder_parameter" "docker_host" {
 }
 ```
 
-From there, parameters can be referenced during build-time:
+From there, a template can refer to parameters at build time:
 
 ```hcl
 provider "docker" {
@@ -47,18 +50,15 @@ provider "docker" {
 }
 ```
 
-> For a complete list of supported parameter properties, see the
-> [coder_parameter Terraform reference](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter)
-
 ## Types
 
-The following parameter types are supported: `string`, `list(string)`, `bool`, and `number`.
+A Coder parameter can have one of these types: `string`,
+`list(string)`, `bool`, and `number`.
 
-### List of strings
-
-List of strings is a specific parameter type, that can't be easily mapped to the default value, which is string type.
-Parameters with the `list(string)` type must be converted to JSON arrays using [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
-function.
+To specify a default value for a parameter with the `list(string)`
+type use a JSON array and the Terraform
+[jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
+function. For example:
 
 ```hcl
 data "coder_parameter" "security_groups" {
@@ -77,7 +77,7 @@ data "coder_parameter" "security_groups" {
 
 ## Options
 
-A _string_ parameter can provide a set of options to limit the choice:
+A _string_ parameter can provide a set of options to limit the user's choices:
 
 ```hcl
 data "coder_parameter" "docker_host" {
@@ -108,7 +108,9 @@ data "coder_parameter" "docker_host" {
 
 ## Required and optional parameters
 
-A parameter is considered to be _required_ if it doesn't have the `default` property. The user **must** provide a value to this parameter before creating a workspace.
+A parameter is considered to be _required_ if it doesn't have the
+`default` property. The user **must** provide a value to this
+parameter before creating a workspace.
 
 ```hcl
 data "coder_parameter" "account_name" {
@@ -118,8 +120,8 @@ data "coder_parameter" "account_name" {
 }
 ```
 
-If a parameter contains the `default` property, Coder will use this value
-if the user does not specify any:
+If a parameter contains the `default` property, Coder will use this
+value if the user does not specify any:
 
 ```hcl
 data "coder_parameter" "base_image" {
@@ -129,7 +131,8 @@ data "coder_parameter" "base_image" {
 }
 ```
 
-Admins can also set the `default` property to an empty value so that the parameter field can remain empty:
+Admins can also set the `default` property to an empty value so that
+the parameter field can remain empty:
 
 ```hcl
 data "coder_parameter" "dotfiles_url" {
@@ -142,7 +145,16 @@ data "coder_parameter" "dotfiles_url" {
 
 ## Mutability
 
-Immutable parameters can be only set before workspace creation, or during update on the first usage to set the initial value for required parameters. The idea is to prevent users from modifying fragile or persistent workspace resources like volumes, regions, etc.:
+Immutable parameters can be only be set in these situations:
+
+- Creating a workspace for the first time.
+- Updating a workspace to a new template version. This sets the
+initial value for required parameters.
+
+The idea is to prevent users from modifying fragile or
+persistent workspace resources like volumes, regions, and so on.
+
+Example:
 
 ```hcl
 data "coder_parameter" "region" {
@@ -153,16 +165,21 @@ data "coder_parameter" "region" {
 }
 ```
 
-It is allowed to modify the mutability state anytime. In case of emergency, template authors can temporarily allow for changing immutable parameters to fix an operational issue, but it is not
-advised to overuse this opportunity.
+You can modift a parameter's `mutable` attribute state anytime. In
+case of emergency, you can temporarily allow for changing immutable
+parameters to fix an operational issue, but it is not advised to
+overuse this opportunity.
 
 ## Ephemeral parameters
 
-Ephemeral parameters are introduced to users in the form of "build options." This functionality can be used to model
-specific behaviors within a Coder workspace, such as reverting to a previous image, restoring from a volume snapshot, or
-building a project without utilizing cache.
+Ephemeral parameters are introduced to users in the form of "build
+options." This functionality can be used to model specific behaviors
+within a Coder workspace, such as reverting to a previous image,
+restoring from a volume snapshot, or building a project without
+utilizing cache.
 
-As these parameters are ephemeral in nature, subsequent builds will proceed in the standard manner.
+As these parameters are ephemeral in nature, subsequent builds will
+proceed in the standard manner.
 
 ```hcl
 data "coder_parameter" "force_rebuild" {
@@ -175,14 +192,19 @@ data "coder_parameter" "force_rebuild" {
 }
 ```
 
-## Validation
+## Validating parameters
 
-Rich parameters support multiple validation modes - min, max, monotonic numbers, and regular expressions.
+Rich parameters support multiple validation modes - min, max,
+monotonic numbers, and regular expressions.
 
 ### Number
 
-A _number_ parameter can be limited to boundaries - min, max. Additionally, the monotonicity (`increasing` or `decreasing`) between the current parameter value and the new one can be verified too.
-Monotonicity can be enabled for resources that can't be shrunk without implications, for instance - disk volume size.
+You can limit a _number_ parameter to `min` and `max` boundaries.
+
+You can also specify its monotonicity as `increasing` or `decreasing`
+to verify the current and new values. Use the `monotonic` aatribute
+for resources that can't be shrunk or grown without implications, like
+disk volume size.
 
 ```hcl
 data "coder_parameter" "instances" {
@@ -199,7 +221,8 @@ data "coder_parameter" "instances" {
 
 ### String
 
-A _string_ parameter can have a regular expression defined to make sure that the parameter value matches the pattern. The `regex` property requires a corresponding `error` property.
+You can validate a _string_ parameter to match a regular expression.
+The `regex` property requires a corresponding `error` property.
 
 ```hcl
 data "coder_parameter" "project_id" {
@@ -216,11 +239,16 @@ data "coder_parameter" "project_id" {
 
 ### Legacy parameters are unsupported now
 
-In Coder, workspaces using legacy parameters can't be deployed anymore. To address this, it is necessary to either remove or adjust incompatible templates.
-In some cases, deleting a workspace with a hard dependency on a legacy parameter may be challenging. To cleanup unsupported workspaces, administrators are advised to take the following actions for affected templates:
+In Coder, workspaces using legacy parameters can't be deployed
+anymore. To address this, it is necessary to either remove or adjust
+incompatible templates. In some cases, deleting a workspace with a
+hard dependency on a legacy parameter may be challenging. To cleanup
+unsupported workspaces, administrators are advised to take the
+following actions for affected templates:
 
 1. Enable the `feature_use_managed_variables` provider flag.
-2. Ensure that every legacy variable block has defined missing default values, or convert it to `coder_parameter`.
+2. Ensure that every legacy variable block has defined missing default
+   values, or convert it to `coder_parameter`.
 3. Push the new template version using UI or CLI.
 4. Update unsupported workspaces to the newest template version.
 5. Delete the affected workspaces that have been updated to the newest template version.
@@ -229,8 +257,11 @@ In some cases, deleting a workspace with a hard dependency on a legacy parameter
 
 > ⚠️ Migration is available until v0.24.0 (Jun 2023) release.
 
-Terraform `variable` shouldn't be used for workspace scoped parameters anymore, and it's required to convert `variable` to `coder_parameter` resources. To make the migration smoother, there is a special property introduced -
-`legacy_variable` and `legacy_variable_name` , which can link `coder_parameter` with a legacy variable.
+Terraform `variable` shouldn't be used for workspace scoped parameters
+anymore, and it's required to convert `variable` to `coder_parameter`
+resources. To make the migration smoother, there is a special property
+introduced - `legacy_variable` and `legacy_variable_name` , which can
+link `coder_parameter` with a legacy variable.
 
 ```hcl
 variable "legacy_cpu" {
@@ -254,34 +285,48 @@ data "coder_parameter" "cpu" {
 
 1. Prepare and update a new template version:
 
-   - Add `coder_parameter` resource matching the legacy variable to migrate.
-   - Use `legacy_variable_name` and `legacy_variable` to link the `coder_parameter` to the legacy variable.
-   - Mark the new parameter as `mutable`, so that Coder will not block updating existing workspaces.
+   - Add `coder_parameter` resource matching the legacy variable to
+     migrate.
+   - Use `legacy_variable_name` and `legacy_variable` to link the
+     `coder_parameter` to the legacy variable.
+   - Mark the new parameter as `mutable`, so that Coder will not block
+     updating existing workspaces.
 
-2. Update all workspaces to the updated template version. Coder will populate the added `coder_parameter`s with values from legacy variables.
+2. Update all workspaces to the updated template version. Coder will
+   populate the added `coder_parameter`s with values from legacy
+   variables.
 3. Prepare another template version:
 
    - Remove the migrated variables.
-   - Remove properties `legacy_variable` and `legacy_variable_name` from `coder_parameter`s.
+   - Remove properties `legacy_variable` and `legacy_variable_name`
+     from `coder_parameter`s.
 
 4. Update all workspaces to the updated template version (2nd).
 5. Prepare a third template version:
 
-   - Enable the `feature_use_managed_variables` provider flag to use managed Terraform variables for template customization. Once the flag is enabled, legacy variables won't be used.
+   - Enable the `feature_use_managed_variables` provider flag to use
+     managed Terraform variables for template customization. Once the
+     flag is enabled, legacy variables won't be used.
 
 6. Update all workspaces to the updated template version (3rd).
 7. Delete legacy parameters.
 
-As a template improvement, the template author can consider making some of the new `coder_parameter` resources `mutable`.
+As a template improvement, the template author can consider making
+some of the new `coder_parameter` resources `mutable`.
 
 ## Terraform template-wide variables
 
-> ⚠️ Flag `feature_use_managed_variables` is available until v0.25.0 (Jul 2023) release. After this release, template-wide Terraform variables will be enabled by default.
+> ⚠️ Flag `feature_use_managed_variables` is available until v0.25.0
+> (Jul 2023) release. After this release, template-wide Terraform
+> variables will be enabled by default.
 
-As parameters are intended to be used only for workspace customization purposes, Terraform variables can be freely managed by the template author to build templates. Workspace users are not able to modify
+As parameters are intended to be used only for workspace customization
+purposes, Terraform variables can be freely managed by the template
+author to build templates. Workspace users are not able to modify
 template variables.
 
-The template author can enable Terraform template-wide variables mode by specifying the following flag:
+The template author can enable Terraform template-wide variables mode
+by specifying the following flag:
 
 ```hcl
 provider "coder" {
@@ -289,4 +334,6 @@ provider "coder" {
 }
 ```
 
-Once it's defined, coder will allow for modifying variables by using CLI and UI forms, but it will not be possible to use legacy parameters.
+Once it's defined, Coder will allow for modifying variables by using
+CLI and UI forms, but it will not be possible to use legacy
+parameters.

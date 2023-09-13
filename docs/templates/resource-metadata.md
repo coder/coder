@@ -1,6 +1,15 @@
 # Resource Metadata
 
-Expose key workspace information to your users via [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata) resources in your template code.
+Expose key workspace information to your users with
+[`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata)
+resources in your template code.
+
+You can use `coder_metadata` to show Terraform resource attributes like these:
+
+- Compute resources
+- IP addresses
+- [Secrets](../secrets.md#displaying-secrets)
+- Important file paths
 
 ![ui](../images/metadata-ui.png)
 
@@ -8,19 +17,12 @@ Expose key workspace information to your users via [`coder_metadata`](https://re
 Coder automatically generates the <code>type</code> metadata.
 </blockquote>
 
-You can use `coder_metadata` to show
-
-- Compute resources
-- IP addresses
-- [Secrets](../secrets.md#displaying-secrets)
-- Important file paths
-
-and any other Terraform resource attribute.
+You can also present automatically updating, dynamic values with [agent metadata](./agent-metadata.md).
 
 ## Example
 
-Expose the disk size, deployment name, and persistent
-directory in a Kubernetes template with:
+Expose the disk size, deployment name, and persistent directory in a
+Kubernetes template with:
 
 ```hcl
 resource "kubernetes_persistent_volume_claim" "root" {
@@ -57,7 +59,9 @@ resource "coder_metadata" "deployment" {
 
 ## Hiding resources in the UI
 
-Some resources don't need to be exposed in the UI; this helps keep the workspace view clean for developers. To hide a resource, use the `hide` attribute:
+Some resources don't need to be exposed in the UI. This helps keep the
+workspace view clean for developers. To hide a resource, use the
+`hide` attribute:
 
 ```hcl
 resource "coder_metadata" "hide_serviceaccount" {
@@ -71,9 +75,10 @@ resource "coder_metadata" "hide_serviceaccount" {
 }
 ```
 
-## Using custom resource icon
+## Using a custom resource icon
 
-To use custom icons on your resources, use the `icon` attribute (must be a valid path or URL):
+To use custom icons for your resource metadata, use the `icon`
+attribute. It must be a valid path or URL.
 
 ```hcl
 resource "coder_metadata" "resource_with_icon" {
@@ -87,7 +92,8 @@ resource "coder_metadata" "resource_with_icon" {
 }
 ```
 
-To make easier for you to customize your resource we added some built-in icons:
+To make easier for you to customize your resource we added some
+built-in icons:
 
 - Folder `/icon/folder.svg`
 - Memory `/icon/memory.svg`
@@ -97,28 +103,7 @@ To make easier for you to customize your resource we added some built-in icons:
 
 We also have other icons related to the IDEs. You can see all the icons [here](https://github.com/coder/coder/tree/main/site/static/icon).
 
-## Agent Metadata
-
-In cases where you want to present automatically updating, dynamic values. You
-can use the `metadata` block in the `coder_agent` resource. For example:
-
-```hcl
-resource "coder_agent" "dev" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/workspace"
-  metadata {
-    name = "Process Count"
-    script = "ps aux | wc -l"
-    interval = 1
-    timeout = 3
-  }
-}
-```
-
-Read more [here](./agent-metadata.md).
-
 ## Up next
 
-- Learn about [secrets](../secrets.md)
-- Learn about [Agent Metadata](./agent-metadata.md)
+- [Secrets](../secrets.md)
+- [Agent metadata](./agent-metadata.md)

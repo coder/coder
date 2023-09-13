@@ -7,9 +7,9 @@
   </p>
 </blockquote>
 
-The Coder server's provisioner process needs to authenticate with
-cloud provider APIs to provision workspaces. There are two approaches
-to do this:
+The Coder server's [provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)
+process needs to authenticate with cloud provider APIs to provision
+workspaces. There are two approaches to do this:
 
 - Pass credentials to the provisioner as parameters.
 - Preferred: Execute the Coder server in an environment that is
@@ -21,16 +21,16 @@ template, keeps cloud provider credentials out of Coder's database
 with agent-based authentication schemes, which handle credential
 rotation or ensure the credentials are not written to disk.
 
-Generally, you can set up an environment to provide credentials to Cover in these ways:
+Generally, you can set up an environment to provide credentials to
+Coder in these ways:
 
-- A well-known location on disk: For example, `~/.aws/credentials` for
+- A well-known location on disk. For example, `~/.aws/credentials` for
   AWS on POSIX systems.
-
-- Environment: variables.
+- Environment variables.
 
 It is usually sufficient to authenticate using the CLI or SDK for the
-cloud provider before running Coder for this to work, but check the
-Terraform provider documentation for details.
+cloud provider before running Coder, but check the Terraform
+provider's documentation for details.
 
 Cloud providers for which the Terraform provider supports
 authenticated environments include:
@@ -40,6 +40,6 @@ authenticated environments include:
 - [Microsoft Azure](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 - [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
 
-Additional providers may be supported. Check the [documentation of the
-Terraform provider](https://registry.terraform.io/browse/providers)
-for details.
+Other providers might also support authenticated environments. Check
+the [documentation of the Terraform
+provider](https://registry.terraform.io/browse/providers) for details.

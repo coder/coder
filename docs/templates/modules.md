@@ -1,8 +1,13 @@
 # Template inheritance
 
-In instances where you want to reuse code across different Coder templates, such as common scripts or resource definitions, we suggest using [Terraform Modules](https://developer.hashicorp.com/terraform/language/modules).
+In instances where you want to reuse code across different Coder
+templates, such as common scripts or resource definitions, we suggest
+using [Terraform
+Modules](https://developer.hashicorp.com/terraform/language/modules).
 
-These modules can be stored externally from Coder, like in a Git repository or a Terraform registry. Below is an example of how to reference a module in your template:
+These modules can be stored externally from Coder, like in a Git
+repository or a Terraform registry. This example shows how to
+reference a module in your template:
 
 ```hcl
 data "coder_workspace" "me" {}
@@ -29,9 +34,17 @@ resource "coder_agent" "dev" {
 
 ## Git authentication
 
-If you are importing a module from a private git repository, the Coder server [or provisioner](../admin/provisioners.md) needs git credentials. Since this token will only be used for cloning your repositories with modules, it is best to create a token with limited access to repositories and no extra permissions. In GitHub, you can generate a [fine-grained token](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens?apiVersion=2022-11-28) with read only access to repos.
+If you are importing a module from a private git repository, the Coder
+server or [provisioner](../admin/provisioners.md) needs git
+credentials. Since this token will only be used for cloning your
+repositories with modules, it is best to create a token with limited
+access to repositories and no extra permissions. In GitHub, you can
+generate a [fine-grained
+token](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens?apiVersion=2022-11-28)
+with read only access to repos.
 
-If you are running Coder on a VM, make sure you have `git` installed and the `coder` user has access to the following files
+If you are running Coder on a VM, make sure you have `git` installed
+and the `coder` user has access to the following files
 
 ```sh
 # /home/coder/.gitconfig
@@ -46,13 +59,19 @@ If you are running Coder on a VM, make sure you have `git` installed and the `co
 https://your-github-username:your-github-pat@github.com
 ```
 
-If you are running Coder on Docker or Kubernetes, `git` is pre-installed in the Coder image. However, you still need to mount credentials. This can be done via a Docker volume mount or Kubernetes secrets.
+If you are running Coder on Docker or Kubernetes, `git` is
+pre-installed in the Coder image. However, you still need to mount
+credentials. This can be done via a Docker volume mount or Kubernetes
+secrets.
 
 ### Passing git credentials in Kubernetes
 
-First, create a `.gitconfig` and `.git-credentials` file on your local machine. You may want to do this in a temporary directory to avoid conflicting with your own git credentials.
+First, create a `.gitconfig` and `.git-credentials` file on your local
+machine. You might want to do this in a temporary directory to avoid
+conflicting with your own git credentials.
 
-Next, create the secret in Kubernetes. Be sure to do this in the same namespace that Coder is installed in.
+Next, create the secret in Kubernetes. Be sure to do this in the same
+namespace that Coder is installed in.
 
 ```sh
 export NAMESPACE=coder

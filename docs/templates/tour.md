@@ -155,11 +155,6 @@ browser-based [VS Code](https://code.visualstudio.com/) app that runs
 in the workspace. We'll let users access code-server through
 `coder_app`, later.
 
-Because Docker is running locally to the Coder server, there is no
-need to authenticate `coder_agent`. But if your `coder_agent` were
-running on a remote host, you would also refer to [authentication
-credentials](./authentication.md).
-
 ```hcl
 resource "coder_agent" "main" {
   arch                   = data.coder_provisioner.me.arch
@@ -190,13 +185,17 @@ resource "coder_agent" "main" {
   }
 }
 ```
-Agents can also run startup scripts, set environment variables and
-provide `metadata`. `
 
-These example `metadata` blocks are optional. Coder displays this
-information in the Coder dashboard. For basic information, you can
-invoke the [`coder stat`](../cli.md) command. If you need more
-control, you can write your own script.
+Because Docker is running locally to the Coder server, there is no
+need to authenticate `coder_agent`. But if your `coder_agent` were
+running on a remote host, you would also refer to [authentication
+credentials](./authentication.md).
+
+Agents can also run startup scripts, set environment variables and
+provide `metadata`.
+
+Our template has [`metadata`](./agent-metadata.md) blocks for CPU and
+RAM usage. Coder displays this information in the Coder dashboard.
 
 
 ## 4. coder_app
