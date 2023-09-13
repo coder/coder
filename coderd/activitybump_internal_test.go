@@ -129,12 +129,22 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				})
 				buildID = uuid.New()
 			)
+
+			var buildNumber int32 = 1
+			// Insert a number of previous workspace builds.
+			for i := 0; i < 5; i++ {
+				insertPrevWorkspaceBuild(t, db, org.ID, templateVersion.ID, ws.ID, database.WorkspaceTransitionStart, buildNumber)
+				buildNumber++
+				insertPrevWorkspaceBuild(t, db, org.ID, templateVersion.ID, ws.ID, database.WorkspaceTransitionStop, buildNumber)
+				buildNumber++
+			}
+
 			// dbgen.WorkspaceBuild automatically sets deadline to now+1 hour if not set
 			err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 				ID:                buildID,
 				CreatedAt:         dbtime.Now(),
 				UpdatedAt:         dbtime.Now(),
-				BuildNumber:       1,
+				BuildNumber:       buildNumber,
 				InitiatorID:       user.ID,
 				Reason:            database.BuildReasonInitiator,
 				WorkspaceID:       ws.ID,
@@ -172,4 +182,21 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			}
 		})
 	}
+}
+
+func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, workspaceID uuid.UUID, transition database.WorkspaceTransition, buildNumber int32) {
+	t.Helper()
+
+	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		OrganizationID: orgID,
+	})
+	_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: job.ID,
+	})
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		BuildNumber:       buildNumber,
+		WorkspaceID:       workspaceID,
+		JobID:             job.ID,
+		TemplateVersionID: tvID,
+	})
 }
