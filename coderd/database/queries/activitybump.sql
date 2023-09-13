@@ -1,3 +1,8 @@
+-- We bump by the original TTL to prevent counter-intuitive behavior
+-- as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
+-- work at midnight, come back at 10am, I would want another full day
+-- of uptime. In the prior implementation, the workspace would enter
+-- a state of always expiring 1 hour in the future.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
@@ -13,7 +18,7 @@ WITH latest AS (
 		ON provisioner_jobs.id = workspace_builds.job_id
 	JOIN workspaces
 		ON workspaces.id = workspace_builds.workspace_id
-	WHERE workspace_builds.workspace_id = $1::uuid
+	WHERE workspace_builds.workspace_id = @workspace_id::uuid
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
 )
@@ -23,11 +28,6 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00'
-		-- We bump by the original TTL to prevent counter-intuitive behavior
-		-- as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
-		-- work at midnight, come back at 10am, I would want another full day
-		-- of uptime. In the prior implementation, the workspace would enter
-		-- a state of always expiring 1 hour in the future.
 		THEN l.now_utc + l.ttl_interval
 		ELSE LEAST(l.now_utc + l.ttl_interval, l.build_max_deadline)
 	END
@@ -35,7 +35,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
--- Workspace shutdown is manual.
+-- We only bump if workspace shutdown is manual.
 AND l.build_deadline != '0001-01-01 00:00:00'
 -- We only bump when 5% of the deadline has elapsed.
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
