@@ -485,7 +485,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			DefaultTTLMillis:             12 * time.Hour.Milliseconds(),
 			AllowUserCancelWorkspaceJobs: false,
 		}
-
 		// It is unfortunate we need to sleep, but the test can fail if the
 		// updatedAt is too close together.
 		time.Sleep(time.Millisecond * 5)
@@ -527,7 +526,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
-
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: 0,
 		}
@@ -557,7 +555,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 		})
-
 		req := codersdk.UpdateTemplateMeta{
 			DefaultTTLMillis: -1,
 		}
@@ -824,7 +821,6 @@ func TestPatchTemplateMeta(t *testing.T) {
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = ptr.Ref(24 * time.Hour.Milliseconds())
 			})
-
 			require.Equal(t, allowAutostart.Load(), template.AllowUserAutostart)
 			require.Equal(t, allowAutostop.Load(), template.AllowUserAutostop)
 
