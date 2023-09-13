@@ -256,8 +256,8 @@ func TestRun(t *testing.T) {
 				writeLatencies := writeMetrics.Latencies()
 				return len(readLatencies) > 0 &&
 					len(writeLatencies) > 0 &&
-					anyF(readLatencies, func(f float64) bool { return f > 0.0 }) &&
-					anyF(writeLatencies, func(f float64) bool { return f > 0.0 })
+					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
+					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
 			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
 		}()
 
