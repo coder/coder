@@ -230,6 +230,15 @@ func (s *Session) extractArchive() error {
 		if mode == 0 {
 			mode = 0o600
 		}
+
+		// Always check for context cancellation before reading the next header.
+		// This is mainly important for unit tests, since a canceled context means
+		// the underlying directory is going to be deleted. There still exists
+		// the small race condition that the context is cancelled after this, and
+		// before the disk write.
+		if ctx.Err() != nil {
+			return xerrors.Errorf("context canceled: %w", ctx.Err())
+		}
 		switch header.Typeflag {
 		case tar.TypeDir:
 			err = os.MkdirAll(headerPath, mode)
