@@ -38,7 +38,7 @@ UPDATE
 SET
 	updated_at = NOW(),
 	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00'
+		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
 		THEN NOW() + l.ttl_interval
 		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
 	END
@@ -46,7 +46,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
-AND l.build_deadline != '0001-01-01 00:00:00'
+AND l.build_deadline != '0001-01-01 00:00:00+00'
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 
