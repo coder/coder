@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 	"github.com/coder/coder/v2/testutil"
+	"golang.org/x/exp/slices"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -129,8 +130,8 @@ func TestRun(t *testing.T) {
 				writeLatencies := writeMetrics.Latencies()
 				return len(readLatencies) > 0 &&
 					len(writeLatencies) > 0 &&
-					anyF(readLatencies, func(f float64) bool { return f > 0.0 }) &&
-					anyF(writeLatencies, func(f float64) bool { return f > 0.0 })
+					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
+					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
 			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
 		}()
 
@@ -327,13 +328,4 @@ func (m *testMetrics) Latencies() []float64 {
 	m.Lock()
 	defer m.Unlock()
 	return m.latencies
-}
-
-func anyF[T any](vals []T, fn func(T) bool) bool {
-	for _, val := range vals {
-		if fn(val) {
-			return true
-		}
-	}
-	return false
 }
