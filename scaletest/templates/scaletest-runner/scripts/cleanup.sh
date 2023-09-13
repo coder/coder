@@ -26,8 +26,8 @@ echo "Cleaning up scaletest resources (${event})..."
 maybedryrun "${DRY_RUN}" coder exp scaletest cleanup \
 	--cleanup-concurrency "${SCALETEST_CLEANUP_CONCURRENCY}" \
 	--cleanup-job-timeout 15m \
-	--cleanup-timeout 30m \
-	| tee "result-cleanup-${event}.txt"
+	--cleanup-timeout 30m |
+	tee "result-cleanup-${event}.txt"
 
 echo "Cleanup complete!"
 
