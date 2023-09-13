@@ -14,8 +14,8 @@ const fetchExperiments = async () => {
     const rawContent = experiments.getAttribute("content");
     try {
       return JSON.parse(rawContent as string);
-    } catch (ex) {
-      // Ignore this and fetch as normal!
+    } catch (e) {
+      console.warn("Failed to parse experiments from document", e);
     }
   }
 
