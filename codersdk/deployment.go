@@ -339,8 +339,6 @@ type GitAuthConfig struct {
 type ProvisionerConfig struct {
 	Daemons             clibase.Int64    `json:"daemons" typescript:",notnull"`
 	DaemonsEcho         clibase.Bool     `json:"daemons_echo" typescript:",notnull"`
-	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
-	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
 	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
 }
@@ -1278,26 +1276,6 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.DaemonsEcho,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "daemonsEcho",
-		},
-		{
-			Name:        "Poll Interval",
-			Description: "Time to wait before polling for a new job.",
-			Flag:        "provisioner-daemon-poll-interval",
-			Env:         "CODER_PROVISIONER_DAEMON_POLL_INTERVAL",
-			Default:     time.Second.String(),
-			Value:       &c.Provisioner.DaemonPollInterval,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonPollInterval",
-		},
-		{
-			Name:        "Poll Jitter",
-			Description: "Random jitter added to the poll interval.",
-			Flag:        "provisioner-daemon-poll-jitter",
-			Env:         "CODER_PROVISIONER_DAEMON_POLL_JITTER",
-			Default:     (100 * time.Millisecond).String(),
-			Value:       &c.Provisioner.DaemonPollJitter,
-			Group:       &deploymentGroupProvisioning,
-			YAML:        "daemonPollJitter",
 		},
 		{
 			Name:        "Force Cancel Interval",

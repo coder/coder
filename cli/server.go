@@ -1012,7 +1012,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
-			autobuildExecutor := autobuild.NewExecutor(ctx, options.Database, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
+			autobuildExecutor := autobuild.NewExecutor(
+				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
@@ -1378,16 +1379,12 @@ func newProvisionerDaemon(
 		connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 	}
 
-	debounce := time.Second
 	return provisionerd.New(func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 		// This debounces calls to listen every second. Read the comment
 		// in provisionerdserver.go to learn more!
-		return coderAPI.CreateInMemoryProvisionerDaemon(ctx, debounce)
+		return coderAPI.CreateInMemoryProvisionerDaemon(ctx)
 	}, &provisionerd.Options{
 		Logger:              logger.Named("provisionerd"),
-		JobPollInterval:     cfg.Provisioner.DaemonPollInterval.Value(),
-		JobPollJitter:       cfg.Provisioner.DaemonPollJitter.Value(),
-		JobPollDebounce:     debounce,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Connector:           connector,

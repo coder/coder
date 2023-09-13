@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -316,12 +318,12 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 
 func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags provisionerdserver.Tags) {
 	t.Helper()
-	msg, err := json.Marshal(provisionerdserver.JobPosting{
+	msg, err := json.Marshal(provisionerjobs.JobPosting{
 		ProvisionerType: pt,
 		Tags:            tags,
 	})
 	require.NoError(t, err)
-	err = ps.Publish(provisionerdserver.EventJobPosted, msg)
+	err = ps.Publish(provisionerjobs.EventJobPosted, msg)
 	require.NoError(t, err)
 }
 

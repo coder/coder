@@ -8932,12 +8932,6 @@ const docTemplate = `{
         "codersdk.ProvisionerConfig": {
             "type": "object",
             "properties": {
-                "daemon_poll_interval": {
-                    "type": "integer"
-                },
-                "daemon_poll_jitter": {
-                    "type": "integer"
-                },
                 "daemon_psk": {
                     "type": "string"
                 },

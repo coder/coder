@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -26,6 +27,7 @@ import (
 type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
+	ps                    pubsub.Pubsub
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	log                   slog.Logger
 	tick                  <-chan time.Time
@@ -40,11 +42,12 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
+		ps:                    ps,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
@@ -168,7 +171,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						SetLastWorkspaceBuildJobInTx(&latestJob).
 						Reason(reason)
 
-					if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
+					if _, _, err := builder.Build(e.ctx, log, tx, e.ps, nil); err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
 							slog.Error(err),

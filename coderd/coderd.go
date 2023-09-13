@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -366,6 +365,11 @@ func New(options *Options) *API {
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		Experiments:                 experiments,
 		healthCheckGroup:            &singleflight.Group[string, *healthcheck.Report]{},
+		Acquirer: provisionerdserver.NewAcquirer(
+			ctx,
+			options.Logger.Named("acquirer"),
+			options.Database,
+			options.Pubsub),
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -1016,6 +1020,8 @@ type API struct {
 	healthCheckCache atomic.Pointer[healthcheck.Report]
 
 	statsBatcher *batchstats.Batcher
+
+	Acquirer *provisionerdserver.Acquirer
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -1067,7 +1073,7 @@ func compressHandler(h http.Handler) http.Handler {
 
 // CreateInMemoryProvisionerDaemon is an in-memory connection to a provisionerd.
 // Useful when starting coderd and provisionerd in the same process.
-func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce time.Duration) (client proto.DRPCProvisionerDaemonClient, err error) {
+func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client proto.DRPCProvisionerDaemonClient, err error) {
 	tracer := api.TracerProvider.Tracer(tracing.TracerName)
 	clientSession, serverSession := provisionersdk.MemTransportPipe()
 	defer func() {
@@ -1077,11 +1083,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		}
 	}()
 
-	tags, err := json.Marshal(database.StringMap{
+	tags := provisionerdserver.Tags{
 		provisionerdserver.TagScope: provisionerdserver.ScopeOrganization,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("marshal tags: %w", err)
 	}
 
 	mux := drpcmux.New()
@@ -1098,6 +1101,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		tags,
 		api.Database,
 		api.Pubsub,
+		api.Acquirer,
 		api.Telemetry,
 		tracer,
 		&api.QuotaCommitter,
@@ -1105,7 +1109,6 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context, debounce ti
 		api.TemplateScheduleStore,
 		api.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
-		debounce,
 		provisionerdserver.Options{
 			OIDCConfig:     api.OIDCConfig,
 			GitAuthConfigs: api.GitAuthConfigs,

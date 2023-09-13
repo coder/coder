@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -26,11 +28,11 @@ func TestBatchStats(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, _ := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 
 	// Set up some test dependencies.
-	deps1 := setupDeps(t, store)
-	deps2 := setupDeps(t, store)
+	deps1 := setupDeps(t, store, ps)
+	deps2 := setupDeps(t, store, ps)
 	tick := make(chan time.Time)
 	flushed := make(chan int, 1)
 
@@ -168,7 +170,7 @@ type deps struct {
 // It creates an organization, user, template, workspace, and agent
 // along with all the other miscellaneous plumbing required to link
 // them together.
-func setupDeps(t *testing.T, store database.Store) deps {
+func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 	t.Helper()
 
 	org := dbgen.Organization(t, store, database.Organization{})
@@ -194,7 +196,7 @@ func setupDeps(t *testing.T, store database.Store) deps {
 		OrganizationID: org.ID,
 		LastUsedAt:     time.Now().Add(-time.Hour),
 	})
-	pj := dbgen.ProvisionerJob(t, store, database.ProvisionerJob{
+	pj := dbgen.ProvisionerJob(t, store, ps, database.ProvisionerJob{
 		InitiatorID:    user.ID,
 		OrganizationID: org.ID,
 	})

@@ -485,7 +485,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		}
 
 		workspaceBuild, provisionerJob, err = builder.Build(
-			ctx, db, func(action rbac.Action, object rbac.Objecter) bool {
+			ctx,
+			api.Logger.With(slog.F("workspace_id", workspace.ID)),
+			db,
+			api.Pubsub,
+			func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			})
 		return err

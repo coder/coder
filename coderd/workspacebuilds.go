@@ -344,7 +344,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	workspaceBuild, provisionerJob, err := builder.Build(
 		ctx,
+		api.Logger.With(slog.F("workspace_id", workspace.ID)),
 		api.Database,
+		api.Pubsub,
 		func(action rbac.Action, object rbac.Objecter) bool {
 			return api.Authorize(r, action, object)
 		},

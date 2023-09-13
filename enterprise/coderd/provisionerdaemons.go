@@ -4,14 +4,12 @@ import (
 	"context"
 	"crypto/subtle"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
@@ -180,6 +178,15 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	api.Logger.Debug(ctx, "provisioner authorized", slog.F("tags", tags))
+	if err := provisionerdserver.Tags(tags).Valid(); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Given tags are not acceptable to the service",
+			Validations: []codersdk.ValidationError{
+				{Field: "tags", Detail: err.Error()},
+			},
+		})
+		return
+	}
 
 	provisioners := make([]database.ProvisionerType, 0)
 	for p := range provisionersMap {
@@ -197,17 +204,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		slog.F("provisioners", provisioners),
 		slog.F("tags", tags),
 	)
-	rawTags, err := json.Marshal(tags)
-	if err != nil {
-		if !xerrors.Is(err, context.Canceled) {
-			log.Error(ctx, "marshal provisioner tags", slog.Error(err))
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error marshaling daemon tags.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
 	api.AGPL.WebsocketWaitMutex.Lock()
 	api.AGPL.WebsocketWaitGroup.Add(1)
@@ -251,9 +247,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		uuid.New(),
 		logger,
 		provisioners,
-		rawTags,
+		tags,
 		api.Database,
 		api.Pubsub,
+		api.AGPL.Acquirer,
 		api.Telemetry,
 		trace.NewNoopTracerProvider().Tracer("noop"),
 		&api.AGPL.QuotaCommitter,
@@ -261,8 +258,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.TemplateScheduleStore,
 		api.AGPL.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
-		// TODO(spikecurtis) - fix debounce to not cause flaky tests.
-		time.Duration(0),
 		provisionerdserver.Options{
 			GitAuthConfigs: api.GitAuthConfigs,
 			OIDCConfig:     api.OIDCConfig,
