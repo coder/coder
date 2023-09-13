@@ -198,5 +198,6 @@ func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, work
 		WorkspaceID:       workspaceID,
 		JobID:             job.ID,
 		TemplateVersionID: tvID,
+		Transition:        transition,
 	})
 }
