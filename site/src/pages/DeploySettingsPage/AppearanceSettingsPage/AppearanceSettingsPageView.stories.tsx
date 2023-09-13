@@ -23,4 +23,10 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
 export default meta;
 type Story = StoryObj<typeof AppearanceSettingsPageView>;
 
-export const Page: Story = {};
+export const Entitled: Story = {
+  args: {
+    isEntitled: true,
+  },
+};
+
+export const NotEntitled: Story = {};
