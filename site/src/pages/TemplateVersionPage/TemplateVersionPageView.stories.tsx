@@ -40,6 +40,8 @@ const defaultArgs: TemplateVersionPageViewProps = {
     currentFiles: {
       "README.md": readmeContent,
       "main.tf": `{}`,
+      "some.tpl": `{{.Name}}`,
+      "some.sh": `echo "Hello world"`,
     },
   },
 };

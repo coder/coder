@@ -6,13 +6,17 @@ import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighte
 import { UseTabResult } from "hooks/useTab";
 import { FC } from "react";
 import { combineClasses } from "utils/combineClasses";
-import { TemplateVersionFiles } from "utils/templateVersion";
+import { AllowedExtension, TemplateVersionFiles } from "utils/templateVersion";
+import InsertDriveFileOutlined from "@mui/icons-material/InsertDriveFileOutlined";
 
-const iconByExtension: Record<string, JSX.Element> = {
+const iconByExtension: Record<AllowedExtension, JSX.Element> = {
   tf: <TerraformIcon />,
   md: <MarkdownIcon />,
   mkd: <MarkdownIcon />,
   Dockerfile: <DockerIcon />,
+  protobuf: <InsertDriveFileOutlined />,
+  sh: <InsertDriveFileOutlined />,
+  tpl: <InsertDriveFileOutlined />,
 };
 
 const getExtension = (filename: string) => {
@@ -24,11 +28,14 @@ const getExtension = (filename: string) => {
   return filename;
 };
 
-const languageByExtension: Record<string, string> = {
+const languageByExtension: Record<AllowedExtension, string> = {
   tf: "hcl",
   md: "markdown",
   mkd: "markdown",
   Dockerfile: "dockerfile",
+  sh: "bash",
+  tpl: "tpl",
+  protobuf: "protobuf",
 };
 
 export const TemplateFiles: FC<{
@@ -47,7 +54,7 @@ export const TemplateFiles: FC<{
       <div className={styles.tabs}>
         {filenames.map((filename, index) => {
           const tabValue = index.toString();
-          const extension = getExtension(filename);
+          const extension = getExtension(filename) as AllowedExtension;
           const icon = iconByExtension[extension];
           const hasDiff =
             previousFiles &&
@@ -76,7 +83,11 @@ export const TemplateFiles: FC<{
       <SyntaxHighlighter
         value={currentFile}
         compareWith={previousFile}
-        language={languageByExtension[getExtension(selectedFilename)]}
+        language={
+          languageByExtension[
+            getExtension(selectedFilename) as AllowedExtension
+          ]
+        }
       />
     </div>
   );
