@@ -14,9 +14,6 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
       },
     },
     isEntitled: false,
-    updateAppearance: () => {
-      return undefined;
-    },
   },
 };
 
