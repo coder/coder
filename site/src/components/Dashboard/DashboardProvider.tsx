@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMachine } from "@xstate/react";
 import { buildInfo } from "api/queries/buildInfo";
+import { experiments } from "api/queries/experiments";
 import { entitlements } from "api/queries/entitlements";
 import {
   AppearanceConfig,
@@ -11,7 +12,6 @@ import {
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { createContext, FC, PropsWithChildren, useContext } from "react";
 import { appearanceMachine } from "xServices/appearance/appearanceXService";
-import { experimentsMachine } from "xServices/experiments/experimentsMachine";
 
 interface Appearance {
   config: AppearanceConfig;
@@ -34,15 +34,14 @@ export const DashboardProviderContext = createContext<
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   const buildInfoQuery = useQuery(buildInfo());
   const entitlementsQuery = useQuery(entitlements());
+  const experimentsQuery = useQuery(experiments());
   const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
-  const [experimentsState] = useMachine(experimentsMachine);
   const { appearance, preview } = appearanceState.context;
-  const { experiments } = experimentsState.context;
   const isLoading =
     !buildInfoQuery.data ||
     !entitlementsQuery.data ||
     !appearance ||
-    !experiments;
+    !experimentsQuery.data;
 
   const setAppearancePreview = (config: AppearanceConfig) => {
     appearanceSend({
@@ -67,7 +66,7 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
       value={{
         buildInfo: buildInfoQuery.data,
         entitlements: entitlementsQuery.data,
-        experiments,
+        experiments: experimentsQuery.data,
         appearance: {
           preview,
           config: appearance,
