@@ -1,21 +1,9 @@
-import { Story } from "@storybook/react";
-import { ScheduleForm, ScheduleFormProps } from "./ScheduleForm";
+import type { Meta, StoryObj } from "@storybook/react";
+import { ScheduleForm } from "./ScheduleForm";
 import { mockApiError } from "testHelpers/entities";
+import { action } from "@storybook/addon-actions";
 
-export default {
-  title: "pages/UserSettingsPage/SchedulePage/ScheduleForm",
-  component: ScheduleForm,
-  argTypes: {
-    onSubmit: { action: "Submit" },
-  },
-};
-
-const Template: Story<ScheduleFormProps> = (args: ScheduleFormProps) => (
-  <ScheduleForm {...args} />
-);
-
-export const ExampleDefault = Template.bind({});
-ExampleDefault.args = {
+const defaultArgs = {
   submitting: false,
   initialValues: {
     raw_schedule: "CRON_TZ=Australia/Sydney 0 2 * * *",
@@ -25,41 +13,53 @@ ExampleDefault.args = {
     next: "2023-09-05T02:00:00+10:00",
   },
   updateErr: undefined,
-  onSubmit: () => {
-    return Promise.resolve();
-  },
   now: new Date("2023-09-04T15:00:00+10:00"),
+  onSubmit: action("onSubmit"),
 };
 
-export const ExampleUserSet = Template.bind({});
-ExampleUserSet.args = {
-  ...ExampleDefault.args,
-  initialValues: {
-    raw_schedule: "CRON_TZ=America/Chicago 0 2 * * *",
-    user_set: true,
-    time: "02:00",
-    timezone: "America/Chicago",
-    next: "2023-09-05T02:00:00-05:00",
+const meta: Meta<typeof ScheduleForm> = {
+  title: "pages/UserSettingsPage/ScheduleForm",
+  component: ScheduleForm,
+  args: defaultArgs,
+};
+export default meta;
+
+type Story = StoryObj<typeof ScheduleForm>;
+
+export const ExampleDefault: Story = {};
+
+export const ExampleUserSet: Story = {
+  args: {
+    ...defaultArgs,
+    initialValues: {
+      raw_schedule: "CRON_TZ=America/Chicago 0 2 * * *",
+      user_set: true,
+      time: "02:00",
+      timezone: "America/Chicago",
+      next: "2023-09-05T02:00:00-05:00",
+    },
+    now: new Date("2023-09-04T15:00:00-05:00"),
   },
-  now: new Date("2023-09-04T15:00:00-05:00"),
 };
 
-export const Submitting = Template.bind({});
-Submitting.args = {
-  ...ExampleDefault.args,
-  submitting: true,
+export const Submitting: Story = {
+  args: {
+    ...defaultArgs,
+    submitting: true,
+  },
 };
 
-export const WithError = Template.bind({});
-WithError.args = {
-  ...ExampleDefault.args,
-  updateErr: mockApiError({
-    message: "Invalid schedule",
-    validations: [
-      {
-        field: "schedule",
-        detail: "Could not validate cron schedule.",
-      },
-    ],
-  }),
+export const WithError: Story = {
+  args: {
+    ...defaultArgs,
+    updateErr: mockApiError({
+      message: "Invalid schedule",
+      validations: [
+        {
+          field: "schedule",
+          detail: "Could not validate cron schedule.",
+        },
+      ],
+    }),
+  },
 };
