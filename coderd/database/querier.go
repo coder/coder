@@ -27,8 +27,7 @@ type sqlcQuerier interface {
 	// We bump by the original TTL to prevent counter-intuitive behavior
 	// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
 	// work at midnight, come back at 10am, I would want another full day
-	// of uptime. In the prior implementation, the workspace would enter
-	// a state of always expiring 1 hour in the future.
+	// of uptime.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error

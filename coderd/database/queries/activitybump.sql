@@ -1,8 +1,7 @@
 -- We bump by the original TTL to prevent counter-intuitive behavior
 -- as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
 -- work at midnight, come back at 10am, I would want another full day
--- of uptime. In the prior implementation, the workspace would enter
--- a state of always expiring 1 hour in the future.
+-- of uptime.
 -- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
@@ -11,8 +10,7 @@ WITH latest AS (
 		workspace_builds.max_deadline::timestamp AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
 		provisioner_jobs.completed_at::timestamp AS job_completed_at,
-		(workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval,
-		(NOW() AT TIME ZONE 'UTC')::timestamp as now_utc
+		(workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval
 	FROM workspace_builds
 	JOIN provisioner_jobs
 		ON provisioner_jobs.id = workspace_builds.job_id
@@ -28,8 +26,8 @@ SET
 	updated_at = NOW(),
 	deadline = CASE
 		WHEN l.build_max_deadline = '0001-01-01 00:00:00'
-		THEN l.now_utc + l.ttl_interval
-		ELSE LEAST(l.now_utc + l.ttl_interval, l.build_max_deadline)
+		THEN NOW() + l.ttl_interval
+		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
 	END
 FROM latest l
 WHERE wb.id = l.build_id
