@@ -1,7 +1,7 @@
 # Templates
 
 Templates are written in [Terraform](https://www.terraform.io/) and describe the
-infrastructure for workspaces (e.g., docker_container, aws_instance,
+infrastructure for workspaces (for example, docker_container, aws_instance,
 kubernetes_pod).
 
 In most cases, a small group of users (team leads or Coder administrators) [have permissions](../admin/users.md#roles) to create and manage templates. Then, other
@@ -224,7 +224,7 @@ resource "docker_container" "workspace" {
 #### Using updated images when rebuilding a workspace
 
 To ensure that Coder uses an updated image when rebuilding a workspace, we
-suggest that admins update the tag in the template (e.g., `my-image:v0.4.2` ->
+suggest that admins update the tag in the template (`my-image:v0.4.2` ->
 `my-image:v0.4.3`) or digest (`my-image@sha256:[digest]` ->
 `my-image@sha256:[new_digest]`).
 
@@ -247,7 +247,7 @@ resource "kubernetes_pod" "podName" {
 You can edit a template using the coder CLI or the UI. Only [template admins and
 owners](../admin/users.md) can edit a template.
 
-Using the UI, navigate to the template page, click on the menu, and select "Edit files". In the template editor, you create, edit and remove files. Before publishing a new template version, you can test your modifications by clicking the "Build template" button. Newly published template versions automatically become the default version selection when creating a workspace.
+Using the UI, navigate to the template page, click on the menu, and select "Edit files." In the template editor, you create, edit, and remove files. Before publishing a new template version, you can test your modifications by clicking the "Build template" button. Newly published template versions automatically become the default version selection when creating a workspace.
 
 > **Tip**: Even without publishing a version as active, you can still use it to create a workspace before making it the default for everybody in your organization. This may help you debug new changes without impacting others.
 
@@ -366,7 +366,7 @@ practices:
 - Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
 - Ensure the resource can `curl` your Coder [access
   URL](../admin/configure.md#access-url)
-- Manually connect to the resource and check the agent logs (e.g., `kubectl exec`, `docker exec` or AWS console)
+- Manually connect to the resource and check the agent logs (for example, `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`
   - The Coder agent shutdown script logs are typically stored in `/tmp/coder-shutdown-script.log`

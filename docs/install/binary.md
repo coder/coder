@@ -6,7 +6,7 @@ bundle `coder` binary.
    [release archive](https://github.com/coder/coder/releases/latest) appropriate
    for your operating system
 
-1. Unzip the folder you just downloaded, and move the `coder` executable to a
+1. Unzip the folder you downloaded, and move the `coder` executable to a
    location that's on your `PATH`
 
    ```console

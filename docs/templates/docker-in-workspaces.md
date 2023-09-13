@@ -133,8 +133,8 @@ resource "kubernetes_pod" "dev" {
 by Coder that bundles the sysbox runtime. It works by starting an outer
 container that manages the various sysbox daemons and spawns an unprivileged
 inner container that acts as the user's workspace. The inner container is able
-to run system-level software similar to a regular virtual machine (e.g.
-`systemd`, `dockerd`, etc). Envbox offers the following benefits over running
+to run system-level software similar to a regular virtual machine (`systemd`,
+`dockerd`, etc). Envbox offers the following benefits over running
 sysbox directly on the nodes:
 
 - No custom runtime installation or management on your Kubernetes nodes.
@@ -256,7 +256,7 @@ documentation:
    kubectl label nodes --all smarter-device-manager=enabled
    ```
 
-   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (e.g.
+   > ⚠️ **Warning**: If you are using a managed Kubernetes distribution (such as
    > AKS, EKS, GKE), be sure to set node labels via your cloud provider.
    > Otherwise, your nodes may drop the labels and break podman functionality.
 

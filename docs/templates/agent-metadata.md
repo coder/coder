@@ -14,7 +14,7 @@ See the
 All of these examples use
 [heredoc strings](https://developer.hashicorp.com/terraform/language/expressions/strings#heredoc-strings)
 for the script declaration. With heredoc strings, you can script without messy
-escape codes, just as if you were working in your terminal.
+escape codes, as if you were working in your terminal.
 
 Some of the below examples use the [`coder stat`](../cli/stat.md) command. This
 is useful for determining CPU/memory usage inside a container, which can be

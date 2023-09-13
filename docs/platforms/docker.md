@@ -2,7 +2,7 @@
 
 Coder with Docker has the following advantages:
 
-- Straightforward installation (everything is on a single box)
+- Isolated installation (everything is on a single box)
 - Workspace images are easily configured
 - Workspaces share resources for burst operations
 

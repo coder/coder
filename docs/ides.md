@@ -67,7 +67,7 @@ For example, try running:
 $ ssh coder.<workspaceName>
 ```
 
-Your workspace is now accessible via `ssh coder.<workspace_name>` (e.g.,
+Your workspace is now accessible via `ssh coder.<workspace_name>` (for example,
 `ssh coder.myEnv` if your workspace is named `myEnv`).
 
 ## JetBrains Gateway

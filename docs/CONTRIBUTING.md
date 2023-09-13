@@ -4,7 +4,7 @@
 
 We recommend using the [Nix](https://nix.dev/) package manager as it makes any
 pain related to maintaining dependency versions
-[just disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once
+[disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once
 nix [has been installed](https://nixos.org/download.html) the development
 environment can be _manually instantiated_ through the `nix-shell` command:
 
@@ -106,7 +106,7 @@ this:
   are intelligently checking if the image needs to be built)
 - `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will
   enable the specified experiments. (defaults to `*`)
-- `-n` or `--dry-run` will display the context without deployment. e.g., branch
+- `-n` or `--dry-run` will display the context without deployment. For example, branch
   name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.
 
@@ -160,7 +160,7 @@ Coder migrations such that when migration number `000022` is applied, fixture
 Partial fixtures are used to conveniently add data to newly created tables so
 that we can ensure that this data is migrated without issue.
 
-Full database dumps are for testing the migration of fully-fledged Coder
+Full database dumps are for testing the migration of fully fledged Coder
 deployments. These are usually done for a specific version of Coder and are
 often fixed in time. A full database dump may be necessary when testing the
 migration of multiple features or complex configurations.
@@ -195,7 +195,7 @@ following command:
 git ls-files v0.12.2 -- coderd/database/migrations/*.up.sql
 ```
 
-This helps in naming the dump (e.g. `000069` above).
+This helps in naming the dump (for example, `000069` above).
 
 ## Styling
 
@@ -273,7 +273,7 @@ manually from
 Simply press "Run workflow" and choose dry-run.
 
 If a release has failed after the tag has been created and pushed, it can be
-retried by again, pressing "Run workflow", changing "Use workflow from" from
+retried by again, pressing "Run workflow," changing "Use workflow from" from
 "Branch: main" to "Tag: vX.X.X" and not selecting dry-run.
 
 ### Commit messages
@@ -307,7 +307,7 @@ to use the original commit title instead of the PR title.
 
 Breaking changes can be triggered in two ways:
 
-- Add `!` to the commit message title, e.g.
+- Add `!` to the commit message title, for example,
   `feat(api)!: remove deprecated endpoint /test`
 - Add the
   [`release/breaking`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fbreaking)

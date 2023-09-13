@@ -25,7 +25,7 @@ product.
   <img src="./images/providers-compute.png">
 </p>
 
-Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars
+Coder workspaces don't stop at compute. You can add storage buckets, secrets, sidecars,
 and whatever else Terraform lets you dream up.
 
 [Learn more about managing infrastructure.](./templates/index.md)
@@ -73,8 +73,8 @@ The key difference between Coder OSS and other remote IDE platforms is the added
 layer of infrastructure control. This additional layer allows admins to:
 
 - Support ARM, Windows, Linux, and macOS workspaces
-- Modify pod/container specs (e.g., adding disks, managing network policies,
-  setting/updating environment variables)
+- Modify pod/container specs (for example: adding disks, managing network
+  policies, setting/updating environment variables)
 - Use VM/dedicated workspaces, developing with Kernel features (no container
   knowledge required)
 - Enable persistent workspaces, which are like local machines, but faster and
@@ -99,7 +99,7 @@ Azure, Google Cloud, Kubernetes, and more.
 - Coder is not a collaboration platform. You can use git and dedicated IDE
   extensions for pull requests, code reviews, and pair programming.
 
-- Coder is not a SaaS/fully-managed offering. You must host
+- Coder is not a SaaS or fully managed offering. You must host
   Coder on a cloud service (AWS, Azure, GCP) or your private data center.
 
 ## Up next

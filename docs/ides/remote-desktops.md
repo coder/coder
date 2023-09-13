@@ -11,8 +11,8 @@ The common way to use remote desktops with Coder is through VNC.
 
 Workspace requirements:
 
-- VNC server (e.g. [tigervnc](https://tigervnc.org/))
-- VNC client (e.g. [novnc](https://novnc.com/info.html))
+- VNC server (example: [tigervnc](https://tigervnc.org/))
+- VNC client (example: [novnc](https://novnc.com/info.html))
 
 Installation instructions vary depending on your workspace's operating system,
 platform, and build system.

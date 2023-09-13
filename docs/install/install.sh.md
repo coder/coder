@@ -101,7 +101,7 @@ sudo apk del coder
 ```
 
 If the conflicting binary is not installed by your system package manager, you
-can just delete it.
+can delete it.
 
 ```shell
 # You might not need `sudo`, depending on the location

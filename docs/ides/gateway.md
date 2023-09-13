@@ -144,7 +144,7 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
    ![Gateway SSH Configuration](../images/gateway/gateway-create-ssh-configuration.png)
 
-1. Select the connection you just added
+1. Select the connection you added
 
    ![Gateway Welcome](../images/gateway/gateway-welcome.png)
 
@@ -196,7 +196,7 @@ are the steps we took (and "gotchas"):
 
 ### 1. Deploy the server and install the Client Downloader
 
-We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader
+We deployed an Ubuntu VM and installed the JetBrains Client Downloader
 binary. Note that the server must be a Linux-based distribution.
 
 ```shell

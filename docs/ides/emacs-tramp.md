@@ -118,12 +118,12 @@ This tells `lsp-mode` to look for a language server binary named
 `coder.<WORKSPACE NAME>`. Be sure to replace the values between angle brackets:
 
 - `<LSP SERVER BINARY>` : The name of the language server binary, without any
-  path components. For example to use the Deno Javascript language server use
+  path components. For example to use the Deno JavaScript language server use
   the value `deno`.
 - `<LANGUAGE MODE>`: The name of the Emacs major mode for which the language
   server should be used. For example to enable the language server for
-  Javascript development use the value `web-mode`.
-- `<LANGUAGE SERVER ID>`: This is just the name that `lsp-mode` will use to
+  JavaScript development use the value `web-mode`.
+- `<LANGUAGE SERVER ID>`: This is the name that `lsp-mode` will use to
   refer to this language server. If you are ever looking for output buffers or
   files they may have this name in them.
 

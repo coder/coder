@@ -40,8 +40,8 @@ they are creating a workspace.
 
 ## Authentication
 
-You may need to authenticate to your container registry (e.g. Artifactory) or
-git provider (e.g. GitLab) to use envbuilder. Refer to the
+You may need to authenticate to your container registry (such as Artifactory) or
+git provider (such as GitLab) to use envbuilder. Refer to the
 [envbuilder documentation](https://github.com/coder/envbuilder/) for more
 information.
 

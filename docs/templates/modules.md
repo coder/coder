@@ -116,7 +116,7 @@ simplify a Coder-stored template to a `module` block and input variables.
 With this approach, you can:
 
 - Easily share templates across multiple Coder instances
-- Store templates far larger than the 1MB limit of Coder's template storage
+- Store templates far larger than the 1 MB limit of Coder's template storage
 - Apply JFrog platform security policies to your templates
 
 ### Basic Scaffolding

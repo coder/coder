@@ -92,7 +92,7 @@ approach for "Open in Coder" flows.
    [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace)
    ```
 
-   > Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
+   > Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (such as
    > https://coder.example.com) and `YOUR_TEMPLATE` with the name of your
    > template.
 
