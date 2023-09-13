@@ -2525,14 +2525,21 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			t.Skip("Skipping non-linux environment")
 		}
 
-		var buf bytes.Buffer
-		log := slog.Make(sloghuman.Sink(&buf)).Leveled(slog.LevelDebug)
+		var (
+			buf bytes.Buffer
+			wr  = &syncWriter{
+				w: &buf,
+			}
+		)
+		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Logger = log
 		})
 
 		require.Eventually(t, func() bool {
+			wr.mu.Lock()
+			defer wr.mu.Unlock()
 			return strings.Contains(buf.String(), "process priority not enabled")
 		}, testutil.WaitLong, testutil.IntervalFast)
 	})
@@ -2544,8 +2551,13 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			t.Skip("Skipping linux environment")
 		}
 
-		var buf bytes.Buffer
-		log := slog.Make(sloghuman.Sink(&buf)).Leveled(slog.LevelDebug)
+		var (
+			buf bytes.Buffer
+			wr  = &syncWriter{
+				w: &buf,
+			}
+		)
+		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
 
 		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
 			o.Logger = log
@@ -2554,6 +2566,9 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
 		})
 		require.Eventually(t, func() bool {
+			wr.mu.Lock()
+			defer wr.mu.Unlock()
+
 			return strings.Contains(buf.String(), "process priority not enabled")
 		}, testutil.WaitLong, testutil.IntervalFast)
 	})
@@ -2579,4 +2594,15 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		}
 	}
 	return true
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
 }
