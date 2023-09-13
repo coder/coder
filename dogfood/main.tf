@@ -76,6 +76,7 @@ data "coder_parameter" "jetbrains_ide" {
   name         = "jetbrains_ide"
   display_name = "JetBrains IDE"
   icon         = "/icon/gateway.svg"
+  mutable      = true
   default = jsonencode([
     "GO",
     "232.9559.64",
