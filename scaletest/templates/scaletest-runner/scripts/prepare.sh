@@ -8,7 +8,7 @@ touch /tmp/.scaletest_preparing
 
 mkdir -p "${SCALETEST_RUN_DIR}"
 
-echo "Installing prerequisities (terraform, envsubst, gcloud, jq and kubectl)..."
+echo "Installing prerequisites (terraform, envsubst, gcloud, jq and kubectl)..."
 
 wget --quiet -O /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
 sudo unzip /tmp/terraform.zip -d /usr/local/bin
