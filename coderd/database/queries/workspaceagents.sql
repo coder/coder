@@ -162,7 +162,7 @@ INSERT INTO
 
 -- name: InsertWorkspaceAgentLogSources :many
 INSERT INTO
-		workspace_agent_log_sources (workspace_agent_id, id, created_at, display_name, icon)
+		workspace_agent_log_sources (workspace_agent_id, created_at, id, display_name, icon)
 	SELECT
 		@workspace_agent_id :: uuid AS workspace_agent_id,
 		@created_at :: timestamptz AS created_at,

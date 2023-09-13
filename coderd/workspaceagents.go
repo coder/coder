@@ -75,6 +75,15 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
 		return err
 	})
+	err := eg.Wait()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := convertWorkspaceAgent(
 		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
@@ -1321,7 +1330,7 @@ func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.Worksp
 			LogPath:          dbScript.LogPath,
 			LogSourceID:      dbScript.LogSourceID,
 			Script:           dbScript.Script,
-			CRON:             dbScript.Cron,
+			Cron:             dbScript.Cron,
 			RunOnStart:       dbScript.RunOnStart,
 			RunOnStop:        dbScript.RunOnStop,
 			StartBlocksLogin: dbScript.StartBlocksLogin,

@@ -65,11 +65,11 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 	r.scripts = scripts
 
 	for _, script := range scripts {
-		if script.CRON == "" {
+		if script.Cron == "" {
 			continue
 		}
 		script := script
-		_, err := r.cron.AddFunc(script.CRON, func() {
+		_, err := r.cron.AddFunc(script.Cron, func() {
 			err := r.run(script)
 			if err != nil {
 				r.Logger.Warn(r.ctx, "run agent script on schedule", slog.Error(err))

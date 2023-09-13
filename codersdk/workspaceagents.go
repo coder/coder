@@ -189,7 +189,7 @@ type WorkspaceAgentScript struct {
 	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
 	LogPath          string        `json:"log_path"`
 	Script           string        `json:"script"`
-	CRON             string        `json:"cron"`
+	Cron             string        `json:"cron"`
 	RunOnStart       bool          `json:"run_on_start"`
 	RunOnStop        bool          `json:"run_on_stop"`
 	StartBlocksLogin bool          `json:"start_blocks_login"`

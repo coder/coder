@@ -7185,7 +7185,7 @@ func (q *sqlQuerier) InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspa
 
 const insertWorkspaceAgentLogSources = `-- name: InsertWorkspaceAgentLogSources :many
 INSERT INTO
-		workspace_agent_log_sources (workspace_agent_id, id, created_at, display_name, icon)
+		workspace_agent_log_sources (workspace_agent_id, created_at, id, display_name, icon)
 	SELECT
 		$1 :: uuid AS workspace_agent_id,
 		$2 :: timestamptz AS created_at,
@@ -9289,7 +9289,7 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids
 
 const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
 INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
 SELECT
 	$1 :: uuid AS workspace_agent_id,
 	$2 :: timestamptz AS created_at,
