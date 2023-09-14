@@ -31,7 +31,6 @@ func GenerateProcess(t *testing.T, fs afero.Fs, muts ...func(*agentproc.Process)
 	process := agentproc.Process{
 		CmdLine: cmdline,
 		PID:     int32(pid),
-		FS:      fs,
 	}
 
 	for _, mut := range muts {
@@ -44,9 +43,6 @@ func GenerateProcess(t *testing.T, fs afero.Fs, muts ...func(*agentproc.Process)
 	require.NoError(t, err)
 
 	err = afero.WriteFile(fs, fmt.Sprintf("%s/cmdline", process.Dir), []byte(process.CmdLine), 0o444)
-	require.NoError(t, err)
-
-	err = afero.WriteFile(fs, fmt.Sprintf("%s/oom_score_adj", process.Dir), []byte("0"), 0o444)
 	require.NoError(t, err)
 
 	return process

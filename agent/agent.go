@@ -1327,8 +1327,7 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 
 func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
 	const (
-		niceness    = 10
-		oomScoreAdj = -500
+		niceness = 10
 	)
 
 	procs, err := agentproc.List(a.filesystem, a.syscaller)
@@ -1351,18 +1350,10 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			contains := strings.Contains(proc.Cmd(), e)
 			return contains
 		}
+
 		// If the process is prioritized we should adjust
 		// it's oom_score_adj and avoid lowering its niceness.
 		if slices.ContainsFunc[[]string, string](prioritizedProcs, containsFn) {
-			err = proc.SetOOMAdj(oomScoreAdj)
-			if err != nil {
-				logger.Warn(ctx, "unable to set proc oom_score_adj",
-					slog.F("oom_score_adj", oomScoreAdj),
-					slog.Error(err),
-				)
-				continue
-			}
-			modProcs = append(modProcs, proc)
 			continue
 		}
 

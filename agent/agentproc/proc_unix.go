@@ -54,7 +54,6 @@ func List(fs afero.Fs, syscaller Syscaller) ([]*Process, error) {
 			PID:     int32(pid),
 			CmdLine: string(cmdline),
 			Dir:     filepath.Join(defaultProcDir, entry),
-			FS:      fs,
 		})
 	}
 
@@ -83,20 +82,6 @@ func isProcessExist(syscaller Syscaller, pid int32) (bool, error) {
 	}
 
 	return false, xerrors.Errorf("kill: %w", err)
-}
-
-func (p *Process) SetOOMAdj(score int) error {
-	path := filepath.Join(p.Dir, "oom_score_adj")
-	err := afero.WriteFile(p.FS,
-		path,
-		[]byte(strconv.Itoa(score)),
-		0o644,
-	)
-	if err != nil {
-		return xerrors.Errorf("write %q: %w", path, err)
-	}
-
-	return nil
 }
 
 func (p *Process) Niceness(sc Syscaller) (int, error) {

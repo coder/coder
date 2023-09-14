@@ -2,8 +2,6 @@ package agentproc
 
 import (
 	"syscall"
-
-	"github.com/spf13/afero"
 )
 
 type Syscaller interface {
@@ -18,5 +16,4 @@ type Process struct {
 	Dir     string
 	CmdLine string
 	PID     int32
-	FS      afero.Fs
 }

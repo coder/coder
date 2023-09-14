@@ -1,9 +1,7 @@
 package agentproc_test
 
 import (
-	"fmt"
 	"runtime"
-	"strings"
 	"syscall"
 	"testing"
 
@@ -136,23 +134,6 @@ func TestProcess(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skipf("skipping non-linux environment")
 	}
-
-	t.Run("SetOOMAdj", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			fs            = afero.NewMemMapFs()
-			proc          = agentproctest.GenerateProcess(t, fs)
-			expectedScore = -1000
-		)
-
-		err := proc.SetOOMAdj(expectedScore)
-		require.NoError(t, err)
-
-		actualScore, err := afero.ReadFile(fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID))
-		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%d", expectedScore), strings.TrimSpace(string(actualScore)))
-	})
 
 	t.Run("SetNiceness", func(t *testing.T) {
 		t.Parallel()

@@ -7,10 +7,6 @@ import (
 	"github.com/spf13/afero"
 )
 
-func (p *Process) SetOOMAdj(score int) error {
-	return errUnimplemented
-}
-
 func (p *Process) Niceness(sc Syscaller) (int, error) {
 	return 0, errUnimplemented
 }

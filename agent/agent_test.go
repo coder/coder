@@ -2460,20 +2460,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			o.ProcessManagementTick = ticker
 		})
 		actualProcs := <-modProcs
-		require.Len(t, actualProcs, 4)
-
-		for _, actual := range actualProcs {
-			expectedScore := "0"
-			expected, ok := expectedProcs[actual.PID]
-			require.True(t, ok)
-			if expected.PID == 0 {
-				expectedScore = "-500"
-			}
-
-			score, err := afero.ReadFile(fs, filepath.Join(actual.Dir, "oom_score_adj"))
-			require.NoError(t, err)
-			require.Equal(t, expectedScore, strings.TrimSpace(string(score)))
-		}
+		require.Len(t, actualProcs, len(expectedProcs)-1)
 	})
 
 	t.Run("IgnoreCustomNice", func(t *testing.T) {
