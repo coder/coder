@@ -586,6 +586,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = ptr.Ref(int64(0))
 		})
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
 		// Then: No TTL should be set by the template
 		require.Nil(t, workspace.TTLMillis)
 	})
@@ -603,6 +605,8 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = nil // ensure that no default TTL is set
 		})
+		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
 		// TTL should be set by the template
 		require.Equal(t, template.DefaultTTLMillis, templateTTL)
 		require.Equal(t, template.DefaultTTLMillis, *workspace.TTLMillis)
