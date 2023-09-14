@@ -15,13 +15,11 @@ rm /tmp/scripts.zip
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"
 
-# Clean up any previous scaletest runs (in case /tmp persists).
-rm -rf /tmp/.scaletest_* || true
-
 # Show failure in the UI if script exits with error.
 failed() {
-	echo "Scaletest failed!"
-	touch /tmp/.scaletest_failed
+	log "Scaletest failed!"
+	set_status Failed
+	lock_status # Ensure we never rewrite the status after a failure.
 }
 trap failed ERR
 

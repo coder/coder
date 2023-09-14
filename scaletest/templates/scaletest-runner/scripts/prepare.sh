@@ -3,10 +3,13 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
-echo "Preparing scaletest workspace environment..."
-touch /tmp/.scaletest_preparing
+# shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
+. "${SCRIPTS_DIR}/lib.sh"
 
-mkdir -p "${SCALETEST_RUN_DIR}"
+mkdir -p "${SCALETEST_STATE_DIR}"
+
+echo "Preparing scaletest workspace environment..."
+set_status Preparing
 
 echo "Installing prerequisites (terraform, envsubst, gcloud, jq and kubectl)..."
 

@@ -7,7 +7,7 @@ set -euo pipefail
 . "${SCRIPTS_DIR}/lib.sh"
 
 log "Running scaletest..."
-touch /tmp/.scaletest_running
+set_status Running
 
 start_phase "Creating workspaces"
 coder exp scaletest create-workspaces \
@@ -56,4 +56,4 @@ end_phase
 wait_baseline 5
 
 log "Scaletest complete!"
-touch /tmp/.scaletest_complete
+set_status Complete

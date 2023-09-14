@@ -12,7 +12,8 @@ fi
 . ~/coder/scripts/lib.sh
 
 # Environment variables shared between scripts.
-SCALETEST_PHASE_FILE=/tmp/.scaletest_phase
+SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
+SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 
 coder() {
 	maybedryrun "$DRY_RUN" command coder "${@}"
@@ -20,6 +21,21 @@ coder() {
 
 show_json() {
 	maybedryrun "$DRY_RUN" jq 'del(.. | .logs?)' "${1}"
+}
+
+set_status() {
+	echo "$*" >"${SCALETEST_STATE_DIR}/status"
+}
+lock_status() {
+	chmod 0440 "${SCALETEST_STATE_DIR}/status"
+}
+get_status() {
+	# Order of importance (reverse of creation).
+	if [[ -f "${SCALETEST_STATE_DIR}/status" ]]; then
+		cat "${SCALETEST_STATE_DIR}/status"
+	else
+		echo "Not started"
+	fi
 }
 
 phase_num=0
@@ -36,6 +52,18 @@ end_phase() {
 	fi
 	log "End phase ${phase_num}: ${phase}"
 	echo "$(date -Iseconds) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
+}
+get_phase() {
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
+		phase_raw="$(tail -n1 "${SCALETEST_PHASE_FILE}")"
+		phase="$(echo "${phase_raw}" | cut -d' ' -f3-)"
+		if [[ ${phase_raw} == *"END:"* ]]; then
+			phase+=" (done)"
+		fi
+		echo "${phase}"
+	else
+		echo "None"
+	fi
 }
 
 wait_baseline() {
