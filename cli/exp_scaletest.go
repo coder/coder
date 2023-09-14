@@ -105,7 +105,6 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 
 	tracerProvider, closeTracing, err := tracing.TracerProvider(ctx, scaletestTracerName, tracing.TracerOpts{
 		Default:   s.traceEnable,
-		Coder:     s.traceCoder,
 		Honeycomb: s.traceHoneycombAPIKey,
 	})
 	if err != nil {
