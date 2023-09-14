@@ -21,7 +21,6 @@ resource "time_static" "start_time" {
 }
 
 locals {
-  namespace              = "coder-big"
   workspace_pod_name     = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   workspace_pod_instance = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   service_account_name   = "scaletest-sa"
@@ -120,6 +119,14 @@ data "coder_parameter" "num_workspaces" {
     min = 0
     max = 1000
   }
+}
+
+data "coder_parameter" "namespace" {
+  order       = 999
+  type        = "string"
+  name        = "namespace"
+  default     = "coder-big"
+  description = "The Kubernetes namespace to create the scaletest runner resources in."
 }
 
 data "archive_file" "scripts_zip" {
@@ -262,7 +269,7 @@ resource "kubernetes_persistent_volume_claim" "home" {
   depends_on = [null_resource.permission_check]
   metadata {
     name      = "${local.workspace_pod_name}-home"
-    namespace = local.namespace
+    namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-pvc"
       "app.kubernetes.io/instance" = "coder-pvc-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
@@ -294,7 +301,7 @@ resource "kubernetes_pod" "main" {
   count      = data.coder_workspace.me.start_count
   metadata {
     name      = local.workspace_pod_name
-    namespace = local.namespace
+    namespace = data.coder_parameter.namespace.value
     labels = {
       "app.kubernetes.io/name"     = "coder-workspace"
       "app.kubernetes.io/instance" = local.workspace_pod_instance
