@@ -14,9 +14,7 @@ import { deploymentConfig, deploymentDAUs } from "api/queries/deployment";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
-  getDeploymentValuesError: unknown;
   deploymentDAUs?: DAUsResponse;
-  getDeploymentDAUsError: unknown;
 };
 
 const DeploySettingsContext = createContext<
@@ -49,9 +47,7 @@ export const DeploySettingsLayout: FC = () => {
               <DeploySettingsContext.Provider
                 value={{
                   deploymentValues: deploymentConfigQuery.data,
-                  getDeploymentValuesError: deploymentConfigQuery.error,
                   deploymentDAUs: deploymentDAUsQuery.data,
-                  getDeploymentDAUsError: deploymentDAUsQuery.error,
                 }}
               >
                 <Suspense fallback={<Loader />}>
