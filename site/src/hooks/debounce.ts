@@ -17,11 +17,11 @@ type useDebouncedFunctionReturn<Args extends unknown[]> = Readonly<{
  *
  * If the debounce time changes while a callback has been queued to fire, the
  * callback will be canceled completely. You will need to restart the debounce
- * process by calling debounced again.
+ * process by calling the returned-out function again.
  */
 export function useDebouncedFunction<
   // Parameterizing on the args instead of the whole callback function type to
-  // avoid type contra-variance issues; want to avoid need for type assertions
+  // avoid type contra-variance issues
   Args extends unknown[] = unknown[],
 >(
   callback: (...args: Args) => void | Promise<void>,
@@ -29,10 +29,6 @@ export function useDebouncedFunction<
 ): useDebouncedFunctionReturn<Args> {
   const timeoutIdRef = useRef<number | null>(null);
   const cancelDebounce = useCallback(() => {
-    // Clearing timeout because, even though hot-swapping the timeout value
-    // while keeping any active debounced functions running was possible, it
-    // seemed like it'd be ripe for bugs. Can redesign the logic if that ends up
-    // becoming an actual need down the line.
     if (timeoutIdRef.current !== null) {
       window.clearTimeout(timeoutIdRef.current);
     }
@@ -69,6 +65,9 @@ export function useDebouncedFunction<
   return { debounced, cancelDebounce } as const;
 }
 
+/**
+ * Takes any value, and returns out a debounced version of it.
+ */
 export function useDebouncedValue<T = unknown>(
   value: T,
   debounceTimeMs: number,
