@@ -1006,7 +1006,7 @@ export type DeploymentConfig = {
   readonly options: DeploymentOption[];
 };
 
-export const getDeploymentValues = async (): Promise<DeploymentConfig> => {
+export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {
   const response = await axios.get(`/api/v2/deployment/config`);
   return response.data;
 };

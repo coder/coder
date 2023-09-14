@@ -3,20 +3,16 @@ import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { Sidebar } from "./Sidebar";
 import { createContext, Suspense, useContext, FC } from "react";
-import { useMachine } from "@xstate/react";
 import { Loader } from "components/Loader/Loader";
-import { DAUsResponse } from "api/typesGenerated";
-import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine";
 import { RequirePermission } from "components/RequirePermission/RequirePermission";
 import { usePermissions } from "hooks/usePermissions";
 import { Outlet } from "react-router-dom";
 import { DeploymentConfig } from "api/api";
+import { useQuery } from "@tanstack/react-query";
+import { deploymentConfig } from "api/queries/deployment";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
-  getDeploymentValuesError: unknown;
-  deploymentDAUs?: DAUsResponse;
-  getDeploymentDAUsError: unknown;
 };
 
 const DeploySettingsContext = createContext<
@@ -34,14 +30,8 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 };
 
 export const DeploySettingsLayout: FC = () => {
-  const [state] = useMachine(deploymentConfigMachine);
+  const deploymentConfigQuery = useQuery(deploymentConfig());
   const styles = useStyles();
-  const {
-    deploymentValues,
-    deploymentDAUs,
-    getDeploymentValuesError,
-    getDeploymentDAUsError,
-  } = state.context;
   const permissions = usePermissions();
 
   return (
@@ -50,13 +40,10 @@ export const DeploySettingsLayout: FC = () => {
         <Stack className={styles.wrapper} direction="row" spacing={6}>
           <Sidebar />
           <main className={styles.content}>
-            {deploymentValues ? (
+            {deploymentConfigQuery.data ? (
               <DeploySettingsContext.Provider
                 value={{
-                  deploymentValues,
-                  getDeploymentValuesError,
-                  deploymentDAUs,
-                  getDeploymentDAUsError,
+                  deploymentValues: deploymentConfigQuery.data,
                 }}
               >
                 <Suspense fallback={<Loader />}>

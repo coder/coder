@@ -3,10 +3,12 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { useQuery } from "@tanstack/react-query";
+import { deploymentDAUs } from "api/queries/deployment";
 
 const GeneralSettingsPage: FC = () => {
-  const { deploymentValues, deploymentDAUs, getDeploymentDAUsError } =
-    useDeploySettings();
+  const { deploymentValues } = useDeploySettings();
+  const deploymentDAUsQuery = useQuery(deploymentDAUs());
 
   return (
     <>
@@ -15,8 +17,8 @@ const GeneralSettingsPage: FC = () => {
       </Helmet>
       <GeneralSettingsPageView
         deploymentOptions={deploymentValues.options}
-        deploymentDAUs={deploymentDAUs}
-        getDeploymentDAUsError={getDeploymentDAUsError}
+        deploymentDAUs={deploymentDAUsQuery.data}
+        deploymentDAUsError={deploymentDAUsQuery.error}
       />
     </>
   );
