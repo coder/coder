@@ -62,13 +62,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     paginationRef,
     count,
   } = usersState.context;
-  const permissions = usePermissions();
-
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
-    enabled: permissions.viewDeploymentValues,
+    enabled: viewDeploymentValues,
   });
   // Indicates if oidc roles are synced from the oidc idp.
   // Assign 'false' if unknown.
