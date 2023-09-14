@@ -46,13 +46,13 @@ test("web terminal", async ({ context, page }) => {
   });
 
   // Ensure that we can type in it
-  await terminal.keyboard.type("echo he${justabreak}llo");
+  await terminal.keyboard.type("echo he${justabreak}llo123456");
   await terminal.keyboard.press("Enter");
 
   // Check if "echo" command was executed
   // try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
   try {
-    await terminal.waitForSelector('div.xterm-rows div:text-matches("hello")', {
+    await terminal.waitForSelector('div.xterm-rows div:text-matches("hello123456")', {
       state: "visible",
       timeout: 10 * 1000,
     });
