@@ -479,10 +479,10 @@ const useReloading = (isDisconnected: boolean) => {
       window.location.reload();
     };
 
-    document.addEventListener("keydown", keyDownHandler);
+    document.addEventListener("keydown", keyDownHandler, true);
 
     return () => {
-      document.removeEventListener("keydown", keyDownHandler);
+      document.removeEventListener("keydown", keyDownHandler, true);
     };
   }, [isDisconnected]);
 
