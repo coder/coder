@@ -13,7 +13,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil/randtz"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
@@ -63,8 +62,12 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 
 		if o.fixedTimezone == "" {
 			// To make sure we find timezone-related issues, we set the timezone
-			// of the database to a random one.
-			o.fixedTimezone = randtz.Name(t)
+			// of the database to a non-UTC one.
+			// The below was picked due to the following properties:
+			// - It has a non-UTC offset
+			// - It has a fractional hour UTC offset
+			// - It includes a daylight savings time component
+			o.fixedTimezone = "Canada/Newfoundland"
 		}
 		dbName := dbNameFromConnectionURL(t, connectionURL)
 		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
