@@ -28,6 +28,7 @@ RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.
 	google-cloud-cli \
 	jq \
 	kubectl \
+	zstd \
 	&& gcloud --version \
 	&& kubectl version --client \
 	&& rm -rf /var/lib/apt/lists/*

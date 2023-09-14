@@ -9,7 +9,7 @@ fi
 
 # Source scripts/lib.sh from coder/coder for common functions.
 # shellcheck source=scripts/lib.sh
-. ~/coder/scripts/lib.sh
+. "${HOME}/coder/scripts/lib.sh"
 
 # Environment variables shared between scripts.
 SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"

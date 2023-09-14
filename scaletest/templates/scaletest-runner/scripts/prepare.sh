@@ -12,12 +12,28 @@ mkdir -p "${SCALETEST_RESULTS_DIR}"
 echo "Preparing scaletest workspace environment..."
 set_status Preparing
 
+log "Compressing previous run logs (if applicable)..."
+mkdir -p "${HOME}/archive"
+for dir in "${HOME}/scaletest-"*; do
+	if [[ ${dir} = "${SCALETEST_RUN_DIR}" ]]; then
+		continue
+	fi
+	if [[ -d ${dir} ]]; then
+		name="$(basename "${dir}")"
+		(
+			cd "$(dirname "${dir}")"
+			tar --zstd -cf "${HOME}/archive/${name}.tar.zst" "${name}"
+		)
+		rm -rf "${dir}"
+	fi
+done
+
 echo "Cloning coder/coder repo..."
 
-if [[ ! -d ~/coder ]]; then
-	git clone https://github.com/coder/coder.git ~/coder
+if [[ ! -d "${HOME}/coder" ]]; then
+	git clone https://github.com/coder/coder.git "${HOME}/coder"
 fi
-(cd ~/coder && git pull)
+(cd "${HOME}/coder" && git pull)
 
 echo "Creating coder CLI token (needed for cleanup during shutdown)..."
 
