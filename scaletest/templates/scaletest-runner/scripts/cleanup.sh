@@ -25,7 +25,7 @@ start_phase "Cleanup (${event})"
 coder exp scaletest cleanup \
 	--cleanup-job-timeout 15m \
 	--cleanup-timeout 30m |
-	tee "result-cleanup-${event}.txt"
+	tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
 end_phase
 
 if [[ $event = manual ]]; then

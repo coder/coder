@@ -14,6 +14,7 @@ fi
 # Environment variables shared between scripts.
 SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
+SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 
 coder() {
 	maybedryrun "$DRY_RUN" command coder "${@}"

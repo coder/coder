@@ -7,6 +7,7 @@ set -euo pipefail
 . "${SCRIPTS_DIR}/lib.sh"
 
 mkdir -p "${SCALETEST_STATE_DIR}"
+mkdir -p "${SCALETEST_RESULTS_DIR}"
 
 echo "Preparing scaletest workspace environment..."
 set_status Preparing

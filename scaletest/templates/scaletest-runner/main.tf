@@ -213,6 +213,7 @@ data "archive_file" "scripts_zip" {
 
 resource "coder_agent" "main" {
   arch = data.coder_provisioner.me.arch
+  dir  = local.scaletest_run_dir
   os   = "linux"
   env = {
     VERBOSE : data.coder_parameter.verbose.value ? "1" : "0",

@@ -16,8 +16,8 @@ coder exp scaletest create-workspaces \
 	--concurrency "${SCALETEST_CREATE_CONCURRENCY}" \
 	--job-timeout 15m \
 	--no-cleanup \
-	--output json:"${SCALETEST_RUN_DIR}/result-create-workspaces.json"
-show_json "${SCALETEST_RUN_DIR}/result-create-workspaces.json"
+	--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
+show_json "${SCALETEST_RESULTS_DIR}/create-workspaces.json"
 end_phase
 
 wait_baseline 5
@@ -28,8 +28,8 @@ coder exp scaletest workspace-traffic \
 	--bytes-per-tick 10240 \
 	--tick-interval 1s \
 	--timeout 5m \
-	--output json:"${SCALETEST_RUN_DIR}/result-ssh.json"
-show_json "${SCALETEST_RUN_DIR}/result-ssh.json"
+	--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
+show_json "${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
 end_phase
 
 wait_baseline 5
@@ -39,8 +39,8 @@ coder exp scaletest workspace-traffic \
 	--bytes-per-tick 10240 \
 	--tick-interval 1s \
 	--timeout 5m \
-	--output json:"${SCALETEST_RUN_DIR}/result-reconnectingpty.json"
-show_json "${SCALETEST_RUN_DIR}/result-reconnectingpty.json"
+	--output json:"${SCALETEST_RESULTS_DIR}/traffic-reconnectingpty.json"
+show_json "${SCALETEST_RESULTS_DIR}/traffic-reconnectingpty.json"
 end_phase
 
 wait_baseline 5
@@ -49,8 +49,8 @@ start_phase "Dashboard traffic"
 coder exp scaletest dashboard \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--job-timeout 5m \
-	--output json:"${SCALETEST_RUN_DIR}/result-dashboard.json"
-show_json "${SCALETEST_RUN_DIR}/result-dashboard.json"
+	--output json:"${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
+show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
 end_phase
 
 wait_baseline 5
