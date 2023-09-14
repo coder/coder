@@ -21,15 +21,22 @@ coder:
   # - name: "CODER_ACCESS_URL"
   #   value: "https://coder.example.com"
 
-  # coder.envFrom -- Secrets to use for Coder's environment variables. If you want
-  # one environment variable read from a secret, then use coder.env valueFrom. See
-  # the K8s docs here: https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data
-  # If setting CODER_ACCESS_URL in coder.envFrom, then you must set coder.envUseClusterAccessURL
-  # to false.
+  # coder.envFrom -- Secrets or ConfigMaps to use for Coder's environment
+  # variables. If you want one environment variable read from a secret, then use
+  # coder.env valueFrom. See the K8s docs for valueFrom here:
+  # https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data
+  #
+  # If setting CODER_ACCESS_URL in coder.envFrom, then you must set
+  # coder.envUseClusterAccessURL to false.
   envFrom: []
+  # - configMapRef:
+  #     name: coder-config
+  # - secretRef:
+  #     name: coder-config
 
-  # coder.envUseClusterAccessURL -- Set this to false if defining CODER_ACCESS_URL
-  # in coder.envFrom
+  # coder.envUseClusterAccessURL -- Determines whether the CODER_ACCESS_URL env
+  # is added to coder.env if it's not already set there. Set this to false if
+  # defining CODER_ACCESS_URL in coder.envFrom to avoid conflicts.
   envUseClusterAccessURL: true
 
   # coder.image -- The image to use for Coder.
@@ -40,13 +47,13 @@ coder:
     # if not set. If you're using the chart directly from git, the default
     # app version will not work and you'll need to set this value. The helm
     # chart helpfully fails quickly in this case.
-    tag: "v2.1.5"
+    tag: ""
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
     # coder.image.pullSecrets -- The secrets used for pulling the Coder image from
     # a private registry.
-    pullSecrets:
+    pullSecrets: []
     #  - name: "pull-secret"
 
   # coder.initContainers -- Init containers for the deployment. See:
