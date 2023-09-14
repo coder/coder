@@ -88,7 +88,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 
 // setRandDBTimezone sets the timezone of the database to the given timezone.
 // Note that the updated timezone only comes into effect on reconnect, so we
-// create our own connnection for this and close the DB after we're done.
+// create our own connection for this and close the DB after we're done.
 func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	t.Helper()
 
