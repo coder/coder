@@ -193,27 +193,28 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
 				activityBumpWorkspace(ctx, log, db, bld.WorkspaceID)
-				elapsed := time.Since(start)
-				if elapsed > 15*time.Second {
-					t.Logf("warning: activityBumpWorkspace took longer than 15 seconds: %s", elapsed)
-				}
-				// The actual bump could have happened anywhere in the elapsed time, so we
-				// guess at the approximate time of the bump.
-				approxBumpTime := start.Add(elapsed / 2)
+				end := dbtime.Now()
 
 				// Validate our state after bump
 				updatedBuild, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, bld.WorkspaceID)
 				require.NoError(t, err, "unexpected error getting latest workspace build")
+				require.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "max_deadline should not have changed")
 				if tt.expectedBump == 0 {
 					require.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
 					require.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
-				} else {
-					require.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
-					expectedDeadline := approxBumpTime.Add(tt.expectedBump).UTC()
-					// Note: if CI is especially slow, this test may fail. There is an internal 15-second
-					// deadline in activityBumpWorkspace, so we allow the same window here.
-					require.WithinDuration(t, expectedDeadline, updatedBuild.Deadline.UTC(), 15*time.Second, "unexpected deadline after bump")
+					return
 				}
+				require.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
+				if tt.maxDeadlineOffset != nil {
+					require.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
+					return
+				}
+
+				// Assert that the bump occurred between start and end.
+				expectedDeadlineStart := start.Add(tt.expectedBump)
+				expectedDeadlineEnd := end.Add(tt.expectedBump)
+				require.GreaterOrEqual(t, updatedBuild.Deadline, expectedDeadlineStart, "new deadline should be greater than or equal to start")
+				require.LessOrEqual(t, updatedBuild.Deadline, expectedDeadlineEnd, "new deadline should be lesser than or equal to end")
 			})
 		}
 	}
