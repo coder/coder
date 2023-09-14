@@ -157,7 +157,6 @@ export const getMaxDeadlineChange = (
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"));
 
 export const timeToCron = (time: string, tz?: string) => {
-  if (!time) throw new Error("fuck");
   const [HH, mm] = time.split(":");
   let prefix = "";
   if (tz) {

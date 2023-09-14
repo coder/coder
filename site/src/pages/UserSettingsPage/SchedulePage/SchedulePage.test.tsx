@@ -30,10 +30,6 @@ const fillForm = async ({
   await user.click(option);
 };
 
-const readCronExpression = () => {
-  return;
-};
-
 const submitForm = async () => {
   fireEvent.click(screen.getByText("Update schedule"));
 };
