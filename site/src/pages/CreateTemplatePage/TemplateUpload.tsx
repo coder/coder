@@ -1,7 +1,6 @@
 import Link from "@mui/material/Link";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import { Link as RouterLink } from "react-router-dom";
 
 export interface TemplateUploadProps {
@@ -17,8 +16,6 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
   onRemove,
   file,
 }) => {
-  const { t } = useTranslation("createTemplatePage");
-
   const description = (
     <>
       The template has to be a .tar file. You can also use our{" "}
@@ -42,8 +39,8 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
       onUpload={onUpload}
       onRemove={onRemove}
       file={file}
-      removeLabel={t("form.upload.removeFile")}
-      title={t("form.upload.title")}
+      removeLabel="Remove file"
+      title="Upload template"
       description={description}
       extension=".tar"
       fileTypeRequired="application/x-tar"

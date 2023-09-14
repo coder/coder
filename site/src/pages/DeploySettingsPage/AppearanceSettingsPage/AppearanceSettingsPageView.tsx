@@ -12,7 +12,6 @@ import { getFormHelpers } from "utils/formUtils";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import { BlockPicker } from "react-color";
-import { useTranslation } from "react-i18next";
 import makeStyles from "@mui/styles/makeStyles";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
@@ -38,7 +37,6 @@ export const AppearanceSettingsPageView = ({
 }: AppearanceSettingsPageViewProps): JSX.Element => {
   const styles = useStyles();
   const theme = useTheme();
-  const [t] = useTranslation("appearanceSettings");
   const logoForm = useFormik<{
     logo_url: string;
   }>({
@@ -138,7 +136,7 @@ export const AppearanceSettingsPageView = ({
                 );
               }}
             >
-              {t("showPreviewLabel")}
+              Show Preview
             </Button>
           )
         }
@@ -180,7 +178,7 @@ export const AppearanceSettingsPageView = ({
               <TextField
                 {...serviceBannerFieldHelpers(
                   "message",
-                  t("messageHelperText"),
+                  "Markdown bold, italics, and links are supported.",
                 )}
                 fullWidth
                 label="Message"

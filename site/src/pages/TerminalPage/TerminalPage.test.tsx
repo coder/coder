@@ -8,7 +8,6 @@ import {
   MockWorkspaceAgent,
 } from "testHelpers/entities";
 import { TextDecoder, TextEncoder } from "util";
-import { ReconnectingPTYRequest } from "../../api/types";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
@@ -142,10 +141,7 @@ describe("TerminalPage", () => {
     // Then
     await ws.connected;
     const msg = await ws.nextMessage;
-    const req: ReconnectingPTYRequest = JSON.parse(
-      new TextDecoder().decode(msg as Uint8Array),
-    );
-
+    const req = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
     expect(req.height).toBeGreaterThan(0);
     expect(req.width).toBeGreaterThan(0);
     ws.close();

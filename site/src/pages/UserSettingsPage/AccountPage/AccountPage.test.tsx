@@ -4,10 +4,7 @@ import * as AccountForm from "./AccountForm";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import * as AuthXService from "xServices/auth/authXService";
 import { AccountPage } from "./AccountPage";
-import i18next from "i18next";
 import { mockApiError } from "testHelpers/entities";
-
-const { t } = i18next;
 
 const renderPage = () => {
   return renderWithAuth(<AccountPage />);
@@ -86,10 +83,7 @@ describe("AccountPage", () => {
       const { user } = renderPage();
       await fillAndSubmitForm();
 
-      const errorText = t("warningsAndErrors.somethingWentWrong", {
-        ns: "common",
-      });
-      const errorMessage = await screen.findByText(errorText);
+      const errorMessage = await screen.findByText("Something went wrong.");
       expect(errorMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
       expect(API.updateProfile).toBeCalledWith(user.id, newData);

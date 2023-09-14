@@ -1,7 +1,7 @@
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useWorkspaceSettingsContext } from "./WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
 import { useMutation } from "@tanstack/react-query";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -15,7 +15,7 @@ const WorkspaceSettingsPage = () => {
   };
   const workspaceName = params.workspace;
   const username = params.username.replace("@", "");
-  const { workspace } = useWorkspaceSettingsContext();
+  const workspace = useWorkspaceSettings();
   const navigate = useNavigate();
   const mutation = useMutation({
     mutationFn: (formValues: WorkspaceSettingsFormValues) =>

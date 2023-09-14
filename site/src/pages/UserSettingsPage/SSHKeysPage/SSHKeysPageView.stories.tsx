@@ -7,7 +7,6 @@ const meta: Meta<typeof SSHKeysPageView> = {
   component: SSHKeysPageView,
   args: {
     isLoading: false,
-    hasLoaded: true,
     sshKey: {
       user_id: "test-user-id",
       created_at: "2022-07-28T07:45:50.795918897Z",
@@ -30,7 +29,7 @@ export const Loading: Story = {
 
 export const WithGetSSHKeyError: Story = {
   args: {
-    hasLoaded: false,
+    sshKey: undefined,
     getSSHKeyError: mockApiError({
       message: "Failed to get SSH key",
     }),

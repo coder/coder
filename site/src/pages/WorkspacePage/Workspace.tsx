@@ -7,7 +7,6 @@ import {
   WorkspaceBuildProgress,
 } from "./WorkspaceBuildProgress";
 import { FC, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -69,7 +68,7 @@ export interface WorkspaceProps {
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
-  quota_budget?: number;
+  quotaBudget?: number;
   handleBuildRetry: () => void;
   buildLogs?: React.ReactNode;
 }
@@ -102,7 +101,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   buildInfo,
   sshPrefix,
   template,
-  quota_budget,
+  quotaBudget,
   handleBuildRetry,
   templateWarnings,
   buildLogs,
@@ -110,7 +109,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const styles = useStyles();
   const navigate = useNavigate();
   const serverVersion = buildInfo?.version || "";
-  const { t } = useTranslation("workspacePage");
   const { saveLocal, getLocal } = useLocalStorage();
 
   const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
@@ -185,7 +183,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
         <WorkspaceStats
           workspace={workspace}
-          quota_budget={quota_budget}
+          quotaBudget={quotaBudget}
           handleUpdate={handleUpdate}
           canUpdateWorkspace={canUpdateWorkspace}
           maxDeadlineDecrease={scheduleProps.maxDeadlineDecrease}
@@ -301,7 +299,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                     variant="text"
                     size="small"
                   >
-                    {t("actionButton.retryDebugMode")}
+                    Try in debug mode
                   </Button>
                 )
               }

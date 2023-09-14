@@ -1,5 +1,5 @@
+import { DeploymentOption } from "api/api";
 import { optionValue } from "./optionValue";
-import { DeploymentOption } from "api/types";
 
 const defaultOption: DeploymentOption = {
   name: "",

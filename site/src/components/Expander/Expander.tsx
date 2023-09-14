@@ -6,7 +6,6 @@ import {
 } from "components/DropdownArrows/DropdownArrows";
 import { PropsWithChildren, FC } from "react";
 import Collapse from "@mui/material/Collapse";
-import { useTranslation } from "react-i18next";
 import { combineClasses } from "utils/combineClasses";
 
 export interface ExpanderProps {
@@ -20,7 +19,6 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
   children,
 }) => {
   const styles = useStyles();
-  const { t } = useTranslation("common");
 
   const toggleExpanded = () => setExpanded(!expanded);
 
@@ -29,7 +27,7 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
       {!expanded && (
         <Link onClick={toggleExpanded} className={styles.expandLink}>
           <span className={styles.text}>
-            {t("ctas.expand")}
+            Click here to learn more
             <OpenDropdown margin={false} />
           </span>
         </Link>
@@ -43,7 +41,7 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
           className={combineClasses([styles.expandLink, styles.collapseLink])}
         >
           <span className={styles.text}>
-            {t("ctas.collapse")}
+            Click here to hide
             <CloseDropdown margin={false} />
           </span>
         </Link>

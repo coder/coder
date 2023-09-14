@@ -389,6 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],
@@ -658,6 +659,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],

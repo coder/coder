@@ -409,9 +409,6 @@ func DefaultCacheDir() string {
 }
 
 // DeploymentConfig contains both the deployment values and how they're set.
-//
-// @typescript-ignore DeploymentConfig
-// apitypings doesn't know how to generate the OptionSet... yet.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
 	Options clibase.OptionSet `json:"options,omitempty"`
@@ -1192,16 +1189,6 @@ when required by your organization's security policy.`,
 			Value:       &c.Telemetry.Enable,
 			Group:       &deploymentGroupTelemetry,
 			YAML:        "enable",
-		},
-		{
-			Name:        "Telemetry Trace",
-			Description: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
-			Flag:        "telemetry-trace",
-			Env:         "CODER_TELEMETRY_TRACE",
-			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
-			Value:       &c.Telemetry.Trace,
-			Group:       &deploymentGroupTelemetry,
-			YAML:        "trace",
 		},
 		{
 			Name:        "Telemetry URL",

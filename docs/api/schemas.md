@@ -198,6 +198,7 @@
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],
@@ -5438,6 +5439,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],
@@ -5581,6 +5583,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],
@@ -5939,25 +5942,27 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "sharing_level": "owner",
   "slug": "string",
   "subdomain": true,
+  "subdomain_name": "string",
   "url": "string"
 }
 ```
 
 ### Properties
 
-| Name            | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| --------------- | ---------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `command`       | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `display_name`  | string                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
-| `external`      | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
-| `health`        | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
-| `healthcheck`   | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
-| `icon`          | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
-| `id`            | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
-| `sharing_level` | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
-| `slug`          | string                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
-| `subdomain`     | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
-| `url`           | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
+| Name             | Type                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`        | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `display_name`   | string                                                                 | false    |              | Display name is a friendly name for the app.                                                                                                                                                                                                   |
+| `external`       | boolean                                                                | false    |              | External specifies whether the URL should be opened externally on the client or not.                                                                                                                                                           |
+| `health`         | [codersdk.WorkspaceAppHealth](#codersdkworkspaceapphealth)             | false    |              |                                                                                                                                                                                                                                                |
+| `healthcheck`    | [codersdk.Healthcheck](#codersdkhealthcheck)                           | false    |              | Healthcheck specifies the configuration for checking app health.                                                                                                                                                                               |
+| `icon`           | string                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
+| `id`             | string                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `sharing_level`  | [codersdk.WorkspaceAppSharingLevel](#codersdkworkspaceappsharinglevel) | false    |              |                                                                                                                                                                                                                                                |
+| `slug`           | string                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
+| `subdomain`      | boolean                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
+| `subdomain_name` | string                                                                 | false    |              | Subdomain name is the application domain exposed on the `coder server`.                                                                                                                                                                        |
+| `url`            | string                                                                 | false    |              | URL is the address being proxied to inside the workspace. If external is specified, this will be opened on the client.                                                                                                                         |
 
 #### Enumerated Values
 
@@ -6051,6 +6056,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
+              "subdomain_name": "string",
               "url": "string"
             }
           ],
@@ -6363,6 +6369,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "sharing_level": "owner",
           "slug": "string",
           "subdomain": true,
+          "subdomain_name": "string",
           "url": "string"
         }
       ],
@@ -6577,6 +6584,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "sharing_level": "owner",
                     "slug": "string",
                     "subdomain": true,
+                    "subdomain_name": "string",
                     "url": "string"
                   }
                 ],

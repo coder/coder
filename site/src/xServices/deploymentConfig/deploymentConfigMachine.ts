@@ -1,7 +1,10 @@
 import { DAUsResponse } from "./../../api/typesGenerated";
-import { getDeploymentValues, getDeploymentDAUs } from "api/api";
+import {
+  getDeploymentValues,
+  getDeploymentDAUs,
+  DeploymentConfig,
+} from "api/api";
 import { createMachine, assign } from "xstate";
-import { DeploymentConfig } from "api/types";
 
 export const deploymentConfigMachine = createMachine(
   {

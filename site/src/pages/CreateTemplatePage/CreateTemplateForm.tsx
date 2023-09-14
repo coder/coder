@@ -12,7 +12,6 @@ import { TemplateUpload, TemplateUploadProps } from "./TemplateUpload";
 import { useFormik } from "formik";
 import { SelectedTemplate } from "pages/CreateWorkspacePage/SelectedTemplate";
 import { FC, useEffect } from "react";
-import { useTranslation } from "react-i18next";
 import {
   nameValidator,
   getFormHelpers,
@@ -27,8 +26,6 @@ import {
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import { LazyIconField } from "components/IconField/LazyIconField";
-import { Maybe } from "components/Conditionals/Maybe";
-import i18next from "i18next";
 import Link from "@mui/material/Link";
 import {
   HorizontalForm,
@@ -49,32 +46,51 @@ import MenuItem from "@mui/material/MenuItem";
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_TTL_DAYS = 30;
 
-const TTLHelperText = ({
-  ttl,
-  translationName,
-}: {
-  ttl?: number;
-  translationName: string;
-}) => {
-  const { t } = useTranslation("createTemplatePage");
-  const count = typeof ttl !== "number" ? 0 : ttl;
+const hours = (h: number) => (h === 1 ? "hour" : "hours");
+
+const DefaultTTLHelperText = (props: { ttl?: number }) => {
+  const { ttl = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (ttl < 0) {
+    return null;
+  }
+
+  if (ttl === 0) {
+    return <span>Workspaces will run until stopped manually.</span>;
+  }
+
   return (
-    // no helper text if ttl is negative - error will show once field is considered touched
-    <Maybe condition={count >= 0}>
-      <span>{t(translationName, { count })}</span>
-    </Maybe>
+    <span>
+      Workspaces will default to stopping after {ttl} {hours(ttl)} without
+      activity.
+    </span>
+  );
+};
+
+const MaxTTLHelperText = (props: { ttl?: number }) => {
+  const { ttl = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (ttl < 0) {
+    return null;
+  }
+
+  if (ttl === 0) {
+    return <span>Workspaces may run indefinitely.</span>;
+  }
+
+  return (
+    <span>
+      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
+      any active connections.
+    </span>
   );
 };
 
 const validationSchema = Yup.object({
-  name: nameValidator(
-    i18next.t("form.fields.name", { ns: "createTemplatePage" }),
-  ),
-  display_name: templateDisplayNameValidator(
-    i18next.t("form.fields.displayName", {
-      ns: "createTemplatePage",
-    }),
-  ),
+  name: nameValidator("Name"),
+  display_name: templateDisplayNameValidator("Display name"),
   description: Yup.string().max(
     MAX_DESCRIPTION_CHAR_LIMIT,
     "Please enter a description that is less than or equal to 128 characters.",
@@ -225,8 +241,6 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
     onSubmit,
   });
   const getFieldHelpers = getFormHelpers<CreateTemplateData>(form, error);
-  const { t } = useTranslation("createTemplatePage");
-  const { t: commonT } = useTranslation("common");
 
   useEffect(() => {
     if (error) {
@@ -288,7 +302,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             autoFocus
             fullWidth
             required
-            label={t("form.fields.name")}
+            label="Name"
           />
         </FormFields>
       </FormSection>
@@ -303,7 +317,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             {...getFieldHelpers("display_name")}
             disabled={isSubmitting}
             fullWidth
-            label={t("form.fields.displayName")}
+            label="Display name"
           />
 
           <TextField
@@ -312,7 +326,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             rows={5}
             multiline
             fullWidth
-            label={t("form.fields.description")}
+            label="Description"
           />
 
           <LazyIconField
@@ -320,7 +334,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             disabled={isSubmitting}
             onChange={onChangeTrimmed(form)}
             fullWidth
-            label={t("form.fields.icon")}
+            label="Icon"
             onPickEmoji={(value) => form.setFieldValue("icon", value)}
           />
         </FormFields>
@@ -336,15 +350,12 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
             <TextField
               {...getFieldHelpers(
                 "default_ttl_hours",
-                <TTLHelperText
-                  translationName="form.helperText.defaultTTLHelperText"
-                  ttl={form.values.default_ttl_hours}
-                />,
+                <DefaultTTLHelperText ttl={form.values.default_ttl_hours} />,
               )}
               disabled={isSubmitting}
               onChange={onChangeTrimmed(form)}
               fullWidth
-              label={t("form.fields.autostop")}
+              label="Default autostop (hours)"
               type="number"
             />
 
@@ -353,23 +364,17 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 {...getFieldHelpers(
                   "max_ttl_hours",
                   allowAdvancedScheduling ? (
-                    <TTLHelperText
-                      translationName="form.helperText.maxTTLHelperText"
-                      ttl={form.values.max_ttl_hours}
-                    />
+                    <MaxTTLHelperText ttl={form.values.max_ttl_hours} />
                   ) : (
                     <>
-                      {commonT("licenseFieldTextHelper")}{" "}
-                      <Link href={docs("/enterprise")}>
-                        {commonT("learnMore")}
-                      </Link>
-                      .
+                      You need an enterprise license to use it.{" "}
+                      <Link href={docs("/enterprise")}>Learn more</Link>.
                     </>
                   ),
                 )}
                 disabled={isSubmitting || !allowAdvancedScheduling}
                 fullWidth
-                label={t("form.fields.maxTTL")}
+                label="Max lifetime (hours)"
                 type="number"
               />
             )}
@@ -388,19 +393,19 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 fullWidth
                 select
                 value={form.values.autostop_requirement_days_of_week}
-                label={t("form.fields.autostopRequirementDays")}
+                label="Days with required stop"
               >
                 <MenuItem key="off" value="off">
-                  {t("form.fields.autostopRequirementDays_off")}
+                  Off
                 </MenuItem>
                 <MenuItem key="daily" value="daily">
-                  {t("form.fields.autostopRequirementDays_daily")}
+                  Daily
                 </MenuItem>
                 <MenuItem key="saturday" value="saturday">
-                  {t("form.fields.autostopRequirementDays_saturday")}
+                  Saturday
                 </MenuItem>
                 <MenuItem key="sunday" value="sunday">
-                  {t("form.fields.autostopRequirementDays_sunday")}
+                  Sunday
                 </MenuItem>
               </TextField>
 
@@ -420,7 +425,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                 }
                 fullWidth
                 inputProps={{ min: 1, max: 16, step: 1 }}
-                label={t("form.fields.autostopRequirementWeeks")}
+                label="Weeks between required stops"
                 type="number"
               />
             </Stack>
@@ -500,16 +505,21 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
                     spacing={0.5}
                     className={styles.optionText}
                   >
-                    <strong>{t("form.fields.allowUsersToCancel")}</strong>
+                    <strong>
+                      Allow users to cancel in-progress workspace jobs
+                    </strong>
 
                     <HelpTooltip>
                       <HelpTooltipText>
-                        {t("form.tooltip.allowUsersToCancel")}
+                        If checked, users may be able to corrupt their
+                        workspace.
                       </HelpTooltipText>
                     </HelpTooltip>
                   </Stack>
                   <span className={styles.optionHelperText}>
-                    {t("form.helperText.allowUsersToCancel")}
+                    Depending on your template, canceling builds may leave
+                    workspaces in an unhealthy state. This option isn&apos;t
+                    recommended for most use cases.
                   </span>
                 </Stack>
               </Stack>

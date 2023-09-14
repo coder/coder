@@ -5,7 +5,6 @@ import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
 import semver from "semver";
 import * as TypesGen from "../api/typesGenerated";
-import i18next from "i18next";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -196,66 +195,64 @@ export const getDisplayWorkspaceStatus = (
   workspaceStatus: TypesGen.WorkspaceStatus,
   provisionerJob?: TypesGen.ProvisionerJob,
 ) => {
-  const { t } = i18next;
-
   switch (workspaceStatus) {
     case undefined:
       return {
-        text: t("workspaceStatus.loading", { ns: "common" }),
+        text: "Loading",
         icon: <LoadingIcon />,
       } as const;
     case "running":
       return {
         type: "success",
-        text: t("workspaceStatus.running", { ns: "common" }),
+        text: "Running",
         icon: <PlayIcon />,
       } as const;
     case "starting":
       return {
         type: "success",
-        text: t("workspaceStatus.starting", { ns: "common" }),
+        text: "Starting",
         icon: <LoadingIcon />,
       } as const;
     case "stopping":
       return {
         type: "warning",
-        text: t("workspaceStatus.stopping", { ns: "common" }),
+        text: "Stopping",
         icon: <LoadingIcon />,
       } as const;
     case "stopped":
       return {
         type: "warning",
-        text: t("workspaceStatus.stopped", { ns: "common" }),
+        text: "Stopped",
         icon: <StopIcon />,
       } as const;
     case "deleting":
       return {
         type: "warning",
-        text: t("workspaceStatus.deleting", { ns: "common" }),
+        text: "Deleting",
         icon: <LoadingIcon />,
       } as const;
     case "deleted":
       return {
         type: "error",
-        text: t("workspaceStatus.deleted", { ns: "common" }),
+        text: "Deleted",
         icon: <ErrorIcon />,
       } as const;
     case "canceling":
       return {
         type: "warning",
-        text: t("workspaceStatus.canceling", { ns: "common" }),
+        text: "Canceling",
         icon: <LoadingIcon />,
       } as const;
     case "canceled":
       return {
         type: "warning",
-        text: t("workspaceStatus.canceled", { ns: "common" }),
+        text: "Canceled",
         icon: <ErrorIcon />,
       } as const;
     case "failed":
       return {
         type: "error",
-        text: t("workspaceStatus.failed", { ns: "common" }),
+        text: "Failed",
         icon: <ErrorIcon />,
       } as const;
     case "pending":
@@ -270,10 +267,8 @@ export const getDisplayWorkspaceStatus = (
 const getPendingWorkspaceStatusText = (
   provisionerJob?: TypesGen.ProvisionerJob,
 ): string => {
-  const { t } = i18next;
-
   if (!provisionerJob || provisionerJob.queue_size === 0) {
-    return t("workspaceStatus.pending", { ns: "common" });
+    return "Pending";
   }
   return "Position in queue: " + provisionerJob.queue_position;
 };
