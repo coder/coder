@@ -967,17 +967,6 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 
 Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.
 
-### --telemetry-trace
-
-|             |                                     |
-| ----------- | ----------------------------------- |
-| Type        | <code>bool</code>                   |
-| Environment | <code>$CODER_TELEMETRY_TRACE</code> |
-| YAML        | <code>telemetry.trace</code>        |
-| Default     | <code>true</code>                   |
-
-Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.
-
 ### --trace
 
 |             |                                           |
