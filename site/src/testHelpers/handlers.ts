@@ -324,7 +324,7 @@ export const handlers = [
   }),
 
   rest.get("/api/v2/appearance", (req, res, ctx) => {
-    return res(ctx.status(200), ctx.json(M.MockAppearance));
+    return res(ctx.status(200), ctx.json(M.MockAppearanceConfig));
   }),
 
   rest.get("/api/v2/deployment/stats", (_, res, ctx) => {

@@ -1,4 +1,7 @@
-import { useMachine } from "@xstate/react";
+import { useQuery } from "@tanstack/react-query";
+import { buildInfo } from "api/queries/buildInfo";
+import { experiments } from "api/queries/experiments";
+import { entitlements } from "api/queries/entitlements";
 import {
   AppearanceConfig,
   BuildInfoResponse,
@@ -6,17 +9,19 @@ import {
   Experiments,
 } from "api/typesGenerated";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { createContext, FC, PropsWithChildren, useContext } from "react";
-import { appearanceMachine } from "xServices/appearance/appearanceXService";
-import { buildInfoMachine } from "xServices/buildInfo/buildInfoXService";
-import { entitlementsMachine } from "xServices/entitlements/entitlementsXService";
-import { experimentsMachine } from "xServices/experiments/experimentsMachine";
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  useContext,
+  useState,
+} from "react";
+import { appearance } from "api/queries/appearance";
 
 interface Appearance {
   config: AppearanceConfig;
-  preview: boolean;
+  isPreview: boolean;
   setPreview: (config: AppearanceConfig) => void;
-  save: (config: AppearanceConfig) => void;
 }
 
 interface DashboardProviderValue {
@@ -31,29 +36,16 @@ export const DashboardProviderContext = createContext<
 >(undefined);
 
 export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
-  const [buildInfoState] = useMachine(buildInfoMachine);
-  const [entitlementsState] = useMachine(entitlementsMachine);
-  const [appearanceState, appearanceSend] = useMachine(appearanceMachine);
-  const [experimentsState] = useMachine(experimentsMachine);
-  const { buildInfo } = buildInfoState.context;
-  const { entitlements } = entitlementsState.context;
-  const { appearance, preview } = appearanceState.context;
-  const { experiments } = experimentsState.context;
-  const isLoading = !buildInfo || !entitlements || !appearance || !experiments;
-
-  const setAppearancePreview = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SET_PREVIEW_APPEARANCE",
-      appearance: config,
-    });
-  };
-
-  const saveAppearance = (config: AppearanceConfig) => {
-    appearanceSend({
-      type: "SAVE_APPEARANCE",
-      appearance: config,
-    });
-  };
+  const buildInfoQuery = useQuery(buildInfo());
+  const entitlementsQuery = useQuery(entitlements());
+  const experimentsQuery = useQuery(experiments());
+  const appearanceQuery = useQuery(appearance());
+  const isLoading =
+    !buildInfoQuery.data ||
+    !entitlementsQuery.data ||
+    !appearanceQuery.data ||
+    !experimentsQuery.data;
+  const [configPreview, setConfigPreview] = useState<AppearanceConfig>();
 
   if (isLoading) {
     return <FullScreenLoader />;
@@ -62,14 +54,13 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
   return (
     <DashboardProviderContext.Provider
       value={{
-        buildInfo,
-        entitlements,
-        experiments,
+        buildInfo: buildInfoQuery.data,
+        entitlements: entitlementsQuery.data,
+        experiments: experimentsQuery.data,
         appearance: {
-          preview,
-          config: appearance,
-          setPreview: setAppearancePreview,
-          save: saveAppearance,
+          config: configPreview ?? appearanceQuery.data,
+          setPreview: setConfigPreview,
+          isPreview: configPreview !== undefined,
         },
       }}
     >

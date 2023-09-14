@@ -1,4 +1,4 @@
-import { getFeatureVisibility } from "./entitlementsSelectors";
+import { getFeatureVisibility } from "./entitlements";
 
 describe("getFeatureVisibility", () => {
   it("returns empty object if there is no license", () => {
