@@ -417,7 +417,7 @@ resource "kubernetes_pod" "main" {
 
     container {
       name              = "dev"
-      image             = "codercom/enterprise-base:ubuntu"
+      image             = "gcr.io/coder-dev-1/scaletest-runner:latest"
       image_pull_policy = "Always"
       command           = ["sh", "-c", coder_agent.main.init_script]
       security_context {

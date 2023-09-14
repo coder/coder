@@ -11,24 +11,6 @@ mkdir -p "${SCALETEST_STATE_DIR}"
 echo "Preparing scaletest workspace environment..."
 set_status Preparing
 
-echo "Installing prerequisites (terraform, envsubst, gcloud, jq and kubectl)..."
-
-wget --quiet -O /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
-sudo unzip /tmp/terraform.zip -d /usr/local/bin
-terraform --version
-
-wget --quiet -O /tmp/envsubst "https://github.com/a8m/envsubst/releases/download/v1.2.0/envsubst-$(uname -s)-$(uname -m)"
-chmod +x /tmp/envsubst
-sudo mv /tmp/envsubst /usr/local/bin
-
-echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
-sudo apt-get update
-sudo apt-get install --yes \
-	google-cloud-cli \
-	jq \
-	kubectl
-
 echo "Cloning coder/coder repo..."
 
 if [[ ! -d coder ]]; then
