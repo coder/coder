@@ -50,9 +50,17 @@ test("web terminal", async ({ context, page }) => {
   await terminal.keyboard.press("Enter");
 
   // Check if "echo" command was executed
-  await xtermRows.waitForSelector('div:text-matches("hello")', {
-    state: "visible",
-  });
+  // try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
+  try {
+    await xtermRows.waitForSelector('div:text-matches("hello")', {
+      state: "visible",
+    });
+  } catch (error) {
+    const pageContent = await terminal.content();
+    // eslint-disable-next-line no-console -- Let's see what is inside of xterm-rows
+    console.log("Unable to find echoed text:", pageContent);
+    throw error;
+  }
 
   await stopAgent(agent);
 });
