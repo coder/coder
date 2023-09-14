@@ -79,6 +79,9 @@ type Options struct {
 	ModifiedProcesses chan []*agentproc.Process
 	// ProcessManagementTick is used for testing process priority management.
 	ProcessManagementTick <-chan time.Time
+	// PrioritizedPIDs are processes that should have preferred CPU allocation
+	// and be de-prioritized for OOM Killer selection.
+	PrioritizedPIDs []int
 }
 
 type Client interface {
@@ -161,6 +164,7 @@ func New(options Options) Agent {
 		syscaller:                    options.Syscaller,
 		modifiedProcs:                options.ModifiedProcesses,
 		processManagementTick:        options.ProcessManagementTick,
+		prioritizedPIDs:              options.PrioritizedPIDs,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -221,6 +225,9 @@ type agent struct {
 	modifiedProcs chan []*agentproc.Process
 	// processManagementTick is used for testing process priority management.
 	processManagementTick <-chan time.Time
+	// prioritizedPIDs are processes that should have preferred CPU allocation
+	// and be de-prioritized for OOM Killer selection.
+	prioritizedPIDs []int
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -1278,8 +1285,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	}
 }
 
-var prioritizedProcs = []string{"coder"}
-
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
 		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
@@ -1337,11 +1342,9 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 			slog.F("pid", proc.PID),
 		)
 
-		// Trim off the path e.g. "./coder" -> "coder"
-		name := filepath.Base(proc.Name())
 		// If the process is prioritized we should adjust
 		// it's oom_score_adj and avoid lowering its niceness.
-		if slices.Contains(prioritizedProcs, name) {
+		if slices.Contains(a.prioritizedPIDs, int(proc.PID)) {
 			err = proc.SetOOMAdj(oomScoreAdj)
 			if err != nil {
 				logger.Warn(ctx, "unable to set proc oom_score_adj",

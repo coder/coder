@@ -2411,12 +2411,13 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 		}
 
 		var (
-			expectedProcs = map[int32]agentproc.Process{}
-			fs            = afero.NewMemMapFs()
-			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
-			ticker        = make(chan time.Time)
-			modProcs      = make(chan []*agentproc.Process)
-			logger        = slog.Make(sloghuman.Sink(io.Discard))
+			expectedProcs   = map[int32]agentproc.Process{}
+			fs              = afero.NewMemMapFs()
+			syscaller       = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			ticker          = make(chan time.Time)
+			modProcs        = make(chan []*agentproc.Process)
+			logger          = slog.Make(sloghuman.Sink(io.Discard))
+			prioritizedProc = 123
 		)
 
 		// Create some processes.
@@ -2429,12 +2430,15 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 				proc = agentproctest.GenerateProcess(t, fs,
 					func(p *agentproc.Process) {
 						p.CmdLine = "./coder\x00agent\x00--no-reap"
-						p.PID = 1
+						p.PID = int32(prioritizedProc)
 					},
 				)
 			} else {
 				// The rest are peasants.
 				proc = agentproctest.GenerateProcess(t, fs)
+				if proc.PID == int32(prioritizedProc) {
+					proc.PID = 1234
+				}
 				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
 				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
 			}
@@ -2452,6 +2456,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			o.Filesystem = fs
 			o.Logger = logger
 			o.ProcessManagementTick = ticker
+			o.PrioritizedPIDs = []int{prioritizedProc}
 		})
 		actualProcs := <-modProcs
 		require.Len(t, actualProcs, 4)
@@ -2460,7 +2465,7 @@ func TestAgent_ManageProcessPriority(t *testing.T) {
 			expectedScore := "0"
 			expected, ok := expectedProcs[actual.PID]
 			require.True(t, ok)
-			if expected.PID == 1 {
+			if expected.PID == int32(prioritizedProc) {
 				expectedScore = "-500"
 			}
 
