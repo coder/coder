@@ -28,7 +28,7 @@ import (
 // make update-golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|\+\d+:\d+)`)
+var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d+:\d+)`)
 
 type CommandHelpCase struct {
 	Name string
