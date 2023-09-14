@@ -471,7 +471,7 @@ resource "kubernetes_manifest" "pod_monitor" {
     apiVersion = "monitoring.coreos.com/v1"
     kind       = "PodMonitor"
     metadata = {
-      namespace = local.namespace
+      namespace = data.coder_parameter.namespace.value
       name      = "podmonitor-${local.workspace_pod_name}"
     }
     spec = {
