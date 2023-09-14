@@ -19,10 +19,10 @@ const activityBumpWorkspace = `-- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
 		workspace_builds.id::uuid AS build_id,
-		workspace_builds.deadline::timestamp AS build_deadline,
-		workspace_builds.max_deadline::timestamp AS build_max_deadline,
+		workspace_builds.deadline::timestamp with time zone AS build_deadline,
+		workspace_builds.max_deadline::timestamp with time zone AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
-		provisioner_jobs.completed_at::timestamp AS job_completed_at,
+		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval
 	FROM workspace_builds
 	JOIN provisioner_jobs
@@ -38,7 +38,7 @@ UPDATE
 SET
 	updated_at = NOW(),
 	deadline = CASE
-		WHEN l.build_max_deadline = '0001-01-01 00:00:00+00'
+		WHEN l.build_max_deadline AT TIME ZONE 'UTC' = '0001-01-01 00:00:00+00'
 		THEN NOW() + l.ttl_interval
 		ELSE LEAST(NOW() + l.ttl_interval, l.build_max_deadline)
 	END
@@ -46,7 +46,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
-AND l.build_deadline != '0001-01-01 00:00:00+00'
+AND l.build_deadline AT TIME ZONE 'UTC' != '0001-01-01 00:00:00+00'
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
 

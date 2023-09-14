@@ -30,6 +30,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	// doesn't use template autostop requirements and instead edits the
 	// max_deadline on the build directly in the database.
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
+		t.Helper()
 		const ttl = time.Minute
 		maxTTL := time.Duration(0)
 		if len(deadline) > 0 {
@@ -120,6 +121,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		return client, workspace, func(want bool) {
+			t.Helper()
 			if !want {
 				// It is difficult to test the absence of a call in a non-racey
 				// way. In general, it is difficult for the API to generate
