@@ -1185,7 +1185,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 func TestWorkspaceAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
-	db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
+	db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 		Database:                 db,

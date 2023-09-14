@@ -13,6 +13,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil/randtz"
 	"github.com/coder/coder/v2/coderd/database/postgres"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
@@ -23,17 +24,18 @@ func WillUsePostgres() bool {
 }
 
 type options struct {
-	fixedTimezone bool
+	fixedTimezone string
 }
 
 type Option func(*options)
 
-// WithFixedTimezone disables the random timezone setting for the database.
+// WithTimezone sets the database to the defined timezone instead of
+// to a random one.
 //
-// DEPRECATED: If you need to use this, you may have a timezone-related bug.
-func WithFixedTimezone() Option {
+// Deprecated: If you need to use this, you may have a timezone-related bug.
+func WithTimezone(tz string) Option {
 	return func(o *options) {
-		o.fixedTimezone = true
+		o.fixedTimezone = tz
 	}
 }
 
@@ -59,11 +61,13 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 			t.Cleanup(closePg)
 		}
 
-		if !o.fixedTimezone {
-			// To make sure we find timezone-related issues, we set the timezone of the database to a random one.
-			dbName := dbNameFromConnectionURL(t, connectionURL)
-			setRandDBTimezone(t, connectionURL, dbName)
+		if o.fixedTimezone == "" {
+			// To make sure we find timezone-related issues, we set the timezone
+			// of the database to a random one.
+			o.fixedTimezone = randtz.Name(t)
 		}
+		dbName := dbNameFromConnectionURL(t, connectionURL)
+		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
 
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
@@ -83,7 +87,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 }
 
 // setRandDBTimezone sets the timezone of the database to the given timezone.
-func setRandDBTimezone(t testing.TB, dbURL, dbname string) {
+func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	t.Helper()
 
 	sqlDB, err := sql.Open("postgres", dbURL)
@@ -94,15 +98,7 @@ func setRandDBTimezone(t testing.TB, dbURL, dbname string) {
 		_ = sqlDB.Close()
 	}()
 
-	// Pick a random timezone. We can simply pick from pg_timezone_names.
-	var tz string
-	err = sqlDB.QueryRow("SELECT name FROM pg_timezone_names ORDER BY RANDOM() LIMIT 1").Scan(&tz)
-	require.NoError(t, err)
-
-	// Set the timezone for the database.
-	t.Logf("setting timezone of database %q to %q", dbname, tz)
-	// We apparently can't use placeholders here, sadly.
-	// nolint: gosec // This is not user input and this is only executed in tests
+	// nolint: gosec // This unfortunately does not work with placeholders.
 	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
 	require.NoError(t, err, "failed to set timezone for database")
 }

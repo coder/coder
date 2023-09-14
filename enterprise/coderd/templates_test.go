@@ -369,7 +369,7 @@ func TestTemplates(t *testing.T) {
 	t.Run("UpdateLastUsedAt", func(t *testing.T) {
 		t.Parallel()
 
-		db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{

@@ -642,7 +642,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 
 		dormantTTL := 24 * time.Hour
 
-		db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
