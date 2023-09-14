@@ -14,6 +14,7 @@ fi
 # Environment variables shared between scripts.
 SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
+# shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 
 coder() {
@@ -67,7 +68,7 @@ get_phase() {
 	fi
 }
 get_previous_phase() {
-	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(wc -l "${SCALETEST_PHASE_FILE}") -gt 1 ]]; then
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(wc -l "${SCALETEST_PHASE_FILE}" | cut -d' ' -f1) -gt 1 ]]; then
 		grep START: "${SCALETEST_PHASE_FILE}" | tail -n2 | head -n1 | cut -d' ' -f3-
 	else
 		echo "None"
