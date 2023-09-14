@@ -65,7 +65,7 @@ data "coder_parameter" "dry_run" {
   order       = 2
   type        = "bool"
   name        = "Dry-run"
-  default     = false
+  default     = true
   description = "Perform a dry-run to see what would happen."
   mutable     = true
   ephemeral   = true
@@ -90,7 +90,7 @@ data "coder_parameter" "create_concurrency" {
 data "coder_parameter" "job_concurrency" {
   order       = 11
   type        = "number"
-  name        = "Scaletest job concurrency"
+  name        = "Job concurrency"
   default     = 10
   description = "The number of concurrent jobs (e.g. when producing workspace traffic)."
   mutable     = true
@@ -118,6 +118,36 @@ data "coder_parameter" "cleanup_concurrency" {
     max = 100
   }
 }
+
+data "coder_parameter" "cleanup_strategy" {
+  order       = 13
+  name        = "Cleanup strategy"
+  default     = "always"
+  description = "The strategy used to cleanup workspaces after the scaletest is complete."
+  mutable     = true
+  ephemeral   = true
+  option {
+    name        = "Always"
+    value       = "always"
+    description = "Automatically cleanup workspaces after the scaletest ends."
+  }
+  option {
+    name        = "On stop"
+    value       = "on_stop"
+    description = "Cleanup workspaces when the workspace is stopped."
+  }
+  option {
+    name        = "On success"
+    value       = "on_success"
+    description = "Automatically cleanup workspaces after the scaletest is complete if no error occurs."
+  }
+  option {
+    name        = "On error"
+    value       = "on_error"
+    description = "Automatically cleanup workspaces after the scaletest is complete if an error occurs."
+  }
+}
+
 
 data "coder_parameter" "workspace_template" {
   order        = 20
@@ -204,6 +234,7 @@ resource "coder_agent" "main" {
     SCALETEST_SKIP_CLEANUP : "1",
     SCALETEST_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
     SCALETEST_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
+    SCALETEST_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
 
     SCRIPTS_ZIP : filebase64(data.archive_file.scripts_zip.output_path),
     SCRIPTS_DIR : "/tmp/scripts",

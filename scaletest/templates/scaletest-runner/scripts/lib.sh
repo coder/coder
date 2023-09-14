@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Only source this script once, this env comes from sourcing
 # scripts/lib.sh from coder/coder below.
-if [[ ${SCRIPTS_LIB_IS_SOURCED} == 1 ]]; then
+if [[ ${SCRIPTS_LIB_IS_SOURCED:-0} == 1 ]]; then
 	return 0
 fi
 
