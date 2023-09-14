@@ -10,25 +10,11 @@ import {
   UpdateUserQuietHoursScheduleRequest,
   UserQuietHoursScheduleResponse,
 } from "api/typesGenerated";
-import cronParser from "cron-parser";
 import MenuItem from "@mui/material/MenuItem";
 import { Stack } from "components/Stack/Stack";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
-import timezone from "dayjs/plugin/timezone";
-import utc from "dayjs/plugin/utc";
-import { timeZones } from "utils/timeZones";
+import { timeZones, getPreferredTimezone } from "utils/timeZones";
 import { Alert } from "components/Alert/Alert";
-import { useQueryClient } from "@tanstack/react-query";
-
-dayjs.extend(utc);
-import advancedFormat from "dayjs/plugin/advancedFormat";
-import duration from "dayjs/plugin/duration";
-import { userQuietHoursScheduleKey } from "api/queries/settings";
-dayjs.extend(advancedFormat);
-dayjs.extend(duration);
-dayjs.extend(timezone);
-dayjs.extend(relativeTime);
+import { timeToCron, quietHoursDisplay } from "utils/schedule";
 
 export interface ScheduleFormValues {
   startTime: string;
@@ -41,14 +27,14 @@ const validationSchema = Yup.object({
     .test("is-time-string", "Time must be in HH:mm format.", (value) => {
       if (value === "") {
         return true;
-      } else if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
-        return false;
-      } else {
-        const parts = value.split(":");
-        const HH = Number(parts[0]);
-        const mm = Number(parts[1]);
-        return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
       }
+      if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+        return false;
+      }
+      const parts = value.split(":");
+      const HH = Number(parts[0]);
+      const mm = Number(parts[1]);
+      return HH >= 0 && HH <= 23 && mm >= 0 && mm <= 59;
     }),
   timezone: Yup.string().required(),
 });
@@ -71,10 +57,8 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   onSubmit,
   now,
 }) => {
-  // Force a re-render every 15 seconds to update the "Next occurrence" field.
-  // The app re-renders by itself occasionally but this is just to be sure it
-  // doesn't get stale.
-  const [_, setTime] = useState<number>(Date.now());
+  // Update every 15 seconds to update the "Next occurrence" field.
+  const [, setTime] = useState<number>(Date.now());
   useEffect(() => {
     const interval = setInterval(() => setTime(Date.now()), 15000);
     return () => {
@@ -159,9 +143,8 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
           disabled
           fullWidth
           label="Next occurrence"
-          value={formatNextRun(
+          value={quietHoursDisplay(
             form.values.startTime,
-
             form.values.timezone,
             now,
           )}
@@ -180,60 +163,4 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
       </FormFields>
     </Form>
   );
-};
-
-const getPreferredTimezone = () => {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone;
-};
-
-const timeToCron = (time: string, tz?: string) => {
-  const [HH, mm] = time.split(":");
-  let prefix = "";
-  if (tz) {
-    prefix = `CRON_TZ=${tz} `;
-  }
-  return `${prefix}${mm} ${HH} * * *`;
-};
-
-// evaluateNextRun returns a Date object of the next cron run time.
-const evaluateNextRun = (
-  time: string,
-  tz: string,
-  now: Date | undefined,
-): Date => {
-  // The cron-parser package doesn't accept a timezone in the cron string, but
-  // accepts it as an option.
-  const cron = timeToCron(time);
-  const parsed = cronParser.parseExpression(cron, {
-    currentDate: now,
-    iterator: false,
-    utc: false,
-    tz,
-  });
-
-  return parsed.next().toDate();
-};
-
-const formatNextRun = (
-  time: string,
-  tz: string,
-  now: Date | undefined,
-): string => {
-  const nowDjs = dayjs(now).tz(tz);
-  const djs = dayjs(evaluateNextRun(time, tz, now)).tz(tz);
-  let str = djs.format("h:mm A");
-  if (djs.isSame(nowDjs, "day")) {
-    str += " today";
-  } else if (djs.isSame(nowDjs.add(1, "day"), "day")) {
-    str += " tomorrow";
-  } else {
-    // This case will rarely ever be hit, as we're dealing with only times and
-    // not dates, but it can be hit due to mismatched browser timezone to cron
-    // timezone or due to daylight savings changes.
-    str += ` on ${djs.format("dddd, MMMM D")}`;
-  }
-
-  str += ` (${djs.from(now)})`;
-
-  return str;
 };

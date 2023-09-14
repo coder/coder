@@ -1,5 +1,6 @@
 import { FC } from "react";
-import { Section } from "../../../components/SettingsLayout/Section";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Section } from "components/SettingsLayout/Section";
 import { ScheduleForm } from "./ScheduleForm";
 import { useMe } from "hooks/useMe";
 import { Loader } from "components/Loader/Loader";
@@ -9,7 +10,6 @@ import {
   userQuietHoursSchedule,
   userQuietHoursScheduleKey,
 } from "api/queries/settings";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 
 export const SchedulePage: FC = () => {
   const me = useMe();
