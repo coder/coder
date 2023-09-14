@@ -20,17 +20,6 @@ resource "time_static" "start_time" {
   }
 }
 
-locals {
-  workspace_pod_name     = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_instance = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  service_account_name   = "scaletest-sa"
-  cpu                    = 2
-  memory                 = 2
-  home_disk_size         = 10
-  scaletest_run_id       = "scaletest-${time_static.start_time.rfc3339}"
-  scaletest_run_dir      = "/home/coder/${local.scaletest_run_id}"
-}
-
 resource "null_resource" "permission_check" {
   count = data.coder_workspace.me.start_count
 
@@ -43,6 +32,17 @@ resource "null_resource" "permission_check" {
       error_message = "User and workspace name is not allowed, expected 'scaletest/runner'."
     }
   }
+}
+
+locals {
+  workspace_pod_name     = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_instance = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  service_account_name   = "scaletest-sa"
+  cpu                    = 2
+  memory                 = 2
+  home_disk_size         = 10
+  scaletest_run_id       = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_dir      = "/home/coder/${local.scaletest_run_id}"
 }
 
 data "coder_provisioner" "me" {
