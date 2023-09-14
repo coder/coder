@@ -54,6 +54,7 @@ test("web terminal", async ({ context, page }) => {
   try {
     await xtermRows.waitForSelector('div:text-matches("hello")', {
       state: "visible",
+      timeout: 30 * 1000,
     });
   } catch (error) {
     const pageContent = await terminal.content();
