@@ -8,7 +8,11 @@ export const getMetadataAsJSON = <T extends Record<string, any>>(
     try {
       return JSON.parse(rawContent as string);
     } catch (ex) {
-      throw new Error(`Failed to parse ${property} metadata`);
+      // In development the metadata is always going to be empty throwing this
+      // error
+      if (process.env.NODE_ENV === "production") {
+        console.warn(`Failed to parse ${property} metadata`);
+      }
     }
   }
 };
