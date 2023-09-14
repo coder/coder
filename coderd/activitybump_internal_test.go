@@ -2,7 +2,6 @@ package coderd
 
 import (
 	"database/sql"
-	"runtime"
 	"testing"
 	"time"
 
@@ -188,7 +187,10 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.Equal(t, maxDeadline.UTC(), bld.MaxDeadline.UTC(), "unexpected max deadline before bump")
 				require.Equal(t, tt.workspaceTTL, time.Duration(ws.Ttl.Int64), "unexpected workspace TTL before bump")
 
-				workaroundWindowsTimeResolution(t)
+				// Wait a bit before bumping as dbtime is rounded to the nearest millisecond.
+				// This should also hopefully be enough for Windows time resolution to register
+				// a tick (win32 max timer resolution is apparently between 0.5 and 15.6ms)
+				<-time.After(testutil.IntervalFast)
 
 				// Bump duration is measured from the time of the bump, so we measure from here.
 				start := dbtime.Now()
@@ -236,12 +238,4 @@ func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, work
 		TemplateVersionID: tvID,
 		Transition:        transition,
 	})
-}
-
-func workaroundWindowsTimeResolution(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS == "windows" {
-		t.Logf("workaround: sleeping for a short time to avoid time resolution issues on Windows")
-		<-time.After(testutil.IntervalSlow)
-	}
 }
