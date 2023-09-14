@@ -4,17 +4,15 @@ import { Stack } from "components/Stack/Stack";
 import { Sidebar } from "./Sidebar";
 import { createContext, Suspense, useContext, FC } from "react";
 import { Loader } from "components/Loader/Loader";
-import { DAUsResponse } from "api/typesGenerated";
 import { RequirePermission } from "components/RequirePermission/RequirePermission";
 import { usePermissions } from "hooks/usePermissions";
 import { Outlet } from "react-router-dom";
 import { DeploymentConfig } from "api/api";
 import { useQuery } from "@tanstack/react-query";
-import { deploymentConfig, deploymentDAUs } from "api/queries/deployment";
+import { deploymentConfig } from "api/queries/deployment";
 
 type DeploySettingsContextValue = {
   deploymentValues: DeploymentConfig;
-  deploymentDAUs?: DAUsResponse;
 };
 
 const DeploySettingsContext = createContext<
@@ -33,7 +31,6 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 
 export const DeploySettingsLayout: FC = () => {
   const deploymentConfigQuery = useQuery(deploymentConfig());
-  const deploymentDAUsQuery = useQuery(deploymentDAUs());
   const styles = useStyles();
   const permissions = usePermissions();
 
@@ -43,11 +40,10 @@ export const DeploySettingsLayout: FC = () => {
         <Stack className={styles.wrapper} direction="row" spacing={6}>
           <Sidebar />
           <main className={styles.content}>
-            {deploymentConfigQuery.data && deploymentDAUsQuery.data ? (
+            {deploymentConfigQuery.data ? (
               <DeploySettingsContext.Provider
                 value={{
                   deploymentValues: deploymentConfigQuery.data,
-                  deploymentDAUs: deploymentDAUsQuery.data,
                 }}
               >
                 <Suspense fallback={<Loader />}>
