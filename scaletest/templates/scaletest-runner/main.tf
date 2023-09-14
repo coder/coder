@@ -71,8 +71,56 @@ data "coder_parameter" "dry_run" {
   ephemeral   = true
 }
 
+data "coder_parameter" "create_concurrency" {
+  order       = 10
+  type        = "number"
+  name        = "Create concurrency"
+  default     = 10
+  description = "The number of workspaces to create concurrently."
+  mutable     = true
+
+  # Setting zero = unlimited, but perhaps not a good idea,
+  # we can raise this limit instead.
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "job_concurrency" {
+  order       = 11
+  type        = "number"
+  name        = "Scaletest job concurrency"
+  default     = 10
+  description = "The number of concurrent jobs (e.g. when producing workspace traffic)."
+  mutable     = true
+
+  # Setting zero = unlimited, but perhaps not a good idea,
+  # we can raise this limit instead.
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
+data "coder_parameter" "cleanup_concurrency" {
+  order       = 12
+  type        = "number"
+  name        = "Cleanup concurrency"
+  default     = 10
+  description = "The number of concurrent cleanup jobs."
+  mutable     = true
+
+  # Setting zero = unlimited, but perhaps not a good idea,
+  # we can raise this limit instead.
+  validation {
+    min = 1
+    max = 100
+  }
+}
+
 data "coder_parameter" "workspace_template" {
-  order        = 3
+  order        = 20
   name         = "workspace_template"
   display_name = "Workspace Template"
   description  = "The template used for workspace creation."
@@ -106,7 +154,7 @@ data "coder_parameter" "workspace_template" {
 }
 
 data "coder_parameter" "num_workspaces" {
-  order       = 10
+  order       = 21
   type        = "number"
   name        = "Number of workspaces to create"
   default     = 100
@@ -142,16 +190,20 @@ resource "coder_agent" "main" {
     CODER_CONFIG_DIR : "/home/coder/.config/coderv2",
     CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
     CODER_URL : data.coder_workspace.me.access_url,
+
+    # Global scaletest envs that may affect each `coder exp scaletest` invocation.
     CODER_SCALETEST_PROMETHEUS_ADDRESS : "0.0.0.0:21112",
     CODER_SCALETEST_PROMETHEUS_WAIT : "60s",
+    CODER_SCALETEST_CONCURRENCY : "${data.coder_parameter.job_concurrency.value}",
+    CODER_SCALETEST_CLEANUP_CONCURRENCY : "${data.coder_parameter.cleanup_concurrency.value}",
 
+    # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
     SCALETEST_TEMPLATE : data.coder_parameter.workspace_template.value,
     SCALETEST_SKIP_CLEANUP : "1",
     SCALETEST_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
-    SCALETEST_CREATE_CONCURRENCY : "10",
-    SCALETEST_CLEANUP_CONCURRENCY : "10",
+    SCALETEST_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
 
     SCRIPTS_ZIP : filebase64(data.archive_file.scripts_zip.output_path),
     SCRIPTS_DIR : "/tmp/scripts",

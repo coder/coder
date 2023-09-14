@@ -29,7 +29,7 @@ touch /tmp/.scaletest_phase_creating_workspaces
 
 coder exp scaletest create-workspaces \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
-	--template="${SCALETEST_TEMPLATE}" \
+	--template "${SCALETEST_TEMPLATE}" \
 	--concurrency "${SCALETEST_CREATE_CONCURRENCY}" \
 	--job-timeout 15m \
 	--no-cleanup \
@@ -44,7 +44,6 @@ coder exp scaletest workspace-traffic \
 	--ssh \
 	--bytes-per-tick 10240 \
 	--tick-interval 1s \
-	--concurrency 0 \
 	--timeout 5m \
 	--output json:"${SCALETEST_RUN_DIR}/result-ssh.json"
 show_json "${SCALETEST_RUN_DIR}/result-ssh.json"
@@ -56,7 +55,6 @@ touch /tmp/.scaletest_phase_rpty
 coder exp scaletest workspace-traffic \
 	--bytes-per-tick 10240 \
 	--tick-interval 1s \
-	--concurrency 0 \
 	--timeout 5m \
 	--output json:"${SCALETEST_RUN_DIR}/result-rpty.json"
 show_json "${SCALETEST_RUN_DIR}/result-rpty.json"
@@ -67,7 +65,6 @@ wait_baseline 5
 touch /tmp/.scaletest_phase_dashboard
 coder exp scaletest dashboard \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
-	--concurrency 0 \
 	--job-timeout 5m \
 	--output json:"${SCALETEST_RUN_DIR}/result-dashboard.json"
 show_json "${SCALETEST_RUN_DIR}/result-dashboard.json"
