@@ -42,7 +42,6 @@ const validationSchema = Yup.object({
 export interface ScheduleFormProps {
   isLoading: boolean;
   initialValues: UserQuietHoursScheduleResponse;
-  refetch: () => Promise<void>;
   mutationError: unknown;
   onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void;
   // now can be set to force the time used for "Next occurrence" in tests.
@@ -52,7 +51,6 @@ export interface ScheduleFormProps {
 export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   isLoading,
   initialValues,
-  refetch,
   mutationError,
   onSubmit,
   now,
@@ -87,8 +85,6 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         onSubmit({
           schedule: timeToCron(values.startTime, values.timezone),
         });
-
-        await refetch();
       },
     });
   const getFieldHelpers = getFormHelpers<ScheduleFormValues>(

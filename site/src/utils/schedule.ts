@@ -1,8 +1,6 @@
 import cronstrue from "cronstrue";
 import dayjs, { Dayjs } from "dayjs";
 import duration from "dayjs/plugin/duration";
-import isToday from "dayjs/plugin/isToday";
-import isTomorrow from "dayjs/plugin/isTomorrow";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
@@ -14,8 +12,6 @@ import cronParser from "cron-parser";
 //         sorted alphabetically.
 dayjs.extend(utc);
 dayjs.extend(duration);
-dayjs.extend(isToday);
-dayjs.extend(isTomorrow);
 dayjs.extend(relativeTime);
 dayjs.extend(timezone);
 /**
@@ -161,12 +157,13 @@ export const getMaxDeadlineChange = (
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"));
 
 export const timeToCron = (time: string, tz?: string) => {
+  if (!time) throw new Error("fuck");
   const [HH, mm] = time.split(":");
   let prefix = "";
   if (tz) {
     prefix = `CRON_TZ=${tz} `;
   }
-  return `${prefix}${mm} ${HH} * * *`;
+  return `${prefix}${Number(mm)} ${Number(HH)} * * *`;
 };
 
 export const quietHoursDisplay = (
@@ -184,12 +181,13 @@ export const quietHoursDisplay = (
     tz,
   });
 
+  const today = dayjs(now).tz(tz);
   const day = dayjs(parsed.next().toDate()).tz(tz);
-  let display = day.format("h:mm A");
+  let display = day.format("h:mmA");
 
-  if (day.isToday()) {
+  if (day.isSame(today, "day")) {
     display += " today";
-  } else if (day.isTomorrow()) {
+  } else if (day.isSame(today.add(1, "day"), "day")) {
     display += " tomorrow";
   } else {
     // This case will rarely ever be hit, as we're dealing with only times and
@@ -198,7 +196,7 @@ export const quietHoursDisplay = (
     display += ` on ${day.format("dddd, MMMM D")}`;
   }
 
-  display += ` (${day.from(now)})`;
+  display += ` (${day.from(today)})`;
 
   return display;
 };

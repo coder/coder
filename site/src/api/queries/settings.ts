@@ -27,13 +27,10 @@ export const userQuietHoursSchedule = (
 export const updateUserQuietHoursSchedule = (
   userId: string,
   queryClient: QueryClient,
-): MutationOptions<
-  UserQuietHoursScheduleResponse,
-  unknown,
-  UpdateUserQuietHoursScheduleRequest
-> => {
+) => {
   return {
-    mutationFn: (request) => API.updateUserQuietHoursSchedule(userId, request),
+    mutationFn: (request: UpdateUserQuietHoursScheduleRequest) =>
+      API.updateUserQuietHoursSchedule(userId, request),
     onSuccess: async () => {
       await queryClient.invalidateQueries(userQuietHoursScheduleKey(userId));
     },

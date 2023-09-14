@@ -8,8 +8,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   updateUserQuietHoursSchedule,
   userQuietHoursSchedule,
-  userQuietHoursScheduleKey,
 } from "api/queries/settings";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const SchedulePage: FC = () => {
   const me = useMe();
@@ -22,11 +22,18 @@ export const SchedulePage: FC = () => {
     isError,
   } = useQuery(userQuietHoursSchedule(me.id));
 
+  const updateSchedule = updateUserQuietHoursSchedule(me.id, queryClient);
   const {
     mutate: onSubmit,
     error: mutationError,
     isLoading: mutationLoading,
-  } = useMutation(updateUserQuietHoursSchedule(me.id, queryClient));
+  } = useMutation({
+    ...updateSchedule,
+    onSuccess: async () => {
+      await updateSchedule.onSuccess();
+      displaySuccess("Schedule updated successfully");
+    },
+  });
 
   if (isLoading) {
     return <Loader />;
@@ -45,9 +52,6 @@ export const SchedulePage: FC = () => {
       <ScheduleForm
         isLoading={mutationLoading}
         initialValues={quietHoursSchedule}
-        refetch={async () => {
-          await queryClient.invalidateQueries(userQuietHoursScheduleKey(me.id));
-        }}
         mutationError={mutationError}
         onSubmit={onSubmit}
       />

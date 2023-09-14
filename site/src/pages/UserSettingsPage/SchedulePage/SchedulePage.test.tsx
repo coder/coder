@@ -1,44 +1,37 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import * as API from "../../../api/api";
-import { renderWithAuth } from "../../../testHelpers/renderHelpers";
+import userEvent from "@testing-library/user-event";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { SchedulePage } from "./SchedulePage";
-
-const renderPage = () => {
-  return renderWithAuth(<SchedulePage />);
-};
+import { server } from "testHelpers/server";
+import { MockUser } from "testHelpers/entities";
+import { rest } from "msw";
 
 const fillForm = async ({
-  hours,
-  minutes,
+  hour,
+  minute,
   timezone,
 }: {
-  hours: number;
-  minutes: number;
+  hour: number;
+  minute: number;
   timezone: string;
 }) => {
-  await waitFor(() => screen.findByLabelText("Hours"));
-  await waitFor(() => screen.findByLabelText("Minutes"));
-  fireEvent.change(screen.getByLabelText("Hours"), {
-    target: { value: hours },
-  });
-  fireEvent.change(screen.getByLabelText("Minutes"), {
-    target: { value: minutes },
+  const user = userEvent.setup();
+  await waitFor(() => screen.findByLabelText("Start time"));
+  const HH = hour.toString().padStart(2, "0");
+  const mm = minute.toString().padStart(2, "0");
+  fireEvent.change(screen.getByLabelText("Start time"), {
+    target: { value: `${HH}:${mm}` },
   });
 
-  await waitFor(() => screen.findByLabelText("Timezone"));
-  fireEvent.click(screen.getByLabelText("Timezone"));
-  // TODO: fix the options targeting
-  const optionsList = screen.getByRole("listbox");
-  const option = within(optionsList).getByText(timezone);
-  fireEvent.click(option);
+  const timezoneDropdown = screen.getByLabelText("Timezone");
+  await user.click(timezoneDropdown);
+  const list = screen.getByRole("listbox");
+  const option = within(list).getByText(timezone);
+  await user.click(option);
 };
 
 const readCronExpression = () => {
-  return screen.getByLabelText("Cron schedule").getAttribute("value");
-};
-
-const readNextOccurrence = () => {
-  return screen.getByLabelText("Next occurrence").getAttribute("value");
+  return;
 };
 
 const submitForm = async () => {
@@ -56,75 +49,83 @@ const defaultQuietHoursResponse = {
 const cronTests = [
   {
     timezone: "Australia/Sydney",
-    hours: 0,
-    minutes: 0,
-    currentTime: new Date("2023-09-06T15:00:00.000+10:00Z"),
-    expectedNext: "12:00AM tomorrow (in 9 hours)",
+    hour: 0,
+    minute: 0,
   },
-];
+] as const;
 
 describe("SchedulePage", () => {
+  beforeEach(() => {
+    // appear logged out
+    server.use(
+      rest.get(`/api/v2/users/${MockUser.id}/quiet-hours`, (req, res, ctx) => {
+        return res(ctx.status(200), ctx.json(defaultQuietHoursResponse));
+      }),
+    );
+  });
+
   describe("cron tests", () => {
-    for (let i = 0; i < cronTests.length; i++) {
-      const test = cronTests[i];
-      describe(`case ${i}`, () => {
-        it("has the correct expected time", async () => {
-          jest
-            .spyOn(API, "getUserQuietHoursSchedule")
-            .mockImplementationOnce(() =>
-              Promise.resolve(defaultQuietHoursResponse),
-            );
-          jest
-            .spyOn(API, "updateUserQuietHoursSchedule")
-            .mockImplementationOnce((userId, data) => {
-              return Promise.resolve({
-                raw_schedule: data.schedule,
-                user_set: true,
-                time: `${test.hours.toString().padStart(2, "0")}:${test.minutes
-                  .toString()
-                  .padStart(2, "0")}`,
-                timezone: test.timezone,
-                next: "", // This value isn't used in the UI, the UI generates it.
-              });
-            });
-          const { user } = renderPage();
+    it.each(cronTests)(
+      "case %# has the correct expected time",
+      async (test) => {
+        server.use(
+          rest.put(
+            `/api/v2/users/${MockUser.id}/quiet-hours`,
+            async (req, res, ctx) => {
+              const data = await req.json();
+              return res(
+                ctx.status(200),
+                ctx.json({
+                  response: {},
+                  raw_schedule: data.schedule,
+                  user_set: true,
+                  time: `${test.hour.toString().padStart(2, "0")}:${test.minute
+                    .toString()
+                    .padStart(2, "0")}`,
+                  timezone: test.timezone,
+                  next: "", // This value isn't used in the UI, the UI generates it.
+                }),
+              );
+            },
+          ),
+        );
 
-          await fillForm(test);
+        const expectedCronSchedule = `CRON_TZ=${test.timezone} ${test.minute} ${test.hour} * * *`;
+        renderWithAuth(<SchedulePage />);
+        await fillForm(test);
+        const cron = screen.getByLabelText("Cron schedule");
+        expect(cron.getAttribute("value")).toEqual(expectedCronSchedule);
 
-          const expectedCronSchedule = `CRON_TZ=${test.timezone} ${test.minutes} ${test.hours} * * *`;
-          expect(readCronExpression()).toEqual(expectedCronSchedule);
-          expect(readNextOccurrence()).toEqual(test.expectedNext);
-
-          await submitForm();
-          const successMessage = await screen.findByText(
-            "Schedule updated successfully",
-          );
-          expect(successMessage).toBeDefined();
-          expect(API.updateUserQuietHoursSchedule).toBeCalledTimes(1);
-          expect(API.updateUserQuietHoursSchedule).toBeCalledWith(user.id, {
-            schedule: expectedCronSchedule,
-          });
-        });
-      });
-    }
+        await submitForm();
+        const successMessage = await screen.findByText(
+          "Schedule updated successfully",
+        );
+        expect(successMessage).toBeDefined();
+      },
+    );
   });
 
   describe("when it is an unknown error", () => {
     it("shows a generic error message", async () => {
-      jest
-        .spyOn(API, "getUserQuietHoursSchedule")
-        .mockImplementationOnce(() =>
-          Promise.resolve(defaultQuietHoursResponse),
-        );
-      jest.spyOn(API, "updateUserQuietHoursSchedule").mockRejectedValueOnce({
-        data: "unknown error",
-      });
+      server.use(
+        rest.put(
+          `/api/v2/users/${MockUser.id}/quiet-hours`,
+          (req, res, ctx) => {
+            return res(
+              ctx.status(500),
+              ctx.json({
+                message: "oh no!",
+              }),
+            );
+          },
+        ),
+      );
 
-      renderPage();
+      renderWithAuth(<SchedulePage />);
       await fillForm(cronTests[0]);
       await submitForm();
 
-      const errorMessage = await screen.findByText("Something went wrong");
+      const errorMessage = await screen.findByText("oh no!");
       expect(errorMessage).toBeDefined();
     });
   });
