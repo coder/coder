@@ -299,7 +299,6 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				// Intentionally set this to nil. It's mainly used
 				// for testing.
 				ModifiedProcesses: nil,
-				PrioritizedPIDs:   []int{os.Getpid()},
 			})
 
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
