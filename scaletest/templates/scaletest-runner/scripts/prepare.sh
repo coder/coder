@@ -9,7 +9,7 @@ set -euo pipefail
 mkdir -p "${SCALETEST_STATE_DIR}"
 mkdir -p "${SCALETEST_RESULTS_DIR}"
 
-echo "Preparing scaletest workspace environment..."
+log "Preparing scaletest workspace environment..."
 set_status Preparing
 
 log "Compressing previous run logs (if applicable)..."
@@ -28,14 +28,14 @@ for dir in "${HOME}/scaletest-"*; do
 	fi
 done
 
-echo "Cloning coder/coder repo..."
+log "Cloning coder/coder repo..."
 
 if [[ ! -d "${HOME}/coder" ]]; then
 	git clone https://github.com/coder/coder.git "${HOME}/coder"
 fi
 (cd "${HOME}/coder" && git pull)
 
-echo "Creating coder CLI token (needed for cleanup during shutdown)..."
+log "Creating coder CLI token (needed for cleanup during shutdown)..."
 
 mkdir -p "${CODER_CONFIG_DIR}"
 echo -n "${CODER_URL}" >"${CODER_CONFIG_DIR}/url"
@@ -54,4 +54,4 @@ echo -n "${token}" >"${CODER_CONFIG_DIR}/session"
 log "Cleaning up from previous runs (if applicable)..."
 "${SCRIPTS_DIR}/cleanup.sh" "prepare"
 
-echo "Preparation complete!"
+log "Preparation complete!"
