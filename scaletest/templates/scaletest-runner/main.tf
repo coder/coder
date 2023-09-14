@@ -79,7 +79,6 @@ data "coder_parameter" "workspace_template" {
   default      = "kubernetes-minimal"
   icon         = "/emojis/1f4dc.png" # Scroll.
   mutable      = true
-  ephemeral    = true
   option {
     name        = "Minimal"
     value       = "kubernetes-minimal" # Feather.
@@ -113,7 +112,6 @@ data "coder_parameter" "num_workspaces" {
   default     = 100
   description = "The scaletest suite will create this number of workspaces."
   mutable     = true
-  ephemeral   = true
 
   validation {
     min = 0
