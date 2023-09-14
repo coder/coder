@@ -1,23 +1,11 @@
 import * as API from "api/api";
+import { BuildInfoResponse } from "api/typesGenerated";
+import { getMetadataAsJSON } from "utils/metadata";
 
 export const buildInfo = () => {
   return {
     queryKey: ["buildInfo"],
-    queryFn: fetchBuildInfo,
+    queryFn: async () =>
+      getMetadataAsJSON<BuildInfoResponse>("build-info") ?? API.getBuildInfo(),
   };
-};
-
-const fetchBuildInfo = async () => {
-  // Build info is injected by the Coder server into the HTML document.
-  const buildInfo = document.querySelector("meta[property=build-info]");
-  if (buildInfo) {
-    const rawContent = buildInfo.getAttribute("content");
-    try {
-      return JSON.parse(rawContent as string);
-    } catch (e) {
-      console.warn("Failed to parse build info from document", e);
-    }
-  }
-
-  return API.getBuildInfo();
 };
