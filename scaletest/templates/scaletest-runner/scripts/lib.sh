@@ -26,7 +26,7 @@ show_json() {
 }
 
 set_status() {
-	echo "$(date -Iseconds) $*" >>"${SCALETEST_STATE_DIR}/status"
+	echo "$(date -Ins) $*" >>"${SCALETEST_STATE_DIR}/status"
 }
 lock_status() {
 	chmod 0440 "${SCALETEST_STATE_DIR}/status"
@@ -48,7 +48,7 @@ start_phase() {
 	fi
 	phase_num=$((phase_num + 1))
 	log "Start phase ${phase_num}: ${*}"
-	echo "$(date -Iseconds) START:${phase_num}: ${*}" >>"${SCALETEST_PHASE_FILE}"
+	echo "$(date -Ins) START:${phase_num}: ${*}" >>"${SCALETEST_PHASE_FILE}"
 }
 end_phase() {
 	phase="$(tail -n 1 "${SCALETEST_PHASE_FILE}" | grep "START:${phase_num}:" | cut -d' ' -f3-)"
@@ -57,7 +57,7 @@ end_phase() {
 		exit 1
 	fi
 	log "End phase ${phase_num}: ${phase}"
-	echo "$(date -Iseconds) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
+	echo "$(date -Ins) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
 }
 get_phase() {
 	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
