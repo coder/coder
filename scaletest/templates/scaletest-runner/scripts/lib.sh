@@ -24,7 +24,7 @@ show_json() {
 }
 
 set_status() {
-	echo "$*" >"${SCALETEST_STATE_DIR}/status"
+	echo "$(date -Iseconds) $*" >>"${SCALETEST_STATE_DIR}/status"
 }
 lock_status() {
 	chmod 0440 "${SCALETEST_STATE_DIR}/status"
@@ -32,7 +32,7 @@ lock_status() {
 get_status() {
 	# Order of importance (reverse of creation).
 	if [[ -f "${SCALETEST_STATE_DIR}/status" ]]; then
-		cat "${SCALETEST_STATE_DIR}/status"
+		tail -n1 "${SCALETEST_STATE_DIR}/status" | cut -d' ' -f2-
 	else
 		echo "Not started"
 	fi
