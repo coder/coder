@@ -1,0 +1,167 @@
+=== RUN   TestAgent_ManageProcessPriority
+=== PAUSE TestAgent_ManageProcessPriority
+=== CONT  TestAgent_ManageProcessPriority
+=== RUN   TestAgent_ManageProcessPriority/OK
+=== PAUSE TestAgent_ManageProcessPriority/OK
+=== CONT  TestAgent_ManageProcessPriority/OK
+YEAH
+YUP
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  agent.client: get service banner
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: [v1] using fake (no-op) tun device
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: [v1] using fake (no-op) OS network configurator
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: [v1] using fake (no-op) DNS configurator
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: dns: using dns.noopManager
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: link state: interfaces.State{defaultRoute=eth0 ifs={docker0:[172.17.0.1/16] eth0:[172.20.0.7/16]} v4=true v6=false}
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  agent.client: post startup  req={"version":"v0.0.0-devel","expanded_directory":"","subsystems":null}
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: magicsock: [warning] failed to force-set UDP read buffer size to 7340032: operation not permitted; using kernel default values (impacts throughput only)
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: magicsock: [warning] failed to force-set UDP write buffer size to 7340032: operation not permitted; using kernel default values (impacts throughput only)
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: magicsock: [warning] failed to force-set UDP read buffer size to 7340032: operation not permitted; using kernel default values (impacts throughput only)
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: magicsock: [warning] failed to force-set UDP write buffer size to 7340032: operation not permitted; using kernel default values (impacts throughput only)
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: [v1] couldn't create raw v4 disco listener, using regular listener instead: raw disco listening disabled, SO_MARK unavailable
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: [v1] couldn't create raw v6 disco listener, using regular listener instead: raw disco listening disabled, SO_MARK unavailable
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: magicsock: disco key = d:9bf350ad1946674e
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  client.net.wgengine: Creating WireGuard device...
+    t.go:85: 2023-09-14 22:21:04.162 [debu]  agent.client: post lifecycle  req={"state":"starting","changed_at":"2023-09-14T22:21:04.162755Z"}
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  agent.client: post lifecycle  req={"state":"ready","changed_at":"2023-09-14T22:21:04.162813Z"}
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: Bringing WireGuard device up...
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: wg: [v2] UDP bind has been updated
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: wg: [v2] Interface state was Down, requested Up, now Up
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: Bringing router up...
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming mkReceiveFunc - started
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming mkReceiveFunc - started
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: [v1] warning: fakeRouter.Up: not implemented.
+    t.go:85: 2023-09-14 22:21:04.164 [debu]  client.net.wgengine: Clearing router settings...
+    t.go:85: 2023-09-14 22:21:04.163 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming receiveDERP - started
+    t.go:85: 2023-09-14 22:21:04.164 [debu]  client.net.wgengine: [v1] warning: fakeRouter.Set: not implemented.
+    t.go:85: 2023-09-14 22:21:04.165 [debu]  client.net.wgengine: Starting network monitor...
+    t.go:85: 2023-09-14 22:21:04.166 [debu]  client.net.wgengine: Engine created.
+    t.go:85: 2023-09-14 22:21:04.166 [debu]  client: magicsock debug logging disabled, use CODER_MAGICSOCK_DEBUG_LOGGING=true to enable
+    t.go:85: 2023-09-14 22:21:04.166 [debu]  client.net.wgengine: magicsock: SetPrivateKey called (init)
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  client: updating network map
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  client.net.wgengine: [v1] magicsock: got updated network map; 0 peers
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  coordinating client  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  client: skipped sending node; no PreferredDERP  node="&{ID:nodeid:1335e86dcc92b903 AsOf:2023-09-14 22:21:04.170813 +0000 UTC Key:nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24 DiscoKey:discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10 PreferredDERP:0 DERPLatency:map[] DERPForcedWebsocket:map[] Addresses:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] AllowedIPs:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] Endpoints:[]}"
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  multiagent node doesn't exist  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.170 [debu]  coordinating agent  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  agent node doesn't exist  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  wrote initial client(s) to agent  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes=[]
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  added agent socket  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  client.net.wgengine: ping(fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a): no matching peer
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  client.net.wgengine: ping(fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a): no matching peer
+    t.go:85: 2023-09-14 22:21:04.171 [debu]  wrote nodes  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes=[]
+    t.go:85: 2023-09-14 22:21:04.175 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (6f93c36c4883ce76647c9e74) in 4.705998ms
+    t.go:85: 2023-09-14 22:21:04.175 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (3d5303cc01a8f9a035b236a4) in 4.76389ms
+    t.go:85: 2023-09-14 22:21:04.175 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (a41d11ea5ec51a69012804ae) in 4.792004ms
+    t.go:85: 2023-09-14 22:21:04.221 [debu]  client.net.wgengine: ping(fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a): no matching peer
+    t.go:85: 2023-09-14 22:21:04.221 [debu]  client.net.wgengine: netcheck: [v1] measuring ICMP latency of test (1): listen ip4:icmp 0.0.0.0: socket: operation not permitted
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: netcheck: [v1] netcheck: measuring HTTP(S) latency of test (1): unexpected status code: 426 (426 Upgrade Required)
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: netcheck: [v1] report: udp=true v6=false v6os=false mapvarydest=false hair= portmap= v4a=127.0.0.1:39073 derp=0
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: magicsock: home is now derp-1 (test)
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: magicsock: adding connection to derp-1 for home-keep-alive
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client: netinfo callback  netinfo="NetInfo{varies=false hairpin= ipv6=false ipv6os=false udp=true icmpv4=false derp=#1 portmap= link=\"\"}"
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client: sending node  node="&{ID:nodeid:1335e86dcc92b903 AsOf:2023-09-14 22:21:04.228454 +0000 UTC Key:nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24 DiscoKey:discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10 PreferredDERP:1 DERPLatency:map[] DERPForcedWebsocket:map[] Addresses:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] AllowedIPs:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] Endpoints:[]}"
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: magicsock: 1 active derp conns: derp-1=cr0s,wr0s
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: magicsock: endpoints changed: 127.0.0.1:39073 (stun), 172.17.0.1:39073 (local), 172.20.0.7:39073 (local)
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  got client node update  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  node={"id":1384268018767542531,"as_of":"2023-09-14T22:21:04.228454Z","key":"nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24","disco":"discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10","preferred_derp":1,"derp_latency":{},"derp_forced_websockets":{},"addresses":["fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128"],"allowed_ips":["fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128"],"endpoints":[]}
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  enqueued node to agents  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  agent_ids=[4db2658f-194a-4b75-9608-1b6b42d6ba8a]
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client: wireguard status  status="&{AsOf:2023-09-14 22:21:04.228713945 +0000 UTC m=+0.212205983 Peers:[] LocalAddrs:[{Addr:127.0.0.1:39073 Type:stun} {Addr:172.17.0.1:39073 Type:local} {Addr:172.20.0.7:39073 Type:local}] DERPs:1}"  error=<nil>
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client.net.wgengine: derphttp.Client.Connect: connecting to derp-1 (test)
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client: wireguard status  status="&{AsOf:2023-09-14 22:21:04.228760465 +0000 UTC m=+0.212252503 Peers:[] LocalAddrs:[{Addr:127.0.0.1:39073 Type:stun} {Addr:172.17.0.1:39073 Type:local} {Addr:172.20.0.7:39073 Type:local}] DERPs:1}"  error=<nil>
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  decoded agent node  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  node={"id":7635823020709856630,"as_of":"2023-09-14T22:21:04.228767Z","key":"nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d","disco":"discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352","preferred_derp":1,"derp_latency":{},"derp_forced_websockets":{},"addresses":["fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128","fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"],"allowed_ips":["fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128","fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"],"endpoints":[]}
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  client: sending node  node="&{ID:nodeid:1335e86dcc92b903 AsOf:2023-09-14 22:21:04.228869 +0000 UTC Key:nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24 DiscoKey:discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10 PreferredDERP:1 DERPLatency:map[] DERPForcedWebsocket:map[] Addresses:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] AllowedIPs:[fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128] Endpoints:[127.0.0.1:39073 172.17.0.1:39073 172.20.0.7:39073]}"
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  wrote nodes  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes="[{\"id\":1384268018767542531,\"as_of\":\"2023-09-14T22:21:04.228454Z\",\"key\":\"nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24\",\"disco\":\"discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10\",\"preferred_derp\":1,\"derp_latency\":{},\"derp_forced_websockets\":{},\"addresses\":[\"fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128\"],\"allowed_ips\":[\"fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128\"],\"endpoints\":[]}]"
+    t.go:85: 2023-09-14 22:21:04.228 [debu]  enqueued agent node to client  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  got client node update  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  node={"id":1384268018767542531,"as_of":"2023-09-14T22:21:04.228869Z","key":"nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24","disco":"discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10","preferred_derp":1,"derp_latency":{},"derp_forced_websockets":{},"addresses":["fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128"],"allowed_ips":["fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128"],"endpoints":["127.0.0.1:39073","172.17.0.1:39073","172.20.0.7:39073"]}
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  enqueued node to agents  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  agent_ids=[4db2658f-194a-4b75-9608-1b6b42d6ba8a]
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client: adding node  node="&{ID:nodeid:69f7e494bd294576 AsOf:2023-09-14 22:21:04.228767 +0000 UTC Key:nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d DiscoKey:discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352 PreferredDERP:1 DERPLatency:map[] DERPForcedWebsocket:map[] Addresses:[fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128 fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128] AllowedIPs:[fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128 fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128] Endpoints:[]}"
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  wrote nodes  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes="[{\"id\":7635823020709856630,\"as_of\":\"2023-09-14T22:21:04.228767Z\",\"key\":\"nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d\",\"disco\":\"discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352\",\"preferred_derp\":1,\"derp_latency\":{},\"derp_forced_websockets\":{},\"addresses\":[\"fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128\",\"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128\"],\"allowed_ips\":[\"fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128\",\"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128\"],\"endpoints\":[]}]"
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client: updating network map
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: [v1] magicsock: got updated network map; 1 peers
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.netstack: [v2] netstack: registered IP fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wgengine: Reconfig: configuring userspace WireGuard config (with 1/1 peers)
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] UAPI: Updating private key
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Created
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (d1abaaf30fcfbb0a2e30af00) in 68.382µs
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Updating endpoint
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (bbe130a507ad56b3f11e5620) in 104.803µs
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Removing all allowedips
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: netcheck: netcheck.runProbe: got STUN response for t2 from 127.0.0.1:39073 (f3e4b4d721a0986d001d0c52) in 129.58µs
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Adding allowedip
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Adding allowedip
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - UAPI: Updating persistent keepalive interval
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - Starting
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  wrote nodes  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes="[{\"id\":1384268018767542531,\"as_of\":\"2023-09-14T22:21:04.228869Z\",\"key\":\"nodekey:ab1def7f7652884e18276c7691dbdb40e18ce0adfdcd02f604eb28ea6c0f2b24\",\"disco\":\"discokey:9bf350ad1946674ea63bdef15c860c8669b5cf5a092090de5950676bf3a99a10\",\"preferred_derp\":1,\"derp_latency\":{},\"derp_forced_websockets\":{},\"addresses\":[\"fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128\"],\"allowed_ips\":[\"fd7a:115c:a1e0:4320:834e:19a:f9e:1b7a/128\"],\"endpoints\":[\"127.0.0.1:39073\",\"172.17.0.1:39073\",\"172.20.0.7:39073\"]}]"
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  client.net.wgengine: wgengine: Reconfig: configuring router
+    t.go:85: 2023-09-14 22:21:04.229 [debu]  decoded agent node  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  node={"id":7635823020709856630,"as_of":"2023-09-14T22:21:04.229132Z","key":"nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d","disco":"discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352","preferred_derp":1,"derp_latency":{},"derp_forced_websockets":{},"addresses":["fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128","fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"],"allowed_ips":["fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128","fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128"],"endpoints":["127.0.0.1:32901","172.17.0.1:32901","172.20.0.7:32901"]}
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: [v1] warning: fakeRouter.Set: not implemented.
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: wgengine: Reconfig: configuring DNS
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: dns: Set: {DefaultResolvers:[] Routes:{} SearchDomains:[] Hosts:0}
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: dns: Resolvercfg: {Routes:{} Hosts:0 LocalDomains:[]}
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  enqueued agent node to client  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: dns: OScfg: {Nameservers:[] SearchDomains:[] MatchDomains:[] Hosts:[]}
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: [v1] wgengine: Reconfig done
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  wrote nodes  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a  nodes="[{\"id\":7635823020709856630,\"as_of\":\"2023-09-14T22:21:04.229132Z\",\"key\":\"nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d\",\"disco\":\"discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352\",\"preferred_derp\":1,\"derp_latency\":{},\"derp_forced_websockets\":{},\"addresses\":[\"fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128\",\"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128\"],\"allowed_ips\":[\"fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128\",\"fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128\"],\"endpoints\":[\"127.0.0.1:32901\",\"172.17.0.1:32901\",\"172.20.0.7:32901\"]}]"
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client: adding node  node="&{ID:nodeid:69f7e494bd294576 AsOf:2023-09-14 22:21:04.229132 +0000 UTC Key:nodekey:56cf5b45c3303aca37825498cc3ec6f30830d6485b3fc04c3a29c36ebdfc1c5d DiscoKey:discokey:d758cdfe4a6adf9fce991c496991ad7d2ef61111f148e07f2d160ea6b9bb9352 PreferredDERP:1 DERPLatency:map[] DERPForcedWebsocket:map[] Addresses:[fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128 fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128] AllowedIPs:[fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a/128 fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4/128] Endpoints:[127.0.0.1:32901 172.17.0.1:32901 172.20.0.7:32901]}"
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client: updating network map
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: [v1] magicsock: got updated network map; 1 peers
+    t.go:85: 2023-09-14 22:21:04.230 [debu]  client.net.wgengine: [v1] wgengine: Reconfig done
+    t.go:85: 2023-09-14 22:21:04.232 [debu]  client.net.wgengine: magicsock: derp-1 connected; connGen=1
+    t.go:85: 2023-09-14 22:21:04.280 [debu]  client.net.wgengine: netcheck: [v1] measuring ICMP latency of test (1): listen ip4:icmp 0.0.0.0: socket: operation not permitted
+    t.go:85: 2023-09-14 22:21:04.286 [debu]  client.net.wgengine: netcheck: [v1] netcheck: measuring HTTP(S) latency of test (1): unexpected status code: 426 (426 Upgrade Required)
+    t.go:85: 2023-09-14 22:21:04.286 [debu]  client.net.wgengine: netcheck: [v1] report: udp=true v6=false v6os=false mapvarydest=false hair= portmap= v4a=127.0.0.1:39073 derp=0
+    t.go:85: 2023-09-14 22:21:04.296 [debu]  client.net.wgengine: ping(fd7a:115c:a1e0:4b75:9608:1b6b:42d6:ba8a): sending disco ping to [Vs9bR]  ...
+    t.go:85: 2023-09-14 22:21:04.296 [debu]  client.net.wgengine: [v1] magicsock: derp route for [Vs9bR] set to derp-1 (shared home)
+    t.go:85: 2023-09-14 22:21:04.297 [debu]  client.net.wgengine: magicsock: disco: node [Vs9bR] d:d758cdfe4a6adf9f now using 172.17.0.1:32901
+    t.go:85: 2023-09-14 22:21:04.297 [debu]  client.net.wgengine: magicsock: disco: node [Vs9bR] d:d758cdfe4a6adf9f now using 127.0.0.1:32901
+    agent_test.go:2463: 
+        	Error Trace:	/home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2463
+        	Error:      	"[]" should have 4 item(s), but has 0
+        	Test:       	TestAgent_ManageProcessPriority/OK
+    t.go:85: 2023-09-14 22:21:04.297 [debu]  client.net.wgengine: magicsock: disco: node [Vs9bR] d:d758cdfe4a6adf9f now using DERP only (reset)
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: magicsock: closing connection to derp-1 (conn-close), age 0s
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: magicsock: 0 active derp conns
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: [v1] warning: fakeRouter.Close: not implemented.
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] Device closing
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming mkReceiveFunc - stopped
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming mkReceiveFunc - stopped
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] Routine: receive incoming receiveDERP - stopped
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] [Vs9bR] - Stopping
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  client.net.wgengine: wg: [v2] Device closed
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  unable to read agent update, connection may be closed  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a ...
+        error= read json:
+                   github.com/coder/coder/v2/tailnet.(*coordinator).handleNextAgentMessage
+                       /home/coder/go/src/github.com/coder/coder/tailnet/coordinator.go:552
+                 - io: read/write on closed pipe
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  deleted agent socket and node  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  done sending updates  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.298 [debu]  unable to read client update, connection may be closed  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a ...
+        error= read json:
+                   github.com/coder/coder/v2/tailnet.(*coordinator).handleNextClientMessage
+                       /home/coder/go/src/github.com/coder/coder/tailnet/coordinator.go:350
+                 - EOF
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  deleted client node  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  deleted client connectionSocket from map  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  deleted last client connectionSocket from map  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  deleted client agents  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=00000000-0000-0000-0000-000000000000
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  done sending updates  client_id=af26bfd4-4805-4d56-961c-cd18a1dc0214  agent_id=4db2658f-194a-4b75-9608-1b6b42d6ba8a
+    t.go:85: 2023-09-14 22:21:04.299 [debu]  agent.client: post lifecycle  req={"state":"shutting_down","changed_at":"2023-09-14T22:21:04.299336Z"}
+    t.go:85: 2023-09-14 22:21:04.499 [debu]  agent.client: get service banner
+    t.go:85: 2023-09-14 22:21:04.500 [debu]  agent.client: post startup  req={"version":"v0.0.0-devel","expanded_directory":"","subsystems":null}
+    t.go:85: 2023-09-14 22:21:06.300 [debu]  agent.client: post lifecycle  req={"state":"off","changed_at":"2023-09-14T22:21:04.299369Z"}
+    stuntest.go:63: STUN server shutdown
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.Kill(is equal to 0 (int32), is equal to signal 0 (syscall.Signal)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2448
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.Kill(is equal to 1965978598 (int32), is equal to signal 0 (syscall.Signal)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2448
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.Kill(is equal to 1248996486 (int32), is equal to signal 0 (syscall.Signal)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2448
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.Kill(is equal to 1788987366 (int32), is equal to signal 0 (syscall.Signal)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2448
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.SetPriority(is equal to 1965978598 (int32), is equal to 10 (int)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2444
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.SetPriority(is equal to 1248996486 (int32), is equal to 10 (int)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2444
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.SetPriority(is equal to 1788987366 (int32), is equal to 10 (int)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2444
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.GetPriority(is equal to 1965978598 (int32)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2445
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.GetPriority(is equal to 1248996486 (int32)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2445
+    controller.go:137: missing call(s) to *agentproctest.MockSyscaller.GetPriority(is equal to 1788987366 (int32)) /home/coder/go/src/github.com/coder/coder/agent/agent_test.go:2445
+    controller.go:137: aborting test due to missing call(s)
+--- FAIL: TestAgent_ManageProcessPriority (0.00s)
+    --- FAIL: TestAgent_ManageProcessPriority/OK (2.26s)
+FAIL
+exit status 1
+FAIL	github.com/coder/coder/v2/agent	2.294s

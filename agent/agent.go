@@ -16,6 +16,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -1278,7 +1279,7 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	}
 }
 
-var prioritizedProcs = []string{"coder"}
+var prioritizedProcs = []string{"coder agent"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
@@ -1289,6 +1290,15 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 		)
 		return
 	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			a.logger.Critical(ctx, "recovered from panic",
+				slog.F("panic", r),
+				slog.F("stack", string(debug.Stack())),
+			)
+		}
+	}()
 
 	if a.processManagementTick == nil {
 		ticker := time.NewTicker(time.Second)
@@ -1333,15 +1343,17 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 
 	for _, proc := range procs {
 		logger = a.logger.With(
-			slog.F("name", proc.Name()),
+			slog.F("cmd", proc.Cmd()),
 			slog.F("pid", proc.PID),
 		)
 
-		// Trim off the path e.g. "./coder" -> "coder"
-		name := filepath.Base(proc.Name())
+		containsFn := func(e string) bool {
+			contains := strings.Contains(proc.Cmd(), e)
+			return contains
+		}
 		// If the process is prioritized we should adjust
 		// it's oom_score_adj and avoid lowering its niceness.
-		if slices.Contains(prioritizedProcs, name) {
+		if slices.ContainsFunc[[]string, string](prioritizedProcs, containsFn) {
 			err = proc.SetOOMAdj(oomScoreAdj)
 			if err != nil {
 				logger.Warn(ctx, "unable to set proc oom_score_adj",
@@ -1366,7 +1378,7 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		// so we don't override user nice values.
 		// Getpriority actually returns priority for the nice value
 		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
-		if score != 20 {
+		if score != 20 && score != niceness {
 			logger.Debug(ctx, "skipping process due to custom niceness",
 				slog.F("niceness", score),
 			)

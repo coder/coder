@@ -19,7 +19,7 @@ func (p *Process) SetNiceness(sc Syscaller, score int) error {
 	return errUnimplemented
 }
 
-func (p *Process) Name() string {
+func (p *Process) Cmd() string {
 	return ""
 }
 

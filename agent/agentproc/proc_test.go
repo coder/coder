@@ -170,16 +170,16 @@ func TestProcess(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Name", func(t *testing.T) {
+	t.Run("Cmd", func(t *testing.T) {
 		t.Parallel()
 
 		var (
 			proc = &agentproc.Process{
 				CmdLine: "helloworld\x00--arg1\x00--arg2",
 			}
-			expectedName = "helloworld"
+			expectedName = "helloworld --arg1 --arg2"
 		)
 
-		require.Equal(t, expectedName, proc.Name())
+		require.Equal(t, expectedName, proc.Cmd())
 	})
 }

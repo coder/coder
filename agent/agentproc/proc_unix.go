@@ -115,8 +115,10 @@ func (p *Process) SetNiceness(sc Syscaller, score int) error {
 	return nil
 }
 
-func (p *Process) Name() string {
-	args := strings.Split(p.CmdLine, "\x00")
-	// Split will always return at least one element.
-	return args[0]
+func (p *Process) Cmd() string {
+	return strings.Join(p.cmdLine(), " ")
+}
+
+func (p *Process) cmdLine() []string {
+	return strings.Split(p.CmdLine, "\x00")
 }
