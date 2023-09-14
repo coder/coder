@@ -11,7 +11,7 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { templateVariablesMachine } from "xServices/template/templateVariablesXService";
 import { pageTitle } from "../../../utils/page";
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 export const TemplateVariablesPage: FC = () => {
@@ -20,7 +20,7 @@ export const TemplateVariablesPage: FC = () => {
     template: string;
   };
   const organizationId = useOrganizationId();
-  const { template } = useTemplateSettingsContext();
+  const { template } = useTemplateSettings();
   const navigate = useNavigate();
   const [state, send] = useMachine(templateVariablesMachine, {
     context: {

@@ -6,16 +6,16 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import {
-  getTemplateQuery,
-  useTemplateSettingsContext,
-} from "../TemplateSettingsLayout";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
+import { templateByNameKey } from "api/queries/templates";
+import { useOrganizationId } from "hooks";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const { template } = useTemplateSettingsContext();
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
   const {
     mutate: updateTemplate,
@@ -25,9 +25,9 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: getTemplateQuery(templateName),
-        });
+        await queryClient.invalidateQueries(
+          templateByNameKey(orgId, templateName),
+        );
         displaySuccess("Template updated successfully");
       },
     },

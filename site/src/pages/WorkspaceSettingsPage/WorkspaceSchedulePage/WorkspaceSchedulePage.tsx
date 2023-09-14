@@ -10,12 +10,13 @@ import {
   scheduleChanged,
 } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
 import { ttlMsToAutostop } from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
-import { useWorkspaceSettingsContext } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import * as TypesGen from "api/typesGenerated";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspace";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService";
 import {
@@ -23,6 +24,7 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { useQueryClient } from "@tanstack/react-query";
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);
@@ -44,7 +46,8 @@ export const WorkspaceSchedulePage: FC = () => {
   const navigate = useNavigate();
   const username = params.username.replace("@", "");
   const workspaceName = params.workspace;
-  const { workspace } = useWorkspaceSettingsContext();
+  const queryClient = useQueryClient();
+  const workspace = useWorkspaceSettings();
   const [scheduleState, scheduleSend] = useMachine(workspaceSchedule, {
     context: { workspace },
   });
@@ -97,7 +100,7 @@ export const WorkspaceSchedulePage: FC = () => {
             onCancel={() => {
               navigate(`/@${username}/${workspaceName}`);
             }}
-            onSubmit={(values) => {
+            onSubmit={async (values) => {
               scheduleSend({
                 type: "SUBMIT_SCHEDULE",
                 autostart: formValuesToAutostartRequest(values),
@@ -111,6 +114,10 @@ export const WorkspaceSchedulePage: FC = () => {
                   values,
                 ),
               });
+
+              await queryClient.invalidateQueries(
+                workspaceByOwnerAndNameKey(params.username, params.workspace),
+              );
             }}
           />
         )}

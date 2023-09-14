@@ -378,6 +378,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 					WorkspaceOwnerOidcAccessToken: workspaceOwnerOIDCAccessToken,
 					WorkspaceId:                   workspace.ID.String(),
 					WorkspaceOwnerId:              owner.ID.String(),
+					TemplateId:                    template.ID.String(),
 					TemplateName:                  template.Name,
 					TemplateVersion:               templateVersion.Name,
 					WorkspaceOwnerSessionToken:    sessionToken,
