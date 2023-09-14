@@ -21,7 +21,7 @@ if [[ $event = manual ]]; then
 	fi
 fi
 
-phase_start "Cleanup (${event})"
+start_phase "Cleanup (${event})"
 coder exp scaletest cleanup \
 	--cleanup-concurrency "${SCALETEST_CLEANUP_CONCURRENCY}" \
 	--cleanup-job-timeout 15m \

@@ -40,7 +40,7 @@ get_status() {
 
 phase_num=0
 start_phase() {
-	((phase_num++))
+	phase_num=$((phase_num + 1))
 	log "Start phase ${phase_num}: ${*}"
 	echo "$(date -Iseconds) START:${phase_num}: ${*}" >>"${SCALETEST_PHASE_FILE}"
 }
