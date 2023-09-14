@@ -57,7 +57,7 @@ export interface ScheduleFormProps {
   isLoading: boolean;
   initialValues: UserQuietHoursScheduleResponse;
   refetch: () => Promise<void>;
-  updateErr: unknown;
+  mutationError: unknown;
   onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void;
   // now can be set to force the time used for "Next occurrence" in tests.
   now?: Date;
@@ -67,7 +67,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   isLoading,
   initialValues,
   refetch,
-  updateErr,
+  mutationError,
   onSubmit,
   now,
 }) => {
@@ -83,10 +83,6 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   }, []);
 
   const preferredTimezone = getPreferredTimezone();
-  if (!timeZones.includes(initialValues.timezone)) {
-  }
-  if (!timeZones.includes(preferredTimezone)) {
-  }
 
   // If the user has a custom schedule, use that as the initial values.
   // Otherwise, use midnight in their preferred timezone.
@@ -111,12 +107,15 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
         await refetch();
       },
     });
-  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, updateErr);
+  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(
+    form,
+    mutationError,
+  );
 
   return (
     <Form onSubmit={form.handleSubmit}>
       <FormFields>
-        {Boolean(updateErr) && <ErrorAlert error={updateErr} />}
+        {Boolean(mutationError) && <ErrorAlert error={mutationError} />}
 
         {!initialValues.user_set && (
           <Alert severity="info">

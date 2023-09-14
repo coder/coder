@@ -52,7 +52,7 @@ export const Submitting: Story = {
 export const WithError: Story = {
   args: {
     ...defaultArgs,
-    updateErr: mockApiError({
+    mutationError: mockApiError({
       message: "Invalid schedule",
       validations: [
         {
