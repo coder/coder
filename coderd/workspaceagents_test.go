@@ -1185,6 +1185,7 @@ func TestWorkspaceAgent_LifecycleState(t *testing.T) {
 func TestWorkspaceAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
+	// nolint:gocritic // https://github.com/coder/coder/issues/9682
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,

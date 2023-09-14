@@ -1510,6 +1510,8 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 	t.Run("LastUsed", func(t *testing.T) {
 		t.Parallel()
+
+		// nolint:gocritic // https://github.com/coder/coder/issues/9682
 		db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,

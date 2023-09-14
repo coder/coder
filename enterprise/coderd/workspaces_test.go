@@ -642,6 +642,7 @@ func TestWorkspacesFiltering(t *testing.T) {
 
 		dormantTTL := 24 * time.Hour
 
+		// nolint:gocritic // https://github.com/coder/coder/issues/9682
 		db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{

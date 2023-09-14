@@ -28,10 +28,7 @@ type options struct {
 
 type Option func(*options)
 
-// WithTimezone sets the database to the defined timezone instead of
-// to a random one.
-//
-// Deprecated: If you need to use this, you may have a timezone-related bug.
+// WithTimezone sets the database to the defined timezone.
 func WithTimezone(tz string) Option {
 	return func(o *options) {
 		o.fixedTimezone = tz
@@ -90,14 +87,14 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 }
 
 // setRandDBTimezone sets the timezone of the database to the given timezone.
+// Note that the updated timezone only comes into effect on reconnect, so we
+// create our own connnection for this and close the DB after we're done.
 func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	t.Helper()
 
 	sqlDB, err := sql.Open("postgres", dbURL)
 	require.NoError(t, err)
 	defer func() {
-		// The updated timezone only comes into effect on reconnect, so close
-		// the DB after we're done.
 		_ = sqlDB.Close()
 	}()
 
