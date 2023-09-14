@@ -17,12 +17,12 @@ import { Alert } from "components/Alert/Alert";
 import { timeToCron, quietHoursDisplay } from "utils/schedule";
 
 export interface ScheduleFormValues {
-  startTime: string;
+  time: string;
   timezone: string;
 }
 
 const validationSchema = Yup.object({
-  startTime: Yup.string()
+  time: Yup.string()
     .ensure()
     .test("is-time-string", "Time must be in HH:mm format.", (value) => {
       if (value === "") {
@@ -64,17 +64,11 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
     };
   }, []);
 
-  const preferredTimezone = getPreferredTimezone();
-
   // If the user has a custom schedule, use that as the initial values.
-  // Otherwise, use midnight in their preferred timezone.
-  const formInitialValues = {
-    startTime: "00:00",
-    timezone: preferredTimezone,
-  };
-  if (initialValues.user_set) {
-    formInitialValues.startTime = initialValues.time;
-    formInitialValues.timezone = initialValues.timezone;
+  // Otherwise, use the default time, with their local timezone.
+  const formInitialValues = { ...initialValues };
+  if (!initialValues.user_set) {
+    formInitialValues.timezone = getPreferredTimezone();
   }
 
   const form: FormikContextType<ScheduleFormValues> =
@@ -83,7 +77,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
       validationSchema,
       onSubmit: async (values) => {
         onSubmit({
-          schedule: timeToCron(values.startTime, values.timezone),
+          schedule: timeToCron(values.time, values.timezone),
         });
       },
     });
@@ -107,7 +101,7 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
 
         <Stack direction="row">
           <TextField
-            {...getFieldHelpers("startTime")}
+            {...getFieldHelpers("time")}
             disabled={isLoading}
             label="Start time"
             type="time"
@@ -132,18 +126,14 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
           disabled
           fullWidth
           label="Cron schedule"
-          value={timeToCron(form.values.startTime, form.values.timezone)}
+          value={timeToCron(form.values.time, form.values.timezone)}
         />
 
         <TextField
           disabled
           fullWidth
           label="Next occurrence"
-          value={quietHoursDisplay(
-            form.values.startTime,
-            form.values.timezone,
-            now,
-          )}
+          value={quietHoursDisplay(form.values.time, form.values.timezone, now)}
         />
 
         <div>
