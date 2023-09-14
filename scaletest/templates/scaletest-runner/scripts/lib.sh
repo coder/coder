@@ -58,7 +58,7 @@ get_phase() {
 		phase_raw="$(tail -n1 "${SCALETEST_PHASE_FILE}")"
 		phase="$(echo "${phase_raw}" | cut -d' ' -f3-)"
 		if [[ ${phase_raw} == *"END:"* ]]; then
-			phase+=" (done)"
+			phase+=" [done]"
 		fi
 		echo "${phase}"
 	else
