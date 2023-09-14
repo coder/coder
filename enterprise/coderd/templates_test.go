@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -368,10 +369,13 @@ func TestTemplates(t *testing.T) {
 	t.Run("UpdateLastUsedAt", func(t *testing.T) {
 		t.Parallel()
 
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				Database:                 db,
+				Pubsub:                   ps,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

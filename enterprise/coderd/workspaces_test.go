@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -641,9 +642,13 @@ func TestWorkspacesFiltering(t *testing.T) {
 
 		dormantTTL := 24 * time.Hour
 
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
+
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				Database:                 db,
+				Pubsub:                   ps,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

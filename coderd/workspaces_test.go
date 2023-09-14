@@ -1510,8 +1510,11 @@ func TestWorkspaceFilterManual(t *testing.T) {
 
 	t.Run("LastUsed", func(t *testing.T) {
 		t.Parallel()
+		db, ps := dbtestutil.NewDB(t, dbtestutil.WithFixedTimezone())
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			Database:                 db,
+			Pubsub:                   ps,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
