@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -434,10 +433,6 @@ func ContextWithLogger(ctx context.Context, l slog.Logger) context.Context {
 func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 	l, ok := ctx.Value(contextKeyLogger).(slog.Logger)
 	return l, ok
-}
-
-func isTest() bool {
-	return flag.Lookup("test.v") != nil
 }
 
 // RootCmd contains parameters and helpers useful to all commands.

@@ -459,6 +459,12 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	t.Helper()
 
+	// t.Cleanup runs in last added, first called order. t.TempDir() will delete
+	// the directory on cleanup, so we want to make sure the echoServer is closed
+	// before we go ahead an attempt to delete it's work directory.
+	// seems t.TempDir() is not safe to call from a different goroutine
+	workDir := t.TempDir()
+
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(func() {
@@ -466,8 +472,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 		_ = echoServer.Close()
 		cancelFunc()
 	})
-	// seems t.TempDir() is not safe to call from a different goroutine
-	workDir := t.TempDir()
+
 	go func() {
 		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
 			Listener:      echoServer,
