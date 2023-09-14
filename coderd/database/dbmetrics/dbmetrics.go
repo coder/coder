@@ -93,6 +93,13 @@ func (m metricsStore) AcquireProvisionerJob(ctx context.Context, arg database.Ac
 	return provisionerJob, err
 }
 
+func (m metricsStore) ActivityBumpWorkspace(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ActivityBumpWorkspace(ctx, arg)
+	m.queryLatencies.WithLabelValues("ActivityBumpWorkspace").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)

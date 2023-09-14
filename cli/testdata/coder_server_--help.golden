@@ -415,11 +415,6 @@ telemetrywhen required by your organization's security policy.
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
-      [96m--[0m[96mtelemetry-trace[0m bool, [96m$CODER_TELEMETRY_TRACE[0m (default: false)
-          Whether Opentelemetry traces are sent to Coder. Coder collects
-          anonymized application tracing to help improve our product. Disabling
-          telemetry also disables this option.
-
 [93mUSER QUIET HOURS SCHEDULE OPTIONS:[0m 
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template max TTL.

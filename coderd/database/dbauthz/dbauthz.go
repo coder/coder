@@ -657,6 +657,13 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
+func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg uuid.UUID) error {
+	fetch := func(ctx context.Context, arg uuid.UUID) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg)
+	}
+	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err

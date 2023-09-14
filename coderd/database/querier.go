@@ -24,6 +24,13 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
+	// We bump by the original TTL to prevent counter-intuitive behavior
+	// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
+	// work at midnight, come back at 10am, I would want another full day
+	// of uptime.
+	// We only bump if workspace shutdown is manual.
+	// We only bump when 5% of the deadline has elapsed.
+	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error
 	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
