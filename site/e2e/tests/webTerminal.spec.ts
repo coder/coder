@@ -41,7 +41,7 @@ test("web terminal", async ({ context, page }) => {
   const terminal = await pagePromise;
   await terminal.waitForLoadState("domcontentloaded");
 
-  const xtermRows = await terminal.waitForSelector("div.xterm-rows", {
+  await terminal.waitForSelector("div.xterm-rows", {
     state: "visible",
   });
 
@@ -52,9 +52,9 @@ test("web terminal", async ({ context, page }) => {
   // Check if "echo" command was executed
   // try-catch is used temporarily to find the root cause: https://github.com/coder/coder/actions/runs/6176958762/job/16767089943
   try {
-    await xtermRows.waitForSelector('div:text-matches("hello")', {
+    await terminal.waitForSelector('div.xterm-rows div:text-matches("hello")', {
       state: "visible",
-      timeout: 5 * 1000,
+      timeout: 10 * 1000,
     });
   } catch (error) {
     const pageContent = await terminal.content();
