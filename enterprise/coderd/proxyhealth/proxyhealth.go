@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -289,7 +290,32 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 			case err == nil && resp.StatusCode != http.StatusOK:
 				// Unhealthy as we did reach the proxy but it got an unexpected response.
 				status.Status = Unhealthy
-				status.Report.Errors = []string{fmt.Sprintf("unexpected status code %d", resp.StatusCode)}
+				var builder strings.Builder
+				builder.WriteString(fmt.Sprintf("unexpected status code %d. ", resp.StatusCode))
+				contentType := resp.Header.Get("content-type")
+				body, _ := io.ReadAll(resp.Body)
+
+				switch {
+				case strings.Contains(contentType, "html"):
+					// Showing html payloads is useful, but we display this error message
+					// on our FE. An html payload is quite large and would be hard to
+					// format decently. Just tell the user to make the request themselves
+					// to observe the response.
+					builder.WriteString(fmt.Sprintf("\nThe response was html, which is unexpected. "+
+						"Send a request to %s from the Coderd environment to debug this issue.", reqURL))
+				case strings.Contains(contentType, "json"):
+					builder.WriteString(fmt.Sprintf("\nJSON response payload: %s", string(body)))
+				default:
+					// Just set an arbitrary cutoff point. The user can always debug with a manual request.
+					if len(body) < 1000 {
+						builder.WriteString(fmt.Sprintf("\n%q response payload: %s", contentType, string(body)))
+					} else {
+						builder.WriteString(fmt.Sprintf("\nThe response content type was %q, which is unexpected. "+
+							"Send a request to %s from the Coderd environment to debug this issue.", contentType, reqURL))
+					}
+				}
+
+				status.Report.Errors = []string{builder.String()}
 			case err != nil:
 				// Request failed, mark the proxy as unreachable.
 				status.Status = Unreachable
