@@ -25,7 +25,6 @@ export const RequireAuth: FC = () => {
         // invalid and we should update the auth state to reflect that.
         if (isApiError(error) && error.response.status === 401) {
           authSend("SIGN_OUT");
-          return;
         }
 
         // Otherwise, pass the response through so that it can be displayed in the UI
