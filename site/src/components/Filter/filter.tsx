@@ -20,11 +20,11 @@ import {
 } from "api/errors";
 import { useFilterMenu } from "./menu";
 import { BaseOption } from "./options";
-import debounce from "just-debounce-it";
 import MenuList from "@mui/material/MenuList";
 import { Loader } from "components/Loader/Loader";
 import Divider from "@mui/material/Divider";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { useDebouncedFunction } from "hooks/debounce";
 
 export type PresetFilter = {
   name: string;
@@ -58,7 +58,7 @@ export const useFilter = ({
     }
   };
 
-  const debounceUpdate = debounce(
+  const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
     (values: string | FilterValues) => update(values),
     500,
   );
@@ -69,6 +69,7 @@ export const useFilter = ({
     query,
     update,
     debounceUpdate,
+    cancelDebounce,
     values,
     used,
   };
@@ -153,18 +154,22 @@ export const Filter = ({
   learnMoreLink2,
   presets,
 }: FilterProps) => {
-  const shouldDisplayError = hasError(error) && isApiValidationError(error);
-  const hasFilterQuery = filter.query !== "";
   const [searchQuery, setSearchQuery] = useState(filter.query);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textboxInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // We don't want to update this while the user is typing something or has the focus in the input
-    const isFocused = document.activeElement === inputRef.current;
-    if (!isFocused) {
+    // We don't want to update this while the user is typing something or has
+    // the focus in the input
+    const hasInnerFocus =
+      textboxInputRef.current?.contains(document.activeElement) ?? false;
+
+    if (!hasInnerFocus) {
       setSearchQuery(filter.query);
     }
   }, [filter.query]);
+
+  const shouldDisplayError = hasError(error) && isApiValidationError(error);
+  const hasFilterQuery = filter.query !== "";
 
   return (
     <Box
@@ -201,7 +206,7 @@ export const Filter = ({
                 name: "query",
                 placeholder: "Search...",
                 value: searchQuery,
-                ref: inputRef,
+                ref: textboxInputRef,
                 onChange: (e) => {
                   setSearchQuery(e.target.value);
                   filter.debounceUpdate(e.target.value);
