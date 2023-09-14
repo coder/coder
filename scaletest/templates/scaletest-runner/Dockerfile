@@ -11,6 +11,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 USER root
 
+# TODO(mafredri): Remove unneeded dependencies once we have a clear idea of what's needed.
 RUN wget --quiet -O /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip \
 	&& unzip /tmp/terraform.zip -d /usr/local/bin \
 	&& rm /tmp/terraform.zip \
