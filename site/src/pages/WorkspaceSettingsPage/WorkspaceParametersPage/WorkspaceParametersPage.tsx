@@ -1,7 +1,7 @@
 import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { useWorkspaceSettingsContext } from "../WorkspaceSettingsLayout";
+import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -17,7 +17,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspaceBuildParameter } from "api/typesGenerated";
 
 const WorkspaceParametersPage = () => {
-  const { workspace } = useWorkspaceSettingsContext();
+  const workspace = useWorkspaceSettings();
   const parameters = useQuery({
     queryKey: ["workspace", workspace.id, "parameters"],
     queryFn: () => getWorkspaceParameters(workspace),

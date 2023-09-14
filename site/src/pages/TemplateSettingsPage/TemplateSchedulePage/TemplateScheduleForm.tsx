@@ -138,6 +138,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
       }
     },
     initialTouched,
+    enableReinitialize: true,
   });
 
   const getFieldHelpers = getFormHelpers<TemplateScheduleFormValues>(

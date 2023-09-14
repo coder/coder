@@ -23,7 +23,17 @@ export const getTemplateVersionFiles = async (
   return files;
 };
 
-export const allowedExtensions = ["tf", "md", "Dockerfile", "protobuf"];
+export const allowedExtensions = [
+  "tf",
+  "md",
+  "mkd",
+  "Dockerfile",
+  "protobuf",
+  "sh",
+  "tpl",
+] as const;
+
+export type AllowedExtension = (typeof allowedExtensions)[number];
 
 export const isAllowedFile = (name: string) => {
   return allowedExtensions.some((ext) => name.endsWith(ext));

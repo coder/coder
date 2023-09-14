@@ -324,8 +324,8 @@ devDependencies:
     specifier: 0.5.2
     version: 0.5.2
   chromatic:
-    specifier: 6.24.1
-    version: 6.24.1
+    specifier: 7.1.0
+    version: 7.1.0
   eslint:
     specifier: 8.49.0
     version: 8.49.0
@@ -7046,8 +7046,8 @@ packages:
     resolution: {integrity: sha512-U9eDw6+wt7V8z5NncY2jJfZa+hUH8XEj8FQHgFJTrUFnJfXYf4Ml4adI2vXZOjqRDpFWtYVWypDfZwnJ+HIR4A==}
     dev: false
 
-  /chromatic@6.24.1:
-    resolution: {integrity: sha512-XbpdWWHvFpEHtcq1Km71UcuQ07effB+8q8L47E1Y7HJmJ4ZCoKCuPd8liNrbnvwEAxqfBZvTcONYU/3BPz2i5w==}
+  /chromatic@7.1.0:
+    resolution: {integrity: sha512-4hvWVxj2TxsgmzQK7zsAIVapxF+mzAXFuYIoAKKACdKtI+kjz0GfKJYpnzD4xciY3SGaySsis6gWxJ9q8GIxiQ==}
     hasBin: true
     dev: true
 
