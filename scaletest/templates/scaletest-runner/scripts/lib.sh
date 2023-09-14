@@ -42,6 +42,10 @@ get_status() {
 
 phase_num=0
 start_phase() {
+	# This may be incremented from another script, so we read it every time.
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
+		phase_num="$(grep -c START: "${SCALETEST_PHASE_FILE}")"
+	fi
 	phase_num=$((phase_num + 1))
 	log "Start phase ${phase_num}: ${*}"
 	echo "$(date -Iseconds) START:${phase_num}: ${*}" >>"${SCALETEST_PHASE_FILE}"
@@ -68,7 +72,7 @@ get_phase() {
 	fi
 }
 get_previous_phase() {
-	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(wc -l "${SCALETEST_PHASE_FILE}" | cut -d' ' -f1) -gt 1 ]]; then
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(grep -c START: "${SCALETEST_PHASE_FILE}") -gt 1 ]]; then
 		grep START: "${SCALETEST_PHASE_FILE}" | tail -n2 | head -n1 | cut -d' ' -f3-
 	else
 		echo "None"
