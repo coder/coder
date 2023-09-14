@@ -170,7 +170,7 @@ data "coder_parameter" "num_workspaces" {
 data "coder_parameter" "namespace" {
   order       = 999
   type        = "string"
-  name        = "namespace"
+  name        = "Namespace"
   default     = "coder-big"
   description = "The Kubernetes namespace to create the scaletest runner resources in."
 }
