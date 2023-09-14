@@ -14,7 +14,7 @@ set_status Preparing
 
 echo "Cloning coder/coder repo..."
 
-if [[ ! -d coder ]]; then
+if [[ ! -d ~/coder ]]; then
 	git clone https://github.com/coder/coder.git ~/coder
 fi
 (cd ~/coder && git pull)

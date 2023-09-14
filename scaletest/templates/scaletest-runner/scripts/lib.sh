@@ -66,6 +66,13 @@ get_phase() {
 		echo "None"
 	fi
 }
+get_previous_phase() {
+	if [[ -f "${SCALETEST_PHASE_FILE}" ]] && [[ $(wc -l "${SCALETEST_PHASE_FILE}") -gt 1 ]]; then
+		grep START: "${SCALETEST_PHASE_FILE}" | tail -n2 | head -n1 | cut -d' ' -f3-
+	else
+		echo "None"
+	fi
+}
 
 wait_baseline() {
 	s=${1:-2}

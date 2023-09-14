@@ -267,6 +267,14 @@ resource "coder_agent" "main" {
     timeout      = 1
   }
 
+  metadata {
+    display_name = "Scaletest phase (previous)"
+    key          = "02_scaletest_previous_phase"
+    script       = file("metadata_previous_phase.sh")
+    interval     = 1
+    timeout      = 1
+  }
+
   # Misc workspace metadata.
   metadata {
     display_name = "CPU Usage"
