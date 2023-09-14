@@ -3,30 +3,13 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
-# shellcheck source=scripts/lib.sh
-. ~/coder/scripts/lib.sh
+# shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
+. "${SCRIPTS_DIR}/lib.sh"
 
-coder() {
-	maybedryrun "$DRY_RUN" command coder "${@}"
-}
-
-show_json() {
-	maybedryrun "$DRY_RUN" jq 'del(.. | .logs?)' "${1}"
-}
-
-wait_baseline() {
-	s=${1:-2}
-	echo "Waiting ${s}m (establishing baseline)..."
-	echo "${s}" >/tmp/.scaletest_phase_wait_baseline
-	sleep $((s * 60))
-	rm /tmp/.scaletest_phase_wait_baseline
-}
-
-echo "Running scaletest..."
+log "Running scaletest..."
 touch /tmp/.scaletest_running
 
-touch /tmp/.scaletest_phase_creating_workspaces
-
+start_phase "Creating workspaces"
 coder exp scaletest create-workspaces \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--template "${SCALETEST_TEMPLATE}" \
@@ -35,11 +18,11 @@ coder exp scaletest create-workspaces \
 	--no-cleanup \
 	--output json:"${SCALETEST_RUN_DIR}/result-create-workspaces.json"
 show_json "${SCALETEST_RUN_DIR}/result-create-workspaces.json"
-rm /tmp/.scaletest_phase_creating_workspaces
+end_phase
 
 wait_baseline 5
 
-touch /tmp/.scaletest_phase_ssh
+start_phase "SSH traffic"
 coder exp scaletest workspace-traffic \
 	--ssh \
 	--bytes-per-tick 10240 \
@@ -47,30 +30,30 @@ coder exp scaletest workspace-traffic \
 	--timeout 5m \
 	--output json:"${SCALETEST_RUN_DIR}/result-ssh.json"
 show_json "${SCALETEST_RUN_DIR}/result-ssh.json"
-rm /tmp/.scaletest_phase_ssh
+end_phase
 
 wait_baseline 5
 
-touch /tmp/.scaletest_phase_rpty
+start_phase "ReconnectingPTY traffic"
 coder exp scaletest workspace-traffic \
 	--bytes-per-tick 10240 \
 	--tick-interval 1s \
 	--timeout 5m \
-	--output json:"${SCALETEST_RUN_DIR}/result-rpty.json"
-show_json "${SCALETEST_RUN_DIR}/result-rpty.json"
-rm /tmp/.scaletest_phase_rpty
+	--output json:"${SCALETEST_RUN_DIR}/result-reconnectingpty.json"
+show_json "${SCALETEST_RUN_DIR}/result-reconnectingpty.json"
+end_phase
 
 wait_baseline 5
 
-touch /tmp/.scaletest_phase_dashboard
+start_phase "Dashboard traffic"
 coder exp scaletest dashboard \
 	--count "${SCALETEST_NUM_WORKSPACES}" \
 	--job-timeout 5m \
 	--output json:"${SCALETEST_RUN_DIR}/result-dashboard.json"
 show_json "${SCALETEST_RUN_DIR}/result-dashboard.json"
-rm /tmp/.scaletest_phase_dashboard
+end_phase
 
 wait_baseline 5
 
-echo "Scaletest complete!"
+log "Scaletest complete!"
 touch /tmp/.scaletest_complete

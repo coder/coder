@@ -3,8 +3,8 @@ set -euo pipefail
 
 [[ $VERBOSE == 1 ]] && set -x
 
-# shellcheck source=scripts/lib.sh
-. ~/coder/scripts/lib.sh
+# shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
+. "${SCRIPTS_DIR}/lib.sh"
 
 event=${1:-}
 
@@ -21,15 +21,13 @@ if [[ $event = manual ]]; then
 	fi
 fi
 
-echo "Cleaning up scaletest resources (${event})..."
-
-maybedryrun "${DRY_RUN}" coder exp scaletest cleanup \
+phase_start "Cleanup (${event})"
+coder exp scaletest cleanup \
 	--cleanup-concurrency "${SCALETEST_CLEANUP_CONCURRENCY}" \
 	--cleanup-job-timeout 15m \
-	--cleanup-timeout 30m |
-	tee "result-cleanup-${event}.txt"
-
-echo "Cleanup complete!"
+	--cleanup-timeout 30m \
+	| tee "result-cleanup-${event}.txt"
+end_phase
 
 if [[ $event = manual ]]; then
 	echo 'Press any key to continue...'
