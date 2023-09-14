@@ -20,9 +20,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 
 const MockedAppearance = {
   config: MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
+  isPreview: false,
+  setPreview: () => {},
 };
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {
