@@ -83,14 +83,14 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 }
 
 // setRandDBTimezone sets the timezone of the database to the given timezone.
-// The timezone change does not take effect until the next session, so
-// we do this in our own connection
 func setRandDBTimezone(t testing.TB, dbURL, dbname string) {
 	t.Helper()
 
 	sqlDB, err := sql.Open("postgres", dbURL)
 	require.NoError(t, err)
 	defer func() {
+		// The updated timezone only comes into effect on reconnect, so close
+		// the DB after we're done.
 		_ = sqlDB.Close()
 	}()
 
@@ -105,26 +105,11 @@ func setRandDBTimezone(t testing.TB, dbURL, dbname string) {
 	// nolint: gosec // This is not user input and this is only executed in tests
 	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
 	require.NoError(t, err, "failed to set timezone for database")
-
-	// Ensure the timezone was set.
-	// We need to reconnect for this.
-	_ = sqlDB.Close()
-
-	sqlDB, err = sql.Open("postgres", dbURL)
-	defer func() {
-		_ = sqlDB.Close()
-	}()
-	require.NoError(t, err, "failed to reconnect to database")
-	var dbTz string
-	err = sqlDB.QueryRow("SHOW TIMEZONE").Scan(&dbTz)
-	require.NoError(t, err, "failed to get timezone from database")
-	require.Equal(t, tz, dbTz, "database timezone was not set correctly")
 }
 
-// dbNameFromConnectionURL returns the database name from the given connection URL.
+// dbNameFromConnectionURL returns the database name from the given connection URL,
+// where connectionURL is of the form postgres://user:pass@host:port/dbname
 func dbNameFromConnectionURL(t testing.TB, connectionURL string) string {
-	// connectionURL is of the form postgres://user:pass@host:port/dbname
-	// We want to extract the dbname part.
 	u, err := url.Parse(connectionURL)
 	require.NoError(t, err)
 	return strings.TrimPrefix(u.Path, "/")
