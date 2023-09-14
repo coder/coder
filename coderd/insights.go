@@ -532,7 +532,7 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 
 func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
-	case codersdk.InsightsReportIntervalDay, "":
+	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalWeek, "":
 		return v, true
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -540,7 +540,7 @@ func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, interva
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "interval",
-					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalDay}),
+					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalWeek}),
 				},
 			},
 		})
