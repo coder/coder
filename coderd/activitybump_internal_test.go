@@ -22,13 +22,14 @@ import (
 func Test_ActivityBumpWorkspace(t *testing.T) {
 	t.Parallel()
 
-	// We test the below in multiple timezones
+	// We test the below in multiple timezones specifically
+	// chosen to trigger timezone-related bugs.
 	timezones := []string{
-		"Asia/Kolkata",
-		"Canada/Newfoundland",
-		"Europe/Paris",
-		"US/Central",
-		"UTC",
+		"Asia/Kolkata",        // No DST, positive fractional offset
+		"Canada/Newfoundland", // DST, negative fractional offset
+		"Europe/Paris",        // DST, positive offset
+		"US/Arizona",          // No DST, negative offset
+		"UTC",                 // Baseline
 	}
 
 	for _, tt := range []struct {
