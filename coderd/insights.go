@@ -23,9 +23,6 @@ import (
 // Duplicated in codersdk.
 const insightsTimeLayout = time.RFC3339
 
-// Week duration in nanoseconds
-var weekNanoseconds = 7 * 24 * time.Hour.Nanoseconds()
-
 // @Summary Get deployment DAUs
 // @ID get-deployment-daus
 // @Security CoderSessionToken
@@ -539,10 +536,10 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 	case codersdk.InsightsReportIntervalDay, "":
 		return v, true
 	case codersdk.InsightsReportIntervalWeek:
-		if !isMultipleOfWeek(startTime, endTime) {
+		if !lastReportIntervalHasAtLeastSixDays(startTime, endTime) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
-				Detail:  "Duration between start_time and end_time must multiple of 7 days.",
+				Detail:  "Last report interval should have at least 6 days.",
 			})
 			return "", false
 		}
@@ -561,6 +558,10 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 	}
 }
 
-func isMultipleOfWeek(startTime, endTime time.Time) bool {
-	return endTime.Sub(startTime).Nanoseconds()%weekNanoseconds == 0
+func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
+	lastReportIntervalDays := endTime.Sub(startTime) % (7 * 24 * time.Hour)
+	if lastReportIntervalDays == 0 {
+		return true // this is a perfectly full week!
+	}
+	return lastReportIntervalDays >= 6*24*time.Hour
 }

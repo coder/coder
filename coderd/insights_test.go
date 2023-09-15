@@ -1160,11 +1160,11 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 	assert.Error(t, err, "want error for bad interval")
 
 	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
-		StartTime: today.AddDate(0, 0, -4),
+		StartTime: today.AddDate(0, 0, -5),
 		EndTime:   today,
 		Interval:  codersdk.InsightsReportIntervalWeek,
 	})
-	assert.Error(t, err, "start_time and end_time must be multiple of 7 days")
+	assert.Error(t, err, "last report interval must have at least 6 days")
 }
 
 func TestTemplateInsights_RBAC(t *testing.T) {
