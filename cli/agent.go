@@ -29,6 +29,7 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clibase"
@@ -267,6 +268,8 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 				subsystems = append(subsystems, subsystem)
 			}
 
+			procTicker := time.NewTicker(time.Second)
+			defer procTicker.Stop()
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -284,13 +287,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS": executablePath,
+					"GIT_ASKPASS":         executablePath,
+					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
 				Subsystems:    subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
+				Syscaller:          agentproc.NewSyscaller(),
+				// Intentionally set this to nil. It's mainly used
+				// for testing.
+				ModifiedProcesses: nil,
 			})
 
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")
