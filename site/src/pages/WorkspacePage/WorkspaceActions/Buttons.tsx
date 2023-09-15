@@ -24,7 +24,7 @@ export const UpdateButton: FC<WorkspaceAction> = ({
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator="Updating..."
+      loadingIndicator={<>Updating&hellip;</>}
       loadingPosition="start"
       data-testid="workspace-update-button"
       startIcon={<CloudQueueIcon />}
@@ -42,7 +42,7 @@ export const ActivateButton: FC<WorkspaceAction> = ({
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator="Activating..."
+      loadingIndicator={<>Activating&hellip;</>}
       loadingPosition="start"
       startIcon={<PowerSettingsNewIcon />}
       onClick={handleAction}
@@ -70,7 +70,7 @@ export const StartButton: FC<
     >
       <LoadingButton
         loading={loading}
-        loadingIndicator="Starting..."
+        loadingIndicator={<>Starting&hellip;</>}
         loadingPosition="start"
         startIcon={<PlayCircleOutlineIcon />}
         onClick={() => handleAction()}
@@ -90,7 +90,7 @@ export const StopButton: FC<WorkspaceAction> = ({ handleAction, loading }) => {
   return (
     <LoadingButton
       loading={loading}
-      loadingIndicator="Stopping..."
+      loadingIndicator={<>Stopping&hellip;</>}
       loadingPosition="start"
       startIcon={<CropSquareIcon />}
       onClick={handleAction}
@@ -119,7 +119,7 @@ export const RestartButton: FC<
     >
       <LoadingButton
         loading={loading}
-        loadingIndicator="Restarting..."
+        loadingIndicator={<>Restarting&hellip;</>}
         loadingPosition="start"
         startIcon={<ReplayIcon />}
         onClick={() => handleAction()}
