@@ -31,7 +31,7 @@ tar](https://www.gnu.org/software/tar/).
 The main part of a Coder template is a
 [Terraform](https://terraform.io) `tf` file. A template often has
 other files to configure other services that the template needs. In
-this tour you'll also create a Dockerfile.
+this tour you'll also create a `Dockerfile`.
 
 Coder can provision all Terraform modules, resources, and
 properties. The Coder server essentially runs a `terraform apply`
