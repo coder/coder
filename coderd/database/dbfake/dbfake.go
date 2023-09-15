@@ -812,6 +812,14 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	userIDs := make([]uuid.UUID, 0, len(q.users))
+	for idx := range q.users {
+		userIDs[idx] = q.users[idx].ID
+	}
+	return userIDs, nil
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }

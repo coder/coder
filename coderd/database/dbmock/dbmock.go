@@ -82,6 +82,21 @@ func (mr *MockStoreMockRecorder) ActivityBumpWorkspace(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivityBumpWorkspace", reflect.TypeOf((*MockStore)(nil).ActivityBumpWorkspace), arg0, arg1)
 }
 
+// AllUserIDs mocks base method.
+func (m *MockStore) AllUserIDs(arg0 context.Context) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "AllUserIDs", arg0)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// AllUserIDs indicates an expected call of AllUserIDs.
+func (mr *MockStoreMockRecorder) AllUserIDs(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AllUserIDs", reflect.TypeOf((*MockStore)(nil).AllUserIDs), arg0)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(arg0 context.Context) error {
 	m.ctrl.T.Helper()

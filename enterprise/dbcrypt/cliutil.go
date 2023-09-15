@@ -6,8 +6,6 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/google/uuid"
-
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -21,7 +19,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return xerrors.Errorf("create cryptdb: %w", err)
 	}
 
-	userIDs, err := allUserIDs(ctx, sqlDB)
+	userIDs, err := db.AllUserIDs(ctx)
 	if err != nil {
 		return xerrors.Errorf("get users: %w", err)
 	}
@@ -105,7 +103,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 	cryptDB.primaryCipherDigest = ""
 
-	userIDs, err := allUserIDs(ctx, sqlDB)
+	userIDs, err := db.AllUserIDs(ctx)
 	if err != nil {
 		return xerrors.Errorf("get users: %w", err)
 	}
@@ -213,26 +211,4 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	}
 
 	return nil
-}
-
-// allUserIDs returns _all_ user IDs we know about, regardless of status or deletion.
-// We need to encrypt / decrypt tokens regardless of user status or deletion as they
-// may still be valid. While we could check the expiry, we also don't know if the
-// provider is lying about expiry.
-// This function will likely only ever be used here, so keeping it here instead
-// of exposing it in all of our database-related interfaces.
-func allUserIDs(ctx context.Context, sqlDB *sql.DB) ([]uuid.UUID, error) {
-	var id uuid.UUID
-	userIDs := make([]uuid.UUID, 0)
-	rows, err := sqlDB.QueryContext(ctx, `SELECT DISTINCT id FROM users`)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to query all user ids: %w", err)
-	}
-	for rows.Next() {
-		if err := rows.Scan(&id); err != nil {
-			return nil, xerrors.Errorf("failed to scan user_id: %w", err)
-		}
-		userIDs = append(userIDs, id)
-	}
-	return userIDs, nil
 }
