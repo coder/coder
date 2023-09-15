@@ -1282,15 +1282,6 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 var prioritizedProcs = []string{"coder agent"}
 
 func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
-	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
-		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
-			slog.F("env_var", EnvProcPrioMgmt),
-			slog.F("value", val),
-			slog.F("goos", runtime.GOOS),
-		)
-		return
-	}
-
 	defer func() {
 		if r := recover(); r != nil {
 			a.logger.Critical(ctx, "recovered from panic",
@@ -1299,6 +1290,15 @@ func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
 			)
 		}
 	}()
+
+	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
+		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
+			slog.F("env_var", EnvProcPrioMgmt),
+			slog.F("value", val),
+			slog.F("goos", runtime.GOOS),
+		)
+		return
+	}
 
 	if a.processManagementTick == nil {
 		ticker := time.NewTicker(time.Second)
