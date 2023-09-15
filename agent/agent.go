@@ -1369,10 +1369,12 @@ func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process
 		// so we don't override user nice values.
 		// Getpriority actually returns priority for the nice value
 		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
-		if score != 20 && score != niceness {
-			logger.Debug(ctx, "skipping process due to custom niceness",
-				slog.F("niceness", score),
-			)
+		if score != 20 {
+			if score != niceness {
+				logger.Debug(ctx, "skipping process due to custom niceness",
+					slog.F("niceness", score),
+				)
+			}
 			continue
 		}
 
