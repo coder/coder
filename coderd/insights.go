@@ -204,10 +204,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		var err error
 		if interval != "" {
 			dailyUsage, err = api.Database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
-				StartTime:   startTime,
-				EndTime:     endTime,
-				TemplateIDs: templateIDs,
-				Interval:    int64(24 * time.Hour),
+				StartTime:    startTime,
+				EndTime:      endTime,
+				TemplateIDs:  templateIDs,
+				IntervalDays: 1,
 			})
 			if err != nil {
 				return xerrors.Errorf("get template daily insights: %w", err)

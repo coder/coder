@@ -1809,13 +1809,13 @@ WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
 		CASE
-			WHEN (d::timestamptz + $1::interval) <= $2::timestamptz
-			THEN (d::timestamptz + $1::interval)
+			WHEN (d::timestamptz + ($1::int || ' day')::interval) <= $2::timestamptz
+			THEN (d::timestamptz + ($1::int || ' day')::interval)
 			ELSE $2::timestamptz
 		END AS to_
 	FROM
 		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($3::timestamptz, ($2::timestamptz) - '1 second'::interval, $1::interval) AS d
+		generate_series($3::timestamptz, ($2::timestamptz) - '1 second'::interval, ($1::int || ' day')::interval) AS d
 ), unflattened_usage_by_interval AS (
 	-- We select data from both workspace agent stats and workspace app stats to
 	-- get a complete picture of usage. This matches how usage is calculated by
@@ -1866,10 +1866,10 @@ GROUP BY from_, to_
 `
 
 type GetTemplateInsightsByIntervalParams struct {
-	Interval    int64       `db:"interval" json:"interval"`
-	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	IntervalDays int32       `db:"interval_days" json:"interval_days"`
+	EndTime      time.Time   `db:"end_time" json:"end_time"`
+	StartTime    time.Time   `db:"start_time" json:"start_time"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateInsightsByIntervalRow struct {
@@ -1885,7 +1885,7 @@ type GetTemplateInsightsByIntervalRow struct {
 // interval/template, it will be included in the results with 0 active users.
 func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByInterval,
-		arg.Interval,
+		arg.IntervalDays,
 		arg.EndTime,
 		arg.StartTime,
 		pq.Array(arg.TemplateIDs),

@@ -122,13 +122,13 @@ WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
 		CASE
-			WHEN (d::timestamptz + @interval::interval) <= @end_time::timestamptz
-			THEN (d::timestamptz + @interval::interval)
+			WHEN (d::timestamptz + (@interval_days::int || ' day')::interval) <= @end_time::timestamptz
+			THEN (d::timestamptz + (@interval_days::int || ' day')::interval)
 			ELSE @end_time::timestamptz
 		END AS to_
 	FROM
 		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, @interval::interval) AS d
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, (@interval_days::int || ' day')::interval) AS d
 ), unflattened_usage_by_interval AS (
 	-- We select data from both workspace agent stats and workspace app stats to
 	-- get a complete picture of usage. This matches how usage is calculated by
