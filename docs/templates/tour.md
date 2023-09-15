@@ -3,7 +3,7 @@
 This guided tour introduces you to the different parts of a template
 by showing you how to create a template from scratch.
 
-In this tour you'll write a simple template that starts a Docker
+In this tour, you'll write a simple template that will provision a workspace as a Docker
 container with Ubuntu. This simple template is based on the same
 Docker starter template that the [tutorial](./tutorial.md) uses.
 
