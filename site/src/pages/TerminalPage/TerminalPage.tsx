@@ -474,56 +474,42 @@ const useReloading = (isDisconnected: boolean) => {
       return;
     }
 
-    // Keep track of modifier keys since we want to avoid reconnecting while
-    // modifiers are held.  This covers cases where the terminal unexpectedly
-    // tries to reconnect like when pressing ctrl+w, ctrl+r, and so on.  This
-    // will not work if you pressed a modifier before the disconnect and are
-    // still holding it; if we need to account for that we will need to listen
-    // for modifier keys while connected as well.
-    const modifierKeyState: Record<string, boolean> = {
-      Alt: false,
-      AltGraph: false,
-      CapsLock: false,
-      Control: false,
-      Fn: false,
-      FnLock: false,
-      Meta: false,
-      NumLock: false,
-      ScrollLock: false,
-      Shift: false,
-      Symbol: false,
-      SymbolLock: false,
-    };
-
-    const isModifier = (event: KeyboardEvent): boolean => {
-      return event.key in modifierKeyState;
-    };
-
-    const isModified = (): boolean => {
-      return Object.values(modifierKeyState).includes(true);
-    };
+    // Modifier keys should not trigger a reload.
+    const ignoredKeys = [
+      "Alt",
+      "AltGraph",
+      "CapsLock",
+      "Control",
+      "Fn",
+      "FnLock",
+      "Meta",
+      "NumLock",
+      "ScrollLock",
+      "Shift",
+      "Symbol",
+      "SymbolLock",
+    ];
 
     const keyDownHandler = (event: KeyboardEvent) => {
-      if (isModifier(event)) {
-        modifierKeyState[event.key] = true;
-      } else if (!isModified()) {
+      // In addition to ignored keys, avoid reloading while modifiers are held
+      // to cover cases where the terminal unexpectedly tries to reconnect like
+      // when pressing ctrl+w, ctrl+r, and so on.
+      if (
+        !ignoredKeys.includes(event.key) &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
         setStatus("reloading");
         window.location.reload();
       }
     };
 
-    const keyUpHandler = (event: KeyboardEvent) => {
-      if (isModifier(event)) {
-        modifierKeyState[event.key] = false;
-      }
-    };
-
     document.addEventListener("keydown", keyDownHandler, true);
-    document.addEventListener("keyup", keyUpHandler, true);
 
     return () => {
       document.removeEventListener("keydown", keyDownHandler, true);
-      document.removeEventListener("keyup", keyUpHandler, true);
     };
   }, [status, isDisconnected]);
 
