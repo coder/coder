@@ -159,6 +159,7 @@ func pgDump(dbURL string) ([]byte, error) {
 		"pg_dump",
 		dbURL,
 		"--data-only",
+		"--column-inserts",
 		"--no-comments",
 		"--no-privileges",
 		"--no-publication",
@@ -187,24 +188,13 @@ func filterDump(dump []byte) []byte {
 	lines := bytes.Split(dump, []byte{'\n'})
 	var buf bytes.Buffer
 	for _, line := range lines {
-		// Skip blank lines
-		if len(line) == 0 {
+		// We dump in column-insert format, so these are the only lines
+		// we care about
+		if !bytes.HasPrefix(line, []byte("INSERT")) {
 			continue
 		}
-		// Skip comments
-		if bytes.HasPrefix(line, []byte("--")) {
-			continue
-		}
-		// Skip SELECT or SET statements
-		if bytes.HasPrefix(line, []byte("SELECT")) {
-			continue
-		}
-		if bytes.HasPrefix(line, []byte("SET")) {
-			continue
-		}
-
-		buf.Write(line)
-		buf.WriteRune('\n')
+		_, _ = buf.Write(line)
+		_, _ = buf.WriteRune('\n')
 	}
 	return buf.Bytes()
 }
