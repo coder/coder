@@ -20,6 +20,18 @@ const insightsTimeLayout = time.RFC3339
 // smaller insights report within a time range.
 type InsightsReportInterval string
 
+// Days returns the duration of the interval in days.
+func (interval InsightsReportInterval) Days() int32 {
+	switch interval {
+	case InsightsReportIntervalDay:
+		return 1
+	case InsightsReportIntervalWeek:
+		return 7
+	default:
+		panic("developer error: unsupported report interval")
+	}
+}
+
 // InsightsReportInterval enums.
 const (
 	InsightsReportIntervalDay  InsightsReportInterval = "day"

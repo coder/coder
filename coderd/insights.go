@@ -23,6 +23,9 @@ import (
 // Duplicated in codersdk.
 const insightsTimeLayout = time.RFC3339
 
+// Day duration in nanoseconds
+var dayNanoseconds = 24 * time.Hour.Nanoseconds()
+
 // @Summary Get deployment DAUs
 // @ID get-deployment-daus
 // @Security CoderSessionToken
@@ -184,7 +187,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	interval, ok := verifyInsightsInterval(ctx, rw, intervalString)
+	interval, ok := parseInsightsInterval(ctx, rw, intervalString, startTime, endTime)
 	if !ok {
 		return
 	}
@@ -198,7 +201,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	eg.SetLimit(4)
 
 	// The following insights data queries have a theoretical chance to be
-	// inconsistent between eachother when looking at "today", however, the
+	// inconsistent between each other when looking at "today", however, the
 	// overhead from a transaction is not worth it.
 	eg.Go(func() error {
 		var err error
@@ -207,7 +210,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 				StartTime:    startTime,
 				EndTime:      endTime,
 				TemplateIDs:  templateIDs,
-				IntervalDays: 1,
+				IntervalDays: interval.Days(),
 			})
 			if err != nil {
 				return xerrors.Errorf("get template daily insights: %w", err)
@@ -531,9 +534,18 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 	return startTime, endTime, true
 }
 
-func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
+func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string, startTime, endTime time.Time) (codersdk.InsightsReportInterval, bool) {
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
-	case codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalWeek, "":
+	case codersdk.InsightsReportIntervalDay, "":
+		return v, true
+	case codersdk.InsightsReportIntervalWeek:
+		if !isMultipleOfDay(startTime, endTime) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Detail:  "Duration between start_time and end_time must multiple of 1 day.",
+			})
+			return "", false
+		}
 		return v, true
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -547,4 +559,8 @@ func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, interva
 		})
 		return "", false
 	}
+}
+
+func isMultipleOfDay(startTime, endTime time.Time) bool {
+	return endTime.Sub(startTime).Nanoseconds()%dayNanoseconds == 0
 }
