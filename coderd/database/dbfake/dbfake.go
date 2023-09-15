@@ -812,7 +812,7 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	userIDs := make([]uuid.UUID, 0, len(q.users))
 	for idx := range q.users {
 		userIDs[idx] = q.users[idx].ID
