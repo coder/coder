@@ -30,7 +30,6 @@ export const ExampleDefault: Story = {};
 
 export const ExampleUserSet: Story = {
   args: {
-    ...defaultArgs,
     initialValues: {
       raw_schedule: "CRON_TZ=America/Chicago 0 2 * * *",
       user_set: true,
@@ -44,15 +43,13 @@ export const ExampleUserSet: Story = {
 
 export const Submitting: Story = {
   args: {
-    ...defaultArgs,
     isLoading: true,
   },
 };
 
 export const WithError: Story = {
   args: {
-    ...defaultArgs,
-    mutationError: mockApiError({
+    submitError: mockApiError({
       message: "Invalid schedule",
       validations: [
         {

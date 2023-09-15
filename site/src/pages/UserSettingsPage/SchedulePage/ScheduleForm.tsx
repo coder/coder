@@ -25,9 +25,6 @@ const validationSchema = Yup.object({
   time: Yup.string()
     .ensure()
     .test("is-time-string", "Time must be in HH:mm format.", (value) => {
-      if (value === "") {
-        return true;
-      }
       if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
         return false;
       }
@@ -42,7 +39,7 @@ const validationSchema = Yup.object({
 export interface ScheduleFormProps {
   isLoading: boolean;
   initialValues: UserQuietHoursScheduleResponse;
-  mutationError: unknown;
+  submitError: unknown;
   onSubmit: (data: UpdateUserQuietHoursScheduleRequest) => void;
   // now can be set to force the time used for "Next occurrence" in tests.
   now?: Date;
@@ -51,7 +48,7 @@ export interface ScheduleFormProps {
 export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
   isLoading,
   initialValues,
-  mutationError,
+  submitError,
   onSubmit,
   now,
 }) => {
@@ -75,21 +72,18 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
     useFormik<ScheduleFormValues>({
       initialValues: formInitialValues,
       validationSchema,
-      onSubmit: async (values) => {
+      onSubmit: (values) => {
         onSubmit({
           schedule: timeToCron(values.time, values.timezone),
         });
       },
     });
-  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(
-    form,
-    mutationError,
-  );
+  const getFieldHelpers = getFormHelpers<ScheduleFormValues>(form, submitError);
 
   return (
     <Form onSubmit={form.handleSubmit}>
       <FormFields>
-        {Boolean(mutationError) && <ErrorAlert error={mutationError} />}
+        {Boolean(submitError) && <ErrorAlert error={submitError} />}
 
         {!initialValues.user_set && (
           <Alert severity="info">

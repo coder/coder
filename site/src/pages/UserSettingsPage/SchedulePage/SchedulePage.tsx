@@ -22,18 +22,11 @@ export const SchedulePage: FC = () => {
     isError,
   } = useQuery(userQuietHoursSchedule(me.id));
 
-  const updateSchedule = updateUserQuietHoursSchedule(me.id, queryClient);
   const {
     mutate: onSubmit,
-    error: mutationError,
+    error: submitError,
     isLoading: mutationLoading,
-  } = useMutation({
-    ...updateSchedule,
-    onSuccess: async () => {
-      await updateSchedule.onSuccess();
-      displaySuccess("Schedule updated successfully");
-    },
-  });
+  } = useMutation(updateUserQuietHoursSchedule(me.id, queryClient));
 
   if (isLoading) {
     return <Loader />;
@@ -52,8 +45,14 @@ export const SchedulePage: FC = () => {
       <ScheduleForm
         isLoading={mutationLoading}
         initialValues={quietHoursSchedule}
-        mutationError={mutationError}
-        onSubmit={onSubmit}
+        submitError={submitError}
+        onSubmit={(values) => {
+          onSubmit(values, {
+            onSuccess: () => {
+              displaySuccess("Schedule updated successfully");
+            },
+          });
+        }}
       />
     </Section>
   );
