@@ -857,7 +857,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
-			Description: "Use the use logged in on the host machine, instead of creating users.",
+			Description: "Use the user logged in on the host machine, instead of creating users.",
 			Value:       clibase.BoolOf(&useHostUser),
 		},
 	}
