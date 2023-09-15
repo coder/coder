@@ -207,9 +207,17 @@ func TestServerDBCrypt(t *testing.T) {
 func genData(t *testing.T, db database.Store, n int) []database.User {
 	t.Helper()
 	var users []database.User
+	// Make some users
 	for i := 0; i < n; i++ {
+		status := database.UserStatusActive
+		if i%2 == 0 {
+			status = database.UserStatusSuspended
+		} else if i%3 == 0 {
+			status = database.UserStatusDormant
+		}
 		usr := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
+			Status:    status,
 		})
 		_ = dbgen.UserLink(t, db, database.UserLink{
 			UserID:            usr.ID,

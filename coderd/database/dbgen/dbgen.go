@@ -227,7 +227,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
 		ID:        user.ID,
-		Status:    database.UserStatusActive,
+		Status:    takeFirst(orig.Status, database.UserStatusActive),
 		UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err, "insert user")
