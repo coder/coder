@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -42,9 +41,15 @@ func TestServerDBCrypt(t *testing.T) {
 	})
 	db := database.New(sqlDB)
 
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("Dumping data due to failed test. I hope you find what you're looking for!")
+			dumpUsers(t, sqlDB)
+		}
+	})
+
 	// Populate the database with some unencrypted data.
 	users := genData(t, db)
-	dumpUsers(t, sqlDB, "NOT ENCRYPTED")
 
 	// Setup an initial cipher A
 	keyA := mustString(t, 32)
@@ -57,7 +62,6 @@ func TestServerDBCrypt(t *testing.T) {
 
 	// Populate the database with some encrypted data using cipher A.
 	newUsers := genData(t, cryptdb)
-	dumpUsers(t, sqlDB, "PARTIALLY ENCRYPTED A")
 
 	// Validate that newly created users were encrypted with cipher A
 	for _, usr := range newUsers {
@@ -76,7 +80,6 @@ func TestServerDBCrypt(t *testing.T) {
 	err = inv.Run()
 	require.NoError(t, err)
 
-	dumpUsers(t, sqlDB, "ENCRYPTED A")
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
@@ -89,7 +92,6 @@ func TestServerDBCrypt(t *testing.T) {
 
 	// Generate some more encrypted data using the new cipher
 	users = append(users, genData(t, db)...)
-	dumpUsers(t, sqlDB, "ENCRYPTED AB")
 
 	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
@@ -103,7 +105,6 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been re-encrypted with cipher B.
-	dumpUsers(t, sqlDB, "ENCRYPTED B")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherBA[0], usr.ID)
 	}
@@ -150,7 +151,6 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Validate that all data has been decrypted.
-	dumpUsers(t, sqlDB, "DECRYPTED")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, &nullCipher{}, usr.ID)
 	}
@@ -172,7 +172,6 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been re-encrypted with cipher C.
-	dumpUsers(t, sqlDB, "ENCRYPTED C")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherC[0], usr.ID)
 	}
@@ -189,7 +188,6 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert that no user links remain.
-	dumpUsers(t, sqlDB, "DELETED")
 	for _, usr := range users {
 		userLinks, err := db.GetUserLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user links for user %s", usr.ID)
@@ -227,6 +225,9 @@ func genData(t *testing.T, db database.Store) []database.User {
 					OAuthAccessToken:  "access-" + usr.ID.String(),
 					OAuthRefreshToken: "refresh-" + usr.ID.String(),
 				})
+				// Fun fact: our schema allows _all_ login types to have
+				// a user_link. Even though I'm not sure how it could occur
+				// in practice, making sure to test all combinations here.
 				_ = dbgen.UserLink(t, db, database.UserLink{
 					UserID:            usr.ID,
 					LoginType:         usr.LoginType,
@@ -240,8 +241,8 @@ func genData(t *testing.T, db database.Store) []database.User {
 	return users
 }
 
-func dumpUsers(t *testing.T, db *sql.DB, header string) {
-	t.Logf("%s %s %s", strings.Repeat("=", 20), header, strings.Repeat("=", 20))
+func dumpUsers(t *testing.T, db *sql.DB) {
+	t.Helper()
 	rows, err := db.QueryContext(context.Background(), `SELECT
 	u.id,
 	u.login_type,
