@@ -26,7 +26,11 @@ show_json() {
 }
 
 set_status() {
-	echo "$(date -Ins) $*" >>"${SCALETEST_STATE_DIR}/status"
+	dry_run=
+	if [[ $DRY_RUN == 1 ]]; then
+		dry_run=" (dry-ryn)"
+	fi
+	echo "$(date -Ins) ${*}${dry_run}" >>"${SCALETEST_STATE_DIR}/status"
 }
 lock_status() {
 	chmod 0440 "${SCALETEST_STATE_DIR}/status"
