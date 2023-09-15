@@ -19,10 +19,10 @@ const activityBumpWorkspace = `-- name: ActivityBumpWorkspace :exec
 WITH latest AS (
 	SELECT
 		workspace_builds.id::uuid AS build_id,
-		workspace_builds.deadline::timestamp AS build_deadline,
-		workspace_builds.max_deadline::timestamp AS build_max_deadline,
+		workspace_builds.deadline::timestamp with time zone AS build_deadline,
+		workspace_builds.max_deadline::timestamp with time zone AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
-		provisioner_jobs.completed_at::timestamp AS job_completed_at,
+		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
 		(workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval
 	FROM workspace_builds
 	JOIN provisioner_jobs
