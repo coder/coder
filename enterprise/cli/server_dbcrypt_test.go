@@ -238,7 +238,18 @@ func genData(t *testing.T, db database.Store, n int) []database.User {
 
 func dumpUsers(t *testing.T, db *sql.DB, header string) {
 	t.Logf("%s %s %s", strings.Repeat("=", 20), header, strings.Repeat("=", 20))
-	rows, err := db.QueryContext(context.Background(), `select u.id, u.status, u.deleted, ul.oauth_access_token_key_id as uloatkid, ul.oauth_refresh_token_key_id as ulortkid, gal.oauth_access_token_key_id as galoatkid, gal.oauth_refresh_token_key_id as galortkid from users u left outer join user_links ul on u.id = ul.user_id left outer join git_auth_links gal on u.id = gal.user_id;`)
+	rows, err := db.QueryContext(context.Background(), `SELECT
+	u.id,
+	u.status,
+	u.deleted,
+	ul.oauth_access_token_key_id AS uloatkid,
+	ul.oauth_refresh_token_key_id AS ulortkid,
+	gal.oauth_access_token_key_id AS galoatkid,
+	gal.oauth_refresh_token_key_id AS galortkid
+FROM users u
+LEFT OUTER JOIN user_links ul ON u.id = ul.user_id
+LEFT OUTER JOIN git_auth_links gal ON u.id = gal.user_id
+ORDER BY u.created_at ASC;`)
 	require.NoError(t, err)
 	defer rows.Close()
 	for rows.Next() {
