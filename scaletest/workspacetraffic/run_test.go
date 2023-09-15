@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -16,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 	"github.com/coder/coder/v2/testutil"
-	"golang.org/x/exp/slices"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"

@@ -844,13 +844,13 @@ func (q *FakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID)
 	return nil
 }
 
-func (q *FakeQuerier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+func (q *FakeQuerier) DeleteAllTailnetClientSubscriptions(_ context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	return ErrUnimplemented
 }
 
 func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {

@@ -252,7 +252,16 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 	if err := c.addSubscription(cIO, agent); err != nil {
 		return err
 	}
-	defer c.removeSubscription(cIO, agent)
+	defer func() {
+		err := c.removeSubscription(cIO, agent)
+		if err != nil {
+			c.logger.Debug(c.ctx, "remove client subscription",
+				slog.F("client_id", id),
+				slog.F("agent_id", agent),
+				slog.Error(err),
+			)
+		}
+	}()
 
 	<-cIO.ctx.Done()
 	return nil
