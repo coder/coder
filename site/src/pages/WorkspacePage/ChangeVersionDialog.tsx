@@ -14,7 +14,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { AlertTitle } from "@mui/material";
+import AlertTitle from "@mui/material/AlertTitle";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 
 export type ChangeVersionDialogProps = DialogProps & {
