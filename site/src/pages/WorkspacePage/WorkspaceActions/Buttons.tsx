@@ -30,7 +30,7 @@ export const UpdateButton: FC<WorkspaceAction> = ({
       startIcon={<CloudQueueIcon />}
       onClick={handleAction}
     >
-      Update
+      Update&hellip;
     </LoadingButton>
   );
 };
@@ -125,7 +125,7 @@ export const RestartButton: FC<
         onClick={() => handleAction()}
         data-testid="workspace-restart-button"
       >
-        Restart
+        Restart&hellip;
       </LoadingButton>
       <BuildParametersPopover
         workspace={workspace}

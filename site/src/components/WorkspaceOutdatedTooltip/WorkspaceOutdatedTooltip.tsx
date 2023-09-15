@@ -11,7 +11,7 @@ import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { makeStyles } from "@mui/styles";
 import { colors } from "theme/colors";
 import { useQuery } from "@tanstack/react-query";
-import { getTemplate, getTemplateVersion } from "api/api";
+import { templateVersion } from "api/queries/templates";
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";
 import Link from "@mui/material/Link";
@@ -25,7 +25,7 @@ export const Language = {
 
 interface TooltipProps {
   onUpdateVersion: () => void;
-  templateId: string;
+  latestVersionId: string;
   templateName: string;
   ariaLabel?: string;
 }
@@ -33,20 +33,11 @@ interface TooltipProps {
 export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
   onUpdateVersion,
   ariaLabel,
-  templateId,
+  latestVersionId,
   templateName,
 }) => {
   const styles = useStyles();
-  const { data: activeVersion } = useQuery({
-    queryFn: async () => {
-      const template = await getTemplate(templateId);
-      const activeVersion = await getTemplateVersion(
-        template.active_version_id,
-      );
-      return activeVersion;
-    },
-    queryKey: ["templates", templateId, "activeVersion"],
-  });
+  const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
 
   return (
     <HelpTooltip

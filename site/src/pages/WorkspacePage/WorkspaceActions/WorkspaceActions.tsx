@@ -148,12 +148,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           {canChangeVersions && (
             <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
               <HistoryOutlined />
-              Change version
+              Change version&hellip;
             </MenuItem>
           )}
           <MenuItem onClick={onMenuItemClick(handleDelete)}>
             <DeleteOutlined />
-            Delete
+            Delete&hellip;
           </MenuItem>
         </Menu>
       </div>
