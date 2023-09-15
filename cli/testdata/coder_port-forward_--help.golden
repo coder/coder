@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder port-forward [flags] <workspace>
 
   Forward ports from a workspace to the local machine. For reverse port
@@ -33,11 +33,11 @@ coder v0.0.0-devel
   
        $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mp[0m, [96m--[0m[96mtcp[0m string-array, [96m$CODER_PORT_FORWARD_TCP[0m
+OPTIONS:
+  -p, --tcp string-array, $CODER_PORT_FORWARD_TCP
           Forward TCP port(s) from the workspace to the local machine.
 
-      [96m--[0m[96mudp[0m string-array, [96m$CODER_PORT_FORWARD_UDP[0m
+      --udp string-array, $CODER_PORT_FORWARD_UDP
           Forward UDP port(s) from the workspace to the local machine. The UDP
           connection has TCP-like semantics to support stateful UDP protocols.
 

@@ -340,7 +340,7 @@ func TestAgent(t *testing.T) {
 				line := s.Text()
 				t.Log(line)
 				if len(tc.want) == 0 {
-					require.Fail(t, "unexpected line: "+line)
+					require.Fail(t, "unexpected line", line)
 				}
 				require.Contains(t, line, tc.want[0])
 				tc.want = tc.want[1:]

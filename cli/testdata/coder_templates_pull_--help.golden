@@ -1,15 +1,15 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder templates pull [flags] <name> [destination]
 
   Download the latest version of a template to a path.
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mtar[0m bool
+OPTIONS:
+      --tar bool
           Output the template as a tar archive to stdout.
 
-  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
+  -y, --yes bool
           Bypass prompts.
 
 ———

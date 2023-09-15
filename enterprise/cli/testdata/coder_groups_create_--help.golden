@@ -1,15 +1,15 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder groups create [flags] <name>
 
   Create a user group
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mu[0m, [96m--[0m[96mavatar-url[0m string, [96m$CODER_AVATAR_URL[0m
+OPTIONS:
+  -u, --avatar-url string, $CODER_AVATAR_URL
           Set an avatar for a group.
 
-      [96m--[0m[96mdisplay-name[0m string, [96m$CODER_DISPLAY_NAME[0m
+      --display-name string, $CODER_DISPLAY_NAME
           Optional human friendly name for the group.
 
 ———

@@ -1,11 +1,11 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder provisionerd
 
   Manage provisioner daemons
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     start    Run a provisioner daemon
 
 ———

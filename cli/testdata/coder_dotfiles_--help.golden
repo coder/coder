@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder dotfiles [flags] <git_repo_url>
 
   Personalize your workspace by applying a canonical dotfiles repository
@@ -9,17 +9,17 @@ coder v0.0.0-devel
   
        $ coder dotfiles --yes git@github.com:example/dotfiles.git
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mb[0m, [96m--[0m[96mbranch[0m string
+OPTIONS:
+  -b, --branch string
           Specifies which branch to clone. If empty, will default to cloning the
           default branch or using the existing branch in the cloned repo on
           disk.
 
-      [96m--[0m[96msymlink-dir[0m string, [96m$CODER_SYMLINK_DIR[0m
+      --symlink-dir string, $CODER_SYMLINK_DIR
           Specifies the directory for the dotfiles symlink destinations. If
           empty, will use $HOME.
 
-  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
+  -y, --yes bool
           Bypass prompts.
 
 ———

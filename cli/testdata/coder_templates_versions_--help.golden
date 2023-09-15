@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder templates versions
 
   Manage different versions of the specified template
@@ -11,7 +11,7 @@ coder v0.0.0-devel
   
        $ coder templates versions list my-template
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     list    List all the versions of the specified template
 
 ———

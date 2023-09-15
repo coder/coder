@@ -1,12 +1,12 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder state pull [flags] <workspace> [file]
 
   Pull a Terraform state file from a workspace.
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mb[0m, [96m--[0m[96mbuild[0m int
+OPTIONS:
+  -b, --build int
           Specify a workspace build to target by name. Defaults to latest.
 
 ———
