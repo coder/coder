@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -43,11 +44,25 @@ func TestServerDBCrypt(t *testing.T) {
 
 	// Populate the database with some unencrypted data.
 	users := genData(t, db, 10)
+	dumpUsers(t, sqlDB, "NOT ENCRYPTED")
 
-	// Setup an initial cipher
+	// Setup an initial cipher A
 	keyA := mustString(t, 32)
 	cipherA, err := dbcrypt.NewCiphers([]byte(keyA))
 	require.NoError(t, err)
+
+	// Create an encrypted database
+	cryptdb, err := dbcrypt.New(ctx, db, cipherA...)
+	require.NoError(t, err)
+
+	// Populate the database with some encrypted data using cipher A.
+	users = append(users, genData(t, cryptdb, 10)...)
+	dumpUsers(t, sqlDB, "PARTIALLY ENCRYPTED A")
+
+	// Validate that newly created users were encrypted with cipher A
+	for _, usr := range users[10:] {
+		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
+	}
 
 	// Encrypt all the data with the initial cipher.
 	inv, _ := newCLI(t, "server", "dbcrypt", "rotate",
@@ -60,17 +75,11 @@ func TestServerDBCrypt(t *testing.T) {
 	err = inv.Run()
 	require.NoError(t, err)
 
+	dumpUsers(t, sqlDB, "ENCRYPTED A")
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
 	}
-
-	// Create an encrypted database
-	cryptdb, err := dbcrypt.New(ctx, db, cipherA...)
-	require.NoError(t, err)
-
-	// Populate the database with some encrypted data using cipher A.
-	users = append(users, genData(t, cryptdb, 10)...)
 
 	// Re-encrypt all existing data with a new cipher.
 	keyB := mustString(t, 32)
@@ -89,6 +98,7 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been re-encrypted with cipher B.
+	dumpUsers(t, sqlDB, "ENCRYPTED B")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherBA[0], usr.ID)
 	}
@@ -135,6 +145,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Validate that all data has been decrypted.
+	dumpUsers(t, sqlDB, "DECRYPTED")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, &nullCipher{}, usr.ID)
 	}
@@ -156,6 +167,7 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate that all data has been re-encrypted with cipher C.
+	dumpUsers(t, sqlDB, "ENCRYPTED C")
 	for _, usr := range users {
 		requireEncryptedWithCipher(ctx, t, db, cipherC[0], usr.ID)
 	}
@@ -172,6 +184,7 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assert that no user links remain.
+	dumpUsers(t, sqlDB, "DELETED")
 	for _, usr := range users {
 		userLinks, err := db.GetUserLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user links for user %s", usr.ID)
@@ -213,6 +226,36 @@ func genData(t *testing.T, db database.Store, n int) []database.User {
 		users = append(users, usr)
 	}
 	return users
+}
+
+func dumpUsers(t *testing.T, db *sql.DB, header string) {
+	t.Logf("%s %s %s", strings.Repeat("=", 20), header, strings.Repeat("=", 20))
+	rows, err := db.QueryContext(context.Background(), `select u.id, u.status, u.deleted, ul.oauth_access_token_key_id as uloatkid, ul.oauth_refresh_token_key_id as ulortkid, gal.oauth_access_token_key_id as galoatkid, gal.oauth_refresh_token_key_id as galortkid from users u left outer join user_links ul on u.id = ul.user_id left outer join git_auth_links gal on u.id = gal.user_id;`)
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			id        string
+			status    string
+			deleted   bool
+			UlOatKid  sql.NullString
+			UlOrtKid  sql.NullString
+			GalOatKid sql.NullString
+			GalOrtKid sql.NullString
+		)
+		require.NoError(t, rows.Scan(
+			&id,
+			&status,
+			&deleted,
+			&UlOatKid,
+			&UlOrtKid,
+			&GalOatKid,
+			&GalOrtKid,
+		))
+		t.Logf("user: id:%s status:%-9s deleted:%-5t ul_kids{at:%-7s rt:%-7s} gal_kids{at:%-7s rt:%-7s}",
+			id, status, deleted, UlOatKid.String, UlOrtKid.String, GalOatKid.String, GalOrtKid.String,
+		)
+	}
 }
 
 func mustString(t *testing.T, n int) string {
