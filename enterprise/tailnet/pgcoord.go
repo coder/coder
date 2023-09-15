@@ -26,16 +26,16 @@ import (
 )
 
 const (
-	EventHeartbeats         = "tailnet_coordinator_heartbeat"
-	eventClientUpdate       = "tailnet_client_update"
-	eventClientSubscription = "tailnet_client_subscription_update"
-	eventAgentUpdate        = "tailnet_agent_update"
-	HeartbeatPeriod         = time.Second * 2
-	MissedHeartbeats        = 3
-	numQuerierWorkers       = 10
-	numBinderWorkers        = 10
-	dbMaxBackoff            = 10 * time.Second
-	cleanupPeriod           = time.Hour
+	EventHeartbeats      = "tailnet_coordinator_heartbeat"
+	eventClientUpdate    = "tailnet_client_update"
+	eventAgentUpdate     = "tailnet_agent_update"
+	HeartbeatPeriod      = time.Second * 2
+	MissedHeartbeats     = 3
+	numQuerierWorkers    = 10
+	numBinderWorkers     = 10
+	numSubscriberWorkers = 10
+	dbMaxBackoff         = 10 * time.Second
+	cleanupPeriod        = time.Hour
 )
 
 // TODO: add subscriber to this graphic
@@ -240,10 +240,8 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 				slog.Error(err))
 		}
 	}()
-	cIO, err := newConnIO(c.ctx, c.logger, c.bindings, conn, id, id.String(), agpl.QueueKindClient)
-	if err != nil {
-		return err
-	}
+
+	cIO := newConnIO(c.ctx, c.logger, c.bindings, conn, id, id.String(), agpl.QueueKindClient)
 	if err := sendCtx(c.ctx, c.newConnections, agpl.Queue(cIO)); err != nil {
 		// can only be a context error, no need to log here.
 		return err
@@ -277,10 +275,7 @@ func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 		}
 	}()
 	logger := c.logger.With(slog.F("name", name))
-	cIO, err := newConnIO(c.ctx, logger, c.bindings, conn, id, name, agpl.QueueKindAgent)
-	if err != nil {
-		return err
-	}
+	cIO := newConnIO(c.ctx, logger, c.bindings, conn, id, name, agpl.QueueKindAgent)
 	if err := sendCtx(c.ctx, c.newConnections, agpl.Queue(cIO)); err != nil {
 		// can only be a context error, no need to log here.
 		return err
@@ -349,7 +344,7 @@ func newSubscriber(ctx context.Context,
 	go s.handleSubscriptions()
 	go func() {
 		<-startWorkers
-		for i := 0; i < numBinderWorkers; i++ {
+		for i := 0; i < numSubscriberWorkers; i++ {
 			go s.worker()
 		}
 	}()

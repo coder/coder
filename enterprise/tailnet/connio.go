@@ -34,7 +34,7 @@ func newConnIO(pCtx context.Context,
 	id uuid.UUID,
 	name string,
 	kind agpl.QueueKind,
-) (*connIO, error) {
+) *connIO {
 	ctx, cancel := context.WithCancel(pCtx)
 	c := &connIO{
 		pCtx:     pCtx,
@@ -48,7 +48,7 @@ func newConnIO(pCtx context.Context,
 	go c.recvLoop()
 	go c.updates.SendUpdates()
 	logger.Info(ctx, "serving connection")
-	return c, nil
+	return c
 }
 
 func (c *connIO) recvLoop() {

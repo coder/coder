@@ -194,8 +194,7 @@ type core struct {
 type QueueKind int
 
 const (
-	_ QueueKind = iota
-	QueueKindClient
+	QueueKindClient QueueKind = 1 + iota
 	QueueKindAgent
 )
 
