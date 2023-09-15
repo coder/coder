@@ -154,17 +154,23 @@ export const Filter = ({
   learnMoreLink2,
   presets,
 }: FilterProps) => {
-  const [searchQuery, setSearchQuery] = useState(filter.query);
+  // Storing local copy of the filter query so that it can be updated more
+  // aggressively without re-renders rippling out to the rest of the app every
+  // single time. Exists for performance reasons - not really a good way to
+  // remove this; render keys would cause the component to remount too often
+  const [queryCopy, setQueryCopy] = useState(filter.query);
   const textboxInputRef = useRef<HTMLInputElement>(null);
 
+  // Conditionally re-syncs the parent and local filter queries
   useEffect(() => {
-    // We don't want to update this while the user is typing something or has
-    // the focus in the input
-    const hasInnerFocus =
+    const hasSelfOrInnerFocus =
       textboxInputRef.current?.contains(document.activeElement) ?? false;
 
-    if (!hasInnerFocus) {
-      setSearchQuery(filter.query);
+    // This doesn't address all state sync issues - namely, what happens if the
+    // user removes focus just after this synchronizing effect fires. Also need
+    // to rely on onBlur behavior as an extra safety measure
+    if (!hasSelfOrInnerFocus) {
+      setQueryCopy(filter.query);
     }
   }, [filter.query]);
 
@@ -205,11 +211,16 @@ export const Filter = ({
                 "aria-label": "Filter",
                 name: "query",
                 placeholder: "Search...",
-                value: searchQuery,
+                value: queryCopy,
                 ref: textboxInputRef,
                 onChange: (e) => {
-                  setSearchQuery(e.target.value);
+                  setQueryCopy(e.target.value);
                   filter.debounceUpdate(e.target.value);
+                },
+                onBlur: () => {
+                  if (queryCopy !== filter.query) {
+                    setQueryCopy(filter.query);
+                  }
                 },
                 sx: {
                   borderRadius: "6px",
