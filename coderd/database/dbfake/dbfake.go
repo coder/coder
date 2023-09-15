@@ -2418,17 +2418,18 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	type dailyStat struct {
+	type statByInterval struct {
 		startTime, endTime time.Time
 		userSet            map[uuid.UUID]struct{}
 		templateIDSet      map[uuid.UUID]struct{}
 	}
-	dailyStats := []dailyStat{{arg.StartTime, arg.StartTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
-	for dailyStats[len(dailyStats)-1].endTime.Before(arg.EndTime) {
-		dailyStats = append(dailyStats, dailyStat{dailyStats[len(dailyStats)-1].endTime, dailyStats[len(dailyStats)-1].endTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+
+	statsByInterval := []statByInterval{{arg.StartTime, arg.StartTime.Add(arg.Interval), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	for statsByInterval[len(statsByInterval)-1].endTime.Before(arg.EndTime) {
+		statsByInterval = append(statsByInterval, statByInterval{statsByInterval[len(statsByInterval)-1].endTime, statsByInterval[len(statsByInterval)-1].endTime.Add(arg.Interval), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
 	}
-	if dailyStats[len(dailyStats)-1].endTime.After(arg.EndTime) {
-		dailyStats[len(dailyStats)-1].endTime = arg.EndTime
+	if statsByInterval[len(statsByInterval)-1].endTime.After(arg.EndTime) {
+		statsByInterval[len(statsByInterval)-1].endTime = arg.EndTime
 	}
 
 	for _, s := range q.workspaceAgentStats {
@@ -2442,7 +2443,7 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 			continue
 		}
 
-		for _, ds := range dailyStats {
+		for _, ds := range statsByInterval {
 			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
 				continue
 			}
@@ -2461,7 +2462,7 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 			continue
 		}
 
-		for _, ds := range dailyStats {
+		for _, ds := range statsByInterval {
 			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
 			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
 			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
@@ -2477,7 +2478,7 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 	}
 
 	var result []database.GetTemplateInsightsByIntervalRow
-	for _, ds := range dailyStats {
+	for _, ds := range statsByInterval {
 		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
 		for templateID := range ds.templateIDSet {
 			templateIDs = append(templateIDs, templateID)

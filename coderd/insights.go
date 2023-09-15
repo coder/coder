@@ -207,6 +207,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 				StartTime:   startTime,
 				EndTime:     endTime,
 				TemplateIDs: templateIDs,
+				Interval:    24 * time.Hour,
 			})
 			if err != nil {
 				return xerrors.Errorf("get template daily insights: %w", err)
