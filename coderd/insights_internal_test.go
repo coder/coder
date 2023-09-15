@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_parseInsightsStartAndEndTime(t *testing.T) {
@@ -145,6 +147,113 @@ func Test_parseInsightsStartAndEndTime(t *testing.T) {
 			assert.True(t, tt.wantStartTime.Equal(gotStartTime))
 			assert.WithinDuration(t, tt.wantEndTime, gotEndTime, 0)
 			assert.True(t, tt.wantEndTime.Equal(gotEndTime))
+		})
+	}
+}
+
+func Test_parseInsightsInterval_week(t *testing.T) {
+	t.Parallel()
+
+	layout := insightsTimeLayout
+	now := time.Now().UTC()
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	thisHour := time.Date(y, m, d, now.Hour(), 0, 0, 0, time.UTC)
+	twoHoursAgo := thisHour.Add(-2 * time.Hour)
+	thirteenDaysAgo := today.AddDate(0, 0, -13)
+
+	sixDaysAgo := today.AddDate(0, 0, -6)
+	nineDaysAgo := today.AddDate(0, 0, -9)
+
+	type args struct {
+		startTime string
+		endTime   string
+	}
+	tests := []struct {
+		name         string
+		args         args
+		wantInterval codersdk.InsightsReportInterval
+		wantOk       bool
+	}{
+		{
+			name: "Two full weeks",
+			args: args{
+				startTime: "2023-08-10T00:00:00+02:00",
+				endTime:   "2023-08-24T00:00:00+02:00",
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       true,
+		},
+		{
+			name: "Two weeks",
+			args: args{
+				startTime: thirteenDaysAgo.Format(layout),
+				endTime:   twoHoursAgo.Format(layout),
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       true,
+		},
+		{
+			name: "One full week",
+			args: args{
+				startTime: "2023-09-06T00:00:00+02:00",
+				endTime:   "2023-09-13T00:00:00+02:00",
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       true,
+		},
+		{
+			name: "6 days are acceptable",
+			args: args{
+				startTime: sixDaysAgo.Format(layout),
+				endTime:   thisHour.Format(layout),
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       true,
+		},
+		{
+			name: "Shorter than a full week",
+			args: args{
+				startTime: "2023-09-08T00:00:00+02:00",
+				endTime:   "2023-09-13T00:00:00+02:00",
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       false,
+		},
+		{
+			name: "9 days (7 + 2) are not acceptable",
+			args: args{
+				startTime: nineDaysAgo.Format(layout),
+				endTime:   thisHour.Format(layout),
+			},
+			wantInterval: codersdk.InsightsReportIntervalWeek,
+			wantOk:       false,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rw := httptest.NewRecorder()
+			startTime, endTime, ok := parseInsightsStartAndEndTime(context.Background(), rw, tt.args.startTime, tt.args.endTime)
+			if !ok {
+				//nolint:bodyclose
+				t.Log("Status: ", rw.Result().StatusCode)
+				t.Log("Body: ", rw.Body.String())
+			}
+			require.True(t, ok, "start_time and end_time must be valid")
+
+			parsedInterval, gotOk := parseInsightsInterval(context.Background(), rw, "week", startTime, endTime)
+			if !assert.Equal(t, tt.wantOk, gotOk) {
+				//nolint:bodyclose
+				t.Log("Status: ", rw.Result().StatusCode)
+				t.Log("Body: ", rw.Body.String())
+			}
+			if tt.wantOk {
+				assert.Equal(t, codersdk.InsightsReportIntervalWeek, parsedInterval)
+			}
 		})
 	}
 }
