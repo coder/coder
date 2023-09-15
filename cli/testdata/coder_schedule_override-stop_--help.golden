@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder schedule override-stop <workspace-name> <duration from now>
 
   Override the stop time of a currently running workspace instance.

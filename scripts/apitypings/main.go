@@ -990,7 +990,7 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 		}
 
 		// Do support "Stringer" interfaces, they likely can get string
-		// marshalled.
+		// marshaled.
 		for i := 0; i < intf.NumMethods(); i++ {
 			meth := intf.Method(i)
 			if meth.Name() == "String" {

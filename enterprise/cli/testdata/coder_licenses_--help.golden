@@ -1,13 +1,13 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder licenses
 
   Add, delete, and list licenses
 
   Aliases: license
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     add       Add license to Coder deployment
     delete    Delete license by ID
     list      List licenses (including expired)

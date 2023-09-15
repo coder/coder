@@ -1,21 +1,21 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder stat [flags]
 
   Show resource usage for the current workspace.
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     cpu     Show CPU usage, in cores.
     disk    Show disk usage, in gigabytes.
     mem     Show memory usage, in gigabytes.
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: host_cpu,host_memory,home_disk,container_cpu,container_memory)
+OPTIONS:
+  -c, --column string-array (default: host_cpu,host_memory,home_disk,container_cpu,container_memory)
           Columns to display in table output. Available columns: host cpu, host
           memory, home disk, container cpu, container memory.
 
-  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ———

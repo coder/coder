@@ -1,11 +1,11 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder schedule { show | start | stop | override } <workspace>
 
   Schedule automated start and stop times for workspaces
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     override-stop    Override the stop time of a currently running workspace
                      instance.
     show             Show workspace schedule
