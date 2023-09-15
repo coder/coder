@@ -23,8 +23,8 @@ import (
 // Duplicated in codersdk.
 const insightsTimeLayout = time.RFC3339
 
-// Day duration in nanoseconds
-var dayNanoseconds = 24 * time.Hour.Nanoseconds()
+// Week duration in nanoseconds
+var weekNanoseconds = 7 * 24 * time.Hour.Nanoseconds()
 
 // @Summary Get deployment DAUs
 // @ID get-deployment-daus
@@ -539,10 +539,10 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 	case codersdk.InsightsReportIntervalDay, "":
 		return v, true
 	case codersdk.InsightsReportIntervalWeek:
-		if !isMultipleOfDay(startTime, endTime) {
+		if !isMultipleOfWeek(startTime, endTime) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Query parameter has invalid value.",
-				Detail:  "Duration between start_time and end_time must multiple of 1 day.",
+				Detail:  "Duration between start_time and end_time must multiple of 7 days.",
 			})
 			return "", false
 		}
@@ -561,6 +561,6 @@ func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, interval
 	}
 }
 
-func isMultipleOfDay(startTime, endTime time.Time) bool {
-	return endTime.Sub(startTime).Nanoseconds()%dayNanoseconds == 0
+func isMultipleOfWeek(startTime, endTime time.Time) bool {
+	return endTime.Sub(startTime).Nanoseconds()%weekNanoseconds == 0
 }
