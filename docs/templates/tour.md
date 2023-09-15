@@ -59,7 +59,7 @@ nano build/Dockerfile
 In the editor, enter and save the following text in `Dockerfile` then
 exit the editor:
 
-```
+```dockerfile
 FROM ubuntu
 
 RUN apt-get update \
