@@ -214,8 +214,8 @@ github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
 github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3 h1:gtuDFa+InmMVUYiurBV+XYu24AeMGv57qlZ23i6rmyE=
 github.com/coder/gvisor v0.0.0-20230714132058-be2e4ac102c3/go.mod h1:pzr6sy8gDLfVmDAg8OYrlKvGEHw5C3PGTiBXBTCx76Q=
-github.com/coder/pretty v0.0.0-20230907215737-666f1c793d10 h1:uWbKrpV/yhctyqu27BSPzW2tRNzzPh7Q68im5AFznqM=
-github.com/coder/pretty v0.0.0-20230907215737-666f1c793d10/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
+github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
+github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
 github.com/coder/retry v1.4.0 h1:g0fojHFxcdgM3sBULqgjFDxw1UIvaCqk4ngUDu0EWag=
 github.com/coder/retry v1.4.0/go.mod h1:blHMk9vs6LkoRT9ZHyuZo360cufXEhrxqvEzeMtRGoY=
 github.com/coder/ssh v0.0.0-20230621095435-9a7e23486f1c h1:TI7TzdFI0UvQmwgyQhtI1HeyYNRxAQpr8Tw/rjT8VSA=

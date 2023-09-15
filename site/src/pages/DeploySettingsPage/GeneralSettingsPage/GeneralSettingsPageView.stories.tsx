@@ -59,7 +59,7 @@ export const NoDAUs: Story = {
 export const DAUError: Story = {
   args: {
     deploymentDAUs: undefined,
-    getDeploymentDAUsError: mockApiError({
+    deploymentDAUsError: mockApiError({
       message: "Error fetching DAUs.",
     }),
   },

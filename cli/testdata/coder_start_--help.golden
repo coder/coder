@@ -1,18 +1,18 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder start [flags] <workspace>
 
   Start a workspace
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mbuild-option[0m string-array, [96m$CODER_BUILD_OPTION[0m
+OPTIONS:
+      --build-option string-array, $CODER_BUILD_OPTION
           Build option value in the format "name=value".
 
-      [96m--[0m[96mbuild-options[0m bool
+      --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
 
-  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
+  -y, --yes bool
           Bypass prompts.
 
 ———

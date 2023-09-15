@@ -395,3 +395,16 @@ func slogError(m dsl.Matcher) {
 		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
 		Report(`Error should be logged using "slog.Error" instead.`)
 }
+
+// withTimezoneUTC ensures that we don't just sprinkle dbtestutil.WithTimezone("UTC") about
+// to work around real timezone bugs in our code.
+//
+//nolint:unused,deadcode,varnamelen
+func withTimezoneUTC(m dsl.Matcher) {
+	m.Match(
+		`dbtestutil.WithTimezone($tz)`,
+	).Where(
+		m["tz"].Text.Matches(`[uU][tT][cC]"$`),
+	).Report(`Setting database timezone to UTC may mask timezone-related bugs.`).
+		At(m["tz"])
+}

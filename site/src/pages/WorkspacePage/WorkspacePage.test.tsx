@@ -38,7 +38,7 @@ const renderWorkspacePage = async () => {
   jest.spyOn(api, "getTemplate").mockResolvedValueOnce(MockTemplate);
   jest.spyOn(api, "getTemplateVersionRichParameters").mockResolvedValueOnce([]);
   jest
-    .spyOn(api, "getDeploymentValues")
+    .spyOn(api, "getDeploymentConfig")
     .mockResolvedValueOnce(MockDeploymentConfig);
   jest
     .spyOn(api, "watchWorkspaceAgentLogs")

@@ -1,8 +1,9 @@
 package cliui
 
 import (
+	"flag"
 	"os"
-	"testing"
+	"sync"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -30,29 +31,29 @@ type Styles struct {
 	Wrap pretty.Style
 }
 
-var color = termenv.NewOutput(os.Stdout).ColorProfile()
-
-// TestColor sets the color profile to the given profile for the duration of the
-// test.
-// WARN: Must not be used in parallel tests.
-func TestColor(t *testing.T, tprofile termenv.Profile) {
-	old := color
-	color = tprofile
-	t.Cleanup(func() {
-		color = old
-	})
-}
+var (
+	color     termenv.Profile
+	colorOnce sync.Once
+)
 
 var (
-	Green   = color.Color("#04B575")
-	Red     = color.Color("#ED567A")
-	Fuchsia = color.Color("#EE6FF8")
-	Yellow  = color.Color("#ECFD65")
-	Blue    = color.Color("#5000ff")
+	Green   = Color("#04B575")
+	Red     = Color("#ED567A")
+	Fuchsia = Color("#EE6FF8")
+	Yellow  = Color("#ECFD65")
+	Blue    = Color("#5000ff")
 )
 
 // Color returns a color for the given string.
 func Color(s string) termenv.Color {
+	colorOnce.Do(func() {
+		color = termenv.NewOutput(os.Stdout).ColorProfile()
+		if flag.Lookup("test.v") != nil {
+			// Use a consistent colorless profile in tests so that results
+			// are deterministic.
+			color = termenv.Ascii
+		}
+	})
 	return color.Color(s)
 }
 

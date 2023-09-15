@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder users activate [flags] <username|user_id>
 
   Update a user's status to 'active'. Active users can fully interact with the
@@ -10,8 +10,8 @@ coder v0.0.0-devel
 
    $ coder users activate example_user
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: username,email,created_at,status)
+OPTIONS:
+  -c, --column string-array (default: username,email,created_at,status)
           Specify a column to filter in the table.
 
 ———

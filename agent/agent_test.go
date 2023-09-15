@@ -21,10 +21,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
 	scp "github.com/bramvdbogaerde/go-scp"
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/pion/udp"
 	"github.com/pkg/sftp"
@@ -41,8 +43,11 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -2395,6 +2400,173 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestAgent_ManageProcessPriority(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
+		var (
+			expectedProcs = map[int32]agentproc.Process{}
+			fs            = afero.NewMemMapFs()
+			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			ticker        = make(chan time.Time)
+			modProcs      = make(chan []*agentproc.Process)
+			logger        = slog.Make(sloghuman.Sink(io.Discard))
+		)
+
+		// Create some processes.
+		for i := 0; i < 4; i++ {
+			// Create a prioritized process. This process should
+			// have it's oom_score_adj set to -500 and its nice
+			// score should be untouched.
+			var proc agentproc.Process
+			if i == 0 {
+				proc = agentproctest.GenerateProcess(t, fs,
+					func(p *agentproc.Process) {
+						p.CmdLine = "./coder\x00agent\x00--no-reap"
+						p.PID = int32(i)
+					},
+				)
+			} else {
+				proc = agentproctest.GenerateProcess(t, fs,
+					func(p *agentproc.Process) {
+						// Make the cmd something similar to a prioritized
+						// process but differentiate the arguments.
+						p.CmdLine = "./coder\x00stat"
+					},
+				)
+
+				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
+				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+			}
+			syscaller.EXPECT().
+				Kill(proc.PID, syscall.Signal(0)).
+				Return(nil)
+
+			expectedProcs[proc.PID] = proc
+		}
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Syscaller = syscaller
+			o.ModifiedProcesses = modProcs
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
+			o.Filesystem = fs
+			o.Logger = logger
+			o.ProcessManagementTick = ticker
+		})
+		actualProcs := <-modProcs
+		require.Len(t, actualProcs, len(expectedProcs)-1)
+	})
+
+	t.Run("IgnoreCustomNice", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
+		var (
+			expectedProcs = map[int32]agentproc.Process{}
+			fs            = afero.NewMemMapFs()
+			ticker        = make(chan time.Time)
+			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
+			modProcs      = make(chan []*agentproc.Process)
+			logger        = slog.Make(sloghuman.Sink(io.Discard))
+		)
+
+		// Create some processes.
+		for i := 0; i < 2; i++ {
+			proc := agentproctest.GenerateProcess(t, fs)
+			syscaller.EXPECT().
+				Kill(proc.PID, syscall.Signal(0)).
+				Return(nil)
+
+			if i == 0 {
+				// Set a random nice score. This one should not be adjusted by
+				// our management loop.
+				syscaller.EXPECT().GetPriority(proc.PID).Return(25, nil)
+			} else {
+				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
+				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
+			}
+
+			expectedProcs[proc.PID] = proc
+		}
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Syscaller = syscaller
+			o.ModifiedProcesses = modProcs
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
+			o.Filesystem = fs
+			o.Logger = logger
+			o.ProcessManagementTick = ticker
+		})
+		actualProcs := <-modProcs
+		// We should ignore the process with a custom nice score.
+		require.Len(t, actualProcs, 1)
+	})
+
+	t.Run("DisabledByDefault", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS != "linux" {
+			t.Skip("Skipping non-linux environment")
+		}
+
+		var (
+			buf bytes.Buffer
+			wr  = &syncWriter{
+				w: &buf,
+			}
+		)
+		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Logger = log
+		})
+
+		require.Eventually(t, func() bool {
+			wr.mu.Lock()
+			defer wr.mu.Unlock()
+			return strings.Contains(buf.String(), "process priority not enabled")
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+
+	t.Run("DisabledForNonLinux", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "linux" {
+			t.Skip("Skipping linux environment")
+		}
+
+		var (
+			buf bytes.Buffer
+			wr  = &syncWriter{
+				w: &buf,
+			}
+		)
+		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
+
+		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
+			o.Logger = log
+			// Try to enable it so that we can assert that non-linux
+			// environments are truly disabled.
+			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
+		})
+		require.Eventually(t, func() bool {
+			wr.mu.Lock()
+			defer wr.mu.Unlock()
+
+			return strings.Contains(buf.String(), "process priority not enabled")
+		}, testutil.WaitLong, testutil.IntervalFast)
+	})
+}
+
 func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actual []*promgo.MetricFamily) bool {
 	t.Helper()
 
@@ -2415,4 +2587,15 @@ func verifyCollectedMetrics(t *testing.T, expected []agentsdk.AgentMetric, actua
 		}
 	}
 	return true
+}
+
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
 }

@@ -1,50 +1,50 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder templates push [flags] [template]
 
   Push a new template version from the current directory or as specified by flag
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mactivate[0m bool (default: true)
+OPTIONS:
+      --activate bool (default: true)
           Whether the new template will be marked active.
 
-      [96m--[0m[96malways-prompt[0m bool
+      --always-prompt bool
           Always prompt all parameters. Does not pull parameter values from
           active template version.
 
-      [96m--[0m[96mcreate[0m bool (default: false)
+      --create bool (default: false)
           Create the template if it does not exist.
 
-  [96m-[0m[96md[0m, [96m--[0m[96mdirectory[0m string (default: .)
+  -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
-      [96m--[0m[96mignore-lockfile[0m bool (default: false)
+      --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
           the template.
 
-  [96m-[0m[96mm[0m, [96m--[0m[96mmessage[0m string
+  -m, --message string
           Specify a message describing the changes in this version of the
           template. Messages longer than 72 characters will be displayed as
           truncated.
 
-      [96m--[0m[96mname[0m string
+      --name string
           Specify a name for the new template version. It will be automatically
           generated if not provided.
 
-      [96m--[0m[96mprovisioner-tag[0m string-array
+      --provisioner-tag string-array
           Specify a set of tags to target provisioner daemons.
 
-      [96m--[0m[96mvar[0m string-array
+      --var string-array
           Alias of --variable.
 
-      [96m--[0m[96mvariable[0m string-array
+      --variable string-array
           Specify a set of values for Terraform-managed variables.
 
-      [96m--[0m[96mvariables-file[0m string
+      --variables-file string
           Specify a file path with values for Terraform-managed variables.
 
-  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
+  -y, --yes bool
           Bypass prompts.
 
 ———
