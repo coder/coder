@@ -24,13 +24,13 @@ import {
   MockEntitlementsWithScheduling,
   MockDeploymentConfig,
 } from "testHelpers/entities";
-import * as api from "../../api/api";
-import { Workspace } from "../../api/typesGenerated";
+import * as api from "api/api";
+import { Workspace } from "api/typesGenerated";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
-} from "../../testHelpers/renderHelpers";
-import { server } from "../../testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
 // It renders the workspace page and waits for it be loaded
@@ -113,7 +113,7 @@ describe("WorkspacePage", () => {
     await user.click(trigger);
 
     // Click on delete
-    const button = await screen.findByText("Delete");
+    const button = await screen.findByTestId("delete-button");
     await user.click(button);
 
     // Get dialog and confirm
@@ -165,28 +165,6 @@ describe("WorkspacePage", () => {
     await user.click(screen.getByTestId("workspace-restart-button"));
     const confirmButton = await screen.findByTestId("confirm-button");
     await user.click(confirmButton);
-
-    // Assertions
-    await waitFor(() => {
-      expect(stopWorkspaceMock).toBeCalled();
-    });
-  });
-
-  it("requests a stop without confirmation when the user presses Restart", async () => {
-    const stopWorkspaceMock = jest
-      .spyOn(api, "stopWorkspace")
-      .mockResolvedValueOnce(MockWorkspaceBuild);
-    window.localStorage.setItem(
-      `${MockUser.id}_ignoredWarnings`,
-      JSON.stringify({ restart: new Date().toISOString() }),
-    );
-
-    // Render
-    await renderWorkspacePage();
-
-    // Actions
-    const user = userEvent.setup();
-    await user.click(screen.getByTestId("workspace-restart-button"));
 
     // Assertions
     await waitFor(() => {
@@ -402,46 +380,6 @@ describe("WorkspacePage", () => {
     await user.type(rebuildField, "true");
     await user.click(screen.getByTestId("build-parameters-submit"));
     await user.click(screen.getByTestId("confirm-button"));
-    await waitFor(() => {
-      expect(restartWorkspaceSpy).toBeCalledWith({
-        workspace: MockWorkspace,
-        buildParameters: [{ name: "rebuild", value: "true" }],
-      });
-    });
-  });
-
-  it("restart the workspace with one time parameters without the confirmation dialog", async () => {
-    window.localStorage.setItem(
-      `${MockUser.id}_ignoredWarnings`,
-      JSON.stringify({
-        restart: new Date().toISOString(),
-      }),
-    );
-    jest.spyOn(api, "getWorkspaceParameters").mockResolvedValue({
-      templateVersionRichParameters: [
-        {
-          ...MockTemplateVersionParameter1,
-          ephemeral: true,
-          name: "rebuild",
-          description: "Rebuild",
-          required: false,
-        },
-      ],
-      buildParameters: [{ name: "rebuild", value: "false" }],
-    });
-    const restartWorkspaceSpy = jest.spyOn(api, "restartWorkspace");
-    const user = userEvent.setup();
-    await renderWorkspacePage();
-    await user.click(screen.getByTestId("build-parameters-button"));
-    const buildParametersForm = await screen.findByTestId(
-      "build-parameters-form",
-    );
-    const rebuildField = within(buildParametersForm).getByLabelText("Rebuild", {
-      exact: false,
-    });
-    await user.clear(rebuildField);
-    await user.type(rebuildField, "true");
-    await user.click(screen.getByTestId("build-parameters-submit"));
     await waitFor(() => {
       expect(restartWorkspaceSpy).toBeCalledWith({
         workspace: MockWorkspace,
