@@ -144,7 +144,7 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 		return
 	}
 	if err := os.WriteFile(outPath, filterDump(dump), 0o600); err != nil {
-		t.Errorf("dump on failure: failed to write: %w", err)
+		t.Errorf("dump on failure: failed to write: %s", err.Error())
 		return
 	}
 	t.Logf("Dumped database to %q due to failed test. I hope you find what you're looking for!", outPath)
