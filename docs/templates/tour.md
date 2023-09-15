@@ -45,7 +45,7 @@ template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes
 
 ## 1. Create template files
 
-On the command line, create a directory for your template and create the Dockerfile.
+On the command line, create a directory for your template and create the `Dockerfile`.
 
 This is a simple `Dockerfile` that starts with the [official ubuntu image](https://hub.docker.com/_/ubuntu/).
 
