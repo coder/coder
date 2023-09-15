@@ -201,7 +201,7 @@ RAM usage. Coder displays this information in the Coder dashboard.
 ## 4. coder_app
 
 A
-['coder_app'](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
 resource lets a developer use an app from the workspace's Coder
 dashboard.
 
