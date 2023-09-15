@@ -13,7 +13,7 @@ import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExam
 import { FC } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
-import { StarterTemplatesContext } from "xServices/starterTemplates/starterTemplatesXService";
+import { StarterTemplatesByTag } from "utils/starterTemplates";
 
 const getTagLabel = (tag: string) => {
   const labelByTag: Record<string, string> = {
@@ -26,22 +26,25 @@ const getTagLabel = (tag: string) => {
   return labelByTag[tag] ?? tag;
 };
 
-const selectTags = ({ starterTemplatesByTag }: StarterTemplatesContext) => {
+const selectTags = (starterTemplatesByTag: StarterTemplatesByTag) => {
   return starterTemplatesByTag
     ? Object.keys(starterTemplatesByTag).sort((a, b) => a.localeCompare(b))
     : undefined;
 };
 export interface StarterTemplatesPageViewProps {
-  context: StarterTemplatesContext;
+  starterTemplatesByTag?: StarterTemplatesByTag;
+  error?: unknown;
 }
 
 export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
-  context,
+  starterTemplatesByTag,
+  error,
 }) => {
   const [urlParams] = useSearchParams();
   const styles = useStyles();
-  const { starterTemplatesByTag } = context;
-  const tags = selectTags(context);
+  const tags = starterTemplatesByTag
+    ? selectTags(starterTemplatesByTag)
+    : undefined;
   const activeTag = urlParams.get("tag") ?? "all";
   const visibleTemplates = starterTemplatesByTag
     ? starterTemplatesByTag[activeTag]
@@ -56,8 +59,8 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
         </PageHeaderSubtitle>
       </PageHeader>
 
-      <Maybe condition={Boolean(context.error)}>
-        <ErrorAlert error={context.error} />
+      <Maybe condition={Boolean(error)}>
+        <ErrorAlert error={error} />
       </Maybe>
 
       <Maybe condition={Boolean(!starterTemplatesByTag)}>
