@@ -13,12 +13,12 @@ import { DeploymentOption } from "api/api";
 export type GeneralSettingsPageViewProps = {
   deploymentOptions: DeploymentOption[];
   deploymentDAUs?: DAUsResponse;
-  getDeploymentDAUsError: unknown;
+  deploymentDAUsError: unknown;
 };
 export const GeneralSettingsPageView = ({
   deploymentOptions,
   deploymentDAUs,
-  getDeploymentDAUsError,
+  deploymentDAUsError,
 }: GeneralSettingsPageViewProps): JSX.Element => {
   return (
     <>
@@ -28,8 +28,8 @@ export const GeneralSettingsPageView = ({
         docsHref={docs("/admin/configure")}
       />
       <Stack spacing={4}>
-        {Boolean(getDeploymentDAUsError) && (
-          <ErrorAlert error={getDeploymentDAUsError} />
+        {Boolean(deploymentDAUsError) && (
+          <ErrorAlert error={deploymentDAUsError} />
         )}
         {deploymentDAUs && (
           <Box height={200} sx={{ mb: 3 }}>

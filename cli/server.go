@@ -408,7 +408,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// which is caught by goleaks.
 			defer http.DefaultClient.CloseIdleConnections()
 
-			tracerProvider, sqlDriver, closeTracing := ConfigureTraceProvider(ctx, logger, inv, vals)
+			tracerProvider, sqlDriver, closeTracing := ConfigureTraceProvider(ctx, logger, vals)
 			defer func() {
 				logger.Debug(ctx, "closing tracing")
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
@@ -2087,7 +2087,6 @@ func (s *HTTPServers) Close() {
 func ConfigureTraceProvider(
 	ctx context.Context,
 	logger slog.Logger,
-	inv *clibase.Invocation,
 	cfg *codersdk.DeploymentValues,
 ) (trace.TracerProvider, string, func(context.Context) error) {
 	var (
@@ -2095,19 +2094,10 @@ func ConfigureTraceProvider(
 		closeTracing   = func(context.Context) error { return nil }
 		sqlDriver      = "postgres"
 	)
-	// Coder tracing should be disabled if telemetry is disabled unless
-	// --telemetry-trace was explicitly provided.
-	shouldCoderTrace := cfg.Telemetry.Enable.Value() && !isTest()
-	// Only override if telemetryTraceEnable was specifically set.
-	// By default we want it to be controlled by telemetryEnable.
-	if inv.ParsedFlags().Changed("telemetry-trace") {
-		shouldCoderTrace = cfg.Telemetry.Trace.Value()
-	}
 
-	if cfg.Trace.Enable.Value() || shouldCoderTrace || cfg.Trace.HoneycombAPIKey != "" {
+	if cfg.Trace.Enable.Value() || cfg.Trace.DataDog.Value() || cfg.Trace.HoneycombAPIKey != "" {
 		sdkTracerProvider, _closeTracing, err := tracing.TracerProvider(ctx, "coderd", tracing.TracerOpts{
 			Default:   cfg.Trace.Enable.Value(),
-			Coder:     shouldCoderTrace,
 			DataDog:   cfg.Trace.DataDog.Value(),
 			Honeycomb: cfg.Trace.HoneycombAPIKey.String(),
 		})

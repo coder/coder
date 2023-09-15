@@ -18,10 +18,10 @@ import { UsersPageView } from "./UsersPageView";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { deploymentConfigMachine } from "xServices/deploymentConfig/deploymentConfigMachine";
 import { useQuery } from "@tanstack/react-query";
 import { getAuthMethods } from "api/api";
 import { roles } from "api/queries/roles";
+import { deploymentConfig } from "api/queries/deployment";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -62,14 +62,12 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     paginationRef,
     count,
   } = usersState.context;
-
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
-
-  // Ideally this only runs if 'canViewDeployment' is true.
-  // TODO: Prevent api call if the user does not have the perms.
-  const [state] = useMachine(deploymentConfigMachine);
-  const { deploymentValues } = state.context;
+  const { data: deploymentValues } = useQuery({
+    ...deploymentConfig(),
+    enabled: viewDeploymentValues,
+  });
   // Indicates if oidc roles are synced from the oidc idp.
   // Assign 'false' if unknown.
   const oidcRoleSyncEnabled =

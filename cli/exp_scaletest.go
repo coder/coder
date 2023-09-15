@@ -105,7 +105,6 @@ func (s *scaletestTracingFlags) provider(ctx context.Context) (trace.TracerProvi
 
 	tracerProvider, closeTracing, err := tracing.TracerProvider(ctx, scaletestTracerName, tracing.TracerOpts{
 		Default:   s.traceEnable,
-		Coder:     s.traceCoder,
 		Honeycomb: s.traceHoneycombAPIKey,
 	})
 	if err != nil {
@@ -858,7 +857,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Flag:        "use-host-login",
 			Env:         "CODER_SCALETEST_USE_HOST_LOGIN",
 			Default:     "false",
-			Description: "Use the use logged in on the host machine, instead of creating users.",
+			Description: "Use the user logged in on the host machine, instead of creating users.",
 			Value:       clibase.BoolOf(&useHostUser),
 		},
 	}

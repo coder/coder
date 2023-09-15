@@ -254,11 +254,13 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		magicType = strings.TrimPrefix(kv, MagicSessionTypeEnvironmentVariable+"=")
 		env = append(env[:index], env[index+1:]...)
 	}
-	switch magicType {
-	case MagicSessionTypeVSCode:
+
+	// Always force lowercase checking to be case-insensitive.
+	switch strings.ToLower(magicType) {
+	case strings.ToLower(MagicSessionTypeVSCode):
 		s.connCountVSCode.Add(1)
 		defer s.connCountVSCode.Add(-1)
-	case MagicSessionTypeJetBrains:
+	case strings.ToLower(MagicSessionTypeJetBrains):
 		s.connCountJetBrains.Add(1)
 		defer s.connCountJetBrains.Add(-1)
 	case "":

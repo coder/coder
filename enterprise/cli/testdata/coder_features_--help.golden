@@ -1,13 +1,13 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder features
 
   List Enterprise features
 
   Aliases: feature
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     list    
 
 ———

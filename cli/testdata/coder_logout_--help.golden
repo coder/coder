@@ -1,12 +1,12 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder logout [flags]
 
   Unauthenticate your local session
 
-[93mOPTIONS:[0m
-  [96m-[0m[96my[0m, [96m--[0m[96myes[0m bool
+OPTIONS:
+  -y, --yes bool
           Bypass prompts.
 
 ———

@@ -12,17 +12,16 @@ import {
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
-  MockAppearance,
+  MockAppearanceConfig,
 } from "testHelpers/entities";
 import { WorkspaceStatusBadge } from "./WorkspaceStatusBadge";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const MockedAppearance = {
-  config: MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
+  config: MockAppearanceConfig,
+  isPreview: false,
+  setPreview: () => {},
 };
 
 const meta: Meta<typeof WorkspaceStatusBadge> = {

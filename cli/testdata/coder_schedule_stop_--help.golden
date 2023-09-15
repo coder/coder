@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder schedule stop <workspace-name> { <duration> | manual }
 
   Edit workspace stop schedule
