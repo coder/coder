@@ -224,7 +224,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           {workspace.outdated && (
             <Alert severity="info">
               <AlertTitle>An update is available for your workspace</AlertTitle>
-              {updateMessage}
+              {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
             </Alert>
           )}
           {buildError}
