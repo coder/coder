@@ -8,7 +8,9 @@ import { FC, ElementType, PropsWithChildren, ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
 import AccountIcon from "@mui/icons-material/Person";
+import ScheduleIcon from "@mui/icons-material/EditCalendarOutlined";
 import SecurityIcon from "@mui/icons-material/LockOutlined";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 
 const SidebarNavItem: FC<
   PropsWithChildren<{ href: string; icon: ReactNode }>
@@ -41,6 +43,9 @@ const SidebarNavItemIcon: React.FC<{ icon: ElementType }> = ({
 
 export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
   const styles = useStyles();
+  const { entitlements } = useDashboard();
+  const allowAutostopRequirement =
+    entitlements.features.template_autostop_requirement.enabled;
 
   return (
     <nav className={styles.sidebar}>
@@ -58,6 +63,14 @@ export const Sidebar: React.FC<{ user: User }> = ({ user }) => {
       >
         Account
       </SidebarNavItem>
+      {allowAutostopRequirement && (
+        <SidebarNavItem
+          href="schedule"
+          icon={<SidebarNavItemIcon icon={ScheduleIcon} />}
+        >
+          Schedule
+        </SidebarNavItem>
+      )}
       <SidebarNavItem
         href="security"
         icon={<SidebarNavItemIcon icon={SecurityIcon} />}

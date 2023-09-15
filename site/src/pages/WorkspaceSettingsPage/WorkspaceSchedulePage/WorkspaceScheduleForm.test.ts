@@ -4,7 +4,7 @@ import {
   validationSchema,
   WorkspaceScheduleFormValues,
 } from "./WorkspaceScheduleForm";
-import { zones } from "./zones";
+import { timeZones } from "utils/timeZones";
 
 const valid: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -137,7 +137,7 @@ describe("validationSchema", () => {
     expect(validate).toThrowError(Language.errorTimezone);
   });
 
-  it.each<[string]>(zones.map((zone) => [zone]))(
+  it.each<[string]>(timeZones.map((zone) => [zone]))(
     `validation passes for tz=%p`,
     (zone) => {
       const values: WorkspaceScheduleFormValues = {
