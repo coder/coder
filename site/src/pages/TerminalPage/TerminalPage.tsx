@@ -496,7 +496,7 @@ const useReloading = (isDisconnected: boolean) => {
     };
 
     const isModifier = (event: KeyboardEvent): boolean => {
-      return typeof modifierKeyState[event.key] !== "undefined";
+      return event.key in modifierKeyState;
     };
 
     const isModified = (): boolean => {
