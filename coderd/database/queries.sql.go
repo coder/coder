@@ -1738,112 +1738,6 @@ func (q *sqlQuerier) GetTemplateAppInsights(ctx context.Context, arg GetTemplate
 	return items, nil
 }
 
-const getTemplateDailyInsights = `-- name: GetTemplateDailyInsights :many
-WITH ts AS (
-	SELECT
-		d::timestamptz AS from_,
-		CASE
-			WHEN (d::timestamptz + '1 day'::interval) <= $1::timestamptz
-			THEN (d::timestamptz + '1 day'::interval)
-			ELSE $1::timestamptz
-		END AS to_
-	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($2::timestamptz, ($1::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
-), unflattened_usage_by_day AS (
-	-- We select data from both workspace agent stats and workspace app stats to
-	-- get a complete picture of usage. This matches how usage is calculated by
-	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
-	-- a union all to avoid a costly distinct operation.
-	--
-	-- Note that one query must perform a left join so that all intervals are
-	-- present at least once.
-	SELECT
-		ts.from_, ts.to_,
-		was.template_id,
-		was.user_id
-	FROM ts
-	LEFT JOIN workspace_agent_stats was ON (
-		was.created_at >= ts.from_
-		AND was.created_at < ts.to_
-		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN was.template_id = ANY($3::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
-
-	UNION ALL
-
-	SELECT
-		ts.from_, ts.to_,
-		w.template_id,
-		was.user_id
-	FROM ts
-	JOIN workspace_app_stats was ON (
-		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-	)
-	JOIN workspaces w ON (
-		w.id = was.workspace_id
-		AND CASE WHEN COALESCE(array_length($3::uuid[], 1), 0) > 0 THEN w.template_id = ANY($3::uuid[]) ELSE TRUE END
-	)
-	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
-)
-
-SELECT
-	from_ AS start_time,
-	to_ AS end_time,
-	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
-	COUNT(DISTINCT user_id) AS active_users
-FROM unflattened_usage_by_day
-GROUP BY from_, to_
-`
-
-type GetTemplateDailyInsightsParams struct {
-	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
-}
-
-type GetTemplateDailyInsightsRow struct {
-	StartTime   time.Time   `db:"start_time" json:"start_time"`
-	EndTime     time.Time   `db:"end_time" json:"end_time"`
-	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
-	ActiveUsers int64       `db:"active_users" json:"active_users"`
-}
-
-// GetTemplateDailyInsights returns all daily intervals between start and end
-// time, if end time is a partial day, it will be included in the results and
-// that interval will be less than 24 hours. If there is no data for a selected
-// interval/template, it will be included in the results with 0 active users.
-func (q *sqlQuerier) GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplateDailyInsights, arg.EndTime, arg.StartTime, pq.Array(arg.TemplateIDs))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplateDailyInsightsRow
-	for rows.Next() {
-		var i GetTemplateDailyInsightsRow
-		if err := rows.Scan(
-			&i.StartTime,
-			&i.EndTime,
-			pq.Array(&i.TemplateIDs),
-			&i.ActiveUsers,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getTemplateInsights = `-- name: GetTemplateInsights :one
 WITH agent_stats_by_interval_and_user AS (
 	SELECT
@@ -1908,6 +1802,118 @@ func (q *sqlQuerier) GetTemplateInsights(ctx context.Context, arg GetTemplateIns
 		&i.UsageSshSeconds,
 	)
 	return i, err
+}
+
+const getTemplateInsightsByInterval = `-- name: GetTemplateInsightsByInterval :many
+WITH ts AS (
+	SELECT
+		d::timestamptz AS from_,
+		CASE
+			WHEN (d::timestamptz + ($1::int || ' day')::interval) <= $2::timestamptz
+			THEN (d::timestamptz + ($1::int || ' day')::interval)
+			ELSE $2::timestamptz
+		END AS to_
+	FROM
+		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+		generate_series($3::timestamptz, ($2::timestamptz) - '1 microsecond'::interval, ($1::int || ' day')::interval) AS d
+), unflattened_usage_by_interval AS (
+	-- We select data from both workspace agent stats and workspace app stats to
+	-- get a complete picture of usage. This matches how usage is calculated by
+	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
+	-- a union all to avoid a costly distinct operation.
+	--
+	-- Note that one query must perform a left join so that all intervals are
+	-- present at least once.
+	SELECT
+		ts.from_, ts.to_,
+		was.template_id,
+		was.user_id
+	FROM ts
+	LEFT JOIN workspace_agent_stats was ON (
+		was.created_at >= ts.from_
+		AND was.created_at < ts.to_
+		AND was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN was.template_id = ANY($4::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, was.template_id, was.user_id
+
+	UNION ALL
+
+	SELECT
+		ts.from_, ts.to_,
+		w.template_id,
+		was.user_id
+	FROM ts
+	JOIN workspace_app_stats was ON (
+		(was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+		OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+		OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+	)
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length($4::uuid[], 1), 0) > 0 THEN w.template_id = ANY($4::uuid[]) ELSE TRUE END
+	)
+	GROUP BY ts.from_, ts.to_, w.template_id, was.user_id
+)
+
+SELECT
+	from_ AS start_time,
+	to_ AS end_time,
+	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
+	COUNT(DISTINCT user_id) AS active_users
+FROM unflattened_usage_by_interval
+GROUP BY from_, to_
+`
+
+type GetTemplateInsightsByIntervalParams struct {
+	IntervalDays int32       `db:"interval_days" json:"interval_days"`
+	EndTime      time.Time   `db:"end_time" json:"end_time"`
+	StartTime    time.Time   `db:"start_time" json:"start_time"`
+	TemplateIDs  []uuid.UUID `db:"template_ids" json:"template_ids"`
+}
+
+type GetTemplateInsightsByIntervalRow struct {
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	ActiveUsers int64       `db:"active_users" json:"active_users"`
+}
+
+// GetTemplateInsightsByInterval returns all intervals between start and end
+// time, if end time is a partial interval, it will be included in the results and
+// that interval will be shorter than a full one. If there is no data for a selected
+// interval/template, it will be included in the results with 0 active users.
+func (q *sqlQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateInsightsByInterval,
+		arg.IntervalDays,
+		arg.EndTime,
+		arg.StartTime,
+		pq.Array(arg.TemplateIDs),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateInsightsByIntervalRow
+	for rows.Next() {
+		var i GetTemplateInsightsByIntervalRow
+		if err := rows.Scan(
+			&i.StartTime,
+			&i.EndTime,
+			pq.Array(&i.TemplateIDs),
+			&i.ActiveUsers,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getTemplateParameterInsights = `-- name: GetTemplateParameterInsights :many

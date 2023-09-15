@@ -1315,21 +1315,6 @@ func (mr *MockStoreMockRecorder) GetTemplateDAUs(arg0, arg1 interface{}) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateDAUs", reflect.TypeOf((*MockStore)(nil).GetTemplateDAUs), arg0, arg1)
 }
 
-// GetTemplateDailyInsights mocks base method.
-func (m *MockStore) GetTemplateDailyInsights(arg0 context.Context, arg1 database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetTemplateDailyInsights", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetTemplateDailyInsightsRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetTemplateDailyInsights indicates an expected call of GetTemplateDailyInsights.
-func (mr *MockStoreMockRecorder) GetTemplateDailyInsights(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateDailyInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateDailyInsights), arg0, arg1)
-}
-
 // GetTemplateGroupRoles mocks base method.
 func (m *MockStore) GetTemplateGroupRoles(arg0 context.Context, arg1 uuid.UUID) ([]database.TemplateGroup, error) {
 	m.ctrl.T.Helper()
@@ -1358,6 +1343,21 @@ func (m *MockStore) GetTemplateInsights(arg0 context.Context, arg1 database.GetT
 func (mr *MockStoreMockRecorder) GetTemplateInsights(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateInsights), arg0, arg1)
+}
+
+// GetTemplateInsightsByInterval mocks base method.
+func (m *MockStore) GetTemplateInsightsByInterval(arg0 context.Context, arg1 database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplateInsightsByInterval", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetTemplateInsightsByIntervalRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplateInsightsByInterval indicates an expected call of GetTemplateInsightsByInterval.
+func (mr *MockStoreMockRecorder) GetTemplateInsightsByInterval(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateInsightsByInterval", reflect.TypeOf((*MockStore)(nil).GetTemplateInsightsByInterval), arg0, arg1)
 }
 
 // GetTemplateParameterInsights mocks base method.
