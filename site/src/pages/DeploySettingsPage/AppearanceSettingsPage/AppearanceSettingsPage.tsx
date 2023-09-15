@@ -4,6 +4,10 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { updateAppearance } from "api/queries/appearance";
+import { getErrorMessage } from "api/errors";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 // ServiceBanner is unlike the other Deployment Settings pages because it
 // implements a form, whereas the others are read-only. We make this
@@ -11,10 +15,12 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 // the command line would be a significantly worse user experience.
 const AppearanceSettingsPage: FC = () => {
   const { appearance, entitlements } = useDashboard();
+  const queryClient = useQueryClient();
+  const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
   const isEntitled =
     entitlements.features["appearance"].entitlement !== "not_entitled";
 
-  const updateAppearance = (
+  const onSaveAppearance = async (
     newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => {
@@ -26,7 +32,14 @@ const AppearanceSettingsPage: FC = () => {
       appearance.setPreview(newAppearance);
       return;
     }
-    appearance.save(newAppearance);
+    try {
+      await updateAppearanceMutation.mutateAsync(newAppearance);
+      displaySuccess("Successfully updated appearance settings!");
+    } catch (error) {
+      displayError(
+        getErrorMessage(error, "Failed to update appearance settings."),
+      );
+    }
   };
 
   return (
@@ -38,7 +51,7 @@ const AppearanceSettingsPage: FC = () => {
       <AppearanceSettingsPageView
         appearance={appearance.config}
         isEntitled={isEntitled}
-        updateAppearance={updateAppearance}
+        onSaveAppearance={onSaveAppearance}
       />
     </>
   );

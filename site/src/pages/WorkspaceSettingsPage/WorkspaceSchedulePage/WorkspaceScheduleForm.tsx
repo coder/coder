@@ -29,7 +29,7 @@ import {
 import { ChangeEvent, FC } from "react";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
-import { zones } from "./zones";
+import { timeZones } from "utils/timeZones";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -43,7 +43,7 @@ export const Language = {
   errorNoDayOfWeek:
     "Must set at least one day of week if autostart is enabled.",
   errorNoTime: "Start time is required when autostart is enabled.",
-  errorTime: "Time must be in HH:mm format (24 hours).",
+  errorTime: "Time must be in HH:mm format.",
   errorTimezone: "Invalid timezone.",
   errorNoStop:
     "Time until shutdown must be greater than zero when autostop is enabled.",
@@ -312,7 +312,7 @@ export const WorkspaceScheduleForm: FC<
               select
               fullWidth
             >
-              {zones.map((zone) => (
+              {timeZones.map((zone) => (
                 <MenuItem key={zone} value={zone}>
                   {zone}
                 </MenuItem>

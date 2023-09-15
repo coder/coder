@@ -1,18 +1,18 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder stat mem [flags]
 
   Show memory usage, in gigabytes.
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mhost[0m bool
+OPTIONS:
+      --host bool
           Force host memory measurement.
 
-  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: text)
+  -o, --output string (default: text)
           Output format. Available formats: text, json.
 
-      [96m--[0m[96mprefix[0m Ki|Mi|Gi|Ti (default: Gi)
+      --prefix Ki|Mi|Gi|Ti (default: Gi)
           SI Prefix for memory measurement.
 
 ———

@@ -1,16 +1,16 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder templates versions list [flags] <template>
 
   List all the versions of the specified template
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: name,created at,created by,status,active)
+OPTIONS:
+  -c, --column string-array (default: name,created at,created by,status,active)
           Columns to display in table output. Available columns: name, created
           at, created by, status, active.
 
-  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ———

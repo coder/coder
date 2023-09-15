@@ -1,16 +1,16 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder groups list [flags]
 
   List user groups
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mc[0m, [96m--[0m[96mcolumn[0m string-array (default: name,display name,organization id,members,avatar url)
+OPTIONS:
+  -c, --column string-array (default: name,display name,organization id,members,avatar url)
           Columns to display in table output. Available columns: name, display
           name, organization id, members, avatar url.
 
-  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: table)
+  -o, --output string (default: table)
           Output format. Available formats: table, json.
 
 ———

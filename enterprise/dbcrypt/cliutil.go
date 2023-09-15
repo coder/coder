@@ -19,45 +19,45 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		return xerrors.Errorf("create cryptdb: %w", err)
 	}
 
-	users, err := cryptDB.GetUsers(ctx, database.GetUsersParams{})
+	userIDs, err := db.AllUserIDs(ctx)
 	if err != nil {
 		return xerrors.Errorf("get users: %w", err)
 	}
-	log.Info(ctx, "encrypting user tokens", slog.F("user_count", len(users)))
-	for idx, usr := range users {
+	log.Info(ctx, "encrypting user tokens", slog.F("user_count", len(userIDs)))
+	for idx, uid := range userIDs {
 		err := cryptDB.InTx(func(tx database.Store) error {
-			userLinks, err := tx.GetUserLinksByUserID(ctx, usr.ID)
+			userLinks, err := tx.GetUserLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get user links for user: %w", err)
 			}
 			for _, userLink := range userLinks {
 				if userLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && userLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
-					log.Debug(ctx, "skipping user link", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+					log.Debug(ctx, "skipping user link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
 				if _, err := tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 					OAuthAccessToken:  userLink.OAuthAccessToken,
 					OAuthRefreshToken: userLink.OAuthRefreshToken,
 					OAuthExpiry:       userLink.OAuthExpiry,
-					UserID:            usr.ID,
-					LoginType:         usr.LoginType,
+					UserID:            uid,
+					LoginType:         userLink.LoginType,
 				}); err != nil {
 					return xerrors.Errorf("update user link user_id=%s linked_id=%s: %w", userLink.UserID, userLink.LinkedID, err)
 				}
 			}
 
-			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, usr.ID)
+			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, gitAuthLink := range gitAuthLinks {
 				if gitAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && gitAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
-					log.Debug(ctx, "skipping git auth link", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
 				if _, err := tx.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 					ProviderID:        gitAuthLink.ProviderID,
-					UserID:            usr.ID,
+					UserID:            uid,
 					UpdatedAt:         gitAuthLink.UpdatedAt,
 					OAuthAccessToken:  gitAuthLink.OAuthAccessToken,
 					OAuthRefreshToken: gitAuthLink.OAuthRefreshToken,
@@ -73,7 +73,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 		if err != nil {
 			return xerrors.Errorf("update user links: %w", err)
 		}
-		log.Debug(ctx, "encrypted user tokens", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+		log.Debug(ctx, "encrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	// Revoke old keys
@@ -103,45 +103,45 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 	}
 	cryptDB.primaryCipherDigest = ""
 
-	users, err := cryptDB.GetUsers(ctx, database.GetUsersParams{})
+	userIDs, err := db.AllUserIDs(ctx)
 	if err != nil {
 		return xerrors.Errorf("get users: %w", err)
 	}
-	log.Info(ctx, "decrypting user tokens", slog.F("user_count", len(users)))
-	for idx, usr := range users {
+	log.Info(ctx, "decrypting user tokens", slog.F("user_count", len(userIDs)))
+	for idx, uid := range userIDs {
 		err := cryptDB.InTx(func(tx database.Store) error {
-			userLinks, err := tx.GetUserLinksByUserID(ctx, usr.ID)
+			userLinks, err := tx.GetUserLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get user links for user: %w", err)
 			}
 			for _, userLink := range userLinks {
 				if !userLink.OAuthAccessTokenKeyID.Valid && !userLink.OAuthRefreshTokenKeyID.Valid {
-					log.Debug(ctx, "skipping user link", slog.F("user_id", usr.ID), slog.F("current", idx+1))
+					log.Debug(ctx, "skipping user link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
 				if _, err := tx.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 					OAuthAccessToken:  userLink.OAuthAccessToken,
 					OAuthRefreshToken: userLink.OAuthRefreshToken,
 					OAuthExpiry:       userLink.OAuthExpiry,
-					UserID:            usr.ID,
-					LoginType:         usr.LoginType,
+					UserID:            uid,
+					LoginType:         userLink.LoginType,
 				}); err != nil {
 					return xerrors.Errorf("update user link user_id=%s linked_id=%s: %w", userLink.UserID, userLink.LinkedID, err)
 				}
 			}
 
-			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, usr.ID)
+			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
 			for _, gitAuthLink := range gitAuthLinks {
 				if !gitAuthLink.OAuthAccessTokenKeyID.Valid && !gitAuthLink.OAuthRefreshTokenKeyID.Valid {
-					log.Debug(ctx, "skipping git auth link", slog.F("user_id", usr.ID), slog.F("current", idx+1))
+					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
 				if _, err := tx.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
 					ProviderID:        gitAuthLink.ProviderID,
-					UserID:            usr.ID,
+					UserID:            uid,
 					UpdatedAt:         gitAuthLink.UpdatedAt,
 					OAuthAccessToken:  gitAuthLink.OAuthAccessToken,
 					OAuthRefreshToken: gitAuthLink.OAuthRefreshToken,
@@ -157,7 +157,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 		if err != nil {
 			return xerrors.Errorf("update user links: %w", err)
 		}
-		log.Debug(ctx, "decrypted user tokens", slog.F("user_id", usr.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+		log.Debug(ctx, "decrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	// Revoke _all_ keys

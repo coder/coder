@@ -1,28 +1,28 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder login [flags] <url>
 
   Authenticate with Coder deployment
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mfirst-user-email[0m string, [96m$CODER_FIRST_USER_EMAIL[0m
+OPTIONS:
+      --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the
           deployment.
 
-      [96m--[0m[96mfirst-user-password[0m string, [96m$CODER_FIRST_USER_PASSWORD[0m
+      --first-user-password string, $CODER_FIRST_USER_PASSWORD
           Specifies a password to use if creating the first user for the
           deployment.
 
-      [96m--[0m[96mfirst-user-trial[0m bool, [96m$CODER_FIRST_USER_TRIAL[0m
+      --first-user-trial bool, $CODER_FIRST_USER_TRIAL
           Specifies whether a trial license should be provisioned for the Coder
           deployment or not.
 
-      [96m--[0m[96mfirst-user-username[0m string, [96m$CODER_FIRST_USER_USERNAME[0m
+      --first-user-username string, $CODER_FIRST_USER_USERNAME
           Specifies a username to use if creating the first user for the
           deployment.
 
-      [96m--[0m[96muse-token-as-session[0m bool
+      --use-token-as-session bool
           By default, the CLI will generate a new session token when logging in.
           This flag will instead use the provided token as the session token.
 

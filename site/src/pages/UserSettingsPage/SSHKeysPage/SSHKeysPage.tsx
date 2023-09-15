@@ -3,8 +3,9 @@ import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/Confirm
 import { Section } from "../../../components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getErrorMessage } from "api/errors";
 
 export const Language = {
   title: "SSH keys",
@@ -20,18 +21,9 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
     useState(false);
   const queryClient = useQueryClient();
   const userSSHKeyQuery = useQuery(userSSHKey("me"));
-  const regenerateSSHKeyMutationOptions = regenerateUserSSHKey(
-    "me",
-    queryClient,
+  const regenerateSSHKeyMutation = useMutation(
+    regenerateUserSSHKey("me", queryClient),
   );
-  const regenerateSSHKeyMutation = useMutation({
-    ...regenerateSSHKeyMutationOptions,
-    onSuccess: (newKey) => {
-      regenerateSSHKeyMutationOptions.onSuccess(newKey);
-      displaySuccess("SSH Key regenerated successfully.");
-      setIsConfirmingRegeneration(false);
-    },
-  });
 
   return (
     <>
@@ -54,7 +46,18 @@ export const SSHKeysPage: FC<PropsWithChildren<unknown>> = () => {
         confirmLoading={regenerateSSHKeyMutation.isLoading}
         title={Language.regenerateDialogTitle}
         confirmText={Language.confirmLabel}
-        onConfirm={regenerateSSHKeyMutation.mutate}
+        onConfirm={async () => {
+          try {
+            await regenerateSSHKeyMutation.mutateAsync();
+            displaySuccess("SSH Key regenerated successfully.");
+          } catch (error) {
+            displayError(
+              getErrorMessage(error, "Failed to regenerate SSH key"),
+            );
+          } finally {
+            setIsConfirmingRegeneration(false);
+          }
+        }}
         onClose={() => {
           setIsConfirmingRegeneration(false);
         }}

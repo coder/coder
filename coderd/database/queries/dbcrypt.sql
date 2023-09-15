@@ -16,3 +16,4 @@ AND
 INSERT INTO dbcrypt_keys
 	(number, active_key_digest, created_at, test)
 VALUES (@number::int, @active_key_digest::text, CURRENT_TIMESTAMP, @test::text);
+
