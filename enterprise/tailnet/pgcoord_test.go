@@ -609,8 +609,7 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
 
 	id := uuid.New()
-	ma1, err := coord1.ServeMultiAgent(id)
-	require.NoError(t, err)
+	ma1 := coord1.ServeMultiAgent(id)
 	defer ma1.Close()
 
 	err = ma1.SubscribeAgent(agent1.id)

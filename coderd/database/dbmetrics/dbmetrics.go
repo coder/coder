@@ -121,6 +121,13 @@ func (m metricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUI
 	return err
 }
 
+func (m metricsStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllTailnetClientSubscriptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteAllTailnetClientSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
@@ -202,11 +209,11 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	return m.s.DeleteTailnetClient(ctx, arg)
 }
 
-func (m metricsStore) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
+func (m metricsStore) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
 	start := time.Now()
-	r0, r1 := m.s.DeleteTailnetClientSubscription(ctx, arg)
+	r0 := m.s.DeleteTailnetClientSubscription(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteTailnetClientSubscription").Observe(time.Since(start).Seconds())
-	return r0, r1
+	return r0
 }
 
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

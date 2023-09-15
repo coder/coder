@@ -774,11 +774,18 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
-func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
+func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
-		return database.DeleteTailnetClientSubscriptionRow{}, err
+		return err
 	}
 	return q.db.DeleteTailnetClientSubscription(ctx, arg)
+}
+
+func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {

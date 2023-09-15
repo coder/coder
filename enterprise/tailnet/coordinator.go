@@ -52,7 +52,7 @@ func NewCoordinator(logger slog.Logger, ps pubsub.Pubsub) (agpl.Coordinator, err
 	return coord, nil
 }
 
-func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) (agpl.MultiAgentConn, error) {
+func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	m := (&agpl.MultiAgent{
 		ID:                id,
 		AgentIsLegacyFunc: c.agentIsLegacy,
@@ -61,7 +61,7 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) (agpl.MultiAgentConn, erro
 		OnRemove:          func(enq agpl.Queue) { c.clientDisconnected(enq.UniqueID()) },
 	}).Init()
 	c.addClient(id, m)
-	return m, nil
+	return m
 }
 
 func (c *haCoordinator) addClient(id uuid.UUID, q agpl.Queue) {

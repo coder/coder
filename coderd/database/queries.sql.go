@@ -4125,6 +4125,22 @@ func (q *sqlQuerier) CleanTailnetCoordinators(ctx context.Context) error {
 	return err
 }
 
+const deleteAllTailnetClientSubscriptions = `-- name: DeleteAllTailnetClientSubscriptions :exec
+DELETE
+FROM tailnet_client_subscriptions
+WHERE client_id = $1 and coordinator_id = $2
+`
+
+type DeleteAllTailnetClientSubscriptionsParams struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+}
+
+func (q *sqlQuerier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg DeleteAllTailnetClientSubscriptionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteAllTailnetClientSubscriptions, arg.ClientID, arg.CoordinatorID)
+	return err
+}
+
 const deleteCoordinator = `-- name: DeleteCoordinator :exec
 DELETE
 FROM tailnet_coordinators
@@ -4184,11 +4200,10 @@ func (q *sqlQuerier) DeleteTailnetClient(ctx context.Context, arg DeleteTailnetC
 	return i, err
 }
 
-const deleteTailnetClientSubscription = `-- name: DeleteTailnetClientSubscription :one
+const deleteTailnetClientSubscription = `-- name: DeleteTailnetClientSubscription :exec
 DELETE
 FROM tailnet_client_subscriptions
 WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3
-RETURNING client_id, agent_id, coordinator_id
 `
 
 type DeleteTailnetClientSubscriptionParams struct {
@@ -4197,17 +4212,9 @@ type DeleteTailnetClientSubscriptionParams struct {
 	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
 }
 
-type DeleteTailnetClientSubscriptionRow struct {
-	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
-	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
-}
-
-func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) (DeleteTailnetClientSubscriptionRow, error) {
-	row := q.db.QueryRowContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
-	var i DeleteTailnetClientSubscriptionRow
-	err := row.Scan(&i.ClientID, &i.AgentID, &i.CoordinatorID)
-	return i, err
+func (q *sqlQuerier) DeleteTailnetClientSubscription(ctx context.Context, arg DeleteTailnetClientSubscriptionParams) error {
+	_, err := q.db.ExecContext(ctx, deleteTailnetClientSubscription, arg.ClientID, arg.AgentID, arg.CoordinatorID)
+	return err
 }
 
 const getAllTailnetAgents = `-- name: GetAllTailnetAgents :many

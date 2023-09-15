@@ -124,6 +124,20 @@ func (mr *MockStoreMockRecorder) DeleteAPIKeysByUserID(arg0, arg1 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteAPIKeysByUserID), arg0, arg1)
 }
 
+// DeleteAllTailnetClientSubscriptions mocks base method.
+func (m *MockStore) DeleteAllTailnetClientSubscriptions(arg0 context.Context, arg1 database.DeleteAllTailnetClientSubscriptionsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllTailnetClientSubscriptions", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllTailnetClientSubscriptions indicates an expected call of DeleteAllTailnetClientSubscriptions.
+func (mr *MockStoreMockRecorder) DeleteAllTailnetClientSubscriptions(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllTailnetClientSubscriptions", reflect.TypeOf((*MockStore)(nil).DeleteAllTailnetClientSubscriptions), arg0, arg1)
+}
+
 // DeleteApplicationConnectAPIKeysByUserID mocks base method.
 func (m *MockStore) DeleteApplicationConnectAPIKeysByUserID(arg0 context.Context, arg1 uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -296,12 +310,11 @@ func (mr *MockStoreMockRecorder) DeleteTailnetClient(arg0, arg1 interface{}) *go
 }
 
 // DeleteTailnetClientSubscription mocks base method.
-func (m *MockStore) DeleteTailnetClientSubscription(arg0 context.Context, arg1 database.DeleteTailnetClientSubscriptionParams) (database.DeleteTailnetClientSubscriptionRow, error) {
+func (m *MockStore) DeleteTailnetClientSubscription(arg0 context.Context, arg1 database.DeleteTailnetClientSubscriptionParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteTailnetClientSubscription", arg0, arg1)
-	ret0, _ := ret[0].(database.DeleteTailnetClientSubscriptionRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteTailnetClientSubscription indicates an expected call of DeleteTailnetClientSubscription.

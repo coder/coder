@@ -40,47 +40,42 @@ CREATE OR REPLACE FUNCTION tailnet_notify_client_change() RETURNS trigger
 	AS $$
 DECLARE
 	var_client_id uuid;
+	var_coordinator_id uuid;
 	var_agent_ids uuid[];
+	var_agent_id uuid;
 BEGIN
 	IF (NEW.id IS NOT NULL) THEN
 		var_client_id = NEW.id;
-		SELECT
-			array_agg(agent_id)
-		INTO
-			var_agent_ids
-		FROM
-			tailnet_client_subscriptions subs
-		WHERE
-			subs.client_id = NEW.id AND
-			subs.coordinator_id = NEW.coordinator_id;
+		var_coordinator_id = NEW.coordinator_id;
 	ELSIF (OLD.id IS NOT NULL) THEN
-		-- if new is null and old is not null, that means the row was deleted.
-		-- simulate a foreign key by deleting all of the subscriptions.
 		var_client_id = OLD.id;
-		WITH agent_ids AS (
-			DELETE FROM
-				tailnet_client_subscriptions subs
-			WHERE
-				subs.client_id = OLD.id AND
-				subs.coordinator_id = OLD.coordinator_id
-			RETURNING
-				subs.agent_id
-		)
-		SELECT
-			array_agg(agent_id)
-		INTO
-			var_agent_ids
-		FROM
-			agent_ids;
+		var_coordinator_id = OLD.coordinator_id;
 	END IF;
 
 	-- Read all agents the client is subscribed to, so we can notify them.
+	SELECT
+		array_agg(agent_id)
+	INTO
+		var_agent_ids
+	FROM
+		tailnet_client_subscriptions subs
+	WHERE
+		subs.client_id = NEW.id AND
+		subs.coordinator_id = NEW.coordinator_id;
+
 	-- No agents to notify
 	if (var_agent_ids IS NULL) THEN
 		return NULL;
 	END IF;
 
-	PERFORM pg_notify('tailnet_client_update', var_client_id || ',' || array_to_string(var_agent_ids, ','));
+	-- pg_notify is limited to 8k bytes, which is approximately 221 UUIDs.
+	-- Instead of sending all agent ids in a single update, send one for each
+	-- agent id to prevent overflow.
+	FOREACH var_agent_id IN ARRAY var_agent_ids
+	LOOP
+		PERFORM pg_notify('tailnet_client_update', var_client_id || ',' || var_agent_id);
+	END LOOP;
+
 	return NULL;
 END;
 $$;

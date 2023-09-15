@@ -38,6 +38,7 @@ const (
 	cleanupPeriod           = time.Hour
 )
 
+// TODO: add subscriber to this graphic
 // pgCoord is a postgres-backed coordinator
 //
 //	┌────────┐       ┌────────┐        ┌───────┐
@@ -80,8 +81,9 @@ type pgCoord struct {
 	closeOnce sync.Once
 	closed    chan struct{}
 
-	binder  *binder
-	querier *querier
+	binder     *binder
+	subscriber *subscriber
+	querier    *querier
 }
 
 var pgCoordSubject = rbac.Subject{
@@ -121,35 +123,25 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
+		subscriber:       newSubscriber(ctx, logger, id, store, sCh, fHB),
 		newSubscriptions: sCh,
 		id:               id,
-		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, sCh, numQuerierWorkers, fHB),
+		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, numQuerierWorkers, fHB),
 		closed:           make(chan struct{}),
 	}
 	logger.Info(ctx, "starting coordinator")
 	return c, nil
 }
 
-func (c *pgCoord) ServeMultiAgent(id uuid.UUID) (agpl.MultiAgentConn, error) {
+func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	ma := (&agpl.MultiAgent{
 		ID:                id,
 		AgentIsLegacyFunc: func(agentID uuid.UUID) bool { return true },
 		OnSubscribe: func(enq agpl.Queue, agent uuid.UUID) (*agpl.Node, error) {
-			err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
-				q:       enq,
-				agentID: agent,
-				active:  true,
-			})
-
+			err := c.addSubscription(enq, agent)
 			return c.Node(agent), err
 		},
-		OnUnsubscribe: func(enq agpl.Queue, agent uuid.UUID) error {
-			return sendCtx(c.ctx, c.newSubscriptions, subscribe{
-				q:       enq,
-				agentID: agent,
-				active:  false,
-			})
-		},
+		OnUnsubscribe: c.removeSubscription,
 		OnNodeUpdate: func(id uuid.UUID, node *agpl.Node) error {
 			return sendCtx(c.ctx, c.bindings, binding{
 				bKey: bKey{id, agpl.QueueKindClient},
@@ -164,17 +156,58 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) (agpl.MultiAgentConn, error) {
 				},
 			}
 			if err := sendCtx(c.ctx, c.bindings, b); err != nil {
-				c.logger.Debug(c.ctx, "parent context expired while withdrawing bindings", slog.Error(err))
+				c.logger.Debug(c.ctx, "parent context expired while withdrawing binding", slog.Error(err))
+			}
+			if err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+				sKey:   sKey{clientID: id},
+				active: false,
+			}); err != nil {
+				c.logger.Debug(c.ctx, "parent context expired while withdrawing subscriptions", slog.Error(err))
 			}
 			c.querier.cleanupConn(enq)
 		},
 	}).Init()
 
 	if err := sendCtx(c.ctx, c.newConnections, agpl.Queue(ma)); err != nil {
-		return nil, err
+		// If we can't successfully send the multiagent, that means the
+		// coordinator is shutting down. In this case, just return a closed
+		// multiagent.
+		ma.CoordinatorClose()
 	}
 
-	return ma, nil
+	return ma
+}
+
+func (c *pgCoord) addSubscription(q agpl.Queue, agentID uuid.UUID) error {
+	err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+		sKey: sKey{
+			clientID: q.UniqueID(),
+			agentID:  agentID,
+		},
+		active: true,
+	})
+	if err != nil {
+		return err
+	}
+
+	c.querier.newClientSubscription(q, agentID)
+	return nil
+}
+
+func (c *pgCoord) removeSubscription(q agpl.Queue, agentID uuid.UUID) error {
+	err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+		sKey: sKey{
+			clientID: q.UniqueID(),
+			agentID:  agentID,
+		},
+		active: false,
+	})
+	if err != nil {
+		return err
+	}
+
+	c.querier.removeClientSubscription(q, agentID)
+	return nil
 }
 
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
@@ -215,13 +248,12 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 		// can only be a context error, no need to log here.
 		return err
 	}
-	if err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
-		q:       agpl.Queue(cIO),
-		agentID: agent,
-		active:  true,
-	}); err != nil {
+
+	if err := c.addSubscription(cIO, agent); err != nil {
 		return err
 	}
+	defer c.removeSubscription(cIO, agent)
+
 	<-cIO.ctx.Done()
 	return nil
 }
@@ -262,6 +294,184 @@ func sendCtx[A any](ctx context.Context, c chan<- A, a A) (err error) {
 	case c <- a:
 		return nil
 	}
+}
+
+type sKey struct {
+	clientID uuid.UUID
+	agentID  uuid.UUID
+}
+
+type subscribe struct {
+	sKey
+	// whether the subscription should be active. if true, the subscription is
+	// added. if false, the subscription is removed.
+	active bool
+}
+
+type subscriber struct {
+	ctx           context.Context
+	logger        slog.Logger
+	coordinatorID uuid.UUID
+	store         database.Store
+	subscriptions <-chan subscribe
+
+	mu sync.Mutex
+	// map[clientID]map[agentID]subscribe
+	latest map[uuid.UUID]map[uuid.UUID]subscribe
+	workQ  *workQ[sKey]
+}
+
+func newSubscriber(ctx context.Context,
+	logger slog.Logger,
+	id uuid.UUID,
+	store database.Store,
+	subscriptions <-chan subscribe,
+	startWorkers <-chan struct{},
+) *subscriber {
+	s := &subscriber{
+		ctx:           ctx,
+		logger:        logger,
+		coordinatorID: id,
+		store:         store,
+		subscriptions: subscriptions,
+		latest:        make(map[uuid.UUID]map[uuid.UUID]subscribe),
+		workQ:         newWorkQ[sKey](ctx),
+	}
+	go s.handleSubscriptions()
+	go func() {
+		<-startWorkers
+		for i := 0; i < numBinderWorkers; i++ {
+			go s.worker()
+		}
+	}()
+	return s
+}
+
+func (s *subscriber) handleSubscriptions() {
+	for {
+		select {
+		case <-s.ctx.Done():
+			s.logger.Debug(s.ctx, "subscriber exiting", slog.Error(s.ctx.Err()))
+			return
+		case sub := <-s.subscriptions:
+			s.storeSubscription(sub)
+			s.workQ.enqueue(sub.sKey)
+		}
+	}
+}
+
+func (s *subscriber) worker() {
+	eb := backoff.NewExponentialBackOff()
+	eb.MaxElapsedTime = 0 // retry indefinitely
+	eb.MaxInterval = dbMaxBackoff
+	bkoff := backoff.WithContext(eb, s.ctx)
+	for {
+		bk, err := s.workQ.acquire()
+		if err != nil {
+			// context expired
+			return
+		}
+		err = backoff.Retry(func() error {
+			bnd := s.retrieveSubscription(bk)
+			return s.writeOne(bnd)
+		}, bkoff)
+		if err != nil {
+			bkoff.Reset()
+		}
+		s.workQ.done(bk)
+	}
+}
+
+func (s *subscriber) storeSubscription(sub subscribe) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sub.active {
+		if _, ok := s.latest[sub.clientID]; !ok {
+			s.latest[sub.clientID] = map[uuid.UUID]subscribe{}
+		}
+		s.latest[sub.clientID][sub.agentID] = sub
+	} else {
+		// If the agentID is nil, clean up all of the clients subscriptions.
+		if sub.agentID == uuid.Nil {
+			delete(s.latest, sub.clientID)
+		} else {
+			delete(s.latest[sub.clientID], sub.agentID)
+			// clean up the subscription map if all the subscriptions are gone.
+			if len(s.latest[sub.clientID]) == 0 {
+				delete(s.latest, sub.clientID)
+			}
+		}
+	}
+}
+
+// retrieveBinding gets the latest binding for a key.
+func (s *subscriber) retrieveSubscription(sk sKey) subscribe {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	agents, ok := s.latest[sk.clientID]
+	if !ok {
+		return subscribe{
+			sKey:   sk,
+			active: false,
+		}
+	}
+
+	sub, ok := agents[sk.agentID]
+	if !ok {
+		return subscribe{
+			sKey:   sk,
+			active: false,
+		}
+	}
+
+	return sub
+}
+
+func (s *subscriber) writeOne(sub subscribe) error {
+	var err error
+	switch {
+	case sub.agentID == uuid.Nil:
+		err = s.store.DeleteAllTailnetClientSubscriptions(s.ctx, database.DeleteAllTailnetClientSubscriptionsParams{
+			ClientID:      sub.clientID,
+			CoordinatorID: s.coordinatorID,
+		})
+		s.logger.Debug(s.ctx, "deleted all client subscriptions",
+			slog.F("client_id", sub.clientID),
+			slog.Error(err),
+		)
+	case sub.active:
+		err = s.store.UpsertTailnetClientSubscription(s.ctx, database.UpsertTailnetClientSubscriptionParams{
+			ClientID:      sub.clientID,
+			CoordinatorID: s.coordinatorID,
+			AgentID:       sub.agentID,
+		})
+		s.logger.Debug(s.ctx, "upserted client subscription",
+			slog.F("client_id", sub.clientID),
+			slog.F("agent_id", sub.agentID),
+			slog.Error(err),
+		)
+	case !sub.active:
+		err = s.store.DeleteTailnetClientSubscription(s.ctx, database.DeleteTailnetClientSubscriptionParams{
+			ClientID:      sub.clientID,
+			CoordinatorID: s.coordinatorID,
+			AgentID:       sub.agentID,
+		})
+		s.logger.Debug(s.ctx, "deleted client subscription",
+			slog.F("client_id", sub.clientID),
+			slog.F("agent_id", sub.agentID),
+			slog.Error(err),
+		)
+	default:
+		panic("unreachable")
+	}
+	if err != nil && !database.IsQueryCanceledError(err) {
+		s.logger.Error(s.ctx, "write subscription to database",
+			slog.F("client_id", sub.clientID),
+			slog.F("agent_id", sub.agentID),
+			slog.F("active", sub.active),
+			slog.Error(err))
+	}
+	return err
 }
 
 // bKey, or "binding key" identifies a client or agent in a binding. Agents and
@@ -559,14 +769,6 @@ func (m *mapper) mappingsToNodes(mappings []mapping) []*agpl.Node {
 	return nodes
 }
 
-type subscribe struct {
-	q       agpl.Queue
-	agentID uuid.UUID
-	// whether the subscription should be active. if true, the subscription is
-	// added. if false, the subscription is removed.
-	active bool
-}
-
 // querier is responsible for monitoring pubsub notifications and querying the database for the mappings that all
 // connected clients and agents need.  It also checks heartbeats and withdraws mappings from coordinators that have
 // failed heartbeats.
@@ -577,8 +779,7 @@ type querier struct {
 	pubsub        pubsub.Pubsub
 	store         database.Store
 
-	newConnections   chan agpl.Queue
-	newSubscriptions chan subscribe
+	newConnections chan agpl.Queue
 
 	workQ *workQ[mKey]
 
@@ -607,7 +808,6 @@ func newQuerier(ctx context.Context,
 	store database.Store,
 	self uuid.UUID,
 	newConnections chan agpl.Queue,
-	newSubscriptions chan subscribe,
 	numWorkers int,
 	firstHeartbeat chan struct{},
 ) *querier {
@@ -619,7 +819,6 @@ func newQuerier(ctx context.Context,
 		pubsub:              ps,
 		store:               store,
 		newConnections:      newConnections,
-		newSubscriptions:    newSubscriptions,
 		workQ:               newWorkQ[mKey](ctx),
 		heartbeats:          newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat),
 		mappers:             make(map[mKey]*countedMapper),
@@ -633,7 +832,6 @@ func newQuerier(ctx context.Context,
 	go func() {
 		<-firstHeartbeat
 		go q.handleNewConnections()
-		go q.handleNewSubscriptions()
 		for i := 0; i < numWorkers; i++ {
 			go q.worker()
 		}
@@ -655,29 +853,6 @@ func (q *querier) handleNewConnections() {
 				q.newClientConn(c)
 			default:
 				panic(fmt.Sprint("unreachable: invalid queue kind ", c.Kind()))
-			}
-		}
-	}
-}
-
-func (q *querier) handleNewSubscriptions() {
-	for {
-		select {
-		case <-q.ctx.Done():
-			return
-		case c := <-q.newSubscriptions:
-			if c.active {
-				err := q.newClientSubscription(c.q, c.agentID)
-				if err != nil {
-					q.logger.Error(q.ctx, "create client subscription", slog.Error(err),
-						slog.F("client_id", c.q.UniqueID()), slog.F("agent_id", c.agentID))
-				}
-			} else {
-				err := q.removeClientSubscription(c.q, c.agentID)
-				if err != nil {
-					q.logger.Error(q.ctx, "remove client subscription", slog.Error(err),
-						slog.F("client_id", c.q.UniqueID()), slog.F("agent_id", c.agentID))
-				}
 			}
 		}
 	}
@@ -719,7 +894,7 @@ func (q *querier) newAgentConn(c agpl.Queue) {
 	go q.waitCleanupConn(c)
 }
 
-func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) error {
+func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
@@ -727,18 +902,9 @@ func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) error {
 		q.clientSubscriptions[c.UniqueID()] = map[uuid.UUID]struct{}{}
 	}
 
-	err := q.store.UpsertTailnetClientSubscription(q.ctx, database.UpsertTailnetClientSubscriptionParams{
-		ClientID:      c.UniqueID(),
-		CoordinatorID: q.coordinatorID,
-		AgentID:       agentID,
-	})
-	if err != nil {
-		return xerrors.Errorf("upsert subscription: %w", err)
-	}
-
 	mk := mKey{
 		agent: agentID,
-		kind:  c.Kind(),
+		kind:  agpl.QueueKindClient,
 	}
 	cm, ok := q.mappers[mk]
 	if !ok {
@@ -754,33 +920,23 @@ func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) error {
 		q.workQ.enqueue(mk)
 	}
 	if err := sendCtx(cm.ctx, cm.add, c); err != nil {
-		return xerrors.Errorf("send subscription to mapper: %w", err)
+		return
 	}
 	q.clientSubscriptions[c.UniqueID()][agentID] = struct{}{}
 	cm.count++
-	return nil
 }
 
-func (q *querier) removeClientSubscription(c agpl.Queue, agentID uuid.UUID) error {
+func (q *querier) removeClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	_, err := q.store.DeleteTailnetClientSubscription(q.ctx, database.DeleteTailnetClientSubscriptionParams{
-		ClientID:      c.UniqueID(),
-		CoordinatorID: q.coordinatorID,
-		AgentID:       agentID,
-	})
-	if err != nil {
-		return xerrors.Errorf("delete subscription: %w", err)
-	}
-
 	mk := mKey{
 		agent: agentID,
-		kind:  c.Kind(),
+		kind:  agpl.QueueKindClient,
 	}
 	cm := q.mappers[mk]
 	if err := sendCtx(cm.ctx, cm.del, c); err != nil {
-		return xerrors.Errorf("send deletion to mapper: %w", err)
+		return
 	}
 	delete(q.clientSubscriptions[c.UniqueID()], agentID)
 	cm.count--
@@ -788,7 +944,6 @@ func (q *querier) removeClientSubscription(c agpl.Queue, agentID uuid.UUID) erro
 		cm.cancel()
 		delete(q.mappers, mk)
 	}
-	return nil
 }
 
 func (q *querier) newClientConn(c agpl.Queue) {
@@ -1238,9 +1393,13 @@ type mapping struct {
 	node        *agpl.Node
 }
 
+type queueKey interface {
+	mKey | bKey | sKey
+}
+
 // workQ allows scheduling work based on a key.  Multiple enqueue requests for the same key are coalesced, and
 // only one in-progress job per key is scheduled.
-type workQ[K mKey | bKey] struct {
+type workQ[K queueKey] struct {
 	ctx context.Context
 
 	cond       *sync.Cond
@@ -1248,7 +1407,7 @@ type workQ[K mKey | bKey] struct {
 	inProgress map[K]bool
 }
 
-func newWorkQ[K mKey | bKey](ctx context.Context) *workQ[K] {
+func newWorkQ[K queueKey](ctx context.Context) *workQ[K] {
 	q := &workQ[K]{
 		ctx:        ctx,
 		cond:       sync.NewCond(&sync.Mutex{}),

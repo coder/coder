@@ -45,7 +45,7 @@ type Coordinator interface {
 	// Close closes the coordinator.
 	Close() error
 
-	ServeMultiAgent(id uuid.UUID) (MultiAgentConn, error)
+	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // Node represents a node in the network.
@@ -139,7 +139,7 @@ type coordinator struct {
 	core *core
 }
 
-func (c *coordinator) ServeMultiAgent(id uuid.UUID) (MultiAgentConn, error) {
+func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
 	m := (&MultiAgent{
 		ID:                id,
 		AgentIsLegacyFunc: c.core.agentIsLegacy,
@@ -149,7 +149,7 @@ func (c *coordinator) ServeMultiAgent(id uuid.UUID) (MultiAgentConn, error) {
 		OnRemove:          func(enq Queue) { c.core.clientDisconnected(enq.UniqueID()) },
 	}).Init()
 	c.core.addClient(id, m)
-	return m, nil
+	return m
 }
 
 func (c *core) addClient(id uuid.UUID, ma Queue) {

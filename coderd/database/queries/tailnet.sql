@@ -58,11 +58,15 @@ FROM tailnet_clients
 WHERE id = $1 and coordinator_id = $2
 RETURNING id, coordinator_id;
 
--- name: DeleteTailnetClientSubscription :one
+-- name: DeleteTailnetClientSubscription :exec
 DELETE
 FROM tailnet_client_subscriptions
-WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3
-RETURNING client_id, agent_id, coordinator_id;
+WHERE client_id = $1 and agent_id = $2 and coordinator_id = $3;
+
+-- name: DeleteAllTailnetClientSubscriptions :exec
+DELETE
+FROM tailnet_client_subscriptions
+WHERE client_id = $1 and coordinator_id = $2;
 
 -- name: DeleteTailnetAgent :one
 DELETE
