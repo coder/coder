@@ -20,6 +20,9 @@ import (
 	"github.com/coder/coder/v2/pty/ptytest"
 )
 
+// TestServerDBCrypt tests end-to-end encryption, decryption, and deletion
+// of encrypted user data.
+//
 // nolint: paralleltest // use of t.Setenv
 func TestServerDBCrypt(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
@@ -41,15 +44,38 @@ func TestServerDBCrypt(t *testing.T) {
 	})
 	db := database.New(sqlDB)
 
-	// Populate the database with some unencrypted data.
-	users := genData(t, db, 10)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("Dumping data due to failed test. I hope you find what you're looking for!")
+			dumpUsers(t, sqlDB)
+		}
+	})
 
-	// Setup an initial cipher
+	// Populate the database with some unencrypted data.
+	t.Logf("Generating unencrypted data")
+	users := genData(t, db)
+
+	// Setup an initial cipher A
 	keyA := mustString(t, 32)
 	cipherA, err := dbcrypt.NewCiphers([]byte(keyA))
 	require.NoError(t, err)
 
+	// Create an encrypted database
+	cryptdb, err := dbcrypt.New(ctx, db, cipherA...)
+	require.NoError(t, err)
+
+	// Populate the database with some encrypted data using cipher A.
+	t.Logf("Generating data encrypted with cipher A")
+	newUsers := genData(t, cryptdb)
+
+	// Validate that newly created users were encrypted with cipher A
+	for _, usr := range newUsers {
+		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
+	}
+	users = append(users, newUsers...)
+
 	// Encrypt all the data with the initial cipher.
+	t.Logf("Encrypting all data with cipher A")
 	inv, _ := newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyA)),
@@ -65,18 +91,12 @@ func TestServerDBCrypt(t *testing.T) {
 		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
 	}
 
-	// Create an encrypted database
-	cryptdb, err := dbcrypt.New(ctx, db, cipherA...)
-	require.NoError(t, err)
-
-	// Populate the database with some encrypted data using cipher A.
-	users = append(users, genData(t, cryptdb, 10)...)
-
 	// Re-encrypt all existing data with a new cipher.
 	keyB := mustString(t, 32)
 	cipherBA, err := dbcrypt.NewCiphers([]byte(keyB), []byte(keyA))
 	require.NoError(t, err)
 
+	t.Logf("Enrypting all data with cipher B")
 	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyB)),
@@ -94,6 +114,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Assert that we can revoke the old key.
+	t.Logf("Revoking cipher A")
 	err = db.RevokeDBCryptKey(ctx, cipherA[0].HexDigest())
 	require.NoError(t, err, "failed to revoke old key")
 
@@ -109,6 +130,7 @@ func TestServerDBCrypt(t *testing.T) {
 	require.Empty(t, oldKey.ActiveKeyDigest.String, "expected the old key to not be active")
 
 	// Revoking the new key should fail.
+	t.Logf("Attempting to revoke cipher B should fail as it is still in use")
 	err = db.RevokeDBCryptKey(ctx, cipherBA[0].HexDigest())
 	require.Error(t, err, "expected to fail to revoke the new key")
 	var pgErr *pq.Error
@@ -116,6 +138,7 @@ func TestServerDBCrypt(t *testing.T) {
 	require.EqualValues(t, "23503", pgErr.Code, "expected a foreign key constraint violation error")
 
 	// Decrypt the data using only cipher B. This should result in the key being revoked.
+	t.Logf("Decrypting with cipher B")
 	inv, _ = newCLI(t, "server", "dbcrypt", "decrypt",
 		"--postgres-url", connectionURL,
 		"--keys", base64.StdEncoding.EncodeToString([]byte(keyB)),
@@ -144,6 +167,7 @@ func TestServerDBCrypt(t *testing.T) {
 	cipherC, err := dbcrypt.NewCiphers([]byte(keyC))
 	require.NoError(t, err)
 
+	t.Logf("Re-encrypting with cipher C")
 	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
 		"--new-key", base64.StdEncoding.EncodeToString([]byte(keyC)),
@@ -161,6 +185,7 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 
 	// Now delete all the encrypted data.
+	t.Logf("Deleting all encrypted data")
 	inv, _ = newCLI(t, "server", "dbcrypt", "delete",
 		"--postgres-url", connectionURL,
 		"--external-token-encryption-keys", base64.StdEncoding.EncodeToString([]byte(keyC)),
@@ -191,28 +216,82 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 }
 
-func genData(t *testing.T, db database.Store, n int) []database.User {
+func genData(t *testing.T, db database.Store) []database.User {
 	t.Helper()
 	var users []database.User
-	for i := 0; i < n; i++ {
-		usr := dbgen.User(t, db, database.User{
-			LoginType: database.LoginTypeOIDC,
-		})
-		_ = dbgen.UserLink(t, db, database.UserLink{
-			UserID:            usr.ID,
-			LoginType:         usr.LoginType,
-			OAuthAccessToken:  "access-" + usr.ID.String(),
-			OAuthRefreshToken: "refresh-" + usr.ID.String(),
-		})
-		_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
-			UserID:            usr.ID,
-			ProviderID:        "fake",
-			OAuthAccessToken:  "access-" + usr.ID.String(),
-			OAuthRefreshToken: "refresh-" + usr.ID.String(),
-		})
-		users = append(users, usr)
+	// Make some users
+	for _, status := range database.AllUserStatusValues() {
+		for _, loginType := range database.AllLoginTypeValues() {
+			for _, deleted := range []bool{false, true} {
+				usr := dbgen.User(t, db, database.User{
+					LoginType: loginType,
+					Status:    status,
+					Deleted:   deleted,
+				})
+				_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
+					UserID:            usr.ID,
+					ProviderID:        "fake",
+					OAuthAccessToken:  "access-" + usr.ID.String(),
+					OAuthRefreshToken: "refresh-" + usr.ID.String(),
+				})
+				// Fun fact: our schema allows _all_ login types to have
+				// a user_link. Even though I'm not sure how it could occur
+				// in practice, making sure to test all combinations here.
+				_ = dbgen.UserLink(t, db, database.UserLink{
+					UserID:            usr.ID,
+					LoginType:         usr.LoginType,
+					OAuthAccessToken:  "access-" + usr.ID.String(),
+					OAuthRefreshToken: "refresh-" + usr.ID.String(),
+				})
+				users = append(users, usr)
+			}
+		}
 	}
 	return users
+}
+
+func dumpUsers(t *testing.T, db *sql.DB) {
+	t.Helper()
+	rows, err := db.QueryContext(context.Background(), `SELECT
+	u.id,
+	u.login_type,
+	u.status,
+	u.deleted,
+	ul.oauth_access_token_key_id AS uloatkid,
+	ul.oauth_refresh_token_key_id AS ulortkid,
+	gal.oauth_access_token_key_id AS galoatkid,
+	gal.oauth_refresh_token_key_id AS galortkid
+FROM users u
+LEFT OUTER JOIN user_links ul ON u.id = ul.user_id
+LEFT OUTER JOIN git_auth_links gal ON u.id = gal.user_id
+ORDER BY u.created_at ASC;`)
+	require.NoError(t, err)
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			id        string
+			loginType string
+			status    string
+			deleted   bool
+			UlOatKid  sql.NullString
+			UlOrtKid  sql.NullString
+			GalOatKid sql.NullString
+			GalOrtKid sql.NullString
+		)
+		require.NoError(t, rows.Scan(
+			&id,
+			&loginType,
+			&status,
+			&deleted,
+			&UlOatKid,
+			&UlOrtKid,
+			&GalOatKid,
+			&GalOrtKid,
+		))
+		t.Logf("user: id:%s login_type:%-8s status:%-9s deleted:%-5t ul_kids{at:%-7s rt:%-7s} gal_kids{at:%-7s rt:%-7s}",
+			id, loginType, status, deleted, UlOatKid.String, UlOrtKid.String, GalOatKid.String, GalOrtKid.String,
+		)
+	}
 }
 
 func mustString(t *testing.T, n int) string {

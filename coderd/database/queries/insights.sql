@@ -113,23 +113,23 @@ SELECT
 FROM app_stats_by_user_and_agent
 GROUP BY access_method, slug_or_port, display_name, icon, is_app;
 
--- name: GetTemplateDailyInsights :many
--- GetTemplateDailyInsights returns all daily intervals between start and end
--- time, if end time is a partial day, it will be included in the results and
--- that interval will be less than 24 hours. If there is no data for a selected
+-- name: GetTemplateInsightsByInterval :many
+-- GetTemplateInsightsByInterval returns all intervals between start and end
+-- time, if end time is a partial interval, it will be included in the results and
+-- that interval will be shorter than a full one. If there is no data for a selected
 -- interval/template, it will be included in the results with 0 active users.
 WITH ts AS (
 	SELECT
 		d::timestamptz AS from_,
 		CASE
-			WHEN (d::timestamptz + '1 day'::interval) <= @end_time::timestamptz
-			THEN (d::timestamptz + '1 day'::interval)
+			WHEN (d::timestamptz + (@interval_days::int || ' day')::interval) <= @end_time::timestamptz
+			THEN (d::timestamptz + (@interval_days::int || ' day')::interval)
 			ELSE @end_time::timestamptz
 		END AS to_
 	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 second'::interval, '1 day'::interval) AS d
-), unflattened_usage_by_day AS (
+		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+		generate_series(@start_time::timestamptz, (@end_time::timestamptz) - '1 microsecond'::interval, (@interval_days::int || ' day')::interval) AS d
+), unflattened_usage_by_interval AS (
 	-- We select data from both workspace agent stats and workspace app stats to
 	-- get a complete picture of usage. This matches how usage is calculated by
 	-- the combination of GetTemplateInsights and GetTemplateAppInsights. We use
@@ -174,7 +174,7 @@ SELECT
 	to_ AS end_time,
 	array_remove(array_agg(DISTINCT template_id), NULL)::uuid[] AS template_ids,
 	COUNT(DISTINCT user_id) AS active_users
-FROM unflattened_usage_by_day
+FROM unflattened_usage_by_interval
 GROUP BY from_, to_;
 
 -- name: GetTemplateParameterInsights :many

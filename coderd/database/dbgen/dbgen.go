@@ -227,7 +227,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
 		ID:        user.ID,
-		Status:    database.UserStatusActive,
+		Status:    takeFirst(orig.Status, database.UserStatusActive),
 		UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err, "insert user")
@@ -239,6 +239,14 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 			UpdatedAt:  user.UpdatedAt,
 		})
 		require.NoError(t, err, "user last seen")
+	}
+
+	if orig.Deleted {
+		err = db.UpdateUserDeletedByID(genCtx, database.UpdateUserDeletedByIDParams{
+			ID:      user.ID,
+			Deleted: orig.Deleted,
+		})
+		require.NoError(t, err, "set user as deleted")
 	}
 	return user
 }
