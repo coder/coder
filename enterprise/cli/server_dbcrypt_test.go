@@ -43,7 +43,7 @@ func TestServerDBCrypt(t *testing.T) {
 	db := database.New(sqlDB)
 
 	// Populate the database with some unencrypted data.
-	users := genData(t, db, 10)
+	users := genData(t, db)
 	dumpUsers(t, sqlDB, "NOT ENCRYPTED")
 
 	// Setup an initial cipher A
@@ -56,13 +56,14 @@ func TestServerDBCrypt(t *testing.T) {
 	require.NoError(t, err)
 
 	// Populate the database with some encrypted data using cipher A.
-	users = append(users, genData(t, cryptdb, 10)...)
+	newUsers := genData(t, cryptdb)
 	dumpUsers(t, sqlDB, "PARTIALLY ENCRYPTED A")
 
 	// Validate that newly created users were encrypted with cipher A
-	for _, usr := range users[10:] {
+	for _, usr := range newUsers {
 		requireEncryptedWithCipher(ctx, t, db, cipherA[0], usr.ID)
 	}
+	users = append(users, newUsers...)
 
 	// Encrypt all the data with the initial cipher.
 	inv, _ := newCLI(t, "server", "dbcrypt", "rotate",
@@ -85,6 +86,10 @@ func TestServerDBCrypt(t *testing.T) {
 	keyB := mustString(t, 32)
 	cipherBA, err := dbcrypt.NewCiphers([]byte(keyB), []byte(keyA))
 	require.NoError(t, err)
+
+	// Generate some more encrypted data using the new cipher
+	users = append(users, genData(t, db)...)
+	dumpUsers(t, sqlDB, "ENCRYPTED AB")
 
 	inv, _ = newCLI(t, "server", "dbcrypt", "rotate",
 		"--postgres-url", connectionURL,
@@ -204,38 +209,33 @@ func TestServerDBCrypt(t *testing.T) {
 	}
 }
 
-func genData(t *testing.T, db database.Store, n int) []database.User {
+func genData(t *testing.T, db database.Store) []database.User {
 	t.Helper()
 	var users []database.User
 	// Make some users
-	for i := 0; i < n; i++ {
-		var deleted bool
-		status := database.UserStatusActive
-		if i%2 == 0 {
-			status = database.UserStatusSuspended
-		} else if i%3 == 0 {
-			status = database.UserStatusDormant
-		} else if i%5 == 0 {
-			deleted = true
+	for _, status := range database.AllUserStatusValues() {
+		for _, loginType := range database.AllLoginTypeValues() {
+			for _, deleted := range []bool{false, true} {
+				usr := dbgen.User(t, db, database.User{
+					LoginType: loginType,
+					Status:    status,
+					Deleted:   deleted,
+				})
+				_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
+					UserID:            usr.ID,
+					ProviderID:        "fake",
+					OAuthAccessToken:  "access-" + usr.ID.String(),
+					OAuthRefreshToken: "refresh-" + usr.ID.String(),
+				})
+				_ = dbgen.UserLink(t, db, database.UserLink{
+					UserID:            usr.ID,
+					LoginType:         usr.LoginType,
+					OAuthAccessToken:  "access-" + usr.ID.String(),
+					OAuthRefreshToken: "refresh-" + usr.ID.String(),
+				})
+				users = append(users, usr)
+			}
 		}
-		usr := dbgen.User(t, db, database.User{
-			LoginType: database.LoginTypeOIDC,
-			Status:    status,
-			Deleted:   deleted,
-		})
-		_ = dbgen.UserLink(t, db, database.UserLink{
-			UserID:            usr.ID,
-			LoginType:         usr.LoginType,
-			OAuthAccessToken:  "access-" + usr.ID.String(),
-			OAuthRefreshToken: "refresh-" + usr.ID.String(),
-		})
-		_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
-			UserID:            usr.ID,
-			ProviderID:        "fake",
-			OAuthAccessToken:  "access-" + usr.ID.String(),
-			OAuthRefreshToken: "refresh-" + usr.ID.String(),
-		})
-		users = append(users, usr)
 	}
 	return users
 }
@@ -244,6 +244,7 @@ func dumpUsers(t *testing.T, db *sql.DB, header string) {
 	t.Logf("%s %s %s", strings.Repeat("=", 20), header, strings.Repeat("=", 20))
 	rows, err := db.QueryContext(context.Background(), `SELECT
 	u.id,
+	u.login_type,
 	u.status,
 	u.deleted,
 	ul.oauth_access_token_key_id AS uloatkid,
@@ -259,6 +260,7 @@ ORDER BY u.created_at ASC;`)
 	for rows.Next() {
 		var (
 			id        string
+			loginType string
 			status    string
 			deleted   bool
 			UlOatKid  sql.NullString
@@ -268,6 +270,7 @@ ORDER BY u.created_at ASC;`)
 		)
 		require.NoError(t, rows.Scan(
 			&id,
+			&loginType,
 			&status,
 			&deleted,
 			&UlOatKid,
@@ -275,8 +278,8 @@ ORDER BY u.created_at ASC;`)
 			&GalOatKid,
 			&GalOrtKid,
 		))
-		t.Logf("user: id:%s status:%-9s deleted:%-5t ul_kids{at:%-7s rt:%-7s} gal_kids{at:%-7s rt:%-7s}",
-			id, status, deleted, UlOatKid.String, UlOrtKid.String, GalOatKid.String, GalOrtKid.String,
+		t.Logf("user: id:%s login_type:%-8s status:%-9s deleted:%-5t ul_kids{at:%-7s rt:%-7s} gal_kids{at:%-7s rt:%-7s}",
+			id, loginType, status, deleted, UlOatKid.String, UlOrtKid.String, GalOatKid.String, GalOrtKid.String,
 		)
 	}
 }
