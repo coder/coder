@@ -11,10 +11,10 @@ afterAll(() => {
   jest.clearAllMocks();
 });
 
-// The general approach is to structure the tests from the user's experience,
-// but just because these are more abstract, general-purpose hooks, it seemed
-// harder to do that. Had to bring in some mocks
-function renderDebounceValue<T = unknown>(value: T, time: number) {
+// Most UI tests should be structure from the user's experience, but just
+// because these are more abstract, general-purpose hooks, it seemed harder to
+// do that. Had to bring in some mocks
+function renderDebouncedValue<T = unknown>(value: T, time: number) {
   return renderHook(
     ({ value, time }: { value: T; time: number }) => {
       return useDebouncedValue(value, time);
@@ -25,19 +25,16 @@ function renderDebounceValue<T = unknown>(value: T, time: number) {
   );
 }
 
-// Something in the React Testing Library types seems to be losing some of the
-// type parameters for the returned-out debounced method. It has much better
-// ergonomics/type inference when actually using it in a real React app
-function renderDebounceFunction<
-  Args extends unknown[],
-  Fn extends (...args: Args) => void | Promise<void>,
->(callback: Fn, time: number) {
+function renderDebouncedFunction<Args extends unknown[]>(
+  callbackArg: (...args: Args) => void | Promise<void>,
+  time: number,
+) {
   return renderHook(
-    ({ callback, time }: { callback: Fn; time: number }) => {
+    ({ callback, time }: { callback: typeof callbackArg; time: number }) => {
       return useDebouncedFunction<Args>(callback, time);
     },
     {
-      initialProps: { callback, time },
+      initialProps: { callback: callbackArg, time },
     },
   );
 }
@@ -45,17 +42,17 @@ function renderDebounceFunction<
 describe(`${useDebouncedValue.name}`, () => {
   it("Should immediately return out the exact same value (by reference) on mount", () => {
     const value = {};
-    const { result } = renderDebounceValue(value, 2000);
+    const { result } = renderDebouncedValue(value, 2000);
 
     expect(result.current).toBe(value);
     expect.hasAssertions();
   });
 
-  it("Should not immediately resync as the source value changes", async () => {
+  it("Should not immediately resync state as the hook re-renders with new value argument", async () => {
     let value = 0;
     const time = 5000;
 
-    const { result, rerender } = renderDebounceValue(value, time);
+    const { result, rerender } = renderDebouncedValue(value, time);
     expect(result.current).toEqual(0);
 
     for (let i = 1; i <= 5; i++) {
@@ -74,7 +71,7 @@ describe(`${useDebouncedValue.name}`, () => {
     const initialValue = false;
     const time = 5000;
 
-    const { result, rerender } = renderDebounceValue(initialValue, time);
+    const { result, rerender } = renderDebouncedValue(initialValue, time);
     expect(result.current).toEqual(false);
 
     rerender({ value: !initialValue, time });
@@ -87,9 +84,9 @@ describe(`${useDebouncedValue.name}`, () => {
 
 describe(`${useDebouncedFunction.name}`, () => {
   describe("hook", () => {
-    it("Should provide stable function references across all renders", () => {
+    it("Should provide stable function references across re-renders", () => {
       const time = 5000;
-      const { result, rerender } = renderDebounceFunction(jest.fn(), time);
+      const { result, rerender } = renderDebouncedFunction(jest.fn(), time);
 
       const { debounced: oldDebounced, cancelDebounce: oldCancel } =
         result.current;
@@ -103,29 +100,84 @@ describe(`${useDebouncedFunction.name}`, () => {
       expect.hasAssertions();
     });
 
-    it.skip("Resets any pending debounces if the timer argument changes", () => {
+    it("Resets any pending debounces if the timer argument changes", async () => {
+      const time = 5000;
+      let count = 0;
+      const incrementCount = () => {
+        count++;
+      };
+
+      const { result, rerender } = renderDebouncedFunction(
+        incrementCount,
+        time,
+      );
+
+      result.current.debounced();
+      rerender({ callback: incrementCount, time: time + 1 });
+
+      await jest.runAllTimersAsync();
+      expect(count).toEqual(0);
       expect.hasAssertions();
     });
   });
 
   describe("debounced function", () => {
-    it.skip("Should be able to 'see' the most recent arguments across re-renders", () => {
+    it("Resolve the debounce after specified milliseconds pass with no other calls", async () => {
+      let value = false;
+      const { result } = renderDebouncedFunction(() => {
+        value = !value;
+      }, 100);
+
+      result.current.debounced();
+
+      await jest.runOnlyPendingTimersAsync();
+      expect(value).toBe(true);
       expect.hasAssertions();
     });
 
-    it.skip("Should reset the debounce timer with repeated calls to the method", () => {
+    it("Always uses the most recent callback argument passed in (even if it switches while a debounce is queued)", async () => {
+      let count = 0;
+      const time = 500;
+
+      const { result, rerender } = renderDebouncedFunction(() => {
+        count = 1;
+      }, time);
+
+      result.current.debounced();
+      rerender({
+        callback: () => {
+          count = 9999;
+        },
+        time,
+      });
+
+      await jest.runAllTimersAsync();
+      expect(count).toEqual(9999);
       expect.hasAssertions();
     });
 
-    it.skip("Resolve the debounce after specified milliseconds pass with no other calls", () => {
+    it("Should reset the debounce timer with repeated calls to the method", async () => {
+      let count = 0;
+      const { result } = renderDebouncedFunction(() => {
+        count++;
+      }, 2000);
+
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => {
+          result.current.debounced();
+        }, i * 100);
+      }
+
+      await jest.runAllTimersAsync();
+      expect(count).toBe(1);
       expect.hasAssertions();
     });
   });
 
   describe("cancelDebounce function", () => {
-    it("Should be able to cancel a pending debounce at any time", async () => {
+    it("Should be able to cancel a pending debounce", async () => {
       let count = 0;
-      const { result } = renderDebounceFunction(() => {
+      const { result } = renderDebouncedFunction(() => {
         count++;
       }, 2000);
 
