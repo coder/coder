@@ -255,7 +255,8 @@ the workspace again.
 
 We do this in 2 parts:
 
-- Our `docker_volume` resource uses the `ignore_changes` argument
+- Our `docker_volume` resource uses the `lifecycle` block with `ignore_changes = all` argument to prevent accidental deletions.
+- We use an immutable parameter like `data.coder_workspace.me.id` for volume names to prevent destroying them in case of a workspace name change.
 - Later, our `docker_container` resource uses the Terraform [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
 meta-argument.
 
