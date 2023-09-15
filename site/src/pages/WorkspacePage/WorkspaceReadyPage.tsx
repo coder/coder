@@ -23,7 +23,7 @@ import {
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getTemplateVersions, restartWorkspace } from "api/api";
+import { restartWorkspace } from "api/api";
 import {
   ConfirmDialog,
   ConfirmDialogProps,
@@ -31,7 +31,7 @@ import {
 import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService";
 import * as TypesGen from "api/typesGenerated";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
-import { templateVersion } from "api/queries/templates";
+import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 
@@ -82,9 +82,8 @@ export const WorkspaceReadyPage = ({
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
 
-  const { data: templateVersions } = useQuery({
-    queryKey: ["template", "versions", workspace.template_id],
-    queryFn: () => getTemplateVersions(workspace.template_id),
+  const { data: allVersions } = useQuery({
+    ...templateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   });
   const { data: latestVersion } = useQuery({
@@ -216,9 +215,9 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <ChangeVersionDialog
-        templateVersions={templateVersions?.reverse()}
+        templateVersions={allVersions?.reverse()}
         template={template}
-        defaultTemplateVersion={templateVersions?.find(
+        defaultTemplateVersion={allVersions?.find(
           (v) => workspace.latest_build.template_version_id === v.id,
         )}
         open={changeVersionDialogOpen}

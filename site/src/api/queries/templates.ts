@@ -56,3 +56,10 @@ export const templateVersion = (versionId: string) => {
     queryFn: () => API.getTemplateVersion(versionId),
   };
 };
+
+export const templateVersions = (templateId: string) => {
+  return {
+    queryKey: ["templateVersions", templateId],
+    queryFn: () => API.getTemplateVersions(templateId),
+  };
+};
