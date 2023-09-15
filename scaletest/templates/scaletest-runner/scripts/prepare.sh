@@ -22,7 +22,7 @@ for dir in "${HOME}/scaletest-"*; do
 		name="$(basename "${dir}")"
 		(
 			cd "$(dirname "${dir}")"
-			tar --zstd -cf "${HOME}/archive/${name}.tar.zst" "${name}"
+			ZSTD_CLEVEL=12 tar --zstd -cf "${HOME}/archive/${name}.tar.zst" "${name}"
 		)
 		rm -rf "${dir}"
 	fi
