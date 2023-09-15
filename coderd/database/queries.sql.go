@@ -1814,8 +1814,8 @@ WITH ts AS (
 			ELSE $2::timestamptz
 		END AS to_
 	FROM
-		-- Subtract 1 second from end_time to avoid including the next interval in the results.
-		generate_series($3::timestamptz, ($2::timestamptz) - '1 second'::interval, ($1::int || ' day')::interval) AS d
+		-- Subtract 1 microsecond from end_time to avoid including the next interval in the results.
+		generate_series($3::timestamptz, ($2::timestamptz) - '1 microsecond'::interval, ($1::int || ' day')::interval) AS d
 ), unflattened_usage_by_interval AS (
 	-- We select data from both workspace agent stats and workspace app stats to
 	-- get a complete picture of usage. This matches how usage is calculated by
