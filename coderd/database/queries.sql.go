@@ -1866,10 +1866,10 @@ GROUP BY from_, to_
 `
 
 type GetTemplateInsightsByIntervalParams struct {
-	Interval    time.Duration `db:"interval" json:"interval"`
-	EndTime     time.Time     `db:"end_time" json:"end_time"`
-	StartTime   time.Time     `db:"start_time" json:"start_time"`
-	TemplateIDs []uuid.UUID   `db:"template_ids" json:"template_ids"`
+	Interval    int64       `db:"interval" json:"interval"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
 }
 
 type GetTemplateInsightsByIntervalRow struct {

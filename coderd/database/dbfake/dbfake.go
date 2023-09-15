@@ -2424,9 +2424,9 @@ func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg dat
 		templateIDSet      map[uuid.UUID]struct{}
 	}
 
-	statsByInterval := []statByInterval{{arg.StartTime, arg.StartTime.Add(arg.Interval), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	statsByInterval := []statByInterval{{arg.StartTime, arg.StartTime.Add(time.Duration(arg.Interval)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
 	for statsByInterval[len(statsByInterval)-1].endTime.Before(arg.EndTime) {
-		statsByInterval = append(statsByInterval, statByInterval{statsByInterval[len(statsByInterval)-1].endTime, statsByInterval[len(statsByInterval)-1].endTime.Add(arg.Interval), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+		statsByInterval = append(statsByInterval, statByInterval{statsByInterval[len(statsByInterval)-1].endTime, statsByInterval[len(statsByInterval)-1].endTime.Add(time.Duration(arg.Interval)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
 	}
 	if statsByInterval[len(statsByInterval)-1].endTime.After(arg.EndTime) {
 		statsByInterval[len(statsByInterval)-1].endTime = arg.EndTime
