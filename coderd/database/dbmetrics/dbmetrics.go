@@ -100,6 +100,13 @@ func (m metricsStore) ActivityBumpWorkspace(ctx context.Context, arg uuid.UUID) 
 	return r0
 }
 
+func (m metricsStore) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.AllUserIDs(ctx)
+	m.queryLatencies.WithLabelValues("AllUserIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)

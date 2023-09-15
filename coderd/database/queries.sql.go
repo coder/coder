@@ -5846,6 +5846,34 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 	return i, err
 }
 
+const allUserIDs = `-- name: AllUserIDs :many
+SELECT DISTINCT id FROM USERS
+`
+
+// AllUserIDs returns all UserIDs regardless of user status or deletion.
+func (q *sqlQuerier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, allUserIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveUserCount = `-- name: GetActiveUserCount :one
 SELECT
 	COUNT(*)
