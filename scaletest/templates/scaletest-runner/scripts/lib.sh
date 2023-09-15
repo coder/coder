@@ -82,6 +82,6 @@ get_previous_phase() {
 wait_baseline() {
 	s=${1:-2}
 	start_phase "Waiting ${s}m to establish baseline"
-	sleep $((s * 60))
+	maybedryrun "$DRY_RUN" sleep $((s * 60))
 	end_phase
 }
