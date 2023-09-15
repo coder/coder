@@ -4,7 +4,7 @@ A common way to create a template is to begin with a starter template
 then modify it for your needs. Coder makes this easy with starter
 templates for popular development targets like Docker, Kubernetes,
 Azure, and so on. Once your template is up and running, you can edit
-it in the Coder web page. Coder even handles versioning for you so you
+it in the Coder dashboard. Coder even handles versioning for you so you
 can publish official updates or revert to previous revisions.
 
 In this tutorial, you'll create your first template from the Docker
