@@ -86,7 +86,7 @@ require (
 	github.com/cli/safeexec v1.0.1
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/retry v1.4.0
+	github.com/coder/retry v1.5.0
 	github.com/coder/terraform-provider-coder v0.11.1
 	github.com/coder/wgtunnel v0.1.5
 	github.com/coreos/go-oidc/v3 v3.6.0
