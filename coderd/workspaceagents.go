@@ -1804,14 +1804,11 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 	// An empty array is easier for clients to handle than a null.
 	result := []codersdk.WorkspaceAgentMetadata{}
 	for _, datum := range db {
-		if datum.CollectedAt.UTC().IsZero() {
-			datum.CollectedAt = datum.CollectedAt.UTC()
-		}
 		result = append(result, codersdk.WorkspaceAgentMetadata{
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,
-				CollectedAt: datum.CollectedAt,
+				CollectedAt: datum.CollectedAt.UTC(),
 				Age:         int64(time.Since(datum.CollectedAt).Seconds()),
 			},
 			Description: codersdk.WorkspaceAgentMetadataDescription{
