@@ -11,6 +11,9 @@ fi
 # shellcheck source=scripts/lib.sh
 . "${HOME}/coder/scripts/lib.sh"
 
+# Make shellcheck happy.
+DRY_RUN=${DRY_RUN:-0}
+
 # Environment variables shared between scripts.
 SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
@@ -18,16 +21,16 @@ SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 
 coder() {
-	maybedryrun "$DRY_RUN" command coder "${@}"
+	maybedryrun "${DRY_RUN}" command coder "${@}"
 }
 
 show_json() {
-	maybedryrun "$DRY_RUN" jq 'del(.. | .logs?)' "${1}"
+	maybedryrun "${DRY_RUN}" jq 'del(.. | .logs?)' "${1}"
 }
 
 set_status() {
 	dry_run=
-	if [[ $DRY_RUN == 1 ]]; then
+	if [[ ${DRY_RUN} == 1 ]]; then
 		dry_run=" (dry-ryn)"
 	fi
 	echo "$(date -Ins) ${*}${dry_run}" >>"${SCALETEST_STATE_DIR}/status"
