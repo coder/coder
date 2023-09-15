@@ -7,23 +7,27 @@ import {
   PatchGroupRequest,
 } from "api/typesGenerated";
 
+const GROUPS_QUERY_KEY = ["groups"];
+
+const getGroupQueryKey = (groupId: string) => ["group", groupId];
+
 export const groups = (organizationId: string) => {
   return {
-    queryKey: ["groups"],
+    queryKey: GROUPS_QUERY_KEY,
     queryFn: () => API.getGroups(organizationId),
   };
 };
 
 export const group = (groupId: string) => {
   return {
-    queryKey: ["group", groupId],
+    queryKey: getGroupQueryKey(groupId),
     queryFn: () => API.getGroup(groupId),
   };
 };
 
 export const groupPermissions = (groupId: string) => {
   return {
-    queryKey: ["group", groupId, "permissions"],
+    queryKey: [...getGroupQueryKey(groupId), "permissions"],
     queryFn: () =>
       checkAuthorization({
         checks: {
@@ -47,7 +51,7 @@ export const createGroup = (queryClient: QueryClient) => {
     }: CreateGroupRequest & { organizationId: string }) =>
       API.createGroup(organizationId, request),
     onSuccess: async () => {
-      await queryClient.invalidateQueries(["groups"]);
+      await queryClient.invalidateQueries(GROUPS_QUERY_KEY);
     },
   };
 };
@@ -59,24 +63,16 @@ export const patchGroup = (queryClient: QueryClient) => {
       ...request
     }: PatchGroupRequest & { groupId: string }) =>
       API.patchGroup(groupId, request),
-    onSuccess: async (updatedGroup: Group) => {
-      await Promise.all([
-        queryClient.invalidateQueries(["groups"]),
-        queryClient.invalidateQueries(["group", updatedGroup.id]),
-      ]);
-    },
+    onSuccess: async (updatedGroup: Group) =>
+      invalidateGroup(queryClient, updatedGroup.id),
   };
 };
 
 export const deleteGroup = (queryClient: QueryClient) => {
   return {
     mutationFn: API.deleteGroup,
-    onSuccess: async (_: void, groupId: string) => {
-      await Promise.all([
-        queryClient.invalidateQueries(["groups"]),
-        queryClient.invalidateQueries(["group", groupId]),
-      ]);
-    },
+    onSuccess: async (_: void, groupId: string) =>
+      invalidateGroup(queryClient, groupId),
   };
 };
 
@@ -84,12 +80,8 @@ export const addMember = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
       API.addMember(groupId, userId),
-    onSuccess: async (updatedGroup: Group) => {
-      await Promise.all([
-        queryClient.invalidateQueries(["groups"]),
-        queryClient.invalidateQueries(["group", updatedGroup.id]),
-      ]);
-    },
+    onSuccess: async (updatedGroup: Group) =>
+      invalidateGroup(queryClient, updatedGroup.id),
   };
 };
 
@@ -97,11 +89,13 @@ export const removeMember = (queryClient: QueryClient) => {
   return {
     mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
       API.removeMember(groupId, userId),
-    onSuccess: async (updatedGroup: Group) => {
-      await Promise.all([
-        queryClient.invalidateQueries(["groups"]),
-        queryClient.invalidateQueries(["group", updatedGroup.id]),
-      ]);
-    },
+    onSuccess: async (updatedGroup: Group) =>
+      invalidateGroup(queryClient, updatedGroup.id),
   };
 };
+
+export const invalidateGroup = (queryClient: QueryClient, groupId: string) =>
+  Promise.all([
+    queryClient.invalidateQueries(GROUPS_QUERY_KEY),
+    queryClient.invalidateQueries(getGroupQueryKey(groupId)),
+  ]);
