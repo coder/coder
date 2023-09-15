@@ -13,6 +13,9 @@ import { Pill } from "components/Pill/Pill";
 import { Avatar } from "components/Avatar/Avatar";
 import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
+import { Alert, AlertDetail } from "components/Alert/Alert";
+import { AlertTitle } from "@mui/material";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
 
 export type ChangeVersionDialogProps = DialogProps & {
   template: Template | undefined;
@@ -32,6 +35,7 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 }) => {
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
+  const version = selectedTemplateVersion.current;
 
   return (
     <ConfirmDialog
@@ -51,74 +55,100 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
         <Stack>
           <p>You are about to change the version of this workspace.</p>
           {templateVersions ? (
-            <FormFields>
-              <Autocomplete
-                disableClearable
-                options={templateVersions}
-                defaultValue={defaultTemplateVersion}
-                id="template-version-autocomplete"
-                open={isAutocompleteOpen}
-                onChange={(_, newTemplateVersion) => {
-                  selectedTemplateVersion.current =
-                    newTemplateVersion ?? undefined;
-                }}
-                onOpen={() => {
-                  setIsAutocompleteOpen(true);
-                }}
-                onClose={() => {
-                  setIsAutocompleteOpen(false);
-                }}
-                isOptionEqualToValue={(
-                  option: TemplateVersion,
-                  value: TemplateVersion,
-                ) => option.id === value.id}
-                getOptionLabel={(option) => option.name}
-                renderOption={(props, option: TemplateVersion) => (
-                  <Box component="li" {...props}>
-                    <AvatarData
-                      avatar={
-                        <Avatar src={option.created_by.avatar_url}>
-                          {option.name}
-                        </Avatar>
-                      }
-                      title={
-                        <Stack
-                          direction="row"
-                          justifyContent="space-between"
-                          style={{ width: "100%" }}
-                        >
-                          {option.name}
-                          {template?.active_version_id === option.id && (
-                            <Pill text="Active" type="success" />
-                          )}
-                        </Stack>
-                      }
-                      subtitle={createDayString(option.created_at)}
-                    />
-                  </Box>
-                )}
-                renderInput={(params) => (
-                  <>
-                    <TextField
-                      {...params}
-                      fullWidth
-                      placeholder="Template version name"
-                      InputProps={{
-                        ...params.InputProps,
-                        endAdornment: (
-                          <>
-                            {!templateVersions ? (
-                              <CircularProgress size={16} />
-                            ) : null}
-                            {params.InputProps.endAdornment}
-                          </>
-                        ),
-                      }}
-                    />
-                  </>
-                )}
-              />
-            </FormFields>
+            <>
+              <FormFields>
+                <Autocomplete
+                  disableClearable
+                  options={templateVersions}
+                  defaultValue={defaultTemplateVersion}
+                  id="template-version-autocomplete"
+                  open={isAutocompleteOpen}
+                  onChange={(_, newTemplateVersion) => {
+                    selectedTemplateVersion.current =
+                      newTemplateVersion ?? undefined;
+                  }}
+                  onOpen={() => {
+                    setIsAutocompleteOpen(true);
+                  }}
+                  onClose={() => {
+                    setIsAutocompleteOpen(false);
+                  }}
+                  isOptionEqualToValue={(
+                    option: TemplateVersion,
+                    value: TemplateVersion,
+                  ) => option.id === value.id}
+                  getOptionLabel={(option) => option.name}
+                  renderOption={(props, option: TemplateVersion) => (
+                    <Box component="li" {...props}>
+                      <AvatarData
+                        avatar={
+                          <Avatar src={option.created_by.avatar_url}>
+                            {option.name}
+                          </Avatar>
+                        }
+                        title={
+                          <Stack
+                            direction="row"
+                            justifyContent="space-between"
+                            style={{ width: "100%" }}
+                          >
+                            <Stack
+                              direction="row"
+                              alignItems="center"
+                              spacing={1}
+                            >
+                              {option.name}
+                              {option.message && (
+                                <InfoIcon
+                                  sx={(theme) => ({
+                                    width: theme.spacing(1.5),
+                                    height: theme.spacing(1.5),
+                                  })}
+                                />
+                              )}
+                            </Stack>
+                            {template?.active_version_id === option.id && (
+                              <Pill text="Active" type="success" />
+                            )}
+                          </Stack>
+                        }
+                        subtitle={createDayString(option.created_at)}
+                      />
+                    </Box>
+                  )}
+                  renderInput={(params) => (
+                    <>
+                      <TextField
+                        {...params}
+                        fullWidth
+                        placeholder="Template version name"
+                        InputProps={{
+                          ...params.InputProps,
+                          endAdornment: (
+                            <>
+                              {!templateVersions ? (
+                                <CircularProgress size={16} />
+                              ) : null}
+                              {params.InputProps.endAdornment}
+                            </>
+                          ),
+                        }}
+                      />
+                    </>
+                  )}
+                />
+              </FormFields>
+              {version && (
+                <Alert severity="info">
+                  <AlertTitle>
+                    Published by {version.created_by.username}
+                  </AlertTitle>
+                  {version.message && (
+                    <AlertDetail>{version.message}</AlertDetail>
+                  )}
+                </Alert>
+              )}
+            </>
           ) : (
             <Loader />
           )}
