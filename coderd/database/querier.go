@@ -124,15 +124,15 @@ type sqlcQuerier interface {
 	GetTemplateByID(ctx context.Context, id uuid.UUID) (Template, error)
 	GetTemplateByOrganizationAndName(ctx context.Context, arg GetTemplateByOrganizationAndNameParams) (Template, error)
 	GetTemplateDAUs(ctx context.Context, arg GetTemplateDAUsParams) ([]GetTemplateDAUsRow, error)
-	// GetTemplateDailyInsights returns all daily intervals between start and end
-	// time, if end time is a partial day, it will be included in the results and
-	// that interval will be less than 24 hours. If there is no data for a selected
-	// interval/template, it will be included in the results with 0 active users.
-	GetTemplateDailyInsights(ctx context.Context, arg GetTemplateDailyInsightsParams) ([]GetTemplateDailyInsightsRow, error)
 	// GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 	// in use during a minute, we will add 5 minutes to the total usage for that
 	// session/app (per user).
 	GetTemplateInsights(ctx context.Context, arg GetTemplateInsightsParams) (GetTemplateInsightsRow, error)
+	// GetTemplateInsightsByInterval returns all intervals between start and end
+	// time, if end time is a partial interval, it will be included in the results and
+	// that interval will be shorter than a full one. If there is no data for a selected
+	// interval/template, it will be included in the results with 0 active users.
+	GetTemplateInsightsByInterval(ctx context.Context, arg GetTemplateInsightsByIntervalParams) ([]GetTemplateInsightsByIntervalRow, error)
 	// GetTemplateParameterInsights does for each template in a given timeframe,
 	// look for the latest workspace build (for every workspace) that has been
 	// created in the timeframe and return the aggregate usage counts of parameter

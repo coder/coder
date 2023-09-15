@@ -191,7 +191,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 
 	var usage database.GetTemplateInsightsRow
 	var appUsage []database.GetTemplateAppInsightsRow
-	var dailyUsage []database.GetTemplateDailyInsightsRow
+	var dailyUsage []database.GetTemplateInsightsByIntervalRow
 	var parameterRows []database.GetTemplateParameterInsightsRow
 
 	eg, egCtx := errgroup.WithContext(ctx)
@@ -203,7 +203,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	eg.Go(func() error {
 		var err error
 		if interval != "" {
-			dailyUsage, err = api.Database.GetTemplateDailyInsights(egCtx, database.GetTemplateDailyInsightsParams{
+			dailyUsage, err = api.Database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
 				StartTime:   startTime,
 				EndTime:     endTime,
 				TemplateIDs: templateIDs,
