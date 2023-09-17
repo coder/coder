@@ -412,7 +412,7 @@ terminal. See [Configuring Web IDEs](../ides/web-ides.md) to learn how to give
 users access to additional web applications.
 
 Template administrators can hide apps like the web-based Terminal or VS Code
-Desktop the `display_apps` configuration in the `coder_agent` resource.
+Desktop with the [`display_apps`](https://registry.terraform.io/providers/coder/coder/0.11.2/docs/resources/agent#display_apps) configuration in the [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent) resource.
 
 ```hcl
   display_apps {
