@@ -73,15 +73,15 @@ func (w *startupLogsWriter) Close() error {
 	return nil
 }
 
-// StartupLogsWriter returns an io.WriteCloser that sends logs via the
+// LogsWriter returns an io.WriteCloser that sends logs via the
 // provided sender. The sender is expected to be non-blocking. Calling
 // Close flushes any remaining partially written log lines but is
-// otherwise no-op. If the context passed to StartupLogsWriter is
+// otherwise no-op. If the context passed to LogsWriter is
 // canceled, any remaining logs will be discarded.
 //
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
-func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source uuid.UUID, level codersdk.LogLevel) io.WriteCloser {
+func LogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source uuid.UUID, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
 		ctx:    ctx,
 		send:   sender,

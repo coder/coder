@@ -184,7 +184,7 @@ func TestStartupLogsWriter_Write(t *testing.T) {
 				got = append(got, log...)
 				return nil
 			}
-			w := agentsdk.StartupLogsWriter(tt.ctx, send, uuid.New(), tt.level)
+			w := agentsdk.LogsWriter(tt.ctx, send, uuid.New(), tt.level)
 			for _, s := range tt.writes {
 				_, err := w.Write([]byte(s))
 				if err != nil {

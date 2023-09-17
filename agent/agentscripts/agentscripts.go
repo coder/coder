@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -55,6 +56,7 @@ type Runner struct {
 	closeMutex   sync.Mutex
 	ctx          context.Context
 	cron         *cron.Cron
+	initialized  atomic.Bool
 	scripts      []codersdk.WorkspaceAgentScript
 }
 
@@ -62,7 +64,12 @@ type Runner struct {
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
 func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
+	if r.initialized.Load() {
+		return xerrors.New("init: already initialized")
+	}
+	r.initialized.Store(true)
 	r.scripts = scripts
+	r.Logger.Info(r.ctx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
 	for _, script := range scripts {
 		if script.Cron == "" {
@@ -165,9 +172,9 @@ func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
 		}
 	}()
 
-	infoW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelInfo)
+	infoW := agentsdk.LogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelInfo)
 	defer infoW.Close()
-	errW := agentsdk.StartupLogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelError)
+	errW := agentsdk.LogsWriter(ctx, send, script.LogSourceID, codersdk.LogLevelError)
 	defer errW.Close()
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)
