@@ -6,7 +6,7 @@ USAGE:
   Get started with a templated template.
 
 OPTIONS:
-      --id aws-ecs-container|aws-linux|aws-windows|azure-linux|do-linux|docker|docker-with-dotfiles|fly-docker-image|gcp-linux|gcp-vm-container|gcp-windows|kubernetes
+      --id aws-ecs-container|aws-linux|aws-windows|azure-linux|do-linux|docker|docker-with-dotfiles|gcp-linux|gcp-vm-container|gcp-windows|kubernetes
           Specify a given example template by ID.
 
 ———
