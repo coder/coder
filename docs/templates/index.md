@@ -413,6 +413,7 @@ users access to additional web applications.
 
 Template administrators can hide apps like the web-based Terminal or VS Code
 Desktop with the [`display_apps`](https://registry.terraform.io/providers/coder/coder/0.11.2/docs/resources/agent#display_apps) configuration in the [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent) resource.
+For example, the following configuration block will hide all default Coder apps except the web terminal.
 
 ```hcl
   display_apps {
