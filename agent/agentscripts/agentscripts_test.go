@@ -30,11 +30,11 @@ func TestExecuteBasic(t *testing.T) {
 		return nil
 	})
 	defer runner.Close()
-	err := runner.Init([]codersdk.WorkspaceAgentScript{{
+	err := runner.Init(context.Background(), []codersdk.WorkspaceAgentScript{{
 		Script: "echo hello",
 	}})
 	require.NoError(t, err)
-	require.NoError(t, runner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
+	require.NoError(t, runner.Execute(context.Background(), func(script codersdk.WorkspaceAgentScript) bool {
 		return true
 	}))
 	log := <-logs
@@ -45,12 +45,12 @@ func TestTimeout(t *testing.T) {
 	t.Parallel()
 	runner := setup(t, nil)
 	defer runner.Close()
-	err := runner.Init([]codersdk.WorkspaceAgentScript{{
+	err := runner.Init(context.Background(), []codersdk.WorkspaceAgentScript{{
 		Script:         "sleep 3",
 		TimeoutSeconds: time.Nanosecond,
 	}})
 	require.NoError(t, err)
-	require.ErrorIs(t, runner.Execute(nil), agentscripts.ErrTimeout)
+	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)
 }
 
 func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchLogs) error) *agentscripts.Runner {
@@ -62,16 +62,15 @@ func setup(t *testing.T, patchLogs func(ctx context.Context, req agentsdk.PatchL
 		}
 	}
 	fs := afero.NewMemMapFs()
-	ctx := context.Background()
 	logger := slogtest.Make(t, nil)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), fs, 0, "")
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, 0, "")
 	require.NoError(t, err)
 	s.AgentToken = func() string { return "" }
 	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
 	t.Cleanup(func() {
 		_ = s.Close()
 	})
-	return agentscripts.New(ctx, agentscripts.Options{
+	return agentscripts.New(agentscripts.Options{
 		LogDir:     t.TempDir(),
 		Logger:     logger,
 		SSHServer:  s,

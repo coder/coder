@@ -214,7 +214,7 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Manifest = &a.manifest
 	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
-	a.scriptRunner = agentscripts.New(ctx, agentscripts.Options{
+	a.scriptRunner = agentscripts.New(agentscripts.Options{
 		LogDir:     a.logDir,
 		Logger:     a.logger,
 		SSHServer:  sshSrv,
@@ -638,12 +638,12 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
-		err = a.scriptRunner.Init(manifest.Scripts)
+		err = a.scriptRunner.Init(ctx, manifest.Scripts)
 		if err != nil {
 			return xerrors.Errorf("init script runner: %w", err)
 		}
 		err = a.trackConnGoroutine(func() {
-			err := a.scriptRunner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
+			err := a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 				return script.RunOnStart
 			})
 			if err != nil {
@@ -1244,7 +1244,7 @@ func (a *agent) Close() error {
 	}
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	err = a.scriptRunner.Execute(func(script codersdk.WorkspaceAgentScript) bool {
+	err = a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
 		return script.RunOnStop
 	})
 	if err != nil {

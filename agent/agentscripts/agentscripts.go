@@ -39,11 +39,10 @@ type Options struct {
 }
 
 // New creates a runner for the provided scripts.
-func New(ctx context.Context, opts Options) *Runner {
+func New(opts Options) *Runner {
 	return &Runner{
 		Options: opts,
 		cron:    cron.New(cron.WithParser(parser)),
-		ctx:     ctx,
 		closed:  make(chan struct{}),
 	}
 }
@@ -54,7 +53,6 @@ type Runner struct {
 	cmdCloseWait sync.WaitGroup
 	closed       chan struct{}
 	closeMutex   sync.Mutex
-	ctx          context.Context
 	cron         *cron.Cron
 	initialized  atomic.Bool
 	scripts      []codersdk.WorkspaceAgentScript
@@ -63,13 +61,13 @@ type Runner struct {
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
-func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
+func (r *Runner) Init(ctx context.Context, scripts []codersdk.WorkspaceAgentScript) error {
 	if r.initialized.Load() {
 		return xerrors.New("init: already initialized")
 	}
 	r.initialized.Store(true)
 	r.scripts = scripts
-	r.Logger.Info(r.ctx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
+	r.Logger.Info(ctx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
 	for _, script := range scripts {
 		if script.Cron == "" {
@@ -77,9 +75,9 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 		}
 		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
-			err := r.run(script)
+			err := r.run(ctx, script)
 			if err != nil {
-				r.Logger.Warn(r.ctx, "run agent script on schedule", slog.Error(err))
+				r.Logger.Warn(context.Background(), "run agent script on schedule", slog.Error(err))
 			}
 		})
 		if err != nil {
@@ -96,7 +94,7 @@ func (r *Runner) StartCRON() {
 }
 
 // Execute runs a set of scripts according to a filter.
-func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool) error {
+func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.WorkspaceAgentScript) bool) error {
 	if filter == nil {
 		// Execute em' all!
 		filter = func(script codersdk.WorkspaceAgentScript) bool {
@@ -110,7 +108,7 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 		}
 		script := script
 		eg.Go(func() error {
-			err := r.run(script)
+			err := r.run(ctx, script)
 			if err != nil {
 				return xerrors.Errorf("run agent script %q: %w", script.LogPath, err)
 			}
@@ -124,9 +122,8 @@ func (r *Runner) Execute(filter func(script codersdk.WorkspaceAgentScript) bool)
 // If the timeout is exceeded, the process is sent an interrupt signal.
 // If the process does not exit after a few seconds, it is forcefully killed.
 // This function immediately returns after a timeout, and does not wait for the process to exit.
-func (r *Runner) run(script codersdk.WorkspaceAgentScript) error {
+func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
 	logger := r.Logger.With(slog.F("log_source", script.LogPath))
-	ctx := r.ctx
 	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
 
 	logPath := script.LogPath

@@ -132,11 +132,11 @@ func TestConvertResources(t *testing.T) {
 					MotdFile:                 "/etc/motd",
 					DisplayApps:              &displayApps,
 					Scripts: []*proto.Script{{
-						DisplayName: "Shutdown Script",
-						RunOnStop:   true,
-						LogPath:     "coder-shutdown-script.log",
-						Script:      "echo bye bye",
-						Timeout:     30,
+						DisplayName:    "Shutdown Script",
+						RunOnStop:      true,
+						LogPath:        "coder-shutdown-script.log",
+						Script:         "echo bye bye",
+						TimeoutSeconds: 30,
 					}},
 				}, {
 					Name:                     "dev3",
