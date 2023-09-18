@@ -1,11 +1,12 @@
 # A guided tour of a template
 
-This guided tour introduces you to the different parts of a template
+This guided tour introduces you to the different parts of a Coder template
 by showing you how to create a template from scratch.
 
-In this tour, you'll write a simple template that will provision a workspace as a Docker
-container with Ubuntu. This simple template is based on the same
-Docker starter template that the [tutorial](./tutorial.md) uses.
+In this tour, you'll write a simple template that will provision a
+workspace as a Docker container with Ubuntu. This simple template is
+based on the same Docker starter template that the
+[tutorial](./tutorial.md) uses.
 
 ## Before you start
 
@@ -20,7 +21,7 @@ To follow this guide, you'll need:
 
 - Access to the command-line on this computer or instance.
 
-- A text editor and a tar utility. This tour uses [GNU
+- A text editor and a tar utility. For this tour, we use [GNU
 nano](https://nano-editor.org/) and [GNU
 tar](https://www.gnu.org/software/tar/).
 
@@ -30,28 +31,28 @@ tar](https://www.gnu.org/software/tar/).
 
 The main part of a Coder template is a
 [Terraform](https://terraform.io) `tf` file. A template often has
-other files to configure other services that the template needs. In
-this tour you'll also create a `Dockerfile`.
+other files to configure the other resources that the template needs.
+In this tour you'll also create a `Dockerfile`.
 
 Coder can provision all Terraform modules, resources, and
 properties. The Coder server essentially runs a `terraform apply`
 every time a workspace is created, started, or stopped.
 
-This is a simplified diagram of our [Kubernetes starter
-template](https://github.com/coder/coder/blob/main/examples/templates/kubernetes/main.tf):
+Here's a simplified diagram that shows the main parts of the template
+we'll create.
 
-![Template architecture](../images/templates/template-anatomy.png)
+![Template architecture](../images/templates/template-architecture.png)
 
 
 ## 1. Create template files
 
-On the command line, create a directory for your template and create the `Dockerfile`.
+On your local computer, create a directory for your template and create the `Dockerfile`.
 
 This is a simple `Dockerfile` that starts with the [official ubuntu image](https://hub.docker.com/_/ubuntu/).
 
 ```shell
-mkdir scratch-template
-cd scratch-template
+mkdir template-tour
+cd template-tour
 mkdir build
 nano build/Dockerfile
 ```
@@ -247,7 +248,11 @@ resource "coder_app" "coder-server-doc" {
 }
 ```
 
-## 5. Persistent storage
+## 5. Persistent and ephemeral resources
+
+Managing the lifecycle of template resources is important. We want to
+make sure that workspaces use computing, storage, and other services
+efficiently.
 
 We want our workspace's home directory to persist after the workspace
 is stopped so that a developer can continue their work when they start
@@ -255,9 +260,15 @@ the workspace again.
 
 We do this in 2 parts:
 
-- Our `docker_volume` resource uses the `lifecycle` block with `ignore_changes = all` argument to prevent accidental deletions.
-- We use an immutable parameter like `data.coder_workspace.me.id` for volume names to prevent destroying them in case of a workspace name change.
-- Later, our `docker_container` resource uses the Terraform [count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
+- Our `docker_volume` resource uses the `lifecycle` block with
+  `ignore_changes = all` argument to prevent accidental deletions.
+- We use an immutable parameter like `data.coder_workspace.me.id` for
+  volume names to prevent destroying them in case of a workspace name
+  change.
+
+You'll see later that we make sure that our Docker container is
+ephemeral with the Terraform
+[count](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
 meta-argument.
 
 ```hcl
@@ -269,6 +280,7 @@ resource "docker_volume" "home_volume" {
   }
 }
 ```
+
 For details, see [Resource persistence](./resource-persistence.md).
 
 ## 6. Set up the Docker container
@@ -317,6 +329,37 @@ resource "docker_container" "workspace" {
   }
 }
 ```
+
+## 7. Create the template in Coder
+
+We've create the files for our templates. Now we can add them to our Coder deployment.
+
+We can do this in these ways with the Coder CLI or the Coder dashboard. For this tour, we'll use the dashboard.
+
+First, we need to package up our template in a tar file:
+
+```console
+$ tar cvf ../template-tour .
+./
+./build/
+./build/Dockerfile
+./main.tf
+$ ls ..
+ coder   template-tour   template-tour.tar
+```
+
+In your web browser, log in to your Coder dashboard, select
+***Templates**, then **Create template**.
+
+Upload the `template-tour.tar` file, the scroll down to select
+**Create template**.
+
+[Uploading a template](../images/templates/upload.png)
+
+After a few moments, your template will be ready to use for new
+workspaces.
+
+[Tour template, ready to use](../images/templates/template-tour.png)
 
 
 ## Next steps

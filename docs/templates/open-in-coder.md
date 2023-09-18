@@ -98,10 +98,3 @@ To support any infrastructure and software stack, Coder provides a generic appro
 
    ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
 
-## Example: Kubernetes
-
-For a full example of the Open in Coder flow in Kubernetes, check out [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
-
-## Devcontainer support
-
-Devcontainer support is on the roadmap. [Follow along here](https://github.com/coder/coder/issues/5559)

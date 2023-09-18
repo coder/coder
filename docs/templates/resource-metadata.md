@@ -4,7 +4,8 @@ Expose key workspace information to your users with
 [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata)
 resources in your template code.
 
-You can use `coder_metadata` to show Terraform resource attributes like these:
+You can use `coder_metadata` to show Terraform resource attributes
+like these:
 
 - Compute resources
 - IP addresses
@@ -17,7 +18,8 @@ You can use `coder_metadata` to show Terraform resource attributes like these:
 Coder automatically generates the <code>type</code> metadata.
 </blockquote>
 
-You can also present automatically updating, dynamic values with [agent metadata](./agent-metadata.md).
+You can also present automatically updating, dynamic values with
+[agent metadata](./agent-metadata.md).
 
 ## Example
 

@@ -1,17 +1,19 @@
 # Parameters
 
-A template can prompt the user for additional information when creating workspaces with  [_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
+A template can prompt the user for additional information when
+creating workspaces with
+[_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
 
 ![Parameters in Create Workspace screen](../images/parameters.png)
 
 The user can set parameters in the UI and CLI.
 
 You'll likely want to hardcode certain template properties for
-workspaces, such as security group, VPC. You can expose other
-properties with parameters to give developers the flexibility to
-specify their own instance size, repo URL, and so on.
+workspaces, such as security group. You can expose other properties
+with parameters to give developers the flexibility to specify their
+own instance size, repo URL, and so on.
 
-This example lets a developer choose the Docker host for the
+This example lets a developer choose a Docker host for the
 workspace:
 
 ```hcl
@@ -42,7 +44,7 @@ data "coder_parameter" "docker_host" {
 }
 ```
 
-From there, a template can refer to parameters at build time:
+From there, a template can refer to a parameter's value:
 
 ```hcl
 provider "docker" {
@@ -77,7 +79,8 @@ data "coder_parameter" "security_groups" {
 
 ## Options
 
-A _string_ parameter can provide a set of options to limit the user's choices:
+A _string_ parameter can provide a set of options to limit the user's
+choices:
 
 ```hcl
 data "coder_parameter" "docker_host" {

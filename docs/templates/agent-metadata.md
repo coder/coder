@@ -2,10 +2,12 @@
 
 ![agent-metadata](../images/agent-metadata.png)
 
-With agent metadata, template admins can expose operational metrics from
-their workspaces to their users. It is the dynamic complement of [Resource Metadata](./resource-metadata.md).
+With agent metadata, template admins can expose operational metrics
+from their workspaces to their users. It is the dynamic complement of
+[Resource Metadata](./resource-metadata.md).
 
-You specify agent metadata in the [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
+You specify agent metadata in the
+[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 
 ## Examples
 
@@ -16,8 +18,9 @@ without messy escape codes, just as if you were working in your
 terminal.
 
 Some of the examples use the [`coder stat`](../cli/stat.md) command.
-This is useful for determining CPU and memory usage inside a container
-instead of the workspace's host, which can be tricky otherwise.
+This is useful for determining CPU and memory usage inside a
+container, which is more accurate than resource usage about the
+workspace's host.
 
 Here's a standard set of metadata snippets for Linux agents:
 
@@ -122,9 +125,9 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 ## Managing the database load
 
-Agent metadata can generate a significant write load and overwhelm your
-database if you're not careful. The approximate writes per second can be
-calculated using the formula:
+Agent metadata can generate a significant write load and overwhelm
+your Coder database if you're not careful. The approximate writes per
+second can be calculated using the formula:
 
 ```text
 (metadata_count * num_running_agents * 2) / metadata_avg_interval
@@ -136,7 +139,7 @@ For example, let's say you have
 - each with 6 metadata snippets
 - with an average interval of 4 seconds
 
-You can expect `(10 * 6 * 2) / 4` or 30 writes per second.
+You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 
 One of the writes is to the `UNLOGGED` `workspace_agent_metadata`
 table and the other to the `NOTIFY` query that enables live stats

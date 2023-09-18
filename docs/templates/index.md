@@ -1,7 +1,8 @@
 # Templates
 
-Templates define the underlying infrastructure that workspaces run on.
-All Coder [workspaces](./workspaces.md) are created from templates.
+Templates define the underlying infrastructure that Coder
+[workspaces](../workspaces.md) run on. All workspaces are created from
+templates.
 
 <children>
 </children>

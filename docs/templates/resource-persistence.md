@@ -9,9 +9,9 @@ completely ephemeral workspace, there are zero resources in the Off
 state. In a completely persistent workspace, there is no difference
 between the Off and On states.
 
-Most workspaces fall somewhere in the middle, persisting user data
-such as filesystem volumes, but deleting expensive, reproducible
-resources such as compute instances.
+The needs of most workspaces fall somewhere in the middle, persisting
+user data like filesystem volumes, but deleting expensive,
+reproducible resources such as compute instances.
 
 ## Disabling Persistence
 
@@ -50,8 +50,7 @@ Because we depend on `coder_workspace.me.owner`, if the owner changes
 their username, Terraform would recreate the volume (wiping its data!)
 the next time the workspace restarts.
 
-Therefore, persistent resource names must only depend on immutable IDs
-such as:
+To prevent this, use immutable IDs instead:
 
 - `coder_workspace.me.owner_id`
 - `coder_workspace.me.id`
@@ -69,11 +68,11 @@ resource "docker_volume" "home_volume" {
 
 ## 🛡 Bulletproofing
 
-Even if our persistent resource depends exclusively on static IDs, a
+Even if your persistent resource depends exclusively on static IDs, a
 change to the `name` format or other attributes would cause Terraform
 to rebuild the resource.
 
-You can prevent Terraform from recreating the resource under any
+You can prevent Terraform from recreating a resource under any
 circumstance by setting the [`ignore_changes = all` directive in the
 `lifecycle`
 block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).

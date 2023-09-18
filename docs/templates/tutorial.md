@@ -22,13 +22,13 @@ You'll need a computer or cloud computing instance with both
 
 ## 1. Log in to Coder
 
-In your web browser, go to your Coder instance to log in.
+In your web browser, go to your Coder dashboard to log in.
 
 ## 2. Choose a starter template
 
 Select **Templates** > **Starter Templates**.
 
-![Starter Templates button](../images/templates/starter-templates.png)
+![Starter Templates button](../images/templates/starter-templates-button.png)
 
 In **Filter**, select **Docker** then select **Develop in Docker**.
 
@@ -77,10 +77,10 @@ This starter template lets you connect to your workspace in a few ways:
 - Terminal: Opens a browser-based terminal with a shell in the
   workspace's Docker instance.
 - SSH: Use SSH to log in to the workspace from your local machine. If
-  you haven't already, you'll have to install coder on your local
+  you haven't already, you'll have to install Coder on your local
   machine to configure your SSH client.
 
-You can edit the template to let developers connect to a workspace in
+> **Tip**: You can edit the template to let developers connect to a workspace in
 [a few more ways](../ides.md).
 
 ## 7. Modify your template

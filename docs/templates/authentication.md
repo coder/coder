@@ -7,19 +7,22 @@
   </p>
 </blockquote>
 
-The Coder server's [provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)
-process needs to authenticate with cloud provider APIs to provision
+The Coder server's
+[provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)
+process needs to authenticate with other provider APIs to provision
 workspaces. There are two approaches to do this:
 
 - Pass credentials to the provisioner as parameters.
 - Preferred: Execute the Coder server in an environment that is
 authenticated with the cloud provider.
 
-We encourage the latter approach where supported. This simplifies the
-template, keeps cloud provider credentials out of Coder's database
-(making it a less valuable target for attackers), and is compatible
-with agent-based authentication schemes, which handle credential
-rotation or ensure the credentials are not written to disk.
+We encourage the latter approach where supported:
+
+- Simplifies the template.
+- Keeps cloud provider credentials out of Coder's database (making it
+a less valuable target for attackers).
+- Compatible with agent-based authentication schemes, which handle
+credential rotation or ensure the credentials are not written to disk.
 
 Generally, you can set up an environment to provide credentials to
 Coder in these ways:
