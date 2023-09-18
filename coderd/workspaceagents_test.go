@@ -385,33 +385,13 @@ func TestWorkspaceAgentStartupLogs(t *testing.T) {
 			_ = closer.Close()
 		}()
 
-		first := make(chan struct{})
-		go func() {
-			select {
-			case <-ctx.Done():
-				assert.Fail(t, "context done while waiting in goroutine")
-			case <-logs:
-				close(first)
-			}
-		}()
 		select {
 		case <-ctx.Done():
 			require.FailNow(t, "context done while waiting for first log")
-		case <-first:
+		case <-logs:
 		}
 
 		_ = coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStart)
-
-		// Send a new log message to trigger a re-check.
-		err = agentClient.PatchLogs(ctx, agentsdk.PatchLogs{
-			Logs: []agentsdk.Log{
-				{
-					CreatedAt: dbtime.Now(),
-					Output:    "testing2",
-				},
-			},
-		})
-		require.NoError(t, err)
 
 		select {
 		case <-ctx.Done():

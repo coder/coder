@@ -570,11 +570,28 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		lastSentLogID = logs[len(logs)-1].ID
 	}
 
+	workspaceNotifyCh := make(chan struct{}, 1)
 	notifyCh := make(chan struct{}, 1)
 	// Allow us to immediately check if we missed any logs
 	// between initial fetch and subscribe.
 	notifyCh <- struct{}{}
 
+	// Subscribe to workspace to detect new builds.
+	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
+		// The message is not important, we're tracking lastSentLogID manually.
+		select {
+		case workspaceNotifyCh <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to subscribe to workspace for log streaming.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closeSubscribeWorkspace()
 	// Subscribe early to prevent missing log events.
 	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
 		// The message is not important, we're tracking lastSentLogID manually.
@@ -585,7 +602,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to subscribe to logs.",
+			Message: "Failed to subscribe to agent for log streaming.",
 			Detail:  err.Error(),
 		})
 		return
@@ -604,10 +621,13 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 		keepGoing := true
 		for keepGoing {
+			onlyCheckLatestBuild := false
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+			case <-workspaceNotifyCh:
+				onlyCheckLatestBuild = true
 			case <-notifyCh:
 				t.Reset(recheckInterval)
 			}
@@ -623,6 +643,10 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			// If the agent is no longer in the latest build, we can stop after
 			// checking once.
 			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == workspaceAgent.ID })
+
+			if onlyCheckLatestBuild && keepGoing {
+				continue
+			}
 
 			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID:      workspaceAgent.ID,
