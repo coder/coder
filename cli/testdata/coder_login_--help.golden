@@ -1,8 +1,11 @@
-Usage: coder login [flags] <url>
+coder v0.0.0-devel
 
-Authenticate with Coder deployment
+USAGE:
+  coder login [flags] <url>
 
-[1mOptions[0m
+  Authenticate with Coder deployment
+
+OPTIONS:
       --first-user-email string, $CODER_FIRST_USER_EMAIL
           Specifies an email address to use if creating the first user for the
           deployment.
@@ -23,5 +26,5 @@ Authenticate with Coder deployment
           By default, the CLI will generate a new session token when logging in.
           This flag will instead use the provided token as the session token.
 
----
+———
 Run `coder --help` for a list of global options.

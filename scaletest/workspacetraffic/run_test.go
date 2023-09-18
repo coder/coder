@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"golang.org/x/exp/slices"
+
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -97,7 +99,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			cancelAfter  = 1500 * time.Millisecond
 			fudgeWrite   = 12 // The ReconnectingPTY payload incurs some overhead
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
@@ -113,12 +114,32 @@ func TestRun(t *testing.T) {
 		})
 
 		var logs strings.Builder
-		// Stop the test after one 'tick'. This will cause an EOF.
+
+		runDone := make(chan struct{})
 		go func() {
-			<-time.After(cancelAfter)
-			cancel()
+			defer close(runDone)
+			err := runner.Run(ctx, "", &logs)
+			assert.NoError(t, err, "unexpected error calling Run()")
 		}()
-		require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
+
+		gotMetrics := make(chan struct{})
+		go func() {
+			defer close(gotMetrics)
+			// Wait until we get some non-zero metrics before canceling.
+			assert.Eventually(t, func() bool {
+				readLatencies := readMetrics.Latencies()
+				writeLatencies := writeMetrics.Latencies()
+				return len(readLatencies) > 0 &&
+					len(writeLatencies) > 0 &&
+					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
+					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
+			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+		}()
+
+		// Stop the test after we get some non-zero metrics.
+		<-gotMetrics
+		cancel()
+		<-runDone
 
 		t.Logf("read errors: %.0f\n", readMetrics.Errors())
 		t.Logf("write errors: %.0f\n", writeMetrics.Errors())
@@ -132,12 +153,6 @@ func TestRun(t *testing.T) {
 		assert.NotZero(t, readMetrics.Total())
 		// Latency should report non-zero values.
 		assert.NotEmpty(t, readMetrics.Latencies())
-		for _, l := range readMetrics.Latencies()[1:] { // skip the first one, which is always zero
-			assert.NotZero(t, l)
-		}
-		for _, l := range writeMetrics.Latencies()[1:] { // skip the first one, which is always zero
-			assert.NotZero(t, l)
-		}
 		assert.NotEmpty(t, writeMetrics.Latencies())
 		// Should not report any errors!
 		assert.Zero(t, readMetrics.Errors())
@@ -210,7 +225,6 @@ func TestRun(t *testing.T) {
 		var (
 			bytesPerTick = 1024
 			tickInterval = 1000 * time.Millisecond
-			cancelAfter  = 1500 * time.Millisecond
 			fudgeWrite   = 2 // We send \r\n, which is two bytes
 			readMetrics  = &testMetrics{}
 			writeMetrics = &testMetrics{}
@@ -226,12 +240,32 @@ func TestRun(t *testing.T) {
 		})
 
 		var logs strings.Builder
-		// Stop the test after one 'tick'. This will cause an EOF.
+
+		runDone := make(chan struct{})
 		go func() {
-			<-time.After(cancelAfter)
-			cancel()
+			defer close(runDone)
+			err := runner.Run(ctx, "", &logs)
+			assert.NoError(t, err, "unexpected error calling Run()")
 		}()
-		require.NoError(t, runner.Run(ctx, "", &logs), "unexpected error calling Run()")
+
+		gotMetrics := make(chan struct{})
+		go func() {
+			defer close(gotMetrics)
+			// Wait until we get some non-zero metrics before canceling.
+			assert.Eventually(t, func() bool {
+				readLatencies := readMetrics.Latencies()
+				writeLatencies := writeMetrics.Latencies()
+				return len(readLatencies) > 0 &&
+					len(writeLatencies) > 0 &&
+					slices.ContainsFunc(readLatencies, func(f float64) bool { return f > 0.0 }) &&
+					slices.ContainsFunc(writeLatencies, func(f float64) bool { return f > 0.0 })
+			}, testutil.WaitLong, testutil.IntervalMedium, "expected non-zero metrics")
+		}()
+
+		// Stop the test after we get some non-zero metrics.
+		<-gotMetrics
+		cancel()
+		<-runDone
 
 		t.Logf("read errors: %.0f\n", readMetrics.Errors())
 		t.Logf("write errors: %.0f\n", writeMetrics.Errors())
@@ -245,12 +279,6 @@ func TestRun(t *testing.T) {
 		assert.NotZero(t, readMetrics.Total())
 		// Latency should report non-zero values.
 		assert.NotEmpty(t, readMetrics.Latencies())
-		for _, l := range readMetrics.Latencies()[1:] { // skip the first one, which is always zero
-			assert.NotZero(t, l)
-		}
-		for _, l := range writeMetrics.Latencies()[1:] { // skip the first one, which is always zero
-			assert.NotZero(t, l)
-		}
 		assert.NotEmpty(t, writeMetrics.Latencies())
 		// Should not report any errors!
 		assert.Zero(t, readMetrics.Errors())

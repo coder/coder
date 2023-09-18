@@ -7,6 +7,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/pretty"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
@@ -77,7 +79,7 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 
 			// Confirm deletion of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Delete these templates: %s?", cliui.DefaultStyles.Code.Render(strings.Join(templateNames, ", "))),
+				Text:      fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -91,7 +93,9 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
-				_, _ = fmt.Fprintln(inv.Stdout, "Deleted template "+cliui.DefaultStyles.Code.Render(template.Name)+" at "+cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp))+"!")
+				_, _ = fmt.Fprintln(
+					inv.Stdout, "Deleted template "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()),
+				)
 			}
 
 			return nil

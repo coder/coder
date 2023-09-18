@@ -11,7 +11,7 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { templateACLMachine } from "xServices/template/templateACLXService";
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import { docs } from "utils/docs";
 
@@ -19,7 +19,7 @@ export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
 > = () => {
   const organizationId = useOrganizationId();
-  const { template, permissions } = useTemplateSettingsContext();
+  const { template, permissions } = useTemplateSettings();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },

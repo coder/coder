@@ -5,11 +5,11 @@ import Autocomplete from "@mui/material/Autocomplete";
 import { useMachine } from "@xstate/react";
 import { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import debounce from "just-debounce-it";
 import { ChangeEvent, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService";
 import Box from "@mui/material/Box";
+import { useDebouncedFunction } from "hooks/debounce";
 
 export type UserOrGroupAutocompleteValue = User | Group | null;
 
@@ -44,7 +44,7 @@ export const UserOrGroupAutocomplete: React.FC<
     return !excludeIds.includes(result.id);
   });
 
-  const handleFilterChange = debounce(
+  const { debounced: handleFilterChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {
       sendSearch("SEARCH", { query: event.target.value });
     },
@@ -95,8 +95,6 @@ export const UserOrGroupAutocomplete: React.FC<
       className={styles.autocomplete}
       renderInput={(params) => (
         <>
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment -- Need it */}
-          {/* @ts-ignore -- Issue from lib https://github.com/i18next/react-i18next/issues/1543 */}
           <TextField
             {...params}
             margin="none"

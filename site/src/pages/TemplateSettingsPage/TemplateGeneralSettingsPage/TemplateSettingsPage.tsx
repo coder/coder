@@ -4,20 +4,18 @@ import { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import {
-  getTemplateQuery,
-  useTemplateSettingsContext,
-} from "../TemplateSettingsLayout";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
+import { templateByNameKey } from "api/queries/templates";
+import { useOrganizationId } from "hooks";
 
 export const TemplateSettingsPage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
-  const { t } = useTranslation("templateSettingsPage");
   const navigate = useNavigate();
-  const { template } = useTemplateSettingsContext();
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
   const queryClient = useQueryClient();
   const {
     mutate: updateTemplate,
@@ -27,9 +25,9 @@ export const TemplateSettingsPage: FC = () => {
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
       onSuccess: async () => {
-        await queryClient.invalidateQueries({
-          queryKey: getTemplateQuery(templateName),
-        });
+        await queryClient.invalidateQueries(
+          templateByNameKey(orgId, templateName),
+        );
         displaySuccess("Template updated successfully");
       },
     },
@@ -38,7 +36,7 @@ export const TemplateSettingsPage: FC = () => {
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, t("title")])}</title>
+        <title>{pageTitle([template.name, "General Settings"])}</title>
       </Helmet>
       <TemplateSettingsPageView
         isSubmitting={isSubmitting}

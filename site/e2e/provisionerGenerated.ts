@@ -200,6 +200,7 @@ export interface Metadata {
   templateVersion: string;
   workspaceOwnerOidcAccessToken: string;
   workspaceOwnerSessionToken: string;
+  templateId: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -732,6 +733,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerSessionToken !== "") {
       writer.uint32(90).string(message.workspaceOwnerSessionToken);
+    }
+    if (message.templateId !== "") {
+      writer.uint32(98).string(message.templateId);
     }
     return writer;
   },

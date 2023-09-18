@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { updateTemplateMeta } from "api/api";
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
@@ -7,23 +7,25 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
-import { useLocalStorage } from "hooks";
+import { useLocalStorage, useOrganizationId } from "hooks";
+import { templateByNameKey } from "api/queries/templates";
 
 const TemplateSchedulePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const navigate = useNavigate();
-  const { template } = useTemplateSettingsContext();
+  const queryClient = useQueryClient();
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
   const { entitlements, experiments } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions");
-  const allowAutostopRequirement = experiments.includes(
-    "template_autostop_requirement",
-  );
+  const allowAutostopRequirement =
+    entitlements.features["template_autostop_requirement"].enabled;
   const { clearLocal } = useLocalStorage();
 
   const {
@@ -33,7 +35,10 @@ const TemplateSchedulePage: FC = () => {
   } = useMutation(
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
-      onSuccess: () => {
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          templateByNameKey(orgId, templateName),
+        );
         displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion
         clearLocal("dismissedWorkspaceList"); // workspaces page

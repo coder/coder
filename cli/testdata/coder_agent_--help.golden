@@ -1,8 +1,11 @@
-Usage: coder agent [flags]
+coder v0.0.0-devel
 
-Starts the Coder workspace agent.
+USAGE:
+  coder agent [flags]
 
-[1mOptions[0m
+  Starts the Coder workspace agent.
+
+OPTIONS:
       --log-human string, $CODER_AGENT_LOGGING_HUMAN (default: /dev/stderr)
           Output human-readable logs to a given file.
 
@@ -37,5 +40,5 @@ Starts the Coder workspace agent.
       --tailnet-listen-port int, $CODER_AGENT_TAILNET_LISTEN_PORT (default: 0)
           Specify a static port for Tailscale to use for listening.
 
----
+———
 Run `coder --help` for a list of global options.

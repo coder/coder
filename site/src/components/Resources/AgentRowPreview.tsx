@@ -2,7 +2,6 @@ import { makeStyles } from "@mui/styles";
 import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink";
 import { Maybe } from "components/Conditionals/Maybe";
 import { FC } from "react";
-import { useTranslation } from "react-i18next";
 import { combineClasses } from "utils/combineClasses";
 import { WorkspaceAgent } from "../../api/typesGenerated";
 import { Stack } from "../Stack/Stack";
@@ -21,7 +20,6 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
   alignValues,
 }) => {
   const styles = useStyles({ alignValues });
-  const { t } = useTranslation("agent");
 
   return (
     <Stack
@@ -51,7 +49,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               styles.agentDataName,
             ])}
           >
-            <span>{t("labels.agent").toString()}:</span>
+            <span>Agent:</span>
             <span className={styles.agentDataValue}>{agent.name}</span>
           </Stack>
 
@@ -65,7 +63,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               styles.agentDataOS,
             ])}
           >
-            <span>{t("labels.os").toString()}:</span>
+            <span>OS:</span>
             <span
               className={combineClasses([
                 styles.agentDataValue,
@@ -82,7 +80,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
             spacing={1}
             className={styles.agentDataItem}
           >
-            <span>{t("labels.apps").toString()}:</span>
+            <span>Apps:</span>
             <Stack
               direction="row"
               alignItems="center"
@@ -93,9 +91,7 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
                 <AppPreviewLink key={app.slug} app={app} />
               ))}
               <Maybe condition={agent.apps.length === 0}>
-                <span className={styles.agentDataValue}>
-                  {t("labels.noApps")}
-                </span>
+                <span className={styles.agentDataValue}>None</span>
               </Maybe>
             </Stack>
           </Stack>

@@ -1,8 +1,11 @@
-Usage: coder server [flags]
+coder v0.0.0-devel
 
-Start a Coder server
+USAGE:
+  coder server [flags]
 
-[1mSubcommands[0m
+  Start a Coder server
+
+SUBCOMMANDS:
     create-admin-user         Create a new admin user with the given username,
                               email and password and adds it to every
                               organization.
@@ -11,7 +14,7 @@ Start a Coder server
     postgres-builtin-url      Output the connection URL for the built-in
                               PostgreSQL deployment.
 
-[1mOptions[0m
+OPTIONS:
       --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           The directory to cache temporary files. If unspecified and
           $CACHE_DIRECTORY is set, it will be used for compatibility with
@@ -51,7 +54,7 @@ Start a Coder server
           Periodically check for new releases of Coder and inform the owner. The
           check is performed once per day.
 
-[1mClient Options[0m 
+CLIENT OPTIONS: 
 These options change the behavior of how clients interact with the Coder.
 Clients include the coder cli, vs code extension, and the web UI.
 
@@ -64,7 +67,7 @@ Clients include the coder cli, vs code extension, and the web UI.
       --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
           The SSH deployment prefix is used in the Host of the ssh config.
 
-[1mConfig Options[0m 
+CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
 
   -c, --config yaml-config-path, $CODER_CONFIG_PATH
@@ -74,7 +77,7 @@ Use a YAML configuration file when your server launch become unwieldy.
           
           Write out the current server config as YAML to stdout.
 
-[1mIntrospection / Logging Options[0m 
+INTROSPECTION / LOGGING OPTIONS: 
       --enable-terraform-debug-mode bool, $CODER_ENABLE_TERRAFORM_DEBUG_MODE (default: false)
           Allow administrators to enable Terraform debug output.
 
@@ -91,7 +94,7 @@ Use a YAML configuration file when your server launch become unwieldy.
       --log-stackdriver string, $CODER_LOGGING_STACKDRIVER
           Output Stackdriver compatible logs to a given file.
 
-[1mIntrospection / Prometheus Options[0m 
+INTROSPECTION / PROMETHEUS OPTIONS: 
       --prometheus-address host:port, $CODER_PROMETHEUS_ADDRESS (default: 127.0.0.1:2112)
           The bind address to serve prometheus metrics.
 
@@ -104,7 +107,7 @@ Use a YAML configuration file when your server launch become unwieldy.
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
 
-[1mIntrospection / Tracing Options[0m 
+INTROSPECTION / TRACING OPTIONS: 
       --trace-logs bool, $CODER_TRACE_LOGS
           Enables capturing of logs as events in traces. This is useful for
           debugging, but may result in a very large amount of events being sent
@@ -118,14 +121,14 @@ Use a YAML configuration file when your server launch become unwieldy.
       --trace-honeycomb-api-key string, $CODER_TRACE_HONEYCOMB_API_KEY
           Enables trace exporting to Honeycomb.io using the provided API Key.
 
-[1mIntrospection / pprof Options[0m 
+INTROSPECTION / PPROF OPTIONS: 
       --pprof-address host:port, $CODER_PPROF_ADDRESS (default: 127.0.0.1:6060)
           The bind address to serve pprof.
 
       --pprof-enable bool, $CODER_PPROF_ENABLE
           Serve pprof metrics on the address defined by pprof address.
 
-[1mNetworking Options[0m 
+NETWORKING OPTIONS: 
       --access-url url, $CODER_ACCESS_URL
           The URL that users will use to access the Coder deployment.
 
@@ -151,7 +154,7 @@ Use a YAML configuration file when your server launch become unwieldy.
           Specifies the wildcard hostname to use for workspace applications in
           the form "*.example.com".
 
-[1mNetworking / DERP Options[0m 
+NETWORKING / DERP OPTIONS: 
 Most Coder deployments never have to think about DERP because all connections
 between workspaces and users are peer-to-peer. However, when Coder cannot
 establish a peer to peer connection, Coder uses a distributed relay network
@@ -193,7 +196,7 @@ backed by Tailscale and WireGuard.
           own DERP region, with region IDs starting at `--derp-server-region-id
           + 1`. Use special value 'disable' to turn off STUN completely.
 
-[1mNetworking / HTTP Options[0m 
+NETWORKING / HTTP OPTIONS: 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
@@ -224,7 +227,7 @@ backed by Tailscale and WireGuard.
           longer if they are actively making requests, but this functionality
           can be disabled via --disable-session-expiry-refresh.
 
-[1mNetworking / TLS Options[0m 
+NETWORKING / TLS OPTIONS: 
 Configure TLS / HTTPS for your Coder deployment. If you're running Coder behind
 a TLS-terminating reverse proxy or are accessing Coder over a secure link, you
 can safely ignore these settings.
@@ -277,7 +280,7 @@ can safely ignore these settings.
           Minimum supported version of TLS. Accepted values are "tls10",
           "tls11", "tls12" or "tls13".
 
-[1mOAuth2 / GitHub Options[0m 
+OAUTH2 / GITHUB OPTIONS: 
       --oauth2-github-allow-everyone bool, $CODER_OAUTH2_GITHUB_ALLOW_EVERYONE
           Allow all logins, setting this option means allowed orgs and teams
           must be empty.
@@ -302,7 +305,7 @@ can safely ignore these settings.
           Base URL of a GitHub Enterprise deployment to use for Login with
           GitHub.
 
-[1mOIDC Options[0m 
+OIDC OPTIONS: 
       --oidc-group-auto-create bool, $CODER_OIDC_GROUP_AUTO_CREATE (default: false)
           Automatically creates missing groups from a user's groups claim.
 
@@ -383,7 +386,7 @@ can safely ignore these settings.
       --oidc-icon-url url, $CODER_OIDC_ICON_URL
           URL pointing to the icon to use on the OpenID Connect login button.
 
-[1mProvisioning Options[0m 
+PROVISIONING OPTIONS: 
 Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
@@ -404,7 +407,7 @@ updating, and deleting workspace resources.
           Number of provisioner daemons to create on start. If builds are stuck
           in queued state for a long time, consider increasing this.
 
-[1mTelemetry Options[0m 
+TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all
 personalinformation before sending data to our servers. Please only disable
 telemetrywhen required by your organization's security policy.
@@ -413,12 +416,7 @@ telemetrywhen required by your organization's security policy.
           Whether telemetry is enabled or not. Coder collects anonymized usage
           data to help improve our product.
 
-      --telemetry-trace bool, $CODER_TELEMETRY_TRACE (default: false)
-          Whether Opentelemetry traces are sent to Coder. Coder collects
-          anonymized application tracing to help improve our product. Disabling
-          telemetry also disables this option.
-
-[1mUser Quiet Hours Schedule Options[0m 
+USER QUIET HOURS SCHEDULE OPTIONS: 
 Allow users to set quiet hours schedules each day for workspaces to avoid
 workspaces stopping during the day due to template max TTL.
 
@@ -432,7 +430,7 @@ workspaces stopping during the day due to template max TTL.
           one hour and minute can be specified (ranges or comma separated values
           are not supported).
 
-[1m⚠️ Dangerous Options[0m 
+⚠️ DANGEROUS OPTIONS: 
       --dangerous-allow-path-app-sharing bool, $CODER_DANGEROUS_ALLOW_PATH_APP_SHARING
           Allow workspace apps that are not served from subdomains to be shared.
           Path-based app sharing is DISABLED by default for security purposes.
@@ -449,7 +447,7 @@ workspaces stopping during the day due to template max TTL.
           can be disabled entirely with --disable-path-apps for further
           security.
 
-[1mEnterprise Options[0m 
+ENTERPRISE OPTIONS: 
 These options are only available in the Enterprise Edition.
 
       --browser-only bool, $CODER_BROWSER_ONLY
@@ -473,5 +471,5 @@ These options are only available in the Enterprise Edition.
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -1,8 +1,11 @@
-Usage: coder templates create [flags] [name]
+coder v0.0.0-devel
 
-Create a template from the current directory or as specified by flag
+USAGE:
+  coder templates create [flags] [name]
 
-[1mOptions[0m
+  Create a template from the current directory or as specified by flag
+
+OPTIONS:
       --default-ttl duration (default: 24h)
           Specify a default TTL for workspaces created from this template. It is
           the default time before shutdown - workspaces created from this
@@ -58,5 +61,5 @@ Create a template from the current directory or as specified by flag
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

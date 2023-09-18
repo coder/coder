@@ -39,7 +39,7 @@ export interface WorkspaceStatsProps {
   maxDeadlineIncrease: number;
   maxDeadlineDecrease: number;
   canUpdateWorkspace: boolean;
-  quota_budget?: number;
+  quotaBudget?: number;
   onDeadlinePlus: (hours: number) => void;
   onDeadlineMinus: (hours: number) => void;
   handleUpdate: () => void;
@@ -47,7 +47,7 @@ export interface WorkspaceStatsProps {
 
 export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
   workspace,
-  quota_budget,
+  quotaBudget,
   maxDeadlineDecrease,
   maxDeadlineIncrease,
   canUpdateWorkspace,
@@ -103,7 +103,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               {workspace.outdated && (
                 <WorkspaceOutdatedTooltip
                   templateName={workspace.template_name}
-                  templateId={workspace.template_id}
+                  latestVersionId={workspace.template_active_version_id}
                   onUpdateVersion={handleUpdate}
                   ariaLabel="update version"
                 />
@@ -169,7 +169,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
             className={styles.statsItem}
             label={Language.costLabel}
             value={`${workspace.latest_build.daily_cost} ${
-              quota_budget ? `/ ${quota_budget}` : ""
+              quotaBudget ? `/ ${quotaBudget}` : ""
             }`}
           />
         )}

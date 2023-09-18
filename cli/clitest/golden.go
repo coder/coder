@@ -11,8 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -28,7 +26,7 @@ import (
 // make update-golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
+var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d+:\d+)`)
 
 type CommandHelpCase struct {
 	Name string
@@ -50,16 +48,8 @@ func DefaultCases() []CommandHelpCase {
 
 // TestCommandHelp will test the help output of the given commands
 // using golden files.
-//
-//nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *clibase.Cmd, cases []CommandHelpCase) {
-	ogColorProfile := lipgloss.ColorProfile()
-	// ANSI256 escape codes are far easier for humans to parse in a diff,
-	// but TrueColor is probably more popular with modern terminals.
-	lipgloss.SetColorProfile(termenv.ANSI)
-	t.Cleanup(func() {
-		lipgloss.SetColorProfile(ogColorProfile)
-	})
+	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
 	root := getRoot(t)

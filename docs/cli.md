@@ -14,11 +14,11 @@ coder [global-flags] <subcommand>
 Coder — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:
 
-      $ coder server
+     $ coder server
 
   - Get started by creating a template from an example:
 
-      $ coder templates init
+     $ coder templates init
 ```
 
 ## Subcommands

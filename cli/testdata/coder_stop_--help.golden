@@ -1,10 +1,13 @@
-Usage: coder stop [flags] <workspace>
+coder v0.0.0-devel
 
-Stop a workspace
+USAGE:
+  coder stop [flags] <workspace>
 
-[1mOptions[0m
+  Stop a workspace
+
+OPTIONS:
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

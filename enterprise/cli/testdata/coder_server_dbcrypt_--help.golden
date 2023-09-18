@@ -1,12 +1,15 @@
-Usage: coder server dbcrypt
+coder v0.0.0-devel
 
-Manage database encryption.
+USAGE:
+  coder server dbcrypt
 
-[1mSubcommands[0m
+  Manage database encryption.
+
+SUBCOMMANDS:
     decrypt    Decrypt a previously encrypted database.
     delete     Delete all encrypted data from the database. THIS IS A
                DESTRUCTIVE OPERATION.
     rotate     Rotate database encryption keys.
 
----
+———
 Run `coder --help` for a list of global options.

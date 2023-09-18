@@ -18,10 +18,13 @@ const meta: Meta<typeof AppLink> = {
       <ProxyContext.Provider
         value={{
           proxyLatencies: MockProxyLatencies,
-          proxy: getPreferredProxy(
-            MockWorkspaceProxies,
-            MockPrimaryWorkspaceProxy,
-          ),
+          proxy: {
+            ...getPreferredProxy(
+              MockWorkspaceProxies,
+              MockPrimaryWorkspaceProxy,
+            ),
+            preferredWildcardHostname: "*.super_proxy.tld",
+          },
           proxies: MockWorkspaceProxies,
           isLoading: false,
           isFetched: true,
@@ -131,6 +134,19 @@ export const HealthUnhealthy: Story = {
     app: {
       ...MockWorkspaceApp,
       health: "unhealthy",
+    },
+    agent: MockWorkspaceAgent,
+  },
+};
+
+export const InternalApp: Story = {
+  args: {
+    workspace: MockWorkspace,
+    app: {
+      ...MockWorkspaceApp,
+      display_name: "Check my URL",
+      subdomain: true,
+      subdomain_name: "slug--agent_name--workspace_name--username",
     },
     agent: MockWorkspaceAgent,
   },

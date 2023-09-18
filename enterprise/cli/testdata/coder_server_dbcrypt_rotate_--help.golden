@@ -1,8 +1,11 @@
-Usage: coder server dbcrypt rotate [flags]
+coder v0.0.0-devel
 
-Rotate database encryption keys.
+USAGE:
+  coder server dbcrypt rotate [flags]
 
-[1mOptions[0m
+  Rotate database encryption keys.
+
+OPTIONS:
       --new-key string, $CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY
           The new external token encryption key. Must be base64-encoded.
 
@@ -16,5 +19,5 @@ Rotate database encryption keys.
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -1,8 +1,11 @@
-Usage: coder server dbcrypt decrypt [flags]
+coder v0.0.0-devel
 
-Decrypt a previously encrypted database.
+USAGE:
+  coder server dbcrypt decrypt [flags]
 
-[1mOptions[0m
+  Decrypt a previously encrypted database.
+
+OPTIONS:
       --keys string-array, $CODER_EXTERNAL_TOKEN_ENCRYPTION_DECRYPT_KEYS
           Keys required to decrypt existing data. Must be a comma-separated list
           of base64-encoded keys.
@@ -13,5 +16,5 @@ Decrypt a previously encrypted database.
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

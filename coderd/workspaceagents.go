@@ -84,8 +84,41 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resource.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace build.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace owner.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -176,20 +209,21 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	vscodeProxyURI := strings.ReplaceAll(api.AppHostname, "*",
-		fmt.Sprintf("%s://{{port}}--%s--%s--%s",
-			api.AccessURL.Scheme,
-			workspaceAgent.Name,
-			workspace.Name,
-			owner.Username,
-		))
+	appHost := httpapi.ApplicationURL{
+		AppSlugOrPort: "{{port}}",
+		AgentName:     workspaceAgent.Name,
+		WorkspaceName: workspace.Name,
+		Username:      owner.Username,
+	}
+	vscodeProxyURI := api.AccessURL.Scheme + "://" + strings.ReplaceAll(api.AppHostname, "*", appHost.String())
+
 	if api.AccessURL.Port() != "" {
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
-		Apps:                     convertApps(dbApps),
+		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
@@ -1312,19 +1346,40 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	}
 }
 
-func convertApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
+// convertProvisionedApps converts applications that are in the middle of provisioning process.
+// It means that they may not have an agent or workspace assigned (dry-run job).
+func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
+	return convertApps(dbApps, database.WorkspaceAgent{}, database.User{}, database.Workspace{})
+}
+
+func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
+		var subdomainName string
+		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
+			appSlug := dbApp.Slug
+			if appSlug == "" {
+				appSlug = dbApp.DisplayName
+			}
+			subdomainName = httpapi.ApplicationURL{
+				AppSlugOrPort: appSlug,
+				AgentName:     agent.Name,
+				WorkspaceName: workspace.Name,
+				Username:      owner.Username,
+			}.String()
+		}
+
 		apps = append(apps, codersdk.WorkspaceApp{
-			ID:           dbApp.ID,
-			URL:          dbApp.Url.String,
-			External:     dbApp.External,
-			Slug:         dbApp.Slug,
-			DisplayName:  dbApp.DisplayName,
-			Command:      dbApp.Command.String,
-			Icon:         dbApp.Icon,
-			Subdomain:    dbApp.Subdomain,
-			SharingLevel: codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
+			ID:            dbApp.ID,
+			URL:           dbApp.Url.String,
+			External:      dbApp.External,
+			Slug:          dbApp.Slug,
+			DisplayName:   dbApp.DisplayName,
+			Command:       dbApp.Command.String,
+			Icon:          dbApp.Icon,
+			Subdomain:     dbApp.Subdomain,
+			SubdomainName: subdomainName,
+			SharingLevel:  codersdk.WorkspaceAppSharingLevel(dbApp.SharingLevel),
 			Healthcheck: codersdk.Healthcheck{
 				URL:       dbApp.HealthcheckUrl,
 				Interval:  dbApp.HealthcheckInterval,
@@ -1813,7 +1868,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,
-				CollectedAt: datum.CollectedAt,
+				CollectedAt: datum.CollectedAt.UTC(),
 				Age:         int64(time.Since(datum.CollectedAt).Seconds()),
 			},
 			Description: codersdk.WorkspaceAgentMetadataDescription{

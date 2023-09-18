@@ -1,51 +1,43 @@
-import { Story } from "@storybook/react";
-import { AccountForm, AccountFormProps } from "./AccountForm";
+import type { Meta, StoryObj } from "@storybook/react";
+import { AccountForm } from "./AccountForm";
 import { mockApiError } from "testHelpers/entities";
 
-export default {
+const meta: Meta<typeof AccountForm> = {
   title: "components/AccountForm",
   component: AccountForm,
-  argTypes: {
-    onSubmit: { action: "Submit" },
+  args: {
+    email: "test-user@org.com",
+    isLoading: false,
+    initialValues: {
+      username: "test-user",
+    },
+    updateProfileError: undefined,
   },
 };
 
-const Template: Story<AccountFormProps> = (args: AccountFormProps) => (
-  <AccountForm {...args} />
-);
+export default meta;
+type Story = StoryObj<typeof AccountForm>;
 
-export const Example = Template.bind({});
-Example.args = {
-  email: "test-user@org.com",
-  isLoading: false,
-  initialValues: {
-    username: "test-user",
-  },
-  updateProfileError: undefined,
-  onSubmit: () => {
-    return Promise.resolve();
+export const Example: Story = {};
+
+export const Loading: Story = {
+  args: {
+    isLoading: true,
   },
 };
-
-export const Loading = Template.bind({});
-Loading.args = {
-  ...Example.args,
-  isLoading: true,
-};
-
-export const WithError = Template.bind({});
-WithError.args = {
-  ...Example.args,
-  updateProfileError: mockApiError({
-    message: "Username is invalid",
-    validations: [
-      {
-        field: "username",
-        detail: "Username is too long.",
-      },
-    ],
-  }),
-  initialTouched: {
-    username: true,
+export const WithError: Story = {
+  args: {
+    updateProfileError: mockApiError({
+      message: "Username is invalid",
+      validations: [
+        {
+          field: "username",
+          detail: "Username is too long.",
+        },
+      ],
+    }),
+    initialTouched: {
+      username: true,
+    },
   },
 };

@@ -1,13 +1,16 @@
-Usage: coder groups create [flags] <name>
+coder v0.0.0-devel
 
-Create a user group
+USAGE:
+  coder groups create [flags] <name>
 
-[1mOptions[0m
+  Create a user group
+
+OPTIONS:
   -u, --avatar-url string, $CODER_AVATAR_URL
           Set an avatar for a group.
 
       --display-name string, $CODER_DISPLAY_NAME
           Optional human friendly name for the group.
 
----
+———
 Run `coder --help` for a list of global options.

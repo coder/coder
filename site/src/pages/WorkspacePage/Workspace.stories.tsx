@@ -11,10 +11,9 @@ import { DashboardProviderContext } from "components/Dashboard/DashboardProvider
 import { WorkspaceBuildLogsSection } from "pages/WorkspacePage/WorkspaceBuildLogsSection";
 
 const MockedAppearance = {
-  config: Mocks.MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
+  config: Mocks.MockAppearanceConfig,
+  isPreview: false,
+  setPreview: () => {},
 };
 
 const meta: Meta<typeof Workspace> = {
@@ -61,6 +60,7 @@ const meta: Meta<typeof Workspace> = {
     }),
   ],
 };
+
 export default meta;
 type Story = StoryObj<typeof Workspace>;
 

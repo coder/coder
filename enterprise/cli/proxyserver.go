@@ -151,7 +151,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			defer http.DefaultClient.CloseIdleConnections()
 			closers.Add(http.DefaultClient.CloseIdleConnections)
 
-			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, inv, cfg)
+			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, cfg)
 			defer func() {
 				logger.Debug(ctx, "closing tracing")
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
@@ -305,7 +305,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			case exitErr = <-errCh:
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			}

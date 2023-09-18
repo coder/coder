@@ -7,7 +7,6 @@ import { useRef, FC, useState } from "react";
 import Picker from "@emoji-mart/react";
 import { makeStyles } from "@mui/styles";
 import { colors } from "theme/colors";
-import { useTranslation } from "react-i18next";
 import data from "@emoji-mart/data/sets/14/twitter.json";
 import { Stack } from "components/Stack/Stack";
 
@@ -26,7 +25,6 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   const styles = useStyles();
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const { t } = useTranslation("templateSettingsPage");
   const hasIcon = textFieldProps.value && textFieldProps.value !== "";
 
   return (
@@ -34,7 +32,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
       <TextField
         {...textFieldProps}
         fullWidth
-        label={t("iconLabel")}
+        label="Icon"
         InputProps={{
           endAdornment: hasIcon ? (
             <InputAdornment position="end" className={styles.adornment}>
@@ -59,7 +57,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
           setIsEmojiPickerOpen((v) => !v);
         }}
       >
-        {t("selectEmoji")}
+        Select emoji
       </Button>
 
       <Popover

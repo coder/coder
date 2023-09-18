@@ -20,6 +20,6 @@ export const Preview: Story = {
   args: {
     message: "weeeee",
     backgroundColor: "#000000",
-    preview: true,
+    isPreview: true,
   },
 };

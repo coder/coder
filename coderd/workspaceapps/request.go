@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -61,8 +62,14 @@ func (r IssueTokenRequest) AppBaseURL() (*url.URL, error) {
 		if r.AppHostname == "" {
 			return nil, xerrors.New("subdomain app hostname is required to generate subdomain app URL")
 		}
-		appHost := fmt.Sprintf("%s--%s--%s--%s", r.AppRequest.AppSlugOrPort, r.AppRequest.AgentNameOrID, r.AppRequest.WorkspaceNameOrID, r.AppRequest.UsernameOrID)
-		u.Host = strings.Replace(r.AppHostname, "*", appHost, 1)
+
+		appHost := httpapi.ApplicationURL{
+			AppSlugOrPort: r.AppRequest.AppSlugOrPort,
+			AgentName:     r.AppRequest.AgentNameOrID,
+			WorkspaceName: r.AppRequest.WorkspaceNameOrID,
+			Username:      r.AppRequest.UsernameOrID,
+		}
+		u.Host = strings.Replace(r.AppHostname, "*", appHost.String(), 1)
 		u.Path = r.AppRequest.BasePath
 		return u, nil
 	default:

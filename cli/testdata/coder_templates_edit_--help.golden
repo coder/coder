@@ -1,8 +1,11 @@
-Usage: coder templates edit [flags] <template>
+coder v0.0.0-devel
 
-Edit the metadata of a template by name.
+USAGE:
+  coder templates edit [flags] <template>
 
-[1mOptions[0m
+  Edit the metadata of a template by name.
+
+OPTIONS:
       --allow-user-autostart bool (default: true)
           Allow users to configure autostart for workspaces on this template.
           This can only be disabled in enterprise.
@@ -53,5 +56,5 @@ Edit the metadata of a template by name.
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -104,6 +104,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],
@@ -309,6 +310,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],
@@ -513,6 +515,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "sharing_level": "owner",
                     "slug": "string",
                     "subdomain": true,
+                    "subdomain_name": "string",
                     "url": "string"
                   }
                 ],
@@ -719,6 +722,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],
@@ -1004,6 +1008,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
+                "subdomain_name": "string",
                 "url": "string"
               }
             ],

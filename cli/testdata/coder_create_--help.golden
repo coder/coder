@@ -1,12 +1,15 @@
-Usage: coder create [flags] [name]
+coder v0.0.0-devel
 
-Create a workspace
+USAGE:
+  coder create [flags] [name]
 
-- Create a workspace for another user (if you have permission):               
+  Create a workspace
 
-     [40m [0m[91;40m$ coder create <username>/<workspace_name>[0m[40m [0m
+    - Create a workspace for another user (if you have permission):
+  
+       $ coder create <username>/<workspace_name>
 
-[1mOptions[0m
+OPTIONS:
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 
@@ -28,5 +31,5 @@ Create a workspace
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

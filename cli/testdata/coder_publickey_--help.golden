@@ -1,10 +1,13 @@
-Usage: coder publickey [flags]
+coder v0.0.0-devel
 
-Output your Coder public key used for Git operations
+USAGE:
+  coder publickey [flags]
 
-Aliases: pubkey
+  Output your Coder public key used for Git operations
 
-[1mOptions[0m
+  Aliases: pubkey
+
+OPTIONS:
       --reset bool
           Regenerate your public key. This will require updating the key on any
           services it's registered with.
@@ -12,5 +15,5 @@ Aliases: pubkey
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

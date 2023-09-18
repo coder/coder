@@ -9,29 +9,28 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { FC } from "react";
-import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService";
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import PlusIcon from "@mui/icons-material/AddOutlined";
-import { useTranslation } from "react-i18next";
 import { Stack } from "components/Stack/Stack";
 import { Link } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { TemplateExample } from "api/typesGenerated";
 
 export interface StarterTemplatePageViewProps {
-  context: StarterTemplateContext;
+  starterTemplate?: TemplateExample;
+  error?: unknown;
 }
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
-  context,
+  starterTemplate,
+  error,
 }) => {
   const styles = useStyles();
-  const { starterTemplate } = context;
-  const { t } = useTranslation("starterTemplatePage");
 
-  if (context.error) {
+  if (error) {
     return (
       <Margins>
-        <ErrorAlert error={context.error} />
+        <ErrorAlert error={error} />
       </Margins>
     );
   }
@@ -52,7 +51,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               rel="noreferrer"
               startIcon={<ViewCodeIcon />}
             >
-              {t("actions.viewSourceCode")}
+              View source code
             </Button>
             <Button
               variant="contained"
@@ -60,7 +59,7 @@ export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
               to={`/templates/new?exampleId=${starterTemplate.id}`}
               startIcon={<PlusIcon />}
             >
-              {t("actions.useTemplate")}
+              Use template
             </Button>
           </>
         }

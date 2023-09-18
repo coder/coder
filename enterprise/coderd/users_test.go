@@ -21,14 +21,14 @@ func TestUserQuietHours(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		defaultQuietHoursSchedule := "CRON_TZ=America/Chicago 0 0 * * *"
+		defaultQuietHoursSchedule := "CRON_TZ=America/Chicago 0 1 * * *"
 		defaultScheduleParsed, err := cron.Daily(defaultQuietHoursSchedule)
 		require.NoError(t, err)
 		nextTime := defaultScheduleParsed.Next(time.Now().In(defaultScheduleParsed.Location()))
 		if time.Until(nextTime) < time.Hour {
 			// Use a different default schedule instead, because we want to avoid
 			// the schedule "ticking over" during this test run.
-			defaultQuietHoursSchedule = "CRON_TZ=America/Chicago 0 12 * * *"
+			defaultQuietHoursSchedule = "CRON_TZ=America/Chicago 0 13 * * *"
 			defaultScheduleParsed, err = cron.Daily(defaultQuietHoursSchedule)
 			require.NoError(t, err)
 		}
@@ -55,7 +55,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, defaultScheduleParsed.String(), sched1.RawSchedule)
 		require.False(t, sched1.UserSet)
-		require.Equal(t, defaultScheduleParsed.Time(), sched1.Time)
+		require.Equal(t, defaultScheduleParsed.TimeParsed().Format("15:40"), sched1.Time)
 		require.Equal(t, defaultScheduleParsed.Location().String(), sched1.Timezone)
 		require.WithinDuration(t, defaultScheduleParsed.Next(time.Now()), sched1.Next, 15*time.Second)
 
@@ -78,7 +78,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched2.RawSchedule)
 		require.True(t, sched2.UserSet)
-		require.Equal(t, customScheduleParsed.Time(), sched2.Time)
+		require.Equal(t, customScheduleParsed.TimeParsed().Format("15:40"), sched2.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched2.Timezone)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
 
@@ -87,7 +87,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched3.RawSchedule)
 		require.True(t, sched3.UserSet)
-		require.Equal(t, customScheduleParsed.Time(), sched3.Time)
+		require.Equal(t, customScheduleParsed.TimeParsed().Format("15:40"), sched3.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched3.Timezone)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
 

@@ -1,15 +1,19 @@
-Usage: coder [global-flags] <subcommand>
+coder v0.0.0-devel
 
-Coder v0.0.0-devel — A tool for provisioning self-hosted development environments with Terraform.
-  - Start a Coder server:                                                       
+USAGE:
+  coder [global-flags] <subcommand>
 
-     [40m [0m[91;40m$ coder server[0m[40m [0m
+  Coder v0.0.0-devel — A tool for provisioning self-hosted development
+  environments with Terraform.
+    - Start a Coder server:
+  
+       $ coder server
+  
+    - Get started by creating a template from an example:
+  
+       $ coder templates init
 
-  - Get started by creating a template from an example:                         
-
-     [40m [0m[91;40m$ coder templates init[0m[40m [0m
-
-[1mSubcommands[0m
+SUBCOMMANDS:
     config-ssh        Add an SSH Host entry for your workspaces "ssh
                       coder.workspace"
     create            Create a workspace
@@ -45,7 +49,7 @@ Coder v0.0.0-devel — A tool for provisioning self-hosted development environme
     users             Manage users
     version           Show coder version
 
-[1mGlobal Options[0m 
+GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
@@ -83,5 +87,5 @@ variables or flags.
   -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.
 
----
+———
 Report bugs and request features at https://github.com/coder/coder/issues/new

@@ -1,9 +1,12 @@
-Usage: coder provisionerd
+coder v0.0.0-devel
 
-Manage provisioner daemons
+USAGE:
+  coder provisionerd
 
-[1mSubcommands[0m
+  Manage provisioner daemons
+
+SUBCOMMANDS:
     start    Run a provisioner daemon
 
----
+———
 Run `coder --help` for a list of global options.
