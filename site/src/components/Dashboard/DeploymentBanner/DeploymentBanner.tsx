@@ -1,20 +1,20 @@
-import { useMachine } from "@xstate/react";
 import { usePermissions } from "hooks/usePermissions";
 import { DeploymentBannerView } from "./DeploymentBannerView";
-import { deploymentStatsMachine } from "xServices/deploymentStats/deploymentStatsMachine";
+import { useQuery } from "@tanstack/react-query";
+import { deploymentStats } from "api/queries/deployment";
 
 export const DeploymentBanner: React.FC = () => {
   const permissions = usePermissions();
-  const [state, sendEvent] = useMachine(deploymentStatsMachine);
+  const deploymentStatsQuery = useQuery(deploymentStats());
 
-  if (!permissions.viewDeploymentValues || !state.context.deploymentStats) {
+  if (!permissions.viewDeploymentValues || !deploymentStatsQuery.data) {
     return null;
   }
 
   return (
     <DeploymentBannerView
-      stats={state.context.deploymentStats}
-      fetchStats={() => sendEvent("RELOAD")}
+      stats={deploymentStatsQuery.data}
+      fetchStats={() => deploymentStatsQuery.refetch()}
     />
   );
 };
