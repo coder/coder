@@ -635,6 +635,28 @@ The text to show on the OpenID Connect sign in button.
 
 URL pointing to the icon to use on the OpenID Connect login button.
 
+### --provisioner-daemon-poll-interval
+
+|             |                                                      |
+| ----------- | ---------------------------------------------------- |
+| Type        | <code>duration</code>                                |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_INTERVAL</code> |
+| YAML        | <code>provisioning.daemonPollInterval</code>         |
+| Default     | <code>1s</code>                                      |
+
+Deprecated and ignored.
+
+### --provisioner-daemon-poll-jitter
+
+|             |                                                    |
+| ----------- | -------------------------------------------------- |
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_JITTER</code> |
+| YAML        | <code>provisioning.daemonPollJitter</code>         |
+| Default     | <code>100ms</code>                                 |
+
+Deprecated and ignored.
+
 ### --postgres-url
 
 |             |                                       |

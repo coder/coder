@@ -701,6 +701,8 @@ export interface PrometheusConfig {
 export interface ProvisionerConfig {
   readonly daemons: number;
   readonly daemons_echo: boolean;
+  readonly daemon_poll_interval: number;
+  readonly daemon_poll_jitter: number;
   readonly force_cancel_interval: number;
   readonly daemon_psk: string;
 }

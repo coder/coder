@@ -45,6 +45,8 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 	var (
 		cacheDir     string
 		rawTags      []string
+		pollInterval time.Duration
+		pollJitter   time.Duration
 		preSharedKey string
 	)
 	client := new(codersdk.Client)
@@ -180,6 +182,20 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Env:           "CODER_PROVISIONERD_TAGS",
 			Description:   "Tags to filter provisioner jobs by.",
 			Value:         clibase.StringArrayOf(&rawTags),
+		},
+		{
+			Flag:        "poll-interval",
+			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
+			Default:     time.Second.String(),
+			Description: "Deprecated and ignored.",
+			Value:       clibase.DurationOf(&pollInterval),
+		},
+		{
+			Flag:        "poll-jitter",
+			Env:         "CODER_PROVISIONERD_POLL_JITTER",
+			Description: "Deprecated and ignored.",
+			Default:     (100 * time.Millisecond).String(),
+			Value:       clibase.DurationOf(&pollJitter),
 		},
 		{
 			Flag:        "psk",

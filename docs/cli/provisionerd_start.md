@@ -22,6 +22,26 @@ coder provisionerd start [flags]
 
 Directory to store cached data.
 
+### --poll-interval
+
+|             |                                                |
+| ----------- | ---------------------------------------------- |
+| Type        | <code>duration</code>                          |
+| Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
+| Default     | <code>1s</code>                                |
+
+Deprecated and ignored.
+
+### --poll-jitter
+
+|             |                                              |
+| ----------- | -------------------------------------------- |
+| Type        | <code>duration</code>                        |
+| Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
+| Default     | <code>100ms</code>                           |
+
+Deprecated and ignored.
+
 ### --psk
 
 |             |                                            |
