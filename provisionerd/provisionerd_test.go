@@ -762,6 +762,9 @@ func TestProvisionerd(t *testing.T) {
 		})
 		require.Condition(t, closedWithin(updateChan, testutil.WaitShort))
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -850,6 +853,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -874,7 +880,7 @@ func TestProvisionerd(t *testing.T) {
 					if second.Load() {
 						completeOnce.Do(func() { close(completeChan) })
 						_, err := stream.Recv()
-						assert.ErrorIs(t, err, context.Canceled)
+						assert.NoError(t, err)
 						return nil
 					}
 					job := &proto.AcquiredJob{
@@ -938,6 +944,9 @@ func TestProvisionerd(t *testing.T) {
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
 		t.Log("completeChan closed")
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 	})
 
@@ -1067,6 +1076,9 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 		Connector:      connector,
 	})
 	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		_ = server.Shutdown(ctx)
 		_ = server.Close()
 	})
 	return server
