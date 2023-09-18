@@ -2,6 +2,7 @@ import { DialogProps } from "components/Dialogs/Dialog";
 import { FC, useRef, useState } from "react";
 import { FormFields } from "components/Form/Form";
 import TextField from "@mui/material/TextField";
+import { makeStyles } from "@mui/styles";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Stack } from "components/Stack/Stack";
 import { Template, TemplateVersion } from "api/typesGenerated";
@@ -36,6 +37,8 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const selectedTemplateVersion = useRef<TemplateVersion | undefined>();
   const version = selectedTemplateVersion.current;
+
+  const styles = useStyles();
 
   return (
     <ConfirmDialog
@@ -132,6 +135,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
                               {params.InputProps.endAdornment}
                             </>
                           ),
+                          classes: {
+                            root: styles.inputRoot,
+                          },
                         }}
                       />
                     </>
@@ -157,3 +163,9 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
     />
   );
 };
+
+export const useStyles = makeStyles((theme) => ({
+  inputRoot: {
+    paddingLeft: `${theme.spacing(1.75)} !important`, // Same padding left as input
+  },
+}));
