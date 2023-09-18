@@ -184,8 +184,9 @@ func (s *server) timeNow() time.Time {
 	return dbtime.Now()
 }
 
-// AcquireJob queries the database to lock a job.  This method is deprecated and available for back-level provisioner
-// daemons.
+// AcquireJob queries the database to lock a job.
+//
+// Deprecated: This method is only available for back-level provisioner daemons.
 func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
