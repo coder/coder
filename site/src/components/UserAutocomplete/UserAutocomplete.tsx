@@ -38,9 +38,9 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   const [searchState, sendSearch] = useMachine(searchUserMachine);
   const { searchResults } = searchState.context;
 
-  // seed list of options on the first page load if a user passes in a value
-  // since some organizations have long lists of users, we do not load all
-  // options on page load.
+  // Seed list of options on the first page load if a user passes in a value.
+  // Since some organizations have long lists of users, we do not want to load
+  // all options on page load.
   const onMountRef = useRef(value);
   useEffect(() => {
     const mountValue = onMountRef.current;
@@ -48,10 +48,10 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
       sendSearch("SEARCH", { query: mountValue.email });
     }
 
-    // 2023-09-15 - This isn't in XState's docs, but its source code guarantees
-    // that the memory reference of sendSearch will stay stable across renders.
-    // This useEffect call will behave like an on-mount effect and will not ever
-    // need to resynchronize
+    // This isn't in XState's docs, but its source code guarantees that the
+    // memory reference of sendSearch will stay stable across renders. This
+    // useEffect call will behave like an on-mount effect and will not ever need
+    // to resynchronize
   }, [sendSearch]);
 
   const { debounced: debouncedOnChange } = useDebouncedFunction(
