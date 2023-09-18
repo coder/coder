@@ -810,6 +810,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
+					{ // One hour of usage.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -12),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -12).Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 0,
+					},
+					{ // Another one hour of usage, but "active users" shouldn't be increased twice.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -10),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -10).Add(time.Hour),
+						sessionCountSSH:             0,
+						sessionCountReconnectingPTY: 1,
+					},
 				},
 				appUsage: []appUsage{
 					// TODO(mafredri): This doesn't behave correctly right now
