@@ -1,4 +1,4 @@
-name: Upload tests to Datadog
+name: Upload results to Datadog
 if: always()
 inputs:
   api-key:
@@ -7,28 +7,20 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set work dir
-      shell: bash
-      run: |
-        WORK_DIR=${{ runner.temp }}/datadog-ci
-        mkdir -p $WORK_DIR
-        echo "WORK_DIR=$WORK_DIR" >> $GITHUB_ENV
     # The npm install was taking 30s to 1m, accounting for 20+% of the total
     # job time.
-    - name: Cache datadog-ci
-      uses: buildjet/cache@v3
+    - name: Cache npm dependencies
+      uses: actions/cache@v2
       with:
-        path: |
-          ${{ env.WORK_DIR }}
+        path: "**/node_modules"
         key: datadog-ci-${{ runner.os }}
         restore-keys: |
-          datadog-ci-${{ runner.os }}-
           datadog-ci-
     - shell: bash
       run: |
-        cd ${{ env.WORK_DIR }}
-        owner=${{ github.repository_owner	 }}
+        owner=${{ github.repository_owner	}}
         echo "owner: $owner"
+
         if [[  $owner != "coder" ]]; then
           echo "Not a pull request from the main repo, skipping..."
           exit 0
@@ -38,8 +30,13 @@ runs:
           echo "No API key provided, skipping..."
           exit 0
         fi
+
         npm install @datadog/datadog-ci@2.10.0
-        npm x -- datadog-ci junit upload --service coder ./gotests.xml \
+        npm x datadog-ci -- junit upload --service coder ./gotests.xml \
           --tags os:${{runner.os}} --tags runner_name:${{runner.name}}
+
+        # Debugging:
+        ls -al
+        pwd
       env:
         DATADOG_API_KEY: ${{ inputs.api-key }}
