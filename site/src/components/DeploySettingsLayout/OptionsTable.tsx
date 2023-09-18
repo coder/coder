@@ -64,7 +64,7 @@ const OptionsTable: FC<{
                     {option.flag_shorthand && (
                       <OptionConfig>
                         <OptionConfigFlag>CLI</OptionConfigFlag>
-                        --{option.flag_shorthand}
+                        -{option.flag_shorthand}
                       </OptionConfig>
                     )}
                     <OptionConfig>
