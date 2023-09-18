@@ -155,11 +155,14 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 	t.Parallel()
 
 	layout := insightsTimeLayout
-	now := time.Now().UTC()
-	y, m, d := now.Date()
-	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+	sydneyLoc, err := time.LoadLocation("Australia/Sydney") // Random location
+	require.NoError(t, err)
 
-	thisHour := time.Date(y, m, d, now.Hour(), 0, 0, 0, time.UTC)
+	now := time.Now()
+	y, m, d := now.Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, sydneyLoc)
+
+	thisHour := time.Date(y, m, d, now.Hour(), 0, 0, 0, sydneyLoc)
 	twoHoursAgo := thisHour.Add(-2 * time.Hour)
 	thirteenDaysAgo := today.AddDate(0, 0, -13)
 
