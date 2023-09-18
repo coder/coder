@@ -1564,6 +1564,20 @@ func TestServer_Shutdown(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func BenchmarkServerHelp(b *testing.B) {
+	// server --help is a good proxy for measuring the
+	// constant overhead of each command.
+
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		inv, _ := clitest.New(b, "server", "--help")
+		inv.Stdout = io.Discard
+		inv.Stderr = io.Discard
+		err := inv.Run()
+		require.NoError(b, err)
+	}
+}
+
 func generateTLSCertificate(t testing.TB, commonName ...string) (certPath, keyPath string) {
 	dir := t.TempDir()
 

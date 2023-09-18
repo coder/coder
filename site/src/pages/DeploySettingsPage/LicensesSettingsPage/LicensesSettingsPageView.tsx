@@ -12,8 +12,8 @@ import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import useWindowSize from "react-use/lib/useWindowSize";
 import MuiLink from "@mui/material/Link";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
 import Tooltip from "@mui/material/Tooltip";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
 
 type Props = {
   showConfetti: boolean;
@@ -22,8 +22,9 @@ type Props = {
   userLimitLimit?: number;
   licenses?: GetLicensesResponse[];
   isRemovingLicense: boolean;
+  isRefreshing: boolean;
   removeLicense: (licenseId: number) => void;
-  refreshEntitlements?: () => boolean;
+  refreshEntitlements: () => void;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -33,6 +34,7 @@ const LicensesSettingsPageView: FC<Props> = ({
   userLimitLimit,
   licenses,
   isRemovingLicense,
+  isRefreshing,
   removeLicense,
   refreshEntitlements,
 }) => {
@@ -69,18 +71,13 @@ const LicensesSettingsPageView: FC<Props> = ({
             Add a license
           </Button>
           <Tooltip title="Refresh license entitlements. This is done automatically every 10 minutes.">
-            <Button
-              onClick={() => {
-                if (refreshEntitlements) {
-                  if (refreshEntitlements()) {
-                    displaySuccess("Successfully refreshed licenses");
-                  }
-                }
-              }}
+            <LoadingButton
+              loading={isRefreshing}
+              onClick={refreshEntitlements}
               startIcon={<RefreshIcon />}
             >
               Refresh
-            </Button>
+            </LoadingButton>
           </Tooltip>
         </Stack>
       </Stack>

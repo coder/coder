@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
@@ -18,6 +16,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 

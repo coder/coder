@@ -34,6 +34,9 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
+    launchOptions: {
+      args: ["--disable-webgl"],
+    },
   },
   webServer: {
     url: `http://localhost:${port}/api/v2/deployment/config`,

@@ -9,7 +9,7 @@ import {
 } from "api/typesGenerated";
 import {
   MockWorkspace,
-  MockAppearance,
+  MockAppearanceConfig,
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
@@ -71,10 +71,9 @@ const allWorkspaces = [
 ];
 
 const MockedAppearance = {
-  config: MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
+  config: MockAppearanceConfig,
+  isPreview: false,
+  setPreview: () => {},
 };
 
 type FilterProps = ComponentProps<typeof WorkspacesPageView>["filterProps"];

@@ -1,18 +1,18 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder provisionerd start [flags]
 
   Run a provisioner daemon
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mc[0m, [96m--[0m[96mcache-dir[0m string, [96m$CODER_CACHE_DIRECTORY[0m (default: [cache dir])
+OPTIONS:
+  -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           Directory to store cached data.
 
-      [96m--[0m[96mpsk[0m string, [96m$CODER_PROVISIONER_DAEMON_PSK[0m
+      --psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate with Coder server.
 
-  [96m-[0m[96mt[0m, [96m--[0m[96mtag[0m string-array, [96m$CODER_PROVISIONERD_TAGS[0m
+  -t, --tag string-array, $CODER_PROVISIONERD_TAGS
           Tags to filter provisioner jobs by.
 
 ———

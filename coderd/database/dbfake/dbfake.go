@@ -685,6 +685,13 @@ func (q *FakeQuerier) GetActiveDBCryptKeys(_ context.Context) ([]database.DBCryp
 	return ks, nil
 }
 
+func minTime(t, u time.Time) time.Time {
+	if t.Before(u) {
+		return t
+	}
+	return u
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -742,6 +749,77 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		return provisionerJob, nil
 	}
 	return database.ProvisionerJob{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
+	err := validateDatabaseType(workspaceID)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspace, err := q.getWorkspaceByIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	latestBuild, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+
+	now := dbtime.Now()
+	for i := range q.workspaceBuilds {
+		if q.workspaceBuilds[i].BuildNumber != latestBuild.BuildNumber {
+			continue
+		}
+		// If the build is not active, do not bump.
+		if q.workspaceBuilds[i].Transition != database.WorkspaceTransitionStart {
+			return nil
+		}
+		// If the provisioner job is not completed, do not bump.
+		pj, err := q.getProvisionerJobByIDNoLock(ctx, q.workspaceBuilds[i].JobID)
+		if err != nil {
+			return err
+		}
+		if !pj.CompletedAt.Valid {
+			return nil
+		}
+		// Do not bump if the deadline is not set.
+		if q.workspaceBuilds[i].Deadline.IsZero() {
+			return nil
+		}
+		// Only bump if 5% of the deadline has passed.
+		ttlDur := time.Duration(workspace.Ttl.Int64)
+		ttlDur95 := ttlDur - (ttlDur / 20)
+		minBumpDeadline := q.workspaceBuilds[i].Deadline.Add(-ttlDur95)
+		if now.Before(minBumpDeadline) {
+			return nil
+		}
+
+		// Bump.
+		newDeadline := now.Add(ttlDur)
+		q.workspaceBuilds[i].UpdatedAt = now
+		if !q.workspaceBuilds[i].MaxDeadline.IsZero() {
+			q.workspaceBuilds[i].Deadline = minTime(newDeadline, q.workspaceBuilds[i].MaxDeadline)
+		} else {
+			q.workspaceBuilds[i].Deadline = newDeadline
+		}
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	userIDs := make([]uuid.UUID, 0, len(q.users))
+	for idx := range q.users {
+		userIDs[idx] = q.users[idx].ID
+	}
+	return userIDs, nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -2272,92 +2350,6 @@ func (q *FakeQuerier) GetTemplateDAUs(_ context.Context, arg database.GetTemplat
 	return rs, nil
 }
 
-func (q *FakeQuerier) GetTemplateDailyInsights(ctx context.Context, arg database.GetTemplateDailyInsightsParams) ([]database.GetTemplateDailyInsightsRow, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return nil, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	type dailyStat struct {
-		startTime, endTime time.Time
-		userSet            map[uuid.UUID]struct{}
-		templateIDSet      map[uuid.UUID]struct{}
-	}
-	dailyStats := []dailyStat{{arg.StartTime, arg.StartTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
-	for dailyStats[len(dailyStats)-1].endTime.Before(arg.EndTime) {
-		dailyStats = append(dailyStats, dailyStat{dailyStats[len(dailyStats)-1].endTime, dailyStats[len(dailyStats)-1].endTime.AddDate(0, 0, 1), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
-	}
-	if dailyStats[len(dailyStats)-1].endTime.After(arg.EndTime) {
-		dailyStats[len(dailyStats)-1].endTime = arg.EndTime
-	}
-
-	for _, s := range q.workspaceAgentStats {
-		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
-			continue
-		}
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
-			continue
-		}
-		if s.ConnectionCount == 0 {
-			continue
-		}
-
-		for _, ds := range dailyStats {
-			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
-				continue
-			}
-			ds.userSet[s.UserID] = struct{}{}
-			ds.templateIDSet[s.TemplateID] = struct{}{}
-		}
-	}
-
-	for _, s := range q.workspaceAppStats {
-		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
-		if err != nil {
-			return nil, err
-		}
-
-		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
-			continue
-		}
-
-		for _, ds := range dailyStats {
-			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
-			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
-			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
-			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
-				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
-				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
-				continue
-			}
-
-			ds.userSet[s.UserID] = struct{}{}
-			ds.templateIDSet[w.TemplateID] = struct{}{}
-		}
-	}
-
-	var result []database.GetTemplateDailyInsightsRow
-	for _, ds := range dailyStats {
-		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
-		for templateID := range ds.templateIDSet {
-			templateIDs = append(templateIDs, templateID)
-		}
-		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
-			return slice.Ascending(a.String(), b.String())
-		})
-		result = append(result, database.GetTemplateDailyInsightsRow{
-			StartTime:   ds.startTime,
-			EndTime:     ds.endTime,
-			TemplateIDs: templateIDs,
-			ActiveUsers: int64(len(ds.userSet)),
-		})
-	}
-	return result, nil
-}
-
 func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTemplateInsightsParams) (database.GetTemplateInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2423,6 +2415,93 @@ func (q *FakeQuerier) GetTemplateInsights(_ context.Context, arg database.GetTem
 			result.UsageReconnectingPtySeconds += interval.UsageReconnectingPtySeconds
 			result.UsageSshSeconds += interval.UsageSshSeconds
 		}
+	}
+	return result, nil
+}
+
+func (q *FakeQuerier) GetTemplateInsightsByInterval(ctx context.Context, arg database.GetTemplateInsightsByIntervalParams) ([]database.GetTemplateInsightsByIntervalRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	type statByInterval struct {
+		startTime, endTime time.Time
+		userSet            map[uuid.UUID]struct{}
+		templateIDSet      map[uuid.UUID]struct{}
+	}
+
+	statsByInterval := []statByInterval{{arg.StartTime, arg.StartTime.AddDate(0, 0, int(arg.IntervalDays)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})}}
+	for statsByInterval[len(statsByInterval)-1].endTime.Before(arg.EndTime) {
+		statsByInterval = append(statsByInterval, statByInterval{statsByInterval[len(statsByInterval)-1].endTime, statsByInterval[len(statsByInterval)-1].endTime.AddDate(0, 0, int(arg.IntervalDays)), make(map[uuid.UUID]struct{}), make(map[uuid.UUID]struct{})})
+	}
+	if statsByInterval[len(statsByInterval)-1].endTime.After(arg.EndTime) {
+		statsByInterval[len(statsByInterval)-1].endTime = arg.EndTime
+	}
+
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		for _, ds := range statsByInterval {
+			if s.CreatedAt.Before(ds.startTime) || s.CreatedAt.Equal(ds.endTime) || s.CreatedAt.After(ds.endTime) {
+				continue
+			}
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[s.TemplateID] = struct{}{}
+		}
+	}
+
+	for _, s := range q.workspaceAppStats {
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
+		for _, ds := range statsByInterval {
+			// (was.session_started_at >= ts.from_ AND was.session_started_at < ts.to_)
+			// OR (was.session_ended_at > ts.from_ AND was.session_ended_at < ts.to_)
+			// OR (was.session_started_at < ts.from_ AND was.session_ended_at >= ts.to_)
+			if !(((s.SessionStartedAt.After(ds.startTime) || s.SessionStartedAt.Equal(ds.startTime)) && s.SessionStartedAt.Before(ds.endTime)) ||
+				(s.SessionEndedAt.After(ds.startTime) && s.SessionEndedAt.Before(ds.endTime)) ||
+				(s.SessionStartedAt.Before(ds.startTime) && (s.SessionEndedAt.After(ds.endTime) || s.SessionEndedAt.Equal(ds.endTime)))) {
+				continue
+			}
+
+			ds.userSet[s.UserID] = struct{}{}
+			ds.templateIDSet[w.TemplateID] = struct{}{}
+		}
+	}
+
+	var result []database.GetTemplateInsightsByIntervalRow
+	for _, ds := range statsByInterval {
+		templateIDs := make([]uuid.UUID, 0, len(ds.templateIDSet))
+		for templateID := range ds.templateIDSet {
+			templateIDs = append(templateIDs, templateID)
+		}
+		slices.SortFunc(templateIDs, func(a, b uuid.UUID) int {
+			return slice.Ascending(a.String(), b.String())
+		})
+		result = append(result, database.GetTemplateInsightsByIntervalRow{
+			StartTime:   ds.startTime,
+			EndTime:     ds.endTime,
+			TemplateIDs: templateIDs,
+			ActiveUsers: int64(len(ds.userSet)),
+		})
 	}
 	return result, nil
 }
@@ -4741,6 +4820,7 @@ func (q *FakeQuerier) InsertWorkspaceBuild(_ context.Context, arg database.Inser
 		JobID:             arg.JobID,
 		ProvisionerState:  arg.ProvisionerState,
 		Deadline:          arg.Deadline,
+		MaxDeadline:       arg.MaxDeadline,
 		Reason:            arg.Reason,
 	}
 	q.workspaceBuilds = append(q.workspaceBuilds, workspaceBuild)

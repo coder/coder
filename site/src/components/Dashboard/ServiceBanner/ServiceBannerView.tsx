@@ -7,13 +7,13 @@ import { hex } from "color-convert";
 export interface ServiceBannerViewProps {
   message: string;
   backgroundColor: string;
-  preview: boolean;
+  isPreview: boolean;
 }
 
 export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
   message,
   backgroundColor,
-  preview,
+  isPreview,
 }) => {
   const styles = useStyles();
   // We don't want anything funky like an image or a heading in the service
@@ -34,7 +34,7 @@ export const ServiceBannerView: React.FC<ServiceBannerViewProps> = ({
       className={styles.container}
       style={{ backgroundColor: backgroundColor }}
     >
-      {preview && <Pill text="Preview" type="info" lightBorder />}
+      {isPreview && <Pill text="Preview" type="info" lightBorder />}
       <div
         className={styles.centerContent}
         style={{

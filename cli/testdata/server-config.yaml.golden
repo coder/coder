@@ -334,11 +334,6 @@ telemetry:
   # help improve our product.
   # (default: false, type: bool)
   enable: false
-  # Whether Opentelemetry traces are sent to Coder. Coder collects anonymized
-  # application tracing to help improve our product. Disabling telemetry also
-  # disables this option.
-  # (default: false, type: bool)
-  trace: false
   # URL to send telemetry.
   # (default: https://telemetry.coder.com, type: url)
   url: https://telemetry.coder.com

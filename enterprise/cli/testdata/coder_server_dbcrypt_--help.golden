@@ -1,11 +1,11 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder server dbcrypt
 
   Manage database encryption.
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     decrypt    Decrypt a previously encrypted database.
     delete     Delete all encrypted data from the database. THIS IS A
                DESTRUCTIVE OPERATION.

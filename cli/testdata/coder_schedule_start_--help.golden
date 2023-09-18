@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder schedule start <workspace-name> { <start-time> [day-of-week] [location]
   | manual }
 

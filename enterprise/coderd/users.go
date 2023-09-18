@@ -68,7 +68,7 @@ func (api *API) userQuietHoursSchedule(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
-		Time:        opts.Schedule.Time(),
+		Time:        opts.Schedule.TimeParsed().Format("15:40"),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})
@@ -114,7 +114,7 @@ func (api *API) putUserQuietHoursSchedule(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserQuietHoursScheduleResponse{
 		RawSchedule: opts.Schedule.String(),
 		UserSet:     opts.UserSet,
-		Time:        opts.Schedule.Time(),
+		Time:        opts.Schedule.TimeParsed().Format("15:40"),
 		Timezone:    opts.Schedule.Location().String(),
 		Next:        opts.Schedule.Next(time.Now().In(opts.Schedule.Location())),
 	})

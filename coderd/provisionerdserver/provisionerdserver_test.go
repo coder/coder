@@ -301,6 +301,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerOidcAccessToken: link.OAuthAccessToken,
 						WorkspaceId:                   workspace.ID.String(),
 						WorkspaceOwnerId:              user.ID.String(),
+						TemplateId:                    template.ID.String(),
 						TemplateName:                  template.Name,
 						TemplateVersion:               version.Name,
 						WorkspaceOwnerSessionToken:    sessionToken,
