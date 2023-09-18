@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -21,7 +23,12 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancelFunc()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		// We are not including any provisioner daemons because we do not actually
+		// build any workspaces here.
+		Logger: &log,
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	// Write a parameters file.
@@ -59,7 +66,10 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	client := coderdtest.New(t, nil)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	inv, root := clitest.New(t, "exp", "scaletest", "workspace-traffic",
@@ -82,14 +92,13 @@ func TestScaleTestWorkspaceTraffic(t *testing.T) {
 // This test just validates that the CLI command accepts its known arguments.
 func TestScaleTestDashboard(t *testing.T) {
 	t.Parallel()
-	if testutil.RaceEnabled() {
-		t.Skip("Flakes under race detector, see https://github.com/coder/coder/issues/9168")
-	}
-
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitMedium)
 	defer cancelFunc()
 
-	client := coderdtest.New(t, nil)
+	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	client := coderdtest.New(t, &coderdtest.Options{
+		Logger: &log,
+	})
 	_ = coderdtest.CreateFirstUser(t, client)
 
 	inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
