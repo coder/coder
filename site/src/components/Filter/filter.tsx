@@ -24,7 +24,9 @@ import MenuList from "@mui/material/MenuList";
 import { Loader } from "components/Loader/Loader";
 import Divider from "@mui/material/Divider";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+
 import { useDebouncedFunction } from "hooks/debounce";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 export type PresetFilter = {
   name: string;
@@ -33,28 +35,53 @@ export type PresetFilter = {
 
 type FilterValues = Record<string, string | undefined>;
 
+type UseFilterConfig = {
+  initialValue?: string | (() => string);
+  searchParamsResult: ReturnType<typeof useSearchParams>;
+  onUpdate?: (newValue: string) => void;
+};
+
+const useFilterParamsKey = "filter";
+
 export const useFilter = ({
   initialValue = "",
   onUpdate,
   searchParamsResult,
-}: {
-  initialValue?: string;
-  searchParamsResult: ReturnType<typeof useSearchParams>;
-  onUpdate?: () => void;
-}) => {
-  const [searchParams, setSearchParams] = searchParamsResult;
-  const query = searchParams.get("filter") ?? initialValue;
-  const values = parseFilterQuery(query);
+}: UseFilterConfig) => {
+  // Fully expect the initialValue functions to have some impurity (e.g. reading
+  // from localStorage during a render path). (Ab)using useState's lazy
+  // initialization mode to guarantee impurities only exist on mount. Pattern
+  // has added benefit of locking down initialValue and ignoring any accidental
+  // value changes on re-renders
+  const [readonlyInitialQueryState] = useState(initialValue);
 
-  const update = (values: string | FilterValues) => {
-    if (typeof values === "string") {
-      searchParams.set("filter", values);
-    } else {
-      searchParams.set("filter", stringifyFilter(values));
-    }
+  // React Router doesn't give setSearchParams a stable memory reference; need
+  // extra logic to prevent on-mount effect from running too often
+  const [searchParams, setSearchParams] = searchParamsResult;
+  const syncSearchParamsOnMount = useEffectEvent(() => {
+    setSearchParams((current) => {
+      const currentFilter = current.get(useFilterParamsKey);
+      if (currentFilter !== readonlyInitialQueryState) {
+        current.set(useFilterParamsKey, readonlyInitialQueryState);
+      }
+
+      return current;
+    });
+  });
+
+  useEffect(() => {
+    syncSearchParamsOnMount();
+  }, [syncSearchParamsOnMount]);
+
+  const update = (newValues: string | FilterValues) => {
+    const serialized =
+      typeof newValues === "string" ? newValues : stringifyFilter(newValues);
+
+    searchParams.set(useFilterParamsKey, serialized);
     setSearchParams(searchParams);
-    if (onUpdate) {
-      onUpdate();
+
+    if (onUpdate !== undefined) {
+      onUpdate(serialized);
     }
   };
 
@@ -63,6 +90,8 @@ export const useFilter = ({
     500,
   );
 
+  const query = searchParams.get("filter") ?? readonlyInitialQueryState;
+  const values = parseFilterQuery(query);
   const used = query !== "" && query !== initialValue;
 
   return {
