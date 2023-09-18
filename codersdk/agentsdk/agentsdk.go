@@ -23,14 +23,12 @@ import (
 	"github.com/coder/retry"
 )
 
-var (
-	// ExternalLogSourceID is the statically-defined ID of a log-source that
-	// appears as "External" in the dashboard.
-	//
-	// This is to support legacy API-consumers that do not create their own
-	// log-source. This should be removed in the future.
-	ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
-)
+// ExternalLogSourceID is the statically-defined ID of a log-source that
+// appears as "External" in the dashboard.
+//
+// This is to support legacy API-consumers that do not create their own
+// log-source. This should be removed in the future.
+var ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
 
 // New returns a client that is used to interact with the
 // Coder API from a workspace agent.
