@@ -183,7 +183,7 @@ require (
 	golang.org/x/tools v0.13.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
-	google.golang.org/api v0.140.0
+	google.golang.org/api v0.141.0
 	google.golang.org/grpc v1.58.0
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.55.0
