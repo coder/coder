@@ -53,7 +53,6 @@ jobs:
             docs:
               - "docs/**"
               - "README.md"
-              - "examples/templates/**"
               - "examples/web-server/**"
               - "examples/monitoring/**"
               - "examples/lima/**"
