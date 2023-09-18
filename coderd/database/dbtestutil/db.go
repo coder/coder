@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -127,6 +128,16 @@ func dbNameFromConnectionURL(t testing.TB, connectionURL string) string {
 	return strings.TrimPrefix(u.Path, "/")
 }
 
+// DumpOnFailure exports the database referenced by connectionURL to a file
+// corresponding to the current test, with a suffix indicating the time the
+// test was run.
+// To import this into a new database (assuming you have already run make test-postgres-docker):
+//   - Create a new test database:
+//     go run ./scripts/migrate-ci/main.go and note the database name it outputs
+//   - Import the file into the above database:
+//     psql 'postgres://postgres:postgres@127.0.0.1:5432/<dbname>?sslmode=disable' -f <path to file.test.sql>
+//   - Run a dev server against that database:
+//     ./scripts/coder-dev.sh server --postgres-url='postgres://postgres:postgres@127.0.0.1:5432/<dbname>?sslmode=disable'
 func DumpOnFailure(t testing.TB, connectionURL string) {
 	if !t.Failed() {
 		return
@@ -137,7 +148,9 @@ func DumpOnFailure(t testing.TB, connectionURL string) {
 		return
 	}
 	snakeCaseName := regexp.MustCompile("[^a-zA-Z0-9-_]+").ReplaceAllString(t.Name(), "_")
-	outPath := filepath.Join(cwd, snakeCaseName+".test.sql")
+	now := time.Now()
+	timeSuffix := fmt.Sprintf("%d%d%d%d%d%d", now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second())
+	outPath := filepath.Join(cwd, snakeCaseName+"."+timeSuffix+".test.sql")
 	dump, err := pgDump(connectionURL)
 	if err != nil {
 		t.Errorf("dump on failure: failed to run pg_dump")
