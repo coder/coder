@@ -729,6 +729,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
     }
   ],
   "started_at": "2019-08-24T14:15:22Z",
+  "startup_script_behavior": "blocking",
   "status": "connecting",
   "subsystems": ["envbox"],
   "troubleshooting_url": "string",

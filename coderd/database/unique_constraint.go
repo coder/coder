@@ -7,7 +7,7 @@ type UniqueConstraint string
 // UniqueConstraint enums.
 const (
 	UniqueAgentStatsPkey                                    UniqueConstraint = "agent_stats_pkey"                                         // ALTER TABLE ONLY workspace_agent_stats ADD CONSTRAINT agent_stats_pkey PRIMARY KEY (id);
-	UniqueApiKeysPkey                                       UniqueConstraint = "api_keys_pkey"                                            // ALTER TABLE ONLY api_keys ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+	UniqueAPIKeysPkey                                       UniqueConstraint = "api_keys_pkey"                                            // ALTER TABLE ONLY api_keys ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
 	UniqueAuditLogsPkey                                     UniqueConstraint = "audit_logs_pkey"                                          // ALTER TABLE ONLY audit_logs ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 	UniqueDbcryptKeysActiveKeyDigestKey                     UniqueConstraint = "dbcrypt_keys_active_key_digest_key"                       // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
 	UniqueDbcryptKeysPkey                                   UniqueConstraint = "dbcrypt_keys_pkey"                                        // ALTER TABLE ONLY dbcrypt_keys ADD CONSTRAINT dbcrypt_keys_pkey PRIMARY KEY (number);
@@ -15,7 +15,7 @@ const (
 	UniqueFilesHashCreatedByKey                             UniqueConstraint = "files_hash_created_by_key"                                // ALTER TABLE ONLY files ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 	UniqueFilesPkey                                         UniqueConstraint = "files_pkey"                                               // ALTER TABLE ONLY files ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 	UniqueGitAuthLinksProviderIDUserIDKey                   UniqueConstraint = "git_auth_links_provider_id_user_id_key"                   // ALTER TABLE ONLY git_auth_links ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
-	UniqueGitsshkeysPkey                                    UniqueConstraint = "gitsshkeys_pkey"                                          // ALTER TABLE ONLY gitsshkeys ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
+	UniqueGitSSHKeysPkey                                    UniqueConstraint = "gitsshkeys_pkey"                                          // ALTER TABLE ONLY gitsshkeys ADD CONSTRAINT gitsshkeys_pkey PRIMARY KEY (user_id);
 	UniqueGroupMembersUserIDGroupIDKey                      UniqueConstraint = "group_members_user_id_group_id_key"                       // ALTER TABLE ONLY group_members ADD CONSTRAINT group_members_user_id_group_id_key UNIQUE (user_id, group_id);
 	UniqueGroupsNameOrganizationIDKey                       UniqueConstraint = "groups_name_organization_id_key"                          // ALTER TABLE ONLY groups ADD CONSTRAINT groups_name_organization_id_key UNIQUE (name, organization_id);
 	UniqueGroupsPkey                                        UniqueConstraint = "groups_pkey"                                              // ALTER TABLE ONLY groups ADD CONSTRAINT groups_pkey PRIMARY KEY (id);
@@ -57,6 +57,9 @@ const (
 	UniqueWorkspaceProxiesPkey                              UniqueConstraint = "workspace_proxies_pkey"                                   // ALTER TABLE ONLY workspace_proxies ADD CONSTRAINT workspace_proxies_pkey PRIMARY KEY (id);
 	UniqueWorkspaceProxiesRegionIDUnique                    UniqueConstraint = "workspace_proxies_region_id_unique"                       // ALTER TABLE ONLY workspace_proxies ADD CONSTRAINT workspace_proxies_region_id_unique UNIQUE (region_id);
 	UniqueWorkspaceResourceMetadataName                     UniqueConstraint = "workspace_resource_metadata_name"                         // ALTER TABLE ONLY workspace_resource_metadata ADD CONSTRAINT workspace_resource_metadata_name UNIQUE (workspace_resource_id, key);
+	UniqueWorkspaceResourceMetadataPkey                     UniqueConstraint = "workspace_resource_metadata_pkey"                         // ALTER TABLE ONLY workspace_resource_metadata ADD CONSTRAINT workspace_resource_metadata_pkey PRIMARY KEY (id);
+	UniqueWorkspaceResourcesPkey                            UniqueConstraint = "workspace_resources_pkey"                                 // ALTER TABLE ONLY workspace_resources ADD CONSTRAINT workspace_resources_pkey PRIMARY KEY (id);
+	UniqueWorkspacesPkey                                    UniqueConstraint = "workspaces_pkey"                                          // ALTER TABLE ONLY workspaces ADD CONSTRAINT workspaces_pkey PRIMARY KEY (id);
 	UniqueIndexAPIKeyName                                   UniqueConstraint = "idx_api_key_name"                                         // CREATE UNIQUE INDEX idx_api_key_name ON api_keys USING btree (user_id, token_name) WHERE (login_type = 'token'::login_type);
 	UniqueIndexOrganizationName                             UniqueConstraint = "idx_organization_name"                                    // CREATE UNIQUE INDEX idx_organization_name ON organizations USING btree (name);
 	UniqueIndexOrganizationNameLower                        UniqueConstraint = "idx_organization_name_lower"                              // CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lower(name));

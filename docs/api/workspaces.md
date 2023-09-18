@@ -166,6 +166,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -372,6 +373,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -577,6 +579,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",
+                "startup_script_behavior": "blocking",
                 "status": "connecting",
                 "subsystems": ["envbox"],
                 "troubleshooting_url": "string",
@@ -784,6 +787,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -1070,6 +1074,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",

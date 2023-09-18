@@ -1392,8 +1392,6 @@ func (a *agent) Close() error {
 		} else {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
-	} else {
-		lifecycleState = codersdk.WorkspaceAgentLifecycleOff
 	}
 	a.setLifecycle(ctx, lifecycleState)
 

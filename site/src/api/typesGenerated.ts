@@ -1321,6 +1321,7 @@ export interface WorkspaceAgent {
   readonly display_apps: DisplayApp[];
   readonly log_sources: WorkspaceAgentLogSource[];
   readonly scripts: WorkspaceAgentScript[];
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
 
 // From codersdk/workspaceagents.go

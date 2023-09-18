@@ -69,9 +69,12 @@ export const LogLine: FC<{
       {sourceIcon}
       {!hideTimestamp && (
         <>
-          <span className={styles.time} style={{
-            minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
-          }}>
+          <span
+            className={styles.time}
+            style={{
+              minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
+            }}
+          >
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
           <span className={styles.space} />

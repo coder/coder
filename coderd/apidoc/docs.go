@@ -10717,6 +10717,14 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "startup_script_behavior": {
+                    "description": "StartupScriptBehavior is a legacy field that is deprecated in favor\nof the ` + "`" + `coder_script` + "`" + ` resource. It's only referenced by old clients.\nDeprecated: Remove in the future!",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
+                        }
+                    ]
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
                 },
@@ -10914,6 +10922,17 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.WorkspaceAgentStartupScriptBehavior": {
+            "type": "string",
+            "enum": [
+                "blocking",
+                "non-blocking"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAgentStartupScriptBehaviorBlocking",
+                "WorkspaceAgentStartupScriptBehaviorNonBlocking"
+            ]
         },
         "codersdk.WorkspaceAgentStatus": {
             "type": "string",

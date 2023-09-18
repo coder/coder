@@ -5505,6 +5505,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
             "status": "connecting",
             "subsystems": ["envbox"],
             "troubleshooting_url": "string",
@@ -5664,6 +5665,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     }
   ],
   "started_at": "2019-08-24T14:15:22Z",
+  "startup_script_behavior": "blocking",
   "status": "connecting",
   "subsystems": ["envbox"],
   "troubleshooting_url": "string",
@@ -5674,40 +5676,41 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                         | Type                                                                          | Required | Restrictions | Description                                                         |
-| ---------------------------- | ----------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------- |
-| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                       | false    |              |                                                                     |
-| `architecture`               | string                                                                        | false    |              |                                                                     |
-| `connection_timeout_seconds` | integer                                                                       | false    |              |                                                                     |
-| `created_at`                 | string                                                                        | false    |              |                                                                     |
-| `directory`                  | string                                                                        | false    |              |                                                                     |
-| `disconnected_at`            | string                                                                        | false    |              |                                                                     |
-| `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                           | false    |              |                                                                     |
-| `environment_variables`      | object                                                                        | false    |              |                                                                     |
-| » `[any property]`           | string                                                                        | false    |              |                                                                     |
-| `expanded_directory`         | string                                                                        | false    |              |                                                                     |
-| `first_connected_at`         | string                                                                        | false    |              |                                                                     |
-| `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                | false    |              | Health reports the health of the agent.                             |
-| `id`                         | string                                                                        | false    |              |                                                                     |
-| `instance_id`                | string                                                                        | false    |              |                                                                     |
-| `last_connected_at`          | string                                                                        | false    |              |                                                                     |
-| `latency`                    | object                                                                        | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle"). |
-| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                    | false    |              |                                                                     |
-| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)          | false    |              |                                                                     |
-| `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource) | false    |              |                                                                     |
-| `logs_length`                | integer                                                                       | false    |              |                                                                     |
-| `logs_overflowed`            | boolean                                                                       | false    |              |                                                                     |
-| `name`                       | string                                                                        | false    |              |                                                                     |
-| `operating_system`           | string                                                                        | false    |              |                                                                     |
-| `ready_at`                   | string                                                                        | false    |              |                                                                     |
-| `resource_id`                | string                                                                        | false    |              |                                                                     |
-| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)       | false    |              |                                                                     |
-| `started_at`                 | string                                                                        | false    |              |                                                                     |
-| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                | false    |              |                                                                     |
-| `subsystems`                 | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                   | false    |              |                                                                     |
-| `troubleshooting_url`        | string                                                                        | false    |              |                                                                     |
-| `updated_at`                 | string                                                                        | false    |              |                                                                     |
-| `version`                    | string                                                                        | false    |              |                                                                     |
+| Name                         | Type                                                                                         | Required | Restrictions | Description                                                                                                                                                                  |
+| ---------------------------- | -------------------------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps`                       | array of [codersdk.WorkspaceApp](#codersdkworkspaceapp)                                      | false    |              |                                                                                                                                                                              |
+| `architecture`               | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `connection_timeout_seconds` | integer                                                                                      | false    |              |                                                                                                                                                                              |
+| `created_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                              |
+| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                              |
+| » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `health`                     | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)                               | false    |              | Health reports the health of the agent.                                                                                                                                      |
+| `id`                         | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `instance_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `last_connected_at`          | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `latency`                    | object                                                                                       | false    |              | Latency is mapped by region name (e.g. "New York City", "Seattle").                                                                                                          |
+| » `[any property]`           | [codersdk.DERPRegion](#codersdkderpregion)                                                   | false    |              |                                                                                                                                                                              |
+| `lifecycle_state`            | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle)                         | false    |              |                                                                                                                                                                              |
+| `log_sources`                | array of [codersdk.WorkspaceAgentLogSource](#codersdkworkspaceagentlogsource)                | false    |              |                                                                                                                                                                              |
+| `logs_length`                | integer                                                                                      | false    |              |                                                                                                                                                                              |
+| `logs_overflowed`            | boolean                                                                                      | false    |              |                                                                                                                                                                              |
+| `name`                       | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `operating_system`           | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `ready_at`                   | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `resource_id`                | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                      | false    |              |                                                                                                                                                                              |
+| `started_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future! |
+| `status`                     | [codersdk.WorkspaceAgentStatus](#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                              |
+| `subsystems`                 | array of [codersdk.AgentSubsystem](#codersdkagentsubsystem)                                  | false    |              |                                                                                                                                                                              |
+| `troubleshooting_url`        | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
+| `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
 ## codersdk.WorkspaceAgentConnectionInfo
 
@@ -5955,6 +5958,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `start_blocks_login` | boolean | false    |              |             |
 | `timeout_seconds`    | integer | false    |              |             |
 
+## codersdk.WorkspaceAgentStartupScriptBehavior
+
+```json
+"blocking"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+| -------------- |
+| `blocking`     |
+| `non-blocking` |
+
 ## codersdk.WorkspaceAgentStatus
 
 ```json
@@ -6166,6 +6184,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
           "status": "connecting",
           "subsystems": ["envbox"],
           "troubleshooting_url": "string",
@@ -6494,6 +6513,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         }
       ],
       "started_at": "2019-08-24T14:15:22Z",
+      "startup_script_behavior": "blocking",
       "status": "connecting",
       "subsystems": ["envbox"],
       "troubleshooting_url": "string",
@@ -6724,6 +6744,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",
+                "startup_script_behavior": "blocking",
                 "status": "connecting",
                 "subsystems": ["envbox"],
                 "troubleshooting_url": "string",
