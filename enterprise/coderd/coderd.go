@@ -472,7 +472,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureAdvancedTemplateScheduling: true,
 			// FeatureTemplateAutostopRequirement depends on
 			// FeatureAdvancedTemplateScheduling.
-			codersdk.FeatureTemplateAutostopRequirement: api.DefaultQuietHoursSchedule != "",
+			codersdk.FeatureTemplateAutostopRequirement: api.AGPL.Experiments.Enabled(codersdk.ExperimentTemplateAutostopRequirement) && api.DefaultQuietHoursSchedule != "",
 			codersdk.FeatureWorkspaceProxy:              true,
 			codersdk.FeatureUserRoleManagement:          true,
 		})

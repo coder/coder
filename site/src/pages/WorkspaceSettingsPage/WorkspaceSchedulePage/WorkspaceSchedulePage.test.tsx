@@ -1,27 +1,20 @@
 import { renderWithWorkspaceSettingsLayout } from "testHelpers/renderHelpers";
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
+import { rest } from "msw";
+import { server } from "testHelpers/server";
+import { MockUser, MockWorkspace } from "testHelpers/entities";
 import {
   formValuesToAutostartRequest,
   formValuesToTTLRequest,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/formToRequest";
-import {
-  Autostart,
-  scheduleToAutostart,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/schedule";
-import {
-  Autostop,
-  ttlMsToAutostop,
-} from "pages/WorkspaceSettingsPage/WorkspaceSchedulePage/ttl";
-import * as TypesGen from "../../../api/typesGenerated";
+} from "./formToRequest";
+import { scheduleToAutostart } from "./schedule";
+import { ttlMsToAutostop } from "./ttl";
 import {
   WorkspaceScheduleFormValues,
   Language as FormLanguage,
 } from "./WorkspaceScheduleForm";
 import { WorkspaceSchedulePage } from "./WorkspaceSchedulePage";
-import { server } from "testHelpers/server";
-import { rest } from "msw";
-import { MockUser, MockWorkspace } from "testHelpers/entities";
 
 const validValues: WorkspaceScheduleFormValues = {
   autostartEnabled: true,
@@ -40,9 +33,7 @@ const validValues: WorkspaceScheduleFormValues = {
 
 describe("WorkspaceSchedulePage", () => {
   describe("formValuesToAutostartRequest", () => {
-    it.each<
-      [WorkspaceScheduleFormValues, TypesGen.UpdateWorkspaceAutostartRequest]
-    >([
+    it.each([
       [
         // Empty case
         {
@@ -143,13 +134,16 @@ describe("WorkspaceSchedulePage", () => {
           schedule: "20 16 * * 1,3,5",
         },
       ],
-    ])(`formValuesToAutostartRequest(%p) return %p`, (values, request) => {
-      expect(formValuesToAutostartRequest(values)).toEqual(request);
-    });
+    ] as const)(
+      `formValuesToAutostartRequest(%p) return %p`,
+      (values, request) => {
+        expect(formValuesToAutostartRequest(values)).toEqual(request);
+      },
+    );
   });
 
   describe("formValuesToTTLRequest", () => {
-    it.each<[WorkspaceScheduleFormValues, TypesGen.UpdateWorkspaceTTLRequest]>([
+    it.each([
       [
         // 0 case
         {
@@ -180,13 +174,13 @@ describe("WorkspaceSchedulePage", () => {
           ttl_ms: 28_800_000,
         },
       ],
-    ])(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
+    ] as const)(`formValuesToTTLRequest(%p) returns %p`, (values, request) => {
       expect(formValuesToTTLRequest(values)).toEqual(request);
     });
   });
 
   describe("scheduleToAutostart", () => {
-    it.each<[string | undefined, Autostart]>([
+    it.each([
       // Empty case
       [
         undefined,
@@ -237,20 +231,20 @@ describe("WorkspaceSchedulePage", () => {
           timezone: "Canada/Eastern",
         },
       ],
-    ])(`scheduleToAutostart(%p) returns %p`, (schedule, autostart) => {
+    ] as const)(`scheduleToAutostart(%p) returns %p`, (schedule, autostart) => {
       expect(scheduleToAutostart(schedule)).toEqual(autostart);
     });
   });
 
   describe("ttlMsToAutostop", () => {
-    it.each<[number | undefined, Autostop]>([
+    it.each([
       // empty case
       [undefined, { autostopEnabled: false, ttl: 0 }],
       // zero
       [0, { autostopEnabled: false, ttl: 0 }],
       // basic case
       [28_800_000, { autostopEnabled: true, ttl: 8 }],
-    ])(`ttlMsToAutostop(%p) returns %p`, (ttlMs, autostop) => {
+    ] as const)(`ttlMsToAutostop(%p) returns %p`, (ttlMs, autostop) => {
       expect(ttlMsToAutostop(ttlMs)).toEqual(autostop);
     });
   });

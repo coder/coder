@@ -60,6 +60,7 @@ export interface WorkspaceProps {
   builds?: TypesGen.WorkspaceBuild[];
   templateWarnings?: TypesGen.TemplateVersionWarning[];
   canUpdateWorkspace: boolean;
+  updateMessage?: string;
   canRetryDebugMode: boolean;
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
@@ -93,6 +94,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   resources,
   builds,
   canUpdateWorkspace,
+  updateMessage,
   canRetryDebugMode,
   canChangeVersions,
   workspaceErrors,
@@ -219,6 +221,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
           className={styles.firstColumnSpacer}
           spacing={4}
         >
+          {workspace.outdated && (
+            <Alert severity="info">
+              <AlertTitle>An update is available for your workspace</AlertTitle>
+              {updateMessage && <AlertDetail>{updateMessage}</AlertDetail>}
+            </Alert>
+          )}
           {buildError}
           {cancellationError}
           {workspace.latest_build.status === "running" &&
