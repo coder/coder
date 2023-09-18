@@ -36,6 +36,7 @@ func TestServerDBCrypt(t *testing.T) {
 	connectionURL, closePg, err := postgres.Open()
 	require.NoError(t, err)
 	t.Cleanup(closePg)
+	t.Cleanup(func() { dbtestutil.DumpOnFailure(t, connectionURL) })
 
 	sqlDB, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
@@ -43,13 +44,6 @@ func TestServerDBCrypt(t *testing.T) {
 		_ = sqlDB.Close()
 	})
 	db := database.New(sqlDB)
-
-	t.Cleanup(func() {
-		if t.Failed() {
-			t.Logf("Dumping data due to failed test. I hope you find what you're looking for!")
-			dumpUsers(t, sqlDB)
-		}
-	})
 
 	// Populate the database with some unencrypted data.
 	t.Logf("Generating unencrypted data")
@@ -248,50 +242,6 @@ func genData(t *testing.T, db database.Store) []database.User {
 		}
 	}
 	return users
-}
-
-func dumpUsers(t *testing.T, db *sql.DB) {
-	t.Helper()
-	rows, err := db.QueryContext(context.Background(), `SELECT
-	u.id,
-	u.login_type,
-	u.status,
-	u.deleted,
-	ul.oauth_access_token_key_id AS uloatkid,
-	ul.oauth_refresh_token_key_id AS ulortkid,
-	gal.oauth_access_token_key_id AS galoatkid,
-	gal.oauth_refresh_token_key_id AS galortkid
-FROM users u
-LEFT OUTER JOIN user_links ul ON u.id = ul.user_id
-LEFT OUTER JOIN git_auth_links gal ON u.id = gal.user_id
-ORDER BY u.created_at ASC;`)
-	require.NoError(t, err)
-	defer rows.Close()
-	for rows.Next() {
-		var (
-			id        string
-			loginType string
-			status    string
-			deleted   bool
-			UlOatKid  sql.NullString
-			UlOrtKid  sql.NullString
-			GalOatKid sql.NullString
-			GalOrtKid sql.NullString
-		)
-		require.NoError(t, rows.Scan(
-			&id,
-			&loginType,
-			&status,
-			&deleted,
-			&UlOatKid,
-			&UlOrtKid,
-			&GalOatKid,
-			&GalOrtKid,
-		))
-		t.Logf("user: id:%s login_type:%-8s status:%-9s deleted:%-5t ul_kids{at:%-7s rt:%-7s} gal_kids{at:%-7s rt:%-7s}",
-			id, loginType, status, deleted, UlOatKid.String, UlOrtKid.String, GalOatKid.String, GalOrtKid.String,
-		)
-	}
 }
 
 func mustString(t *testing.T, n int) string {
