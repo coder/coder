@@ -101,6 +101,7 @@ var WorkspaceAgentLifecycleOrder = []WorkspaceAgentLifecycle{
 // ready (can be overridden).
 //
 // Presently, non-blocking is the default, but this may change in the future.
+// Deprecated: `coder_script` allows configuration on a per-script basis.
 type WorkspaceAgentStartupScriptBehavior string
 
 const (
@@ -175,6 +176,11 @@ type WorkspaceAgent struct {
 	DisplayApps              []DisplayApp              `json:"display_apps"`
 	LogSources               []WorkspaceAgentLogSource `json:"log_sources"`
 	Scripts                  []WorkspaceAgentScript    `json:"scripts"`
+
+	// StartupScriptBehavior is a legacy field that is deprecated in favor
+	// of the `coder_script` resource. It's only referenced by old clients.
+	// Deprecated: Remove in the future!
+	StartupScriptBehavior WorkspaceAgentStartupScriptBehavior `json:"startup_script_behavior"`
 }
 
 type WorkspaceAgentLogSource struct {

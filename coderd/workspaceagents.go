@@ -1465,6 +1465,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Architecture:             dbAgent.Architecture,
 		OperatingSystem:          dbAgent.OperatingSystem,
 		Scripts:                  scripts,
+		StartupScriptBehavior:    codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
 		LogsLength:               dbAgent.LogsLength,
 		LogsOverflowed:           dbAgent.LogsOverflowed,
 		LogSources:               logSources,
