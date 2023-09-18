@@ -1,6 +1,5 @@
 import {
   mockApiError,
-  MockOrganization,
   MockTemplateExample,
   MockTemplateExample2,
 } from "testHelpers/entities";
@@ -18,25 +17,19 @@ type Story = StoryObj<typeof StarterTemplatesPageView>;
 
 export const Default: Story = {
   args: {
-    context: {
-      organizationId: MockOrganization.id,
-      error: undefined,
-      starterTemplatesByTag: getTemplatesByTag([
-        MockTemplateExample,
-        MockTemplateExample2,
-      ]),
-    },
+    error: undefined,
+    starterTemplatesByTag: getTemplatesByTag([
+      MockTemplateExample,
+      MockTemplateExample2,
+    ]),
   },
 };
 
 export const Error: Story = {
   args: {
-    context: {
-      organizationId: MockOrganization.id,
-      error: mockApiError({
-        message: "Error on loading the template examples",
-      }),
-      starterTemplatesByTag: undefined,
-    },
+    error: mockApiError({
+      message: "Error on loading the template examples",
+    }),
+    starterTemplatesByTag: undefined,
   },
 };
