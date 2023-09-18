@@ -14,12 +14,9 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -201,9 +198,7 @@ func (e BuildError) Unwrap() error {
 // authorization preflight checks.
 func (b *Builder) Build(
 	ctx context.Context,
-	logger slog.Logger,
 	store database.Store,
-	ps pubsub.Pubsub,
 	authFunc func(action rbac.Action, object rbac.Objecter) bool,
 ) (
 	*database.WorkspaceBuild, *database.ProvisionerJob, error,
@@ -233,11 +228,6 @@ func (b *Builder) Build(
 		if err != nil {
 			// Other (hard) error
 			return nil, nil, err
-		}
-		err = provisionerjobs.PostJob(ps, *provisionerJob)
-		if err != nil {
-			// Client probably doesn't care about this error, so just log it.
-			logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 		}
 		return workspaceBuild, provisionerJob, nil
 	}

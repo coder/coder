@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -486,9 +487,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 		workspaceBuild, provisionerJob, err = builder.Build(
 			ctx,
-			api.Logger.With(slog.F("workspace_id", workspace.ID)),
 			db,
-			api.Pubsub,
 			func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			})
@@ -508,6 +507,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Detail:  err.Error(),
 		})
 		return
+	}
+	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
+	if err != nil {
+		// Client probably doesn't care about this error, so just log it.
+		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
 	aReq.New = workspace
 

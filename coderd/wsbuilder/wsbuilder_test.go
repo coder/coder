@@ -12,15 +12,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/atomic"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
@@ -50,9 +45,6 @@ func TestBuilder_NoOptions(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	expectJobPosting(t, ps, 1)
 
 	var buildID uuid.UUID
 
@@ -96,7 +88,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-	_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
 
@@ -107,9 +99,6 @@ func TestBuilder_Initiator(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	expectJobPosting(t, ps, 1)
 
 	mDB := expectDB(t,
 		// Inputs
@@ -134,7 +123,7 @@ func TestBuilder_Initiator(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Initiator(otherUserID)
-	_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
 
@@ -145,9 +134,6 @@ func TestBuilder_Reason(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	expectJobPosting(t, ps, 1)
 
 	mDB := expectDB(t,
 		// Inputs
@@ -171,7 +157,7 @@ func TestBuilder_Reason(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).Reason(database.BuildReasonAutostart)
-	_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
 
@@ -182,9 +168,6 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	expectJobPosting(t, ps, 1)
 
 	mDB := expectDB(t,
 		// Inputs
@@ -213,7 +196,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 
 	ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 	uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).ActiveVersion()
-	_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+	_, _, err := uut.Build(ctx, mDB, nil)
 	req.NoError(err)
 }
 
@@ -254,9 +237,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 1)
 
 		const updatedParameterValue = "3"
 		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
@@ -294,7 +274,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		req.NoError(err)
 	})
 	t.Run("UsePreviousParameterValues", func(t *testing.T) {
@@ -305,9 +285,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 1)
 
 		nextBuildParameters := []codersdk.WorkspaceBuildParameter{}
 		expectedParams := map[string]string{}
@@ -340,7 +317,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		req.NoError(err)
 	})
 
@@ -352,9 +329,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 0)
 
 		schemas := []database.ParameterSchema{
 			{
@@ -383,7 +357,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -397,9 +371,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 0)
 
 		nextBuildParameters := []codersdk.WorkspaceBuildParameter{
 			{Name: immutableParameterName, Value: "BAD"},
@@ -423,7 +394,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ws := database.Workspace{ID: workspaceID, TemplateID: templateID, OwnerID: userID}
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).RichParameterValues(nextBuildParameters)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		bldErr := wsbuilder.BuildError{}
 		req.ErrorAs(err, &bldErr)
 		asrt.Equal(http.StatusBadRequest, bldErr.Status)
@@ -437,9 +408,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 1)
 
 		// new template revision
 		const newImmutableParameterName = "new_immutable_parameter"
@@ -488,7 +456,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		req.NoError(err)
 	})
 
@@ -500,9 +468,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 1)
 
 		// new template revision
 		const newImmutableParameterName = "new_immutable_parameter"
@@ -551,7 +516,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		req.NoError(err)
 	})
 
@@ -563,9 +528,6 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		ps := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		expectJobPosting(t, ps, 1)
 
 		// new template revision
 		const newImmutableParameterName = "new_immutable_parameter"
@@ -612,7 +574,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 		uut := wsbuilder.New(ws, database.WorkspaceTransitionStart).
 			RichParameterValues(nextBuildParameters).
 			VersionID(activeVersionID)
-		_, _, err := uut.Build(ctx, logger, mDB, ps, nil)
+		_, _, err := uut.Build(ctx, mDB, nil)
 		req.NoError(err)
 	})
 }
@@ -867,20 +829,4 @@ func expectBuildParameters(
 				},
 			)
 	}
-}
-
-func expectJobPosting(t *testing.T, ps pubsub.Pubsub, k int32) {
-	n := atomic.NewInt32(0)
-	listener := func(_ context.Context, message []byte) {
-		var posting provisionerjobs.JobPosting
-		err := json.Unmarshal(message, &posting)
-		assert.NoError(t, err)
-		n.Add(1)
-	}
-	cancel, err := ps.Subscribe(provisionerjobs.EventJobPosted, listener)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		cancel()
-		assert.Equal(t, n.Load(), k, "expected exactly 1 job posting")
-	})
 }
