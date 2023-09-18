@@ -578,7 +578,6 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	// Subscribe to workspace to detect new builds.
 	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-		// The message is not important, we're tracking lastSentLogID manually.
 		select {
 		case workspaceNotifyCh <- struct{}{}:
 		default:
