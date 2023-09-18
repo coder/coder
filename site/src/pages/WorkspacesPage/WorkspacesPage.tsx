@@ -126,14 +126,27 @@ type UseWorkspacesFilterOptions = {
   pagination: ReturnType<typeof usePagination>;
 };
 
+const filterPreferencesKey = "WorkspacesPage/filterPreferences";
+
 const useWorkspacesFilter = ({
   searchParamsResult,
   pagination,
 }: UseWorkspacesFilterOptions) => {
   const filter = useFilter({
-    initialValue: `owner:me`,
     searchParamsResult,
-    onUpdate: () => {
+    initialValue: () => {
+      const fallbackValue = "owner:me";
+
+      // Have to include check because initialValue will be called during the
+      // render itself; future-proofing for SSR, if we ever need that
+      if (typeof window === "undefined") {
+        return fallbackValue;
+      }
+
+      return window.localStorage.getItem(filterPreferencesKey) ?? fallbackValue;
+    },
+    onUpdate: (newValues) => {
+      window.localStorage.setItem(filterPreferencesKey, newValues);
       pagination.goToPage(1);
     },
   });
