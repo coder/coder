@@ -58,7 +58,7 @@ export const GroupPage: React.FC = () => {
   const addMemberMutation = useMutation(addMember(queryClient));
   const removeMemberMutation = useMutation(removeMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
-  const [isDeletingGroup, setIsDeletinGroup] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
@@ -87,7 +87,7 @@ export const GroupPage: React.FC = () => {
                   <Button
                     disabled={groupData?.id === groupData?.organization_id}
                     onClick={() => {
-                      setIsDeletinGroup(true);
+                      setIsDeletingGroup(true);
                     }}
                     startIcon={<DeleteOutline />}
                   >
@@ -243,7 +243,7 @@ export const GroupPage: React.FC = () => {
             }
           }}
           onCancel={() => {
-            setIsDeletinGroup(false);
+            setIsDeletingGroup(false);
           }}
         />
       )}
