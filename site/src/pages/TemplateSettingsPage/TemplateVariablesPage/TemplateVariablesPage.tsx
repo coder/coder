@@ -6,40 +6,103 @@ import {
 } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
+import { useEffect, type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
-import { templateVariablesMachine } from "xServices/template/templateVariablesXService";
-import { pageTitle } from "../../../utils/page";
+import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
+import {
+  createTemplateVersion,
+  templateVersion,
+  templateVersionVariables,
+  updateActiveTemplateVersion,
+} from "api/queries/templates";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 
 export const TemplateVariablesPage: FC = () => {
   const { template: templateName } = useParams() as {
     organization: string;
     template: string;
   };
-  const organizationId = useOrganizationId();
+  const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
   const navigate = useNavigate();
-  const [state, send] = useMachine(templateVariablesMachine, {
-    context: {
-      organizationId,
-      template,
-    },
-    actions: {
-      onUpdateTemplate: () => {
-        displaySuccess("Template updated successfully");
+  const queryClient = useQueryClient();
+  const versionId = template.active_version_id;
+
+  const [newVersionId, setNewVersionId] = useState<string | null>(null);
+
+  const {
+    data: version,
+    error: versionError,
+    isLoading: isVersionLoading,
+  } = useQuery({ ...templateVersion(versionId), keepPreviousData: true });
+  const {
+    data: variables,
+    error: variablesError,
+    isLoading: isVariablesLoading,
+  } = useQuery({
+    ...templateVersionVariables(versionId),
+    keepPreviousData: true,
+  });
+
+  const createVersionMutation = createTemplateVersion(orgId, queryClient);
+  const { mutate: sendCreateTemplateVersion, error: createVersionError } =
+    useMutation({
+      ...createVersionMutation,
+      onSuccess: (data) => {
+        setNewVersionId(data.id);
       },
+    });
+  const publishMutation = updateActiveTemplateVersion(template, queryClient);
+  const { mutate: publishVersion, error: publishError } = useMutation({
+    ...publishMutation,
+    onSuccess: () => {
+      publishMutation.onSuccess();
+      displaySuccess("Template updated successfully");
+    },
+    onSettled: () => {
+      setNewVersionId(null);
     },
   });
+
   const {
-    activeTemplateVersion,
-    templateVariables,
-    getTemplateDataError,
-    updateTemplateError,
-    jobError,
-  } = state.context;
+    data: status,
+    error: statusError,
+    refetch: refetchStatus,
+    isRefetching,
+  } = useQuery(
+    newVersionId ? templateVersion(newVersionId) : { enabled: false },
+  );
+
+  const isSubmitting = Boolean(newVersionId && !statusError);
+
+  // Poll build status while we're updating the template
+  useEffect(() => {
+    if (!newVersionId || !status || isRefetching) {
+      return;
+    }
+
+    const jobStatus = status.job.status;
+    if (jobStatus === "pending" || jobStatus === "running") {
+      setTimeout(() => refetchStatus(), 2_000);
+      return;
+    }
+
+    publishVersion(newVersionId);
+  }, [newVersionId, status, isRefetching]);
+
+  const error = versionError ?? variablesError;
+  if (error) {
+    return <ErrorAlert error={error} />;
+  }
+
+  if (isVersionLoading || isVariablesLoading) {
+    return <Loader />;
+  }
 
   return (
     <>
@@ -48,23 +111,21 @@ export const TemplateVariablesPage: FC = () => {
       </Helmet>
 
       <TemplateVariablesPageView
-        isSubmitting={state.hasTag("submitting")}
-        templateVersion={activeTemplateVersion}
-        templateVariables={templateVariables}
+        isSubmitting={isSubmitting}
+        templateVersion={version}
+        templateVariables={variables}
         errors={{
-          getTemplateDataError,
-          updateTemplateError,
-          jobError,
+          createVersionError,
+          statusError,
+          jobError: status?.job.error,
+          publishError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`);
         }}
         onSubmit={(formData) => {
-          const request = filterEmptySensitiveVariables(
-            formData,
-            templateVariables,
-          );
-          send({ type: "UPDATE_TEMPLATE_EVENT", request: request });
+          const request = filterEmptySensitiveVariables(formData, variables);
+          sendCreateTemplateVersion(request);
         }}
       />
     </>

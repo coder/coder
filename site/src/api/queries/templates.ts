@@ -1,6 +1,10 @@
 import * as API from "api/api";
-import { type Template, type AuthorizationResponse } from "api/typesGenerated";
-import { type QueryOptions } from "@tanstack/react-query";
+import {
+  type Template,
+  type AuthorizationResponse,
+  type CreateTemplateVersionRequest,
+} from "api/typesGenerated";
+import { type QueryClient, type QueryOptions } from "@tanstack/react-query";
 
 export const templateByNameKey = (orgId: string, name: string) => [
   orgId,
@@ -61,5 +65,40 @@ export const templateVersions = (templateId: string) => {
   return {
     queryKey: ["templateVersions", templateId],
     queryFn: () => API.getTemplateVersions(templateId),
+  };
+};
+
+export const templateVersionVariables = (versionId: string) => {
+  return {
+    queryKey: ["templateVersionVariables", versionId],
+    queryFn: () => API.getTemplateVersionVariables(versionId),
+  };
+};
+
+export const createTemplateVersion = (
+  orgId: string,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: (request: CreateTemplateVersionRequest) =>
+      API.createTemplateVersion(orgId, request),
+  };
+};
+
+export const updateActiveTemplateVersion = (
+  template: Template,
+  queryClient: QueryClient,
+) => {
+  return {
+    mutationFn: (versionId: string) =>
+      API.updateActiveTemplateVersion(template.id, {
+        id: versionId,
+      }),
+    onSuccess: async () => {
+      // invalidated because of `active_version_id`
+      await queryClient.invalidateQueries(
+        templateByNameKey(template.organization_id, template.name),
+      );
+    },
   };
 };

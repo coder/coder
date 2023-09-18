@@ -61,12 +61,18 @@ export const mapApiErrorToFieldErrors = (
 export const getErrorMessage = (
   error: unknown,
   defaultMessage: string,
-): string =>
-  isApiError(error)
-    ? error.response.data.message
-    : error instanceof Error
-    ? error.message
-    : defaultMessage;
+): string => {
+  if (isApiError(error)) {
+    return error.response.data.message;
+  }
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  return defaultMessage;
+};
 
 /**
  *
