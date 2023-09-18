@@ -329,7 +329,7 @@
 
 | Name            | Type                                  | Required | Restrictions | Description |
 | --------------- | ------------------------------------- | -------- | ------------ | ----------- |
-| `log_source_id` | string                                | true     |              |             |
+| `log_source_id` | string                                | false    |              |             |
 | `logs`          | array of [agentsdk.Log](#agentsdklog) | false    |              |             |
 
 ## agentsdk.PostAppHealthsRequest

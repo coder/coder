@@ -6457,9 +6457,6 @@ const docTemplate = `{
         },
         "agentsdk.PatchLogs": {
             "type": "object",
-            "required": [
-                "log_source_id"
-            ],
             "properties": {
                 "log_source_id": {
                     "type": "string"

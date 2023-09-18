@@ -1171,9 +1171,6 @@ ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agent_log_sources
-    ADD CONSTRAINT workspace_agent_log_sources_id_key UNIQUE (id);
-
-ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
 
 ALTER TABLE ONLY workspace_agent_metadata
@@ -1371,7 +1368,7 @@ ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
-    ADD CONSTRAINT workspace_agent_scripts_log_source_id_fkey FOREIGN KEY (log_source_id) REFERENCES workspace_agent_log_sources(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

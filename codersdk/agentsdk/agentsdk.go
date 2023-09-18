@@ -23,6 +23,15 @@ import (
 	"github.com/coder/retry"
 )
 
+var (
+	// ExternalLogSourceID is the statically-defined ID of a log-source that
+	// appears as "External" in the dashboard.
+	//
+	// This is to support legacy API-consumers that do not create their own
+	// log-source. This should be removed in the future.
+	ExternalLogSourceID = uuid.MustParse("3b579bf4-1ed8-4b99-87a8-e9a1e3410410")
+)
+
 // New returns a client that is used to interact with the
 // Coder API from a workspace agent.
 func New(serverURL *url.URL) *Client {
@@ -644,7 +653,7 @@ type Log struct {
 }
 
 type PatchLogs struct {
-	LogSourceID uuid.UUID `json:"log_source_id" validate:"required"`
+	LogSourceID uuid.UUID `json:"log_source_id"`
 	Logs        []Log     `json:"logs"`
 }
 
@@ -660,6 +669,29 @@ func (c *Client) PatchLogs(ctx context.Context, req PatchLogs) error {
 		return codersdk.ReadBodyAsError(res)
 	}
 	return nil
+}
+
+type PostLogSource struct {
+	// ID is a unique identifier for the log source.
+	// It is scoped to a workspace agent, and can be statically
+	// defined inside code to prevent duplicate sources from being
+	// created for the same agent.
+	ID          uuid.UUID `json:"id"`
+	DisplayName string    `json:"display_name"`
+	Icon        string    `json:"icon"`
+}
+
+func (c *Client) PostLogSource(ctx context.Context, req PostLogSource) (codersdk.WorkspaceAgentLogSource, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/log-source", req)
+	if err != nil {
+		return codersdk.WorkspaceAgentLogSource{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return codersdk.WorkspaceAgentLogSource{}, codersdk.ReadBodyAsError(res)
+	}
+	var logSource codersdk.WorkspaceAgentLogSource
+	return logSource, json.NewDecoder(res.Body).Decode(&logSource)
 }
 
 // GetServiceBanner relays the service banner config.
