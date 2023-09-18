@@ -470,21 +470,48 @@ const useReloading = (isDisconnected: boolean) => {
 
   // Retry connection on key press when it is disconnected
   useEffect(() => {
-    if (!isDisconnected) {
+    if (!isDisconnected || status === "reloading") {
       return;
     }
 
-    const keyDownHandler = () => {
-      setStatus("reloading");
-      window.location.reload();
+    // Modifier keys should not trigger a reload.
+    const ignoredKeys = [
+      "Alt",
+      "AltGraph",
+      "CapsLock",
+      "Control",
+      "Fn",
+      "FnLock",
+      "Meta",
+      "NumLock",
+      "ScrollLock",
+      "Shift",
+      "Symbol",
+      "SymbolLock",
+    ];
+
+    const keyDownHandler = (event: KeyboardEvent) => {
+      // In addition to ignored keys, avoid reloading while modifiers are held
+      // to cover cases where the terminal unexpectedly tries to reconnect like
+      // when pressing ctrl+w, ctrl+r, and so on.
+      if (
+        !ignoredKeys.includes(event.key) &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
+        setStatus("reloading");
+        window.location.reload();
+      }
     };
 
-    document.addEventListener("keydown", keyDownHandler);
+    document.addEventListener("keydown", keyDownHandler, true);
 
     return () => {
-      document.removeEventListener("keydown", keyDownHandler);
+      document.removeEventListener("keydown", keyDownHandler, true);
     };
-  }, [isDisconnected]);
+  }, [status, isDisconnected]);
 
   return {
     status,

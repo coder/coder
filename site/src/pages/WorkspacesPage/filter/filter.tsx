@@ -18,9 +18,22 @@ import { UserFilterMenu, UserMenu } from "components/Filter/UserFilter";
 import { workspaceFilterQuery } from "utils/filters";
 import { docs } from "utils/docs";
 
-const PRESET_FILTERS = [
-  { query: workspaceFilterQuery.me, name: "My workspaces" },
-  { query: workspaceFilterQuery.all, name: "All workspaces" },
+type FilterPreset = {
+  query: string;
+  name: string;
+};
+
+// Can't use as const declarations to make arrays deep readonly because that
+// interferes with the type contracts for Filter
+const PRESET_FILTERS: FilterPreset[] = [
+  {
+    query: workspaceFilterQuery.me,
+    name: "My workspaces",
+  },
+  {
+    query: workspaceFilterQuery.all,
+    name: "All workspaces",
+  },
   {
     query: workspaceFilterQuery.running,
     name: "Running workspaces",
@@ -31,11 +44,16 @@ const PRESET_FILTERS = [
   },
 ];
 
-export const WorkspacesFilter = ({
-  filter,
-  error,
-  menus,
-}: {
+// Defined outside component so that the array doesn't get reconstructed each render
+const PRESETS_WITH_DORMANT: FilterPreset[] = [
+  ...PRESET_FILTERS,
+  {
+    query: workspaceFilterQuery.dormant,
+    name: "Dormant workspaces",
+  },
+];
+
+type WorkspaceFilterProps = {
   filter: ReturnType<typeof useFilter>;
   error?: unknown;
   menus: {
@@ -43,14 +61,15 @@ export const WorkspacesFilter = ({
     template: TemplateFilterMenu;
     status: StatusFilterMenu;
   };
-}) => {
-  const presets = [...PRESET_FILTERS];
-  if (useIsWorkspaceActionsEnabled()) {
-    presets.push({
-      query: workspaceFilterQuery.dormant,
-      name: "Dormant workspaces",
-    });
-  }
+};
+
+export const WorkspacesFilter = ({
+  filter,
+  error,
+  menus,
+}: WorkspaceFilterProps) => {
+  const actionsEnabled = useIsWorkspaceActionsEnabled();
+  const presets = actionsEnabled ? PRESET_FILTERS : PRESETS_WITH_DORMANT;
 
   return (
     <Filter

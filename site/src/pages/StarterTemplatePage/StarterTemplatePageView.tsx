@@ -9,27 +9,28 @@ import {
   PageHeaderTitle,
 } from "components/PageHeader/PageHeader";
 import { FC } from "react";
-import { StarterTemplateContext } from "xServices/starterTemplates/starterTemplateXService";
 import ViewCodeIcon from "@mui/icons-material/OpenInNewOutlined";
 import PlusIcon from "@mui/icons-material/AddOutlined";
 import { Stack } from "components/Stack/Stack";
 import { Link } from "react-router-dom";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { TemplateExample } from "api/typesGenerated";
 
 export interface StarterTemplatePageViewProps {
-  context: StarterTemplateContext;
+  starterTemplate?: TemplateExample;
+  error?: unknown;
 }
 
 export const StarterTemplatePageView: FC<StarterTemplatePageViewProps> = ({
-  context,
+  starterTemplate,
+  error,
 }) => {
   const styles = useStyles();
-  const { starterTemplate } = context;
 
-  if (context.error) {
+  if (error) {
     return (
       <Margins>
-        <ErrorAlert error={context.error} />
+        <ErrorAlert error={error} />
       </Margins>
     );
   }

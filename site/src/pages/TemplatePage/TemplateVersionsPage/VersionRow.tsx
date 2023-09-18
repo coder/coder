@@ -6,6 +6,7 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { useNavigate } from "react-router-dom";
 import { colors } from "theme/colors";
@@ -62,6 +63,10 @@ export const VersionRow: React.FC<VersionRowProps> = ({
                 <strong>{version.created_by.username}</strong> created the
                 version <strong>{version.name}</strong>
               </span>
+
+              {version.message && (
+                <InfoTooltip title="Message" message={version.message} />
+              )}
 
               <span className={styles.versionTime}>
                 {new Date(version.created_at).toLocaleTimeString()}

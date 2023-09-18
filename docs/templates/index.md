@@ -411,6 +411,29 @@ By default, all templates allow developers to connect over SSH and a web
 terminal. See [Configuring Web IDEs](../ides/web-ides.md) to learn how to give
 users access to additional web applications.
 
+Template administrators can hide apps like the web-based Terminal or VS Code
+Desktop with the
+[`display_apps`](https://registry.terraform.io/providers/coder/coder/0.11.2/docs/resources/agent#display_apps)
+configuration in the
+[`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent)
+resource. For example, the following configuration block will hide all default
+Coder apps except the web terminal.
+
+```hcl
+  display_apps {
+    vscode = false
+    vscode_insiders = false
+    ssh_helper = false
+    port_forwarding_helper = false
+    web_terminal = true
+  }
+```
+
+Example use cases for `display_apps` are JetBrains users or zero-trust
+deployments who do not want nor should have access to a local VS Code IDE.
+
+![display-apps](../images/display-apps.png)
+
 ### Data source
 
 When a workspace is being started or stopped, the `coder_workspace` data source

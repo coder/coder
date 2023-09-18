@@ -6,10 +6,17 @@ import { useMachine } from "@xstate/react";
 import { User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import debounce from "just-debounce-it";
-import { ChangeEvent, ComponentProps, FC, useEffect, useState } from "react";
+import {
+  ChangeEvent,
+  ComponentProps,
+  FC,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { searchUserMachine } from "xServices/users/searchUserXService";
 import Box from "@mui/material/Box";
+import { useDebouncedFunction } from "hooks/debounce";
 
 export type UserAutocompleteProps = {
   value: User | null;
@@ -31,16 +38,23 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
   const [searchState, sendSearch] = useMachine(searchUserMachine);
   const { searchResults } = searchState.context;
 
-  // seed list of options on the first page load if a user pases in a value
-  // since some organizations have long lists of users, we do not load all options on page load.
+  // Seed list of options on the first page load if a user passes in a value.
+  // Since some organizations have long lists of users, we do not want to load
+  // all options on page load.
+  const onMountRef = useRef(value);
   useEffect(() => {
-    if (value) {
-      sendSearch("SEARCH", { query: value.email });
+    const mountValue = onMountRef.current;
+    if (mountValue) {
+      sendSearch("SEARCH", { query: mountValue.email });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- TODO look into this
-  }, []);
 
-  const handleFilterChange = debounce(
+    // This isn't in XState's docs, but its source code guarantees that the
+    // memory reference of sendSearch will stay stable across renders. This
+    // useEffect call will behave like an on-mount effect and will not ever need
+    // to resynchronize
+  }, [sendSearch]);
+
+  const { debounced: debouncedOnChange } = useDebouncedFunction(
     (event: ChangeEvent<HTMLInputElement>) => {
       sendSearch("SEARCH", { query: event.target.value });
     },
@@ -93,7 +107,7 @@ export const UserAutocomplete: FC<UserAutocompleteProps> = ({
             className={styles.textField}
             InputProps={{
               ...params.InputProps,
-              onChange: handleFilterChange,
+              onChange: debouncedOnChange,
               startAdornment: value && (
                 <Avatar size="sm" src={value.avatar_url}>
                   {value.username}
