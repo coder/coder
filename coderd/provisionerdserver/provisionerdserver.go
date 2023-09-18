@@ -212,9 +212,16 @@ type jobAndErr struct {
 }
 
 // AcquireJobWithCancel queries the database to lock a job.
-func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) (retErr error) {
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	streamCtx := dbauthz.AsProvisionerd(stream.Context())
+	defer func() {
+		closeErr := stream.Close()
+		s.Logger.Debug(streamCtx, "closed stream", slog.Error(closeErr))
+		if retErr == nil {
+			retErr = closeErr
+		}
+	}()
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
 	recvCh := make(chan error, 1)
@@ -243,7 +250,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 			s.Logger.Info(streamCtx, "failed to send empty job", slog.Error(err))
 			return err
 		}
-		return stream.Close()
+		return nil
 	}
 	if je.err != nil {
 		return xerrors.Errorf("acquire job: %w", je.err)
@@ -283,7 +290,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		s.Logger.Error(streamCtx, "failed to send job", slog.Error(err))
 		return err
 	}
-	return stream.Close()
+	return nil
 }
 
 func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJob) (*proto.AcquiredJob, error) {
