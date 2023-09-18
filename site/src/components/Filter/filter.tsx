@@ -35,6 +35,14 @@ export type PresetFilter = {
 type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
+  /**
+   * If initialValue is a string, that value will be used immediately from the
+   * first render.
+   *
+   * If it's a function, the function will be lazy-evaluated via an effect
+   * after the initial render. The initial render will use an empty string while
+   * waiting for the effect to run.
+   */
   initialValue?: string | (() => string);
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onUpdate?: (newValue: string) => void;
@@ -49,25 +57,31 @@ export const useFilter = ({
 }: UseFilterConfig) => {
   const [searchParams, setSearchParams] = searchParamsResult;
 
-  // Fully expect the initialValue functions to have some impurity (e.g. reading
-  // from localStorage during a render path). (Ab)using useState's lazy
-  // initialization mode to guarantee impurities only exist on mount. Pattern
-  // has added benefit of locking down initialValue and ignoring any accidental
-  // value changes on re-renders
-  const [readonlyInitialQueryState] = useState(initialValue);
+  // Copying initialValue into state to lock the value down from the outside
+  const [initializedValue, setInitializedValue] = useState(() => {
+    return typeof initialValue === "string" ? initialValue : "";
+  });
 
-  // Sync the params with the value provided via the initialValue function;
-  // should behave only as an on-mount effect
+  // Lazy-evaluate initialValue only on mount; have to resolve via effect
+  // because initialValue is allowed to be impure (e.g., read from localStorage)
+  const lazyOnMountRef = useRef(initialValue);
   useEffect(() => {
+    if (typeof lazyOnMountRef.current === "string") {
+      return;
+    }
+
+    const lazyInitialValue = lazyOnMountRef.current();
+    setInitializedValue(lazyInitialValue);
+
     setSearchParams((current) => {
       const currentFilter = current.get(useFilterParamsKey);
-      if (currentFilter !== readonlyInitialQueryState) {
-        current.set(useFilterParamsKey, readonlyInitialQueryState);
+      if (currentFilter !== lazyInitialValue) {
+        current.set(useFilterParamsKey, lazyInitialValue);
       }
 
       return current;
     });
-  }, [setSearchParams, readonlyInitialQueryState]);
+  }, [setSearchParams]);
 
   const update = (newValues: string | FilterValues) => {
     const serialized =
@@ -82,11 +96,11 @@ export const useFilter = ({
   };
 
   const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
-    (values: string | FilterValues) => update(values),
+    update,
     500,
   );
 
-  const query = searchParams.get("filter") ?? readonlyInitialQueryState;
+  const query = searchParams.get("filter") ?? initializedValue;
   const values = parseFilterQuery(query);
   const used = query !== "" && query !== initialValue;
 

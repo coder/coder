@@ -151,9 +151,6 @@ const useWorkspacesFilter = ({
     searchParamsResult,
     initialValue: () => {
       const fallbackValue = "owner:me";
-
-      // Have to include check because initialValue will be called during the
-      // render itself; future-proofing for SSR, if we ever need that
       if (typeof window === "undefined") {
         return fallbackValue;
       }
