@@ -3,8 +3,8 @@
  * released yet.
  *
  * These hooks should be deleted as soon as the official versions are available.
- * They also do have the same ESLinter exceptions baked in that the official
- * hooks do.
+ * They do not have the same ESLinter exceptions baked in that the official
+ * hooks do, especially for dependency arrays.
  */
 import { useCallback, useEffect, useRef } from "react";
 
@@ -16,8 +16,10 @@ import { useCallback, useEffect, useRef } from "react";
  * function is always able to "see" the most up-to-date version of the callback
  * passed in.
  *
- * Should only be used as a last resort where useCallback does not work, and you
- * still need to avoid dependency array violations.
+ * Should only be used as a last resort where useCallback does not work, but you
+ * still need to avoid dependency array violations. (e.g., You need an on-mount
+ * effect, but an external library doesn't give their functions stable
+ * references, causing useEffect to run too often).
  *
  * @see {@link https://react.dev/reference/react/experimental_useEffectEvent}
  */
