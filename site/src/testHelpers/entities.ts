@@ -583,6 +583,7 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   logs_overflowed: false,
   log_sources: [MockWorkspaceAgentLogSource],
   scripts: [MockWorkspaceAgentScript],
+  startup_script_behavior: "non-blocking",
   subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
