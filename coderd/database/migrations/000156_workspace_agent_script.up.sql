@@ -21,7 +21,7 @@ CREATE TABLE workspace_agent_scripts (
 	timeout_seconds integer NOT NULL
 );
 
-ALTER TABLE workspace_agent_logs ADD COLUMN log_source_id uuid NOT NULL;
+ALTER TABLE workspace_agent_logs ADD COLUMN log_source_id uuid NOT NULL DEFAULT '00000000-0000-0000-0000-000000000000'::uuid;
 ALTER TABLE workspace_agent_logs DROP COLUMN source;
 DROP TYPE workspace_agent_log_source;
 
