@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database/pubsub"
-
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -16,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"

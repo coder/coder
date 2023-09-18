@@ -145,11 +145,11 @@ service ProvisionerDaemon {
         option deprecated = true;
     };
     // AcquireJobWithCancel requests a job, blocking until
-	// a job is available or the client sends CancelAcquire.
-	// Server will send exactly one AcquiredJob, which is
-	// empty if a cancel was successful.  This RPC is a bidirectional
-	// stream since both messages are asynchronous with no implied
-	// ordering.
+    // a job is available or the client sends CancelAcquire.
+    // Server will send exactly one AcquiredJob, which is
+    // empty if a cancel was successful.  This RPC is a bidirectional
+    // stream since both messages are asynchronous with no implied
+    // ordering.
     rpc AcquireJobWithCancel(stream CancelAcquire) returns (stream AcquiredJob);
 
     rpc CommitQuota(CommitQuotaRequest) returns (CommitQuotaResponse);
