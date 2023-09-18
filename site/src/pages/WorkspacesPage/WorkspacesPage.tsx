@@ -130,7 +130,6 @@ const useWorkspacesFilter = ({
   searchParamsResult,
   pagination,
 }: UseWorkspacesFilterOptions) => {
-  const orgId = useOrganizationId();
   const filter = useFilter({
     initialValue: `owner:me`,
     searchParamsResult,
@@ -138,6 +137,7 @@ const useWorkspacesFilter = ({
       pagination.goToPage(1);
     },
   });
+
   const permissions = usePermissions();
   const canFilterByUser = permissions.viewDeploymentValues;
   const userMenu = useUserFilterMenu({
@@ -146,12 +146,15 @@ const useWorkspacesFilter = ({
       filter.update({ ...filter.values, owner: option?.value }),
     enabled: canFilterByUser,
   });
+
+  const orgId = useOrganizationId();
   const templateMenu = useTemplateFilterMenu({
     orgId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),
   });
+
   const statusMenu = useStatusFilterMenu({
     value: filter.values.status,
     onChange: (option) =>

@@ -49,3 +49,17 @@ export const templateExamples = (orgId: string) => {
     queryFn: () => API.getTemplateExamples(orgId),
   };
 };
+
+export const templateVersion = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId],
+    queryFn: () => API.getTemplateVersion(versionId),
+  };
+};
+
+export const templateVersions = (templateId: string) => {
+  return {
+    queryKey: ["templateVersions", templateId],
+    queryFn: () => API.getTemplateVersions(templateId),
+  };
+};

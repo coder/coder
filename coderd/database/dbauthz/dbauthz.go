@@ -664,6 +664,15 @@ func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg uuid.UUID) erro
 	return update(q.log, q.auth, fetch, q.db.ActivityBumpWorkspace)(ctx, arg)
 }
 
+func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
+	// Although this technically only reads users, only system-related functions should be
+	// allowed to call this.
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.AllUserIDs(ctx)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err

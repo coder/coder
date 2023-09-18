@@ -23,17 +23,17 @@ import {
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getTemplateVersions, restartWorkspace } from "api/api";
+import { restartWorkspace } from "api/api";
 import {
   ConfirmDialog,
   ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { useMe } from "hooks/useMe";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService";
 import * as TypesGen from "api/typesGenerated";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
+import { templateVersion, templateVersions } from "api/queries/templates";
+import { Alert } from "components/Alert/Alert";
+import { Stack } from "components/Stack/Stack";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -54,7 +54,7 @@ export const WorkspaceReadyPage = ({
   const {
     workspace,
     template,
-    templateVersion,
+    templateVersion: currentVersion,
     deploymentValues,
     builds,
     getBuildsError,
@@ -76,18 +76,21 @@ export const WorkspaceReadyPage = ({
   const favicon = getFaviconByStatus(workspace.latest_build);
   const navigate = useNavigate();
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
-  const { data: templateVersions } = useQuery({
-    queryKey: ["template", "versions", workspace.template_id],
-    queryFn: () => getTemplateVersions(workspace.template_id),
-    enabled: changeVersionDialogOpen,
-  });
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const [confirmingRestart, setConfirmingRestart] = useState<{
     open: boolean;
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
-  const user = useMe();
-  const { isWarningIgnored, ignoreWarning } = useIgnoreWarnings(user.id);
+
+  const { data: allVersions } = useQuery({
+    ...templateVersions(workspace.template_id),
+    enabled: changeVersionDialogOpen,
+  });
+  const { data: latestVersion } = useQuery({
+    ...templateVersion(workspace.template_active_version_id),
+    enabled: workspace.outdated,
+  });
+
   const buildLogs = useBuildLogs(workspace);
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
@@ -105,6 +108,7 @@ export const WorkspaceReadyPage = ({
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace });
   }, [bannerSend, workspace]);
+
   return (
     <>
       <Helmet>
@@ -150,18 +154,10 @@ export const WorkspaceReadyPage = ({
         handleStop={() => workspaceSend({ type: "STOP" })}
         handleDelete={() => workspaceSend({ type: "ASK_DELETE" })}
         handleRestart={(buildParameters) => {
-          if (isWarningIgnored("restart")) {
-            mutateRestartWorkspace({ workspace, buildParameters });
-          } else {
-            setConfirmingRestart({ open: true, buildParameters });
-          }
+          setConfirmingRestart({ open: true, buildParameters });
         }}
         handleUpdate={() => {
-          if (isWarningIgnored("update")) {
-            workspaceSend({ type: "UPDATE" });
-          } else {
-            setIsConfirmingUpdate(true);
-          }
+          setIsConfirmingUpdate(true);
         }}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
@@ -173,6 +169,7 @@ export const WorkspaceReadyPage = ({
         resources={workspace.latest_build.resources}
         builds={builds}
         canUpdateWorkspace={canUpdateWorkspace}
+        updateMessage={latestVersion?.message}
         canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
@@ -186,7 +183,7 @@ export const WorkspaceReadyPage = ({
         sshPrefix={sshPrefix}
         template={template}
         quotaBudget={quota?.budget}
-        templateWarnings={templateVersion?.warnings}
+        templateWarnings={currentVersion?.warnings}
         buildLogs={
           shouldDisplayBuildLogs && (
             <WorkspaceBuildLogsSection logs={buildLogs} />
@@ -218,9 +215,9 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <ChangeVersionDialog
-        templateVersions={templateVersions?.reverse()}
+        templateVersions={allVersions?.reverse()}
         template={template}
-        defaultTemplateVersion={templateVersions?.find(
+        defaultTemplateVersion={allVersions?.find(
           (v) => workspace.latest_build.template_version_id === v.id,
         )}
         open={changeVersionDialogOpen}
@@ -237,25 +234,29 @@ export const WorkspaceReadyPage = ({
       />
       <WarningDialog
         open={isConfirmingUpdate}
-        onConfirm={(shouldIgnore) => {
-          if (shouldIgnore) {
-            ignoreWarning("update");
-          }
+        onConfirm={() => {
           workspaceSend({ type: "UPDATE" });
           setIsConfirmingUpdate(false);
         }}
         onClose={() => setIsConfirmingUpdate(false)}
-        title="Confirm update"
+        title="Update and restart?"
         confirmText="Update"
-        description="Are you sure you want to update your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
+        description={
+          <Stack>
+            <p>
+              Restarting your workspace will stop all running processes and{" "}
+              <strong>delete non-persistent data</strong>.
+            </p>
+            {latestVersion && (
+              <Alert severity="info">{latestVersion.message}</Alert>
+            )}
+          </Stack>
+        }
       />
 
       <WarningDialog
         open={confirmingRestart.open}
-        onConfirm={(shouldIgnore) => {
-          if (shouldIgnore) {
-            ignoreWarning("restart");
-          }
+        onConfirm={() => {
           mutateRestartWorkspace({
             workspace,
             buildParameters: confirmingRestart.buildParameters,
@@ -263,84 +264,26 @@ export const WorkspaceReadyPage = ({
           setConfirmingRestart({ open: false });
         }}
         onClose={() => setConfirmingRestart({ open: false })}
-        title="Confirm restart"
+        title="Restart your workspace?"
         confirmText="Restart"
-        description="Are you sure you want to restart your workspace? Updating your workspace will stop all running processes and delete non-persistent data."
+        description={
+          <>
+            Restarting your workspace will stop all running processes and{" "}
+            <strong>delete non-persistent data</strong>.
+          </>
+        }
       />
     </>
   );
 };
 
-type IgnoredWarnings = Record<string, string>;
-
-const useIgnoreWarnings = (prefix: string) => {
-  const ignoredWarningsJSON = localStorage.getItem(`${prefix}_ignoredWarnings`);
-  let ignoredWarnings: IgnoredWarnings | undefined;
-  if (ignoredWarningsJSON) {
-    ignoredWarnings = JSON.parse(ignoredWarningsJSON);
-  }
-
-  const isWarningIgnored = (warningId: string) => {
-    return Boolean(ignoredWarnings?.[warningId]);
-  };
-
-  const ignoreWarning = (warningId: string) => {
-    if (!ignoredWarnings) {
-      ignoredWarnings = {};
-    }
-    ignoredWarnings[warningId] = new Date().toISOString();
-    localStorage.setItem(
-      `${prefix}_ignoredWarnings`,
-      JSON.stringify(ignoredWarnings),
-    );
-  };
-
-  return {
-    isWarningIgnored,
-    ignoreWarning,
-  };
-};
-
 const WarningDialog: FC<
   Pick<
     ConfirmDialogProps,
-    "open" | "onClose" | "title" | "confirmText" | "description"
-  > & { onConfirm: (shouldIgnore: boolean) => void }
-> = ({ open, onConfirm, onClose, title, confirmText, description }) => {
-  const [shouldIgnore, setShouldIgnore] = useState(false);
-
-  return (
-    <ConfirmDialog
-      type="info"
-      hideCancel={false}
-      open={open}
-      onConfirm={() => {
-        onConfirm(shouldIgnore);
-      }}
-      onClose={onClose}
-      title={title}
-      confirmText={confirmText}
-      description={
-        <>
-          <div>{description}</div>
-          <FormControlLabel
-            sx={{
-              marginTop: 2,
-            }}
-            control={
-              <Checkbox
-                size="small"
-                onChange={(e) => {
-                  setShouldIgnore(e.target.checked);
-                }}
-              />
-            }
-            label="Don't show me this message again"
-          />
-        </>
-      }
-    />
-  );
+    "open" | "onClose" | "title" | "confirmText" | "description" | "onConfirm"
+  >
+> = (props) => {
+  return <ConfirmDialog type="info" hideCancel={false} {...props} />;
 };
 
 const useBuildLogs = (workspace: TypesGen.Workspace) => {
