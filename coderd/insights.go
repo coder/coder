@@ -563,5 +563,7 @@ func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
 	if lastReportIntervalDays == 0 {
 		return true // this is a perfectly full week!
 	}
-	return lastReportIntervalDays >= 6*24*time.Hour
+	// Ensure that the last interval has at least 6 days, or check the special case, forward DST change,
+	// when the duration can be shorter than 6 days: 5 days 23 hours.
+	return lastReportIntervalDays >= 6*24*time.Hour || startTime.AddDate(0, 0, 6).Equal(endTime)
 }

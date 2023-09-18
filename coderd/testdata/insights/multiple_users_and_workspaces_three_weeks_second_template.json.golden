@@ -35,7 +35,7 @@
         "display_name": "Web Terminal",
         "slug": "reconnecting-pty",
         "icon": "/icon/terminal.svg",
-        "seconds": 3600
+        "seconds": 7200
       },
       {
         "template_ids": [
@@ -45,7 +45,7 @@
         "display_name": "SSH",
         "slug": "ssh",
         "icon": "/icon/terminal.svg",
-        "seconds": 7200
+        "seconds": 10800
       },
       {
         "template_ids": [
