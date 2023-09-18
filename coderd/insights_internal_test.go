@@ -171,10 +171,9 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 		endTime   string
 	}
 	tests := []struct {
-		name         string
-		args         args
-		wantInterval codersdk.InsightsReportInterval
-		wantOk       bool
+		name   string
+		args   args
+		wantOk bool
 	}{
 		{
 			name: "Two full weeks",
@@ -182,8 +181,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: "2023-08-10T00:00:00+02:00",
 				endTime:   "2023-08-24T00:00:00+02:00",
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       true,
+			wantOk: true,
 		},
 		{
 			name: "Two weeks",
@@ -191,8 +189,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: thirteenDaysAgo.Format(layout),
 				endTime:   twoHoursAgo.Format(layout),
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       true,
+			wantOk: true,
 		},
 		{
 			name: "One full week",
@@ -200,8 +197,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: "2023-09-06T00:00:00+02:00",
 				endTime:   "2023-09-13T00:00:00+02:00",
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       true,
+			wantOk: true,
 		},
 		{
 			name: "6 days are acceptable",
@@ -209,8 +205,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: sixDaysAgo.Format(layout),
 				endTime:   thisHour.Format(layout),
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       true,
+			wantOk: true,
 		},
 		{
 			name: "Shorter than a full week",
@@ -218,8 +213,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: "2023-09-08T00:00:00+02:00",
 				endTime:   "2023-09-13T00:00:00+02:00",
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       false,
+			wantOk: false,
 		},
 		{
 			name: "9 days (7 + 2) are not acceptable",
@@ -227,8 +221,7 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 				startTime: nineDaysAgo.Format(layout),
 				endTime:   thisHour.Format(layout),
 			},
-			wantInterval: codersdk.InsightsReportIntervalWeek,
-			wantOk:       false,
+			wantOk: false,
 		},
 	}
 	for _, tt := range tests {
