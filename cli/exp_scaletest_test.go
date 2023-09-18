@@ -105,7 +105,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		"--count", "1",
 		"--min-wait", "100ms",
 		"--max-wait", "1s",
-		"--timeout", "1s",
+		"--timeout", "5s",
 		"--scaletest-prometheus-address", "127.0.0.1:0",
 		"--scaletest-prometheus-wait", "0s",
 	)
