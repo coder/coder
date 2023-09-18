@@ -1030,6 +1030,9 @@ func TestProvisionerd(t *testing.T) {
 			}),
 		})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		require.NoError(t, server.Shutdown(ctx))
 		require.NoError(t, server.Close())
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
