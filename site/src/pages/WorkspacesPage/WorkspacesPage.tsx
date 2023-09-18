@@ -21,13 +21,28 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import { useEffectEvent } from "hooks/hookPolyfills";
+
+function useSafeSearchParams() {
+  // Have to wrap setSearchParams because React Router doesn't make sure that
+  // the function's memory reference stays stable on each render, even though
+  // its logic never changes, and it even has function update support
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stableSetSearchParams = useEffectEvent(setSearchParams);
+
+  // Need this to be a tuple type, but can't use "as const", because that would
+  // make the whole array readonly and cause type mismatches
+  return [searchParams, stableSetSearchParams] as ReturnType<
+    typeof useSearchParams
+  >;
+}
 
 const WorkspacesPage: FC = () => {
   const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([]);
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
-  const searchParamsResult = useSearchParams();
+  const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
   const filterProps = useWorkspacesFilter({ searchParamsResult, pagination });
   const { data, error, queryKey, refetch } = useWorkspacesData({

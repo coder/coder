@@ -26,7 +26,6 @@ import Divider from "@mui/material/Divider";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 
 import { useDebouncedFunction } from "hooks/debounce";
-import { useEffectEvent } from "hooks/hookPolyfills";
 
 export type PresetFilter = {
   name: string;
@@ -48,6 +47,8 @@ export const useFilter = ({
   onUpdate,
   searchParamsResult,
 }: UseFilterConfig) => {
+  const [searchParams, setSearchParams] = searchParamsResult;
+
   // Fully expect the initialValue functions to have some impurity (e.g. reading
   // from localStorage during a render path). (Ab)using useState's lazy
   // initialization mode to guarantee impurities only exist on mount. Pattern
@@ -55,10 +56,9 @@ export const useFilter = ({
   // value changes on re-renders
   const [readonlyInitialQueryState] = useState(initialValue);
 
-  // React Router doesn't give setSearchParams a stable memory reference; need
-  // extra logic to prevent on-mount effect from running too often
-  const [searchParams, setSearchParams] = searchParamsResult;
-  const syncSearchParamsOnMount = useEffectEvent(() => {
+  // Sync the params with the value provided via the initialValue function;
+  // should behave only as an on-mount effect
+  useEffect(() => {
     setSearchParams((current) => {
       const currentFilter = current.get(useFilterParamsKey);
       if (currentFilter !== readonlyInitialQueryState) {
@@ -67,11 +67,7 @@ export const useFilter = ({
 
       return current;
     });
-  });
-
-  useEffect(() => {
-    syncSearchParamsOnMount();
-  }, [syncSearchParamsOnMount]);
+  }, [setSearchParams, readonlyInitialQueryState]);
 
   const update = (newValues: string | FilterValues) => {
     const serialized =
