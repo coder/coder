@@ -59,7 +59,7 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{}), nil
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{}), nil
 		}, provisionerd.LocalProvisioners{})
 		require.NoError(t, closer.Close())
 	})
@@ -91,7 +91,7 @@ func TestProvisionerd(t *testing.T) {
 		completeChan := make(chan struct{})
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			acquireJobAttempt := 0
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if acquireJobAttempt == 1 {
 						close(completeChan)
@@ -118,7 +118,7 @@ func TestProvisionerd(t *testing.T) {
 		var closerMutex sync.Mutex
 		closerMutex.Lock()
 		closer = createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
@@ -174,7 +174,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
@@ -214,7 +214,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
@@ -269,7 +269,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
@@ -361,7 +361,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
@@ -441,7 +441,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
@@ -513,7 +513,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
@@ -612,7 +612,7 @@ func TestProvisionerd(t *testing.T) {
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if !didAcquireJob.CAS(false, true) {
 						completeOnce.Do(func() { close(completeChan) })
@@ -677,7 +677,7 @@ func TestProvisionerd(t *testing.T) {
 		updateChan := make(chan struct{})
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
@@ -755,7 +755,7 @@ func TestProvisionerd(t *testing.T) {
 		updateChan := make(chan struct{})
 		completeChan := make(chan struct{})
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					return &proto.AcquiredJob{
 						JobId:       "test",
@@ -844,7 +844,7 @@ func TestProvisionerd(t *testing.T) {
 			completeOnce sync.Once
 		)
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			client := createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			client := createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if second.Load() {
 						return &proto.AcquiredJob{}, nil
@@ -927,7 +927,7 @@ func TestProvisionerd(t *testing.T) {
 			completeOnce sync.Once
 		)
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			client := createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			client := createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					if second.Load() {
 						completeOnce.Do(func() { close(completeChan) })
@@ -1006,7 +1006,7 @@ func TestProvisionerd(t *testing.T) {
 		completeOnce := sync.Once{}
 
 		server := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
+			return createProvisionerDaemonClient(ctx, t, done, provisionerDaemonTestServer{
 				acquireJob: func(ctx context.Context, _ *proto.Empty) (*proto.AcquiredJob, error) {
 					m.Lock()
 					defer m.Unlock()
@@ -1118,7 +1118,7 @@ func createProvisionerd(t *testing.T, dialer provisionerd.Dialer, connector prov
 
 // Creates a provisionerd protobuf client that's connected
 // to the server implementation provided.
-func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server provisionerDaemonTestServer) proto.DRPCProvisionerDaemonClient {
+func createProvisionerDaemonClient(ctx context.Context, t *testing.T, done <-chan struct{}, server provisionerDaemonTestServer) proto.DRPCProvisionerDaemonClient {
 	t.Helper()
 	if server.failJob == nil {
 		// Default to asserting the error from the failure, otherwise
@@ -1137,7 +1137,7 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 	err := proto.DRPCRegisterProvisionerDaemon(mux, &server)
 	require.NoError(t, err)
 	srv := drpcserver.New(mux)
-	ctx, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(ctx)
 	closed := make(chan struct{})
 	go func() {
 		defer close(closed)
@@ -1148,13 +1148,31 @@ func createProvisionerDaemonClient(t *testing.T, done <-chan struct{}, server pr
 		<-closed
 		select {
 		case <-done:
-			t.Error("createProvisionerDaemonClient cleanup after test was done!")
+			// It's possible to get unlucky since the dialer is run in a retry in a goroutine.
+			// The following can occur:
+			//   1. The provisionerd.connect goroutine checks if we're closed prior to attempting to establish a connection
+			//      with coderd, sees that we're not.
+			//   2. A test closes the server.
+			//   3. The provisionerd.connect goroutine calls the dialer to establish a connection. This
+			//      function detects that someone has tried to create a client after the test finishes.
+			if ctx.Err() == nil {
+				t.Error("createProvisionerDaemonClient cleanup after test was done!")
+			}
 		default:
 		}
 	})
 	select {
 	case <-done:
-		t.Error("called createProvisionerDaemonClient after test was done!")
+		// It's possible to get unlucky since the dialer is run in a retry in a goroutine.
+		// The following can occur:
+		//   1. The provisionerd.connect goroutine checks if we're closed prior to attempting to establish a connection
+		//      with coderd, sees that we're not.
+		//   2. A test closes the server.
+		//   3. The provisionerd.connect goroutine calls the dialer to establish a connection. This
+		//      function detects that someone has tried to create a client after the test finishes.
+		if ctx.Err() == nil {
+			t.Error("createProvisionerDaemonClient cleanup after test was done!")
+		}
 	default:
 	}
 	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
