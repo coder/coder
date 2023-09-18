@@ -154,7 +154,7 @@
     "jest": "29.6.2",
     "jest-canvas-mock": "2.5.2",
     "jest-fetch-mock": "3.0.3",
-    "jest-location-mock": "1.0.9",
+    "jest-location-mock": "2.0.0",
     "jest-runner-eslint": "2.1.0",
     "jest-websocket-mock": "2.5.0",
     "jest_workaround": "0.1.14",
