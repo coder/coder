@@ -603,7 +603,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update the workspace
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
-
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {
@@ -613,7 +612,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			// UI select will pick "first_option".
+			// cliui.Select will pick "first_option".
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -650,8 +649,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Create new workspace
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
 		clitest.SetupConfig(t, client, root)
-
-		pty := ptytest.New(t).Attach(inv)
+		ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
@@ -674,10 +672,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update the workspace
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
-		pty = ptytest.New(t).Attach(inv)
-
 		doneChan := make(chan struct{})
-		pty = ptytest.New(t).Attach(inv)
+		pty := ptytest.New(t).Attach(inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -817,7 +813,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			// UI select will pick "thi".
+			// cliui.Select will pick "thi".
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
