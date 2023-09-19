@@ -578,6 +578,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
+		// Create new workspace
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
 		clitest.SetupConfig(t, client, root)
 		err := inv.Run()
@@ -603,11 +604,16 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
 
+		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
 
 		matches := []string{
-			stringParameterName, "second_option",
+			// UI select will pick "first_option".
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -619,6 +625,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
+
+		<-doneChan
 	})
 
 	t.Run("ParameterOptionDisappeared", func(t *testing.T) {
@@ -639,16 +647,19 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
+		// Create new workspace
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
 		clitest.SetupConfig(t, client, root)
+
+		pty := ptytest.New(t).Attach(inv)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		// Update template - 2nd option disappeared, 4th option added
 		updatedTemplateParameters := []*proto.RichParameter{
 			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
-				{Name: "First option", Description: "This is first option", Value: "1st"},
 				{Name: "Third option", Description: "This is third option", Value: "3rd"},
+				{Name: "First option", Description: "This is first option", Value: "1st"},
 				{Name: "Fourth option", Description: "This is fourth option", Value: "4th"},
 			}},
 		}
@@ -663,11 +674,17 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update the workspace
 		inv, root = clitest.New(t, "update", "my-workspace")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		pty = ptytest.New(t).Attach(inv)
+
+		doneChan := make(chan struct{})
+		pty = ptytest.New(t).Attach(inv)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
 
 		matches := []string{
-			stringParameterName, "Third option",
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -679,6 +696,8 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
+
+		<-doneChan
 	})
 
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
@@ -742,6 +761,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
+
 		<-doneChan
 	})
 
@@ -772,9 +792,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		updatedTemplateParameters := []*proto.RichParameter{
 			templateParameters[0],
 			{Name: immutableParameterName, Type: "string", Mutable: false, Required: true, Options: []*proto.RichParameterOption{
+				{Name: "thi", Description: "This is third option for immutable parameter", Value: "III"},
 				{Name: "fir", Description: "This is first option for immutable parameter", Value: "I"},
 				{Name: "sec", Description: "This is second option for immutable parameter", Value: "II"},
-				{Name: "thi", Description: "This is third option for immutable parameter", Value: "III"},
 			}},
 		}
 
@@ -797,7 +817,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			immutableParameterName, "thi",
+			// UI select will pick "thi".
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -809,6 +829,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
+
 		<-doneChan
 	})
 }
