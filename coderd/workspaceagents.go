@@ -1438,7 +1438,8 @@ func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) [
 
 func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
-	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
+	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
+) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -1455,6 +1456,17 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		subsystems[i] = codersdk.AgentSubsystem(subsystem)
 	}
 
+	legacyStartupScriptBehavior := codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking
+	for _, script := range scripts {
+		if !script.RunOnStart {
+			continue
+		}
+		if !script.StartBlocksLogin {
+			continue
+		}
+		legacyStartupScriptBehavior = codersdk.WorkspaceAgentStartupScriptBehaviorBlocking
+	}
+
 	workspaceAgent := codersdk.WorkspaceAgent{
 		ID:                       dbAgent.ID,
 		CreatedAt:                dbAgent.CreatedAt,
@@ -1465,7 +1477,7 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		Architecture:             dbAgent.Architecture,
 		OperatingSystem:          dbAgent.OperatingSystem,
 		Scripts:                  scripts,
-		StartupScriptBehavior:    codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
+		StartupScriptBehavior:    legacyStartupScriptBehavior,
 		LogsLength:               dbAgent.LogsLength,
 		LogsOverflowed:           dbAgent.LogsOverflowed,
 		LogSources:               logSources,

@@ -87,9 +87,9 @@ func (r *Runner) Init(ctx context.Context, scripts []codersdk.WorkspaceAgentScri
 	return nil
 }
 
-// StartCRON starts the cron scheduler.
+// StartCron starts the cron scheduler.
 // This is done async to allow for the caller to execute scripts prior.
-func (r *Runner) StartCRON() {
+func (r *Runner) StartCron() {
 	r.cron.Start()
 }
 
@@ -123,9 +123,6 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 // If the process does not exit after a few seconds, it is forcefully killed.
 // This function immediately returns after a timeout, and does not wait for the process to exit.
 func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
-	logger := r.Logger.With(slog.F("log_source", script.LogPath))
-	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
-
 	logPath := script.LogPath
 	if logPath == "" {
 		logPath = fmt.Sprintf("coder-%s-script.log", script.LogSourceID)
@@ -133,6 +130,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	if !filepath.IsAbs(logPath) {
 		logPath = filepath.Join(r.LogDir, logPath)
 	}
+	logger := r.Logger.With(slog.F("log_path", logPath))
+	logger.Info(ctx, "running agent script", slog.F("script", script.Script))
+
 	fileWriter, err := r.Filesystem.OpenFile(logPath, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return xerrors.Errorf("open %s script log file: %w", logPath, err)

@@ -1,6 +1,6 @@
 BEGIN;
 CREATE TABLE workspace_agent_log_sources (
-	workspace_agent_id uuid NOT NULL,
+	workspace_agent_id uuid NOT NULL REFERENCES workspace_agents(id) ON DELETE CASCADE,
 	id uuid NOT NULL,
 	created_at timestamptz NOT NULL,
 	display_name varchar(127) NOT NULL,

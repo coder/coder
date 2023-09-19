@@ -682,7 +682,7 @@ func (a *agent) run(ctx context.Context) error {
 			} else {
 				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
 			}
-			a.scriptRunner.StartCRON()
+			a.scriptRunner.StartCron()
 		})
 		if err != nil {
 			return xerrors.Errorf("track conn goroutine: %w", err)
