@@ -2,6 +2,7 @@ import { makeStyles } from "@mui/styles";
 import { PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "./Badges";
+import Box, { BoxProps } from "@mui/material/Box";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles();
@@ -55,6 +56,45 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
   }
 
   return <span className={styles.optionValue}>{JSON.stringify(children)}</span>;
+};
+
+export const OptionConfig = (props: BoxProps) => {
+  return (
+    <Box
+      {...props}
+      sx={{
+        fontSize: 13,
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        fontWeight: 600,
+        backgroundColor: (theme) => theme.palette.background.paperLight,
+        display: "inline-flex",
+        alignItems: "center",
+        borderRadius: 0.25,
+        padding: (theme) => theme.spacing(0, 1),
+        border: (theme) => `1px solid ${theme.palette.divider}`,
+        ...props.sx,
+      }}
+    />
+  );
+};
+
+export const OptionConfigFlag = (props: BoxProps) => {
+  return (
+    <Box
+      {...props}
+      sx={{
+        fontSize: 10,
+        fontWeight: 600,
+        margin: (theme) => theme.spacing(0, 0.75, 0, -0.5),
+        display: "block",
+        backgroundColor: (theme) => theme.palette.divider,
+        lineHeight: 1,
+        padding: (theme) => theme.spacing(0.25, 0.5),
+        borderRadius: 0.25,
+        ...props.sx,
+      }}
+    />
+  );
 };
 
 const useStyles = makeStyles((theme) => ({

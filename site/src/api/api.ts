@@ -1032,6 +1032,7 @@ export interface DeploymentOption {
   readonly value: unknown;
   readonly hidden: boolean;
   readonly group?: DeploymentGroup;
+  readonly env?: string;
 }
 
 export type DeploymentConfig = {

@@ -1654,8 +1654,11 @@ export type GroupSource = "oidc" | "user";
 export const GroupSources: GroupSource[] = ["oidc", "user"];
 
 // From codersdk/insights.go
-export type InsightsReportInterval = "day";
-export const InsightsReportIntervals: InsightsReportInterval[] = ["day"];
+export type InsightsReportInterval = "day" | "week";
+export const InsightsReportIntervals: InsightsReportInterval[] = [
+  "day",
+  "week",
+];
 
 // From codersdk/provisionerdaemons.go
 export type JobErrorCode = "REQUIRED_TEMPLATE_VARIABLES";
