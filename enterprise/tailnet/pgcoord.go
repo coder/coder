@@ -923,11 +923,6 @@ func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 	if _, ok := q.clientSubscriptions[c.UniqueID()]; !ok {
 		q.clientSubscriptions[c.UniqueID()] = map[uuid.UUID]struct{}{}
 	}
-	fmt.Println("CREATEDC SUBSCRIPTION", c.UniqueID(), agentID)
-	fmt.Println("CREATEDC SUBSCRIPTION", c.UniqueID(), agentID)
-	fmt.Println("CREATEDC SUBSCRIPTION", c.UniqueID(), agentID)
-	fmt.Println("CREATEDC SUBSCRIPTION", c.UniqueID(), agentID)
-	fmt.Println("CREATEDC SUBSCRIPTION", c.UniqueID(), agentID)
 
 	mk := mKey{
 		agent: agentID,
