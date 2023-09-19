@@ -1,4 +1,3 @@
-import { useMachine } from "@xstate/react";
 import {
   CreateTemplateVersionRequest,
   TemplateVersionVariable,
@@ -6,14 +5,14 @@ import {
 } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { useEffect, type FC, useState } from "react";
+import { useCallback, type FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 import {
-  createTemplateVersion,
+  createAndBuildTemplateVersion,
   templateVersion,
   templateVersionVariables,
   updateActiveTemplateVersion,
@@ -33,8 +32,6 @@ export const TemplateVariablesPage: FC = () => {
   const queryClient = useQueryClient();
   const versionId = template.active_version_id;
 
-  const [newVersionId, setNewVersionId] = useState<string | null>(null);
-
   const {
     data: version,
     error: versionError,
@@ -49,51 +46,34 @@ export const TemplateVariablesPage: FC = () => {
     keepPreviousData: true,
   });
 
-  const createVersionMutation = createTemplateVersion(orgId, queryClient);
-  const { mutate: sendCreateTemplateVersion, error: createVersionError } =
-    useMutation({
-      ...createVersionMutation,
-      onSuccess: (data) => {
-        setNewVersionId(data.id);
-      },
-    });
-  const publishMutation = updateActiveTemplateVersion(template, queryClient);
-  const { mutate: publishVersion, error: publishError } = useMutation({
-    ...publishMutation,
-    onSuccess: () => {
-      publishMutation.onSuccess();
+  const {
+    mutateAsync: sendCreateAndBuildTemplateVersion,
+    error: buildError,
+    isLoading: isBuilding,
+  } = useMutation(createAndBuildTemplateVersion(orgId));
+  const {
+    mutateAsync: sendUpdateActiveTemplateVersion,
+    error: publishError,
+    isLoading: isPublishing,
+  } = useMutation(updateActiveTemplateVersion(template, queryClient));
+
+  const publishVersion = useCallback(
+    async (versionId: string) => {
+      await sendUpdateActiveTemplateVersion(versionId);
       displaySuccess("Template updated successfully");
     },
-    onSettled: () => {
-      setNewVersionId(null);
-    },
-  });
-
-  const {
-    data: status,
-    error: statusError,
-    refetch: refetchStatus,
-    isRefetching,
-  } = useQuery(
-    newVersionId ? templateVersion(newVersionId) : { enabled: false },
+    [sendUpdateActiveTemplateVersion],
   );
 
-  const isSubmitting = Boolean(newVersionId && !statusError);
+  const buildVersion = useCallback(
+    async (req: CreateTemplateVersionRequest) => {
+      const newVersionId = await sendCreateAndBuildTemplateVersion(req);
+      await publishVersion(newVersionId);
+    },
+    [sendCreateAndBuildTemplateVersion, publishVersion],
+  );
 
-  // Poll build status while we're updating the template
-  useEffect(() => {
-    if (!newVersionId || !status || isRefetching) {
-      return;
-    }
-
-    const jobStatus = status.job.status;
-    if (jobStatus === "pending" || jobStatus === "running") {
-      setTimeout(() => refetchStatus(), 2_000);
-      return;
-    }
-
-    publishVersion(newVersionId);
-  }, [newVersionId, status, isRefetching]);
+  const isSubmitting = Boolean(isBuilding || isPublishing);
 
   const error = versionError ?? variablesError;
   if (error) {
@@ -115,17 +95,15 @@ export const TemplateVariablesPage: FC = () => {
         templateVersion={version}
         templateVariables={variables}
         errors={{
-          createVersionError,
-          statusError,
-          jobError: status?.job.error,
+          buildError,
           publishError,
         }}
         onCancel={() => {
           navigate(`/templates/${templateName}`);
         }}
-        onSubmit={(formData) => {
+        onSubmit={async (formData) => {
           const request = filterEmptySensitiveVariables(formData, variables);
-          sendCreateTemplateVersion(request);
+          await buildVersion(request);
         }}
       />
     </>

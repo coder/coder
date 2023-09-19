@@ -19,17 +19,9 @@ export interface TemplateVariablesPageViewProps {
   isSubmitting: boolean;
   errors?: {
     /**
-     * Failed to create a new template version
+     * Failed to build a new template version
      */
-    createVersionError?: unknown;
-    /**
-     * Failed to poll job status of new template version
-     */
-    statusError?: unknown;
-    /**
-     * Job for new template version failed
-     */
-    jobError?: TemplateVersion["job"]["error"];
+    buildError?: unknown;
     /**
      * New version was created successfully, but publishing it failed
      */
@@ -52,8 +44,6 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   const classes = useStyles();
   const hasError = Object.values(errors).some((error) => Boolean(error));
 
-  console.log("LOOK AT ME", errors);
-
   return (
     <>
       <PageHeader className={classes.pageHeader}>
@@ -61,13 +51,9 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
       </PageHeader>
       {hasError && (
         <Stack className={classes.errorContainer}>
-          {Boolean(errors.createVersionError) && (
-            <ErrorAlert error={errors.createVersionError} />
+          {Boolean(errors.buildError) && (
+            <ErrorAlert error={errors.buildError} />
           )}
-          {Boolean(errors.statusError) && (
-            <ErrorAlert error={errors.statusError} />
-          )}
-          {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
           {Boolean(errors.publishError) && (
             <ErrorAlert error={errors.publishError} />
           )}
@@ -81,7 +67,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
           templateVariables={templateVariables}
           onSubmit={onSubmit}
           onCancel={onCancel}
-          error={errors.statusError}
+          error={errors.buildError}
         />
       )}
       {templateVariables && templateVariables.length === 0 && (

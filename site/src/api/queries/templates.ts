@@ -3,8 +3,11 @@ import {
   type Template,
   type AuthorizationResponse,
   type CreateTemplateVersionRequest,
+  type ProvisionerJobStatus,
+  type TemplateVersion,
 } from "api/typesGenerated";
 import { type QueryClient, type QueryOptions } from "@tanstack/react-query";
+import { delay } from "utils/delay";
 
 export const templateByNameKey = (orgId: string, name: string) => [
   orgId,
@@ -75,13 +78,28 @@ export const templateVersionVariables = (versionId: string) => {
   };
 };
 
-export const createTemplateVersion = (
-  orgId: string,
-  queryClient: QueryClient,
-) => {
+export const createAndBuildTemplateVersion = (orgId: string) => {
   return {
-    mutationFn: (request: CreateTemplateVersionRequest) =>
-      API.createTemplateVersion(orgId, request),
+    mutationFn: async (
+      request: CreateTemplateVersionRequest,
+    ): Promise<string> => {
+      const newVersion = await API.createTemplateVersion(orgId, request);
+
+      let data: TemplateVersion;
+      let jobStatus: ProvisionerJobStatus;
+      do {
+        await delay(1000);
+        data = await API.getTemplateVersion(newVersion.id);
+        jobStatus = data.job.status;
+
+        if (jobStatus === "succeeded") {
+          return newVersion.id;
+        }
+      } while (jobStatus === "pending" || jobStatus === "running");
+
+      // No longer pending/running, but didn't succeed
+      throw data.job.error;
+    },
   };
 };
 

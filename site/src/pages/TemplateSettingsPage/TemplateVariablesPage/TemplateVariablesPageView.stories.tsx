@@ -59,10 +59,7 @@ export const WithErrors: Story = {
       MockTemplateVersionVariable4,
     ],
     errors: {
-      createVersionError: mockApiError({
-        message: "createVersionError",
-      }),
-      statusError: mockApiError({
+      buildError: mockApiError({
         message: "statusError",
         validations: [
           {
@@ -71,7 +68,6 @@ export const WithErrors: Story = {
           },
         ],
       }),
-      jobError: "jobError",
       publishError: mockApiError({ message: "publishError" }),
     },
 
