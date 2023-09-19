@@ -1669,13 +1669,15 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			}
 
 			// Once for typing the command...
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoCommand), "find echo command")
+			tr1 := testutil.NewTerminalReader(t, netConn1)
+			require.NoError(t, tr1.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			// And another time for the actual output.
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn1, matchEchoOutput), "find echo output")
+			require.NoError(t, tr1.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Same for the other connection.
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoCommand), "find echo command")
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn2, matchEchoOutput), "find echo output")
+			tr2 := testutil.NewTerminalReader(t, netConn2)
+			require.NoError(t, tr2.ReadUntil(ctx, matchEchoCommand), "find echo command")
+			require.NoError(t, tr2.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
@@ -1684,8 +1686,9 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			defer netConn3.Close()
 
 			// Same output again!
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoCommand), "find echo command")
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchEchoOutput), "find echo output")
+			tr3 := testutil.NewTerminalReader(t, netConn3)
+			require.NoError(t, tr3.ReadUntil(ctx, matchEchoCommand), "find echo command")
+			require.NoError(t, tr3.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Exit should cause the connection to close.
 			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
@@ -1696,19 +1699,20 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			require.NoError(t, err)
 
 			// Once for the input and again for the output.
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitCommand), "find exit command")
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn3, matchExitOutput), "find exit output")
+			require.NoError(t, tr3.ReadUntil(ctx, matchExitCommand), "find exit command")
+			require.NoError(t, tr3.ReadUntil(ctx, matchExitOutput), "find exit output")
 
 			// Wait for the connection to close.
-			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
+			require.ErrorIs(t, tr3.ReadUntil(ctx, nil), io.EOF)
 
 			// Try a non-shell command.  It should output then immediately exit.
 			netConn4, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "echo test")
 			require.NoError(t, err)
 			defer netConn4.Close()
 
-			require.NoError(t, testutil.ReadUntil(ctx, t, netConn4, matchEchoOutput), "find echo output")
-			require.ErrorIs(t, testutil.ReadUntil(ctx, t, netConn3, nil), io.EOF)
+			tr4 := testutil.NewTerminalReader(t, netConn4)
+			require.NoError(t, tr4.ReadUntil(ctx, matchEchoOutput), "find echo output")
+			require.ErrorIs(t, tr4.ReadUntil(ctx, nil), io.EOF)
 		})
 	}
 }
