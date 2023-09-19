@@ -914,15 +914,12 @@ func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 		q.clientSubscriptions[c.UniqueID()] = map[uuid.UUID]struct{}{}
 	}
 
-	fmt.Println("add sub", c.UniqueID(), agentID)
-
 	mk := mKey{
 		agent: agentID,
 		kind:  agpl.QueueKindClient,
 	}
 	cm, ok := q.mappers[mk]
 	if !ok {
-		fmt.Println("new mapper")
 		ctx, cancel := context.WithCancel(q.ctx)
 		mpr := newMapper(ctx, q.logger, mk, q.heartbeats)
 		cm = &countedMapper{
@@ -944,8 +941,6 @@ func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 func (q *querier) removeClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
-
-	fmt.Println("remove sub", c.UniqueID(), agentID)
 
 	// agentID: uuid.Nil indicates that a client is going away. The querier
 	// handles that in cleanupConn below instead.
