@@ -1428,8 +1428,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	_, err = conn.Write(data)
 	require.NoError(t, err)
 
-	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoCommand), "find echo command")
-	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchEchoOutput), "find echo output")
+	tr := testutil.NewTerminalReader(t, conn)
+	require.NoError(t, tr.ReadUntil(ctx, matchEchoCommand), "find echo command")
+	require.NoError(t, tr.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
@@ -1440,9 +1441,9 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 
 	// Once for the input and again for the output.
-	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitCommand), "find exit command")
-	require.NoError(t, testutil.ReadUntil(ctx, t, conn, matchExitOutput), "find exit output")
+	require.NoError(t, tr.ReadUntil(ctx, matchExitCommand), "find exit command")
+	require.NoError(t, tr.ReadUntil(ctx, matchExitOutput), "find exit output")
 
 	// Ensure the connection closes.
-	require.ErrorIs(t, testutil.ReadUntil(ctx, t, conn, nil), io.EOF)
+	require.ErrorIs(t, tr.ReadUntil(ctx, nil), io.EOF)
 }
