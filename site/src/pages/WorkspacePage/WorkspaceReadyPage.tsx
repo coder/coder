@@ -247,7 +247,7 @@ export const WorkspaceReadyPage = ({
               Restarting your workspace will stop all running processes and{" "}
               <strong>delete non-persistent data</strong>.
             </p>
-            {latestVersion && (
+            {latestVersion?.message && (
               <Alert severity="info">{latestVersion.message}</Alert>
             )}
           </Stack>
