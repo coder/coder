@@ -49,9 +49,15 @@ running). */}}
         margin-bottom: 8px;
       }
 
-      p {
+      p, li {
         color: #b2bfd7;
         line-height: 140%;
+      }
+
+      .warning li {
+        text-align: left;
+        padding-top: 10px;
+        margin-left: 30px;
       }
 
       .button-group {
@@ -109,12 +115,6 @@ running). */}}
         margin-left: 10px;
       }
 
-      .warning p {
-        text-align: left;
-        padding-top: 10px;
-        padding-left: 10px;
-      }
-
     </style>
   </head>
   <body>
@@ -169,9 +169,11 @@ running). */}}
           <svg  height="1em" width="auto" focusable="false" aria-hidden="true" viewBox="0 0 24 24"><path fill="#e66828" d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"></path></svg>
           <h3>Warnings</h3>
         </div>
+        <ul>
         {{ range $i, $v := .Error.Warnings }}
-          <p>- {{ $v }}</p>
+          <li>{{ $v }}</li>
         {{ end }}
+        </ul>
       </div>
       {{ end }}
       <div class="button-group">
