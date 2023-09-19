@@ -4,12 +4,12 @@ import {
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { Loader } from "components/Loader/Loader";
 import { ComponentProps, FC } from "react";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
 import { makeStyles } from "@mui/styles";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Stack } from "components/Stack/Stack";
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion;
@@ -18,9 +18,14 @@ export interface TemplateVariablesPageViewProps {
   onCancel: () => void;
   isSubmitting: boolean;
   errors?: {
-    getTemplateDataError?: unknown;
-    updateTemplateError?: unknown;
-    jobError?: TemplateVersion["job"]["error"];
+    /**
+     * Failed to build a new template version
+     */
+    buildError?: unknown;
+    /**
+     * New version was created successfully, but publishing it failed
+     */
+    publishError?: unknown;
   };
   initialTouched?: ComponentProps<
     typeof TemplateVariablesForm
@@ -37,29 +42,23 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   initialTouched,
 }) => {
   const classes = useStyles();
-  const isLoading =
-    !templateVersion &&
-    !templateVariables &&
-    !errors.getTemplateDataError &&
-    !errors.updateTemplateError;
   const hasError = Object.values(errors).some((error) => Boolean(error));
+
   return (
     <>
       <PageHeader className={classes.pageHeader}>
         <PageHeaderTitle>Template variables</PageHeaderTitle>
       </PageHeader>
       {hasError && (
-        <div className={classes.errorContainer}>
-          {Boolean(errors.getTemplateDataError) && (
-            <ErrorAlert error={errors.getTemplateDataError} />
+        <Stack className={classes.errorContainer}>
+          {Boolean(errors.buildError) && (
+            <ErrorAlert error={errors.buildError} />
           )}
-          {Boolean(errors.updateTemplateError) && (
-            <ErrorAlert error={errors.updateTemplateError} />
+          {Boolean(errors.publishError) && (
+            <ErrorAlert error={errors.publishError} />
           )}
-          {Boolean(errors.jobError) && <ErrorAlert error={errors.jobError} />}
-        </div>
+        </Stack>
       )}
-      {isLoading && <Loader />}
       {templateVersion && templateVariables && templateVariables.length > 0 && (
         <TemplateVariablesForm
           initialTouched={initialTouched}
@@ -68,7 +67,7 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
           templateVariables={templateVariables}
           onSubmit={onSubmit}
           onCancel={onCancel}
-          error={errors.updateTemplateError}
+          error={errors.buildError}
         />
       )}
       {templateVariables && templateVariables.length === 0 && (
