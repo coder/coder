@@ -245,7 +245,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 			// should be shared, but we are disabling it from a deployment wide
 			// flag. So the template should be fixed to set the sharing level to
 			// "owner" instead and this will not appear.
-			warnings = append(warnings, fmt.Sprintf("path-based app sharing is disabled (see --dangerous-allow-path-app-sharing), forcing sharing level to \"owner\", was %q", sharingLevel))
+			warnings = append(warnings, fmt.Sprintf("unable to use configured sharing level %q because path-based app sharing is disabled (see --dangerous-allow-path-app-sharing), using sharing level \"owner\" instead", sharingLevel))
 		}
 		sharingLevel = database.AppSharingLevelOwner
 	}
@@ -300,7 +300,7 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 	// scope allows it).
 	err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResource)
 	if err == nil {
-		return true, warnings, nil
+		return true, []string{}, nil
 	}
 
 	switch sharingLevel {
@@ -313,13 +313,13 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 		// to connect to the actor's own workspace. This enforces scopes.
 		err := p.Authorizer.Authorize(ctx, roles.Actor, rbacAction, rbacResourceOwned)
 		if err == nil {
-			return true, warnings, nil
+			return true, []string{}, nil
 		}
 	case database.AppSharingLevelPublic:
 		// We don't really care about scopes and stuff if it's public anyways.
 		// Someone with a restricted-scope API key could just not submit the API
 		// key cookie in the request and access the page.
-		return true, warnings, nil
+		return true, []string{}, nil
 	}
 
 	// No checks were successful.
