@@ -28,12 +28,12 @@ func ReadUntil(ctx context.Context, t *testing.T, r io.Reader, matcher func(line
 	term := vt10x.New(vt10x.WithSize(80, 80))
 	readErrs := make(chan error, 1)
 	defer func() {
-		// Dump the terminal contents since they can be helpful for debugging, but
-		// trim empty lines since much of the terminal will usually be blank.
-		got := term.String()
-		//trimmed := strings.Trim(got, "\n")
-		t.Logf("Terminal contents:\n%q", got)
 		if retErr != nil {
+			// Dump the terminal contents since they can be helpful for debugging, but
+			// trim empty lines since much of the terminal will usually be blank.
+			got := term.String()
+			// trimmed := strings.Trim(got, "\n")
+			t.Logf("Terminal contents:\n%q", got)
 			t.Logf("Bytes Read: %q", string(readBytes))
 		}
 	}()
