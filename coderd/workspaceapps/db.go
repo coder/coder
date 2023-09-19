@@ -239,7 +239,14 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 	// Dangerous.AllowPathAppSiteOwnerAccess flag is enabled in the check below.
 	sharingLevel := dbReq.AppSharingLevel
 	if isPathApp && !p.DeploymentValues.Dangerous.AllowPathAppSharing.Value() {
-		warnings = append(warnings, fmt.Sprintf("path-based app sharing is disabled (see --dangerous-allow-path-app-sharing), forcing sharing level to \"owner\", was %q", sharingLevel))
+		if dbReq.AppSharingLevel != database.AppSharingLevelOwner {
+			// This is helpful for debugging, and ok to leak to the user.
+			// This is because the app has the sharing level set to something that
+			// should be shared, but we are disabling it from a deployment wide
+			// flag. So the template should be fixed to set the sharing level to
+			// "owner" instead and this will not appear.
+			warnings = append(warnings, fmt.Sprintf("path-based app sharing is disabled (see --dangerous-allow-path-app-sharing), forcing sharing level to \"owner\", was %q", sharingLevel))
+		}
 		sharingLevel = database.AppSharingLevelOwner
 	}
 
