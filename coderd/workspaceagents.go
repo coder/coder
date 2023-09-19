@@ -1808,7 +1808,7 @@ func convertWorkspaceAgentMetadata(db []database.WorkspaceAgentMetadatum) []code
 			Result: codersdk.WorkspaceAgentMetadataResult{
 				Value:       datum.Value,
 				Error:       datum.Error,
-				CollectedAt: datum.CollectedAt,
+				CollectedAt: datum.CollectedAt.UTC(),
 				Age:         int64(time.Since(datum.CollectedAt).Seconds()),
 			},
 			Description: codersdk.WorkspaceAgentMetadataDescription{

@@ -16,13 +16,6 @@ import Button from "@mui/material/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { makeStyles } from "@mui/styles";
-import {
-  HelpTooltip,
-  HelpTooltipText,
-  HelpTooltipTitle,
-} from "components/HelpTooltip/HelpTooltip";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { colors } from "theme/colors";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Box from "@mui/material/Box";
@@ -36,6 +29,7 @@ import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import Checkbox from "@mui/material/Checkbox";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import Skeleton from "@mui/material/Skeleton";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 
 export interface WorkspacesTableProps {
   workspaces?: Workspace[];
@@ -215,7 +209,13 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       <WorkspaceStatusBadge workspace={workspace} />
                       {workspace.latest_build.status === "running" &&
-                        !workspace.health.healthy && <UnhealthyTooltip />}
+                        !workspace.health.healthy && (
+                          <InfoTooltip
+                            type="warning"
+                            title="Workspace is unhealthy"
+                            message="Your workspace is running but some agents are unhealthy."
+                          />
+                        )}
                     </Box>
                   </TableCell>
 
@@ -269,24 +269,6 @@ const WorkspacesRow: FC<{
   );
 };
 
-export const UnhealthyTooltip = () => {
-  const styles = useUnhealthyTooltipStyles();
-
-  return (
-    <HelpTooltip
-      size="small"
-      icon={InfoIcon}
-      iconClassName={styles.unhealthyIcon}
-      buttonClassName={styles.unhealthyButton}
-    >
-      <HelpTooltipTitle>Workspace is unhealthy</HelpTooltipTitle>
-      <HelpTooltipText>
-        Your workspace is running but some agents are unhealthy.
-      </HelpTooltipText>
-    </HelpTooltip>
-  );
-};
-
 const TableLoader = ({
   canCheckWorkspaces,
 }: {
@@ -323,20 +305,6 @@ const TableLoader = ({
 const cantBeChecked = (workspace: Workspace) => {
   return ["deleting", "pending"].includes(workspace.latest_build.status);
 };
-
-const useUnhealthyTooltipStyles = makeStyles(() => ({
-  unhealthyIcon: {
-    color: colors.yellow[5],
-  },
-
-  unhealthyButton: {
-    opacity: 1,
-
-    "&:hover": {
-      opacity: 1,
-    },
-  },
-}));
 
 const useStyles = makeStyles((theme) => ({
   withImage: {
