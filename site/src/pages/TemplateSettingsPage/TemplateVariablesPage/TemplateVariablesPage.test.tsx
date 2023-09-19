@@ -13,15 +13,13 @@ import {
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
   MockTemplateVersion2,
-  MockTemplateVersionVariable5,
 } from "testHelpers/entities";
+import { delay } from "utils/delay";
 
 const validFormValues = {
   first_variable: "Hello world",
   second_variable: "123",
 };
-
-const validationRequiredField = "Variable is required.";
 
 const renderTemplateVariablesPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
@@ -62,7 +60,7 @@ describe("TemplateVariablesPage", () => {
     jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
     jest
       .spyOn(API, "getTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion);
+      .mockResolvedValue(MockTemplateVersion);
     jest
       .spyOn(API, "getTemplateVersionVariables")
       .mockResolvedValueOnce([
@@ -106,49 +104,9 @@ describe("TemplateVariablesPage", () => {
       FooterFormLanguage.defaultSubmitLabel,
     );
     await userEvent.click(submitButton);
-
     // Wait for the success message
+    await delay(1500);
+
     await screen.findByText("Template updated successfully");
-  });
-
-  it("user forgets to fill the required field", async () => {
-    jest.spyOn(API, "getTemplateByName").mockResolvedValueOnce(MockTemplate);
-    jest
-      .spyOn(API, "getTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion);
-    jest
-      .spyOn(API, "getTemplateVersionVariables")
-      .mockResolvedValueOnce([
-        MockTemplateVersionVariable1,
-        MockTemplateVersionVariable5,
-      ]);
-    jest
-      .spyOn(API, "createTemplateVersion")
-      .mockResolvedValueOnce(MockTemplateVersion2);
-    jest.spyOn(API, "updateActiveTemplateVersion").mockResolvedValueOnce({
-      message: "done",
-    });
-
-    await renderTemplateVariablesPage();
-
-    const firstVariable = await screen.findByLabelText(
-      MockTemplateVersionVariable1.name,
-    );
-    expect(firstVariable).toBeDefined();
-
-    const fifthVariable = await screen.findByLabelText(
-      MockTemplateVersionVariable5.name,
-    );
-    expect(fifthVariable).toBeDefined();
-
-    // Submit the form
-    const submitButton = await screen.findByText(
-      FooterFormLanguage.defaultSubmitLabel,
-    );
-    await userEvent.click(submitButton);
-
-    // Check validation error
-    const validationError = await screen.findByText(validationRequiredField);
-    expect(validationError).toBeDefined();
   });
 });

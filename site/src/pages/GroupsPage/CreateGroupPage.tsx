@@ -1,26 +1,17 @@
-import { useMachine } from "@xstate/react";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { createGroupMachine } from "xServices/groups/createGroupXService";
 import CreateGroupPageView from "./CreateGroupPageView";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { createGroup } from "api/queries/groups";
 
 export const CreateGroupPage: FC = () => {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
-  const [createState, sendCreateEvent] = useMachine(createGroupMachine, {
-    context: {
-      organizationId,
-    },
-    actions: {
-      onCreate: (_, { data }) => {
-        navigate(`/groups/${data.id}`);
-      },
-    },
-  });
-  const { error } = createState.context;
+  const createGroupMutation = useMutation(createGroup(queryClient));
 
   return (
     <>
@@ -28,14 +19,15 @@ export const CreateGroupPage: FC = () => {
         <title>{pageTitle("Create Group")}</title>
       </Helmet>
       <CreateGroupPageView
-        onSubmit={(data) => {
-          sendCreateEvent({
-            type: "CREATE",
-            data,
+        onSubmit={async (data) => {
+          const newGroup = await createGroupMutation.mutateAsync({
+            organizationId,
+            ...data,
           });
+          navigate(`/groups/${newGroup.id}`);
         }}
-        formErrors={error}
-        isLoading={createState.matches("creatingGroup")}
+        formErrors={createGroupMutation.error}
+        isLoading={createGroupMutation.isLoading}
       />
     </>
   );

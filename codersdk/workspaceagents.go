@@ -703,7 +703,7 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentLog)
+	logChunks := make(chan []WorkspaceAgentLog, 1)
 	closed := make(chan struct{})
 	ctx, wsNetConn := websocketNetConn(ctx, conn, websocket.MessageText)
 	decoder := json.NewDecoder(wsNetConn)

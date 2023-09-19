@@ -134,7 +134,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 						TemplateID:     template.ID,
 						Ttl:            sql.NullInt64{Valid: true, Int64: int64(tt.workspaceTTL)},
 					})
-					job = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+					job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 						OrganizationID: org.ID,
 						CompletedAt:    tt.jobCompletedAt,
 					})
@@ -225,7 +225,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 func insertPrevWorkspaceBuild(t *testing.T, db database.Store, orgID, tvID, workspaceID uuid.UUID, transition database.WorkspaceTransition, buildNumber int32) {
 	t.Helper()
 
-	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: orgID,
 	})
 	_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
