@@ -26,12 +26,12 @@ import { useEffectEvent } from "hooks/hookPolyfills";
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
   // the function's memory reference stays stable on each render, even though
-  // its logic never changes, and it even has function update support
+  // its logic never changes, and even though it has function update support
   const [searchParams, setSearchParams] = useSearchParams();
   const stableSetSearchParams = useEffectEvent(setSearchParams);
 
   // Need this to be a tuple type, but can't use "as const", because that would
-  // make the whole array readonly and cause type mismatches
+  // make the whole array readonly and cause type mismatches downstream
   return [searchParams, stableSetSearchParams] as ReturnType<
     typeof useSearchParams
   >;
@@ -46,7 +46,7 @@ const WorkspacesPage: FC = () => {
   const pagination = usePagination({ searchParamsResult });
   const filterProps = useWorkspacesFilter({
     searchParamsResult,
-    onPageChange: () => pagination.goToPage(1),
+    onFilterChange: () => pagination.goToPage(1),
   });
 
   const { data, error, queryKey, refetch } = useWorkspacesData({
@@ -165,12 +165,12 @@ function subscribeToFilterChanges(notifyReact: () => void) {
 
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
-  onPageChange: () => void;
+  onFilterChange: () => void;
 };
 
 const useWorkspacesFilter = ({
   searchParamsResult,
-  onPageChange,
+  onFilterChange,
 }: UseWorkspacesFilterOptions) => {
   // Using useSyncExternalStore store to safely access localStorage from the
   // first render; both snapshot callbacks return primitives, so no special
@@ -194,7 +194,7 @@ const useWorkspacesFilter = ({
     searchParamsResult,
     onUpdate: (newValues) => {
       window.localStorage.setItem(workspaceFilterKey, newValues);
-      onPageChange();
+      onFilterChange();
     },
   });
 
