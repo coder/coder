@@ -969,6 +969,24 @@ export const patchGroup = async (
   return response.data;
 };
 
+export const addMember = async (groupId: string, userId: string) => {
+  return patchGroup(groupId, {
+    name: "",
+    display_name: "",
+    add_users: [userId],
+    remove_users: [],
+  });
+};
+
+export const removeMember = async (groupId: string, userId: string) => {
+  return patchGroup(groupId, {
+    name: "",
+    display_name: "",
+    add_users: [],
+    remove_users: [userId],
+  });
+};
+
 export const deleteGroup = async (groupId: string): Promise<void> => {
   await axios.delete(`/api/v2/groups/${groupId}`);
 };
