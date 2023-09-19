@@ -13,3 +13,10 @@ export const deploymentDAUs = () => {
     queryFn: () => API.getDeploymentDAUs(),
   };
 };
+
+export const deploymentStats = () => {
+  return {
+    queryKey: ["deployment", "stats"],
+    queryFn: () => API.getDeploymentStats(),
+  };
+};

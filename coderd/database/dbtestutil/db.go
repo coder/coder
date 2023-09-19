@@ -197,16 +197,15 @@ func pgDump(dbURL string) ([]byte, error) {
 	return stdout.Bytes(), nil
 }
 
+// Unfortunately, some insert expressions span multiple lines.
+// The below may be over-permissive but better that than truncating data.
+var insertExpr = regexp.MustCompile(`(?s)\bINSERT[^;]+;`)
+
 func filterDump(dump []byte) []byte {
-	lines := bytes.Split(dump, []byte{'\n'})
 	var buf bytes.Buffer
-	for _, line := range lines {
-		// We dump in column-insert format, so these are the only lines
-		// we care about
-		if !bytes.HasPrefix(line, []byte("INSERT")) {
-			continue
-		}
-		_, _ = buf.Write(line)
+	matches := insertExpr.FindAll(dump, -1)
+	for _, m := range matches {
+		_, _ = buf.Write(m)
 		_, _ = buf.WriteRune('\n')
 	}
 	return buf.Bytes()

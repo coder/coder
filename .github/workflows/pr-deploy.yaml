@@ -110,6 +110,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if the helm deployment already exists
@@ -257,6 +258,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists

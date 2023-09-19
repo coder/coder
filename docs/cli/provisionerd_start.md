@@ -30,7 +30,7 @@ Directory to store cached data.
 | Environment | <code>$CODER_PROVISIONERD_POLL_INTERVAL</code> |
 | Default     | <code>1s</code>                                |
 
-How often to poll for provisioner jobs.
+Deprecated and ignored.
 
 ### --poll-jitter
 
@@ -40,7 +40,7 @@ How often to poll for provisioner jobs.
 | Environment | <code>$CODER_PROVISIONERD_POLL_JITTER</code> |
 | Default     | <code>100ms</code>                           |
 
-How much to jitter the poll interval by.
+Deprecated and ignored.
 
 ### --psk
 

@@ -34,7 +34,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 				Transition:  database.WorkspaceTransitionStart,
 				Reason:      database.BuildReasonInitiator,
 			})
-			job = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+			job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 				ID:            build.JobID,
 				Type:          database.ProvisionerJobTypeWorkspaceBuild,
 				Provisioner:   database.ProvisionerTypeEcho,

@@ -8438,10 +8438,12 @@ const docTemplate = `{
         "codersdk.InsightsReportInterval": {
             "type": "string",
             "enum": [
-                "day"
+                "day",
+                "week"
             ],
             "x-enum-varnames": [
-                "InsightsReportIntervalDay"
+                "InsightsReportIntervalDay",
+                "InsightsReportIntervalWeek"
             ]
         },
         "codersdk.IssueReconnectingPTYSignedTokenRequest": {
@@ -9732,7 +9734,12 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "interval": {
-                    "$ref": "#/definitions/codersdk.InsightsReportInterval"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.InsightsReportInterval"
+                        }
+                    ],
+                    "example": "week"
                 },
                 "start_time": {
                     "type": "string",

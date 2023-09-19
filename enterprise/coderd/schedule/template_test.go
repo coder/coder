@@ -31,7 +31,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 		file = dbgen.File(t, db, database.File{
 			CreatedBy: user.ID,
 		})
-		templateJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			FileID:         file.ID,
 			InitiatorID:    user.ID,
@@ -149,7 +149,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					OwnerID:        user.ID,
 					TemplateID:     template.ID,
 				})
-				job = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+				job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 					OrganizationID: org.ID,
 					FileID:         file.ID,
 					InitiatorID:    user.ID,
@@ -255,7 +255,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		file = dbgen.File(t, db, database.File{
 			CreatedBy: user.ID,
 		})
-		templateJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			FileID:         file.ID,
 			InitiatorID:    user.ID,
@@ -405,7 +405,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			})
 			wsID = ws.ID
 		}
-		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			FileID:         file.ID,
 			InitiatorID:    user.ID,

@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -26,6 +28,7 @@ import (
 type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
+	ps                    pubsub.Pubsub
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
 	log                   slog.Logger
 	tick                  <-chan time.Time
@@ -40,11 +43,12 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
+		ps:                    ps,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
@@ -129,6 +133,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
+			var job *database.ProvisionerJob
 			err := e.db.InTx(func(tx database.Store) error {
 				// Re-check eligibility since the first check was outside the
 				// transaction and the workspace settings may have changed.
@@ -168,7 +173,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						SetLastWorkspaceBuildJobInTx(&latestJob).
 						Reason(reason)
 
-					if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
+					_, job, err = builder.Build(e.ctx, tx, nil)
+					if err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
 							slog.Error(err),
@@ -229,6 +235,17 @@ func (e *Executor) runOnce(t time.Time) Stats {
 			}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 			if err != nil {
 				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
+			}
+			if job != nil && err == nil {
+				// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
+				// with an outer transaction like this, and we need to make sure the outer transaction commits before
+				// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
+				// job, fail, and then sit idle instead of picking up the job.
+				err = provisionerjobs.PostJob(e.ps, *job)
+				if err != nil {
+					// Client probably doesn't care about this error, so just log it.
+					log.Error(e.ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+				}
 			}
 			return nil
 		})
