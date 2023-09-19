@@ -57,20 +57,24 @@ const OptionsTable: FC<{
                       gap: 1,
                     }}
                   >
-                    <OptionConfig>
-                      <OptionConfigFlag>CLI</OptionConfigFlag>
-                      --{option.flag}
-                    </OptionConfig>
+                    {option.flag && (
+                      <OptionConfig>
+                        <OptionConfigFlag>CLI</OptionConfigFlag>
+                        --{option.flag}
+                      </OptionConfig>
+                    )}
                     {option.flag_shorthand && (
                       <OptionConfig>
                         <OptionConfigFlag>CLI</OptionConfigFlag>-
                         {option.flag_shorthand}
                       </OptionConfig>
                     )}
-                    <OptionConfig>
-                      <OptionConfigFlag>ENV</OptionConfigFlag>
-                      {option.env}
-                    </OptionConfig>
+                    {option.env && (
+                      <OptionConfig>
+                        <OptionConfigFlag>ENV</OptionConfigFlag>
+                        {option.env}
+                      </OptionConfig>
+                    )}
                   </Box>
                 </TableCell>
 
