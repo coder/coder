@@ -135,12 +135,12 @@ jobs:
           restore-keys: |
             golangci-lint-${{ runner.os }}-
 
-      # Prose Linting
       - name: Lint with Vale
         uses: errata-ai/vale-action@reviewdog
         with:
           files: '["docs/about","docs/admin","docs/api","docs/changelogs","docs/contributing","docs/ides","docs/images","docs/install","docs/networking","docs/platforms","docs/security","docs/templates","docs/dotfiles.md","docs/ides.md","docs/enterprise.md","docs/secrets.md","docs/workspaces.md"]'
           filter_mode: nofilter
+          version: 2.28.0
           vale_flags: "--no-exit"
           fail_on_error: false
           token: ${{secrets.GITHUB_TOKEN}}
