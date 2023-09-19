@@ -39,6 +39,7 @@ type DRPCProvisionerDaemonClient interface {
 	DRPCConn() drpc.Conn
 
 	AcquireJob(ctx context.Context, in *Empty) (*AcquiredJob, error)
+	AcquireJobWithCancel(ctx context.Context) (DRPCProvisionerDaemon_AcquireJobWithCancelClient, error)
 	CommitQuota(ctx context.Context, in *CommitQuotaRequest) (*CommitQuotaResponse, error)
 	UpdateJob(ctx context.Context, in *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(ctx context.Context, in *FailedJob) (*Empty, error)
@@ -62,6 +63,45 @@ func (c *drpcProvisionerDaemonClient) AcquireJob(ctx context.Context, in *Empty)
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *drpcProvisionerDaemonClient) AcquireJobWithCancel(ctx context.Context) (DRPCProvisionerDaemon_AcquireJobWithCancelClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/provisionerd.ProvisionerDaemon/AcquireJobWithCancel", drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProvisionerDaemon_AcquireJobWithCancelClient{stream}
+	return x, nil
+}
+
+type DRPCProvisionerDaemon_AcquireJobWithCancelClient interface {
+	drpc.Stream
+	Send(*CancelAcquire) error
+	Recv() (*AcquiredJob, error)
+}
+
+type drpcProvisionerDaemon_AcquireJobWithCancelClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelClient) Send(m *CancelAcquire) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelClient) Recv() (*AcquiredJob, error) {
+	m := new(AcquiredJob)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelClient) RecvMsg(m *AcquiredJob) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
 func (c *drpcProvisionerDaemonClient) CommitQuota(ctx context.Context, in *CommitQuotaRequest) (*CommitQuotaResponse, error) {
@@ -102,6 +142,7 @@ func (c *drpcProvisionerDaemonClient) CompleteJob(ctx context.Context, in *Compl
 
 type DRPCProvisionerDaemonServer interface {
 	AcquireJob(context.Context, *Empty) (*AcquiredJob, error)
+	AcquireJobWithCancel(DRPCProvisionerDaemon_AcquireJobWithCancelStream) error
 	CommitQuota(context.Context, *CommitQuotaRequest) (*CommitQuotaResponse, error)
 	UpdateJob(context.Context, *UpdateJobRequest) (*UpdateJobResponse, error)
 	FailJob(context.Context, *FailedJob) (*Empty, error)
@@ -112,6 +153,10 @@ type DRPCProvisionerDaemonUnimplementedServer struct{}
 
 func (s *DRPCProvisionerDaemonUnimplementedServer) AcquireJob(context.Context, *Empty) (*AcquiredJob, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCProvisionerDaemonUnimplementedServer) AcquireJobWithCancel(DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
 func (s *DRPCProvisionerDaemonUnimplementedServer) CommitQuota(context.Context, *CommitQuotaRequest) (*CommitQuotaResponse, error) {
@@ -132,7 +177,7 @@ func (s *DRPCProvisionerDaemonUnimplementedServer) CompleteJob(context.Context, 
 
 type DRPCProvisionerDaemonDescription struct{}
 
-func (DRPCProvisionerDaemonDescription) NumMethods() int { return 5 }
+func (DRPCProvisionerDaemonDescription) NumMethods() int { return 6 }
 
 func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -146,6 +191,14 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 					)
 			}, DRPCProvisionerDaemonServer.AcquireJob, true
 	case 1:
+		return "/provisionerd.ProvisionerDaemon/AcquireJobWithCancel", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProvisionerDaemonServer).
+					AcquireJobWithCancel(
+						&drpcProvisionerDaemon_AcquireJobWithCancelStream{in1.(drpc.Stream)},
+					)
+			}, DRPCProvisionerDaemonServer.AcquireJobWithCancel, true
+	case 2:
 		return "/provisionerd.ProvisionerDaemon/CommitQuota", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCProvisionerDaemonServer).
@@ -154,7 +207,7 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						in1.(*CommitQuotaRequest),
 					)
 			}, DRPCProvisionerDaemonServer.CommitQuota, true
-	case 2:
+	case 3:
 		return "/provisionerd.ProvisionerDaemon/UpdateJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCProvisionerDaemonServer).
@@ -163,7 +216,7 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						in1.(*UpdateJobRequest),
 					)
 			}, DRPCProvisionerDaemonServer.UpdateJob, true
-	case 3:
+	case 4:
 		return "/provisionerd.ProvisionerDaemon/FailJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCProvisionerDaemonServer).
@@ -172,7 +225,7 @@ func (DRPCProvisionerDaemonDescription) Method(n int) (string, drpc.Encoding, dr
 						in1.(*FailedJob),
 					)
 			}, DRPCProvisionerDaemonServer.FailJob, true
-	case 4:
+	case 5:
 		return "/provisionerd.ProvisionerDaemon/CompleteJob", drpcEncoding_File_provisionerd_proto_provisionerd_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCProvisionerDaemonServer).
@@ -204,6 +257,32 @@ func (x *drpcProvisionerDaemon_AcquireJobStream) SendAndClose(m *AcquiredJob) er
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCProvisionerDaemon_AcquireJobWithCancelStream interface {
+	drpc.Stream
+	Send(*AcquiredJob) error
+	Recv() (*CancelAcquire, error)
+}
+
+type drpcProvisionerDaemon_AcquireJobWithCancelStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelStream) Send(m *AcquiredJob) error {
+	return x.MsgSend(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelStream) Recv() (*CancelAcquire, error) {
+	m := new(CancelAcquire)
+	if err := x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProvisionerDaemon_AcquireJobWithCancelStream) RecvMsg(m *CancelAcquire) error {
+	return x.MsgRecv(m, drpcEncoding_File_provisionerd_proto_provisionerd_proto{})
 }
 
 type DRPCProvisionerDaemon_CommitQuotaStream interface {

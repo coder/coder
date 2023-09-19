@@ -67,7 +67,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	file := dbgen.File(t, db, database.File{})
 	for i := 0; i < 5; i++ {
-		dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Minute * 5),
 			UpdatedAt: now.Add(-time.Minute * time.Duration(i)),
 			StartedAt: sql.NullTime{
@@ -135,7 +135,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 
 		// Previous build.
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		previousWorkspaceBuildJob   = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		previousWorkspaceBuildJob   = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: twentyMinAgo,
 			UpdatedAt: twentyMinAgo,
 			StartedAt: sql.NullTime{
@@ -163,7 +163,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 		})
 
 		// Current build.
-		currentWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		currentWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			UpdatedAt: sixMinAgo,
 			StartedAt: sql.NullTime{
@@ -256,7 +256,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 		})
 
 		// Previous build.
-		previousWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		previousWorkspaceBuildJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: twentyMinAgo,
 			UpdatedAt: twentyMinAgo,
 			StartedAt: sql.NullTime{
@@ -285,7 +285,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 
 		// Current build.
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			UpdatedAt: sixMinAgo,
 			StartedAt: sql.NullTime{
@@ -379,7 +379,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 
 		// First build.
 		expectedWorkspaceBuildState = []byte(`{"dean":"cool","colin":"also cool"}`)
-		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		currentWorkspaceBuildJob    = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			UpdatedAt: sixMinAgo,
 			StartedAt: sql.NullTime{
@@ -454,7 +454,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 		file      = dbgen.File(t, db, database.File{})
 
 		// Template import job.
-		templateImportJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		templateImportJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			UpdatedAt: sixMinAgo,
 			StartedAt: sql.NullTime{
@@ -471,7 +471,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 		})
 
 		// Template dry-run job.
-		templateDryRunJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		templateDryRunJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			UpdatedAt: sixMinAgo,
 			StartedAt: sql.NullTime{
@@ -545,7 +545,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 		file      = dbgen.File(t, db, database.File{})
 
 		// Template import job.
-		templateImportJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		templateImportJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: tenMinAgo,
 			CanceledAt: sql.NullTime{
 				Time:  tenMinAgo,
@@ -642,7 +642,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 				file      = dbgen.File(t, db, database.File{})
 
 				// Template import job.
-				templateImportJob = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+				templateImportJob = dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 					CreatedAt: tenMinAgo,
 					UpdatedAt: sixMinAgo,
 					StartedAt: sql.NullTime{
@@ -752,7 +752,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 	// Create unhanger.MaxJobsPerRun + 1 hung jobs.
 	now := time.Now()
 	for i := 0; i < unhanger.MaxJobsPerRun+1; i++ {
-		dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 			CreatedAt: now.Add(-time.Hour),
 			UpdatedAt: now.Add(-time.Hour),
 			StartedAt: sql.NullTime{
