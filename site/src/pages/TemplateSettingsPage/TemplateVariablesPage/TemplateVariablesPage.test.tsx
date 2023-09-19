@@ -21,8 +21,6 @@ const validFormValues = {
   second_variable: "123",
 };
 
-const validationRequiredField = "Variable is required.";
-
 const renderTemplateVariablesPage = async () => {
   renderWithTemplateSettingsLayout(<TemplateVariablesPage />, {
     route: `/templates/${MockTemplate.name}/variables`,
