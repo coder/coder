@@ -79,7 +79,7 @@ Other Status codes:
 - `unhealthy` : The workspace proxy is reachable, but has some issue that is
   preventing the proxy from being used. `coder wsproxy ls` should show the error
   message.
-- `ok` : The workspace proxy is healthy and working properly!
+- `ok` : The workspace proxy is healthy and working properly.
 
 ### Configuration
 

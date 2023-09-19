@@ -855,7 +855,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/autostart \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update workspace dormancy status by id
+## Update workspace dormancy status by id.
 
 ### Code samples
 
