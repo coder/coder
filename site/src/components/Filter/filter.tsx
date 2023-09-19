@@ -52,6 +52,31 @@ export const useFilter = ({
   onUpdate,
 }: UseFilterConfig) => {
   const [searchParams, setSearchParams] = searchParamsResult;
+  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+
+  // Using ref approach to be defensive against useSearchParams not returning a
+  // stable set function on each render. Effect must run before query effect
+  const setSearchParamsRef = useRef(setSearchParams);
+  useEffect(() => {
+    setSearchParamsRef.current = setSearchParams;
+  }, [setSearchParams]);
+
+  // Keep params synced with query, even as query changes from outside sources
+  useEffect(() => {
+    const setSearchParams = setSearchParamsRef.current;
+
+    setSearchParams((currentParams) => {
+      const currentQuery = currentParams.get(useFilterParamsKey);
+
+      if (query === "") {
+        currentParams.delete(useFilterParamsKey);
+      } else if (currentQuery !== query) {
+        currentParams.set(useFilterParamsKey, query);
+      }
+
+      return currentParams;
+    });
+  }, [query]);
 
   const update = (newValues: string | FilterValues) => {
     const serialized =
@@ -70,17 +95,13 @@ export const useFilter = ({
     500,
   );
 
-  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
-  const values = parseFilterQuery(query);
-  const used = query !== "" && query !== fallbackFilter;
-
   return {
     query,
     update,
     debounceUpdate,
     cancelDebounce,
-    values,
-    used,
+    values: parseFilterQuery(query),
+    used: query !== "" && query !== fallbackFilter,
   };
 };
 
