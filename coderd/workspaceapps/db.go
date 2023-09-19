@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -260,7 +261,12 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *httpmw.Au
 		sharingLevel == database.AppSharingLevelOwner &&
 		dbReq.Workspace.OwnerID.String() != roles.Actor.ID &&
 		!p.DeploymentValues.Dangerous.AllowPathAppSiteOwnerAccess.Value() {
-		warnings = append(warnings, "path-based apps with \"owner\" share level are only accessible by the workspace owner (see --dangerous-allow-path-app-site-owner-access)")
+		// This is not ideal to check for the 'owner' role, but we are only checking
+		// to determine whether to show a warning for debugging reasons. This does
+		// not do any authz checks, so it is ok.
+		if roles != nil && slices.Contains(roles.Actor.Roles.Names(), rbac.RoleOwner()) {
+			warnings = append(warnings, "path-based apps with \"owner\" share level are only accessible by the workspace owner (see --dangerous-allow-path-app-site-owner-access)")
+		}
 		return false, warnings, nil
 	}
 
