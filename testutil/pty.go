@@ -31,10 +31,10 @@ func ReadUntil(ctx context.Context, t *testing.T, r io.Reader, matcher func(line
 		// Dump the terminal contents since they can be helpful for debugging, but
 		// trim empty lines since much of the terminal will usually be blank.
 		got := term.String()
-		trimmed := strings.Trim(got, "\n")
-		t.Logf("Terminal contents:\n%s", trimmed)
+		//trimmed := strings.Trim(got, "\n")
+		t.Logf("Terminal contents:\n%q", got)
 		if retErr != nil {
-			t.Logf("Bytes Read: %s", string(readBytes))
+			t.Logf("Bytes Read: %q", string(readBytes))
 		}
 	}()
 	for {
