@@ -36,10 +36,11 @@ type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
   /**
-   * The fallback value to use in the event that no filter params can be used.
-   * This value is allowed to change on re-renders.
+   * The fallback value to use in the event that no filter params can be parsed
+   * from the search params object. This value is allowed to change on
+   * re-renders.
    */
-  initialValue?: string;
+  fallbackFilter?: string;
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onUpdate?: (newValue: string) => void;
 };
@@ -47,7 +48,7 @@ type UseFilterConfig = {
 const useFilterParamsKey = "filter";
 
 export const useFilter = ({
-  initialValue: fallbackFilter = "",
+  fallbackFilter = "",
   searchParamsResult,
   onUpdate,
 }: UseFilterConfig) => {

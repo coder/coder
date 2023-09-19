@@ -190,7 +190,7 @@ const useWorkspacesFilter = ({
     /**
      * @todo Rename initialValue to fallbackFilter once changes have been tested
      */
-    initialValue: localStorageFilter,
+    fallbackFilter: localStorageFilter,
     searchParamsResult,
     onUpdate: (newValues) => {
       window.localStorage.setItem(workspaceFilterKey, newValues);
