@@ -187,9 +187,6 @@ const useWorkspacesFilter = ({
   );
 
   const filter = useFilter({
-    /**
-     * @todo Rename initialValue to fallbackFilter once changes have been tested
-     */
     fallbackFilter: localStorageFilter,
     searchParamsResult,
     onUpdate: (newValues) => {
