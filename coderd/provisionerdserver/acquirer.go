@@ -15,14 +15,13 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 const (
-	EventJobPosted = "provisioner_job_posted"
-	dbMaxBackoff   = 10 * time.Second
+	dbMaxBackoff = 10 * time.Second
 	// backPollDuration is the period for the backup polling described in Acquirer comment
 	backupPollDuration = 30 * time.Second
 )
@@ -106,8 +105,6 @@ func (a *Acquirer) AcquireJob(
 	}
 	// buffer of 1 so that cancel doesn't deadlock while writing to the channel
 	clearance := make(chan struct{}, 1)
-	//nolint:gocritic // Provisionerd has specific authz rules.
-	principal := dbauthz.AsProvisionerd(ctx)
 	for {
 		a.want(pt, tags, clearance)
 		select {
@@ -122,7 +119,7 @@ func (a *Acquirer) AcquireJob(
 			return database.ProvisionerJob{}, err
 		case <-clearance:
 			logger.Debug(ctx, "got clearance to call database")
-			job, err := a.store.AcquireProvisionerJob(principal, database.AcquireProvisionerJobParams{
+			job, err := a.store.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 				StartedAt: sql.NullTime{
 					Time:  dbtime.Now(),
 					Valid: true,
@@ -298,7 +295,7 @@ func (a *Acquirer) subscribe() {
 		bkoff := backoff.WithContext(eb, a.ctx)
 		var cancel context.CancelFunc
 		err := backoff.Retry(func() error {
-			cancelFn, err := a.ps.SubscribeWithErr(EventJobPosted, a.jobPosted)
+			cancelFn, err := a.ps.SubscribeWithErr(provisionerjobs.EventJobPosted, a.jobPosted)
 			if err != nil {
 				a.logger.Warn(a.ctx, "failed to subscribe to job postings", slog.Error(err))
 				return err
@@ -335,7 +332,7 @@ func (a *Acquirer) jobPosted(ctx context.Context, message []byte, err error) {
 		a.logger.Warn(a.ctx, "unhandled pubsub error", slog.Error(err))
 		return
 	}
-	posting := JobPosting{}
+	posting := provisionerjobs.JobPosting{}
 	err = json.Unmarshal(message, &posting)
 	if err != nil {
 		a.logger.Error(a.ctx, "unable to parse job posting",
@@ -457,7 +454,7 @@ type domain struct {
 	acquirees map[chan<- struct{}]*acquiree
 }
 
-func (d domain) contains(p JobPosting) bool {
+func (d domain) contains(p provisionerjobs.JobPosting) bool {
 	if !slices.Contains(d.pt, p.ProvisionerType) {
 		return false
 	}
@@ -484,9 +481,4 @@ func (d domain) poll(dur time.Duration) {
 			d.a.clearOrPend(d)
 		}
 	}
-}
-
-type JobPosting struct {
-	ProvisionerType database.ProvisionerType `json:"type"`
-	Tags            map[string]string        `json:"tags"`
 }

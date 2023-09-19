@@ -6,6 +6,8 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import {
+  OptionConfig,
+  OptionConfigFlag,
   OptionDescription,
   OptionName,
   OptionValue,
@@ -13,6 +15,7 @@ import {
 import { FC } from "react";
 import { optionValue } from "./optionValue";
 import { DeploymentOption } from "api/api";
+import Box from "@mui/material/Box";
 
 const OptionsTable: FC<{
   options: DeploymentOption[];
@@ -46,6 +49,33 @@ const OptionsTable: FC<{
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
                   <OptionDescription>{option.description}</OptionDescription>
+                  <Box
+                    sx={{
+                      marginTop: 3,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 1,
+                    }}
+                  >
+                    {option.flag && (
+                      <OptionConfig>
+                        <OptionConfigFlag>CLI</OptionConfigFlag>
+                        --{option.flag}
+                      </OptionConfig>
+                    )}
+                    {option.flag_shorthand && (
+                      <OptionConfig>
+                        <OptionConfigFlag>CLI</OptionConfigFlag>-
+                        {option.flag_shorthand}
+                      </OptionConfig>
+                    )}
+                    {option.env && (
+                      <OptionConfig>
+                        <OptionConfigFlag>ENV</OptionConfigFlag>
+                        {option.env}
+                      </OptionConfig>
+                    )}
+                  </Box>
                 </TableCell>
 
                 <TableCell>

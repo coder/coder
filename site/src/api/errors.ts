@@ -65,9 +65,6 @@ export const getErrorMessage = (
   if (isApiError(error)) {
     return error.response.data.message;
   }
-  if (error instanceof Error) {
-    return error.message;
-  }
   if (typeof error === "string") {
     return error;
   }

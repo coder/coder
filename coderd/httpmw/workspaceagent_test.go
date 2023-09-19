@@ -83,7 +83,7 @@ func setup(t testing.TB, db database.Store, authToken uuid.UUID, mw func(http.Ha
 		OrganizationID: org.ID,
 		TemplateID:     template.ID,
 	})
-	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: org.ID,
 	})
 	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
