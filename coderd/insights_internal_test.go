@@ -253,3 +253,53 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 		})
 	}
 }
+
+func TestLastReportIntervalHasAtLeastSixDays(t *testing.T) {
+	t.Parallel()
+
+	loc, err := time.LoadLocation("Europe/Warsaw")
+	require.NoError(t, err)
+
+	testCases := []struct {
+		name      string
+		startTime time.Time
+		endTime   time.Time
+		expected  bool
+	}{
+		{
+			name:      "perfectly full week",
+			startTime: time.Date(2023, time.September, 11, 12, 0, 0, 0, loc),
+			endTime:   time.Date(2023, time.September, 18, 12, 0, 0, 0, loc),
+			expected:  true,
+		},
+		{
+			name:      "exactly 6 days apart",
+			startTime: time.Date(2023, time.September, 11, 12, 0, 0, 0, loc),
+			endTime:   time.Date(2023, time.September, 17, 12, 0, 0, 0, loc),
+			expected:  true,
+		},
+		{
+			name:      "less than 6 days apart",
+			startTime: time.Date(2023, time.September, 11, 12, 0, 0, 0, time.UTC),
+			endTime:   time.Date(2023, time.September, 17, 11, 0, 0, 0, time.UTC),
+			expected:  false,
+		},
+		{
+			name:      "forward DST change, 5 days and 23 hours apart",
+			startTime: time.Date(2023, time.March, 22, 12, 0, 0, 0, loc), // A day before DST starts
+			endTime:   time.Date(2023, time.March, 28, 12, 0, 0, 0, loc), // Exactly 6 "days" apart
+			expected:  true,
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := lastReportIntervalHasAtLeastSixDays(tc.startTime, tc.endTime)
+			if result != tc.expected {
+				t.Errorf("Expected %v, but got %v for start time %v and end time %v", tc.expected, result, tc.startTime, tc.endTime)
+			}
+		})
+	}
+}
