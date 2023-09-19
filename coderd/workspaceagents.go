@@ -570,11 +570,27 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 		lastSentLogID = logs[len(logs)-1].ID
 	}
 
+	workspaceNotifyCh := make(chan struct{}, 1)
 	notifyCh := make(chan struct{}, 1)
 	// Allow us to immediately check if we missed any logs
 	// between initial fetch and subscribe.
 	notifyCh <- struct{}{}
 
+	// Subscribe to workspace to detect new builds.
+	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
+		select {
+		case workspaceNotifyCh <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to subscribe to workspace for log streaming.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	defer closeSubscribeWorkspace()
 	// Subscribe early to prevent missing log events.
 	closeSubscribe, err := api.Pubsub.Subscribe(agentsdk.LogsNotifyChannel(workspaceAgent.ID), func(_ context.Context, _ []byte) {
 		// The message is not important, we're tracking lastSentLogID manually.
@@ -585,7 +601,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to subscribe to logs.",
+			Message: "Failed to subscribe to agent for log streaming.",
 			Detail:  err.Error(),
 		})
 		return
@@ -600,20 +616,33 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	defer t.Stop()
 
 	go func() {
-		defer close(bufferedLogs)
+		defer func() {
+			logger.Debug(ctx, "end log streaming loop")
+			close(bufferedLogs)
+		}()
+		logger.Debug(ctx, "start log streaming loop", slog.F("last_sent_log_id", lastSentLogID))
 
 		keepGoing := true
 		for keepGoing {
+			var (
+				debugTriggeredBy     string
+				onlyCheckLatestBuild bool
+			)
 			select {
 			case <-ctx.Done():
 				return
 			case <-t.C:
+				debugTriggeredBy = "timer"
+			case <-workspaceNotifyCh:
+				debugTriggeredBy = "workspace"
+				onlyCheckLatestBuild = true
 			case <-notifyCh:
+				debugTriggeredBy = "log"
 				t.Reset(recheckInterval)
 			}
 
 			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-			if err != nil {
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 				if xerrors.Is(err, context.Canceled) {
 					return
 				}
@@ -623,6 +652,20 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 			// If the agent is no longer in the latest build, we can stop after
 			// checking once.
 			keepGoing = slices.ContainsFunc(agents, func(agent database.WorkspaceAgent) bool { return agent.ID == workspaceAgent.ID })
+
+			logger.Debug(
+				ctx,
+				"checking for new logs",
+				slog.F("triggered_by", debugTriggeredBy),
+				slog.F("only_check_latest_build", onlyCheckLatestBuild),
+				slog.F("keep_going", keepGoing),
+				slog.F("last_sent_log_id", lastSentLogID),
+				slog.F("workspace_has_agents", len(agents) > 0),
+			)
+
+			if onlyCheckLatestBuild && keepGoing {
+				continue
+			}
 
 			logs, err := api.Database.GetWorkspaceAgentLogsAfter(ctx, database.GetWorkspaceAgentLogsAfterParams{
 				AgentID:      workspaceAgent.ID,
