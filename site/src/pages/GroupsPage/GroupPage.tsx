@@ -9,7 +9,7 @@ import TableRow from "@mui/material/TableRow";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import { User } from "api/typesGenerated";
+import { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -56,7 +56,6 @@ export const GroupPage: React.FC = () => {
   const groupData = groupQuery.data;
   const { data: permissions } = useQuery(groupPermissions(groupId));
   const addMemberMutation = useMutation(addMember(queryClient));
-  const removeMemberMutation = useMutation(removeMember(queryClient));
   const deleteGroupMutation = useMutation(deleteGroup(queryClient));
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
@@ -168,55 +167,12 @@ export const GroupPage: React.FC = () => {
 
                       <Cond>
                         {groupData?.members.map((member) => (
-                          <TableRow key={member.id}>
-                            <TableCell width="99%">
-                              <AvatarData
-                                avatar={
-                                  <UserAvatar
-                                    username={member.username}
-                                    avatarURL={member.avatar_url}
-                                  />
-                                }
-                                title={member.username}
-                                subtitle={member.email}
-                              />
-                            </TableCell>
-                            <TableCell width="1%">
-                              <Maybe condition={canUpdateGroup}>
-                                <TableRowMenu
-                                  data={member}
-                                  menuItems={[
-                                    {
-                                      label: "Remove",
-                                      onClick: async () => {
-                                        try {
-                                          await removeMemberMutation.mutateAsync(
-                                            {
-                                              groupId,
-                                              userId: member.id,
-                                            },
-                                          );
-                                          displaySuccess(
-                                            "Member removed successfully.",
-                                          );
-                                        } catch (error) {
-                                          displayError(
-                                            getErrorMessage(
-                                              error,
-                                              "Failed to remove member.",
-                                            ),
-                                          );
-                                        }
-                                      },
-                                      disabled:
-                                        groupData.id ===
-                                        groupData.organization_id,
-                                    },
-                                  ]}
-                                />
-                              </Maybe>
-                            </TableCell>
-                          </TableRow>
+                          <GroupMemberRow
+                            member={member}
+                            group={groupData}
+                            key={member.id}
+                            canUpdate={canUpdateGroup}
+                          />
                         ))}
                       </Cond>
                     </ChooseOne>
@@ -250,12 +206,6 @@ export const GroupPage: React.FC = () => {
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  autoComplete: {
-    width: 300,
-  },
-}));
 
 const AddGroupMember: React.FC<{
   isLoading: boolean;
@@ -299,5 +249,64 @@ const AddGroupMember: React.FC<{
     </form>
   );
 };
+
+const GroupMemberRow = (props: {
+  member: User;
+  group: Group;
+  canUpdate: boolean;
+}) => {
+  const { member, group, canUpdate } = props;
+  const queryClient = useQueryClient();
+  const removeMemberMutation = useMutation(removeMember(queryClient));
+
+  return (
+    <TableRow key={member.id}>
+      <TableCell width="99%">
+        <AvatarData
+          avatar={
+            <UserAvatar
+              username={member.username}
+              avatarURL={member.avatar_url}
+            />
+          }
+          title={member.username}
+          subtitle={member.email}
+        />
+      </TableCell>
+      <TableCell width="1%">
+        <Maybe condition={canUpdate}>
+          <TableRowMenu
+            data={member}
+            menuItems={[
+              {
+                label: "Remove",
+                onClick: async () => {
+                  try {
+                    await removeMemberMutation.mutateAsync({
+                      groupId: group.id,
+                      userId: member.id,
+                    });
+                    displaySuccess("Member removed successfully.");
+                  } catch (error) {
+                    displayError(
+                      getErrorMessage(error, "Failed to remove member."),
+                    );
+                  }
+                },
+                disabled: group.id === group.organization_id,
+              },
+            ]}
+          />
+        </Maybe>
+      </TableCell>
+    </TableRow>
+  );
+};
+
+const useStyles = makeStyles(() => ({
+  autoComplete: {
+    width: 300,
+  },
+}));
 
 export default GroupPage;
