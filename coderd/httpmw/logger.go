@@ -32,7 +32,7 @@ func Logger(log slog.Logger) func(next http.Handler) http.Handler {
 				// actually logging the request. This can also be useful when
 				// filtering logs that started at a certain time (compared to
 				// trying to compute the value).
-				slog.F("start_timestamp", start),
+				slog.F("start", start),
 			)
 
 			next.ServeHTTP(sw, r)
