@@ -586,6 +586,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update template
 		updatedTemplateParameters := []*proto.RichParameter{
+			// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
 			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
 				{Name: "first_option", Description: "This is first option", Value: "1"},
 				{Name: "second_option", Description: "This is second option", Value: "2"},
@@ -612,7 +613,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			// cliui.Select will pick "first_option".
+			// `cliui.Select` will automatically pick the first option
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -655,6 +656,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Update template - 2nd option disappeared, 4th option added
 		updatedTemplateParameters := []*proto.RichParameter{
+			// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
 			{Name: stringParameterName, Type: "string", Mutable: true, Required: true, Options: []*proto.RichParameterOption{
 				{Name: "Third option", Description: "This is third option", Value: "3rd"},
 				{Name: "First option", Description: "This is first option", Value: "1st"},
@@ -681,6 +683,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
+			// `cliui.Select` will automatically pick the first option
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
@@ -787,6 +790,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		// Update template: add required, immutable parameter
 		updatedTemplateParameters := []*proto.RichParameter{
 			templateParameters[0],
+			// The order of rich parameter options must be maintained because `cliui.Select` automatically selects the first option during tests.
 			{Name: immutableParameterName, Type: "string", Mutable: false, Required: true, Options: []*proto.RichParameterOption{
 				{Name: "thi", Description: "This is third option for immutable parameter", Value: "III"},
 				{Name: "fir", Description: "This is first option for immutable parameter", Value: "I"},
@@ -813,7 +817,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		matches := []string{
-			// cliui.Select will pick "thi".
+			// `cliui.Select` will automatically pick the first option
 			"Planning workspace...", "",
 		}
 		for i := 0; i < len(matches); i += 2 {
