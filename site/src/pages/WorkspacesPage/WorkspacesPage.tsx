@@ -4,7 +4,7 @@ import {
   useDashboard,
   useIsWorkspaceActionsEnabled,
 } from "components/Dashboard/DashboardProvider";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState, useSyncExternalStore } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspacesData, useWorkspaceUpdate } from "./data";
@@ -44,7 +44,11 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
-  const filterProps = useWorkspacesFilter({ searchParamsResult, pagination });
+  const filterProps = useWorkspacesFilter({
+    searchParamsResult,
+    onPageChange: () => pagination.goToPage(1),
+  });
+
   const { data, error, queryKey, refetch } = useWorkspacesData({
     ...pagination,
     query: filterProps.filter.query,
@@ -136,30 +140,61 @@ const WorkspacesPage: FC = () => {
 
 export default WorkspacesPage;
 
+const workspaceFilterKey = "WorkspacesPage/filter";
+const defaultWorkspaceFilter = "owner:me";
+
+// Function should stay outside components as much as possible; if declared
+// inside the component, React would add/remove event listeners every render
+function subscribeToFilterChanges(notifyReact: () => void) {
+  const onStorageChange = (event: StorageEvent) => {
+    const { key, storageArea, oldValue, newValue } = event;
+
+    const shouldNotify =
+      key === workspaceFilterKey &&
+      storageArea === window.localStorage &&
+      newValue !== oldValue;
+
+    if (shouldNotify) {
+      notifyReact();
+    }
+  };
+
+  window.addEventListener("storage", onStorageChange);
+  return () => window.removeEventListener("storage", onStorageChange);
+}
+
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
-  pagination: ReturnType<typeof usePagination>;
+  onPageChange: () => void;
 };
-
-const filterPreferencesKey = "WorkspacesPage/filterPreferences";
 
 const useWorkspacesFilter = ({
   searchParamsResult,
-  pagination,
+  onPageChange,
 }: UseWorkspacesFilterOptions) => {
-  const filter = useFilter({
-    searchParamsResult,
-    initialValue: () => {
-      const fallbackValue = "owner:me";
-      if (typeof window === "undefined") {
-        return fallbackValue;
-      }
-
-      return window.localStorage.getItem(filterPreferencesKey) ?? fallbackValue;
+  // Using useSyncExternalStore store to safely access localStorage from the
+  // first render; both snapshot callbacks return primitives, so no special
+  // trickery needed to prevent hook from immediately blowing up in dev mode
+  const localStorageFilter = useSyncExternalStore(
+    subscribeToFilterChanges,
+    () => {
+      return (
+        window.localStorage.getItem(workspaceFilterKey) ??
+        defaultWorkspaceFilter
+      );
     },
+    () => defaultWorkspaceFilter,
+  );
+
+  const filter = useFilter({
+    /**
+     * @todo Rename initialValue to fallbackFilter once changes have been tested
+     */
+    initialValue: localStorageFilter,
+    searchParamsResult,
     onUpdate: (newValues) => {
-      window.localStorage.setItem(filterPreferencesKey, newValues);
-      pagination.goToPage(1);
+      window.localStorage.setItem(workspaceFilterKey, newValues);
+      onPageChange();
     },
   });
 

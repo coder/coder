@@ -36,14 +36,10 @@ type FilterValues = Record<string, string | undefined>;
 
 type UseFilterConfig = {
   /**
-   * If initialValue is a string, that value will be used immediately from the
-   * first render.
-   *
-   * If it's a function, the function will be lazy-evaluated via an effect
-   * after the initial render. The initial render will use an empty string while
-   * waiting for the effect to run.
+   * The fallback value to use in the event that no filter params can be used.
+   * This value is allowed to change on re-renders.
    */
-  initialValue?: string | (() => string);
+  initialValue?: string;
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onUpdate?: (newValue: string) => void;
 };
@@ -51,37 +47,11 @@ type UseFilterConfig = {
 const useFilterParamsKey = "filter";
 
 export const useFilter = ({
-  initialValue = "",
-  onUpdate,
+  initialValue: fallbackFilter = "",
   searchParamsResult,
+  onUpdate,
 }: UseFilterConfig) => {
   const [searchParams, setSearchParams] = searchParamsResult;
-
-  // Copying initialValue into state to lock the value down from the outside
-  const [initializedValue, setInitializedValue] = useState(() => {
-    return typeof initialValue === "string" ? initialValue : "";
-  });
-
-  // Lazy-evaluate initialValue only on mount; have to resolve via effect
-  // because initialValue is allowed to be impure (e.g., read from localStorage)
-  const lazyOnMountRef = useRef(initialValue);
-  useEffect(() => {
-    if (typeof lazyOnMountRef.current === "string") {
-      return;
-    }
-
-    const lazyInitialValue = lazyOnMountRef.current();
-    setInitializedValue(lazyInitialValue);
-
-    setSearchParams((current) => {
-      const currentFilter = current.get(useFilterParamsKey);
-      if (currentFilter !== lazyInitialValue) {
-        current.set(useFilterParamsKey, lazyInitialValue);
-      }
-
-      return current;
-    });
-  }, [setSearchParams]);
 
   const update = (newValues: string | FilterValues) => {
     const serialized =
@@ -100,9 +70,9 @@ export const useFilter = ({
     500,
   );
 
-  const query = searchParams.get("filter") ?? initializedValue;
+  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
   const values = parseFilterQuery(query);
-  const used = query !== "" && query !== initialValue;
+  const used = query !== "" && query !== fallbackFilter;
 
   return {
     query,
