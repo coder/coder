@@ -110,6 +110,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if the helm deployment already exists
@@ -216,7 +217,7 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: GHCR Login
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -257,6 +258,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG }}" > ~/.kube/config
+          chmod 644 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists

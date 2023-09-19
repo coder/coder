@@ -644,7 +644,7 @@ URL pointing to the icon to use on the OpenID Connect login button.
 | YAML        | <code>provisioning.daemonPollInterval</code>         |
 | Default     | <code>1s</code>                                      |
 
-Time to wait before polling for a new job.
+Deprecated and ignored.
 
 ### --provisioner-daemon-poll-jitter
 
@@ -655,7 +655,7 @@ Time to wait before polling for a new job.
 | YAML        | <code>provisioning.daemonPollJitter</code>         |
 | Default     | <code>100ms</code>                                 |
 
-Random jitter added to the poll interval.
+Deprecated and ignored.
 
 ### --postgres-url
 

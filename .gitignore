@@ -64,3 +64,6 @@ scaletest/terraform/secrets.tfvars
 
 # Nix
 result
+
+# Data dumps from unit tests
+**/*.test.sql

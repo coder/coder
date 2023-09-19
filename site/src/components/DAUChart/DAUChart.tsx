@@ -7,12 +7,14 @@ import {
   Chart as ChartJS,
   ChartOptions,
   defaults,
+  Filler,
   Legend,
   LinearScale,
-  BarElement,
+  LineElement,
   TimeScale,
   Title,
   Tooltip,
+  PointElement,
 } from "chart.js";
 import "chartjs-adapter-date-fns";
 import {
@@ -22,13 +24,15 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import dayjs from "dayjs";
 import { FC } from "react";
-import { Bar } from "react-chartjs-2";
+import { Line } from "react-chartjs-2";
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   TimeScale,
-  BarElement,
+  LineElement,
+  PointElement,
+  Filler,
   Title,
   Tooltip,
   Legend,
@@ -52,7 +56,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   defaults.font.family = theme.typography.fontFamily as string;
   defaults.color = theme.palette.text.secondary;
 
-  const options: ChartOptions<"bar"> = {
+  const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
       legend: {
@@ -70,11 +74,12 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
     },
     scales: {
       y: {
-        min: 0,
+        suggestedMin: 0,
         ticks: {
           precision: 0,
         },
       },
+
       x: {
         ticks: {
           stepSize: daus.entries.length > 10 ? 2 : undefined,
@@ -89,7 +94,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   };
 
   return (
-    <Bar
+    <Line
       data-chromatic="ignore"
       data={{
         labels: labels,
@@ -97,12 +102,11 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
           {
             label: "Daily Active Users",
             data: data,
-            backgroundColor: theme.palette.secondary.dark,
-            borderColor: theme.palette.secondary.dark,
-            barThickness: 8,
-            borderWidth: 2,
-            borderRadius: Number.MAX_VALUE,
-            borderSkipped: false,
+            pointBackgroundColor: theme.palette.info.light,
+            pointBorderColor: theme.palette.info.light,
+            borderColor: theme.palette.info.light,
+            backgroundColor: theme.palette.info.dark,
+            fill: "origin",
           },
         ],
       }}
@@ -120,7 +124,7 @@ export const DAUTitle = () => {
           How do we calculate daily active users?
         </HelpTooltipTitle>
         <HelpTooltipText>
-          When a connection is initiated to a user{"'"}s workspace they are
+          When a connection is initiated to a user&apos;s workspace they are
           considered a daily active user. e.g. apps, web terminal, SSH
         </HelpTooltipText>
       </HelpTooltip>

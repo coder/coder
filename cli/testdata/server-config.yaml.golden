@@ -348,10 +348,10 @@ provisioning:
   # tests.
   # (default: false, type: bool)
   daemonsEcho: false
-  # Time to wait before polling for a new job.
+  # Deprecated and ignored.
   # (default: 1s, type: duration)
   daemonPollInterval: 1s
-  # Random jitter added to the poll interval.
+  # Deprecated and ignored.
   # (default: 100ms, type: duration)
   daemonPollJitter: 100ms
   # Time to force cancel provisioning tasks that are stuck.

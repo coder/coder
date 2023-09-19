@@ -393,10 +393,10 @@ updating, and deleting workspace resources.
           Time to force cancel provisioning tasks that are stuck.
 
       --provisioner-daemon-poll-interval duration, $CODER_PROVISIONER_DAEMON_POLL_INTERVAL (default: 1s)
-          Time to wait before polling for a new job.
+          Deprecated and ignored.
 
       --provisioner-daemon-poll-jitter duration, $CODER_PROVISIONER_DAEMON_POLL_JITTER (default: 100ms)
-          Random jitter added to the poll interval.
+          Deprecated and ignored.
 
       --provisioner-daemon-psk string, $CODER_PROVISIONER_DAEMON_PSK
           Pre-shared key to authenticate external provisioner daemons to Coder
