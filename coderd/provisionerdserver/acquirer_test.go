@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/testutil"
@@ -316,12 +317,12 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 
 func postJob(t *testing.T, ps pubsub.Pubsub, pt database.ProvisionerType, tags provisionerdserver.Tags) {
 	t.Helper()
-	msg, err := json.Marshal(provisionerdserver.JobPosting{
+	msg, err := json.Marshal(provisionerjobs.JobPosting{
 		ProvisionerType: pt,
 		Tags:            tags,
 	})
 	require.NoError(t, err)
-	err = ps.Publish(provisionerdserver.EventJobPosted, msg)
+	err = ps.Publish(provisionerjobs.EventJobPosted, msg)
 	require.NoError(t, err)
 }
 

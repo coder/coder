@@ -363,7 +363,7 @@ func setupWorkspaceWithAgents(t testing.TB, cfg setupConfig) (database.Store, *h
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 		})
-		job = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			ID:            build.JobID,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			Provisioner:   database.ProvisionerTypeEcho,

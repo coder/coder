@@ -7578,8 +7578,11 @@
     },
     "codersdk.InsightsReportInterval": {
       "type": "string",
-      "enum": ["day"],
-      "x-enum-varnames": ["InsightsReportIntervalDay"]
+      "enum": ["day", "week"],
+      "x-enum-varnames": [
+        "InsightsReportIntervalDay",
+        "InsightsReportIntervalWeek"
+      ]
     },
     "codersdk.IssueReconnectingPTYSignedTokenRequest": {
       "type": "object",
@@ -8794,7 +8797,12 @@
           "format": "date-time"
         },
         "interval": {
-          "$ref": "#/definitions/codersdk.InsightsReportInterval"
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.InsightsReportInterval"
+            }
+          ],
+          "example": "week"
         },
         "start_time": {
           "type": "string",

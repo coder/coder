@@ -810,6 +810,18 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						sessionCountVSCode: 1,
 						sessionCountSSH:    1,
 					},
+					{ // One hour of usage.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -12),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -12).Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
+					{ // Another one hour of usage, but "active users" shouldn't be increased twice.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -10),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -10).Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
 				},
 				appUsage: []appUsage{
 					// TODO(mafredri): This doesn't behave correctly right now
@@ -923,6 +935,16 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
+					name: "weekly aggregated deployment wide",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							StartTime: frozenWeekAgo.AddDate(0, 0, -3),
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 4),
+							Interval:  codersdk.InsightsReportIntervalWeek,
+						}
+					},
+				},
+				{
 					name: "week all templates",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
@@ -930,6 +952,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 							StartTime:   frozenWeekAgo,
 							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "weekly aggregated templates",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -1),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 6),
+							Interval:    codersdk.InsightsReportIntervalWeek,
 						}
 					},
 				},
@@ -945,6 +978,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
+					name: "weekly aggregated first template",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
+						}
+					},
+				},
+				{
 					name: "week second template",
 					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
 						return codersdk.TemplateInsightsRequest{
@@ -952,6 +996,17 @@ func TestTemplateInsights_Golden(t *testing.T) {
 							StartTime:   frozenWeekAgo,
 							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
 							Interval:    codersdk.InsightsReportIntervalDay,
+						}
+					},
+				},
+				{
+					name: "three weeks second template",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
 						}
 					},
 				},
@@ -1115,6 +1170,13 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		Interval:  "invalid",
 	})
 	assert.Error(t, err, "want error for bad interval")
+
+	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today.AddDate(0, 0, -5),
+		EndTime:   today,
+		Interval:  codersdk.InsightsReportIntervalWeek,
+	})
+	assert.Error(t, err, "last report interval must have at least 6 days")
 }
 
 func TestTemplateInsights_RBAC(t *testing.T) {
