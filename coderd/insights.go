@@ -184,7 +184,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	interval, ok := verifyInsightsInterval(ctx, rw, intervalString)
+	interval, ok := parseInsightsInterval(ctx, rw, intervalString, startTime, endTime)
 	if !ok {
 		return
 	}
@@ -198,7 +198,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	eg.SetLimit(4)
 
 	// The following insights data queries have a theoretical chance to be
-	// inconsistent between eachother when looking at "today", however, the
+	// inconsistent between each other when looking at "today", however, the
 	// overhead from a transaction is not worth it.
 	eg.Go(func() error {
 		var err error
@@ -207,7 +207,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 				StartTime:    startTime,
 				EndTime:      endTime,
 				TemplateIDs:  templateIDs,
-				IntervalDays: 1,
+				IntervalDays: interval.Days(),
 			})
 			if err != nil {
 				return xerrors.Errorf("get template daily insights: %w", err)
@@ -531,9 +531,18 @@ func parseInsightsStartAndEndTime(ctx context.Context, rw http.ResponseWriter, s
 	return startTime, endTime, true
 }
 
-func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string) (codersdk.InsightsReportInterval, bool) {
+func parseInsightsInterval(ctx context.Context, rw http.ResponseWriter, intervalString string, startTime, endTime time.Time) (codersdk.InsightsReportInterval, bool) {
 	switch v := codersdk.InsightsReportInterval(intervalString); v {
 	case codersdk.InsightsReportIntervalDay, "":
+		return v, true
+	case codersdk.InsightsReportIntervalWeek:
+		if !lastReportIntervalHasAtLeastSixDays(startTime, endTime) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Detail:  "Last report interval should have at least 6 days.",
+			})
+			return "", false
+		}
 		return v, true
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -541,10 +550,20 @@ func verifyInsightsInterval(ctx context.Context, rw http.ResponseWriter, interva
 			Validations: []codersdk.ValidationError{
 				{
 					Field:  "interval",
-					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalDay}),
+					Detail: fmt.Sprintf("must be one of %v", []codersdk.InsightsReportInterval{codersdk.InsightsReportIntervalDay, codersdk.InsightsReportIntervalWeek}),
 				},
 			},
 		})
 		return "", false
 	}
+}
+
+func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
+	lastReportIntervalDays := endTime.Sub(startTime) % (7 * 24 * time.Hour)
+	if lastReportIntervalDays == 0 {
+		return true // this is a perfectly full week!
+	}
+	// Ensure that the last interval has at least 6 days, or check the special case, forward DST change,
+	// when the duration can be shorter than 6 days: 5 days 23 hours.
+	return lastReportIntervalDays >= 6*24*time.Hour || startTime.AddDate(0, 0, 6).Equal(endTime)
 }

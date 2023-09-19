@@ -7518,7 +7518,7 @@ func (q *sqlQuerier) UpdateWorkspaceAgentStartupByID(ctx context.Context, arg Up
 }
 
 const deleteOldWorkspaceAgentStats = `-- name: DeleteOldWorkspaceAgentStats :exec
-DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '30 days'
+DELETE FROM workspace_agent_stats WHERE created_at < NOW() - INTERVAL '6 months'
 `
 
 func (q *sqlQuerier) DeleteOldWorkspaceAgentStats(ctx context.Context) error {
