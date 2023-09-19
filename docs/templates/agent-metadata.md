@@ -2,9 +2,9 @@
 
 ![agent-metadata](../images/agent-metadata.png)
 
-With agent metadata, template admins can expose operational metrics
-from their workspaces to their users. It is the dynamic complement of
-[Resource Metadata](./resource-metadata.md).
+You can show live operational metrics to workspace users with agent
+metadata. It is the dynamic complement of [Resource
+Metadata](./resource-metadata.md).
 
 You specify agent metadata in the
 [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
@@ -18,9 +18,9 @@ without messy escape codes, just as if you were working in your
 terminal.
 
 Some of the examples use the [`coder stat`](../cli/stat.md) command.
-This is useful for determining CPU and memory usage inside a
-container, which is more accurate than resource usage about the
-workspace's host.
+This is useful for determining CPU and memory usage of the VM or
+container that the workspace is running in, which is more accurate
+than resource usage about the workspace's host.
 
 Here's a standard set of metadata snippets for Linux agents:
 

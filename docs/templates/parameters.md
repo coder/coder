@@ -9,9 +9,9 @@ creating workspaces with
 The user can set parameters in the UI and CLI.
 
 You'll likely want to hardcode certain template properties for
-workspaces, such as security group. You can expose other properties
-with parameters to give developers the flexibility to specify their
-own instance size, repo URL, and so on.
+workspaces, such as security group. But you can let developers specify
+other properties with parameters, like instance size, geographical
+location, repository URL, and so on.
 
 This example lets a developer choose a Docker host for the
 workspace:
@@ -54,8 +54,12 @@ provider "docker" {
 
 ## Types
 
-A Coder parameter can have one of these types: `string`,
-`list(string)`, `bool`, and `number`.
+A Coder parameter can have one of these types:
+
+- `string`
+- `bool`
+- `number`.
+- `list(string)`
 
 To specify a default value for a parameter with the `list(string)`
 type use a JSON array and the Terraform
@@ -79,7 +83,7 @@ data "coder_parameter" "security_groups" {
 
 ## Options
 
-A _string_ parameter can provide a set of options to limit the user's
+A `string` parameter can provide a set of options to limit the user's
 choices:
 
 ```hcl
@@ -111,9 +115,9 @@ data "coder_parameter" "docker_host" {
 
 ## Required and optional parameters
 
-A parameter is considered to be _required_ if it doesn't have the
-`default` property. The user **must** provide a value to this
-parameter before creating a workspace.
+A parameter is _required_ if it doesn't have the `default` property.
+The user **must** provide a value to this parameter before creating a
+workspace:
 
 ```hcl
 data "coder_parameter" "account_name" {
@@ -176,13 +180,12 @@ overuse this opportunity.
 ## Ephemeral parameters
 
 Ephemeral parameters are introduced to users in the form of "build
-options." This functionality can be used to model specific behaviors
-within a Coder workspace, such as reverting to a previous image,
-restoring from a volume snapshot, or building a project without
-utilizing cache.
+options." Use ephemeral parameters to model specific behaviors in a
+Coder workspace, such as reverting to a previous image, restoring from
+a volume snapshot, or building a project without using cache.
 
-As these parameters are ephemeral in nature, subsequent builds will
-proceed in the standard manner.
+Since these parameters are ephemeral in nature, subsequent builds
+proceed in the standard manner:
 
 ```hcl
 data "coder_parameter" "force_rebuild" {
@@ -197,12 +200,12 @@ data "coder_parameter" "force_rebuild" {
 
 ## Validating parameters
 
-Rich parameters support multiple validation modes - min, max,
-monotonic numbers, and regular expressions.
+Coder supports rich parameters with multiple validation modes: min,
+max, monotonic numbers, and regular expressions.
 
 ### Number
 
-You can limit a _number_ parameter to `min` and `max` boundaries.
+You can limit a `number` parameter to `min` and `max` boundaries.
 
 You can also specify its monotonicity as `increasing` or `decreasing`
 to verify the current and new values. Use the `monotonic` aatribute
@@ -224,7 +227,7 @@ data "coder_parameter" "instances" {
 
 ### String
 
-You can validate a _string_ parameter to match a regular expression.
+You can validate a `string` parameter to match a regular expression.
 The `regex` property requires a corresponding `error` property.
 
 ```hcl
@@ -233,7 +236,7 @@ data "coder_parameter" "project_id" {
   description = "Alpha-numeric project ID"
   validation {
     regex = "^[a-z0-9]+$"
-    error = "Unfortunately, it isn't a valid project ID"
+    error = "Unfortunately, this isn't a valid project ID"
   }
 }
 ```

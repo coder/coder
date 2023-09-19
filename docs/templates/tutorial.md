@@ -5,7 +5,7 @@ then modify it for your needs. Coder makes this easy with starter
 templates for popular development targets like Docker, Kubernetes,
 Azure, and so on. Once your template is up and running, you can edit
 it in the Coder dashboard. Coder even handles versioning for you so you
-can publish official updates or revert to previous revisions.
+can publish official updates or revert to previous versions.
 
 In this tutorial, you'll create your first template from the Docker
 starter template.
@@ -58,9 +58,7 @@ In **New workspace**, fill in **Name** then scroll down to select
 
 Coder starts your new workspace from your template.
 
-## 5. Use your workspace
-
-After a few seconds, you can use your workspace.
+After a few seconds, your workspace is ready to use.
 
 ![Workspace is ready](../images/templates/workspace-ready.png)
 
@@ -83,6 +81,8 @@ This starter template lets you connect to your workspace in a few ways:
 > **Tip**: You can edit the template to let developers connect to a workspace in
 [a few more ways](../ides.md).
 
+When you're done, you can stop the workspace.
+
 ## 7. Modify your template
 
 Now you can modify your template to suit your team's needs.
@@ -91,7 +91,7 @@ Let's replace the `golang` package in the Docker image with the
 `python3` package. You can do this by editing the template's
 `Dockerfile` directly in your web browser.
 
-In Coder, select **Templates** then your first template.
+In the Coder dashboard, select **Templates** then your first template.
 
 ![Selecting the first template](../images/templates/select-template.png)
 
@@ -103,7 +103,7 @@ Expand the **build** directory and select **Dockerfile**.
 
 ![Selecting source code](../images/templates/source-code.png)
 
-Edit `build\Dockerfile` to replace `golang` with `python3`.
+Edit `build/Dockerfile` to replace `golang` with `python3`.
 
 ![Editing source code](../images/templates/edit-source-code.png)
 
@@ -118,8 +118,8 @@ make sure **Promote to default version** is checked then select
 
 ![Publish a template](../images/templates/publish.png)
 
-Now when developers create a new workspace, they can use Python 3
-instead of Go.
+Now when developers create a new workspace from this template, they
+can use Python 3 instead of Go.
 
 For developers with workspaces that were created with a previous
 version of your template, Coder will notify them that there's a new

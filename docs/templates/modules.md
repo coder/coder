@@ -1,4 +1,4 @@
-# Template inheritance
+# Reusing template code
 
 To reuse code across different Coder templates, such as common scripts
 or resource definitions, we suggest using [Terraform
@@ -6,7 +6,7 @@ Modules](https://developer.hashicorp.com/terraform/language/modules).
 
 You can store these modules externally from your Coder deployment,
 like in a git repository or a Terraform registry. This example shows
-how to reference a module in your template:
+how to reference a module from your template:
 
 ```hcl
 data "coder_workspace" "me" {}
@@ -36,14 +36,14 @@ resource "coder_agent" "dev" {
 If you are importing a module from a private git repository, the Coder
 server or [provisioner](../admin/provisioners.md) needs git
 credentials. Since this token will only be used for cloning your
-repositories with modules, it is best to create a token with limited
-access to repositories and no extra permissions. In GitHub, you can
+repositories with modules, it is best to create a token with access
+limited to the repository and no extra permissions. In GitHub, you can
 generate a [fine-grained
 token](https://docs.github.com/en/rest/overview/permissions-required-for-fine-grained-personal-access-tokens?apiVersion=2022-11-28)
-with read only access to repos.
+with read only access to the necessary repos.
 
 If you are running Coder on a VM, make sure that you have `git`
-installed and the `coder` user has access to the following files
+installed and the `coder` user has access to the following files:
 
 ```sh
 # /home/coder/.gitconfig

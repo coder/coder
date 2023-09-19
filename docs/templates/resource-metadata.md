@@ -94,7 +94,7 @@ resource "coder_metadata" "resource_with_icon" {
 }
 ```
 
-To make easier for you to customize your resource we added some
+To make it easier for you to customize your resource we added some
 built-in icons:
 
 - Folder `/icon/folder.svg`

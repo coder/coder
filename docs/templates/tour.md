@@ -1,12 +1,11 @@
 # A guided tour of a template
 
-This guided tour introduces you to the different parts of a Coder template
-by showing you how to create a template from scratch.
+This guided tour introduces you to the different parts of a Coder
+template by showing you how to create a template from scratch.
 
-In this tour, you'll write a simple template that will provision a
-workspace as a Docker container with Ubuntu. This simple template is
-based on the same Docker starter template that the
-[tutorial](./tutorial.md) uses.
+You'll write a simple template that provisions a workspace as a
+Docker container with Ubuntu. This simple template is based on the
+same Docker starter template that the [tutorial](./tutorial.md) uses.
 
 ## Before you start
 
@@ -18,8 +17,6 @@ To follow this guide, you'll need:
 
 > When setting up your computer or computing instance, make sure to
 > install Docker first, then Coder.
-
-- Access to the command-line on this computer or instance.
 
 - A text editor and a tar utility. For this tour, we use [GNU
 nano](https://nano-editor.org/) and [GNU
@@ -46,9 +43,11 @@ we'll create.
 
 ## 1. Create template files
 
-On your local computer, create a directory for your template and create the `Dockerfile`.
+On your local computer, create a directory for your template and
+create the `Dockerfile`.
 
-This is a simple `Dockerfile` that starts with the [official ubuntu image](https://hub.docker.com/_/ubuntu/).
+This is a simple `Dockerfile` that starts with the [official Ubuntu
+image](https://hub.docker.com/_/ubuntu/).
 
 ```shell
 mkdir template-tour
@@ -78,7 +77,7 @@ WORKDIR /home/${USER}
 ```
 
 Notice how `Dockerfile` adds a few things to the parent `ubuntu`
-image, which we'll refer to later:
+image, which your template needs later:
 
 - It installs the `sudo` and `curl` packages.
 - It adds a `coder` user, including a home directory.
@@ -133,7 +132,7 @@ In a more practical template, you would add arguments to these blocks
 to configure the providers, if needed.
 
 The `coder_workspace` data source provides details about the state of
-a workspace, such as its name, owner, and so on. Its also lets us know
+a workspace, such as its name, owner, and so on. It also lets us know
 when a workspace is being started or stopped. We'll use this
 information in later steps to make sure our workspace's home directory
 is persistent.
@@ -148,12 +147,12 @@ VM or container. In our case, it will run in Docker.
 
 You do not need to have any open ports on the compute aspect, but the
 agent needs `curl` access to the Coder server. Remember that we
-install `curl` in `Dockerfile`, above.
+installed `curl` in `Dockerfile`, earlier.
 
 This snippet creates the agent and specifies a startup script. This
 script installs [code-server](https://coder.com/docs/code-server), a
 browser-based [VS Code](https://code.visualstudio.com/) app that runs
-in the workspace. We'll let users access code-server through
+in the workspace. We'll give users access to code-server through
 `coder_app`, later.
 
 ```hcl
@@ -187,17 +186,16 @@ resource "coder_agent" "main" {
 }
 ```
 
-Because Docker is running locally to the Coder server, there is no
+Because Docker is running locally in the Coder server, there is no
 need to authenticate `coder_agent`. But if your `coder_agent` were
-running on a remote host, you would also refer to [authentication
+running on a remote host, your template would need [authentication
 credentials](./authentication.md).
 
-Agents can also run startup scripts, set environment variables and
+Agents can also run startup scripts, set environment variables, and
 provide `metadata`.
 
-Our template has [`metadata`](./agent-metadata.md) blocks for CPU and
-RAM usage. Coder displays this information in the Coder dashboard.
-
+Coder displays this metadata in the Coder dashboard. Our template has
+[`metadata`](./agent-metadata.md) blocks for CPU and RAM usage.
 
 ## 4. coder_app
 
@@ -212,10 +210,10 @@ This is commonly used for [web IDEs](../ides/web-ides.md) such as
 [code-server](https://coder.com/docs/code-server/latest), RStudio, and
 JupyterLab.
 
-To install and run an app in the workspace, add it to the
-`startup_script` argument in `coder_agent` then add a `coder_app`
-resource to make it available in the workspace. See [web
-IDEs](../ides/web-ides.md) for some examples.
+To install and code-server in the workspace, remember that we
+installed it in the `startup_script` argument in `coder_agent`. We
+make it available from a workspace with a `coder_app` resource. See
+[web IDEs](../ides/web-ides.md) for more examples.
 
 ```hcl
 resource "coder_app" "code-server" {
@@ -262,9 +260,9 @@ We do this in 2 parts:
 
 - Our `docker_volume` resource uses the `lifecycle` block with
   `ignore_changes = all` argument to prevent accidental deletions.
-- We use an immutable parameter like `data.coder_workspace.me.id` for
-  volume names to prevent destroying them in case of a workspace name
-  change.
+- To prevent Terraform from destroying persistent Docker volumes in
+  case of a workspace name change, we use an immutable parameter, like
+  `data.coder_workspace.me.id`.
 
 You'll see later that we make sure that our Docker container is
 ephemeral with the Terraform
@@ -285,7 +283,8 @@ For details, see [Resource persistence](./resource-persistence.md).
 
 ## 6. Set up the Docker container
 
-Setting up our Docker container is straightfoward. The `docker_image` resource uses our `build/Dockerfile` we created earlier.
+To set up our Docker container, our template has a `docker_image`
+resource that uses `build/Dockerfile`, which we created earlier.
 
 ```hcl
 resource "docker_image" "main" {
@@ -332,9 +331,11 @@ resource "docker_container" "workspace" {
 
 ## 7. Create the template in Coder
 
-We've create the files for our templates. Now we can add them to our Coder deployment.
+We've created the files for our template. Now we can add them to our
+Coder deployment.
 
-We can do this in these ways with the Coder CLI or the Coder dashboard. For this tour, we'll use the dashboard.
+We can do this with the Coder CLI or the Coder dashboard. For this
+tour, we'll use the dashboard.
 
 First, we need to package up our template in a tar file:
 
@@ -354,12 +355,12 @@ In your web browser, log in to your Coder dashboard, select
 Upload the `template-tour.tar` file, the scroll down to select
 **Create template**.
 
-[Uploading a template](../images/templates/upload.png)
+![Uploading a template](../images/templates/upload.png)
 
 After a few moments, your template will be ready to use for new
 workspaces.
 
-[Tour template, ready to use](../images/templates/template-tour.png)
+![Tour template, ready to use](../images/templates/template-tour.png)
 
 
 ## Next steps
