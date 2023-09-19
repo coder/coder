@@ -4,6 +4,7 @@ description: Get started with Nomad Workspaces.
 tags: [cloud, nomad]
 icon: /icon/nomad.svg
 ---
+
 # Develop in a Nomad Docker Container
 
 This example shows how to use Nomad service tasks to be used as a development environment using docker and host csi volumes.
@@ -23,72 +24,72 @@ The CSI Host Volume plugin is used to mount host volumes into Nomad tasks. This 
 
 2. Append the following stanza to your Nomad server configuration file and restart the nomad service.
 
-    ```hcl
-    plugin "docker" {
-      config {
-        allow_privileged = true
-      }
-    }
-    ```
+   ```hcl
+   plugin "docker" {
+     config {
+       allow_privileged = true
+     }
+   }
+   ```
 
-    ```shell
-    sudo systemctl restart nomad
-    ```
+   ```shell
+   sudo systemctl restart nomad
+   ```
 
 3. Create a file `hostpath.nomad` with following content:
 
-    ```hcl
-    job "hostpath-csi-plugin" {
-      datacenters = ["dc1"]
-      type = "system"
+   ```hcl
+   job "hostpath-csi-plugin" {
+     datacenters = ["dc1"]
+     type = "system"
 
-      group "csi" {
-        task "plugin" {
-          driver = "docker"
+     group "csi" {
+       task "plugin" {
+         driver = "docker"
 
-          config {
-            image = "registry.k8s.io/sig-storage/hostpathplugin:v1.10.0"
+         config {
+           image = "registry.k8s.io/sig-storage/hostpathplugin:v1.10.0"
 
-            args = [
-              "--drivername=csi-hostpath",
-              "--v=5",
-              "--endpoint=${CSI_ENDPOINT}",
-              "--nodeid=node-${NOMAD_ALLOC_INDEX}",
-            ]
+           args = [
+             "--drivername=csi-hostpath",
+             "--v=5",
+             "--endpoint=${CSI_ENDPOINT}",
+             "--nodeid=node-${NOMAD_ALLOC_INDEX}",
+           ]
 
-            privileged = true
-          }
+           privileged = true
+         }
 
-          csi_plugin {
-            id   = "hostpath"
-            type = "monolith"
-            mount_dir = "/csi"
-          }
+         csi_plugin {
+           id   = "hostpath"
+           type = "monolith"
+           mount_dir = "/csi"
+         }
 
-          resources {
-            cpu    = 256
-            memory = 128
-          }
-        }
-      }
-    }
-    ```
+         resources {
+           cpu    = 256
+           memory = 128
+         }
+       }
+     }
+   }
+   ```
 
 4. Run the job:
 
-    ```shell
-    nomad job run hostpath.nomad
-    ```
+   ```shell
+   nomad job run hostpath.nomad
+   ```
 
 ### 2. Setup the Nomad Template
 
 1. Create the template by running the following command:
 
-    ```shell
-    coder template init nomad-docker
-    cd nomad-docker
-    coder template create
-    ```
+   ```shell
+   coder template init nomad-docker
+   cd nomad-docker
+   coder template create
+   ```
 
 2. Set up Nomad server address and optional authentication:
 
