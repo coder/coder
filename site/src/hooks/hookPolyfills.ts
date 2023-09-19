@@ -16,10 +16,10 @@ import { useCallback, useEffect, useRef } from "react";
  * function is always able to "see" the most up-to-date version of the callback
  * passed in.
  *
- * Should only be used as a last resort where useCallback does not work, but you
+ * Should only be used as a last resort when useCallback does not work, but you
  * still need to avoid dependency array violations. (e.g., You need an on-mount
  * effect, but an external library doesn't give their functions stable
- * references, causing useEffect to run too often).
+ * references, so useEffect/useMemo/useCallback run too often).
  *
  * @see {@link https://react.dev/reference/react/experimental_useEffectEvent}
  */
