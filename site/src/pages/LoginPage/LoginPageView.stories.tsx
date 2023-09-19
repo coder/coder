@@ -1,5 +1,5 @@
 import { action } from "@storybook/addon-actions";
-import { MockAuthMethods } from "testHelpers/entities";
+import { MockAuthMethods, mockApiError } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
@@ -24,14 +24,15 @@ export const Example: Story = {
   },
 };
 
-const err = new Error("Username or email are wrong.");
-
 export const AuthError: Story = {
   args: {
     isLoading: false,
     onSignIn: action("onSignIn"),
     context: {
-      error: err,
+      error: mockApiError({
+        message: "User or password is incorrect",
+        detail: "Please, try again",
+      }),
       data: {
         authMethods: MockAuthMethods,
         hasFirstUser: false,
