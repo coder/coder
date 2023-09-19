@@ -1,0 +1,18 @@
+coder:
+  image:
+    tag: latest
+
+  env:
+    - name: "COOL_ENV"
+      valueFrom:
+        configMapKeyRef:
+          name: "cool-env"
+          key: "value"
+    - name: "COOL_ENV2"
+      value: "cool value"
+
+  envFrom:
+    - configMapRef:
+        name: "cool-configmap"
+    - secretRef:
+        name: "cool-secret"

@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/cryptorand"
 )
@@ -227,7 +229,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 
 	user, err = db.UpdateUserStatus(genCtx, database.UpdateUserStatusParams{
 		ID:        user.ID,
-		Status:    database.UserStatusActive,
+		Status:    takeFirst(orig.Status, database.UserStatusActive),
 		UpdatedAt: dbtime.Now(),
 	})
 	require.NoError(t, err, "insert user")
@@ -239,6 +241,14 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 			UpdatedAt:  user.UpdatedAt,
 		})
 		require.NoError(t, err, "user last seen")
+	}
+
+	if orig.Deleted {
+		err = db.UpdateUserDeletedByID(genCtx, database.UpdateUserDeletedByIDParams{
+			ID:      user.ID,
+			Deleted: orig.Deleted,
+		})
+		require.NoError(t, err, "set user as deleted")
 	}
 	return user
 }
@@ -307,8 +317,9 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 	return member
 }
 
-// ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.
-func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJob) database.ProvisionerJob {
+// ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
+// can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
+func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
 	id := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
@@ -333,7 +344,10 @@ func ProvisionerJob(t testing.TB, db database.Store, orig database.ProvisionerJo
 		Tags:           orig.Tags,
 	})
 	require.NoError(t, err, "insert job")
-
+	if ps != nil {
+		err = provisionerjobs.PostJob(ps, job)
+		require.NoError(t, err, "post job to pubsub")
+	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
 			StartedAt: orig.StartedAt,

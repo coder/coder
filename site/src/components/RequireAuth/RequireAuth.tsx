@@ -6,6 +6,7 @@ import { embedRedirect } from "../../utils/redirect";
 import { FullScreenLoader } from "../Loader/FullScreenLoader";
 import { DashboardProvider } from "components/Dashboard/DashboardProvider";
 import { ProxyProvider } from "contexts/ProxyContext";
+import { isApiError } from "api/errors";
 
 export const RequireAuth: FC = () => {
   const [authState, authSend] = useAuth();
@@ -18,11 +19,11 @@ export const RequireAuth: FC = () => {
   useEffect(() => {
     const interceptorHandle = axios.interceptors.response.use(
       (okResponse) => okResponse,
-      (error) => {
+      (error: unknown) => {
         // 401 Unauthorized
         // If we encountered an authentication error, then our token is probably
         // invalid and we should update the auth state to reflect that.
-        if (error.response.status === 401) {
+        if (isApiError(error) && error.response.status === 401) {
           authSend("SIGN_OUT");
         }
 

@@ -1,12 +1,12 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder version [flags]
 
   Show coder version
 
-[93mOPTIONS:[0m
-  [96m-[0m[96mo[0m, [96m--[0m[96moutput[0m string (default: text)
+OPTIONS:
+  -o, --output string (default: text)
           Output format. Available formats: text, json.
 
 ———

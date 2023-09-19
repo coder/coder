@@ -1,18 +1,18 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder licenses add [flags] [-f file | -l license]
 
   Add license to Coder deployment
 
-[93mOPTIONS:[0m
-      [96m--[0m[96mdebug[0m bool
+OPTIONS:
+      --debug bool
           Output license claims for debugging.
 
-  [96m-[0m[96mf[0m, [96m--[0m[96mfile[0m string
+  -f, --file string
           Load license from file.
 
-  [96m-[0m[96ml[0m, [96m--[0m[96mlicense[0m string
+  -l, --license string
           License string.
 
 ———

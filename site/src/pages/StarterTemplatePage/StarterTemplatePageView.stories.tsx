@@ -1,8 +1,4 @@
-import {
-  mockApiError,
-  MockOrganization,
-  MockTemplateExample,
-} from "testHelpers/entities";
+import { mockApiError, MockTemplateExample } from "testHelpers/entities";
 import { StarterTemplatePageView } from "./StarterTemplatePageView";
 
 import type { Meta, StoryObj } from "@storybook/react";
@@ -17,23 +13,15 @@ type Story = StoryObj<typeof StarterTemplatePageView>;
 
 export const Default: Story = {
   args: {
-    context: {
-      exampleId: MockTemplateExample.id,
-      organizationId: MockOrganization.id,
-      error: undefined,
-      starterTemplate: MockTemplateExample,
-    },
+    error: undefined,
+    starterTemplate: MockTemplateExample,
   },
 };
 export const Error: Story = {
   args: {
-    context: {
-      exampleId: MockTemplateExample.id,
-      organizationId: MockOrganization.id,
-      error: mockApiError({
-        message: `Example ${MockTemplateExample.id} not found.`,
-      }),
-      starterTemplate: undefined,
-    },
+    error: mockApiError({
+      message: `Example ${MockTemplateExample.id} not found.`,
+    }),
+    starterTemplate: undefined,
   },
 };

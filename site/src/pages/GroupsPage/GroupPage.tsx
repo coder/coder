@@ -9,8 +9,7 @@ import TableRow from "@mui/material/TableRow";
 import DeleteOutline from "@mui/icons-material/DeleteOutline";
 import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import { useMachine } from "@xstate/react";
-import { User } from "api/typesGenerated";
+import { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
@@ -30,7 +29,6 @@ import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { groupMachine } from "xServices/groups/groupXService";
 import { Maybe } from "components/Conditionals/Maybe";
 import { makeStyles } from "@mui/styles";
 import {
@@ -39,6 +37,175 @@ import {
 } from "components/TableToolbar/TableToolbar";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { isEveryoneGroup } from "utils/groups";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  addMember,
+  deleteGroup,
+  group,
+  groupPermissions,
+  removeMember,
+} from "api/queries/groups";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { getErrorMessage } from "api/errors";
+
+export const GroupPage: React.FC = () => {
+  const { groupId } = useParams() as { groupId: string };
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const groupQuery = useQuery(group(groupId));
+  const groupData = groupQuery.data;
+  const { data: permissions } = useQuery(groupPermissions(groupId));
+  const addMemberMutation = useMutation(addMember(queryClient));
+  const deleteGroupMutation = useMutation(deleteGroup(queryClient));
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
+  const isLoading = !groupData || !permissions;
+  const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+
+  return (
+    <>
+      <Helmet>
+        <title>
+          {pageTitle(
+            (groupData?.display_name || groupData?.name) ?? "Loading...",
+          )}
+        </title>
+      </Helmet>
+      <ChooseOne>
+        <Cond condition={isLoading}>
+          <Loader />
+        </Cond>
+
+        <Cond>
+          <Margins>
+            <PageHeader
+              actions={
+                <Maybe condition={canUpdateGroup}>
+                  <Link to="settings" component={RouterLink}>
+                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
+                  </Link>
+                  <Button
+                    disabled={groupData?.id === groupData?.organization_id}
+                    onClick={() => {
+                      setIsDeletingGroup(true);
+                    }}
+                    startIcon={<DeleteOutline />}
+                  >
+                    Delete
+                  </Button>
+                </Maybe>
+              }
+            >
+              <PageHeaderTitle>
+                {groupData?.display_name || groupData?.name}
+              </PageHeaderTitle>
+              <PageHeaderSubtitle>
+                {/* Show the name if it differs from the display name. */}
+                {groupData?.display_name &&
+                groupData?.display_name !== groupData?.name
+                  ? groupData?.name
+                  : ""}{" "}
+              </PageHeaderSubtitle>
+            </PageHeader>
+
+            <Stack spacing={1}>
+              <Maybe
+                condition={
+                  canUpdateGroup &&
+                  groupData !== undefined &&
+                  !isEveryoneGroup(groupData)
+                }
+              >
+                <AddGroupMember
+                  isLoading={addMemberMutation.isLoading}
+                  onSubmit={async (user, reset) => {
+                    try {
+                      await addMemberMutation.mutateAsync({
+                        groupId,
+                        userId: user.id,
+                      });
+                      reset();
+                    } catch (error) {
+                      displayError(
+                        getErrorMessage(error, "Failed to add member."),
+                      );
+                    }
+                  }}
+                />
+              </Maybe>
+              <TableToolbar>
+                <PaginationStatus
+                  isLoading={Boolean(isLoading)}
+                  showing={groupData?.members.length ?? 0}
+                  total={groupData?.members.length ?? 0}
+                  label="members"
+                />
+              </TableToolbar>
+
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell width="99%">User</TableCell>
+                      <TableCell width="1%"></TableCell>
+                    </TableRow>
+                  </TableHead>
+
+                  <TableBody>
+                    <ChooseOne>
+                      <Cond
+                        condition={Boolean(groupData?.members.length === 0)}
+                      >
+                        <TableRow>
+                          <TableCell colSpan={999}>
+                            <EmptyState
+                              message="No members yet"
+                              description="Add a member using the controls above"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      </Cond>
+
+                      <Cond>
+                        {groupData?.members.map((member) => (
+                          <GroupMemberRow
+                            member={member}
+                            group={groupData}
+                            key={member.id}
+                            canUpdate={canUpdateGroup}
+                          />
+                        ))}
+                      </Cond>
+                    </ChooseOne>
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
+          </Margins>
+        </Cond>
+      </ChooseOne>
+
+      {group && (
+        <DeleteDialog
+          isOpen={isDeletingGroup}
+          confirmLoading={deleteGroupMutation.isLoading}
+          name={group.name}
+          entity="group"
+          onConfirm={async () => {
+            try {
+              await deleteGroupMutation.mutateAsync(groupId);
+              navigate("/groups");
+            } catch (error) {
+              displayError(getErrorMessage(error, "Failed to delete group."));
+            }
+          }}
+          onCancel={() => {
+            setIsDeletingGroup(false);
+          }}
+        />
+      )}
+    </>
+  );
+};
 
 const AddGroupMember: React.FC<{
   isLoading: boolean;
@@ -83,182 +250,56 @@ const AddGroupMember: React.FC<{
   );
 };
 
-export const GroupPage: React.FC = () => {
-  const { groupId } = useParams();
-  if (!groupId) {
-    throw new Error("groupId is not defined.");
-  }
-
-  const navigate = useNavigate();
-  const [state, send] = useMachine(groupMachine, {
-    context: {
-      groupId,
-    },
-    actions: {
-      redirectToGroups: () => {
-        navigate("/groups");
-      },
-    },
-  });
-  const { group, permissions } = state.context;
-  const isLoading = group === undefined || permissions === undefined;
-  const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+const GroupMemberRow = (props: {
+  member: User;
+  group: Group;
+  canUpdate: boolean;
+}) => {
+  const { member, group, canUpdate } = props;
+  const queryClient = useQueryClient();
+  const removeMemberMutation = useMutation(removeMember(queryClient));
 
   return (
-    <>
-      <Helmet>
-        <title>
-          {pageTitle((group?.display_name || group?.name) ?? "Loading...")}
-        </title>
-      </Helmet>
-      <ChooseOne>
-        <Cond condition={isLoading}>
-          <Loader />
-        </Cond>
-
-        <Cond>
-          <Margins>
-            <PageHeader
-              actions={
-                <Maybe condition={canUpdateGroup}>
-                  <Link to="settings" component={RouterLink}>
-                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
-                  </Link>
-                  <Button
-                    disabled={group?.id === group?.organization_id}
-                    onClick={() => {
-                      send("DELETE");
-                    }}
-                    startIcon={<DeleteOutline />}
-                  >
-                    Delete
-                  </Button>
-                </Maybe>
-              }
-            >
-              <PageHeaderTitle>
-                {group?.display_name || group?.name}
-              </PageHeaderTitle>
-              <PageHeaderSubtitle>
-                {/* Show the name if it differs from the display name. */}
-                {group?.display_name && group?.display_name !== group?.name
-                  ? group?.name
-                  : ""}{" "}
-              </PageHeaderSubtitle>
-            </PageHeader>
-
-            <Stack spacing={1}>
-              <Maybe
-                condition={
-                  canUpdateGroup &&
-                  group !== undefined &&
-                  !isEveryoneGroup(group)
-                }
-              >
-                <AddGroupMember
-                  isLoading={state.matches("addingMember")}
-                  onSubmit={(user, reset) => {
-                    send({
-                      type: "ADD_MEMBER",
-                      userId: user.id,
-                      callback: reset,
-                    });
-                  }}
-                />
-              </Maybe>
-              <TableToolbar>
-                <PaginationStatus
-                  isLoading={Boolean(isLoading)}
-                  showing={group?.members.length ?? 0}
-                  total={group?.members.length ?? 0}
-                  label="members"
-                />
-              </TableToolbar>
-
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell width="99%">User</TableCell>
-                      <TableCell width="1%"></TableCell>
-                    </TableRow>
-                  </TableHead>
-
-                  <TableBody>
-                    <ChooseOne>
-                      <Cond condition={Boolean(group?.members.length === 0)}>
-                        <TableRow>
-                          <TableCell colSpan={999}>
-                            <EmptyState
-                              message="No members yet"
-                              description="Add a member using the controls above"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      </Cond>
-
-                      <Cond>
-                        {group?.members.map((member) => (
-                          <TableRow key={member.id}>
-                            <TableCell width="99%">
-                              <AvatarData
-                                avatar={
-                                  <UserAvatar
-                                    username={member.username}
-                                    avatarURL={member.avatar_url}
-                                  />
-                                }
-                                title={member.username}
-                                subtitle={member.email}
-                              />
-                            </TableCell>
-                            <TableCell width="1%">
-                              <Maybe condition={canUpdateGroup}>
-                                <TableRowMenu
-                                  data={member}
-                                  menuItems={[
-                                    {
-                                      label: "Remove",
-                                      onClick: () => {
-                                        send({
-                                          type: "REMOVE_MEMBER",
-                                          userId: member.id,
-                                        });
-                                      },
-                                      disabled:
-                                        group.id === group.organization_id,
-                                    },
-                                  ]}
-                                />
-                              </Maybe>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </Cond>
-                    </ChooseOne>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Stack>
-          </Margins>
-        </Cond>
-      </ChooseOne>
-
-      {group && (
-        <DeleteDialog
-          isOpen={state.matches("confirmingDelete")}
-          confirmLoading={state.matches("deleting")}
-          name={group.name}
-          entity="group"
-          onConfirm={() => {
-            send("CONFIRM_DELETE");
-          }}
-          onCancel={() => {
-            send("CANCEL_DELETE");
-          }}
+    <TableRow key={member.id}>
+      <TableCell width="99%">
+        <AvatarData
+          avatar={
+            <UserAvatar
+              username={member.username}
+              avatarURL={member.avatar_url}
+            />
+          }
+          title={member.username}
+          subtitle={member.email}
         />
-      )}
-    </>
+      </TableCell>
+      <TableCell width="1%">
+        <Maybe condition={canUpdate}>
+          <TableRowMenu
+            data={member}
+            menuItems={[
+              {
+                label: "Remove",
+                onClick: async () => {
+                  try {
+                    await removeMemberMutation.mutateAsync({
+                      groupId: group.id,
+                      userId: member.id,
+                    });
+                    displaySuccess("Member removed successfully.");
+                  } catch (error) {
+                    displayError(
+                      getErrorMessage(error, "Failed to remove member."),
+                    );
+                  }
+                },
+                disabled: group.id === group.organization_id,
+              },
+            ]}
+          />
+        </Maybe>
+      </TableCell>
+    </TableRow>
   );
 };
 

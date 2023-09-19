@@ -136,11 +136,9 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 					PreSharedKey: preSharedKey,
 				})
 			}, &provisionerd.Options{
-				Logger:          logger,
-				JobPollInterval: pollInterval,
-				JobPollJitter:   pollJitter,
-				UpdateInterval:  500 * time.Millisecond,
-				Connector:       connector,
+				Logger:         logger,
+				UpdateInterval: 500 * time.Millisecond,
+				Connector:      connector,
 			})
 
 			var exitErr error
@@ -189,13 +187,13 @@ func (r *RootCmd) provisionerDaemonStart() *clibase.Cmd {
 			Flag:        "poll-interval",
 			Env:         "CODER_PROVISIONERD_POLL_INTERVAL",
 			Default:     time.Second.String(),
-			Description: "How often to poll for provisioner jobs.",
+			Description: "Deprecated and ignored.",
 			Value:       clibase.DurationOf(&pollInterval),
 		},
 		{
 			Flag:        "poll-jitter",
 			Env:         "CODER_PROVISIONERD_POLL_JITTER",
-			Description: "How much to jitter the poll interval by.",
+			Description: "Deprecated and ignored.",
 			Default:     (100 * time.Millisecond).String(),
 			Value:       clibase.DurationOf(&pollJitter),
 		},

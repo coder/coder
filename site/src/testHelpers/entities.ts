@@ -2105,7 +2105,7 @@ export const MockDeploymentConfig: DeploymentConfig = {
   options: [],
 };
 
-export const MockAppearance: TypesGen.AppearanceConfig = {
+export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
   logo_url: "",
   service_banner: {
     enabled: false,

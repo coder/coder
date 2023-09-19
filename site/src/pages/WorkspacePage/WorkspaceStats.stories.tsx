@@ -1,7 +1,7 @@
 import { Meta, StoryObj } from "@storybook/react";
 import {
   MockWorkspace,
-  MockAppearance,
+  MockAppearanceConfig,
   MockBuildInfo,
   MockEntitlementsWithScheduling,
   MockExperiments,
@@ -10,10 +10,9 @@ import { WorkspaceStats } from "./WorkspaceStats";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
 
 const MockedAppearance = {
-  config: MockAppearance,
-  preview: false,
-  setPreview: () => null,
-  save: () => null,
+  config: MockAppearanceConfig,
+  isPreview: false,
+  setPreview: () => {},
 };
 
 const meta: Meta<typeof WorkspaceStats> = {

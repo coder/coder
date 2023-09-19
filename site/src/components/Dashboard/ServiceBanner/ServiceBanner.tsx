@@ -15,7 +15,7 @@ export const ServiceBanner: React.FC = () => {
       <ServiceBannerView
         message={message}
         backgroundColor={background_color}
-        preview={appearance.preview}
+        isPreview={appearance.isPreview}
       />
     );
   } else {

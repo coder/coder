@@ -103,7 +103,7 @@ export const WorkspaceStats: FC<WorkspaceStatsProps> = ({
               {workspace.outdated && (
                 <WorkspaceOutdatedTooltip
                   templateName={workspace.template_name}
-                  templateId={workspace.template_id}
+                  latestVersionId={workspace.template_active_version_id}
                   onUpdateVersion={handleUpdate}
                   ariaLabel="update version"
                 />

@@ -10,6 +10,7 @@ import {
   getMaxDeadlineChange,
   getMinDeadline,
   stripTimezone,
+  quietHoursDisplay,
 } from "./schedule";
 
 dayjs.extend(duration);
@@ -36,41 +37,53 @@ describe("util/schedule", () => {
       expect(extractTimezone(input)).toBe(expected);
     });
   });
-});
 
-describe("maxDeadline", () => {
-  const workspace: Workspace = {
-    ...Mocks.MockWorkspace,
-    latest_build: {
-      ...Mocks.MockWorkspaceBuild,
-      deadline: startTime.add(8, "hours").utc().format(),
-    },
-  };
-  it("should be 24 hours from the workspace start time", () => {
-    const delta = getMaxDeadline(workspace).diff(startTime);
-    expect(delta).toEqual(deadlineExtensionMax.asMilliseconds());
-  });
-});
-
-describe("minDeadline", () => {
-  it("should never be less than 30 minutes", () => {
-    const delta = getMinDeadline().diff(now);
-    expect(delta).toBeGreaterThanOrEqual(deadlineExtensionMin.asMilliseconds());
-  });
-});
-
-describe("getMaxDeadlineChange", () => {
-  it("should return the number of hours you can add before hitting the max deadline", () => {
-    const deadline = dayjs();
-    const maxDeadline = dayjs().add(1, "hour").add(40, "minutes");
-    // you can only add one hour even though the max is 1:40 away
-    expect(getMaxDeadlineChange(deadline, maxDeadline)).toEqual(1);
+  describe("maxDeadline", () => {
+    const workspace: Workspace = {
+      ...Mocks.MockWorkspace,
+      latest_build: {
+        ...Mocks.MockWorkspaceBuild,
+        deadline: startTime.add(8, "hours").utc().format(),
+      },
+    };
+    it("should be 24 hours from the workspace start time", () => {
+      const delta = getMaxDeadline(workspace).diff(startTime);
+      expect(delta).toEqual(deadlineExtensionMax.asMilliseconds());
+    });
   });
 
-  it("should return the number of hours you can subtract before hitting the min deadline", () => {
-    const deadline = dayjs().add(2, "hours").add(40, "minutes");
-    const minDeadline = dayjs();
-    // you can only subtract 2 hours even though the min is 2:40 less
-    expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+  describe("minDeadline", () => {
+    it("should never be less than 30 minutes", () => {
+      const delta = getMinDeadline().diff(now);
+      expect(delta).toBeGreaterThanOrEqual(
+        deadlineExtensionMin.asMilliseconds(),
+      );
+    });
+  });
+
+  describe("getMaxDeadlineChange", () => {
+    it("should return the number of hours you can add before hitting the max deadline", () => {
+      const deadline = dayjs();
+      const maxDeadline = dayjs().add(1, "hour").add(40, "minutes");
+      // you can only add one hour even though the max is 1:40 away
+      expect(getMaxDeadlineChange(deadline, maxDeadline)).toEqual(1);
+    });
+
+    it("should return the number of hours you can subtract before hitting the min deadline", () => {
+      const deadline = dayjs().add(2, "hours").add(40, "minutes");
+      const minDeadline = dayjs();
+      // you can only subtract 2 hours even though the min is 2:40 less
+      expect(getMaxDeadlineChange(deadline, minDeadline)).toEqual(2);
+    });
+  });
+
+  describe("quietHoursDisplay", () => {
+    const quietHoursStart = quietHoursDisplay(
+      "00:00",
+      "Australia/Sydney",
+      new Date("2023-09-06T15:00:00.000+10:00"),
+    );
+
+    expect(quietHoursStart).toBe("12:00AM tomorrow (in 9 hours)");
   });
 });

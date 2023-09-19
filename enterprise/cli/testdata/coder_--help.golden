@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder [global-flags] <subcommand>
 
   Coder v0.0.0-devel — A tool for provisioning self-hosted development
@@ -13,49 +13,49 @@ coder v0.0.0-devel
   
        $ coder templates init
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses
     provisionerd       Manage provisioner daemons
     server             Start a Coder server
 
-[93mGLOBAL OPTIONS:[0m 
+GLOBAL OPTIONS: 
 Global options are applied to all commands. They can be set using environment
 variables or flags.
 
-      [96m--[0m[96mdebug-options[0m bool
+      --debug-options bool
           Print all options, how they're set, then exit.
 
-      [96m--[0m[96mdisable-direct-connections[0m bool, [96m$CODER_DISABLE_DIRECT_CONNECTIONS[0m
+      --disable-direct-connections bool, $CODER_DISABLE_DIRECT_CONNECTIONS
           Disable direct (P2P) connections to workspaces.
 
-      [96m--[0m[96mglobal-config[0m string, [96m$CODER_CONFIG_DIR[0m (default: ~/.config/coderv2)
+      --global-config string, $CODER_CONFIG_DIR (default: ~/.config/coderv2)
           Path to the global `coder` config directory.
 
-      [96m--[0m[96mheader[0m string-array, [96m$CODER_HEADER[0m
+      --header string-array, $CODER_HEADER
           Additional HTTP headers added to all requests. Provide as key=value.
           Can be specified multiple times.
 
-      [96m--[0m[96mheader-command[0m string, [96m$CODER_HEADER_COMMAND[0m
+      --header-command string, $CODER_HEADER_COMMAND
           An external command that outputs additional HTTP headers added to all
           requests. The command must output each header as `key=value` on its
           own line.
 
-      [96m--[0m[96mno-feature-warning[0m bool, [96m$CODER_NO_FEATURE_WARNING[0m
+      --no-feature-warning bool, $CODER_NO_FEATURE_WARNING
           Suppress warnings about unlicensed features.
 
-      [96m--[0m[96mno-version-warning[0m bool, [96m$CODER_NO_VERSION_WARNING[0m
+      --no-version-warning bool, $CODER_NO_VERSION_WARNING
           Suppress warning when client and server versions do not match.
 
-      [96m--[0m[96mtoken[0m string, [96m$CODER_SESSION_TOKEN[0m
+      --token string, $CODER_SESSION_TOKEN
           Specify an authentication token. For security reasons setting
           CODER_SESSION_TOKEN is preferred.
 
-      [96m--[0m[96murl[0m url, [96m$CODER_URL[0m
+      --url url, $CODER_URL
           URL to a deployment.
 
-  [96m-[0m[96mv[0m, [96m--[0m[96mverbose[0m bool, [96m$CODER_VERBOSE[0m
+  -v, --verbose bool, $CODER_VERBOSE
           Enable verbose output.
 
 ———

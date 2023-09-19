@@ -103,7 +103,7 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	require.NoError(t, err)
 	db := database.New(sqlDB)
 	org := dbgen.Organization(t, db, database.Organization{})
-	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: org.ID,
 	})
 	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -335,7 +335,7 @@ func TestQueuePosition(t *testing.T) {
 	jobs := []database.ProvisionerJob{}
 	jobIDs := []uuid.UUID{}
 	for i := 0; i < jobCount; i++ {
-		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{},
 		})

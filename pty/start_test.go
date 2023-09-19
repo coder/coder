@@ -67,11 +67,11 @@ func Test_Start_truncation(t *testing.T) {
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
-		// avoid buffered IO so that we can precisely control how many bytes to read.
+		terminalReader := testutil.NewTerminalReader(t, pc.OutputReader())
 		n := 1
 		for n <= countEnd {
 			want := fmt.Sprintf("%d", n)
-			err := testutil.ReadUntilString(ctx, t, want, pc.OutputReader())
+			err := terminalReader.ReadUntilString(ctx, want)
 			assert.NoError(t, err, "want: %s", want)
 			if err != nil {
 				return

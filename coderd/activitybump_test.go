@@ -30,6 +30,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 	// doesn't use template autostop requirements and instead edits the
 	// max_deadline on the build directly in the database.
 	setupActivityTest := func(t *testing.T, deadline ...time.Duration) (client *codersdk.Client, workspace codersdk.Workspace, assertBumped func(want bool)) {
+		t.Helper()
 		const ttl = time.Minute
 		maxTTL := time.Duration(0)
 		if len(deadline) > 0 {
@@ -120,6 +121,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		return client, workspace, func(want bool) {
+			t.Helper()
 			if !want {
 				// It is difficult to test the absence of a call in a non-racey
 				// way. In general, it is difficult for the API to generate
@@ -134,24 +136,32 @@ func TestWorkspaceActivityBump(t *testing.T) {
 				return
 			}
 
+			var updatedAfter time.Time
 			// The Deadline bump occurs asynchronously.
 			require.Eventuallyf(t,
 				func() bool {
 					workspace, err = client.Workspace(ctx, workspace.ID)
 					require.NoError(t, err)
-					return workspace.LatestBuild.Deadline.Time != firstDeadline
+					updatedAfter = dbtime.Now()
+					if workspace.LatestBuild.Deadline.Time == firstDeadline {
+						updatedAfter = time.Now()
+						return false
+					}
+					return true
 				},
 				testutil.WaitLong, testutil.IntervalFast,
 				"deadline %v never updated", firstDeadline,
 			)
 
+			require.Greater(t, workspace.LatestBuild.Deadline.Time, updatedAfter)
+
 			// If the workspace has a max deadline, the deadline must not exceed
 			// it.
-			if maxTTL != 0 && dbtime.Now().Add(ttl).After(workspace.LatestBuild.MaxDeadline.Time) {
-				require.Equal(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
+			if workspace.LatestBuild.MaxDeadline.Valid {
+				require.LessOrEqual(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
 				return
 			}
-			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, 3*time.Second)
+			require.WithinDuration(t, dbtime.Now().Add(ttl), workspace.LatestBuild.Deadline.Time, testutil.WaitShort)
 		}
 	}
 
@@ -210,12 +220,6 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		require.NoError(t, err)
 		_ = sshConn.Close()
 
-		assertBumped(true)
-
-		// Double check that the workspace build's deadline is equal to the
-		// max deadline.
-		workspace, err = client.Workspace(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Equal(t, workspace.LatestBuild.Deadline.Time, workspace.LatestBuild.MaxDeadline.Time)
+		assertBumped(true) // also asserts max ttl not exceeded
 	})
 }

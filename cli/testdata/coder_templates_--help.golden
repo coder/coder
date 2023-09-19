@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder templates
 
   Manage templates
@@ -22,7 +22,7 @@ coder v0.0.0-devel
   
        $ coder templates push my-template
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     create      Create a template from the current directory or as specified by
                 flag
     delete      Delete templates

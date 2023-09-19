@@ -1,6 +1,6 @@
 coder v0.0.0-devel
 
-[93mUSAGE:[0m
+USAGE:
   coder tokens
 
   Manage personal access tokens
@@ -20,7 +20,7 @@ coder v0.0.0-devel
   
        $ coder tokens rm WuoWs4ZsMX
 
-[93mSUBCOMMANDS:[0m
+SUBCOMMANDS:
     create    Create a token
     list      List tokens
     remove    Delete a token

@@ -781,7 +781,7 @@ async function loadInitialWorkspaceData({
     (permissions as Permissions)?.viewDeploymentValues,
   );
   const deploymentValues = canViewDeploymentValues
-    ? (await API.getDeploymentValues())?.config
+    ? (await API.getDeploymentConfig())?.config
     : undefined;
   return {
     workspace,
