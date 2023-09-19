@@ -60,7 +60,7 @@ export const WithErrors: Story = {
     ],
     errors: {
       buildError: mockApiError({
-        message: "statusError",
+        message: "buildError",
         validations: [
           {
             field: `user_variable_values[0].value`,
