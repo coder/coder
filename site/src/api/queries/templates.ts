@@ -70,7 +70,7 @@ export const templateVersions = (templateId: string) => {
 
 export const templateVersionVariables = (versionId: string) => {
   return {
-    queryKey: ["templateVersionVariables", versionId],
+    queryKey: ["templateVersion", versionId, "variables"],
     queryFn: () => API.getTemplateVersionVariables(versionId),
   };
 };
