@@ -16,10 +16,28 @@ coder:
   # - CODER_DERP_SERVER_RELAY_URL
   #
   # We will additionally set CODER_ACCESS_URL if unset to the cluster service
-  # URL.
+  # URL, unless coder.envUseClusterAccessURL is set to false.
   env: []
   # - name: "CODER_ACCESS_URL"
   #   value: "https://coder.example.com"
+
+  # coder.envFrom -- Secrets or ConfigMaps to use for Coder's environment
+  # variables. If you want one environment variable read from a secret, then use
+  # coder.env valueFrom. See the K8s docs for valueFrom here:
+  # https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/#define-container-environment-variables-using-secret-data
+  #
+  # If setting CODER_ACCESS_URL in coder.envFrom, then you must set
+  # coder.envUseClusterAccessURL to false.
+  envFrom: []
+  # - configMapRef:
+  #     name: coder-config
+  # - secretRef:
+  #     name: coder-config
+
+  # coder.envUseClusterAccessURL -- Determines whether the CODER_ACCESS_URL env
+  # is added to coder.env if it's not already set there. Set this to false if
+  # defining CODER_ACCESS_URL in coder.envFrom to avoid conflicts.
+  envUseClusterAccessURL: true
 
   # coder.image -- The image to use for Coder.
   image:
