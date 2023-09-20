@@ -170,6 +170,7 @@ func TestLogin(t *testing.T) {
 
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine(client.SessionToken())
+		pty.ExpectMatch(client.SessionToken())
 		pty.ExpectMatch("Welcome to Coder")
 		<-doneChan
 	})
@@ -193,6 +194,7 @@ func TestLogin(t *testing.T) {
 
 		pty.ExpectMatch("Paste your token here:")
 		pty.WriteLine("an-invalid-token")
+		pty.ExpectMatch("an-invalid-token")
 		pty.ExpectMatch("That's not a valid token!")
 		cancelFunc()
 		<-doneChan
