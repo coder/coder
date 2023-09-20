@@ -135,8 +135,6 @@ const useStyles = makeStyles((theme) => ({
   alphaBadge: {
     border: `1px solid ${theme.palette.error.light}`,
     backgroundColor: theme.palette.error.dark,
-    display: "inline",
-    marginLeft: "10px",
   },
 
   versionBadge: {
