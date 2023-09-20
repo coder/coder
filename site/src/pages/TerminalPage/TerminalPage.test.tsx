@@ -67,7 +67,7 @@ describe("TerminalPage", () => {
     const spy = jest
       .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
-    new WS(
+    const ws = new WS(
       `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
     );
     await renderTerminal(
@@ -80,6 +80,7 @@ describe("TerminalPage", () => {
       );
     });
     spy.mockRestore();
+    ws.close();
   });
 
   it("shows an error if fetching workspace fails", async () => {
