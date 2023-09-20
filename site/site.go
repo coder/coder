@@ -754,6 +754,7 @@ type ErrorPageData struct {
 	Description  string
 	RetryEnabled bool
 	DashboardURL string
+	Warnings     []string
 }
 
 // RenderStaticErrorPage renders the static error page. This is used by app

@@ -10,16 +10,19 @@ import (
 
 // WriteWorkspaceApp404 writes a HTML 404 error page for a workspace app. If
 // appReq is not nil, it will be used to log the request details at debug level.
-func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseWriter, r *http.Request, appReq *Request, msg string) {
+//
+// The 'warnings' parameter is sent to the user, 'details' is only shown in the logs.
+func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseWriter, r *http.Request, appReq *Request, warnings []string, details string) {
 	if appReq != nil {
 		slog.Helper()
 		log.Debug(r.Context(),
-			"workspace app 404: "+msg,
+			"workspace app 404: "+details,
 			slog.F("username_or_id", appReq.UsernameOrID),
 			slog.F("workspace_and_agent", appReq.WorkspaceAndAgent),
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
 			slog.F("agent_name_or_id", appReq.AgentNameOrID),
 			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+			slog.F("warnings", warnings),
 		)
 	}
 
@@ -29,6 +32,7 @@ func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 		Description:  "The application or workspace you are trying to access does not exist or you do not have permission to access it.",
 		RetryEnabled: false,
 		DashboardURL: accessURL.String(),
+		Warnings:     warnings,
 	})
 }
 

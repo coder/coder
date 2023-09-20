@@ -92,6 +92,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleGitAuth:            true,
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
+		FeatureWorkspaceBatchActions:      true,
 	}[n]
 }
 
