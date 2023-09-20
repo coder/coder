@@ -67,6 +67,9 @@ describe("TerminalPage", () => {
     const spy = jest
       .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
+    new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+    );
     await renderTerminal(
       `/${MockUser.username}/${MockWorkspace.name}/terminal`,
     );
