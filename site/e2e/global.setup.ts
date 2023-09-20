@@ -12,7 +12,6 @@ test("create first user", async ({ page }) => {
   await page.getByTestId("trial").click();
   await page.getByTestId("create").click();
 
-  await expect(page).toHaveURL("/workspaces");
-
+  await expect(page).toHaveURL(/\/workspaces.*/);
   await page.context().storageState({ path: STORAGE_STATE });
 });

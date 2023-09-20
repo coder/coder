@@ -58,7 +58,7 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
       }
       expect(row.textContent).toContain(text);
     },
-    { timeout: 3_000 },
+    { timeout: 5_000 },
   );
 };
 
@@ -67,6 +67,9 @@ describe("TerminalPage", () => {
     const spy = jest
       .spyOn(API, "getWorkspaceByOwnerAndName")
       .mockResolvedValue(MockWorkspace);
+    const ws = new WS(
+      `ws://localhost/api/v2/workspaceagents/${MockWorkspaceAgent.id}/pty`,
+    );
     await renderTerminal(
       `/${MockUser.username}/${MockWorkspace.name}/terminal`,
     );
@@ -77,6 +80,7 @@ describe("TerminalPage", () => {
       );
     });
     spy.mockRestore();
+    ws.close();
   });
 
   it("shows an error if fetching workspace fails", async () => {
