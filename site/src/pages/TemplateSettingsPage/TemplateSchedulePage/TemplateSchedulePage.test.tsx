@@ -1,4 +1,4 @@
-import { screen, waitFor, type waitForOptions } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
@@ -103,11 +103,14 @@ const fillAndSubmitForm = async ({
   await user.click(confirmButton);
 };
 
-const waitForConfig = {
-  // Test averages about 13 seconds to complete; adding an extra three to
-  // account for spikes before definitely failing a test
-  timeout: 16_000,
-} as const satisfies waitForOptions;
+function waitForWithCutoff(callback: () => void | Promise<void>) {
+  return waitFor(callback, {
+    // Test file averages about 13 seconds to complete; adding an extra three
+    // seconds to account for spikes before definitely failing a test. Still
+    // falls under global config of 20 seconds
+    timeout: 16_000,
+  });
+}
 
 describe("TemplateSchedulePage", () => {
   beforeEach(() => {
@@ -127,9 +130,8 @@ describe("TemplateSchedulePage", () => {
     });
 
     await fillAndSubmitForm(validFormValues);
-    await waitFor(
-      () => expect(API.updateTemplateMeta).toBeCalledTimes(1),
-      waitForConfig,
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
     );
   });
 
@@ -142,12 +144,11 @@ describe("TemplateSchedulePage", () => {
     });
 
     await fillAndSubmitForm(validFormValues);
-    await waitFor(
-      () => expect(API.updateTemplateMeta).toBeCalledTimes(1),
-      waitForConfig,
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
     );
 
-    await waitFor(() => {
+    await waitForWithCutoff(() => {
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
@@ -155,7 +156,7 @@ describe("TemplateSchedulePage", () => {
           max_ttl_ms: (validFormValues.max_ttl_ms || 0) * 3600000,
         }),
       );
-    }, waitForConfig);
+    });
   });
 
   test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
@@ -167,12 +168,11 @@ describe("TemplateSchedulePage", () => {
     });
 
     await fillAndSubmitForm(validFormValues);
-    await waitFor(
-      () => expect(API.updateTemplateMeta).toBeCalledTimes(1),
-      waitForConfig,
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
     );
 
-    await waitFor(() => {
+    await waitForWithCutoff(() => {
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
@@ -183,7 +183,7 @@ describe("TemplateSchedulePage", () => {
             (validFormValues.time_til_dormant_autodelete_ms || 0) * 86400000,
         }),
       );
-    }, waitForConfig);
+    });
   });
 
   it("allows a default ttl of 7 days", () => {
