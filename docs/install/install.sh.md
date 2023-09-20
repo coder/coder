@@ -65,7 +65,7 @@ fish_add_path "/opt/homebrew/bin"
 
 > ℹ If you ran install.sh with a `--prefix` flag, you can replace
 > `/opt/homebrew` with whatever value you used there. Make sure to leave the
-> `/bin` at the end!
+> `/bin` at the end.
 
 Now we can observe that the order has changed:
 

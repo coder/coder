@@ -39,7 +39,7 @@ choice on your local system.
 
 <img src="../images/platforms/azure/azure5.png">
 
-Click `Return to create a virtual machine`. Your VM will start up!
+Click `Return to create a virtual machine`. Your VM will start up.
 
 <img src="../images/platforms/azure/azure6.png">
 
@@ -131,8 +131,8 @@ the following command to put the template on your Coder instance.
 coder templates create
 ```
 
-Congrats! You can now navigate to your Coder dashboard and use this Linux on
-Azure template to create a new workspace!
+Congrats; you can now navigate to your Coder dashboard and use this Linux on
+Azure template to create a new workspace.
 
 ## Next Steps
 

@@ -65,7 +65,7 @@ Coder with Docker has the following advantages:
    Now wait a few moments for the workspace to build. After the first build,
    the image is cached and subsequent builds will take a few seconds.
 
-1. Your workspace is ready to go!
+1. Your workspace is ready to go.
 
    <img src="../images/platforms/docker/ides.png">
 

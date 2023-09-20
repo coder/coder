@@ -40,7 +40,7 @@ address. You should be redirected to a public tunnel URL.
 Your browser does not support the video tag.
 </video>
 
-That's all! Use the UI to create your first user, template, and workspace. We
+That's all; use the UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
