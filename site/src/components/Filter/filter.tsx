@@ -57,7 +57,8 @@ export const useFilter = ({
   const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
 
   // Stabilizing reference to setSearchParams from one central spot, just to be
-  // on the extra careful side. Don't want effects over-running
+  // on the extra careful side; don't want effects over-running. You would think
+  // this would be overkill, but setSearchParams isn't stable out of the box
   const stableSetSearchParams = useEffectEvent(setSearchParams);
 
   // Keep params synced with query, even as query changes from outside sources
