@@ -36,7 +36,6 @@ import {
   calculateAutostopRequirementDaysValue,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
-import { AlphaBadge } from "components/DeploySettingsLayout/Badges";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -465,7 +464,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <FormSection
             title="Failure Cleanup"
             description="When enabled, Coder will attempt to stop workspaces that are in a failed state after a specified number of days."
-            alpha={true}
+            alpha
           >
             <FormFields>
               <FormControlLabel
@@ -494,7 +493,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <FormSection
             title="Dormancy Threshold"
             description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
-            alpha={true}
+            alpha
           >
             <FormFields>
               <FormControlLabel
@@ -527,7 +526,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           <FormSection
             title="Dormancy Auto-Deletion"
             description="When enabled, Coder will permanently delete dormant workspaces after a period of time. Once a workspace is deleted it cannot be recovered."
-            alpha={true}
+            alpha
           >
             <FormFields>
               <FormControlLabel
