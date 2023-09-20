@@ -30,8 +30,14 @@ var (
 )
 
 const (
-	// develPrefix is prefixed to developer versions of the application.
-	develPrefix = "v0.0.0-devel"
+	// noVersion is the reported version when the version cannot be determined.
+	// Usually because `go build` is run instead of `make build`.
+	noVersion = "v0.0.0"
+
+	// develPreRelease is the pre-release tag for developer versions of the application.
+	// The pre-release tag should be appended to the version with a "-".
+	// Example: v0.0.0-devel
+	develPreRelease = "devel"
 )
 
 // Version returns the semantic version of the build.
@@ -45,7 +51,8 @@ func Version() string {
 		if tag == "" {
 			// This occurs when the tag hasn't been injected,
 			// like when using "go run".
-			version = develPrefix + revision
+			// <version>-<pre-release>+<revision>
+			version = fmt.Sprintf("%s-%s%s", noVersion, develPreRelease, revision)
 			return
 		}
 		version = "v" + tag
@@ -65,16 +72,21 @@ func Version() string {
 func VersionsMatch(v1, v2 string) bool {
 	// Developer versions are disregarded...hopefully they know what they are
 	// doing.
-	if strings.HasPrefix(v1, develPrefix) || strings.HasPrefix(v2, develPrefix) {
+	if IsDevVersion(v1) || IsDevVersion(v2) {
 		return true
 	}
 
 	return semver.MajorMinor(v1) == semver.MajorMinor(v2)
 }
 
+func IsDevVersion(v string) bool {
+	return strings.Contains(v, "-"+develPreRelease)
+}
+
 // IsDev returns true if this is a development build.
+// CI builds are also considered development builds.
 func IsDev() bool {
-	return strings.HasPrefix(Version(), develPrefix)
+	return IsDevVersion(Version())
 }
 
 // IsSlim returns true if this is a slim build.
