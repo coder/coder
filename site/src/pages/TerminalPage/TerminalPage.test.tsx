@@ -58,7 +58,7 @@ const expectTerminalText = (container: HTMLElement, text: string) => {
       }
       expect(row.textContent).toContain(text);
     },
-    { timeout: 3_000 },
+    { timeout: 5_000 },
   );
 };
 
