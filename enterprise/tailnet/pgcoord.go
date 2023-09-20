@@ -74,7 +74,9 @@ type pgCoord struct {
 
 	bindings         chan binding
 	newConnections   chan agpl.Queue
-	newSubscriptions chan subscribe
+	closeConnections chan agpl.Queue
+	subscriberCh     chan subscribe
+	querierSubCh     chan subscribe
 	id               uuid.UUID
 
 	cancel    context.CancelFunc
@@ -109,7 +111,10 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 	id := uuid.New()
 	logger = logger.Named("pgcoord").With(slog.F("coordinator_id", id))
 	bCh := make(chan binding)
+	// used for opening connections
 	cCh := make(chan agpl.Queue)
+	// used for closing connections
+	ccCh := make(chan agpl.Queue)
 	// for communicating subscriptions with the subscriber
 	sCh := make(chan subscribe)
 	// for communicating subscriptions with the querier
@@ -126,10 +131,12 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 		binder:           newBinder(ctx, logger, id, store, bCh, fHB),
 		bindings:         bCh,
 		newConnections:   cCh,
-		subscriber:       newSubscriber(ctx, logger, id, store, sCh, qsCh, fHB),
-		newSubscriptions: sCh,
+		closeConnections: ccCh,
+		subscriber:       newSubscriber(ctx, logger, id, store, sCh, fHB),
+		subscriberCh:     sCh,
+		querierSubCh:     qsCh,
 		id:               id,
-		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, qsCh, numQuerierWorkers, fHB),
+		querier:          newQuerier(ctx, logger, id, ps, store, id, cCh, ccCh, qsCh, numQuerierWorkers, fHB),
 		closed:           make(chan struct{}),
 	}
 	logger.Info(ctx, "starting coordinator")
@@ -152,22 +159,18 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 			})
 		},
 		OnRemove: func(enq agpl.Queue) {
-			b := binding{
+			_ = sendCtx(c.ctx, c.bindings, binding{
 				bKey: bKey{
 					id:   enq.UniqueID(),
 					kind: enq.Kind(),
 				},
-			}
-			if err := sendCtx(c.ctx, c.bindings, b); err != nil {
-				c.logger.Debug(c.ctx, "parent context expired while withdrawing binding", slog.Error(err))
-			}
-			if err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+			})
+			_ = sendCtx(c.ctx, c.subscriberCh, subscribe{
 				sKey:   sKey{clientID: id},
 				q:      enq,
 				active: false,
-			}); err != nil {
-				c.logger.Debug(c.ctx, "parent context expired while withdrawing subscriptions", slog.Error(err))
-			}
+			})
+			_ = sendCtx(c.ctx, c.closeConnections, enq)
 		},
 	}).Init()
 
@@ -182,32 +185,44 @@ func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 }
 
 func (c *pgCoord) addSubscription(q agpl.Queue, agentID uuid.UUID) error {
-	err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+	sub := subscribe{
 		sKey: sKey{
 			clientID: q.UniqueID(),
 			agentID:  agentID,
 		},
 		q:      q,
 		active: true,
-	})
-	if err != nil {
+	}
+	if err := sendCtx(c.ctx, c.subscriberCh, sub); err != nil {
 		return err
 	}
+	if err := sendCtx(c.ctx, c.querierSubCh, sub); err != nil {
+		// There's no need to clean up the sub sent to the subscriber if this
+		// fails, since it means the entire coordinator is being torn down.
+		return err
+	}
+
 	return nil
 }
 
 func (c *pgCoord) removeSubscription(q agpl.Queue, agentID uuid.UUID) error {
-	err := sendCtx(c.ctx, c.newSubscriptions, subscribe{
+	sub := subscribe{
 		sKey: sKey{
 			clientID: q.UniqueID(),
 			agentID:  agentID,
 		},
 		q:      q,
 		active: false,
-	})
-	if err != nil {
+	}
+	if err := sendCtx(c.ctx, c.subscriberCh, sub); err != nil {
 		return err
 	}
+	if err := sendCtx(c.ctx, c.querierSubCh, sub); err != nil {
+		// There's no need to clean up the sub sent to the subscriber if this
+		// fails, since it means the entire coordinator is being torn down.
+		return err
+	}
+
 	return nil
 }
 
@@ -247,6 +262,7 @@ func (c *pgCoord) ServeClient(conn net.Conn, id uuid.UUID, agent uuid.UUID) erro
 		// can only be a context error, no need to log here.
 		return err
 	}
+	defer func() { _ = sendCtx(c.ctx, c.closeConnections, agpl.Queue(cIO)) }()
 
 	if err := c.addSubscription(cIO, agent); err != nil {
 		return err
@@ -271,6 +287,8 @@ func (c *pgCoord) ServeAgent(conn net.Conn, id uuid.UUID, name string) error {
 		// can only be a context error, no need to log here.
 		return err
 	}
+	defer func() { _ = sendCtx(c.ctx, c.closeConnections, agpl.Queue(cIO)) }()
+
 	<-cIO.ctx.Done()
 	return nil
 }
@@ -311,7 +329,6 @@ type subscriber struct {
 	coordinatorID uuid.UUID
 	store         database.Store
 	subscriptions <-chan subscribe
-	querierCh     chan<- subscribe
 
 	mu sync.Mutex
 	// map[clientID]map[agentID]subscribe
@@ -324,7 +341,6 @@ func newSubscriber(ctx context.Context,
 	id uuid.UUID,
 	store database.Store,
 	subscriptions <-chan subscribe,
-	querierCh chan<- subscribe,
 	startWorkers <-chan struct{},
 ) *subscriber {
 	s := &subscriber{
@@ -333,7 +349,6 @@ func newSubscriber(ctx context.Context,
 		coordinatorID: id,
 		store:         store,
 		subscriptions: subscriptions,
-		querierCh:     querierCh,
 		latest:        make(map[uuid.UUID]map[uuid.UUID]subscribe),
 		workQ:         newWorkQ[sKey](ctx),
 	}
@@ -356,7 +371,6 @@ func (s *subscriber) handleSubscriptions() {
 		case sub := <-s.subscriptions:
 			s.storeSubscription(sub)
 			s.workQ.enqueue(sub.sKey)
-			s.querierCh <- sub
 		}
 	}
 }
@@ -780,8 +794,9 @@ type querier struct {
 	pubsub        pubsub.Pubsub
 	store         database.Store
 
-	newConnections chan agpl.Queue
-	subscriptions  chan subscribe
+	newConnections   chan agpl.Queue
+	closeConnections chan agpl.Queue
+	subscriptions    chan subscribe
 
 	workQ *workQ[mKey]
 
@@ -810,6 +825,7 @@ func newQuerier(ctx context.Context,
 	store database.Store,
 	self uuid.UUID,
 	newConnections chan agpl.Queue,
+	closeConnections chan agpl.Queue,
 	subscriptions chan subscribe,
 	numWorkers int,
 	firstHeartbeat chan struct{},
@@ -822,6 +838,7 @@ func newQuerier(ctx context.Context,
 		pubsub:              ps,
 		store:               store,
 		newConnections:      newConnections,
+		closeConnections:    closeConnections,
 		subscriptions:       subscriptions,
 		workQ:               newWorkQ[mKey](ctx),
 		heartbeats:          newHeartbeats(ctx, logger, ps, store, self, updates, firstHeartbeat),
@@ -859,6 +876,9 @@ func (q *querier) handleIncoming() {
 			default:
 				panic(fmt.Sprint("unreachable: invalid queue kind ", c.Kind()))
 			}
+
+		case c := <-q.closeConnections:
+			q.cleanupConn(c)
 
 		case sub := <-q.subscriptions:
 			if sub.active {
@@ -903,7 +923,6 @@ func (q *querier) newAgentConn(c agpl.Queue) {
 	}
 	cm.count++
 	q.conns[c.UniqueID()] = c
-	go q.waitCleanupConn(c)
 }
 
 func (q *querier) newClientSubscription(c agpl.Queue, agentID uuid.UUID) {
@@ -981,12 +1000,6 @@ func (q *querier) newClientConn(c agpl.Queue) {
 	}
 
 	q.conns[c.UniqueID()] = c
-	go q.waitCleanupConn(c)
-}
-
-func (q *querier) waitCleanupConn(c agpl.Queue) {
-	<-c.Done()
-	q.cleanupConn(c)
 }
 
 func (q *querier) cleanupConn(c agpl.Queue) {
