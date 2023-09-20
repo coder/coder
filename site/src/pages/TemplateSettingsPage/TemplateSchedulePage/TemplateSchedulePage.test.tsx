@@ -54,6 +54,15 @@ const fillAndSubmitForm = async ({
 }: FillAndSubmitConfig) => {
   const user = userEvent.setup();
 
+  const submitButton = screen.getByRole("button", {
+    name: FooterFormLanguage.defaultSubmitLabel,
+  });
+
+  // This should be removed once we start removing disabled states from the UI;
+  // not worried about this getting forgotten, because it will trigger an error
+  // at some point once that migration starts
+  expect(submitButton).toBeDisabled();
+
   if (default_ttl_ms) {
     const defaultTtlField = await screen.findByLabelText(
       "Default autostop (hours)",
@@ -93,9 +102,7 @@ const fillAndSubmitForm = async ({
     );
   }
 
-  const submitButton = await screen.findByText(
-    FooterFormLanguage.defaultSubmitLabel,
-  );
+  expect(submitButton).not.toBeDisabled();
   await user.click(submitButton);
 
   // User needs to confirm dormancy and auto-deletion fields.
