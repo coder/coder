@@ -34,8 +34,9 @@ const (
 	// Usually because `go build` is run instead of `make build`.
 	noVersion = "v0.0.0"
 
-	// develPreRelease is the pre-release tag for developer versions of the application.
-	// The pre-release tag should be appended to the version with a "-".
+	// develPreRelease is the pre-release tag for developer versions of the
+	// application. This includes CI builds. The pre-release tag should be appended
+	// to the version with a "-".
 	// Example: v0.0.0-devel
 	develPreRelease = "devel"
 )
