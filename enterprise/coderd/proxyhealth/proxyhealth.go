@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -291,27 +290,22 @@ func (p *ProxyHealth) runOnce(ctx context.Context, now time.Time) (map[uuid.UUID
 				// Unhealthy as we did reach the proxy but it got an unexpected response.
 				status.Status = Unhealthy
 				var builder strings.Builder
+				// This string is shown on the UI where newlines are respected.
+				// This error message is not ever decoded programmatically, so keep it human-
+				// readable.
 				builder.WriteString(fmt.Sprintf("unexpected status code %d. ", resp.StatusCode))
-				contentType := resp.Header.Get("content-type")
-				body, _ := io.ReadAll(resp.Body)
-
-				switch {
-				case strings.Contains(contentType, "html"):
-					// Showing html payloads is useful, but we display this error message
-					// on our FE. An html payload is quite large and would be hard to
-					// format decently. Just tell the user to make the request themselves
-					// to observe the response.
-					builder.WriteString(fmt.Sprintf("\nThe response was html, which is unexpected. "+
-						"Send a request to %s from the Coderd environment to debug this issue.", reqURL))
-				case strings.Contains(contentType, "json"):
-					builder.WriteString(fmt.Sprintf("\nJSON response payload: %s", string(body)))
-				default:
-					// Just set an arbitrary cutoff point. The user can always debug with a manual request.
-					if len(body) < 1000 {
-						builder.WriteString(fmt.Sprintf("\n%q response payload: %s", contentType, string(body)))
+				builder.WriteString(fmt.Sprintf("\nEncountered error, send a request to %q from the Coderd environment to debug this issue.", reqURL))
+				err := codersdk.ReadBodyAsError(resp)
+				if err != nil {
+					var apiErr *codersdk.Error
+					if xerrors.As(err, &apiErr) {
+						builder.WriteString(fmt.Sprintf("\nError Message: %s\nError Detail: %s", apiErr.Message, apiErr.Detail))
+						for _, v := range apiErr.Validations {
+							// Pretty sure this is not possible from the called endpoint, but just in case.
+							builder.WriteString(fmt.Sprintf("\n\tValidation: %s=%s", v.Field, v.Detail))
+						}
 					} else {
-						builder.WriteString(fmt.Sprintf("\nThe response content type was %q, which is unexpected. "+
-							"Send a request to %s from the Coderd environment to debug this issue.", contentType, reqURL))
+						builder.WriteString(fmt.Sprintf("\nError: %s", err.Error()))
 					}
 				}
 
