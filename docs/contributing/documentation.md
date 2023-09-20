@@ -8,17 +8,16 @@ This style guide is primarily for use with authoring documentation.
 - Use the second person
 - Use the active voice
 - Use plural nouns and pronouns (_they_, _their_, or _them_), especially when
-  the specific number is uncertain (that is, "Set up your environments" even though
-  you don't know if the user will have one or many environments)
-- When writing documentation titles, use the noun form, not the gerund form
-  (for example, "Environment Management" instead of "Managing Environments")
+  the specific number is uncertain (that is, "Set up your environments" even
+  though you don't know if the user will have one or many environments)
+- When writing documentation titles, use the noun form, not the gerund form (for
+  example, "Environment Management" instead of "Managing Environments")
 - Context matters when you decide whether to capitalize something or not. For
   example,
   ["A Job creates one or more Pods..."](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
   is correct when writing about Kubernetes. However, in other contexts, neither
   _job_ nor _pods_ would be capitalized. Please follow the conventions set forth
   by the relevant companies and open source communities.
-
 
 ## Third-party references
 

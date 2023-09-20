@@ -123,9 +123,9 @@ This tells `lsp-mode` to look for a language server binary named
 - `<LANGUAGE MODE>`: The name of the Emacs major mode for which the language
   server should be used. For example to enable the language server for
   JavaScript development use the value `web-mode`.
-- `<LANGUAGE SERVER ID>`: This is the name that `lsp-mode` will use to
-  refer to this language server. If you are ever looking for output buffers or
-  files they may have this name in them.
+- `<LANGUAGE SERVER ID>`: This is the name that `lsp-mode` will use to refer to
+  this language server. If you are ever looking for output buffers or files they
+  may have this name in them.
 
 Calling the `lsp-register-client` function will tell `lsp-mode` the name of the
 LSP server binary. However this binary must be accessible via the path. If the

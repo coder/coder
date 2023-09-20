@@ -62,8 +62,8 @@ Coder with Docker has the following advantages:
 
    <img src="../images/platforms/docker/create-workspace.png">
 
-   Now wait a few moments for the workspace to build. After the first build,
-   the image is cached and subsequent builds will take a few seconds.
+   Now wait a few moments for the workspace to build. After the first build, the
+   image is cached and subsequent builds will take a few seconds.
 
 1. Your workspace is ready to go.
 

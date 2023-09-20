@@ -64,9 +64,9 @@ conventions to help people to navigate through it.
 
 ## Routing
 
-We use [react-router](https://reactrouter.com/en/main) as our routing engine.
-If the new route needs to be authenticated, put it under the `<RequireAuth>`
-route and if it needs to live inside of the dashboard, put it under the
+We use [react-router](https://reactrouter.com/en/main) as our routing engine. If
+the new route needs to be authenticated, put it under the `<RequireAuth>` route
+and if it needs to live inside of the dashboard, put it under the
 `<DashboardLayout>` route.
 
 The `RequireAuth` component handles all the authentication logic for the routes

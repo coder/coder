@@ -4,8 +4,8 @@
 
 We recommend using the [Nix](https://nix.dev/) package manager as it makes any
 pain related to maintaining dependency versions
-[disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once
-nix [has been installed](https://nixos.org/download.html) the development
+[disappear](https://twitter.com/mitchellh/status/1491102567296040961). Once nix
+[has been installed](https://nixos.org/download.html) the development
 environment can be _manually instantiated_ through the `nix-shell` command:
 
 ```shell
@@ -106,8 +106,8 @@ this:
   are intelligently checking if the image needs to be built)
 - `-e EXPERIMENT1,EXPERIMENT2` or `--experiments EXPERIMENT1,EXPERIMENT2`, will
   enable the specified experiments. (defaults to `*`)
-- `-n` or `--dry-run` will display the context without deployment. For example, branch
-  name and PR number, etc.
+- `-n` or `--dry-run` will display the context without deployment. For example,
+  branch name and PR number, etc.
 - `-y` or `--yes`, will skip the CLI confirmation prompt.
 
 > Note: PR deployment will be re-deployed automatically when the PR is updated.

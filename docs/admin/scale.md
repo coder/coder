@@ -13,8 +13,8 @@ be limited to the number of provisioner daemons across all coderd replicas.
   this is an [enterprise feature](../enterprise.md)
 - **concurrent workspace builds**: Workspace operations (
   create/stop/delete/apply) across all users
-- **concurrent connections**: Any connection to a workspace (SSH, web
-  terminal, `coder_app`)
+- **concurrent connections**: Any connection to a workspace (SSH, web terminal,
+  `coder_app`)
 - **provisioner daemons**: Coder runs one workspace build per provisioner
   daemon. One coderd replica can host many daemons
 - **scaletest**: Our scale-testing utility, built into the `coder` command line.
@@ -191,9 +191,9 @@ We generally do not recommend using an autoscaler that modifies the number of
 coderd replicas. In particular, scale down events can cause interruptions for a
 large number of users.
 
-Coderd is different from a request-response HTTP service in that it
-services long-lived connections whenever it proxies HTTP applications like IDEs
-or terminals that rely on websockets, or when it relays tunneled connections to
+Coderd is different from a request-response HTTP service in that it services
+long-lived connections whenever it proxies HTTP applications like IDEs or
+terminals that rely on websockets, or when it relays tunneled connections to
 workspaces. Loss of a coderd replica will drop these long-lived connections and
 interrupt users. For example, if you have 4 coderd replicas behind a load
 balancer, and an autoscaler decides to reduce it to 3, roughly 25% of the
@@ -213,8 +213,8 @@ interruptions.
 
 ### A note for Kubernetes users
 
-When running on Kubernetes on cloud infrastructure (that is not bare metal), many
-operators choose to employ a _cluster_ autoscaler that adds and removes
+When running on Kubernetes on cloud infrastructure (that is not bare metal),
+many operators choose to employ a _cluster_ autoscaler that adds and removes
 Kubernetes _nodes_ according to load. Coder can coexist with such cluster
 autoscalers, but we recommend you take steps to prevent the autoscaler from
 evicting coderd pods, as an eviction will cause the same interruptions as

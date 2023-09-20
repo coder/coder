@@ -5,7 +5,7 @@ level: warning
 ignorecase: true
 tokens:
   - easy
-  - painless 
+  - painless
   - straightforward
   - trivial
   - simple

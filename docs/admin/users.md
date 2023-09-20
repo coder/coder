@@ -162,8 +162,8 @@ You can also reset a password via the CLI:
 coder reset-password <username>
 ```
 
-> Resetting a user's password, for example, the initial `owner` role-based user, only
-> works when run on the host running the Coder control plane.
+> Resetting a user's password, for example, the initial `owner` role-based user,
+> only works when run on the host running the Coder control plane.
 
 ### Resetting a password on Kubernetes
 
@@ -192,5 +192,5 @@ The following filters are supported:
   [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
   for a list of supported user roles.
 - `last_seen_before` and `last_seen_after` - The last time a used has used the
-  platform (for example: logging in, any API requests, connecting to workspaces). Uses
-  the RFC3339Nano format.
+  platform (for example: logging in, any API requests, connecting to
+  workspaces). Uses the RFC3339Nano format.

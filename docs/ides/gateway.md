@@ -196,8 +196,8 @@ are the steps we took (and "gotchas"):
 
 ### 1. Deploy the server and install the Client Downloader
 
-We deployed an Ubuntu VM and installed the JetBrains Client Downloader
-binary. Note that the server must be a Linux-based distribution.
+We deployed an Ubuntu VM and installed the JetBrains Client Downloader binary.
+Note that the server must be a Linux-based distribution.
 
 ```shell
 wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \

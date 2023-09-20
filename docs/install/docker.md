@@ -66,8 +66,8 @@ which includes an PostgreSQL container and volume.
 
 3. Start Coder with `docker-compose up`:
 
-   In order to use cloud-based templates (Kubernetes, AWS), you must have
-   an external URL that users and workspaces will use to connect to Coder.
+   In order to use cloud-based templates (Kubernetes, AWS), you must have an
+   external URL that users and workspaces will use to connect to Coder.
 
    For proof-of-concept deployments, you can use
    [Coder's tunnel](../admin/configure.md#tunnel):

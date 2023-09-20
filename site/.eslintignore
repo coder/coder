@@ -86,3 +86,6 @@ e2e/provisionerGenerated.ts
 
 # Ignore generated JSON (e.g. examples/examples.gen.json).
 **/*.gen.json
+
+# Ignore generated vale styles
+**/.github/styles/Google

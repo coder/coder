@@ -36,8 +36,8 @@ resource "coder_app" "portainer" {
 
 ## External URLs
 
-Any URL external to the Coder deployment is accessible as a `coder_app`. For example:
-Dropbox, Slack, Discord, GitHub
+Any URL external to the Coder deployment is accessible as a `coder_app`. For
+example: Dropbox, Slack, Discord, GitHub
 
 ```hcl
 resource "coder_app" "pubslack" {
