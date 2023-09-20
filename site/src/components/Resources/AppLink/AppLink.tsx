@@ -95,11 +95,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
           href={href}
           target="_blank"
           className={canClick ? styles.link : styles.disabledLink}
-          onClick={
-            (event) => {
-              !canClick && event.preventDefault();
-            }
-          }
+          onClick={(event) => {
+            !canClick && event.preventDefault();
+          }}
         >
           {button}
         </Link>
