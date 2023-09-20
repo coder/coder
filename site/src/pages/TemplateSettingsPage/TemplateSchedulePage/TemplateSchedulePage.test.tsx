@@ -1,4 +1,3 @@
-/*eslint eslint-comments/disable-enable-pair: error -- Remove after bottlenecks or causes of timeouts for testing have been figured out */
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
@@ -46,7 +45,6 @@ type FillAndSubmitConfig = {
     : never]?: TemplateScheduleFormValues[Key] | undefined;
 };
 
-/*eslint-disable no-console -- Start benchmarks */
 const fillAndSubmitForm = async ({
   default_ttl_ms,
   max_ttl_ms,
@@ -54,10 +52,8 @@ const fillAndSubmitForm = async ({
   time_til_dormant_ms,
   time_til_dormant_autodelete_ms,
 }: FillAndSubmitConfig) => {
-  console.time("form - full function");
   const user = userEvent.setup();
 
-  console.time("form - ttl");
   if (default_ttl_ms) {
     const defaultTtlField = await screen.findByLabelText(
       "Default autostop (hours)",
@@ -65,36 +61,28 @@ const fillAndSubmitForm = async ({
     await user.clear(defaultTtlField);
     await user.type(defaultTtlField, default_ttl_ms.toString());
   }
-  console.timeEnd("form - ttl");
 
-  console.time("form - max_ttl");
   if (max_ttl_ms) {
     const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
 
     await user.clear(maxTtlField);
     await user.type(maxTtlField, max_ttl_ms.toString());
   }
-  console.timeEnd("form - max_ttl");
 
-  console.time("form - failure_ttl");
   if (failure_ttl_ms) {
     const failureTtlField = screen.getByRole("checkbox", {
       name: /Failure Cleanup/i,
     });
     await user.type(failureTtlField, failure_ttl_ms.toString());
   }
-  console.timeEnd("form - failure_ttl");
 
-  console.time("form - dormant");
   if (time_til_dormant_ms) {
     const inactivityTtlField = screen.getByRole("checkbox", {
       name: /Dormancy Threshold/i,
     });
     await user.type(inactivityTtlField, time_til_dormant_ms.toString());
   }
-  console.timeEnd("form - dormant");
 
-  console.time("form - auto-delete");
   if (time_til_dormant_autodelete_ms) {
     const dormancyAutoDeletionField = screen.getByRole("checkbox", {
       name: /Dormancy Auto-Deletion/i,
@@ -104,24 +92,16 @@ const fillAndSubmitForm = async ({
       time_til_dormant_autodelete_ms.toString(),
     );
   }
-  console.timeEnd("form - auto-delete");
 
-  console.time("form - submit");
   const submitButton = await screen.findByText(
     FooterFormLanguage.defaultSubmitLabel,
   );
   await user.click(submitButton);
-  console.timeEnd("form - submit");
 
-  console.time("form - confirm");
   // User needs to confirm dormancy and auto-deletion fields.
   const confirmButton = await screen.findByTestId("confirm-button");
   await user.click(confirmButton);
-  console.timeEnd("form - confirm");
-
-  console.timeEnd("form - full function");
 };
-/*eslint-enable no-console -- End benchmarks */
 
 describe("TemplateSchedulePage", () => {
   beforeEach(() => {
@@ -142,7 +122,7 @@ describe("TemplateSchedulePage", () => {
 
     await fillAndSubmitForm(validFormValues);
     await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-  }, 15_000);
+  });
 
   test("default and max ttl is converted to and from hours", async () => {
     await renderTemplateSchedulePage();
