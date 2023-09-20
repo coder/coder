@@ -942,9 +942,10 @@ func (q *querier) removeClientSubscription(c agpl.Queue, agentID uuid.UUID) {
 	q.mu.Lock()
 	defer q.mu.Unlock()
 
-	// agentID: uuid.Nil indicates that a client is going away. The querier
-	// handles that in cleanupConn below instead.
-	if agentID == uuid.Nil {
+	// Allow duplicate unsubscribes. It's possible for cleanupConn to race with
+	// an external call to removeClientSubscription, so we just ensure the
+	// client subscription exists before attempting to remove it.
+	if _, ok := q.clientSubscriptions[c.UniqueID()][agentID]; !ok {
 		return
 	}
 

@@ -589,50 +589,6 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	}
 }
 
-func TestPGCoordinator_MultiAgent(t *testing.T) {
-	t.Parallel()
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("test only with postgres")
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	store, ps := dbtestutil.NewDB(t)
-	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
-	require.NoError(t, err)
-	defer coord1.Close()
-
-	agent1 := newTestAgent(t, coord1, "agent1")
-	defer agent1.close()
-	agent1.sendNode(&agpl.Node{PreferredDERP: 5})
-
-	id := uuid.New()
-	ma1 := coord1.ServeMultiAgent(id)
-	defer ma1.Close()
-
-	err = ma1.SubscribeAgent(agent1.id)
-	require.NoError(t, err)
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 5)
-
-	agent1.sendNode(&agpl.Node{PreferredDERP: 1})
-	assertMultiAgentEventuallyHasDERPs(ctx, t, ma1, 1)
-
-	err = ma1.UpdateSelf(&agpl.Node{PreferredDERP: 3})
-	require.NoError(t, err)
-	assertEventuallyHasDERPs(ctx, t, agent1, 3)
-
-	err = ma1.Close()
-	require.NoError(t, err)
-
-	err = agent1.close()
-	require.NoError(t, err)
-
-	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.id)
-	assertEventuallyNoAgents(ctx, t, store, agent1.id)
-}
-
 type testConn struct {
 	ws, serverWS net.Conn
 	nodeChan     chan []*agpl.Node
@@ -737,8 +693,29 @@ func assertEventuallyHasDERPs(ctx context.Context, t *testing.T, c *testConn, ex
 				t.Logf("expected DERP %d to be in %v", e, derps)
 				continue
 			}
+			return
 		}
-		return
+	}
+}
+
+func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expected ...int) {
+	t.Helper()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case nodes := <-c.nodeChan:
+			derps := make([]int, 0, len(nodes))
+			for _, n := range nodes {
+				derps = append(derps, n.PreferredDERP)
+			}
+			for _, e := range expected {
+				if slices.Contains(derps, e) {
+					t.Fatalf("expected not to get DERP %d, but received it", e)
+					return
+				}
+			}
+		}
 	}
 }
 
@@ -761,8 +738,34 @@ func assertMultiAgentEventuallyHasDERPs(ctx context.Context, t *testing.T, ma ag
 				t.Logf("expected DERP %d to be in %v", e, derps)
 				continue
 			}
+			return
 		}
-		return
+	}
+}
+
+func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
+	t.Helper()
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		if !ok {
+			return
+		}
+		if len(nodes) != len(expected) {
+			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
 	}
 }
 
