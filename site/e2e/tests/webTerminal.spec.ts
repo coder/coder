@@ -45,6 +45,10 @@ test("web terminal", async ({ context, page }) => {
     state: "visible",
   });
 
+  // Workaround: delay next steps as "div.xterm-rows" can be recreated/reattached
+  // after a couple of milliseconds.
+  await terminal.waitForTimeout(2000);
+
   // Ensure that we can type in it
   await terminal.keyboard.type("echo he${justabreak}llo123456");
   await terminal.keyboard.press("Enter");
