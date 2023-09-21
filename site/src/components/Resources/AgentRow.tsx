@@ -78,6 +78,7 @@ export const AgentRow: FC<AgentRowProps> = ({
   onUpdateAgent,
   storybookAgentMetadata,
   sshPrefix,
+  storybookLogs,
 }) => {
   const styles = useStyles();
   const theme = useTheme();
@@ -94,7 +95,10 @@ export const AgentRow: FC<AgentRowProps> = ({
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   );
-  const agentLogs = useAgentLogs(agent.id, { enabled: showLogs });
+  const agentLogs = useAgentLogs(agent.id, {
+    enabled: showLogs,
+    initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
+  });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
   const startupLogs = useMemo(() => {
@@ -376,8 +380,11 @@ export const AgentRow: FC<AgentRowProps> = ({
   );
 };
 
-const useAgentLogs = (agentId: string, { enabled }: { enabled: boolean }) => {
-  const [logs, setLogs] = useState<LineWithID[]>();
+const useAgentLogs = (
+  agentId: string,
+  { enabled, initialData }: { enabled: boolean; initialData?: LineWithID[] },
+) => {
+  const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
   const socket = useRef<WebSocket | null>(null);
 
   useEffect(() => {
