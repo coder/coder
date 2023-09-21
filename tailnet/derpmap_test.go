@@ -3,6 +3,7 @@ package tailnet_test
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,38 +43,125 @@ func TestNewDERPMap(t *testing.T) {
 
 	t.Run("RemoteURL", func(t *testing.T) {
 		t.Parallel()
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			data, _ := json.Marshal(&tailcfg.DERPMap{
-				Regions: map[int]*tailcfg.DERPRegion{
-					1: {},
-				},
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				data, _ := json.Marshal(&tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {},
+					},
+				})
+				_, _ = w.Write(data)
+			}))
+			t.Cleanup(server.Close)
+			derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, server.URL)
+			require.NoError(t, err)
+			require.Len(t, derpMap.Regions, 2)
+		})
+
+		t.Run("NetError", func(t *testing.T) {
+			t.Parallel()
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_ = listener.Close()
 			})
-			_, _ = w.Write(data)
-		}))
-		t.Cleanup(server.Close)
-		derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
-			RegionID: 2,
-		}, []string{}, false, false, server.URL)
-		require.NoError(t, err)
-		require.Len(t, derpMap.Regions, 2)
+
+			done := make(chan struct{})
+			go func() {
+				defer close(done)
+				for {
+					c, err := listener.Accept()
+					if err != nil {
+						return
+					}
+					_ = c.Close()
+				}
+			}()
+
+			_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, "http://"+listener.Addr().String())
+			require.Error(t, err)
+
+			_ = listener.Close()
+			<-done
+		})
+
+		t.Run("BadStatus", func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+				data, _ := json.Marshal(&tailcfg.DERPMap{
+					Regions: map[int]*tailcfg.DERPRegion{
+						1: {},
+					},
+				})
+				_, _ = w.Write(data)
+			}))
+			t.Cleanup(server.Close)
+			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, server.URL)
+			require.Error(t, err)
+		})
+
+		t.Run("Invalid", func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = w.Write([]byte("derp"))
+			}))
+			t.Cleanup(server.Close)
+			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, server.URL)
+			require.Error(t, err)
+		})
 	})
 
 	t.Run("LocalPath", func(t *testing.T) {
 		t.Parallel()
-		localPath := filepath.Join(t.TempDir(), "derp.json")
-		content, err := json.Marshal(&tailcfg.DERPMap{
-			Regions: map[int]*tailcfg.DERPRegion{
-				1: {},
-			},
+
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			localPath := filepath.Join(t.TempDir(), "derp.json")
+			content, err := json.Marshal(&tailcfg.DERPMap{
+				Regions: map[int]*tailcfg.DERPRegion{
+					1: {},
+				},
+			})
+			require.NoError(t, err)
+			err = os.WriteFile(localPath, content, 0o600)
+			require.NoError(t, err)
+			derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, "file:"+localPath)
+			require.NoError(t, err)
+			require.Len(t, derpMap.Regions, 2)
 		})
-		require.NoError(t, err)
-		err = os.WriteFile(localPath, content, 0o600)
-		require.NoError(t, err)
-		derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
-			RegionID: 2,
-		}, []string{}, false, false, "file:"+localPath)
-		require.NoError(t, err)
-		require.Len(t, derpMap.Regions, 2)
+
+		t.Run("NotFound", func(t *testing.T) {
+			t.Parallel()
+			localPath := filepath.Join(t.TempDir(), "derp.json")
+			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, "file:"+localPath)
+			require.Error(t, err)
+		})
+
+		t.Run("Invalid", func(t *testing.T) {
+			t.Parallel()
+			localPath := filepath.Join(t.TempDir(), "derp.json")
+			err := os.WriteFile(localPath, []byte("derp"), 0o600)
+			require.NoError(t, err)
+			_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
+				RegionID: 2,
+			}, []string{}, false, false, "file:"+localPath)
+			require.Error(t, err)
+		})
 	})
 
 	t.Run("RemoteConflicts", func(t *testing.T) {

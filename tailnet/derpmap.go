@@ -132,6 +132,9 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 				return nil, xerrors.Errorf("GET %q: %w", baseMapURL, err)
 			}
 			defer res.Body.Close()
+			if res.StatusCode != http.StatusOK {
+				return nil, xerrors.Errorf("GET %q: invalid status code %s, expected 200", baseMapURL, res.Status)
+			}
 			r = res.Body
 		}
 
