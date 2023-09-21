@@ -21,6 +21,48 @@ WHERE
 GROUP BY workspace_agent_stats.user_id, users.username, users.avatar_url
 ORDER BY user_id ASC;
 
+-- name: GetUserActivityInsights :many
+-- GetUserActivityInsights returns the ranking with top active users.
+-- The result can be filtered on template_ids, meaning only user data from workspaces
+-- based on those templates will be included.
+WITH app_stats_by_user_and_agent AS (
+	SELECT
+		s.start_time,
+		60 as seconds,
+		w.template_id,
+		was.user_id
+	FROM workspace_app_stats was
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN w.template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
+	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
+	WHERE
+		s.start_time >= @start_time::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < (@end_time::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id
+)
+
+SELECT
+	users.id,
+	users.username,
+	users.avatar_url,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+JOIN users ON (users.id = app_stats_by_user_and_agent.user_id)
+GROUP BY user_id, username, avatar_url
+ORDER BY user_id ASC;
+
 -- name: GetTemplateInsights :one
 -- GetTemplateInsights has a granularity of 5 minutes where if a session/app was
 -- in use during a minute, we will add 5 minutes to the total usage for that

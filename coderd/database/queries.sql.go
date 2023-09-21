@@ -2022,6 +2022,92 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 	return items, nil
 }
 
+const getUserActivityInsights = `-- name: GetUserActivityInsights :many
+WITH app_stats_by_user_and_agent AS (
+	SELECT
+		s.start_time,
+		60 as seconds,
+		w.template_id,
+		was.user_id
+	FROM workspace_app_stats was
+	JOIN workspaces w ON (
+		w.id = was.workspace_id
+		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+	)
+	-- This table contains both 1 minute entries and >1 minute entries,
+	-- to calculate this with our uniqueness constraints, we generate series
+	-- for the longer intervals.
+	CROSS JOIN LATERAL generate_series(
+		date_trunc('minute', was.session_started_at),
+		-- Subtract 1 microsecond to avoid creating an extra series.
+		date_trunc('minute', was.session_ended_at - '1 microsecond'::interval),
+		'1 minute'::interval
+	) s(start_time)
+	WHERE
+		s.start_time >= $2::timestamptz
+		-- Subtract one minute because the series only contains the start time.
+		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
+	GROUP BY s.start_time, w.template_id, was.user_id
+)
+
+SELECT
+	users.id,
+	users.username,
+	users.avatar_url,
+	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
+	SUM(seconds) AS usage_seconds
+FROM app_stats_by_user_and_agent
+JOIN users ON (users.id = app_stats_by_user_and_agent.user_id)
+GROUP BY user_id, username, avatar_url
+ORDER BY user_id ASC
+`
+
+type GetUserActivityInsightsParams struct {
+	TemplateIDs []uuid.UUID `db:"template_ids" json:"template_ids"`
+	StartTime   time.Time   `db:"start_time" json:"start_time"`
+	EndTime     time.Time   `db:"end_time" json:"end_time"`
+}
+
+type GetUserActivityInsightsRow struct {
+	ID           uuid.UUID      `db:"id" json:"id"`
+	Username     string         `db:"username" json:"username"`
+	AvatarURL    sql.NullString `db:"avatar_url" json:"avatar_url"`
+	TemplateIDs  []uuid.UUID    `db:"template_ids" json:"template_ids"`
+	UsageSeconds int64          `db:"usage_seconds" json:"usage_seconds"`
+}
+
+// GetUserActivityInsights returns the ranking with top active users.
+// The result can be filtered on template_ids, meaning only user data from workspaces
+// based on those templates will be included.
+func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserActivityInsightsRow
+	for rows.Next() {
+		var i GetUserActivityInsightsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Username,
+			&i.AvatarURL,
+			pq.Array(&i.TemplateIDs),
+			&i.UsageSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserLatencyInsights = `-- name: GetUserLatencyInsights :many
 SELECT
 	workspace_agent_stats.user_id,
