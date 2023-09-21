@@ -105,12 +105,16 @@ const fillAndSubmitForm = async ({
   await user.click(confirmButton);
 };
 
+// One problem with the waitFor function is that if no additional config options
+// are passed in, it will hang indefinitely as it keeps retrying an assertion.
+// Even if Jest runs out of time and kills the test, you won't get a good error
+// message. Adding options to force test to give up before test timeout
 function waitForWithCutoff(callback: () => void | Promise<void>) {
   return waitFor(callback, {
-    // Test file averages about 13 seconds to complete; adding an extra three
-    // seconds to account for spikes before definitely failing a test. Still
-    // falls under global config of 20 seconds
-    timeout: 16_000,
+    // Defined to end 500ms before global cut-off time of 20s. Wanted to define
+    // this in terms of an exported constant from jest.config, but since Jest
+    // is CJS-based, that would've involved weird CJS-ESM interop issues
+    timeout: 19_500,
   });
 }
 
