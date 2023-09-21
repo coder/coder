@@ -164,7 +164,7 @@ jobs:
           echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
           # build if the deployment alreday exist and there are changes in the files that we care about (automatic updates)
           echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
-          echo "BUILD = $first_or_force_build || $automatic_rebuild
+          echo "BUILD = $($first_or_force_build || $automatic_rebuild)"
 
   comment-pr:
     needs: get_info
