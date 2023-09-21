@@ -62,6 +62,30 @@ type UserLatency struct {
 	LatencyMS   ConnectionLatency `json:"latency_ms"`
 }
 
+// UserActivityInsightsResponse is the response from the user activity insights
+// endpoint.
+type UserActivityInsightsResponse struct {
+	Report UserActivityInsightsReport `json:"report"`
+}
+
+// UserActivityInsightsReport is the report from the user activity insights
+// endpoint.
+type UserActivityInsightsReport struct {
+	StartTime   time.Time      `json:"start_time" format:"date-time"`
+	EndTime     time.Time      `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID    `json:"template_ids" format:"uuid"`
+	Users       []UserActivity `json:"users"`
+}
+
+// UserActivity shows the session time for a user.
+type UserActivity struct {
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+	UserID      uuid.UUID   `json:"user_id" format:"uuid"`
+	Username    string      `json:"username"`
+	AvatarURL   string      `json:"avatar_url" format:"uri"`
+	Seconds     int64       `json:"seconds" example:"80500"`
+}
+
 // ConnectionLatency shows the latency for a connection.
 type ConnectionLatency struct {
 	P50 float64 `json:"p50" example:"31.312"`
@@ -97,6 +121,38 @@ func (c *Client) UserLatencyInsights(ctx context.Context, req UserLatencyInsight
 		return UserLatencyInsightsResponse{}, ReadBodyAsError(resp)
 	}
 	var result UserLatencyInsightsResponse
+	return result, json.NewDecoder(resp.Body).Decode(&result)
+}
+
+type UserActivityInsightsRequest struct {
+	StartTime   time.Time   `json:"start_time" format:"date-time"`
+	EndTime     time.Time   `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID `json:"template_ids" format:"uuid"`
+}
+
+func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsightsRequest) (UserActivityInsightsResponse, error) {
+	qp := url.Values{}
+	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
+	qp.Add("end_time", req.EndTime.Format(insightsTimeLayout))
+	if len(req.TemplateIDs) > 0 {
+		var templateIDs []string
+		for _, id := range req.TemplateIDs {
+			templateIDs = append(templateIDs, id.String())
+		}
+		qp.Add("template_ids", strings.Join(templateIDs, ","))
+	}
+
+	reqURL := fmt.Sprintf("/api/v2/insights/user-activity?%s", qp.Encode())
+	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return UserActivityInsightsResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return UserActivityInsightsResponse{}, ReadBodyAsError(resp)
+	}
+	var result UserActivityInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
 
