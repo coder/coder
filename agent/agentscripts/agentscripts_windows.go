@@ -1,6 +1,7 @@
 package agentscripts
 
 import (
+	"os"
 	"os/exec"
 	"syscall"
 )
@@ -11,6 +12,6 @@ func cmdSysProcAttr() *syscall.SysProcAttr {
 
 func cmdCancel(cmd *exec.Cmd) func() error {
 	return func() error {
-		return nil
+		return cmd.Process.Signal(os.Interrupt)
 	}
 }
