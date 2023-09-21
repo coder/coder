@@ -8,7 +8,6 @@ import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { convertToOAUTH } from "api/api";
 import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated";
-import Skeleton from "@mui/material/Skeleton";
 import { Stack } from "components/Stack/Stack";
 import { useMutation } from "@tanstack/react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -116,73 +115,66 @@ export const SingleSignOnSection = ({
         description="Authenticate in Coder using one-click"
       >
         <Box display="grid" gap="16px">
-          {authMethods && userLoginType ? (
-            userLoginType.login_type === "password" ? (
-              <>
-                {authMethods.github.enabled && (
-                  <Button
-                    disabled={isUpdating}
-                    onClick={() => openConfirmation("github")}
-                    startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
-                    fullWidth
-                    size="large"
-                  >
-                    GitHub
-                  </Button>
-                )}
-                {authMethods.oidc.enabled && (
-                  <Button
-                    size="large"
-                    startIcon={<OIDCIcon authMethods={authMethods} />}
-                    fullWidth
-                    disabled={isUpdating}
-                    onClick={() => openConfirmation("oidc")}
-                  >
-                    {getOIDCLabel(authMethods)}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Box
-                sx={{
-                  background: (theme) => theme.palette.background.paper,
-                  borderRadius: 1,
-                  border: (theme) => `1px solid ${theme.palette.divider}`,
-                  padding: 2,
-                  display: "flex",
-                  gap: 2,
-                  alignItems: "center",
-                  fontSize: 14,
-                }}
-              >
-                <CheckCircleOutlined
-                  sx={{
-                    color: (theme) => theme.palette.success.light,
-                    fontSize: 16,
-                  }}
-                />
-                <span>
-                  Authenticated with{" "}
-                  <strong>
-                    {userLoginType.login_type === "github"
-                      ? "GitHub"
-                      : getOIDCLabel(authMethods)}
-                  </strong>
-                </span>
-                <Box sx={{ ml: "auto", lineHeight: 1 }}>
-                  {userLoginType.login_type === "github" ? (
-                    <GitHubIcon sx={{ width: 16, height: 16 }} />
-                  ) : (
-                    <OIDCIcon authMethods={authMethods} />
-                  )}
-                </Box>
-              </Box>
-            )
+          {userLoginType.login_type === "password" ? (
+            <>
+              {authMethods.github.enabled && (
+                <Button
+                  disabled={isUpdating}
+                  onClick={() => openConfirmation("github")}
+                  startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
+                  fullWidth
+                  size="large"
+                >
+                  GitHub
+                </Button>
+              )}
+              {authMethods.oidc.enabled && (
+                <Button
+                  size="large"
+                  startIcon={<OIDCIcon authMethods={authMethods} />}
+                  fullWidth
+                  disabled={isUpdating}
+                  onClick={() => openConfirmation("oidc")}
+                >
+                  {getOIDCLabel(authMethods)}
+                </Button>
+              )}
+            </>
           ) : (
-            <Skeleton
-              variant="rectangular"
-              sx={{ height: 40, borderRadius: 1 }}
-            />
+            <Box
+              sx={{
+                background: (theme) => theme.palette.background.paper,
+                borderRadius: 1,
+                border: (theme) => `1px solid ${theme.palette.divider}`,
+                padding: 2,
+                display: "flex",
+                gap: 2,
+                alignItems: "center",
+                fontSize: 14,
+              }}
+            >
+              <CheckCircleOutlined
+                sx={{
+                  color: (theme) => theme.palette.success.light,
+                  fontSize: 16,
+                }}
+              />
+              <span>
+                Authenticated with{" "}
+                <strong>
+                  {userLoginType.login_type === "github"
+                    ? "GitHub"
+                    : getOIDCLabel(authMethods)}
+                </strong>
+              </span>
+              <Box sx={{ ml: "auto", lineHeight: 1 }}>
+                {userLoginType.login_type === "github" ? (
+                  <GitHubIcon sx={{ width: 16, height: 16 }} />
+                ) : (
+                  <OIDCIcon authMethods={authMethods} />
+                )}
+              </Box>
+            </Box>
           )}
         </Box>
       </Section>
