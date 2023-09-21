@@ -128,6 +128,13 @@ func (m metricsStore) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUI
 	return err
 }
 
+func (m metricsStore) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteAllTailnetClientSubscriptions(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteAllTailnetClientSubscriptions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	err := m.s.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
@@ -209,6 +216,13 @@ func (m metricsStore) DeleteTailnetClient(ctx context.Context, arg database.Dele
 	return m.s.DeleteTailnetClient(ctx, arg)
 }
 
+func (m metricsStore) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteTailnetClientSubscription(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteTailnetClientSubscription").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	start := time.Now()
 	apiKey, err := m.s.GetAPIKeyByID(ctx, id)
@@ -265,7 +279,7 @@ func (m metricsStore) GetAllTailnetAgents(ctx context.Context) ([]database.Tailn
 	return r0, r1
 }
 
-func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+func (m metricsStore) GetAllTailnetClients(ctx context.Context) ([]database.GetAllTailnetClientsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAllTailnetClients(ctx)
 	m.queryLatencies.WithLabelValues("GetAllTailnetClients").Observe(time.Since(start).Seconds())
@@ -1750,6 +1764,13 @@ func (m metricsStore) UpsertTailnetClient(ctx context.Context, arg database.Upse
 	start := time.Now()
 	defer m.queryLatencies.WithLabelValues("UpsertTailnetClient").Observe(time.Since(start).Seconds())
 	return m.s.UpsertTailnetClient(ctx, arg)
+}
+
+func (m metricsStore) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertTailnetClientSubscription(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTailnetClientSubscription").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {

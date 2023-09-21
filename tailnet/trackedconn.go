@@ -20,6 +20,7 @@ const WriteTimeout = time.Second * 5
 type TrackedConn struct {
 	ctx      context.Context
 	cancel   func()
+	kind     QueueKind
 	conn     net.Conn
 	updates  chan []*Node
 	logger   slog.Logger
@@ -35,7 +36,14 @@ type TrackedConn struct {
 	overwrites int64
 }
 
-func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.UUID, logger slog.Logger, name string, overwrites int64) *TrackedConn {
+func NewTrackedConn(ctx context.Context, cancel func(),
+	conn net.Conn,
+	id uuid.UUID,
+	logger slog.Logger,
+	name string,
+	overwrites int64,
+	kind QueueKind,
+) *TrackedConn {
 	// buffer updates so they don't block, since we hold the
 	// coordinator mutex while queuing.  Node updates don't
 	// come quickly, so 512 should be plenty for all but
@@ -53,6 +61,7 @@ func NewTrackedConn(ctx context.Context, cancel func(), conn net.Conn, id uuid.U
 		lastWrite:  now,
 		name:       name,
 		overwrites: overwrites,
+		kind:       kind,
 	}
 }
 
@@ -70,6 +79,10 @@ func (t *TrackedConn) UniqueID() uuid.UUID {
 	return t.id
 }
 
+func (t *TrackedConn) Kind() QueueKind {
+	return t.kind
+}
+
 func (t *TrackedConn) Name() string {
 	return t.name
 }
@@ -84,6 +97,10 @@ func (t *TrackedConn) Overwrites() int64 {
 
 func (t *TrackedConn) CoordinatorClose() error {
 	return t.Close()
+}
+
+func (t *TrackedConn) Done() <-chan struct{} {
+	return t.ctx.Done()
 }
 
 // Close the connection and cancel the context for reading node updates from the queue
