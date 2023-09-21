@@ -15,6 +15,13 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -28,7 +35,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, string, gossh.PublicKey) {
+func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, string, gossh.PublicKey) {
 	t.Helper()
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -57,12 +64,20 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
-	agentClient := codersdk.New(client.URL)
+	agentLog := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("agent")
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(agentToken)
-	clitest.SetupConfig(t, agentClient, root)
-	clitest.Start(t, inv)
-
+	agt := agent.New(agent.Options{
+		Client: agentClient,
+		Logger: agentLog,
+		LogDir: t.TempDir(),
+		ExchangeToken: func(_ context.Context) (string, error) {
+			return agentToken, nil
+		},
+	})
+	t.Cleanup(func() {
+		assert.NoError(t, agt.Close(), "failed to close agent in cleanup")
+	})
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return agentClient, agentToken, pubkey
 }
@@ -140,7 +155,7 @@ func TestGitSSH(t *testing.T) {
 		// set to agent config dir
 		inv, _ := clitest.New(t,
 			"gitssh",
-			"--agent-url", client.URL.String(),
+			"--agent-url", client.SDK.URL.String(),
 			"--agent-token", token,
 			"--",
 			fmt.Sprintf("-p%d", addr.Port),
@@ -203,7 +218,7 @@ func TestGitSSH(t *testing.T) {
 		pty := ptytest.New(t)
 		cmdArgs := []string{
 			"gitssh",
-			"--agent-url", client.URL.String(),
+			"--agent-url", client.SDK.URL.String(),
 			"--agent-token", token,
 			"--",
 			"-F", config,
