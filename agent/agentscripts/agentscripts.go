@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -157,9 +156,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	cmd := cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.WaitDelay = script.TimeoutSeconds + (10 * time.Second)
-	cmd.Cancel = func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
-	}
+	cmd.Cancel = cmdCancel(cmd)
 
 	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, r.PatchLogs, logger)
 	// If ctx is canceled here (or in a writer below), we may be
