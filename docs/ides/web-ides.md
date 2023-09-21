@@ -165,7 +165,7 @@ resource "coder_app" "vscode-web" {
   slug         = "vscode-web"
   display_name = "VS Code Web"
   icon         = "/icon/code.svg"
-  url          = "http://localhost:13338
+  url          = "http://localhost:13338?folder=/home/coder"
   subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
   share        = "owner"
 }
