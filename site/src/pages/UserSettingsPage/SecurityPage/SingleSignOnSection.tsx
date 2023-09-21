@@ -119,11 +119,11 @@ export const SingleSignOnSection = ({
             <>
               {authMethods.github.enabled && (
                 <Button
-                  disabled={isUpdating}
-                  onClick={() => openConfirmation("github")}
-                  startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
-                  fullWidth
                   size="large"
+                  fullWidth
+                  disabled={isUpdating}
+                  startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
+                  onClick={() => openConfirmation("github")}
                 >
                   GitHub
                 </Button>
@@ -131,9 +131,9 @@ export const SingleSignOnSection = ({
               {authMethods.oidc.enabled && (
                 <Button
                   size="large"
-                  startIcon={<OIDCIcon authMethods={authMethods} />}
                   fullWidth
                   disabled={isUpdating}
+                  startIcon={<OIDCIcon authMethods={authMethods} />}
                   onClick={() => openConfirmation("oidc")}
                 >
                   {getOIDCLabel(authMethods)}
