@@ -175,7 +175,7 @@ jobs:
 
   comment-pr:
     needs: get_info
-    if: needs.get_info.outputs.BUILD || github.event.inputs.deploy
+    if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true'
     runs-on: "ubuntu-latest"
     steps:
       - name: Find Comment
