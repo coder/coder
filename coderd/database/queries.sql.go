@@ -2051,7 +2051,7 @@ WITH app_stats_by_user_and_agent AS (
 )
 
 SELECT
-	users.id,
+	users.id as user_id,
 	users.username,
 	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
@@ -2069,7 +2069,7 @@ type GetUserActivityInsightsParams struct {
 }
 
 type GetUserActivityInsightsRow struct {
-	ID           uuid.UUID      `db:"id" json:"id"`
+	UserID       uuid.UUID      `db:"user_id" json:"user_id"`
 	Username     string         `db:"username" json:"username"`
 	AvatarURL    sql.NullString `db:"avatar_url" json:"avatar_url"`
 	TemplateIDs  []uuid.UUID    `db:"template_ids" json:"template_ids"`
@@ -2089,7 +2089,7 @@ func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserAct
 	for rows.Next() {
 		var i GetUserActivityInsightsRow
 		if err := rows.Scan(
-			&i.ID,
+			&i.UserID,
 			&i.Username,
 			&i.AvatarURL,
 			pq.Array(&i.TemplateIDs),

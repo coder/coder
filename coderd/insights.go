@@ -94,16 +94,53 @@ func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO
+	rows, err := api.Database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user activity.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 
-	seenTemplateIDs := templateIDs // FIXME
+	templateIDSet := make(map[uuid.UUID]struct{})
+	userActivities := make([]codersdk.UserActivity, 0, len(rows))
+	for _, row := range rows {
+		for _, templateID := range row.TemplateIDs {
+			templateIDSet[templateID] = struct{}{}
+		}
+		userActivities = append(userActivities, codersdk.UserActivity{
+			TemplateIDs: row.TemplateIDs,
+			UserID:      row.UserID,
+			Username:    row.Username,
+			AvatarURL:   row.AvatarURL.String,
+			Seconds:     row.UsageSeconds,
+		})
+	}
+
+	// TemplateIDs that contributed to the data.
+	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		seenTemplateIDs = append(seenTemplateIDs, templateID)
+	}
+	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
 
 	resp := codersdk.UserActivityInsightsResponse{
 		Report: codersdk.UserActivityInsightsReport{
 			StartTime:   startTime,
 			EndTime:     endTime,
 			TemplateIDs: seenTemplateIDs,
-			Users:       nil, // FIXME
+			Users:       userActivities,
 		},
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, resp)

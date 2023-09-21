@@ -53,7 +53,7 @@ WITH app_stats_by_user_and_agent AS (
 )
 
 SELECT
-	users.id,
+	users.id as user_id,
 	users.username,
 	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
