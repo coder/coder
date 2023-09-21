@@ -3,6 +3,7 @@ package agenttest
 import (
 	"context"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,6 +36,34 @@ type Options struct {
 	Logger *slog.Logger
 }
 
+// Agent is a small wrapper around an agent for use in tests.
+type Agent struct {
+	waitOnce    sync.Once
+	agent       agent.Agent
+	agentClient *agentsdk.Client
+	resources   []codersdk.WorkspaceResource
+	waiter      func(*codersdk.Client) []codersdk.WorkspaceResource
+}
+
+// Wait waits for the agent to connect to the workspace and returns the
+// resources for the connected workspace.
+func (a *Agent) Wait(client *codersdk.Client) []codersdk.WorkspaceResource {
+	a.waitOnce.Do(func() {
+		a.resources = a.waiter(client)
+	})
+	return a.resources
+}
+
+// Client returns the agent client.
+func (a *Agent) Client() *agentsdk.Client {
+	return a.agentClient
+}
+
+// Agent returns the agent itself.
+func (a *Agent) Agent() agent.Agent {
+	return a.agent
+}
+
 // OptFunc is a function that modifies the given options.
 type OptFunc func(*Options)
 
@@ -57,10 +86,10 @@ func WithWorkspaceID(id uuid.UUID) OptFunc {
 }
 
 // New starts a new agent for use in tests.
-// Returns the agent client and a function that will block until the agent is
-// connected to the workspace.
+// Returns a wrapper around the agent that can be used to wait for the agent to
+// connect to the workspace.
 // Closing the agent is handled by the test cleanup.
-func New(t testing.TB, opts ...OptFunc) (agentClient *agentsdk.Client, awaitAgent func(*codersdk.Client)) {
+func New(t testing.TB, opts ...OptFunc) *Agent {
 	t.Helper()
 
 	var o Options
@@ -71,7 +100,7 @@ func New(t testing.TB, opts ...OptFunc) (agentClient *agentsdk.Client, awaitAgen
 	if o.URL == nil {
 		require.Fail(t, "must specify URL for agent")
 	}
-	agentClient = agentsdk.New(o.URL)
+	agentClient := agentsdk.New(o.URL)
 
 	if o.AgentToken == "" {
 		o.AgentToken = uuid.NewString()
@@ -104,12 +133,15 @@ func New(t testing.TB, opts ...OptFunc) (agentClient *agentsdk.Client, awaitAgen
 		assert.NoError(t, agentCloser.Close(), "failed to close agent during cleanup")
 	})
 
-	awaitAgent = func(c *codersdk.Client) {
-		if o.WorkspaceID == uuid.Nil {
-			require.FailNow(t, "must specify workspace ID for agent in order to wait")
-		}
-		coderdtest.AwaitWorkspaceAgents(t, c, o.WorkspaceID)
+	return &Agent{
+		agent:       agentCloser,
+		agentClient: agentClient,
+		waiter: func(c *codersdk.Client) []codersdk.WorkspaceResource {
+			if o.WorkspaceID == uuid.Nil {
+				require.FailNow(t, "must specify workspace ID for agent in order to wait")
+				return nil // unreachable
+			}
+			return coderdtest.AwaitWorkspaceAgents(t, c, o.WorkspaceID)
+		},
 	}
-
-	return agentClient, awaitAgent
 }
