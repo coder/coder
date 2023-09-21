@@ -33,7 +33,7 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
-replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230829194950-a67722fa7a82
+replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230921183700-c821c9c9966d
 
 // This is replaced to include a fix that causes a deadlock when closing the
 // wireguard network.
