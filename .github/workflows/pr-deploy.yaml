@@ -37,10 +37,6 @@ permissions:
   packages: write
   pull-requests: write # needed for commenting on PRs
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   check_pr:
     runs-on: ubuntu-latest
@@ -198,6 +194,10 @@ jobs:
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
+    concurrency:
+      group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
+      cancel-in-progress: true
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
