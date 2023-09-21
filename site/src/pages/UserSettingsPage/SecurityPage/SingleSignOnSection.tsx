@@ -18,6 +18,10 @@ import { useMutation } from "@tanstack/react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getErrorMessage } from "api/errors";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { makeStyles } from "@mui/styles";
+import Link from "@mui/material/Link";
+import { docs } from "utils/docs";
 
 type LoginTypeConfirmation =
   | {
@@ -97,6 +101,32 @@ export const useSingleSignOnSection = () => {
   };
 };
 
+const useEmptyStateStyles = makeStyles((theme) => ({
+  root: {
+    minHeight: 0,
+    padding: theme.spacing(6, 4),
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: theme.shape.borderRadius,
+  },
+}));
+
+function SSOEmptyState() {
+  const styles = useEmptyStateStyles();
+
+  return (
+    <EmptyState
+      className={styles.root}
+      message="No SSO Providers"
+      description="No SSO providers are configured with this Coder deployment."
+      cta={
+        <Link href={docs("/admin/auth")} target="_blank" rel="noreferrer">
+          Learn how to add a provider
+        </Link>
+      }
+    />
+  );
+}
+
 type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
   authMethods: AuthMethods;
   userLoginType: UserLoginType;
@@ -112,6 +142,12 @@ export const SingleSignOnSection = ({
   isConfirming,
   error,
 }: SingleSignOnSectionProps) => {
+  const authList = Object.values(
+    authMethods,
+  ) as (typeof authMethods)[keyof typeof authMethods][];
+
+  const noSsoEnabled = !authList.some((method) => method.enabled);
+
   return (
     <>
       <Section
@@ -133,6 +169,7 @@ export const SingleSignOnSection = ({
                   GitHub
                 </Button>
               )}
+
               {authMethods.oidc.enabled && (
                 <Button
                   size="large"
@@ -144,6 +181,8 @@ export const SingleSignOnSection = ({
                   {getOIDCLabel(authMethods.oidc)}
                 </Button>
               )}
+
+              {noSsoEnabled && <SSOEmptyState />}
             </>
           ) : (
             <Box
