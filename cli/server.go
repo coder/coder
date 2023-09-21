@@ -532,29 +532,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", vals.SSHKeygenAlgorithm, err)
 			}
 
-			defaultRegion := &tailcfg.DERPRegion{
-				EmbeddedRelay: true,
-				RegionID:      int(vals.DERP.Server.RegionID.Value()),
-				RegionCode:    vals.DERP.Server.RegionCode.String(),
-				RegionName:    vals.DERP.Server.RegionName.String(),
-				Nodes: []*tailcfg.DERPNode{{
-					Name:      fmt.Sprintf("%db", vals.DERP.Server.RegionID),
-					RegionID:  int(vals.DERP.Server.RegionID.Value()),
-					HostName:  vals.AccessURL.Value().Hostname(),
-					DERPPort:  accessURLPort,
-					STUNPort:  -1,
-					ForceHTTP: vals.AccessURL.Scheme == "http",
-				}},
-			}
-			if !vals.DERP.Server.Enable {
-				defaultRegion = nil
-			}
-
-			derpMap, err := tailnet.NewDERPMap(
-				ctx, defaultRegion, vals.DERP.Server.STUNAddresses,
-				vals.DERP.Config.URL.String(), vals.DERP.Config.Path.String(),
-				vals.DERP.Config.BlockDirect.Value(),
-			)
+			derpMap, err := createDERPMap(ctx, logger, vals, accessURLPort)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
@@ -2237,4 +2215,65 @@ func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 	}
 
 	return httpServers, nil
+}
+
+func createDERPMap(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues, accessURLPort int) (*tailcfg.DERPMap, error) {
+	defaultRegion := &tailcfg.DERPRegion{
+		EmbeddedRelay: true,
+		RegionID:      int(vals.DERP.Server.RegionID.Value()),
+		RegionCode:    vals.DERP.Server.RegionCode.String(),
+		RegionName:    vals.DERP.Server.RegionName.String(),
+		Nodes: []*tailcfg.DERPNode{{
+			Name:      fmt.Sprintf("%db", vals.DERP.Server.RegionID),
+			RegionID:  int(vals.DERP.Server.RegionID.Value()),
+			HostName:  vals.AccessURL.Value().Hostname(),
+			DERPPort:  accessURLPort,
+			STUNPort:  -1,
+			ForceHTTP: vals.AccessURL.Scheme == "http",
+		}},
+	}
+	if !vals.DERP.Server.Enable {
+		defaultRegion = nil
+	}
+
+	baseMapURL := vals.DERP.Config.URL.String()
+	if baseMapURL != "" && vals.DERP.Config.Path.String() != "" {
+		return nil, xerrors.Errorf("cannot specify both --derp-config-url and --derp-config-path")
+	} else {
+		baseMapURL = "file:" + vals.DERP.Config.Path.String()
+	}
+
+	// If they have a URL or path already set above, it takes precedence over
+	// the Tailscale DERP map value since Tailscale defaults to true.
+	if vals.DERP.Config.UseTailscaleDERPs.Value() {
+		if baseMapURL != "" {
+			baseMapURL = codersdk.TailscaleDERPMapURL
+		} else if baseMapURL != codersdk.TailscaleDERPMapURL {
+			// We add the check to the if statement in case they're manually
+			// setting the URL to the Tailscale DERP URL.
+			logger.Warn(ctx, "The deployment has CODER_DERP_CONFIG_URL or CODER_DERP_CONFIG_PATH set, and CODER_USE_TAILSCALE_DERPS is set to the default value `true`. Tailscale DERPs will not be used.")
+		}
+	}
+
+	// If the admin is using Tailscale's DERP map, then we don't want to
+	// put the configured STUN addresses in their own regions to avoid
+	// doing any funky stuff with the DERP map.
+	//
+	// Each Tailscale DERP map region has STUN servers already so we don't need
+	// to worry about hard NAT probing failing because only one region has STUN
+	// servers.
+	individualSTUNRegions := baseMapURL != codersdk.TailscaleDERPMapURL
+
+	derpMap, err := tailnet.NewDERPMap(
+		ctx, defaultRegion,
+		vals.DERP.Server.STUNAddresses,
+		individualSTUNRegions,
+		vals.DERP.Config.BlockDirect.Value(),
+		baseMapURL,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("create derp map: %w", err)
+	}
+
+	return derpMap, nil
 }

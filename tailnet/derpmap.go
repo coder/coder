@@ -4,16 +4,37 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 )
 
 const DisableSTUN = "disable"
+
+func STUNNode(regionID, index int, stunAddr string) (*tailcfg.DERPNode, error) {
+	host, rawPort, err := net.SplitHostPort(stunAddr)
+	if err != nil {
+		return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
+	}
+	port, err := strconv.Atoi(rawPort)
+	if err != nil {
+		return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
+	}
+
+	return &tailcfg.DERPNode{
+		Name:     fmt.Sprintf("%dstun%d", regionID, index),
+		RegionID: regionID,
+		HostName: host,
+		STUNOnly: true,
+		STUNPort: port,
+	}, nil
+}
 
 func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, error) {
 	regions := make([]*tailcfg.DERPRegion, 0, len(stunAddrs))
@@ -22,28 +43,18 @@ func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, e
 			return []*tailcfg.DERPRegion{}, nil
 		}
 
-		host, rawPort, err := net.SplitHostPort(stunAddr)
+		regionID := baseRegionID + index + 1
+		node, err := STUNNode(regionID, 0, stunAddr)
 		if err != nil {
-			return nil, xerrors.Errorf("split host port for %q: %w", stunAddr, err)
-		}
-		port, err := strconv.Atoi(rawPort)
-		if err != nil {
-			return nil, xerrors.Errorf("parse port for %q: %w", stunAddr, err)
+			return nil, xerrors.Errorf("create stun node: %w", err)
 		}
 
-		regionID := baseRegionID + index + 1
 		regions = append(regions, &tailcfg.DERPRegion{
 			EmbeddedRelay: false,
 			RegionID:      regionID,
 			RegionCode:    fmt.Sprintf("coder_stun_%d", regionID),
 			RegionName:    fmt.Sprintf("Coder STUN %d", regionID),
-			Nodes: []*tailcfg.DERPNode{{
-				Name:     fmt.Sprintf("%dstun0", regionID),
-				RegionID: regionID,
-				HostName: host,
-				STUNOnly: true,
-				STUNPort: port,
-			}},
+			Nodes:         []*tailcfg.DERPNode{node},
 		})
 	}
 
@@ -53,11 +64,22 @@ func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, e
 // NewDERPMap constructs a DERPMap from a set of STUN addresses and optionally a remote
 // URL to fetch a mapping from e.g. https://controlplane.tailscale.com/derpmap/default.
 //
+// stunAddrs is a list of STUN servers to add to the DERPMap. If the default
+// region is nil, stunAddrs is ignored.
+//
+// individualSTUNRegions denotes whether to add a separate region for each STUN
+// server or to add all STUN servers to the default region.
+//
+// disableSTUN will set stunAddrs to nil and remove any STUNPorts and STUNOnly
+// nodes from the DERPMap.
+//
+// baseMapURL is a URL to fetch a base DERPMap from before applying the custom
+// region and STUN servers. If the URL starts with "file:", the rest of the URL
+// is treated as a file path and the file is opened locally. Otherwise, the URL
+// is fetched via HTTP GET. Optional.
+//
 //nolint:revive
-func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, remoteURL, localPath string, disableSTUN bool) (*tailcfg.DERPMap, error) {
-	if remoteURL != "" && localPath != "" {
-		return nil, xerrors.New("a remote URL or local path must be specified, not both")
-	}
+func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, individualSTUNRegions bool, disableSTUN bool, baseMapURL string) (*tailcfg.DERPMap, error) {
 	if disableSTUN {
 		stunAddrs = nil
 	}
@@ -68,39 +90,54 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	addRegions := []*tailcfg.DERPRegion{}
 	if region != nil {
 		addRegions = append(addRegions, region)
-		stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
-		if err != nil {
-			return nil, xerrors.Errorf("create stun regions: %w", err)
+
+		if individualSTUNRegions {
+			stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
+			if err != nil {
+				return nil, xerrors.Errorf("create stun regions: %w", err)
+			}
+			addRegions = append(addRegions, stunRegions...)
+		} else {
+			for index, stunAddr := range stunAddrs {
+				node, err := STUNNode(region.RegionID, index, stunAddr)
+				if err != nil {
+					return nil, xerrors.Errorf("create stun node: %w", err)
+				}
+				region.Nodes = append(region.Nodes, node)
+			}
 		}
-		addRegions = append(addRegions, stunRegions...)
 	}
 
 	derpMap := &tailcfg.DERPMap{
 		Regions: map[int]*tailcfg.DERPRegion{},
 	}
-	if remoteURL != "" {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, remoteURL, nil)
-		if err != nil {
-			return nil, xerrors.Errorf("create request: %w", err)
+
+	// Fetch base DERP map if set.
+	if baseMapURL != "" {
+		var r io.Reader
+		if strings.HasPrefix(baseMapURL, "file:") {
+			f, err := os.Open(baseMapURL[5:])
+			if err != nil {
+				return nil, xerrors.Errorf("open file %q: %w", baseMapURL, err)
+			}
+			defer f.Close()
+			r = f
+		} else {
+			req, err := http.NewRequestWithContext(ctx, http.MethodGet, baseMapURL, nil)
+			if err != nil {
+				return nil, xerrors.Errorf("create request to GET %q: %w", baseMapURL, err)
+			}
+			res, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return nil, xerrors.Errorf("GET %q: %w", baseMapURL, err)
+			}
+			defer res.Body.Close()
+			r = res.Body
 		}
-		res, err := http.DefaultClient.Do(req)
-		if err != nil {
-			return nil, xerrors.Errorf("get derpmap: %w", err)
-		}
-		defer res.Body.Close()
-		err = json.NewDecoder(res.Body).Decode(&derpMap)
+
+		err := json.NewDecoder(r).Decode(&derpMap)
 		if err != nil {
 			return nil, xerrors.Errorf("fetch derpmap: %w", err)
-		}
-	}
-	if localPath != "" {
-		content, err := os.ReadFile(localPath)
-		if err != nil {
-			return nil, xerrors.Errorf("read derpmap from %q: %w", localPath, err)
-		}
-		err = json.Unmarshal(content, &derpMap)
-		if err != nil {
-			return nil, xerrors.Errorf("unmarshal derpmap: %w", err)
 		}
 	}
 
@@ -109,7 +146,7 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 		for _, region := range addRegions {
 			_, conflicts := derpMap.Regions[region.RegionID]
 			if conflicts {
-				return nil, xerrors.Errorf("a default region ID %d (%s - %q) conflicts with a remote region from %q", region.RegionID, region.RegionCode, region.RegionName, remoteURL)
+				return nil, xerrors.Errorf("a default region ID %d (%s - %q) conflicts with a remote region from %q", region.RegionID, region.RegionCode, region.RegionName, baseMapURL)
 			}
 			derpMap.Regions[region.RegionID] = region
 		}

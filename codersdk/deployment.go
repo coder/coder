@@ -20,6 +20,18 @@ import (
 	"github.com/coder/coder/v2/cli/clibase"
 )
 
+// DefaultSTUNAddresses is the list of default STUN addresses.
+var DefaultSTUNAddresses = []string{
+	"stun.l.google.com:19302",
+	"stun1.l.google.com:19302",
+	"stun2.l.google.com:19302",
+	"stun3.l.google.com:19302",
+	"stun4.l.google.com:19302",
+}
+
+// TailscaleDERPMapURL is the URL to the Tailscale global DERP map.
+const TailscaleDERPMapURL = "https://controlplane.tailscale.com/derpmap/default"
+
 // Entitlement represents whether a feature is licensed.
 type Entitlement string
 
@@ -237,10 +249,11 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
-	URL             clibase.String `json:"url" typescript:",notnull"`
-	Path            clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect       clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets   clibase.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL               clibase.String `json:"url" typescript:",notnull"`
+	Path              clibase.String `json:"path" typescript:",notnull"`
+	UseTailscaleDERPs clibase.Bool   `json:"use_tailscale_derps" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -775,7 +788,7 @@ when required by your organization's security policy.`,
 			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
+			Default:     strings.Join(DefaultSTUNAddresses, ","),
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
@@ -815,7 +828,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Config URL",
-			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
+			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/. Use `file:/home/coder/path/to/derpmap.json` for local paths.",
 			Flag:        "derp-config-url",
 			Env:         "CODER_DERP_CONFIG_URL",
 			Value:       &c.DERP.Config.URL,
@@ -830,6 +843,20 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Config.Path,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "configPath",
+			// --derp-config-url supports file: URLs now, so this is hidden.
+			Hidden: true,
+		},
+		{
+			Name:        "Use Tailscale DERP network",
+			Description: "Use Tailscale's global relay and STUN network for your DERP mapping. The embedded relay will also be included if it is enabled. The STUN servers set by `--derp-server-stun-addresses` will be added to the default region instead of their own regions. This value will be ignored if you set a `--derp-config-url`.",
+			Flag:        "use-tailscale-derps",
+			Env:         "CODER_USE_TAILSCALE_DERPS",
+			Value:       &c.DERP.Config.UseTailscaleDERPs,
+			// This is the default because it's more stable than the built-in
+			// DERP and provides lower latency for global teams.
+			Default: "true",
+			Group:   &deploymentGroupNetworkingDERP,
+			YAML:    "useTailscaleDERPs",
 		},
 		// TODO: support Git Auth settings.
 		// Prometheus settings
