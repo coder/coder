@@ -135,11 +135,22 @@ message CommitQuotaResponse {
     int32 budget = 3;
 }
 
+message CancelAcquire {}
+
 service ProvisionerDaemon {
     // AcquireJob requests a job. Implementations should
     // hold a lock on the job until CompleteJob() is
     // called with the matching ID.
-    rpc AcquireJob(Empty) returns (AcquiredJob);
+    rpc AcquireJob(Empty) returns (AcquiredJob) {
+        option deprecated = true;
+    };
+    // AcquireJobWithCancel requests a job, blocking until
+    // a job is available or the client sends CancelAcquire.
+    // Server will send exactly one AcquiredJob, which is
+    // empty if a cancel was successful.  This RPC is a bidirectional
+    // stream since both messages are asynchronous with no implied
+    // ordering.
+    rpc AcquireJobWithCancel(stream CancelAcquire) returns (stream AcquiredJob);
 
     rpc CommitQuota(CommitQuotaRequest) returns (CommitQuotaResponse);
 

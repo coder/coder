@@ -170,6 +170,7 @@ func TestDERPHeaders(t *testing.T) {
 
 	// Connect with the headers set as args.
 	args := []string{
+		"-v",
 		"--no-feature-warning",
 		"--no-version-warning",
 		"ping", workspace.Name,

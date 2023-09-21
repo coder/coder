@@ -3089,9 +3089,10 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value |
-| ----- |
-| `day` |
+| Value  |
+| ------ |
+| `day`  |
+| `week` |
 
 ## codersdk.IssueReconnectingPTYSignedTokenRequest
 
@@ -4425,7 +4426,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "active_users": 14,
   "end_time": "2019-08-24T14:15:22Z",
-  "interval": "day",
+  "interval": "week",
   "start_time": "2019-08-24T14:15:22Z",
   "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
 }
@@ -4504,7 +4505,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "active_users": 14,
       "end_time": "2019-08-24T14:15:22Z",
-      "interval": "day",
+      "interval": "week",
       "start_time": "2019-08-24T14:15:22Z",
       "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"]
     }

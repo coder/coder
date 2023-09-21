@@ -40,7 +40,7 @@ func TestTelemetry(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
-		_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		_ = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Provisioner:   database.ProvisionerTypeTerraform,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,

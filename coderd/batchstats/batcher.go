@@ -243,6 +243,10 @@ func (b *Batcher) flush(ctx context.Context, forced bool, reason string) {
 	err = b.store.InsertWorkspaceAgentStats(ctx, *b.buf)
 	elapsed := time.Since(start)
 	if err != nil {
+		if database.IsQueryCanceledError(err) {
+			b.log.Debug(ctx, "query canceled, skipping insert of workspace agent stats", slog.F("elapsed", elapsed))
+			return
+		}
 		b.log.Error(ctx, "error inserting workspace agent stats", slog.Error(err), slog.F("elapsed", elapsed))
 		return
 	}

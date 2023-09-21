@@ -20,9 +20,22 @@ const insightsTimeLayout = time.RFC3339
 // smaller insights report within a time range.
 type InsightsReportInterval string
 
+// Days returns the duration of the interval in days.
+func (interval InsightsReportInterval) Days() int32 {
+	switch interval {
+	case InsightsReportIntervalDay:
+		return 1
+	case InsightsReportIntervalWeek:
+		return 7
+	default:
+		panic("developer error: unsupported report interval")
+	}
+}
+
 // InsightsReportInterval enums.
 const (
-	InsightsReportIntervalDay InsightsReportInterval = "day"
+	InsightsReportIntervalDay  InsightsReportInterval = "day"
+	InsightsReportIntervalWeek InsightsReportInterval = "week"
 )
 
 // UserLatencyInsightsResponse is the response from the user latency insights
@@ -109,7 +122,7 @@ type TemplateInsightsIntervalReport struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval"`
+	Interval    InsightsReportInterval `json:"interval" example:"week"`
 	ActiveUsers int64                  `json:"active_users" example:"14"`
 }
 
@@ -155,7 +168,7 @@ type TemplateInsightsRequest struct {
 	StartTime   time.Time              `json:"start_time" format:"date-time"`
 	EndTime     time.Time              `json:"end_time" format:"date-time"`
 	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval"`
+	Interval    InsightsReportInterval `json:"interval" example:"day"`
 }
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {

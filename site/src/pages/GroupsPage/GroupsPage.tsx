@@ -1,24 +1,28 @@
-import { useMachine } from "@xstate/react";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { usePermissions } from "hooks/usePermissions";
-import { FC } from "react";
+import { FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { groupsMachine } from "xServices/groups/groupsXService";
 import GroupsPageView from "./GroupsPageView";
+import { useQuery } from "@tanstack/react-query";
+import { groups } from "api/queries/groups";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { getErrorMessage } from "api/errors";
 
 export const GroupsPage: FC = () => {
   const organizationId = useOrganizationId();
   const { createGroup: canCreateGroup } = usePermissions();
   const { template_rbac: isTemplateRBACEnabled } = useFeatureVisibility();
-  const [state] = useMachine(groupsMachine, {
-    context: {
-      organizationId,
-      shouldFetchGroups: isTemplateRBACEnabled,
-    },
-  });
-  const { groups } = state.context;
+  const groupsQuery = useQuery(groups(organizationId));
+
+  useEffect(() => {
+    if (groupsQuery.error) {
+      displayError(
+        getErrorMessage(groupsQuery.error, "Error on loading groups."),
+      );
+    }
+  }, [groupsQuery.error]);
 
   return (
     <>
@@ -27,7 +31,7 @@ export const GroupsPage: FC = () => {
       </Helmet>
 
       <GroupsPageView
-        groups={groups}
+        groups={groupsQuery.data}
         canCreateGroup={canCreateGroup}
         isTemplateRBACEnabled={isTemplateRBACEnabled}
       />

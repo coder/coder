@@ -278,8 +278,7 @@ func (r *RootCmd) login() *clibase.Cmd {
 				}
 
 				sessionToken, err = cliui.Prompt(inv, cliui.PromptOptions{
-					Text:   "Paste your token here:",
-					Secret: true,
+					Text: "Paste your token here:",
 					Validate: func(token string) error {
 						client.SetSessionToken(token)
 						_, err := client.User(ctx, codersdk.Me)

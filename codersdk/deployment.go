@@ -92,6 +92,7 @@ func (n FeatureName) AlwaysEnable() bool {
 		FeatureMultipleGitAuth:            true,
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
+		FeatureWorkspaceBatchActions:      true,
 	}[n]
 }
 
@@ -1272,7 +1273,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Poll Interval",
-			Description: "Time to wait before polling for a new job.",
+			Description: "Deprecated and ignored.",
 			Flag:        "provisioner-daemon-poll-interval",
 			Env:         "CODER_PROVISIONER_DAEMON_POLL_INTERVAL",
 			Default:     time.Second.String(),
@@ -1282,7 +1283,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Poll Jitter",
-			Description: "Random jitter added to the poll interval.",
+			Description: "Deprecated and ignored.",
 			Flag:        "provisioner-daemon-poll-jitter",
 			Env:         "CODER_PROVISIONER_DAEMON_POLL_JITTER",
 			Default:     (100 * time.Millisecond).String(),

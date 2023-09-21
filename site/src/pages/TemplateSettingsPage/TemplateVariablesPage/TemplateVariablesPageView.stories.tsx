@@ -49,7 +49,7 @@ export const RequiredVariable: Story = {
   },
 };
 
-export const WithUpdateTemplateError: Story = {
+export const WithErrors: Story = {
   args: {
     templateVersion: MockTemplateVersion,
     templateVariables: [
@@ -59,25 +59,20 @@ export const WithUpdateTemplateError: Story = {
       MockTemplateVersionVariable4,
     ],
     errors: {
-      updateTemplateError: mockApiError({
-        message: "Something went wrong.",
+      buildError: mockApiError({
+        message: "buildError",
+        validations: [
+          {
+            field: `user_variable_values[0].value`,
+            detail: "Variable is required.",
+          },
+        ],
       }),
+      publishError: mockApiError({ message: "publishError" }),
     },
-  },
-};
 
-export const WithJobError: Story = {
-  args: {
-    templateVersion: MockTemplateVersion,
-    templateVariables: [
-      MockTemplateVersionVariable1,
-      MockTemplateVersionVariable2,
-      MockTemplateVersionVariable3,
-      MockTemplateVersionVariable4,
-    ],
-    errors: {
-      jobError:
-        "template import provision for start: recv import provision: plan terraform: terraform plan: exit status 1",
+    initialTouched: {
+      user_variable_values: true,
     },
   },
 };

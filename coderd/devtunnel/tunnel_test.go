@@ -189,23 +189,34 @@ func newTunnelServer(t *testing.T) *tunnelServer {
 	require.Equal(t, "https", baseURLParsed.Scheme)
 	baseURLParsed.Host = net.JoinHostPort("tunnel.coder.com", baseURLParsed.Port())
 
-	wireguardPort := freeUDPPort(t)
-
 	key, err := tunnelsdk.GeneratePrivateKey()
 	require.NoError(t, err)
 
-	options := &tunneld.Options{
-		BaseURL:                baseURLParsed,
-		WireguardEndpoint:      fmt.Sprintf("127.0.0.1:%d", wireguardPort),
-		WireguardPort:          wireguardPort,
-		WireguardKey:           key,
-		WireguardMTU:           tunneld.DefaultWireguardMTU,
-		WireguardServerIP:      tunneld.DefaultWireguardServerIP,
-		WireguardNetworkPrefix: tunneld.DefaultWireguardNetworkPrefix,
-	}
+	// Sadly the tunnel server needs to be passed a port number and can't be
+	// passed an active listener (because wireguard needs to make the listener),
+	// so we may need to try a few times to get a free port.
+	var td *tunneld.API
+	for i := 0; i < 10; i++ {
+		wireguardPort := freeUDPPort(t)
+		options := &tunneld.Options{
+			BaseURL:                baseURLParsed,
+			WireguardEndpoint:      fmt.Sprintf("127.0.0.1:%d", wireguardPort),
+			WireguardPort:          wireguardPort,
+			WireguardKey:           key,
+			WireguardMTU:           tunneld.DefaultWireguardMTU,
+			WireguardServerIP:      tunneld.DefaultWireguardServerIP,
+			WireguardNetworkPrefix: tunneld.DefaultWireguardNetworkPrefix,
+		}
 
-	td, err := tunneld.New(options)
-	require.NoError(t, err)
+		td, err = tunneld.New(options)
+		if err == nil {
+			break
+		}
+		t.Logf("failed to create tunnel server on port %d: %s", wireguardPort, err)
+	}
+	if td == nil {
+		t.Fatal("failed to create tunnel server in 10 attempts")
+	}
 	handler = td.Router()
 	t.Cleanup(func() {
 		_ = td.Close()

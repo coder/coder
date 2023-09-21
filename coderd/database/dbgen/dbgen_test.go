@@ -86,7 +86,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("Job", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
+		exp := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 		require.Equal(t, exp, must(db.GetProvisionerJobByID(context.Background(), exp.ID)))
 	})
 
