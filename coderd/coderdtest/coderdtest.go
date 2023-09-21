@@ -798,7 +798,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 // AwaitWorkspaceAgents waits for all resources with agents to be connected. If
 // specific agents are provided, it will wait for those agents to be connected
 // but will not fail if other agents are not connected.
-func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
+func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, agentNames ...string) []codersdk.WorkspaceResource {
 	t.Helper()
 
 	agentNamesMap := make(map[string]struct{}, len(agentNames))

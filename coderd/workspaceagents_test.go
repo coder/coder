@@ -20,7 +20,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -484,20 +484,15 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-		})
-		defer func() {
-			_ = agentCloser.Close()
-		}()
+		resources := agenttest.New(t,
+			agenttest.WithURL(client.URL),
+			agenttest.WithAgentToken(authToken),
+			agenttest.WithWorkspaceID(workspace.ID),
+		).Wait(client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, nil)
 		require.NoError(t, err)
 		defer func() {
@@ -585,14 +580,11 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	defer agentCloser.Close()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := agenttest.New(t,
+		agenttest.WithURL(client.URL),
+		agenttest.WithAgentToken(authToken),
+		agenttest.WithWorkspaceID(workspace.ID),
+	).Wait(client)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -646,12 +638,11 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, manifest.DisableDirectConnections)
 
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	defer agentCloser.Close()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	resources := agenttest.New(t,
+		agenttest.WithURL(client.URL),
+		agenttest.WithAgentToken(authToken),
+		agenttest.WithWorkspaceID(workspace.ID),
+	).Wait(client)
 	agentID := resources[0].Agents[0].ID
 
 	// Verify that the connection data has no STUN ports and
@@ -729,17 +720,11 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-		})
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
+		resources := agenttest.New(t,
+			agenttest.WithURL(client.URL),
+			agenttest.WithAgentToken(authToken),
+			agenttest.WithWorkspaceID(workspace.ID),
+		).Wait(client)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -1457,17 +1442,15 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: logger.Named("agent"),
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
-	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	agt := agenttest.New(t,
+		agenttest.WithURL(client.URL),
+		agenttest.WithAgentToken(agentToken),
+		agenttest.WithWorkspaceID(workspace.ID),
+	)
+	resources := agt.Wait(client)
 	agentID := resources[0].Agents[0].ID
+	agentCloser := agt.Agent()
 
 	// Connect from a client.
 	ctx := testutil.Context(t, testutil.WaitLong)

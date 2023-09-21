@@ -15,17 +15,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/gliderlabs/ssh"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
+
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -64,22 +60,13 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	agentLog := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("agent")
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	agt := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: agentLog,
-		LogDir: t.TempDir(),
-		ExchangeToken: func(_ context.Context) (string, error) {
-			return agentToken, nil
-		},
-	})
-	t.Cleanup(func() {
-		assert.NoError(t, agt.Close(), "failed to close agent in cleanup")
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-	return agentClient, agentToken, pubkey
+	agt := agenttest.New(t,
+		agenttest.WithURL(client.URL),
+		agenttest.WithAgentToken(agentToken),
+		agenttest.WithWorkspaceID(workspace.ID),
+	)
+	agt.Wait(client)
+	return agt.Client(), agentToken, pubkey
 }
 
 func serveSSHForGitSSH(t *testing.T, handler func(ssh.Session), pubkeys ...gossh.PublicKey) *net.TCPAddr {
