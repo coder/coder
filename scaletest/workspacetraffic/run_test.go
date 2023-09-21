@@ -32,6 +32,7 @@ func TestRun(t *testing.T) {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
+	//nolint:dupl
 	t.Run("PTY", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
@@ -153,6 +154,7 @@ func TestRun(t *testing.T) {
 		assert.Zero(t, writeMetrics.Errors())
 	})
 
+	//nolint:dupl
 	t.Run("SSH", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
