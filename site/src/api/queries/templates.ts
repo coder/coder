@@ -120,3 +120,16 @@ export const updateActiveTemplateVersion = (
     },
   };
 };
+
+export const templateVersionGitAuthKey = (versionId: string) => [
+  "templateVersion",
+  versionId,
+  "gitAuth",
+];
+
+export const templateVersionGitAuth = (versionId: string) => {
+  return {
+    queryKey: templateVersionGitAuthKey(versionId),
+    queryFn: () => API.getTemplateVersionGitAuth(versionId),
+  };
+};

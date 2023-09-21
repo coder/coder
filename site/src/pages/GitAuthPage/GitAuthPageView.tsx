@@ -76,7 +76,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
     <SignInLayout>
       <Welcome message={`You've authenticated with ${gitAuth.type}!`} />
       <p className={styles.text}>
-        Hey @{gitAuth.user?.login} 👋!{" "}
+        Hey @{gitAuth.user?.login}! 👋{" "}
         {(!gitAuth.app_installable || gitAuth.installations.length > 0) &&
           "You are now authenticated with Git. Feel free to close this window!"}
       </p>
