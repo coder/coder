@@ -491,19 +491,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			_, accessURLPortRaw, _ := net.SplitHostPort(vals.AccessURL.Host)
-			if accessURLPortRaw == "" {
-				accessURLPortRaw = "80"
-				if vals.AccessURL.Scheme == "https" {
-					accessURLPortRaw = "443"
-				}
-			}
-
-			accessURLPort, err := strconv.Atoi(accessURLPortRaw)
-			if err != nil {
-				return xerrors.Errorf("parse access URL port: %w", err)
-			}
-
 			// Warn the user if the access URL is loopback or unresolvable.
 			isLocal, err := IsLocalURL(ctx, vals.AccessURL.Value())
 			if isLocal || err != nil {
@@ -532,7 +519,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse ssh keygen algorithm %s: %w", vals.SSHKeygenAlgorithm, err)
 			}
 
-			derpMap, err := createDERPMap(ctx, logger, vals, accessURLPort)
+			derpMap, err := createDERPMap(ctx, logger, vals)
 			if err != nil {
 				return xerrors.Errorf("create derp map: %w", err)
 			}
@@ -2217,7 +2204,20 @@ func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 	return httpServers, nil
 }
 
-func createDERPMap(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues, accessURLPort int) (*tailcfg.DERPMap, error) {
+func createDERPMap(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*tailcfg.DERPMap, error) {
+	_, accessURLPortRaw, _ := net.SplitHostPort(vals.AccessURL.Host)
+	if accessURLPortRaw == "" {
+		accessURLPortRaw = "80"
+		if vals.AccessURL.Scheme == "https" {
+			accessURLPortRaw = "443"
+		}
+	}
+
+	accessURLPort, err := strconv.Atoi(accessURLPortRaw)
+	if err != nil {
+		return nil, xerrors.Errorf("parse access URL port: %w", err)
+	}
+
 	defaultRegion := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(vals.DERP.Server.RegionID.Value()),
