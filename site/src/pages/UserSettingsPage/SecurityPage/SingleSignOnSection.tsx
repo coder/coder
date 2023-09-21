@@ -7,7 +7,12 @@ import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { convertToOAUTH } from "api/api";
-import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated";
+import {
+  AuthMethods,
+  LoginType,
+  OIDCAuthMethod,
+  UserLoginType,
+} from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { useMutation } from "@tanstack/react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -133,10 +138,10 @@ export const SingleSignOnSection = ({
                   size="large"
                   fullWidth
                   disabled={isUpdating}
-                  startIcon={<OIDCIcon authMethods={authMethods} />}
+                  startIcon={<OIDCIcon oidcAuth={authMethods.oidc} />}
                   onClick={() => openConfirmation("oidc")}
                 >
-                  {getOIDCLabel(authMethods)}
+                  {getOIDCLabel(authMethods.oidc)}
                 </Button>
               )}
             </>
@@ -164,14 +169,14 @@ export const SingleSignOnSection = ({
                 <strong>
                   {userLoginType.login_type === "github"
                     ? "GitHub"
-                    : getOIDCLabel(authMethods)}
+                    : getOIDCLabel(authMethods.oidc)}
                 </strong>
               </span>
               <Box sx={{ ml: "auto", lineHeight: 1 }}>
                 {userLoginType.login_type === "github" ? (
                   <GitHubIcon sx={{ width: 16, height: 16 }} />
                 ) : (
-                  <OIDCIcon authMethods={authMethods} />
+                  <OIDCIcon oidcAuth={authMethods.oidc} />
                 )}
               </Box>
             </Box>
@@ -190,21 +195,23 @@ export const SingleSignOnSection = ({
   );
 };
 
-const OIDCIcon = ({ authMethods }: { authMethods: AuthMethods }) => {
-  return authMethods.oidc.iconUrl ? (
+const OIDCIcon = ({ oidcAuth }: { oidcAuth: OIDCAuthMethod }) => {
+  if (!oidcAuth.iconUrl) {
+    return <KeyIcon sx={{ width: 16, height: 16 }} />;
+  }
+
+  return (
     <Box
       component="img"
       alt="Open ID Connect icon"
-      src={authMethods.oidc.iconUrl}
+      src={oidcAuth.iconUrl}
       sx={{ width: 16, height: 16 }}
     />
-  ) : (
-    <KeyIcon sx={{ width: 16, height: 16 }} />
   );
 };
 
-const getOIDCLabel = (authMethods: AuthMethods) => {
-  return authMethods.oidc.signInText || "OpenID Connect";
+const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
+  return oidcAuth.signInText || "OpenID Connect";
 };
 
 const ConfirmLoginTypeChangeModal = ({
