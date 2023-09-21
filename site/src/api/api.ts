@@ -792,11 +792,11 @@ export const getWorkspaceBuildByNumber = async (
 };
 
 export const getWorkspaceBuildLogs = async (
-  buildname: string,
+  buildId: string,
   before: Date,
 ): Promise<TypesGen.ProvisionerJobLog[]> => {
   const response = await axios.get<TypesGen.ProvisionerJobLog[]>(
-    `/api/v2/workspacebuilds/${buildname}/logs?before=${before.getTime()}`,
+    `/api/v2/workspacebuilds/${buildId}/logs?before=${before.getTime()}`,
   );
   return response.data;
 };
@@ -1432,8 +1432,8 @@ export const watchWorkspaceAgentLogs = (
 type WatchBuildLogsByBuildIdOptions = {
   after?: number;
   onMessage: (log: TypesGen.ProvisionerJobLog) => void;
-  onDone: () => void;
-  onError: (error: Error) => void;
+  onDone?: () => void;
+  onError?: (error: Error) => void;
 };
 export const watchBuildLogsByBuildId = (
   buildId: string,
@@ -1454,12 +1454,12 @@ export const watchBuildLogsByBuildId = (
     onMessage(JSON.parse(event.data) as TypesGen.ProvisionerJobLog),
   );
   socket.addEventListener("error", () => {
-    onError(new Error("Connection for logs failed."));
+    onError && onError(new Error("Connection for logs failed."));
     socket.close();
   });
   socket.addEventListener("close", () => {
     // When the socket closes, logs have finished streaming!
-    onDone();
+    onDone && onDone();
   });
   return socket;
 };
