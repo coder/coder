@@ -1392,7 +1392,7 @@ export const watchBuildLogsByTemplateVersionId = (
 type WatchWorkspaceAgentLogsOptions = {
   after: number;
   onMessage: (logs: TypesGen.WorkspaceAgentLog[]) => void;
-  onDone: () => void;
+  onDone?: () => void;
   onError: (error: Error) => void;
 };
 
@@ -1423,7 +1423,7 @@ export const watchWorkspaceAgentLogs = (
     onError(new Error("socket errored"));
   });
   socket.addEventListener("close", () => {
-    onDone();
+    onDone && onDone();
   });
 
   return socket;
