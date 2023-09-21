@@ -1217,11 +1217,7 @@ func TestTemplateMetrics(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	resources := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

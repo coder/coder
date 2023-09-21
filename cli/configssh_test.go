@@ -99,11 +99,7 @@ func TestConfigSSH(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-	resources := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
 	require.NoError(t, err)
 	defer agentConn.Close()

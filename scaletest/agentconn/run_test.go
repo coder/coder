@@ -256,11 +256,7 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	resources := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 	return client, resources[0].Agents[0].ID
 }
 

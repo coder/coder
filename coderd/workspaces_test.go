@@ -1347,11 +1347,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		_ = agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(authToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		_ = agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -2261,12 +2257,8 @@ func TestWorkspaceWatcher(t *testing.T) {
 	wait("agent timeout after create", nil)
 	wait("agent timeout after start", nil)
 
-	agt := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	)
-	agt.Wait(client)
+	agt := agenttest.New(t, client.URL, authToken)
+	agt.Wait(client, workspace.ID)
 
 	wait("agent connected/ready", func(w codersdk.Workspace) bool {
 		return w.LatestBuild.Resources[0].Agents[0].Status == codersdk.WorkspaceAgentConnected &&

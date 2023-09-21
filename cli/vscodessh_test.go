@@ -25,11 +25,7 @@ func TestVSCodeSSH(t *testing.T) {
 	user, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err)
 
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(agentToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 	fs := afero.NewMemMapFs()
 	err = afero.WriteFile(fs, "/url", []byte(client.URL.String()), 0o600)

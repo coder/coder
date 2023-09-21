@@ -60,12 +60,8 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	agt := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(agentToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	)
-	agt.Wait(client)
+	agt := agenttest.New(t, client.URL, agentToken)
+	agt.Wait(client, workspace.ID)
 	return agt.Client(), agentToken, pubkey
 }
 

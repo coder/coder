@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 
 	"github.com/coder/coder/v2/cli/clitest"
@@ -315,14 +316,11 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(agentToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-		func(o *agenttest.Options) {
-			o.AgentOptions.SSHMaxTimeout = 60 * time.Second
+	agenttest.New(t, client.URL, agentToken,
+		func(o *agent.Options) {
+			o.SSHMaxTimeout = 60 * time.Second
 		},
-	).Wait(client)
+	).Wait(client, workspace.ID)
 
 	return workspace
 }

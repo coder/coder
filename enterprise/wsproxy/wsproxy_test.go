@@ -183,11 +183,7 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	t.Run("ReturnedInDERPMap", func(t *testing.T) {
 		t.Parallel()
@@ -411,11 +407,7 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	// Connect to the workspace agent.
 	ctx := testutil.Context(t, testutil.WaitLong)

@@ -675,11 +675,7 @@ func TestIssueSignedAppToken(t *testing.T) {
 
 	// Connect an agent to the workspace
 
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
@@ -781,11 +777,7 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 
 	// Connect an agent to the workspace
 	agentID := build.Resources[0].Agents[0].ID
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
 	require.NoError(t, err)

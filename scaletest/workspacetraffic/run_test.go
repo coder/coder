@@ -73,11 +73,7 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		resources := agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(authToken),
-			agenttest.WithWorkspaceID(ws.ID),
-		).Wait(client)
+		resources := agenttest.New(t, client.URL, authToken).Wait(client, ws.ID)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
@@ -195,11 +191,7 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		resources := agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(authToken),
-			agenttest.WithWorkspaceID(ws.ID),
-		).Wait(client)
+		resources := agenttest.New(t, client.URL, authToken).Wait(client, ws.ID)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)

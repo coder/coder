@@ -29,6 +29,7 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -102,11 +103,7 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		_ = agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(agentToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
@@ -162,11 +159,7 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		_ = agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(agentToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 		// Ensure the agent is connected.
 		pty.WriteLine("echo hell'o'")
@@ -187,11 +180,7 @@ func TestSSH(t *testing.T) {
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			_ = agenttest.New(t,
-				agenttest.WithURL(client.URL),
-				agenttest.WithAgentToken(agentToken),
-				agenttest.WithWorkspaceID(workspace.ID),
-			).Wait(client)
+			_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 			<-ctx.Done()
 		})
 
@@ -253,11 +242,7 @@ func TestSSH(t *testing.T) {
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect.
-			_ = agenttest.New(t,
-				agenttest.WithURL(client.URL),
-				agenttest.WithAgentToken(agentToken),
-				agenttest.WithWorkspaceID(workspace.ID),
-			).Wait(client)
+			_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 			<-ctx.Done()
 		})
 
@@ -320,11 +305,7 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		_ = agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(agentToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 		// Generate private key.
 		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -409,11 +390,7 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		_ = agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(agentToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -458,11 +435,7 @@ func TestSSH(t *testing.T) {
 
 		pty.ExpectMatch("Waiting")
 
-		agenttest.New(t,
-			agenttest.WithURL(client.URL),
-			agenttest.WithAgentToken(agentToken),
-			agenttest.WithWorkspaceID(workspace.ID),
-		).Wait(client)
+		agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
@@ -630,16 +603,12 @@ Expire-Date: 0
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-	_ = agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(agentToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-		func(o *agenttest.Options) {
-			o.AgentOptions.EnvironmentVariables = map[string]string{
-				"GNUPGHOME": gnupgHomeWorkspace,
-			}
-		},
-	).Wait(client)
+	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.EnvironmentVariables = map[string]string{
+			"GNUPGHOME": gnupgHomeWorkspace,
+		}
+	},
+	).Wait(client, workspace.ID)
 
 	inv, root := clitest.New(t,
 		"ssh",

@@ -58,12 +58,7 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	resources := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
-
+	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
@@ -140,11 +135,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
-	resources := agenttest.New(t,
-		agenttest.WithURL(client.URL),
-		agenttest.WithAgentToken(authToken),
-		agenttest.WithWorkspaceID(workspace.ID),
-	).Wait(client)
+	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
 
 	// Start must be at the beginning of the day, initialize it early in case
 	// the day changes so that we get the relevant stats faster.
