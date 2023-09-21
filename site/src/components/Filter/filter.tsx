@@ -24,7 +24,9 @@ import MenuList from "@mui/material/MenuList";
 import { Loader } from "components/Loader/Loader";
 import Divider from "@mui/material/Divider";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+
 import { useDebouncedFunction } from "hooks/debounce";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 export type PresetFilter = {
   name: string;
@@ -33,45 +35,71 @@ export type PresetFilter = {
 
 type FilterValues = Record<string, string | undefined>;
 
-export const useFilter = ({
-  initialValue = "",
-  onUpdate,
-  searchParamsResult,
-}: {
-  initialValue?: string;
+type UseFilterConfig = {
+  /**
+   * The fallback value to use in the event that no filter params can be parsed
+   * from the search params object. This value is allowed to change on
+   * re-renders.
+   */
+  fallbackFilter?: string;
   searchParamsResult: ReturnType<typeof useSearchParams>;
-  onUpdate?: () => void;
-}) => {
-  const [searchParams, setSearchParams] = searchParamsResult;
-  const query = searchParams.get("filter") ?? initialValue;
-  const values = parseFilterQuery(query);
+  onUpdate?: (newValue: string) => void;
+};
 
-  const update = (values: string | FilterValues) => {
-    if (typeof values === "string") {
-      searchParams.set("filter", values);
-    } else {
-      searchParams.set("filter", stringifyFilter(values));
-    }
+const useFilterParamsKey = "filter";
+
+export const useFilter = ({
+  fallbackFilter = "",
+  searchParamsResult,
+  onUpdate,
+}: UseFilterConfig) => {
+  const [searchParams, setSearchParams] = searchParamsResult;
+  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
+
+  // Stabilizing reference to setSearchParams from one central spot, just to be
+  // on the extra careful side; don't want effects over-running. You would think
+  // this would be overkill, but setSearchParams isn't stable out of the box
+  const stableSetSearchParams = useEffectEvent(setSearchParams);
+
+  // Keep params synced with query, even as query changes from outside sources
+  useEffect(() => {
+    stableSetSearchParams((currentParams) => {
+      const currentQuery = currentParams.get(useFilterParamsKey);
+
+      if (query === "") {
+        currentParams.delete(useFilterParamsKey);
+      } else if (currentQuery !== query) {
+        currentParams.set(useFilterParamsKey, query);
+      }
+
+      return currentParams;
+    });
+  }, [stableSetSearchParams, query]);
+
+  const update = (newValues: string | FilterValues) => {
+    const serialized =
+      typeof newValues === "string" ? newValues : stringifyFilter(newValues);
+
+    searchParams.set(useFilterParamsKey, serialized);
     setSearchParams(searchParams);
-    if (onUpdate) {
-      onUpdate();
+
+    if (onUpdate !== undefined) {
+      onUpdate(serialized);
     }
   };
 
   const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
-    (values: string | FilterValues) => update(values),
+    update,
     500,
   );
-
-  const used = query !== "" && query !== initialValue;
 
   return {
     query,
     update,
     debounceUpdate,
     cancelDebounce,
-    values,
-    used,
+    values: parseFilterQuery(query),
+    used: query !== "" && query !== fallbackFilter,
   };
 };
 
