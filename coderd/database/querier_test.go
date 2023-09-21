@@ -112,8 +112,9 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
 	})
-	source := dbgen.WorkspaceAgentLogSource(t, db, database.WorkspaceAgentLogSource{})
-
+	source := dbgen.WorkspaceAgentLogSource(t, db, database.WorkspaceAgentLogSource{
+		WorkspaceAgentID: agent.ID,
+	})
 	logs, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:     agent.ID,
 		CreatedAt:   dbtime.Now(),
