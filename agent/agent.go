@@ -664,7 +664,7 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
-		err = a.scriptRunner.Init(ctx, manifest.Scripts)
+		err = a.scriptRunner.Init(manifest.Scripts)
 		if err != nil {
 			return xerrors.Errorf("init script runner: %w", err)
 		}

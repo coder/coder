@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -40,34 +41,39 @@ type Options struct {
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
+	cronCtx, cronCtxCancel := context.WithCancel(context.Background())
 	return &Runner{
-		Options: opts,
-		cron:    cron.New(cron.WithParser(parser)),
-		closed:  make(chan struct{}),
+		Options:       opts,
+		cronCtx:       cronCtx,
+		cronCtxCancel: cronCtxCancel,
+		cron:          cron.New(cron.WithParser(parser)),
+		closed:        make(chan struct{}),
 	}
 }
 
 type Runner struct {
 	Options
 
-	cmdCloseWait sync.WaitGroup
-	closed       chan struct{}
-	closeMutex   sync.Mutex
-	cron         *cron.Cron
-	initialized  atomic.Bool
-	scripts      []codersdk.WorkspaceAgentScript
+	cronCtx       context.Context
+	cronCtxCancel context.CancelFunc
+	cmdCloseWait  sync.WaitGroup
+	closed        chan struct{}
+	closeMutex    sync.Mutex
+	cron          *cron.Cron
+	initialized   atomic.Bool
+	scripts       []codersdk.WorkspaceAgentScript
 }
 
 // Init initializes the runner with the provided scripts.
 // It also schedules any scripts that have a schedule.
 // This function must be called before Execute.
-func (r *Runner) Init(ctx context.Context, scripts []codersdk.WorkspaceAgentScript) error {
+func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript) error {
 	if r.initialized.Load() {
 		return xerrors.New("init: already initialized")
 	}
 	r.initialized.Store(true)
 	r.scripts = scripts
-	r.Logger.Info(ctx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
+	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
 
 	for _, script := range scripts {
 		if script.Cron == "" {
@@ -75,7 +81,7 @@ func (r *Runner) Init(ctx context.Context, scripts []codersdk.WorkspaceAgentScri
 		}
 		script := script
 		_, err := r.cron.AddFunc(script.Cron, func() {
-			err := r.run(ctx, script)
+			err := r.run(r.cronCtx, script)
 			if err != nil {
 				r.Logger.Warn(context.Background(), "run agent script on schedule", slog.Error(err))
 			}
@@ -144,19 +150,16 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		}
 	}()
 
-	var cmd *exec.Cmd
-	if script.TimeoutSeconds > 0 {
-		var cancel context.CancelFunc
-		// Add a buffer to forcefully kill with the context.
-		ctx, cancel = context.WithTimeout(ctx, script.TimeoutSeconds+(3*time.Second))
-		defer cancel()
-	}
-
 	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Script, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
-	cmd = cmdPty.AsExec()
+	cmd := cmdPty.AsExec()
+	cmd.SysProcAttr = cmdSysProcAttr()
+	cmd.WaitDelay = script.TimeoutSeconds + (10 * time.Second)
+	cmd.Cancel = func() error {
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+	}
 
 	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, r.PatchLogs, logger)
 	// If ctx is canceled here (or in a writer below), we may be
@@ -236,6 +239,7 @@ func (r *Runner) Close() error {
 		return nil
 	}
 	close(r.closed)
+	r.cronCtxCancel()
 	r.cron.Stop()
 	r.cmdCloseWait.Wait()
 	return nil

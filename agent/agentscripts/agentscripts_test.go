@@ -30,7 +30,7 @@ func TestExecuteBasic(t *testing.T) {
 		return nil
 	})
 	defer runner.Close()
-	err := runner.Init(context.Background(), []codersdk.WorkspaceAgentScript{{
+	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		Script: "echo hello",
 	}})
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestTimeout(t *testing.T) {
 	t.Parallel()
 	runner := setup(t, nil)
 	defer runner.Close()
-	err := runner.Init(context.Background(), []codersdk.WorkspaceAgentScript{{
+	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		Script:         "sleep 3",
 		TimeoutSeconds: time.Nanosecond,
 	}})
