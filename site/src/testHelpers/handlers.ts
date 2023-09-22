@@ -96,7 +96,12 @@ export const handlers = [
     async (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]),
+        ctx.json([
+          M.MockWorkspaceResource,
+          M.MockWorkspaceVolumeResource,
+          M.MockWorkspaceImageResource,
+          M.MockWorkspaceContainerResource,
+        ]),
       );
     },
   ),
@@ -254,7 +259,12 @@ export const handlers = [
     (req, res, ctx) => {
       return res(
         ctx.status(200),
-        ctx.json([M.MockWorkspaceResource, M.MockWorkspaceResource2]),
+        ctx.json([
+          M.MockWorkspaceResource,
+          M.MockWorkspaceVolumeResource,
+          M.MockWorkspaceImageResource,
+          M.MockWorkspaceContainerResource,
+        ]),
       );
     },
   ),

@@ -756,6 +756,42 @@ export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
   hide: true,
 };
 
+export const MockWorkspaceVolumeResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-volume-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_volume",
+  name: "home_volume",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
+};
+
+export const MockWorkspaceImageResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-image-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_image",
+  name: "main",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
+};
+
+export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-container-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_container",
+  name: "workspace",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
+};
+
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
   {
     schedule: "",

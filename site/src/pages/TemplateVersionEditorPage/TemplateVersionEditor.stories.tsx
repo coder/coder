@@ -3,10 +3,13 @@ import {
   MockTemplateVersion,
   MockTemplateVersionFileTree,
   MockWorkspaceBuildLogs,
+  MockWorkspaceContainerResource,
   MockWorkspaceExtendedBuildLogs,
+  MockWorkspaceImageResource,
   MockWorkspaceResource,
-  MockWorkspaceResource2,
-  MockWorkspaceResource3,
+  MockWorkspaceResourceMultipleAgents,
+  MockWorkspaceResourceSensitive,
+  MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import type { Meta, StoryObj } from "@storybook/react";
@@ -40,8 +43,11 @@ export const Resources: Story = {
     buildLogs: MockWorkspaceBuildLogs,
     resources: [
       MockWorkspaceResource,
-      MockWorkspaceResource2,
-      MockWorkspaceResource3,
+      MockWorkspaceResourceSensitive,
+      MockWorkspaceResourceMultipleAgents,
+      MockWorkspaceVolumeResource,
+      MockWorkspaceImageResource,
+      MockWorkspaceContainerResource,
     ],
   },
 };
