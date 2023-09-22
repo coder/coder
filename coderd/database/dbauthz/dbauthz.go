@@ -2702,7 +2702,18 @@ func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database
 }
 
 func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	if err != nil {
 		return err
 	}
 	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
