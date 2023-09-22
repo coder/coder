@@ -236,12 +236,8 @@ type GitAuthErrors = Record<string, string>;
 const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
   const [gitAuthErrors, setGitAuthErrors] = useState<GitAuthErrors>({});
 
+  // Clear errors when gitAuth is refreshed
   useEffect(() => {
-    // templateGitAuth is refreshed automatically using a BroadcastChannel
-    // which may change the `authenticated` property.
-    //
-    // If the provider becomes authenticated, we want the error message
-    // to disappear.
     setGitAuthErrors({});
   }, [gitAuth]);
 

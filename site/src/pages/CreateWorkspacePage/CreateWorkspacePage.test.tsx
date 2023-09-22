@@ -31,17 +31,6 @@ const renderCreateWorkspacePage = () => {
   });
 };
 
-Object.defineProperty(window, "BroadcastChannel", {
-  value: class {
-    addEventListener() {
-      // noop
-    }
-    close() {
-      // noop
-    }
-  },
-});
-
 describe("CreateWorkspacePage", () => {
   it("succeeds with default owner", async () => {
     jest
