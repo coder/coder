@@ -2023,12 +2023,12 @@ func (q *sqlQuerier) GetTemplateParameterInsights(ctx context.Context, arg GetTe
 }
 
 const getUserActivityInsights = `-- name: GetUserActivityInsights :many
-WITH app_stats_by_user_and_agent AS (
+WITH app_stats AS (
 	SELECT
 		s.start_time,
-		60 as seconds,
+		was.user_id,
 		w.template_id,
-		was.user_id
+		60 as seconds
 	FROM workspace_app_stats was
 	JOIN workspaces w ON (
 		w.id = was.workspace_id
@@ -2048,17 +2048,55 @@ WITH app_stats_by_user_and_agent AS (
 		-- Subtract one minute because the series only contains the start time.
 		AND s.start_time < ($3::timestamptz) - '1 minute'::interval
 	GROUP BY s.start_time, w.template_id, was.user_id
+), session_stats AS (
+	SELECT
+		date_trunc('minute', was.created_at) as start_time,
+		was.user_id,
+		was.template_id,
+		CASE WHEN
+			SUM(was.session_count_vscode) > 0 OR
+			SUM(was.session_count_jetbrains) > 0 OR
+			SUM(was.session_count_reconnecting_pty) > 0 OR
+			SUM(was.session_count_ssh) > 0
+		THEN 60 ELSE 0 END as seconds
+	FROM workspace_agent_stats was
+	WHERE
+		was.created_at >= $2::timestamptz
+		AND was.created_at $3::timestamptz
+		AND was.connection_count > 0
+		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+	GROUP BY date_trunc('minute', was.created_at), was.user_id, was.template_id
+), combined_stats AS (
+	SELECT
+		user_id,
+		template_id,
+		start_time,
+		seconds
+	FROM app_stats
+	UNION ALL
+	SELECT
+		user_id,
+		template_id,
+		start_time,
+		seconds
+	FROM session_stats
+), distinct_combined_stats AS (
+	SELECT DISTINCT
+		user_id,
+		template_id,
+		start_time,
+		seconds
+	FROM combined_stats
 )
-
 SELECT
 	users.id as user_id,
 	users.username,
 	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	SUM(seconds) AS usage_seconds
-FROM app_stats_by_user_and_agent
-JOIN users ON (users.id = app_stats_by_user_and_agent.user_id)
-GROUP BY user_id, username, avatar_url
+FROM distinct_combined_stats
+JOIN users ON (users.id = distinct_combined_stats.user_id)
+GROUP BY users.id, username, avatar_url
 ORDER BY user_id ASC
 `
 
