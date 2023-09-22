@@ -1,9 +1,0 @@
-nodepool_machine_type_coder      = "t2d-standard-2"
-nodepool_size_coder              = 1
-nodepool_machine_type_workspaces = "t2d-standard-2"
-cloudsql_tier                    = "db-custom-1-3840"
-coder_cpu_request                = "100m"
-coder_mem_request                = "2Gi"
-coder_cpu_limit                  = "1000m"
-coder_mem_limit                  = "2Gi"
-coder_replicas                   = 1
