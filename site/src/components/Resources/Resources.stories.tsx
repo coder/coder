@@ -3,6 +3,7 @@ import {
   MockProxyLatencies,
   MockWorkspace,
   MockWorkspaceResource,
+  MockWorkspaceResourceMultipleAgents,
 } from "testHelpers/entities";
 import { AgentRow } from "./AgentRow";
 import { Resources } from "./Resources";
@@ -23,6 +24,12 @@ export default meta;
 type Story = StoryObj<typeof Resources>;
 
 export const Example: Story = {};
+
+export const MultipleAgents: Story = {
+  args: {
+    resources: [MockWorkspaceResourceMultipleAgents],
+  },
+};
 
 const nullDevice = {
   created_at: "",
@@ -58,25 +65,25 @@ export const BunchOfDevicesWithMetadata: Story = {
       {
         ...nullDevice,
         id: "e8c846da",
-        name: "device1",
+        name: "Short",
         metadata: [short],
       },
       {
         ...nullDevice,
         id: "a1b11343",
-        name: "device3",
+        name: "Long",
         metadata: [long],
       },
       {
         ...nullDevice,
         id: "09ab7e8c",
-        name: "device3",
+        name: "Really long",
         metadata: [reallyLong],
       },
       {
         ...nullDevice,
         id: "0a09fa91",
-        name: "device2",
+        name: "Many short",
         metadata: Array.from({ length: 8 }, (_, i) => ({
           ...short,
           key: `Short ${i}`,
@@ -85,16 +92,16 @@ export const BunchOfDevicesWithMetadata: Story = {
       {
         ...nullDevice,
         id: "d0b9eb9d",
-        name: "device4",
+        name: "Many long",
         metadata: Array.from({ length: 4 }, (_, i) => ({
           ...long,
-          key: `Short ${i}`,
+          key: `Long ${i}`,
         })),
       },
       {
         ...nullDevice,
         id: "a6c69587",
-        name: "device5",
+        name: "Short and long",
         metadata: Array.from({ length: 8 }, (_, i) =>
           i % 2 === 0
             ? { ...short, key: `Short ${i}` }
@@ -104,7 +111,7 @@ export const BunchOfDevicesWithMetadata: Story = {
       {
         ...nullDevice,
         id: "3af84e31",
-        name: "device6",
+        name: "Many really long",
         metadata: Array.from({ length: 8 }, (_, i) => ({
           ...reallyLong,
           key: `Really long ${i}`,

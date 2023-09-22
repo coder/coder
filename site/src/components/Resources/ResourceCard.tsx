@@ -21,11 +21,19 @@ export interface ResourceCardProps {
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false);
-  const styles = useStyles({ metadataLength: resource.metadata?.length ?? 0 });
   const metadataToDisplay = resource.metadata ?? [];
   const visibleMetadata = shouldDisplayAllMetadata
     ? metadataToDisplay
     : metadataToDisplay.slice(0, 4);
+
+  // Add one to `metadataLength` if the resource has a cost, and hide one
+  // additional metadata item, because cost is displayed in the same grid.
+  let metadataLength = resource.metadata?.length ?? 0;
+  if (resource.daily_cost > 0) {
+    metadataLength += 1;
+    visibleMetadata.pop();
+  }
+  const styles = useStyles({ metadataLength });
 
   return (
     <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
@@ -75,7 +83,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
             );
           })}
         </div>
-        {metadataToDisplay.length > 4 && (
+        {metadataLength > 4 && (
           <Tooltip
             title={
               shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"
