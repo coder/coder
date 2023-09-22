@@ -75,20 +75,13 @@ WITH app_stats AS (
 		start_time,
 		seconds
 	FROM app_stats
-	UNION ALL
+	UNION
 	SELECT
 		user_id,
 		template_id,
 		start_time,
 		seconds
 	FROM session_stats
-), distinct_combined_stats AS (
-	SELECT DISTINCT
-		user_id,
-		template_id,
-		start_time,
-		seconds
-	FROM combined_stats
 )
 SELECT
 	users.id as user_id,
@@ -96,8 +89,8 @@ SELECT
 	users.avatar_url,
 	array_agg(DISTINCT template_id)::uuid[] AS template_ids,
 	SUM(seconds) AS usage_seconds
-FROM distinct_combined_stats
-JOIN users ON (users.id = distinct_combined_stats.user_id)
+FROM combined_stats
+JOIN users ON (users.id = combined_stats.user_id)
 GROUP BY users.id, username, avatar_url
 ORDER BY user_id ASC;
 
