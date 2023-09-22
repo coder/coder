@@ -382,7 +382,7 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Exp: time.Now().Add(time.Hour),
+			Exp: dbtime.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				AllFeatures: true,
 			}),
@@ -405,11 +405,11 @@ func TestEntitlements(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
-			Exp: time.Now().Add(time.Hour),
+			Exp: dbtime.Now().Add(time.Hour),
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
 				AllFeatures: true,
-				GraceAt:     time.Now().Add(-time.Hour),
-				ExpiresAt:   time.Now().Add(time.Hour),
+				GraceAt:     dbtime.Now().Add(-time.Hour),
+				ExpiresAt:   dbtime.Now().Add(time.Hour),
 			}),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
