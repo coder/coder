@@ -413,7 +413,7 @@ const useAgentLogs = (
         });
       },
       onError: () => {
-        displayError("Error on gettings agent logs");
+        displayError("Error on getting agent logs");
       },
     });
 
