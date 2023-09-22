@@ -435,11 +435,10 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
 
 		err := db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               wsBuild.ID,
-			UpdatedAt:        buildTime,
-			ProvisionerState: []byte{},
-			Deadline:         originalMaxDeadline,
-			MaxDeadline:      originalMaxDeadline,
+			ID:          wsBuild.ID,
+			UpdatedAt:   buildTime,
+			Deadline:    originalMaxDeadline,
+			MaxDeadline: originalMaxDeadline,
 		})
 		require.NoError(t, err)
 
