@@ -11,7 +11,7 @@ import {
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { type Theme } from "@mui/material";
+import { type Theme } from "@mui/material/styles";
 
 export interface ResourceCardProps {
   resource: WorkspaceResource;

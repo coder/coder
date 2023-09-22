@@ -100,6 +100,24 @@ export const BunchOfDevicesWithMetadata: Story = {
       },
       {
         ...nullDevice,
+        id: "3af84e31",
+        name: "Many really long",
+        metadata: Array.from({ length: 8 }, (_, i) => ({
+          ...reallyLong,
+          key: `Really long ${i}`,
+        })),
+      },
+      {
+        ...nullDevice,
+        id: "d0b9eb9d",
+        name: "Couple long",
+        metadata: Array.from({ length: 2 }, (_, i) => ({
+          ...long,
+          key: `Long ${i}`,
+        })),
+      },
+      {
+        ...nullDevice,
         id: "a6c69587",
         name: "Short and long",
         metadata: Array.from({ length: 8 }, (_, i) =>
@@ -107,15 +125,6 @@ export const BunchOfDevicesWithMetadata: Story = {
             ? { ...short, key: `Short ${i}` }
             : { ...long, key: `Long ${i}` },
         ),
-      },
-      {
-        ...nullDevice,
-        id: "3af84e31",
-        name: "Many really long",
-        metadata: Array.from({ length: 8 }, (_, i) => ({
-          ...reallyLong,
-          key: `Really long ${i}`,
-        })),
       },
     ],
     agentRow: getAgentRow,
