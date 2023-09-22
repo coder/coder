@@ -1,4 +1,4 @@
-import { useActor, useMachine } from "@xstate/react";
+import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
@@ -28,12 +28,12 @@ import {
   ConfirmDialog,
   ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService";
 import * as TypesGen from "api/typesGenerated";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -91,7 +91,7 @@ export const WorkspaceReadyPage = ({
     enabled: workspace.outdated,
   });
 
-  const buildLogs = useBuildLogs(workspace);
+  const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
     ["canceling", "deleting", "pending", "starting", "stopping"].includes(
@@ -284,23 +284,4 @@ const WarningDialog: FC<
   >
 > = (props) => {
   return <ConfirmDialog type="info" hideCancel={false} {...props} />;
-};
-
-const useBuildLogs = (workspace: TypesGen.Workspace) => {
-  const buildNumber = workspace.latest_build.build_number;
-  const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
-    context: {
-      buildNumber,
-      username: workspace.owner_name,
-      workspaceName: workspace.name,
-      timeCursor: new Date(),
-    },
-  });
-  const { logs } = buildState.context;
-
-  useEffect(() => {
-    buildSend({ type: "RESET", buildNumber, timeCursor: new Date() });
-  }, [buildNumber, buildSend]);
-
-  return logs;
 };

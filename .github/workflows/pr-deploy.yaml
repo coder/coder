@@ -37,10 +37,6 @@ permissions:
   packages: write
   pull-requests: write # needed for commenting on PRs
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   check_pr:
     runs-on: ubuntu-latest
@@ -73,7 +69,7 @@ jobs:
       CODER_BASE_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_BASE_IMAGE_TAG }}
       CODER_IMAGE_TAG: ${{ steps.set_tags.outputs.CODER_IMAGE_TAG }}
       NEW: ${{ steps.check_deployment.outputs.NEW }}
-      BUILD: ${{ steps.build_conditionals.outputs.first_or_force_build || steps.build_conditionals.outputs.automatic_rebuild }}
+      BUILD: ${{ steps.build_conditionals.outputs.first_or_force_build == 'true' || steps.build_conditionals.outputs.automatic_rebuild == 'true' }}
 
     runs-on: "ubuntu-latest"
     steps:
@@ -166,7 +162,7 @@ jobs:
           echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
 
   comment-pr:
-    needs: [check_pr, get_info]
+    needs: get_info
     if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true'
     runs-on: "ubuntu-latest"
     steps:
@@ -198,6 +194,10 @@ jobs:
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'buildjet-8vcpu-ubuntu-2204' || 'ubuntu-latest' }}
+    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
+    concurrency:
+      group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
+      cancel-in-progress: true
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}

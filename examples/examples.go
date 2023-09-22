@@ -34,6 +34,7 @@ var (
 	//go:embed templates/gcp-vm-container
 	//go:embed templates/gcp-windows
 	//go:embed templates/kubernetes
+	//go:embed templates/nomad-docker
 	files embed.FS
 
 	exampleBasePath = "https://github.com/coder/coder/tree/main/examples/templates/"
