@@ -60,12 +60,25 @@ export const LogLine: FC<{
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output]);
+  const isUsingLineNumber = number !== undefined;
 
   return (
-    <div className={combineClasses([styles.line, line.level])} style={style}>
+    <div
+      className={combineClasses([
+        styles.line,
+        line.level,
+        isUsingLineNumber && styles.lineNumber,
+      ])}
+      style={style}
+    >
       {!hideTimestamp && (
         <>
-          <span className={styles.time}>
+          <span
+            className={combineClasses([
+              styles.time,
+              isUsingLineNumber && styles.number,
+            ])}
+          >
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
           <span className={styles.space} />
@@ -119,6 +132,9 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.warning.dark,
     },
   },
+  lineNumber: {
+    paddingLeft: theme.spacing(2),
+  },
   space: {
     userSelect: "none",
     width: theme.spacing(3),
@@ -131,5 +147,9 @@ const useStyles = makeStyles((theme) => ({
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
+  },
+  number: {
+    width: theme.spacing(4),
+    textAlign: "right",
   },
 }));
