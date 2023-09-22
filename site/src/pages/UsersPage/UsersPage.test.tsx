@@ -9,11 +9,11 @@ import {
   MockOwnerRole,
 } from "testHelpers/entities";
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService";
-import * as API from "../../api/api";
-import { Role } from "../../api/typesGenerated";
+import * as API from "api/api";
+import { Role } from "api/typesGenerated";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
-import { renderWithAuth } from "../../testHelpers/renderHelpers";
-import { server } from "../../testHelpers/server";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage";
 
 const renderPage = () => {

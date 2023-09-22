@@ -9,10 +9,6 @@ import {
   TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 
-export const Language = {
-  activeUsersFilterName: "Active users",
-  allUsersFilterName: "All users",
-};
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
   count?: number;
