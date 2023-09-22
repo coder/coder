@@ -1,19 +1,29 @@
+import { type TableRowProps } from "@mui/material/TableRow";
 import { makeStyles } from "@mui/styles";
-import { useClickable, UseClickableResult } from "./useClickable";
+import { useClickable, type UseClickableResult } from "./useClickable";
 
-interface UseClickableTableRowResult extends UseClickableResult {
-  className: string;
-  hover: true;
-}
+type UseClickableTableRowResult = UseClickableResult<HTMLTableRowElement> &
+  TableRowProps & {
+    className: string;
+    hover: true;
+  };
 
-export const useClickableTableRow = (
-  onClick: () => void,
-): UseClickableTableRowResult => {
+type TableRowOnClickProps = {
+  [Key in keyof UseClickableTableRowResult as Key extends `on${string}Click`
+    ? Key
+    : never]: UseClickableTableRowResult[Key];
+};
+
+export const useClickableTableRow = ({
+  onClick,
+  ...optionalOnClickProps
+}: TableRowOnClickProps): UseClickableTableRowResult => {
   const styles = useStyles();
-  const clickable = useClickable(onClick);
+  const clickableProps = useClickable<HTMLTableRowElement>(onClick);
 
   return {
-    ...clickable,
+    ...clickableProps,
+    ...optionalOnClickProps,
     className: styles.row,
     hover: true,
   };
