@@ -8489,8 +8489,13 @@ FROM (
 JOIN
 	workspace_build_with_user AS wb
 	ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+JOIN
+	provisioner_jobs AS pj
+	ON wb.job_id = pj.id
 WHERE
 	wb.transition = 'start'::workspace_transition
+AND
+	pj.completed_at IS NOT NULL
 `
 
 func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error) {
