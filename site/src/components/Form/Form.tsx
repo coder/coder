@@ -1,4 +1,5 @@
 import { makeStyles } from "@mui/styles";
+import { AlphaBadge } from "components/DeploySettingsLayout/Badges";
 import {
   FormFooterProps as BaseFormFooterProps,
   FormFooter as BaseFormFooter,
@@ -67,8 +68,9 @@ export const FormSection: FC<
       sectionInfo?: string;
       infoTitle?: string;
     };
+    alpha?: boolean;
   }
-> = ({ children, title, description, classes = {} }) => {
+> = ({ children, title, description, classes = {}, alpha = false }) => {
   const formContext = useContext(FormContext);
   const styles = useStyles(formContext);
 
@@ -83,10 +85,12 @@ export const FormSection: FC<
         <h2
           className={combineClasses([
             styles.formSectionInfoTitle,
+            alpha && styles.formSectionInfoTitleAlpha,
             classes.infoTitle,
           ])}
         >
           {title}
+          {alpha && <AlphaBadge />}
         </h2>
         <div className={styles.formSectionInfoDescription}>{description}</div>
       </div>
@@ -169,6 +173,13 @@ const useStyles = makeStyles((theme) => ({
     fontWeight: 400,
     margin: 0,
     marginBottom: theme.spacing(1),
+  },
+
+  formSectionInfoTitleAlpha: {
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
   },
 
   formSectionInfoDescription: {

@@ -85,6 +85,15 @@ export const EnterpriseBadge: FC = () => {
   );
 };
 
+export const AlphaBadge: FC = () => {
+  const styles = useStyles();
+  return (
+    <span className={combineClasses([styles.badge, styles.alphaBadge])}>
+      Alpha
+    </span>
+  );
+};
+
 export const Badges: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles();
   return (
@@ -121,6 +130,11 @@ const useStyles = makeStyles((theme) => ({
   enterpriseBadge: {
     backgroundColor: theme.palette.info.dark,
     border: `1px solid ${theme.palette.info.light}`,
+  },
+
+  alphaBadge: {
+    border: `1px solid ${theme.palette.error.light}`,
+    backgroundColor: theme.palette.error.dark,
   },
 
   versionBadge: {
