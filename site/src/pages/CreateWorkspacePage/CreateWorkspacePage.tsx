@@ -61,21 +61,6 @@ const CreateWorkspacePage: FC = () => {
   const [gitAuthPollingState, setGitAuthPollingState] =
     useState<GitAuthPollingState>("idle");
 
-  useEffect(() => {
-    if (gitAuthPollingState !== "polling") {
-      return;
-    }
-
-    // Poll for a maximum of one minute
-    const quitPolling = setTimeout(
-      () => setGitAuthPollingState("abandoned"),
-      60_000,
-    );
-    return () => {
-      clearTimeout(quitPolling);
-    };
-  }, [gitAuthPollingState]);
-
   const startPollingGitAuth = useCallback(() => {
     setGitAuthPollingState("polling");
   }, []);
@@ -88,6 +73,28 @@ const CreateWorkspacePage: FC = () => {
         }
       : { enabled: false },
   );
+
+  const allSignedIn = gitAuth?.every((it) => it.authenticated);
+
+  useEffect(() => {
+    if (allSignedIn) {
+      setGitAuthPollingState("idle");
+      return;
+    }
+
+    if (gitAuthPollingState !== "polling") {
+      return;
+    }
+
+    // Poll for a maximum of one minute
+    const quitPolling = setTimeout(
+      () => setGitAuthPollingState("abandoned"),
+      60_000,
+    );
+    return () => {
+      clearTimeout(quitPolling);
+    };
+  }, [gitAuthPollingState, allSignedIn]);
 
   return (
     <>
