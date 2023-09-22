@@ -1154,7 +1154,7 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
 // requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
-  template_id: "test-template",
+  template_version_id: "test-template-version",
   rich_parameter_values: [
     {
       name: MockTemplateVersionParameter1.name,

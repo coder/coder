@@ -193,7 +193,7 @@ describe("CreateWorkspacePage", () => {
         MockOrganization.id,
         "me",
         expect.objectContaining({
-          template_id: MockTemplate.id,
+          template_version_id: MockTemplate.active_version_id,
           rich_parameter_values: [{ name: param, value: paramValue }],
         }),
       );
