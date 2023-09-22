@@ -4,7 +4,7 @@ import {
   useDashboard,
   useIsWorkspaceActionsEnabled,
 } from "components/Dashboard/DashboardProvider";
-import { type FC, useEffect, useState, useSyncExternalStore } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspacesData, useWorkspaceUpdate } from "./data";
@@ -140,29 +140,6 @@ const WorkspacesPage: FC = () => {
 
 export default WorkspacesPage;
 
-const workspaceFilterKey = "WorkspacesPage/filter";
-const defaultWorkspaceFilter = "owner:me";
-
-// Function should stay outside components as much as possible; if declared
-// inside the component, React would add/remove event listeners every render
-function subscribeToFilterChanges(notifyReact: () => void) {
-  const onStorageChange = (event: StorageEvent) => {
-    const { key, storageArea, oldValue, newValue } = event;
-
-    const shouldNotify =
-      key === workspaceFilterKey &&
-      storageArea === window.localStorage &&
-      newValue !== oldValue;
-
-    if (shouldNotify) {
-      notifyReact();
-    }
-  };
-
-  window.addEventListener("storage", onStorageChange);
-  return () => window.removeEventListener("storage", onStorageChange);
-}
-
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onFilterChange: () => void;
@@ -172,27 +149,10 @@ const useWorkspacesFilter = ({
   searchParamsResult,
   onFilterChange,
 }: UseWorkspacesFilterOptions) => {
-  // Using useSyncExternalStore store to safely access localStorage from the
-  // first render; both snapshot callbacks return primitives, so no special
-  // trickery needed to prevent hook from immediately blowing up in dev mode
-  const localStorageFilter = useSyncExternalStore(
-    subscribeToFilterChanges,
-    () => {
-      return (
-        window.localStorage.getItem(workspaceFilterKey) ??
-        defaultWorkspaceFilter
-      );
-    },
-    () => defaultWorkspaceFilter,
-  );
-
   const filter = useFilter({
-    fallbackFilter: localStorageFilter,
+    fallbackFilter: "owner:me",
     searchParamsResult,
-    onUpdate: (newValues) => {
-      window.localStorage.setItem(workspaceFilterKey, newValues);
-      onFilterChange();
-    },
+    onUpdate: onFilterChange,
   });
 
   const permissions = usePermissions();
