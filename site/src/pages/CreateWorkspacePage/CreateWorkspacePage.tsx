@@ -77,11 +77,8 @@ const CreateWorkspacePage: FC = () => {
   }, [gitAuthPollingState]);
 
   const startPollingGitAuth = useCallback(() => {
-    if (gitAuthPollingState === "polling") {
-      return;
-    }
     setGitAuthPollingState("polling");
-  }, [gitAuthPollingState]);
+  }, []);
 
   const { data: gitAuth, error } = useQuery(
     versionId
