@@ -250,15 +250,33 @@ const WorkspacesRow: FC<{
   checked: boolean;
 }> = ({ workspace, children, checked }) => {
   const navigate = useNavigate();
+
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
-  const clickable = useClickableTableRow(() => {
-    navigate(workspacePageLink);
+  const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
+
+  const clickableProps = useClickableTableRow({
+    onAuxClick: (event) => {
+      const userClickedMiddleButton = event.button === 1;
+      if (userClickedMiddleButton) {
+        openLinkInNewTab();
+      }
+    },
+    onClick: (event) => {
+      const shouldOpenInNewTab =
+        event.ctrlKey || event.shiftKey || event.metaKey;
+
+      if (shouldOpenInNewTab) {
+        openLinkInNewTab();
+      } else {
+        navigate(workspacePageLink);
+      }
+    },
   });
 
   return (
     <TableRow
+      {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
-      {...clickable}
       sx={{
         backgroundColor: (theme) =>
           checked ? theme.palette.action.hover : undefined,
