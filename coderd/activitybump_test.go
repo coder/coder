@@ -77,12 +77,11 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			dbBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
 			require.NoError(t, err)
 
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               workspace.LatestBuild.ID,
-				UpdatedAt:        dbtime.Now(),
-				ProvisionerState: dbBuild.ProvisionerState,
-				Deadline:         dbBuild.Deadline,
-				MaxDeadline:      dbtime.Now().Add(maxTTL),
+			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          workspace.LatestBuild.ID,
+				UpdatedAt:   dbtime.Now(),
+				Deadline:    dbBuild.Deadline,
+				MaxDeadline: dbtime.Now().Add(maxTTL),
 			})
 			require.NoError(t, err)
 		}

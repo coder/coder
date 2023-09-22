@@ -854,6 +854,15 @@ func (q *FakeQuerier) DeleteAPIKeysByUserID(_ context.Context, userID uuid.UUID)
 	return nil
 }
 
+func (*FakeQuerier) DeleteAllTailnetClientSubscriptions(_ context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) DeleteApplicationConnectAPIKeysByUserID(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -987,6 +996,10 @@ func (*FakeQuerier) DeleteTailnetClient(context.Context, database.DeleteTailnetC
 	return database.DeleteTailnetClientRow{}, ErrUnimplemented
 }
 
+func (*FakeQuerier) DeleteTailnetClientSubscription(context.Context, database.DeleteTailnetClientSubscriptionParams) error {
+	return ErrUnimplemented
+}
+
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -1102,7 +1115,7 @@ func (*FakeQuerier) GetAllTailnetAgents(_ context.Context) ([]database.TailnetAg
 	return nil, ErrUnimplemented
 }
 
-func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.TailnetClient, error) {
+func (*FakeQuerier) GetAllTailnetClients(_ context.Context) ([]database.GetAllTailnetClientsRow, error) {
 	return nil, ErrUnimplemented
 }
 
@@ -5841,28 +5854,6 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.ID != arg.ID {
-			continue
-		}
-		workspaceBuild.UpdatedAt = arg.UpdatedAt
-		workspaceBuild.ProvisionerState = arg.ProvisionerState
-		workspaceBuild.Deadline = arg.Deadline
-		workspaceBuild.MaxDeadline = arg.MaxDeadline
-		q.workspaceBuilds[index] = workspaceBuild
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5879,6 +5870,51 @@ func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildDeadlineByID(_ context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.Deadline = arg.Deadline
+		build.MaxDeadline = arg.MaxDeadline
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildProvisionerStateByID(_ context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.ProvisionerState = arg.ProvisionerState
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
 	return sql.ErrNoRows
 }
 
@@ -6110,6 +6146,10 @@ func (*FakeQuerier) UpsertTailnetAgent(context.Context, database.UpsertTailnetAg
 
 func (*FakeQuerier) UpsertTailnetClient(context.Context, database.UpsertTailnetClientParams) (database.TailnetClient, error) {
 	return database.TailnetClient{}, ErrUnimplemented
+}
+
+func (*FakeQuerier) UpsertTailnetClientSubscription(context.Context, database.UpsertTailnetClientSubscriptionParams) error {
+	return ErrUnimplemented
 }
 
 func (*FakeQuerier) UpsertTailnetCoordinator(context.Context, uuid.UUID) (database.TailnetCoordinator, error) {

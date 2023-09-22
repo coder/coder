@@ -278,8 +278,8 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		autostop.Deadline = autostop.MaxDeadline
 	}
 
-	// Update the workspace build.
-	err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+	// Update the workspace build deadline.
+	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 		ID:          build.ID,
 		UpdatedAt:   now,
 		Deadline:    autostop.Deadline,

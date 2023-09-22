@@ -16,3 +16,9 @@ export const createUser = () => {
     mutationFn: API.createUser,
   };
 };
+
+export const createFirstUser = () => {
+  return {
+    mutationFn: API.createFirstUser,
+  };
+};
