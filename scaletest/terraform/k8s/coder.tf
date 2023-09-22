@@ -7,32 +7,14 @@ locals {
   coder_namespace    = "coder-${var.name}"
   coder_admin_email  = "admin@coder.com"
   coder_admin_user   = "coder"
-  coder_address      = google_compute_address.coder.address
-  coder_url          = "http://${google_compute_address.coder.address}"
-}
-
-provider "kubernetes" {
-  host                   = "https://${google_container_cluster.primary.endpoint}"
-  cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth.0.cluster_ca_certificate)
-  token                  = data.google_client_config.default.access_token
-}
-
-provider "helm" {
-  kubernetes {
-    host                   = "https://${google_container_cluster.primary.endpoint}"
-    cluster_ca_certificate = base64decode(google_container_cluster.primary.master_auth.0.cluster_ca_certificate)
-    token                  = data.google_client_config.default.access_token
-  }
+  coder_access_url   = "http://${var.coder_address}"
 }
 
 resource "null_resource" "coder_namespace" {
   triggers = {
     namespace       = local.coder_namespace
-    kubeconfig_path = local.cluster_kubeconfig_path
+    kubeconfig_path = var.kubernetes_kubeconfig_path
   }
-  depends_on = [
-    google_container_node_pool.coder
-  ]
   provisioner "local-exec" {
     when    = create
     command = <<EOF
@@ -45,14 +27,6 @@ resource "null_resource" "coder_namespace" {
   }
 }
 
-resource "random_password" "coder-postgres-password" {
-  length = 12
-}
-
-resource "random_password" "prometheus-postgres-password" {
-  length = 12
-}
-
 resource "kubernetes_secret" "coder-db" {
   type = "Opaque"
   metadata {
@@ -61,7 +35,7 @@ resource "kubernetes_secret" "coder-db" {
   }
   depends_on = [null_resource.coder_namespace]
   data = {
-    url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
+    url = var.coder_db_url
   }
 }
 
@@ -72,7 +46,6 @@ resource "helm_release" "coder-chart" {
   version    = var.coder_chart_version
   namespace  = local.coder_namespace
   depends_on = [
-    google_container_node_pool.coder,
     null_resource.coder_namespace
   ]
   values = [<<EOF
@@ -84,7 +57,7 @@ coder:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.coder.name}"]
+            values: ["${var.kubernetes_nodepool_coder}"]
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
@@ -97,7 +70,7 @@ coder:
               values:   ["${local.coder_release_name}"]
   env:
     - name: "CODER_ACCESS_URL"
-      value: "${local.coder_url}"
+      value: "${local.coder_access_url}"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
     - name: "CODER_ENABLE_TELEMETRY"
@@ -144,7 +117,7 @@ coder:
   service:
     enable: true
     sessionAffinity: None
-    loadBalancerIP: "${local.coder_address}"
+    loadBalancerIP: "${var.coder_address}"
   volumeMounts:
   - mountPath: "/tmp"
     name: cache
@@ -234,7 +207,7 @@ resource "local_file" "kubernetes_template" {
                 match_expressions {
                   key = "cloud.google.com/gke-nodepool"
                   operator = "In"
-                  values = ["${google_container_node_pool.workspaces.name}"]
+                  values = ["${var.kubernetes_nodepool_workspaces}"]
                 }
               }
             }
@@ -284,7 +257,7 @@ spec:
               - key: cloud.google.com/gke-nodepool
                 operator: In
                 values:
-                - ${google_container_node_pool.coder.name}
+                - ${var.kubernetes_nodepool_coder}
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - podAffinityTerm:
@@ -307,7 +280,7 @@ spec:
         - name: CODER_PROMETHEUS_ADDRESS
           value: 0.0.0.0:2112
         - name: CODER_ACCESS_URL
-          value: ${local.coder_url}
+          value: ${local.coder_access_url}
         - name: CODER_CACHE_DIRECTORY
           value: /tmp/coder
         - name: CODER_ENABLE_TELEMETRY
@@ -395,9 +368,9 @@ spec:
 }
 
 resource "null_resource" "provisionerd_deployment_apply" {
-  depends_on = [helm_release.coder-chart, local_file.provisionerd_deployment, null_resource.cluster_kubeconfig]
+  depends_on = [helm_release.coder-chart, local_file.provisionerd_deployment]
   triggers = {
-    kubeconfig_path = local.cluster_kubeconfig_path
+    kubeconfig_path = var.kubernetes_kubeconfig_path
     manifest_path   = local_file.provisionerd_deployment.filename
   }
   provisioner "local-exec" {
@@ -408,11 +381,11 @@ resource "null_resource" "provisionerd_deployment_apply" {
 }
 
 resource "local_file" "output_vars" {
-  filename = "${path.module}/../.coderv2/url"
-  content  = local.coder_url
+  filename = "${path.module}/../../.coderv2/url"
+  content  = local.coder_access_url
 }
 
 output "coder_url" {
   description = "URL of the Coder deployment"
-  value       = local.coder_url
+  value       = local.coder_access_url
 }
