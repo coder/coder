@@ -144,6 +144,23 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspaceBuildDeadlineByID :exec
+UPDATE
+	workspace_builds
+SET
+	deadline = @deadline::timestamptz,
+	max_deadline = @max_deadline::timestamptz,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
+-- name: UpdateWorkspaceBuildProvisionerStateByID :exec
+UPDATE
+	workspace_builds
+SET
+	provisioner_state = @provisioner_state::bytea,
+	updated_at = @updated_at::timestamptz
+WHERE id = @id::uuid;
+
 -- name: GetActiveWorkspaceBuildsByTemplateID :many
 SELECT wb.*
 FROM (

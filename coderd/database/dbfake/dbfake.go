@@ -5895,6 +5895,51 @@ func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.Deadline = arg.Deadline
+		build.MaxDeadline = arg.MaxDeadline
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.ProvisionerState = arg.ProvisionerState
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceDeletedByID(_ context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err

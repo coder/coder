@@ -3495,6 +3495,34 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildCostByID(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildCostByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildCostByID), arg0, arg1)
 }
 
+// UpdateWorkspaceBuildDeadlineByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildDeadlineByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildDeadlineByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildDeadlineByID indicates an expected call of UpdateWorkspaceBuildDeadlineByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildDeadlineByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildDeadlineByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildDeadlineByID), arg0, arg1)
+}
+
+// UpdateWorkspaceBuildProvisionerStateByID mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildProvisionerStateByID(arg0 context.Context, arg1 database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildProvisionerStateByID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildProvisionerStateByID indicates an expected call of UpdateWorkspaceBuildProvisionerStateByID.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildProvisionerStateByID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildProvisionerStateByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildProvisionerStateByID), arg0, arg1)
+}
+
 // UpdateWorkspaceDeletedByID mocks base method.
 func (m *MockStore) UpdateWorkspaceDeletedByID(arg0 context.Context, arg1 database.UpdateWorkspaceDeletedByIDParams) error {
 	m.ctrl.T.Helper()

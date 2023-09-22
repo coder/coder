@@ -2701,6 +2701,20 @@ func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)
+}
+
 // Deprecated: Use SoftDeleteWorkspaceByID
 func (q *querier) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	// TODO deleteQ me, placeholder for database.Store

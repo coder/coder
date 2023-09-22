@@ -1663,6 +1663,20 @@ func (m metricsStore) UpdateWorkspaceBuildCostByID(ctx context.Context, arg data
 	return err
 }
 
+func (m metricsStore) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildDeadlineByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildProvisionerStateByID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateWorkspaceDeletedByID(ctx context.Context, arg database.UpdateWorkspaceDeletedByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceDeletedByID(ctx, arg)
