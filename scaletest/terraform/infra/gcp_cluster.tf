@@ -3,7 +3,9 @@ data "google_compute_default_service_account" "default" {
 }
 
 locals {
-  cluster_kubeconfig_path = "${abspath(path.module)}/../.coderv2/${var.name}-cluster.kubeconfig"
+  abs_module_path         = abspath(path.module)
+  rel_kubeconfig_path     = "../../.coderv2/${var.name}-cluster.kubeconfig"
+  cluster_kubeconfig_path = abspath("${local.abs_module_path}/${local.rel_kubeconfig_path}")
 }
 
 resource "google_container_cluster" "primary" {
