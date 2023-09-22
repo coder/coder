@@ -8,6 +8,7 @@ import type {
   Reporter,
 } from "@playwright/test/reporter";
 import axios from "axios";
+import { externalURL } from "./playwright.config";
 
 class CoderReporter implements Reporter {
   onBegin(config: FullConfig, suite: Suite) {
@@ -48,7 +49,9 @@ class CoderReporter implements Reporter {
       // eslint-disable-next-line no-console -- Helpful for debugging
       console.log("errors", result.errors, "attachments", result.attachments);
     }
-    await exportDebugPprof(test.title);
+    if (externalURL === undefined) {
+      await exportDebugPprof(test.title);
+    }
   }
 
   onEnd(result: FullResult) {

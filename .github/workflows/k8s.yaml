@@ -1,0 +1,129 @@
+# The k8s tests our Kubernetes support by installing Coder via helm against
+# a broad range of Kubernetes distributions.
+#
+# In the future, we should run a subset (or maybe all) of our e2e test suite
+# against each of these clusters.
+name: k8s
+on:
+  push:
+    branches:
+      - main
+  schedule:
+    # Run every day at midnight since we don't run on every PR.
+    - cron: "0 0 * * *"
+  pull_request:
+    paths:
+      - "helm/**"
+      - ".github/workflows/k8s.yaml"
+  workflow_dispatch:
+
+permissions:
+  actions: none
+  checks: none
+  contents: read
+  deployments: none
+  issues: none
+  packages: none
+  pull-requests: none
+  repository-projects: none
+  security-events: none
+  statuses: none
+
+# Cancel in-progress runs for pull requests when developers push
+# additional changes
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  helm:
+    runs-on: buildjet-4vcpu-ubuntu-2204
+    strategy:
+      fail-fast: false
+      matrix:
+        # discovered via 'replicated cluster versions'
+        # I've manually selected the ones that our customers
+        # are most likely to use. `openshift` is interesting, but
+        # it takes 10m to deploy and we're waiting on a fix for it
+        # from Replicated.
+        dist:
+          - aks
+          - eks
+          - gke
+          # - openshift
+    env:
+      REPLICATED_API_TOKEN: ${{ secrets.REPLICATED_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Need tag info for the helm chart
+          fetch-depth: 0
+
+      - name: Install replicated
+        run: |
+          curl -s https://api.github.com/repos/replicatedhq/replicated/releases/latest \
+              | grep "browser_download_url.*linux_amd64.tar.gz" \
+              | cut -d : -f 2,3 \
+              | tr -d \" \
+              | wget -O replicated.tar.gz -qi -
+              tar xf replicated.tar.gz replicated && rm replicated.tar.gz
+              mv replicated /usr/local/bin/replicated
+          replicated version
+
+      # Do potentially time consuming setup before creating cluster so
+      # we're not paying for an unused cluster.
+      - name: Setup Node
+        uses: ./.github/actions/setup-node
+
+      - name: Install playwright
+        run: |
+          npx playwright install
+        working-directory: site/e2e
+
+      - name: Create cluster
+        run: |
+          OUTPUT=$(replicated cluster versions --output=json | jq -r '.[] | select(.short_name == "${{ matrix.dist }}") | "\(.instance_types[0]) \(.versions | max)"')
+
+          # Split the output into two variables
+          read -r INSTANCE_TYPE VERSION <<< "$OUTPUT"
+          CLUSTER_NAME="${{ matrix.dist }}-${{ github.run_number }}-${{ github.run_attempt }}"
+          echo "CLUSTER_NAME=$CLUSTER_NAME" >> $GITHUB_ENV
+          replicated cluster create --name  $CLUSTER_NAME \
+              --distribution ${{ matrix.dist }} --instance-type $INSTANCE_TYPE \
+              --nodes 1 --version $VERSION --ttl 60m \
+              --wait 20m
+          replicated cluster kubeconfig --name $CLUSTER_NAME
+
+      - name: Install helm chart
+        run: |
+          CHART_PATH=build/coder_helm.tgz
+          make $CHART_PATH
+          # TODO: we should build and upload an image from this branch so we're
+          # testing beyond the helm chart changes.
+          # This is using the built-in postgres, so there's no guarantee of
+          # any state persistence.
+          helm install coder $CHART_PATH --set coder.image.tag=latest --wait \
+            --timeout 5m
+          # For debugging:
+          kubectl get all
+          EXTERNAL_IP=$(kubectl get svc coder -o json | jq -r '.status.loadBalancer.ingress[0].ip')
+          echo "EXTERNAL_IP=$EXTERNAL_IP" >> $GITHUB_ENV
+          curl -s $EXTERNAL_IP -o /dev/null
+
+      - name: Run e2e tests
+        working-directory: site/e2e
+        run: |
+          # Right now, only listTemplates works because the rest of the
+          # tests assume the echo provisioner.
+          # I would like for the k8s tests to be "real" and use
+          # Terraform.
+          CODER_E2E_BASE_URL=http://$EXTERNAL_IP npx playwright test \
+            -g "listTemplates"
+
+      - name: Delete cluster
+        if: always()
+        run: |
+          CLUSTER_ID=$(replicated cluster ls | awk  '/${{ env.CLUSTER_NAME }}/ {print $1}')
+          echo $CLUSTER_ID
+          replicated cluster rm $CLUSTER_ID
