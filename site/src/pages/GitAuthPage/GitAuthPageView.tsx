@@ -11,8 +11,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { FC, useEffect } from "react";
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
+import { type FC } from "react";
 
 export interface GitAuthPageViewProps {
   gitAuth: GitAuth;

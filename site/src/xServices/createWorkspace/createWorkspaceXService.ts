@@ -2,13 +2,11 @@ import {
   checkAuthorization,
   createWorkspace,
   getTemplateByName,
-  getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
 } from "api/api";
 import {
   CreateWorkspaceRequest,
   Template,
-  TemplateVersionGitAuth,
   TemplateVersionParameter,
   User,
   Workspace,
@@ -16,7 +14,6 @@ import {
 } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
 
 export type CreateWorkspaceMode = "form" | "auto";
 
