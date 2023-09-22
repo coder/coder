@@ -26,7 +26,7 @@ variable "zone" {
 }
 
 variable "k8s_version" {
-  description = "Kubernetes vversion to provision."
+  description = "Kubernetes version to provision."
   default     = "1.24"
 }
 
