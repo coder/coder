@@ -2675,7 +2675,15 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
+// UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
+func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -2685,20 +2693,19 @@ func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.Upd
 	if err != nil {
 		return err
 	}
+
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
 	if err != nil {
 		return err
 	}
-
-	return q.db.UpdateWorkspaceBuildByID(ctx, arg)
+	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
 }
 
-// UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
-func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
+func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
+	return q.db.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)
 }
 
 // Deprecated: Use SoftDeleteWorkspaceByID

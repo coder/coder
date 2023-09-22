@@ -5854,28 +5854,6 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceBuildByID(_ context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.ID != arg.ID {
-			continue
-		}
-		workspaceBuild.UpdatedAt = arg.UpdatedAt
-		workspaceBuild.ProvisionerState = arg.ProvisionerState
-		workspaceBuild.Deadline = arg.Deadline
-		workspaceBuild.MaxDeadline = arg.MaxDeadline
-		q.workspaceBuilds[index] = workspaceBuild
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5892,6 +5870,51 @@ func (q *FakeQuerier) UpdateWorkspaceBuildCostByID(_ context.Context, arg databa
 		q.workspaceBuilds[index] = workspaceBuild
 		return nil
 	}
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildDeadlineByID(_ context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.Deadline = arg.Deadline
+		build.MaxDeadline = arg.MaxDeadline
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceBuildProvisionerStateByID(_ context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for idx, build := range q.workspaceBuilds {
+		if build.ID != arg.ID {
+			continue
+		}
+		build.ProvisionerState = arg.ProvisionerState
+		build.UpdatedAt = arg.UpdatedAt
+		q.workspaceBuilds[idx] = build
+		return nil
+	}
+
 	return sql.ErrNoRows
 }
 

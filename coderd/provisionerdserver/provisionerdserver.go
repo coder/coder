@@ -832,15 +832,22 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			}
 
 			if jobType.WorkspaceBuild.State != nil {
-				err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+				err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 					ID:               input.WorkspaceBuildID,
 					UpdatedAt:        dbtime.Now(),
 					ProvisionerState: jobType.WorkspaceBuild.State,
-					Deadline:         build.Deadline,
-					MaxDeadline:      build.MaxDeadline,
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace build state: %w", err)
+				}
+				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          input.WorkspaceBuildID,
+					UpdatedAt:   dbtime.Now(),
+					Deadline:    build.Deadline,
+					MaxDeadline: build.MaxDeadline,
+				})
+				if err != nil {
+					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
 			}
 
@@ -1114,15 +1121,22 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
 			}
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+			err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 				ID:               workspaceBuild.ID,
-				Deadline:         autoStop.Deadline,
-				MaxDeadline:      autoStop.MaxDeadline,
 				ProvisionerState: jobType.WorkspaceBuild.State,
 				UpdatedAt:        now,
 			})
 			if err != nil {
-				return xerrors.Errorf("update workspace build: %w", err)
+				return xerrors.Errorf("update workspace build provisioner state: %w", err)
+			}
+			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          workspaceBuild.ID,
+				Deadline:    autoStop.Deadline,
+				MaxDeadline: autoStop.MaxDeadline,
+				UpdatedAt:   now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update workspace build deadline: %w", err)
 			}
 
 			agentTimeouts := make(map[time.Duration]bool) // A set of agent timeouts.

@@ -8489,8 +8489,13 @@ FROM (
 JOIN
 	workspace_build_with_user AS wb
 	ON m.workspace_id = wb.workspace_id AND m.max_build_number = wb.build_number
+JOIN
+	provisioner_jobs AS pj
+	ON wb.job_id = pj.id
 WHERE
 	wb.transition = 'start'::workspace_transition
+AND
+	pj.completed_at IS NOT NULL
 `
 
 func (q *sqlQuerier) GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error) {
@@ -8979,37 +8984,6 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 	return err
 }
 
-const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :exec
-UPDATE
-	workspace_builds
-SET
-	updated_at = $2,
-	provisioner_state = $3,
-	deadline = $4,
-	max_deadline = $5
-WHERE
-	id = $1
-`
-
-type UpdateWorkspaceBuildByIDParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
-	Deadline         time.Time `db:"deadline" json:"deadline"`
-	MaxDeadline      time.Time `db:"max_deadline" json:"max_deadline"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
-		arg.ID,
-		arg.UpdatedAt,
-		arg.ProvisionerState,
-		arg.Deadline,
-		arg.MaxDeadline,
-	)
-	return err
-}
-
 const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
@@ -9026,6 +9000,53 @@ type UpdateWorkspaceBuildCostByIDParams struct {
 
 func (q *sqlQuerier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildCostByID, arg.ID, arg.DailyCost)
+	return err
+}
+
+const updateWorkspaceBuildDeadlineByID = `-- name: UpdateWorkspaceBuildDeadlineByID :exec
+UPDATE
+	workspace_builds
+SET
+	deadline = $1::timestamptz,
+	max_deadline = $2::timestamptz,
+	updated_at = $3::timestamptz
+WHERE id = $4::uuid
+`
+
+type UpdateWorkspaceBuildDeadlineByIDParams struct {
+	Deadline    time.Time `db:"deadline" json:"deadline"`
+	MaxDeadline time.Time `db:"max_deadline" json:"max_deadline"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	ID          uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildDeadlineByID,
+		arg.Deadline,
+		arg.MaxDeadline,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	return err
+}
+
+const updateWorkspaceBuildProvisionerStateByID = `-- name: UpdateWorkspaceBuildProvisionerStateByID :exec
+UPDATE
+	workspace_builds
+SET
+	provisioner_state = $1::bytea,
+	updated_at = $2::timestamptz
+WHERE id = $3::uuid
+`
+
+type UpdateWorkspaceBuildProvisionerStateByIDParams struct {
+	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildProvisionerStateByID, arg.ProvisionerState, arg.UpdatedAt, arg.ID)
 	return err
 }
 
