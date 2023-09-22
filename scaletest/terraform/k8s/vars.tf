@@ -129,7 +129,7 @@ variable "coder_address" {
 
 variable "coder_db_url" {
   description = "URL of the database for Coder to use."
-  sensitive = true
+  sensitive   = true
 }
 
 // Ensure that requests allow for at least two replicas to be scheduled
@@ -247,7 +247,7 @@ variable "prometheus_postgres_host" {
 
 variable "prometheus_postgres_password" {
   description = "Postgres password for Prometheus."
-  sensitive = true
+  sensitive   = true
 }
 
 variable "prometheus_postgres_user" {
@@ -262,7 +262,7 @@ variable "prometheus_remote_write_user" {
 variable "prometheus_remote_write_password" {
   description = "Password for Prometheus remote write."
   default     = ""
-  sensitive = true
+  sensitive   = true
 }
 
 variable "prometheus_remote_write_url" {
