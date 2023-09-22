@@ -256,12 +256,13 @@ const WorkspacesRow: FC<{
 
   const clickableProps = useClickableTableRow({
     onAuxClick: (event) => {
-      const userClickedMiddleMouseButton = event.button === 1;
-      if (userClickedMiddleMouseButton) {
+      const isMiddleMouseButton = event.button === 1;
+      if (isMiddleMouseButton) {
         openLinkInNewTab();
       }
     },
     onClick: (event) => {
+      // Order of booleans actually matters here for Windows-Mac compatibility
       const shouldOpenInNewTab =
         event.ctrlKey || event.shiftKey || event.metaKey;
 
