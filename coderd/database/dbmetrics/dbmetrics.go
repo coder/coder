@@ -1649,13 +1649,6 @@ func (m metricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg database
 	return err
 }
 
-func (m metricsStore) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
-	start := time.Now()
-	err := m.s.UpdateWorkspaceBuildByID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildByID").Observe(time.Since(start).Seconds())
-	return err
-}
-
 func (m metricsStore) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceBuildCostByID(ctx, arg)

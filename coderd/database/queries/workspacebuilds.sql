@@ -125,17 +125,6 @@ INSERT INTO
 VALUES
 	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13);
 
--- name: UpdateWorkspaceBuildByID :exec
-UPDATE
-	workspace_builds
-SET
-	updated_at = $2,
-	provisioner_state = $3,
-	deadline = $4,
-	max_deadline = $5
-WHERE
-	id = $1;
-
 -- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds

@@ -8979,37 +8979,6 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 	return err
 }
 
-const updateWorkspaceBuildByID = `-- name: UpdateWorkspaceBuildByID :exec
-UPDATE
-	workspace_builds
-SET
-	updated_at = $2,
-	provisioner_state = $3,
-	deadline = $4,
-	max_deadline = $5
-WHERE
-	id = $1
-`
-
-type UpdateWorkspaceBuildByIDParams struct {
-	ID               uuid.UUID `db:"id" json:"id"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
-	ProvisionerState []byte    `db:"provisioner_state" json:"provisioner_state"`
-	Deadline         time.Time `db:"deadline" json:"deadline"`
-	MaxDeadline      time.Time `db:"max_deadline" json:"max_deadline"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceBuildByID(ctx context.Context, arg UpdateWorkspaceBuildByIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceBuildByID,
-		arg.ID,
-		arg.UpdatedAt,
-		arg.ProvisionerState,
-		arg.Deadline,
-		arg.MaxDeadline,
-	)
-	return err
-}
-
 const updateWorkspaceBuildCostByID = `-- name: UpdateWorkspaceBuildCostByID :exec
 UPDATE
 	workspace_builds
