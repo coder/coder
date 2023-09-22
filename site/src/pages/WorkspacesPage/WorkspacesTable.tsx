@@ -256,8 +256,8 @@ const WorkspacesRow: FC<{
 
   const clickableProps = useClickableTableRow({
     onAuxClick: (event) => {
-      const userClickedMiddleButton = event.button === 1;
-      if (userClickedMiddleButton) {
+      const userClickedMiddleMouseButton = event.button === 1;
+      if (userClickedMiddleMouseButton) {
         openLinkInNewTab();
       }
     },
