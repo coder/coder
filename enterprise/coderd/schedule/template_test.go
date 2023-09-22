@@ -196,12 +196,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               wsBuild.ID,
-				UpdatedAt:        buildTime,
-				ProvisionerState: []byte{},
-				Deadline:         c.deadline,
-				MaxDeadline:      c.maxDeadline,
+			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          wsBuild.ID,
+				UpdatedAt:   buildTime,
+				Deadline:    c.deadline,
+				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
 
@@ -434,7 +433,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		// Assert test invariant: workspace build state must not be empty
 		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
 
-		err := db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:          wsBuild.ID,
 			UpdatedAt:   buildTime,
 			Deadline:    originalMaxDeadline,
