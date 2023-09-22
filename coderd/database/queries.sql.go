@@ -2062,9 +2062,9 @@ WITH app_stats AS (
 	FROM workspace_agent_stats was
 	WHERE
 		was.created_at >= $2::timestamptz
-		AND was.created_at $3::timestamptz
+		AND was.created_at < $3::timestamptz
 		AND was.connection_count > 0
-		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN w.template_id = ANY($1::uuid[]) ELSE TRUE END
+		AND CASE WHEN COALESCE(array_length($1::uuid[], 1), 0) > 0 THEN was.template_id = ANY($1::uuid[]) ELSE TRUE END
 	GROUP BY date_trunc('minute', was.created_at), was.user_id, was.template_id
 ), combined_stats AS (
 	SELECT
