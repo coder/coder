@@ -193,6 +193,31 @@ describe("CreateWorkspacePage", () => {
         MockOrganization.id,
         "me",
         expect.objectContaining({
+          template_id: MockTemplate.id,
+          rich_parameter_values: [{ name: param, value: paramValue }],
+        }),
+      );
+    });
+  });
+
+  it("auto create a workspace if uses mode=auto and version=version-id", async () => {
+    const param = "first_parameter";
+    const paramValue = "It works!";
+    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
+      path: "/templates/:template/workspace",
+    });
+
+    await waitFor(() => {
+      expect(createWorkspaceSpy).toBeCalledWith(
+        MockOrganization.id,
+        "me",
+        expect.objectContaining({
           template_version_id: MockTemplate.active_version_id,
           rich_parameter_values: [{ name: param, value: paramValue }],
         }),
