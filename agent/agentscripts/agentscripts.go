@@ -130,7 +130,7 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) error {
 	logPath := script.LogPath
 	if logPath == "" {
-		logPath = fmt.Sprintf("coder-%s-script.log", script.LogSourceID)
+		logPath = fmt.Sprintf("coder-script-%s.log", script.LogSourceID)
 	}
 	if !filepath.IsAbs(logPath) {
 		logPath = filepath.Join(r.LogDir, logPath)
@@ -149,13 +149,19 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		}
 	}()
 
+	var cmd *exec.Cmd
+	if script.Timeout > 0 {
+		var ctxCancel context.CancelFunc
+		ctx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
+		defer ctxCancel()
+	}
 	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Script, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
-	cmd := cmdPty.AsExec()
+	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
-	cmd.WaitDelay = script.TimeoutSeconds + (10 * time.Second)
+	cmd.WaitDelay = 10 * time.Second
 	cmd.Cancel = cmdCancel(cmd)
 
 	send, flushAndClose := agentsdk.LogsSender(script.LogSourceID, r.PatchLogs, logger)
@@ -200,9 +206,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 
 	// timeout stores whether the process timed out then was gracefully killed.
 	var timeout chan struct{}
-	if script.TimeoutSeconds > 0 {
+	if script.Timeout > 0 {
 		timeout = make(chan struct{})
-		timer := time.AfterFunc(script.TimeoutSeconds, func() {
+		timer := time.AfterFunc(script.Timeout, func() {
 			close(timeout)
 			err := cmd.Process.Signal(os.Interrupt)
 			if err != nil {
