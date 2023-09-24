@@ -1,3 +1,4 @@
+import { type MouseEventHandler } from "react";
 import { type TableRowProps } from "@mui/material/TableRow";
 import { makeStyles } from "@mui/styles";
 import { useClickable, type UseClickableResult } from "./useClickable";
@@ -6,26 +7,43 @@ type UseClickableTableRowResult = UseClickableResult<HTMLTableRowElement> &
   TableRowProps & {
     className: string;
     hover: true;
+    onAuxClick: MouseEventHandler<HTMLTableRowElement>;
   };
 
-type TableRowOnClickProps = {
-  [Key in keyof UseClickableTableRowResult as Key extends `on${string}Click`
+// Awkward type definition (the hover preview in VS Code isn't great, either),
+// but this basically takes all click props from TableRowProps, but makes
+// onClick required, and adds an optional onMiddleClick
+type UseClickableTableRowConfig = {
+  [Key in keyof TableRowProps as Key extends `on${string}Click`
     ? Key
     : never]: UseClickableTableRowResult[Key];
+} & {
+  onClick: MouseEventHandler<HTMLTableRowElement>;
+  onMiddleClick?: MouseEventHandler<HTMLTableRowElement>;
 };
 
 export const useClickableTableRow = ({
   onClick,
-  ...optionalOnClickProps
-}: TableRowOnClickProps): UseClickableTableRowResult => {
+  onAuxClick: externalOnAuxClick,
+  onDoubleClick,
+  onMiddleClick,
+}: UseClickableTableRowConfig): UseClickableTableRowResult => {
   const styles = useStyles();
-  const clickableProps = useClickable<HTMLTableRowElement>(onClick);
+  const clickableProps = useClickable(onClick);
 
   return {
     ...clickableProps,
-    ...optionalOnClickProps,
     className: styles.row,
     hover: true,
+    onDoubleClick,
+    onAuxClick: (event) => {
+      const isMiddleMouseButton = event.button === 1;
+      if (isMiddleMouseButton) {
+        onMiddleClick?.(event);
+      }
+
+      externalOnAuxClick?.(event);
+    },
   };
 };
 

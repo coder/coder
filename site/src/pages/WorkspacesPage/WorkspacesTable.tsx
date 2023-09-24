@@ -255,16 +255,13 @@ const WorkspacesRow: FC<{
   const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
 
   const clickableProps = useClickableTableRow({
-    onAuxClick: (event) => {
-      const isMiddleMouseButton = event.button === 1;
-      if (isMiddleMouseButton) {
-        openLinkInNewTab();
-      }
-    },
+    onMiddleClick: openLinkInNewTab,
     onClick: (event) => {
-      // Order of booleans actually matters here for Windows-Mac compatibility
+      // Order of booleans actually matters here for Windows-Mac compatibility;
+      // meta key is Cmd on Macs, but on Windows, it's either the Windows key,
+      // or the key does nothing at all (depends on the browser)
       const shouldOpenInNewTab =
-        event.ctrlKey || event.shiftKey || event.metaKey;
+        event.shiftKey || event.metaKey || event.ctrlKey;
 
       if (shouldOpenInNewTab) {
         openLinkInNewTab();
