@@ -49,6 +49,8 @@ done
 
 # Remove the "v" prefix.
 version="${version#v}"
+# Remove any "+", which is not allowed by Helm.
+version="${version//+/-}"
 if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
