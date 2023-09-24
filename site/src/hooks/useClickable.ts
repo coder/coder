@@ -25,8 +25,8 @@ export interface UseClickableResult<
  * don't traditionally have support for them.
  */
 export const useClickable = <
-  // T doesn't have a default type to make it more obvious that the hook expects
-  // a type argument in order to work at all
+  // T doesn't have a default type on purpose; the hook should error out if it
+  // doesn't have an explicit type, or a type it can infer from onClick
   T extends ClickableElement,
 >(
   // Even though onClick isn't used in any of the internal calculations, it's
@@ -42,13 +42,12 @@ export const useClickable = <
     role: "button",
     onClick,
 
-    // Most interactive elements already have this logic baked in automatically,
-    // but you explicitly have to add it for non-interactive elements
+    // Most interactive elements automatically make Space/Enter trigger onClick
+    // callbacks, but you explicitly have to add it for non-interactive elements
     onKeyDown: (event) => {
       if (event.key === "Enter" || event.key === "Space") {
-        // Can't call onClick directly because onClick needs to work with an
-        // event, and mouse events + keyboard events aren't compatible; wouldn't
-        // have a value to pass in. Have to use a ref to simulate a click
+        // Can't call onClick from here because onKeydown's keyboard event isn't
+        // compatible with mouse events. Have to use a ref to simulate a click
         ref.current?.click();
         event.stopPropagation();
       }
