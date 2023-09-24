@@ -38,7 +38,9 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
         <p className={styles.warning}>{info}</p>
       </Maybe>
       <p>Are you sure you want to proceed?</p>
-      <p>Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.</p>
+      <p>
+        Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.
+      </p>
 
       <form
         onSubmit={(e) => {
