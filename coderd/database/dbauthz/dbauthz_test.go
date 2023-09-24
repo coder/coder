@@ -1232,14 +1232,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateWorkspaceBuildDeadlineByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		check.Args(database.UpdateWorkspaceBuildByIDParams{
-			ID:               build.ID,
-			UpdatedAt:        build.UpdatedAt,
-			Deadline:         build.Deadline,
-			ProvisionerState: []byte{},
+		check.Args(database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:        build.ID,
+			UpdatedAt: build.UpdatedAt,
+			Deadline:  build.Deadline,
 		}).Asserts(ws, rbac.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1376,6 +1375,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.UpdateWorkspaceBuildCostByIDParams{
 			ID:        b.ID,
 			DailyCost: 10,
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
+	s.Run("UpdateWorkspaceBuildProvisionerStateByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		check.Args(database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               build.ID,
+			ProvisionerState: []byte("testing"),
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
 	s.Run("UpsertLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {

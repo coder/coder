@@ -26,7 +26,6 @@ import Divider from "@mui/material/Divider";
 import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 
 import { useDebouncedFunction } from "hooks/debounce";
-import { useEffectEvent } from "hooks/hookPolyfills";
 
 export type PresetFilter = {
   name: string;
@@ -55,26 +54,6 @@ export const useFilter = ({
 }: UseFilterConfig) => {
   const [searchParams, setSearchParams] = searchParamsResult;
   const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
-
-  // Stabilizing reference to setSearchParams from one central spot, just to be
-  // on the extra careful side; don't want effects over-running. You would think
-  // this would be overkill, but setSearchParams isn't stable out of the box
-  const stableSetSearchParams = useEffectEvent(setSearchParams);
-
-  // Keep params synced with query, even as query changes from outside sources
-  useEffect(() => {
-    stableSetSearchParams((currentParams) => {
-      const currentQuery = currentParams.get(useFilterParamsKey);
-
-      if (query === "") {
-        currentParams.delete(useFilterParamsKey);
-      } else if (currentQuery !== query) {
-        currentParams.set(useFilterParamsKey, query);
-      }
-
-      return currentParams;
-    });
-  }, [stableSetSearchParams, query]);
 
   const update = (newValues: string | FilterValues) => {
     const serialized =

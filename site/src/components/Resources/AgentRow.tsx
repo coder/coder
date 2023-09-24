@@ -1,13 +1,25 @@
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
 import { makeStyles } from "@mui/styles";
-import { useMachine } from "@xstate/react";
+import * as API from "api/api";
+import {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentLogSource,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
 import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
-import { LogLine, logLineHeight } from "components/WorkspaceBuildLogs/Logs";
+import {
+  Line,
+  LogLine,
+  logLineHeight,
+} from "components/WorkspaceBuildLogs/Logs";
 import { useProxy } from "contexts/ProxyContext";
 import {
   FC,
@@ -22,16 +34,6 @@ import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { colors } from "theme/colors";
 import { combineClasses } from "utils/combineClasses";
-import {
-  LineWithID,
-  workspaceAgentLogsMachine,
-} from "xServices/workspaceAgentLogs/workspaceAgentLogsXService";
-import {
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentLogSource,
-  WorkspaceAgentMetadata,
-} from "../../api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
@@ -41,7 +43,13 @@ import { AppLink } from "./AppLink/AppLink";
 import { PortForwardButton } from "./PortForwardButton";
 import { SSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
-import Tooltip from "@mui/material/Tooltip";
+
+// Logs are stored as the Line interface to make rendering
+// much more efficient. Instead of mapping objects each time, we're
+// able to just pass the array of logs to the component.
+export interface LineWithID extends Line {
+  id: number;
+}
 
 export interface AgentRowProps {
   agent: WorkspaceAgent;
@@ -66,66 +74,37 @@ export const AgentRow: FC<AgentRowProps> = ({
   hideVSCodeDesktopButton,
   serverVersion,
   onUpdateAgent,
-  storybookLogs,
   storybookAgentMetadata,
   sshPrefix,
+  storybookLogs,
 }) => {
   const styles = useStyles();
-  const [logsMachine, sendLogsEvent] = useMachine(workspaceAgentLogsMachine, {
-    context: { agentID: agent.id },
-    services: process.env.STORYBOOK
-      ? {
-          getLogs: async () => {
-            return storybookLogs || [];
-          },
-          streamLogs: () => async () => {
-            // noop
-          },
-        }
-      : undefined,
-  });
   const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0;
   const shouldDisplayApps =
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
-  const hasStartupFeatures =
-    Boolean(agent.logs_length) || Boolean(logsMachine.context.logs?.length);
-  const logSourceByID = useMemo(() => {
-    const sources: { [id: string]: WorkspaceAgentLogSource } = {};
-    for (const source of agent.log_sources) {
-      sources[source.id] = source;
-    }
-    return sources;
-  }, [agent.log_sources]);
+      const logSourceByID = useMemo(() => {
+        const sources: { [id: string]: WorkspaceAgentLogSource } = {};
+        for (const source of agent.log_sources) {
+          sources[source.id] = source;
+        }
+        return sources;
+      }, [agent.log_sources]);
+  const hasStartupFeatures = Boolean(agent.logs_length);
   const { proxy } = useProxy();
-
   const [showLogs, setShowLogs] = useState(
     ["starting", "start_timeout"].includes(agent.lifecycle_state) &&
       hasStartupFeatures,
   );
-  useEffect(() => {
-    setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
-  }, [agent.lifecycle_state, hasStartupFeatures]);
-  // External applications can provide startup logs for an agent during it's spawn.
-  // These could be Kubernetes logs, or other logs that are useful to the user.
-  // For this reason, we want to fetch these logs when the agent is starting.
-  useEffect(() => {
-    if (agent.lifecycle_state === "starting") {
-      sendLogsEvent("FETCH_LOGS");
-    }
-  }, [sendLogsEvent, agent.lifecycle_state]);
-  useEffect(() => {
-    // We only want to fetch logs when they are actually shown,
-    // otherwise we can make a lot of requests that aren't necessary.
-    if (showLogs && logsMachine.can("FETCH_LOGS")) {
-      sendLogsEvent("FETCH_LOGS");
-    }
-  }, [logsMachine, sendLogsEvent, showLogs]);
+  const agentLogs = useAgentLogs(agent.id, {
+    enabled: showLogs,
+    initialData: process.env.STORYBOOK ? storybookLogs || [] : undefined,
+  });
   const logListRef = useRef<List>(null);
   const logListDivRef = useRef<HTMLDivElement>(null);
   const startupLogs = useMemo(() => {
-    const allLogs = logsMachine.context.logs || [];
+    const allLogs = agentLogs || [];
 
     const logs = [...allLogs];
     if (agent.logs_overflowed) {
@@ -138,8 +117,13 @@ export const AgentRow: FC<AgentRowProps> = ({
       });
     }
     return logs;
-  }, [logsMachine.context.logs, agent.logs_overflowed]);
+  }, [agentLogs, agent.logs_overflowed]);
   const [bottomOfLogs, setBottomOfLogs] = useState(true);
+
+  useEffect(() => {
+    setShowLogs(agent.lifecycle_state !== "ready" && hasStartupFeatures);
+  }, [agent.lifecycle_state, hasStartupFeatures]);
+
   // This is a layout effect to remove flicker when we're scrolling to the bottom.
   useLayoutEffect(() => {
     // If we're currently watching the bottom, we always want to stay at the bottom.
@@ -431,6 +415,52 @@ export const AgentRow: FC<AgentRowProps> = ({
       )}
     </Stack>
   );
+};
+
+const useAgentLogs = (
+  agentId: string,
+  { enabled, initialData }: { enabled: boolean; initialData?: LineWithID[] },
+) => {
+  const [logs, setLogs] = useState<LineWithID[] | undefined>(initialData);
+  const socket = useRef<WebSocket | null>(null);
+
+  useEffect(() => {
+    if (!enabled) {
+      socket.current?.close();
+      return;
+    }
+
+    socket.current = API.watchWorkspaceAgentLogs(agentId, {
+      // Get all logs
+      after: 0,
+      onMessage: (logs) => {
+        setLogs((previousLogs) => {
+          const newLogs: LineWithID[] = logs.map((log) => ({
+            id: log.id,
+            level: log.level || "info",
+            output: log.output,
+            time: log.created_at,
+            source_id: log.source_id,
+          }));
+
+          if (!previousLogs) {
+            return newLogs;
+          }
+
+          return [...previousLogs, ...newLogs];
+        });
+      },
+      onError: () => {
+        displayError("Error on getting agent logs");
+      },
+    });
+
+    return () => {
+      socket.current?.close();
+    };
+  }, [agentId, enabled]);
+
+  return logs;
 };
 
 const useStyles = makeStyles((theme) => ({

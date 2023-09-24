@@ -17,7 +17,7 @@ import {
   MockWorkspaceApp,
   MockProxyLatencies,
 } from "testHelpers/entities";
-import { AgentRow } from "./AgentRow";
+import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import type { Meta, StoryObj } from "@storybook/react";
 
@@ -84,25 +84,27 @@ const defaultAgentMetadata = [
   },
 ];
 
+const storybookLogs: LineWithID[] = [
+  "\x1b[91mCloning Git repository...",
+  "\x1b[2;37;41mStarting Docker Daemon...",
+  "\x1b[1;95mAdding some 🧙magic🧙...",
+  "Starting VS Code...",
+  "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
+].map((line, index) => ({
+  id: index,
+  level: "info",
+  output: line,
+  time: "",
+}));
+
 const meta: Meta<typeof AgentRow> = {
   title: "components/AgentRow",
   component: AgentRow,
   args: {
-    storybookLogs: [
-      "\x1b[91mCloning Git repository...",
-      "\x1b[2;37;41mStarting Docker Daemon...",
-      "\x1b[1;95mAdding some 🧙magic🧙...",
-      "Starting VS Code...",
-      "\r  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0\r100  1475    0  1475    0     0   4231      0 --:--:-- --:--:-- --:--:--  4238",
-    ].map((line, index) => ({
-      id: index,
-      level: "info",
-      output: line,
-      time: "",
-      source_id: "",
-    })),
+    storybookLogs,
     agent: {
       ...MockWorkspaceAgent,
+      logs_length: storybookLogs.length,
     },
     workspace: MockWorkspace,
     showApps: true,
