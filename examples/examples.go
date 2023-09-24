@@ -23,7 +23,6 @@ var (
 	// Only some templates are embedded that we want to display inside the UI.
 	// The metadata in examples.gen.json is generated via scripts/examplegen.
 	//go:embed examples.gen.json
-	//go:embed templates/aws-ecs-container
 	//go:embed templates/aws-linux
 	//go:embed templates/aws-windows
 	//go:embed templates/azure-linux
