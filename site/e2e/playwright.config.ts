@@ -16,6 +16,12 @@ const localURL = (port: number, path: string): string => {
   return `http://localhost:${port}${path}`;
 };
 
+// cleanURL removes the trailing slash from the end of a URL if it exists.
+// It also removes leading and trailing whitespace.
+const cleanURL = (url: string): string => {
+  return url.trim().replace(/\/$/, "");
+};
+
 export default defineConfig({
   projects: [
     {
@@ -35,7 +41,9 @@ export default defineConfig({
   reporter: [["./reporter.ts"]],
   use: {
     baseURL:
-      externalURL !== undefined ? externalURL : `http://localhost:${port}`,
+      externalURL !== undefined
+        ? cleanURL(externalURL)
+        : `http://localhost:${port}`,
     video: "retain-on-failure",
     launchOptions: {
       args: ["--disable-webgl"],
