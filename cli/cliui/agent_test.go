@@ -52,8 +52,8 @@ func TestAgent(t *testing.T) {
 			want: []string{
 				"⧗ Waiting for the workspace agent to connect",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"Notice: The startup script is still running and your workspace may be incomplete.",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"Notice: The startup scripts are still running and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
 			},
 		},
@@ -86,8 +86,8 @@ func TestAgent(t *testing.T) {
 				"The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.",
 				"For more information and troubleshooting, see",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"✔ Running workspace agent startup script (non-blocking)",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✔ Running workspace agent startup scripts (non-blocking)",
 			},
 		},
 		{
@@ -120,7 +120,7 @@ func TestAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "Startup script logs",
+			name: "Startup Logs",
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 				Wait:          true,
@@ -152,10 +152,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
 				"Bye now",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 		},
 		{
@@ -181,10 +181,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✘ Running workspace agent startup script",
-				"Warning: The startup script exited with an error and your workspace may be incomplete.",
+				"✘ Running workspace agent startup scripts",
+				"Warning: A startup script exited with an error and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
 			},
 		},
@@ -229,9 +229,9 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 			wantErr: true,
 		},
@@ -339,6 +339,9 @@ func TestAgent(t *testing.T) {
 				line := s.Text()
 				t.Log(line)
 				if len(tc.want) == 0 {
+					for i := 0; i < 5; i++ {
+						t.Log(line)
+					}
 					require.Fail(t, "unexpected line", line)
 				}
 				require.Contains(t, line, tc.want[0])
