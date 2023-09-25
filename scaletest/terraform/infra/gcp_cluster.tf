@@ -48,7 +48,10 @@ resource "google_container_node_pool" "coder" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.state == "stopped" ? 0 : var.nodepool_size_coder
+  autoscaling {
+    min_node_count = 1
+    max_node_count = var.nodepool_size_coder
+  }
   management {
     auto_upgrade = false
   }
@@ -81,7 +84,10 @@ resource "google_container_node_pool" "workspaces" {
   location   = var.zone
   project    = var.project_id
   cluster    = google_container_cluster.primary.name
-  node_count = var.state == "stopped" ? 0 : var.nodepool_size_workspaces
+  autoscaling {
+    min_node_count = 0
+    max_node_count = var.nodepool_size_workspaces
+  }
   management {
     auto_upgrade = false
   }
