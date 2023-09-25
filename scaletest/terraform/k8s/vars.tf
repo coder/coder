@@ -96,6 +96,11 @@ variable "provisionerd_concurrency" {
   default     = 3
 }
 
+variable "provisionerd_chart_version" {
+  description = "Version of the Provisionerd Helm chart to install. Defaults to latest."
+  default     = null
+}
+
 variable "coder_chart_version" {
   description = "Version of the Coder Helm chart to install. Defaults to latest."
   default     = null

@@ -44,10 +44,10 @@ resource "google_container_cluster" "primary" {
 }
 
 resource "google_container_node_pool" "coder" {
-  name       = "${var.name}-coder"
-  location   = var.zone
-  project    = var.project_id
-  cluster    = google_container_cluster.primary.name
+  name     = "${var.name}-coder"
+  location = var.zone
+  project  = var.project_id
+  cluster  = google_container_cluster.primary.name
   autoscaling {
     min_node_count = 1
     max_node_count = var.nodepool_size_coder
@@ -80,10 +80,10 @@ resource "google_container_node_pool" "coder" {
 }
 
 resource "google_container_node_pool" "workspaces" {
-  name       = "${var.name}-workspaces"
-  location   = var.zone
-  project    = var.project_id
-  cluster    = google_container_cluster.primary.name
+  name     = "${var.name}-workspaces"
+  location = var.zone
+  project  = var.project_id
+  cluster  = google_container_cluster.primary.name
   autoscaling {
     min_node_count = 0
     max_node_count = var.nodepool_size_workspaces
