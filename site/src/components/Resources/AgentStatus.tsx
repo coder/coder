@@ -244,6 +244,11 @@ const OffLifecycle: React.FC = () => {
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
+  // This is to support legacy agents that do not support
+  // reporting the lifecycle_state field.
+  if (agent.scripts.length === 0) {
+    return <ReadyLifecycle />;
+  }
   return (
     <ChooseOne>
       <Cond condition={agent.lifecycle_state === "ready"}>
