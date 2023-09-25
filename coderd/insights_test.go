@@ -351,14 +351,14 @@ func TestUserActivityInsights_BadRequest(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	// Test insights request
+	// Send insights request
 	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
 		StartTime: today,
 		EndTime:   today.AddDate(0, 0, -1),
 	})
 	assert.Error(t, err, "want error for end time before start time")
 
-	// Test insights request
+	// Send insights request
 	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
 		StartTime: today.AddDate(0, 0, -7),
 		EndTime:   today.Add(-time.Hour),
