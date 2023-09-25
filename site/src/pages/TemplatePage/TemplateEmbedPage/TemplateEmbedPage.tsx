@@ -10,7 +10,7 @@ import { getTemplateVersionRichParameters } from "api/api";
 import { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";
 import { Loader } from "components/Loader/Loader";
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,

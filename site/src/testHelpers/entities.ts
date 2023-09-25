@@ -2109,6 +2109,7 @@ export const MockPermissions: Permissions = {
   createTemplates: true,
   createUser: true,
   deleteTemplates: true,
+  updateTemplates: true,
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,

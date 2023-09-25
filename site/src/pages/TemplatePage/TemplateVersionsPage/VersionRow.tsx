@@ -88,7 +88,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
                   onPromoteClick(version.id);
                 }}
               >
-                Promote
+                Promote&hellip;
               </Button>
             )}
           </Stack>
