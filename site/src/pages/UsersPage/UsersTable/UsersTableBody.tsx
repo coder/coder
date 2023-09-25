@@ -215,51 +215,45 @@ export const UsersTableBody: FC<
                     <TableCell>
                       <TableRowMenu
                         data={user}
-                        menuItems={
+                        menuItems={[
                           // Return either suspend or activate depending on status
-                          (user.status === "active" || user.status === "dormant"
-                            ? [
-                                {
-                                  label: "Suspend" as ReactNode,
-                                  onClick: onSuspendUser,
-                                  disabled: false,
-                                },
-                              ]
-                            : [
-                                {
-                                  label: "Activate" as ReactNode,
-                                  onClick: onActivateUser,
-                                  disabled: false,
-                                },
-                              ]
-                          ).concat(
-                            {
-                              label: "Delete",
-                              onClick: onDeleteUser,
-                              disabled: user.id === actorID,
-                            },
-                            {
-                              label: "Reset password",
-                              onClick: onResetUserPassword,
-                              disabled: user.login_type !== "password",
-                            },
-                            {
-                              label: "View workspaces",
-                              onClick: onListWorkspaces,
-                              disabled: false,
-                            },
-                            {
-                              label: (
-                                <>
-                                  View activity
-                                  {!canViewActivity && <EnterpriseBadge />}
-                                </>
-                              ),
-                              onClick: onViewActivity,
-                              disabled: !canViewActivity,
-                            },
-                          )
-                        }
+                          user.status === "active" || user.status === "dormant"
+                            ? {
+                                label: <>Suspend&hellip;</>,
+                                onClick: onSuspendUser,
+                                disabled: false,
+                              }
+                            : {
+                                label: <>Activate&hellip;</>,
+                                onClick: onActivateUser,
+                                disabled: false,
+                              },
+                          {
+                            label: <>Delete&hellip;</>,
+                            onClick: onDeleteUser,
+                            disabled: user.id === actorID,
+                          },
+                          {
+                            label: <>Reset password&hellip;</>,
+                            onClick: onResetUserPassword,
+                            disabled: user.login_type !== "password",
+                          },
+                          {
+                            label: "View workspaces",
+                            onClick: onListWorkspaces,
+                            disabled: false,
+                          },
+                          {
+                            label: (
+                              <>
+                                View activity
+                                {!canViewActivity && <EnterpriseBadge />}
+                              </>
+                            ),
+                            onClick: onViewActivity,
+                            disabled: !canViewActivity,
+                          },
+                        ]}
                       />
                     </TableCell>
                   )}
