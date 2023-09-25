@@ -1392,7 +1392,7 @@ export interface WorkspaceAgentScript {
   readonly run_on_start: boolean;
   readonly run_on_stop: boolean;
   readonly start_blocks_login: boolean;
-  readonly timeout_seconds: number;
+  readonly timeout: number;
 }
 
 // From codersdk/workspaceapps.go
