@@ -2,10 +2,8 @@ import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { TemplateLayout } from "components/TemplateLayout/TemplateLayout";
 import { UsersLayout } from "components/UsersLayout/UsersLayout";
 import AuditPage from "pages/AuditPage/AuditPage";
-import GroupsPage from "pages/GroupsPage/GroupsPage";
 import LoginPage from "pages/LoginPage/LoginPage";
 import { SetupPage } from "pages/SetupPage/SetupPage";
-import { TemplateSettingsPage } from "pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage";
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
 import UsersPage from "pages/UsersPage/UsersPage";
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
@@ -152,15 +150,12 @@ const WorkspaceSettingsPage = lazy(
 const CreateTokenPage = lazy(
   () => import("./pages/CreateTokenPage/CreateTokenPage"),
 );
-
 const TemplateDocsPage = lazy(
   () => import("./pages/TemplatePage/TemplateDocsPage/TemplateDocsPage"),
 );
-
 const TemplateFilesPage = lazy(
   () => import("./pages/TemplatePage/TemplateFilesPage/TemplateFilesPage"),
 );
-
 const TemplateVersionsPage = lazy(
   () =>
     import("./pages/TemplatePage/TemplateVersionsPage/TemplateVersionsPage"),
@@ -171,7 +166,12 @@ const TemplateSchedulePage = lazy(
       "./pages/TemplateSettingsPage/TemplateSchedulePage/TemplateSchedulePage"
     ),
 );
-
+const TemplateSettingsPage = lazy(
+  () =>
+    import(
+      "./pages/TemplateSettingsPage/TemplateGeneralSettingsPage/TemplateSettingsPage"
+    ),
+);
 const LicensesSettingsPage = lazy(
   () =>
     import(
@@ -190,6 +190,7 @@ const TemplateInsightsPage = lazy(
     import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 );
 const HealthPage = lazy(() => import("./pages/HealthPage/HealthPage"));
+const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 
 export const AppRouter: FC = () => {
   return (

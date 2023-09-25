@@ -1783,9 +1783,15 @@ type TailnetAgent struct {
 type TailnetClient struct {
 	ID            uuid.UUID       `db:"id" json:"id"`
 	CoordinatorID uuid.UUID       `db:"coordinator_id" json:"coordinator_id"`
-	AgentID       uuid.UUID       `db:"agent_id" json:"agent_id"`
 	UpdatedAt     time.Time       `db:"updated_at" json:"updated_at"`
 	Node          json.RawMessage `db:"node" json:"node"`
+}
+
+type TailnetClientSubscription struct {
+	ClientID      uuid.UUID `db:"client_id" json:"client_id"`
+	CoordinatorID uuid.UUID `db:"coordinator_id" json:"coordinator_id"`
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // We keep this separate from replicas in case we need to break the coordinator out into its own service

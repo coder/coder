@@ -10,3 +10,15 @@ export const updatePassword = () => {
       API.updateUserPassword(userId, request),
   };
 };
+
+export const createUser = () => {
+  return {
+    mutationFn: API.createUser,
+  };
+};
+
+export const createFirstUser = () => {
+  return {
+    mutationFn: API.createFirstUser,
+  };
+};

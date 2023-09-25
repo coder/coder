@@ -1,30 +1,15 @@
-import { useMachine } from "@xstate/react";
 import { useAuth } from "components/AuthProvider/AuthProvider";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { setupMachine } from "xServices/setup/setupXService";
 import { SetupPageView } from "./SetupPageView";
 import { Navigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query";
+import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {
   const [authState, authSend] = useAuth();
-  const [setupState, setupSend] = useMachine(setupMachine, {
-    actions: {
-      onCreateFirstUser: ({ firstUser }) => {
-        if (!firstUser) {
-          throw new Error("First user was not defined.");
-        }
-        authSend({
-          type: "SIGN_IN",
-          email: firstUser.email,
-          password: firstUser.password,
-        });
-      },
-    },
-  });
-  const { error } = setupState.context;
-
+  const createFirstUserMutation = useMutation(createFirstUser());
   const userIsSignedIn = authState.matches("signedIn");
   const setupIsComplete =
     !authState.matches("loadingInitialAuthData") &&
@@ -46,10 +31,15 @@ export const SetupPage: FC = () => {
         <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
-        isLoading={setupState.hasTag("loading")}
-        error={error}
-        onSubmit={(firstUser) => {
-          setupSend({ type: "CREATE_FIRST_USER", firstUser });
+        isLoading={createFirstUserMutation.isLoading}
+        error={createFirstUserMutation.error}
+        onSubmit={async (firstUser) => {
+          await createFirstUserMutation.mutateAsync(firstUser);
+          authSend({
+            type: "SIGN_IN",
+            email: firstUser.email,
+            password: firstUser.password,
+          });
         }}
       />
     </>

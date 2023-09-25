@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -164,8 +165,12 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					JobID:             job.ID,
 					InitiatorID:       user.ID,
 					TemplateVersionID: templateVersion.ID,
+					ProvisionerState:  []byte(must(cryptorand.String(64))),
 				})
 			)
+
+			// Assert test invariant: workspace build state must not be empty
+			require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
 
 			acquiredJob, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 				StartedAt: sql.NullTime{
@@ -191,12 +196,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               wsBuild.ID,
-				UpdatedAt:        buildTime,
-				ProvisionerState: []byte{},
-				Deadline:         c.deadline,
-				MaxDeadline:      c.maxDeadline,
+			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          wsBuild.ID,
+				UpdatedAt:   buildTime,
+				Deadline:    c.deadline,
+				MaxDeadline: c.maxDeadline,
 			})
 			require.NoError(t, err)
 
@@ -240,6 +244,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			}
 			require.WithinDuration(t, c.newDeadline, newBuild.Deadline, time.Second)
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second)
+
+			// Check that the new build has the same state as before.
+			require.Equal(t, wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
 		})
 	}
 }
@@ -420,19 +427,25 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			JobID:             job.ID,
 			InitiatorID:       user.ID,
 			TemplateVersionID: templateVersion.ID,
+			ProvisionerState:  []byte(must(cryptorand.String(64))),
 		})
 
-		err := db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-			ID:               wsBuild.ID,
-			UpdatedAt:        buildTime,
-			ProvisionerState: []byte{},
-			Deadline:         originalMaxDeadline,
-			MaxDeadline:      originalMaxDeadline,
+		// Assert test invariant: workspace build state must not be empty
+		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
+
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:          wsBuild.ID,
+			UpdatedAt:   buildTime,
+			Deadline:    originalMaxDeadline,
+			MaxDeadline: originalMaxDeadline,
 		})
 		require.NoError(t, err)
 
 		wsBuild, err = db.GetWorkspaceBuildByID(ctx, wsBuild.ID)
 		require.NoError(t, err)
+
+		// Assert test invariant: workspace build state must not be empty
+		require.NotEmpty(t, wsBuild.ProvisionerState, "provisioner state must not be empty")
 
 		builds[i].wsBuild = wsBuild
 
@@ -519,5 +532,14 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 			assert.WithinDuration(t, originalMaxDeadline, newBuild.Deadline, time.Second, msg)
 			assert.WithinDuration(t, originalMaxDeadline, newBuild.MaxDeadline, time.Second, msg)
 		}
+
+		assert.Equal(t, builds[i].wsBuild.ProvisionerState, newBuild.ProvisionerState, "provisioner state mismatch")
 	}
+}
+
+func must[V any](v V, err error) V {
+	if err != nil {
+		panic(err)
+	}
+	return v
 }

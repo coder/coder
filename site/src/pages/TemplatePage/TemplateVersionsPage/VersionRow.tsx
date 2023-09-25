@@ -27,8 +27,9 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
-  const clickableProps = useClickableTableRow(() => {
-    navigate(version.name);
+
+  const clickableProps = useClickableTableRow({
+    onClick: () => navigate(version.name),
   });
 
   return (

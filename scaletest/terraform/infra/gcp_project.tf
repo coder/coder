@@ -1,8 +1,3 @@
-provider "google" {
-  region  = var.region
-  project = var.project_id
-}
-
 locals {
   project_apis = [
     "cloudtrace",

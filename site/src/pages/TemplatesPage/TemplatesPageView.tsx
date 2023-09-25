@@ -83,10 +83,9 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
   const hasIcon = template.icon && template.icon !== "";
   const navigate = useNavigate();
   const styles = useStyles();
+
   const { className: clickableClassName, ...clickableRow } =
-    useClickableTableRow(() => {
-      navigate(templatePageLink);
-    });
+    useClickableTableRow({ onClick: () => navigate(templatePageLink) });
 
   return (
     <TableRow

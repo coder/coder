@@ -70,6 +70,9 @@ result
 
 # Data dumps from unit tests
 **/*.test.sql
+
+# Filebrowser.db
+**/filebrowser.db
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

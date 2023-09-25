@@ -694,6 +694,13 @@ func (q *querier) DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) e
 	return q.db.DeleteAPIKeysByUserID(ctx, userID)
 }
 
+func (q *querier) DeleteAllTailnetClientSubscriptions(ctx context.Context, arg database.DeleteAllTailnetClientSubscriptionsParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteAllTailnetClientSubscriptions(ctx, arg)
+}
+
 func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error {
 	// TODO: This is not 100% correct because it omits apikey IDs.
 	err := q.authorizeContext(ctx, rbac.ActionDelete,
@@ -783,6 +790,13 @@ func (q *querier) DeleteTailnetClient(ctx context.Context, arg database.DeleteTa
 	return q.db.DeleteTailnetClient(ctx, arg)
 }
 
+func (q *querier) DeleteTailnetClientSubscription(ctx context.Context, arg database.DeleteTailnetClientSubscriptionParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.DeleteTailnetClientSubscription(ctx, arg)
+}
+
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
 	return fetch(q.log, q.auth, q.db.GetAPIKeyByID)(ctx, id)
 }
@@ -825,9 +839,9 @@ func (q *querier) GetAllTailnetAgents(ctx context.Context) ([]database.TailnetAg
 	return q.db.GetAllTailnetAgents(ctx)
 }
 
-func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.TailnetClient, error) {
+func (q *querier) GetAllTailnetClients(ctx context.Context) ([]database.GetAllTailnetClientsRow, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceTailnetCoordinator); err != nil {
-		return []database.TailnetClient{}, err
+		return []database.GetAllTailnetClientsRow{}, err
 	}
 	return q.db.GetAllTailnetClients(ctx)
 }
@@ -2661,7 +2675,15 @@ func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.Upd
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceAutostart)(ctx, arg)
 }
 
-func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.UpdateWorkspaceBuildByIDParams) error {
+// UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
+func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg database.UpdateWorkspaceBuildDeadlineByIDParams) error {
 	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
 	if err != nil {
 		return err
@@ -2671,20 +2693,19 @@ func (q *querier) UpdateWorkspaceBuildByID(ctx context.Context, arg database.Upd
 	if err != nil {
 		return err
 	}
+
 	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
 	if err != nil {
 		return err
 	}
-
-	return q.db.UpdateWorkspaceBuildByID(ctx, arg)
+	return q.db.UpdateWorkspaceBuildDeadlineByID(ctx, arg)
 }
 
-// UpdateWorkspaceBuildCostByID is used by the provisioning system to update the cost of a workspace build.
-func (q *querier) UpdateWorkspaceBuildCostByID(ctx context.Context, arg database.UpdateWorkspaceBuildCostByIDParams) error {
+func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err
 	}
-	return q.db.UpdateWorkspaceBuildCostByID(ctx, arg)
+	return q.db.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)
 }
 
 // Deprecated: Use SoftDeleteWorkspaceByID
@@ -2792,6 +2813,13 @@ func (q *querier) UpsertTailnetClient(ctx context.Context, arg database.UpsertTa
 		return database.TailnetClient{}, err
 	}
 	return q.db.UpsertTailnetClient(ctx, arg)
+}
+
+func (q *querier) UpsertTailnetClientSubscription(ctx context.Context, arg database.UpsertTailnetClientSubscriptionParams) error {
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTailnetCoordinator); err != nil {
+		return err
+	}
+	return q.db.UpsertTailnetClientSubscription(ctx, arg)
 }
 
 func (q *querier) UpsertTailnetCoordinator(ctx context.Context, id uuid.UUID) (database.TailnetCoordinator, error) {

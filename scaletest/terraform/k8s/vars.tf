@@ -7,104 +7,39 @@ variable "state" {
   default = "started"
 }
 
-variable "project_id" {
-  description = "The project in which to provision resources"
-}
-
 variable "name" {
   description = "Adds a prefix to resources."
 }
 
-variable "region" {
-  description = "GCP region in which to provision resources."
-  default     = "us-east1"
+variable "kubernetes_kubeconfig_path" {
+  description = "Path to kubeconfig to use to provision resources."
 }
 
-variable "zone" {
-  description = "GCP zone in which to provision resources."
-  default     = "us-east1-c"
+variable "kubernetes_nodepool_coder" {
+  description = "Name of the nodepool on which to run Coder."
 }
 
-variable "k8s_version" {
-  description = "Kubernetes vversion to provision."
-  default     = "1.24"
+variable "kubernetes_nodepool_workspaces" {
+  description = "Name of the nodepool on which to run workspaces."
 }
 
-variable "node_disk_size_gb" {
-  description = "Size of the root disk for cluster nodes."
-  default     = 100
-}
-
-variable "node_image_type" {
-  description = "Image type to use for cluster nodes."
-  default     = "cos_containerd"
-}
-
-// Preemptible nodes are way cheaper, but can be pulled out
-// from under you at any time. Caveat emptor.
-variable "node_preemptible" {
-  description = "Use preemptible nodes."
-  default     = false
-}
-
-// We create three nodepools:
-// - One for the Coder control plane
-// - One for workspaces
-// - One for everything else (for example, load generation)
-
-// These variables control the node pool dedicated to Coder.
-variable "nodepool_machine_type_coder" {
-  description = "Machine type to use for Coder control plane nodepool."
-  default     = "t2d-standard-4"
-}
-
-variable "nodepool_size_coder" {
-  description = "Number of cluster nodes for the Coder control plane nodepool."
-  default     = 1
-}
-
-// These variables control the node pool dedicated to workspaces.
-variable "nodepool_machine_type_workspaces" {
-  description = "Machine type to use for the workspaces nodepool."
-  default     = "t2d-standard-4"
-}
-
-variable "nodepool_size_workspaces" {
-  description = "Number of cluster nodes for the workspaces nodepool."
-  default     = 1
-}
-
-// These variables control the node pool for everything else.
-variable "nodepool_machine_type_misc" {
-  description = "Machine type to use for the misc nodepool."
-  default     = "t2d-standard-4"
-}
-
-variable "nodepool_size_misc" {
-  description = "Number of cluster nodes for the misc nodepool."
-  default     = 1
-}
-
-// These variables control the size of the database to be used by Coder.
-variable "cloudsql_version" {
-  description = "CloudSQL version to provision"
-  default     = "POSTGRES_14"
-}
-
-variable "cloudsql_tier" {
-  description = "CloudSQL database tier."
-  default     = "db-f1-micro"
-}
-
-variable "cloudsql_max_connections" {
-  description = "CloudSQL database max_connections"
-  default     = 500
+variable "kubernetes_nodepool_misc" {
+  description = "Name of the nodepool on which to run everything else."
 }
 
 // These variables control the Coder deployment.
 variable "coder_replicas" {
   description = "Number of Coder replicas to provision."
   default     = 1
+}
+
+variable "coder_address" {
+  description = "IP address to use for Coder service."
+}
+
+variable "coder_db_url" {
+  description = "URL of the database for Coder to use."
+  sensitive   = true
 }
 
 // Ensure that requests allow for at least two replicas to be scheduled
@@ -208,6 +143,27 @@ variable "workspace_mem_limit" {
 }
 
 // These variables control the Prometheus deployment.
+variable "prometheus_external_label_cluster" {
+  description = "Value for the Prometheus external label named cluster."
+}
+
+variable "prometheus_postgres_dbname" {
+  description = "Database for Postgres to monitor."
+}
+
+variable "prometheus_postgres_host" {
+  description = "Database hostname for Prometheus."
+}
+
+variable "prometheus_postgres_password" {
+  description = "Postgres password for Prometheus."
+  sensitive   = true
+}
+
+variable "prometheus_postgres_user" {
+  description = "Postgres username for Prometheus."
+}
+
 variable "prometheus_remote_write_user" {
   description = "Username for Prometheus remote write."
   default     = ""
@@ -216,6 +172,7 @@ variable "prometheus_remote_write_user" {
 variable "prometheus_remote_write_password" {
   description = "Password for Prometheus remote write."
   default     = ""
+  sensitive   = true
 }
 
 variable "prometheus_remote_write_url" {

@@ -4,7 +4,7 @@ import {
   useDashboard,
   useIsWorkspaceActionsEnabled,
 } from "components/Dashboard/DashboardProvider";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspacesData, useWorkspaceUpdate } from "./data";
@@ -21,15 +21,34 @@ import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import { useEffectEvent } from "hooks/hookPolyfills";
+
+function useSafeSearchParams() {
+  // Have to wrap setSearchParams because React Router doesn't make sure that
+  // the function's memory reference stays stable on each render, even though
+  // its logic never changes, and even though it has function update support
+  const [searchParams, setSearchParams] = useSearchParams();
+  const stableSetSearchParams = useEffectEvent(setSearchParams);
+
+  // Need this to be a tuple type, but can't use "as const", because that would
+  // make the whole array readonly and cause type mismatches downstream
+  return [searchParams, stableSetSearchParams] as ReturnType<
+    typeof useSearchParams
+  >;
+}
 
 const WorkspacesPage: FC = () => {
   const [dormantWorkspaces, setDormantWorkspaces] = useState<Workspace[]>([]);
   // If we use a useSearchParams for each hook, the values will not be in sync.
   // So we have to use a single one, centralizing the values, and pass it to
   // each hook.
-  const searchParamsResult = useSearchParams();
+  const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
-  const filterProps = useWorkspacesFilter({ searchParamsResult, pagination });
+  const filterProps = useWorkspacesFilter({
+    searchParamsResult,
+    onFilterChange: () => pagination.goToPage(1),
+  });
+
   const { data, error, queryKey, refetch } = useWorkspacesData({
     ...pagination,
     query: filterProps.filter.query,
@@ -123,19 +142,17 @@ export default WorkspacesPage;
 
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
-  pagination: ReturnType<typeof usePagination>;
+  onFilterChange: () => void;
 };
 
 const useWorkspacesFilter = ({
   searchParamsResult,
-  pagination,
+  onFilterChange,
 }: UseWorkspacesFilterOptions) => {
   const filter = useFilter({
-    initialValue: `owner:me`,
+    fallbackFilter: "owner:me",
     searchParamsResult,
-    onUpdate: () => {
-      pagination.goToPage(1);
-    },
+    onUpdate: onFilterChange,
   });
 
   const permissions = usePermissions();

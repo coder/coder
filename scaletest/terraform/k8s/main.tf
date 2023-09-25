@@ -1,10 +1,5 @@
 terraform {
   required_providers {
-    google = {
-      source  = "hashicorp/google"
-      version = "~> 4.36"
-    }
-
     kubernetes = {
       source  = "hashicorp/kubernetes"
       version = "~> 2.20"
@@ -24,12 +19,17 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
-
-    docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0"
-    }
   }
 
   required_version = "~> 1.5.0"
+}
+
+provider "kubernetes" {
+  config_path = var.kubernetes_kubeconfig_path
+}
+
+provider "helm" {
+  kubernetes {
+    config_path = var.kubernetes_kubeconfig_path
+  }
 }

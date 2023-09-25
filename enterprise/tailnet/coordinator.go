@@ -58,7 +58,7 @@ func (c *haCoordinator) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 		AgentIsLegacyFunc: c.agentIsLegacy,
 		OnSubscribe:       c.clientSubscribeToAgent,
 		OnNodeUpdate:      c.clientNodeUpdate,
-		OnRemove:          c.clientDisconnected,
+		OnRemove:          func(enq agpl.Queue) { c.clientDisconnected(enq.UniqueID()) },
 	}).Init()
 	c.addClient(id, m)
 	return m
@@ -157,7 +157,7 @@ func (c *haCoordinator) ServeClient(conn net.Conn, id, agentID uuid.UUID) error 
 	defer cancel()
 	logger := c.clientLogger(id, agentID)
 
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, id, logger, id.String(), 0, agpl.QueueKindClient)
 	defer tc.Close()
 
 	c.addClient(id, tc)
@@ -300,7 +300,7 @@ func (c *haCoordinator) ServeAgent(conn net.Conn, id uuid.UUID, name string) err
 	}
 	// This uniquely identifies a connection that belongs to this goroutine.
 	unique := uuid.New()
-	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites)
+	tc := agpl.NewTrackedConn(ctx, cancel, conn, unique, logger, name, overwrites, agpl.QueueKindAgent)
 
 	// Publish all nodes on this instance that want to connect to this agent.
 	nodes := c.nodesSubscribedToAgent(id)

@@ -6,7 +6,6 @@ import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
-import { Language as CreateUserLanguage } from "xServices/users/createUserXService";
 import { CreateUserPage } from "./CreateUserPage";
 
 const renderCreateUserPage = async () => {
@@ -47,7 +46,7 @@ describe("Create User Page", () => {
     await renderCreateUserPage();
     await fillForm({});
     const successMessage = await screen.findByText(
-      CreateUserLanguage.createUserSuccess,
+      "Successfully created user.",
     );
     expect(successMessage).toBeDefined();
   });
