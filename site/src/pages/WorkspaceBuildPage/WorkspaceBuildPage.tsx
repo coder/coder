@@ -1,13 +1,13 @@
-import { useMachine } from "@xstate/react";
-import { FC, useEffect } from "react";
+import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useParams } from "react-router-dom";
-import { pageTitle } from "../../utils/page";
-import { workspaceBuildMachine } from "../../xServices/workspaceBuild/workspaceBuildXService";
+import { pageTitle } from "utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 import { useQuery } from "@tanstack/react-query";
 import { getWorkspaceBuilds } from "api/api";
 import dayjs from "dayjs";
+import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 
 export const WorkspaceBuildPage: FC = () => {
   const params = useParams() as {
@@ -18,10 +18,11 @@ export const WorkspaceBuildPage: FC = () => {
   const workspaceName = params.workspace;
   const buildNumber = Number(params.buildNumber);
   const username = params.username.replace("@", "");
-  const [buildState, send] = useMachine(workspaceBuildMachine, {
-    context: { username, workspaceName, buildNumber, timeCursor: new Date() },
+  const wsBuildQuery = useQuery({
+    ...workspaceBuildByNumber(username, workspaceName, buildNumber),
+    keepPreviousData: true,
   });
-  const { logs, build } = buildState.context;
+  const build = wsBuildQuery.data;
   const { data: builds } = useQuery({
     queryKey: ["builds", username, build?.workspace_id],
     queryFn: () => {
@@ -32,10 +33,7 @@ export const WorkspaceBuildPage: FC = () => {
     },
     enabled: Boolean(build),
   });
-
-  useEffect(() => {
-    send("RESET", { buildNumber, timeCursor: new Date() });
-  }, [buildNumber, send]);
+  const logs = useWorkspaceBuildLogs(build?.id);
 
   return (
     <>

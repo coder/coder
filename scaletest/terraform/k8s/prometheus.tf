@@ -13,11 +13,9 @@ locals {
 resource "null_resource" "prometheus_namespace" {
   triggers = {
     namespace       = local.prometheus_namespace
-    kubeconfig_path = local.cluster_kubeconfig_path
+    kubeconfig_path = var.kubernetes_kubeconfig_path
   }
-  depends_on = [
-    google_container_node_pool.misc
-  ]
+  depends_on = []
   provisioner "local-exec" {
     when    = create
     command = <<EOF
@@ -64,7 +62,7 @@ blackboxExporter:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.misc.name}"]
+            values: ["${var.kubernetes_nodepool_misc}"]
 operator:
   affinity:
     nodeAffinity:
@@ -73,7 +71,7 @@ operator:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.misc.name}"]
+            values: ["${var.kubernetes_nodepool_misc}"]
 prometheus:
   affinity:
     nodeAffinity:
@@ -82,9 +80,9 @@ prometheus:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.misc.name}"]
+            values: ["${var.kubernetes_nodepool_misc}"]
   externalLabels:
-    cluster: "${google_container_cluster.primary.name}"
+    cluster: "${var.prometheus_external_label_cluster}"
   persistence:
     enabled: true
     storageClass: standard
@@ -119,8 +117,8 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
   }
   depends_on = [null_resource.prometheus_namespace]
   data = {
-    username = google_sql_user.prometheus.name
-    password = google_sql_user.prometheus.password
+    username = var.prometheus_postgres_user
+    password = var.prometheus_postgres_password
   }
 }
 
@@ -139,12 +137,12 @@ affinity:
     - matchExpressions:
       - key: "cloud.google.com/gke-nodepool"
         operator: "In"
-        values: ["${google_container_node_pool.misc.name}"]
+        values: ["${var.kubernetes_nodepool_misc}"]
 config:
   datasource:
-    host: "${google_sql_database_instance.db.private_ip_address}"
-    user: "${google_sql_user.prometheus.name}"
-    database: "${google_sql_database.coder.name}"
+    host: "${var.prometheus_postgres_host}"
+    user: "${var.prometheus_postgres_user}"
+    database: "${var.prometheus_postgres_dbname}"
     passwordSecret:
       name: "${kubernetes_secret.prometheus-postgres-password.metadata.0.name}"
       key: password
@@ -182,7 +180,7 @@ resource "null_resource" "coder-monitoring-manifest_apply" {
   provisioner "local-exec" {
     working_dir = "${abspath(path.module)}/../.coderv2"
     command     = <<EOF
-KUBECONFIG=${local.cluster_kubeconfig_path} kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
+KUBECONFIG=${var.kubernetes_kubeconfig_path} kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
     EOF
   }
   depends_on = [helm_release.prometheus-chart]

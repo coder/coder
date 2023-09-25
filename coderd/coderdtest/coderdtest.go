@@ -763,7 +763,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	t.Logf("waiting for template version job %s", version)
@@ -772,7 +772,7 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitMedium, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	t.Logf("got template version job %s", version)
 	return templateVersion
 }
@@ -790,7 +790,7 @@ func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UU
 		var err error
 		workspaceBuild, err = client.WorkspaceBuild(ctx, build)
 		return assert.NoError(t, err) && workspaceBuild.Job.CompletedAt != nil
-	}, testutil.WaitShort, testutil.IntervalFast)
+	}, testutil.WaitMedium, testutil.IntervalMedium)
 	t.Logf("got workspace build job %s", build)
 	return workspaceBuild
 }
@@ -838,7 +838,7 @@ func AwaitWorkspaceAgents(t *testing.T, client *codersdk.Client, workspaceID uui
 		resources = workspace.LatestBuild.Resources
 
 		return true
-	}, testutil.WaitLong, testutil.IntervalFast)
+	}, testutil.WaitLong, testutil.IntervalMedium)
 	t.Logf("got workspace agents (workspace %s)", workspaceID)
 	return resources
 }

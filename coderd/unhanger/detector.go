@@ -333,12 +333,10 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					return xerrors.Errorf("get previous workspace build: %w", err)
 				}
 				if err == nil {
-					err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+					err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 						ID:               build.ID,
 						UpdatedAt:        dbtime.Now(),
 						ProvisionerState: prevBuild.ProvisionerState,
-						Deadline:         time.Time{},
-						MaxDeadline:      time.Time{},
 					})
 					if err != nil {
 						return xerrors.Errorf("update workspace build by id: %w", err)

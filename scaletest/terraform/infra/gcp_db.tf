@@ -42,6 +42,14 @@ resource "google_sql_database" "coder" {
   deletion_policy = "ABANDON"
 }
 
+resource "random_password" "coder-postgres-password" {
+  length = 12
+}
+
+resource "random_password" "prometheus-postgres-password" {
+  length = 12
+}
+
 resource "google_sql_user" "coder" {
   project  = var.project_id
   instance = google_sql_database_instance.db.id
@@ -60,4 +68,8 @@ resource "google_sql_user" "prometheus" {
   password = random_password.prometheus-postgres-password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
+}
+
+locals {
+  coder_db_url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
 }
