@@ -58,6 +58,31 @@ func TestAgent(t *testing.T) {
 			},
 		},
 		{
+			name: "Start timeout",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartTimeout
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✘ Running workspace agent startup scripts (non-blocking)",
+				"Warning: A startup script timed out and your workspace may be incomplete.",
+			},
+		},
+		{
 			name: "Initial connection timeout",
 			opts: cliui.AgentOptions{
 				FetchInterval: 1 * time.Millisecond,

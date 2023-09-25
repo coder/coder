@@ -547,7 +547,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
 			}
-			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
+			if resource.Type == "coder_script" || resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
 				continue
 			}
 			label := convertAddressToLabel(resource.Address)

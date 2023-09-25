@@ -58,7 +58,7 @@ const (
 // Starting returns true if the agent is in the process of starting.
 func (l WorkspaceAgentLifecycle) Starting() bool {
 	switch l {
-	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting, WorkspaceAgentLifecycleStartTimeout:
+	case WorkspaceAgentLifecycleCreated, WorkspaceAgentLifecycleStarting:
 		return true
 	default:
 		return false

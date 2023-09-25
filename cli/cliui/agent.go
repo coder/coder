@@ -201,6 +201,9 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			switch agent.LifecycleState {
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+			case codersdk.WorkspaceAgentLifecycleStartTimeout:
+				sw.Fail(stage, 0)
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
