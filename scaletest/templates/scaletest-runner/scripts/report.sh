@@ -40,7 +40,7 @@ while read -r app_name; do
 	if [[ ${status} != started ]] && [[ ${app_url} = *to=now* ]]; then
 		# Update Grafana URL with end stamp and make bold.
 		app_url="${app_url//to=now/to=$(($(date +%s) * 1000))}"
-		bold='**'
+		bold='*'
 	fi
 	app_urls+=("${bullet} ${bold}${app_name}: ${app_url}${bold}")
 done <<<"${app_urls_raw}"
