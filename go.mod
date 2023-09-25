@@ -113,7 +113,7 @@ require (
 	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.15.1
 	github.com/gofrs/flock v0.8.1
-	github.com/gohugoio/hugo v0.118.2
+	github.com/gohugoio/hugo v0.119.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/golang-migrate/migrate/v4 v4.16.0
 	github.com/golang/mock v1.6.0
@@ -266,7 +266,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/spec v0.20.6 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-openapi/swag v0.22.4 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-sql-driver/mysql v1.7.1 // indirect
