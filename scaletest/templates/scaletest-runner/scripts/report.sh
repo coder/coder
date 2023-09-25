@@ -75,7 +75,7 @@ esac
 text_arr=(
 	"${header}"
 	""
-	"${bullet} Workspace (runner): ${CODER_URL}@${owner_name}/${workspace_name}"
+	"${bullet} Workspace (runner): ${CODER_URL}/@${owner_name}/${workspace_name}"
 	"${bullet} Run ID: ${SCALETEST_RUN_ID}"
 	"${app_urls[@]}"
 	"${params[@]}"
