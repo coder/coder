@@ -15,6 +15,6 @@ func cmdSysProcAttr() *syscall.SysProcAttr {
 
 func cmdCancel(cmd *exec.Cmd) func() error {
 	return func() error {
-		return syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGHUP)
 	}
 }
