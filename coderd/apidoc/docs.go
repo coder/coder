@@ -10925,7 +10925,7 @@ const docTemplate = `{
                 "start_blocks_login": {
                     "type": "boolean"
                 },
-                "timeout_seconds": {
+                "timeout": {
                     "type": "integer"
                 }
             }

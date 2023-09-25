@@ -162,7 +162,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/member
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -369,7 +369,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -575,7 +575,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
-                    "timeout_seconds": 0
+                    "timeout": 0
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",
@@ -783,7 +783,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -1070,7 +1070,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",

@@ -286,7 +286,7 @@
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
-      "timeout_seconds": 0
+      "timeout": 0
     }
   ],
   "vscode_port_proxy_uri": "string"
@@ -5502,7 +5502,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -5662,7 +5662,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
-      "timeout_seconds": 0
+      "timeout": 0
     }
   ],
   "started_at": "2019-08-24T14:15:22Z",
@@ -5942,7 +5942,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "run_on_stop": true,
   "script": "string",
   "start_blocks_login": true,
-  "timeout_seconds": 0
+  "timeout": 0
 }
 ```
 
@@ -5957,7 +5957,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `run_on_stop`        | boolean | false    |              |             |
 | `script`             | string  | false    |              |             |
 | `start_blocks_login` | boolean | false    |              |             |
-| `timeout_seconds`    | integer | false    |              |             |
+| `timeout`            | integer | false    |              |             |
 
 ## codersdk.WorkspaceAgentStartupScriptBehavior
 
@@ -6181,7 +6181,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
-              "timeout_seconds": 0
+              "timeout": 0
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
@@ -6510,7 +6510,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "run_on_stop": true,
           "script": "string",
           "start_blocks_login": true,
-          "timeout_seconds": 0
+          "timeout": 0
         }
       ],
       "started_at": "2019-08-24T14:15:22Z",
@@ -6741,7 +6741,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "run_on_stop": true,
                     "script": "string",
                     "start_blocks_login": true,
-                    "timeout_seconds": 0
+                    "timeout": 0
                   }
                 ],
                 "started_at": "2019-08-24T14:15:22Z",

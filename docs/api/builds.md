@@ -132,7 +132,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
-              "timeout_seconds": 0
+              "timeout": 0
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
@@ -312,7 +312,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
-              "timeout_seconds": 0
+              "timeout": 0
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
@@ -631,7 +631,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "run_on_stop": true,
             "script": "string",
             "start_blocks_login": true,
-            "timeout_seconds": 0
+            "timeout": 0
           }
         ],
         "started_at": "2019-08-24T14:15:22Z",
@@ -734,7 +734,7 @@ Status Code **200**
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»» timeout_seconds`           | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
 | `»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                                                                |
@@ -918,7 +918,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
-              "timeout_seconds": 0
+              "timeout": 0
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",
@@ -1103,7 +1103,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "run_on_stop": true,
                 "script": "string",
                 "start_blocks_login": true,
-                "timeout_seconds": 0
+                "timeout": 0
               }
             ],
             "started_at": "2019-08-24T14:15:22Z",
@@ -1242,7 +1242,7 @@ Status Code **200**
 | `»»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» start_blocks_login`        | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
-| `»»»» timeout_seconds`           | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» timeout`                   | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» started_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»»» startup_script_behavior`    | [codersdk.WorkspaceAgentStartupScriptBehavior](schemas.md#codersdkworkspaceagentstartupscriptbehavior) | false    |              | Startup script behavior is a legacy field that is deprecated in favor of the `coder_script` resource. It's only referenced by old clients. Deprecated: Remove in the future!                                                                   |
 | `»»» status`                     | [codersdk.WorkspaceAgentStatus](schemas.md#codersdkworkspaceagentstatus)                               | false    |              |                                                                                                                                                                                                                                                |
@@ -1479,7 +1479,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "run_on_stop": true,
               "script": "string",
               "start_blocks_login": true,
-              "timeout_seconds": 0
+              "timeout": 0
             }
           ],
           "started_at": "2019-08-24T14:15:22Z",

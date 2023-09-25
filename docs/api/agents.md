@@ -479,7 +479,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
-      "timeout_seconds": 0
+      "timeout": 0
     }
   ],
   "vscode_port_proxy_uri": "string"
@@ -725,7 +725,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "run_on_stop": true,
       "script": "string",
       "start_blocks_login": true,
-      "timeout_seconds": 0
+      "timeout": 0
     }
   ],
   "started_at": "2019-08-24T14:15:22Z",
