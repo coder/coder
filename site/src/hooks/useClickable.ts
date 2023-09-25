@@ -45,7 +45,7 @@ export const useClickable = <
     // Most interactive elements automatically make Space/Enter trigger onClick
     // callbacks, but you explicitly have to add it for non-interactive elements
     onKeyDown: (event) => {
-      if (event.key === "Enter" || event.key === "Space") {
+      if (event.key === "Enter" || event.key === " ") {
         // Can't call onClick from here because onKeydown's keyboard event isn't
         // compatible with mouse events. Have to use a ref to simulate a click
         ref.current?.click();
