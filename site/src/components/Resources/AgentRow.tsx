@@ -299,6 +299,10 @@ export const AgentRow: FC<AgentRowProps> = ({
                     const log = startupLogs[index];
                     let sourceIcon: string | undefined =
                       logSourceByID[log.source_id].icon;
+                    if (!sourceIcon) {
+                      // Default to a globe for external.
+                      sourceIcon = "/emojis/1f310.png";
+                    }
                     if (
                       index > 0 &&
                       logSourceByID[startupLogs[index - 1].source_id].id ===

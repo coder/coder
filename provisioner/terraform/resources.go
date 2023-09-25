@@ -83,6 +83,7 @@ type agentScriptAttributes struct {
 	Icon             string `mapstructure:"icon"`
 	Script           string `mapstructure:"script"`
 	Cron             string `mapstructure:"cron"`
+	LogPath          string `mapstructure:"log_path"`
 	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
 	RunOnStart       bool   `mapstructure:"run_on_start"`
 	RunOnStop        bool   `mapstructure:"run_on_stop"`
@@ -456,6 +457,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 						Icon:             attrs.Icon,
 						Script:           attrs.Script,
 						Cron:             attrs.Cron,
+						LogPath:          attrs.LogPath,
 						StartBlocksLogin: attrs.StartBlocksLogin,
 						RunOnStart:       attrs.RunOnStart,
 						RunOnStop:        attrs.RunOnStop,
