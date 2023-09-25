@@ -153,7 +153,7 @@ func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req Patc
 				// error occurs. Note that we use the main context here,
 				// meaning these requests won't be interrupted by
 				// shutdown.
-				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
+				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx) && ctx.Err() == nil; {
 					err := patchLogs(ctx, PatchLogs{
 						Logs:        backlog,
 						LogSourceID: sourceID,
