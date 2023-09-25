@@ -112,12 +112,15 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
 	})
+	source := dbgen.WorkspaceAgentLogSource(t, db, database.WorkspaceAgentLogSource{
+		WorkspaceAgentID: agent.ID,
+	})
 	logs, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
-		AgentID:   agent.ID,
-		CreatedAt: []time.Time{dbtime.Now()},
-		Output:    []string{"first"},
-		Level:     []database.LogLevel{database.LogLevelInfo},
-		Source:    []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
+		AgentID:     agent.ID,
+		CreatedAt:   dbtime.Now(),
+		Output:      []string{"first"},
+		Level:       []database.LogLevel{database.LogLevelInfo},
+		LogSourceID: source.ID,
 		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
@@ -126,10 +129,10 @@ func TestInsertWorkspaceAgentLogs(t *testing.T) {
 
 	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      agent.ID,
-		CreatedAt:    []time.Time{dbtime.Now()},
+		CreatedAt:    dbtime.Now(),
 		Output:       []string{"second"},
 		Level:        []database.LogLevel{database.LogLevelInfo},
-		Source:       []database.WorkspaceAgentLogSource{database.WorkspaceAgentLogSourceExternal},
+		LogSourceID:  source.ID,
 		OutputLength: 1,
 	})
 	require.True(t, database.IsWorkspaceAgentLogsLimitError(err))

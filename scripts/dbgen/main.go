@@ -116,7 +116,7 @@ func generateUniqueConstraints() error {
 		case line == "":
 		case strings.HasSuffix(line, ";"):
 			query += line
-			if strings.Contains(query, "UNIQUE") {
+			if strings.Contains(query, "UNIQUE") || strings.Contains(query, "PRIMARY KEY") {
 				uniqueConstraints = append(uniqueConstraints, query)
 			}
 			query = ""

@@ -16,6 +16,7 @@ import {
   MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
   MockProxyLatencies,
+  MockWorkspaceAgentLogSource,
 } from "testHelpers/entities";
 import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
@@ -95,6 +96,7 @@ const storybookLogs: LineWithID[] = [
   level: "info",
   output: line,
   time: "",
+  source_id: MockWorkspaceAgentLogSource.id,
 }));
 
 const meta: Meta<typeof AgentRow> = {
@@ -105,8 +107,6 @@ const meta: Meta<typeof AgentRow> = {
     agent: {
       ...MockWorkspaceAgent,
       logs_length: storybookLogs.length,
-      startup_script:
-        'set -eux -o pipefail\n\n# install and start code-server\ncurl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3\n/tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &\n\n\nif [ ! -d ~/coder ]; then\n  mkdir -p ~/coder\n\n  git clone https://github.com/coder/coder ~/coder\nfi\n\nsudo service docker start\nDOTFILES_URI=" "\nrm -f ~/.personalize.log\nif [ -n "${DOTFILES_URI// }" ]; then\n  coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log\nfi\nif [ -x ~/personalize ]; then\n  ~/personalize 2>&1 | tee -a ~/.personalize.log\nelif [ -f ~/personalize ]; then\n  echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log\nfi\n',
     },
     workspace: MockWorkspace,
     showApps: true,

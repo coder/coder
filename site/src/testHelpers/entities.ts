@@ -539,6 +539,25 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   },
 };
 
+export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
+  created_at: "2023-05-04T11:30:41.402072Z",
+  id: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+  display_name: "Startup Script",
+  icon: "",
+  workspace_agent_id: "",
+};
+
+export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+  log_source_id: MockWorkspaceAgentLogSource.id,
+  cron: "",
+  log_path: "",
+  run_on_start: true,
+  run_on_stop: false,
+  script: "echo 'hello world'",
+  start_blocks_login: false,
+  timeout: 0,
+};
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   apps: [MockWorkspaceApp],
   architecture: "amd64",
@@ -560,12 +579,11 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  login_before_ready: false, // Deprecated.
-  startup_script_behavior: "blocking",
   logs_length: 0,
   logs_overflowed: false,
-  startup_script_timeout_seconds: 120,
-  shutdown_script_timeout_seconds: 120,
+  log_sources: [MockWorkspaceAgentLogSource],
+  scripts: [MockWorkspaceAgentScript],
+  startup_script_behavior: "non-blocking",
   subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
@@ -2202,6 +2220,7 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     created_at: "2023-05-04T11:30:41.402072Z",
     output: "+ curl -fsSL https://code-server.dev/install.sh",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166664,
@@ -2209,18 +2228,21 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     output:
       "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166665,
     created_at: "2023-05-04T11:30:42.590731Z",
     output: "Ubuntu 22.04.2 LTS",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166666,
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
 ];
 

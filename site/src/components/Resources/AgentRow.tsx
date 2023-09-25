@@ -1,19 +1,26 @@
-import Popover from "@mui/material/Popover";
-import { makeStyles, useTheme } from "@mui/styles";
+import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
+import Tooltip from "@mui/material/Tooltip";
+import { makeStyles } from "@mui/styles";
 import * as API from "api/api";
-import CodeOutlined from "@mui/icons-material/CodeOutlined";
+import {
+  Workspace,
+  WorkspaceAgent,
+  WorkspaceAgentLogSource,
+  WorkspaceAgentMetadata,
+} from "api/typesGenerated";
 import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
 import {
   Line,
   LogLine,
   logLineHeight,
 } from "components/WorkspaceBuildLogs/Logs";
-import { PortForwardButton } from "./PortForwardButton";
-import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
+import { useProxy } from "contexts/ProxyContext";
 import {
   FC,
   useCallback,
@@ -23,28 +30,19 @@ import {
   useRef,
   useState,
 } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import AutoSizer from "react-virtualized-auto-sizer";
 import { FixedSizeList as List, ListOnScrollProps } from "react-window";
 import { colors } from "theme/colors";
 import { combineClasses } from "utils/combineClasses";
-import {
-  Workspace,
-  WorkspaceAgent,
-  WorkspaceAgentMetadata,
-} from "api/typesGenerated";
-import { AppLink } from "./AppLink/AppLink";
-import { SSHButton } from "./SSHButton/SSHButton";
 import { Stack } from "../Stack/Stack";
-import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { AgentLatency } from "./AgentLatency";
 import { AgentMetadata } from "./AgentMetadata";
-import { AgentVersion } from "./AgentVersion";
 import { AgentStatus } from "./AgentStatus";
-import Collapse from "@mui/material/Collapse";
-import { useProxy } from "contexts/ProxyContext";
-import { displayError } from "components/GlobalSnackbar/utils";
+import { AgentVersion } from "./AgentVersion";
+import { AppLink } from "./AppLink/AppLink";
+import { PortForwardButton } from "./PortForwardButton";
+import { SSHButton } from "./SSHButton/SSHButton";
+import { TerminalLink } from "./TerminalLink/TerminalLink";
 
 // Logs are stored as the Line interface to make rendering
 // much more efficient. Instead of mapping objects each time, we're
@@ -81,14 +79,18 @@ export const AgentRow: FC<AgentRowProps> = ({
   storybookLogs,
 }) => {
   const styles = useStyles();
-  const theme = useTheme();
-  const startupScriptAnchorRef = useRef<HTMLButtonElement>(null);
-  const [startupScriptOpen, setStartupScriptOpen] = useState(false);
   const hasAppsToDisplay = !hideVSCodeDesktopButton || agent.apps.length > 0;
   const shouldDisplayApps =
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
+  const logSourceByID = useMemo(() => {
+    const sources: { [id: string]: WorkspaceAgentLogSource } = {};
+    for (const source of agent.log_sources) {
+      sources[source.id] = source;
+    }
+    return sources;
+  }, [agent.log_sources]);
   const hasStartupFeatures = Boolean(agent.logs_length);
   const { proxy } = useProxy();
   const [showLogs, setShowLogs] = useState(
@@ -111,6 +113,7 @@ export const AgentRow: FC<AgentRowProps> = ({
         level: "error",
         output: "Startup logs exceeded the max size of 1MB!",
         time: new Date().toISOString(),
+        source_id: "",
       });
     }
     return logs;
@@ -292,13 +295,123 @@ export const AgentRow: FC<AgentRowProps> = ({
                   className={styles.startupLogs}
                   onScroll={handleLogScroll}
                 >
-                  {({ index, style }) => (
-                    <LogLine
-                      line={startupLogs[index]}
-                      number={index + 1}
-                      style={style}
-                    />
-                  )}
+                  {({ index, style }) => {
+                    const log = startupLogs[index];
+                    const sourceIcon: string | undefined =
+                      logSourceByID[log.source_id].icon;
+
+                    let assignedIcon = false;
+                    let icon: JSX.Element;
+                    // If no icon is specified, we show a deterministic
+                    // colored circle to identify unique scripts.
+                    if (sourceIcon) {
+                      icon = (
+                        <img
+                          src={sourceIcon}
+                          alt=""
+                          width={16}
+                          height={16}
+                          style={{
+                            marginRight: 8,
+                          }}
+                        />
+                      );
+                    } else {
+                      icon = (
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            marginRight: 8,
+                            background: determineScriptDisplayColor(
+                              logSourceByID[log.source_id].display_name,
+                            ),
+                            borderRadius: "100%",
+                          }}
+                        />
+                      );
+                      assignedIcon = true;
+                    }
+
+                    let nextChangesSource = false;
+                    if (index < startupLogs.length - 1) {
+                      nextChangesSource =
+                        logSourceByID[startupLogs[index + 1].source_id].id !==
+                        log.source_id;
+                    }
+                    // We don't want every line to repeat the icon, because
+                    // that is ugly and repetitive. This removes the icon
+                    // for subsequent lines of the same source and shows a
+                    // line instead, visually indicating they are from the
+                    // same source.
+                    if (
+                      index > 0 &&
+                      logSourceByID[startupLogs[index - 1].source_id].id ===
+                        log.source_id
+                    ) {
+                      icon = (
+                        <div
+                          style={{
+                            minWidth: 16,
+                            width: 16,
+                            height: 16,
+                            marginRight: 8,
+                            display: "flex",
+                            justifyContent: "center",
+                            position: "relative",
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: nextChangesSource ? "50%" : "100%",
+                              width: 4,
+                              background: "hsl(222, 31%, 25%)",
+                              borderRadius: 2,
+                            }}
+                          />
+                          {nextChangesSource && (
+                            <div
+                              style={{
+                                height: 4,
+                                width: "50%",
+                                top: "calc(50% - 2px)",
+                                left: "calc(50% - 1px)",
+                                background: "hsl(222, 31%, 25%)",
+                                borderRadius: 2,
+                                position: "absolute",
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <LogLine
+                        line={startupLogs[index]}
+                        number={index + 1}
+                        maxNumber={startupLogs.length}
+                        style={style}
+                        sourceIcon={
+                          <Tooltip
+                            title={
+                              <>
+                                {logSourceByID[log.source_id].display_name}
+                                {assignedIcon && (
+                                  <i>
+                                    <br />
+                                    No icon specified!
+                                  </i>
+                                )}
+                              </>
+                            }
+                          >
+                            {icon}
+                          </Tooltip>
+                        }
+                      />
+                    );
+                  }}
                 </List>
               )}
             </AutoSizer>
@@ -316,7 +429,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                 }}
               >
                 <CloseDropdown />
-                Hide startup logs
+                Hide logs
               </button>
             ) : (
               <button
@@ -329,50 +442,9 @@ export const AgentRow: FC<AgentRowProps> = ({
                 }}
               >
                 <OpenDropdown />
-                Show startup logs
+                Show logs
               </button>
             )}
-
-            <button
-              className={combineClasses([
-                styles.logsPanelButton,
-                styles.scriptButton,
-              ])}
-              ref={startupScriptAnchorRef}
-              onClick={() => {
-                setStartupScriptOpen(!startupScriptOpen);
-              }}
-            >
-              <CodeOutlined />
-              Startup script
-            </button>
-
-            <Popover
-              classes={{
-                paper: styles.startupScriptPopover,
-              }}
-              open={startupScriptOpen}
-              onClose={() => setStartupScriptOpen(false)}
-              anchorEl={startupScriptAnchorRef.current}
-            >
-              <div>
-                <SyntaxHighlighter
-                  style={darcula}
-                  language="shell"
-                  showLineNumbers
-                  // Use inline styles does not work correctly
-                  // https://github.com/react-syntax-highlighter/react-syntax-highlighter/issues/329
-                  codeTagProps={{ style: {} }}
-                  customStyle={{
-                    background: theme.palette.background.default,
-                    maxWidth: 600,
-                    margin: 0,
-                  }}
-                >
-                  {agent.startup_script || ""}
-                </SyntaxHighlighter>
-              </div>
-            </Popover>
           </div>
         </div>
       )}
@@ -390,6 +462,7 @@ const useAgentLogs = (
   useEffect(() => {
     if (!enabled) {
       socket.current?.close();
+      setLogs([]);
       return;
     }
 
@@ -403,6 +476,7 @@ const useAgentLogs = (
             level: log.level || "info",
             output: log.output,
             time: log.created_at,
+            source_id: log.source_id,
           }));
 
           if (!previousLogs) {
@@ -539,10 +613,6 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  startupScriptPopover: {
-    backgroundColor: theme.palette.background.default,
-  },
-
   agentNameAndStatus: {
     display: "flex",
     alignItems: "center",
@@ -631,14 +701,30 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.warning.light,
   },
 
-  scriptButton: {
-    "& svg": {
-      width: theme.spacing(2),
-      height: theme.spacing(2),
-    },
-  },
-
   agentOS: {
     textTransform: "capitalize",
   },
 }));
+
+// These colors were picked at random. Feel free
+// to add more, adjust, or change! Users will not
+// depend on these colors.
+const scriptDisplayColors = [
+  "#85A3B2",
+  "#A37EB2",
+  "#C29FDE",
+  "#90B3D7",
+  "#829AC7",
+  "#728B8E",
+  "#506080",
+  "#5654B0",
+  "#6B56D6",
+  "#7847CC",
+];
+
+const determineScriptDisplayColor = (displayName: string): string => {
+  const hash = displayName.split("").reduce((hash, char) => {
+    return (hash << 5) + hash + char.charCodeAt(0); // bit-shift and add for our simple hash
+  }, 0);
+  return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
+};

@@ -101,7 +101,7 @@ message Agent {
     string id = 1;
     string name = 2;
     map<string, string> env = 3;
-    string startup_script = 4;
+	// Field 4 was startup_script, now removed.
     string operating_system = 5;
     string architecture = 6;
     string directory = 7;
@@ -114,12 +114,11 @@ message Agent {
     string troubleshooting_url = 12;
     string motd_file = 13;
     // Field 14 was bool login_before_ready = 14, now removed.
-    int32 startup_script_timeout_seconds = 15;
-    string shutdown_script = 16;
-    int32 shutdown_script_timeout_seconds = 17;
+	// Field 15, 16, 17 were related to scripts, which are now removed.
     repeated Metadata metadata = 18;
-    string startup_script_behavior = 19;
+	// Field 19 was startup_script_behavior, now removed.
     DisplayApps display_apps = 20;
+	repeated Script scripts = 21;
 }
 
 enum AppSharingLevel {
@@ -134,6 +133,19 @@ message DisplayApps {
     bool web_terminal = 3;
     bool ssh_helper = 4;
     bool port_forwarding_helper = 5;
+}
+
+// Script represents a script to be run on the workspace.
+message Script {
+	string display_name = 1;
+	string icon = 2;
+	string script = 3;
+	string cron = 4;
+	bool start_blocks_login = 5;
+	bool run_on_start = 6;
+	bool run_on_stop = 7;
+	int32 timeout_seconds = 8;
+	string log_path = 9;
 }
 
 // App represents a dev-accessible application on the workspace.

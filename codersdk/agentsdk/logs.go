@@ -10,6 +10,8 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
@@ -20,7 +22,7 @@ type startupLogsWriter struct {
 	ctx    context.Context
 	send   func(ctx context.Context, log ...Log) error
 	level  codersdk.LogLevel
-	source codersdk.WorkspaceAgentLogSource
+	source uuid.UUID
 }
 
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
@@ -44,7 +46,6 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    string(partial) + string(p[:nl-cr]),
-			Source:    w.source,
 		})
 		if err != nil {
 			return n - len(p), err
@@ -67,24 +68,20 @@ func (w *startupLogsWriter) Close() error {
 			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    w.buf.String(),
-			Source:    w.source,
 		})
 	}
 	return nil
 }
 
-// StartupLogsWriter returns an io.WriteCloser that sends logs via the
+// LogsWriter returns an io.WriteCloser that sends logs via the
 // provided sender. The sender is expected to be non-blocking. Calling
 // Close flushes any remaining partially written log lines but is
-// otherwise no-op. If the context passed to StartupLogsWriter is
+// otherwise no-op. If the context passed to LogsWriter is
 // canceled, any remaining logs will be discarded.
 //
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
-func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source codersdk.WorkspaceAgentLogSource, level codersdk.LogLevel) io.WriteCloser {
-	if source == "" {
-		source = codersdk.WorkspaceAgentLogSourceExternal
-	}
+func LogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source uuid.UUID, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
 		ctx:    ctx,
 		send:   sender,
@@ -98,7 +95,7 @@ func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log
 // has been called. Calling sendLog concurrently is not supported. If
 // the context passed to flushAndClose is canceled, any remaining logs
 // will be discarded.
-func LogsSender(patchLogs func(ctx context.Context, req PatchLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...Log) error, flushAndClose func(context.Context) error) {
+func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req PatchLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...Log) error, flushAndClose func(context.Context) error) {
 	// The main context is used to close the sender goroutine and cancel
 	// any outbound requests to the API. The shutdown context is used to
 	// signal the sender goroutine to flush logs and then exit.
@@ -158,7 +155,8 @@ func LogsSender(patchLogs func(ctx context.Context, req PatchLogs) error, logger
 				// shutdown.
 				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
 					err := patchLogs(ctx, PatchLogs{
-						Logs: backlog,
+						Logs:        backlog,
+						LogSourceID: sourceID,
 					})
 					if err == nil {
 						break
