@@ -1,20 +1,23 @@
 import { makeStyles } from "@mui/styles";
 import TableRow, { TableRowProps } from "@mui/material/TableRow";
-import { PropsWithChildren } from "react";
+import { type PropsWithChildren, forwardRef } from "react";
 import { combineClasses } from "utils/combineClasses";
 
-interface TimelineEntryProps {
-  clickable?: boolean;
-}
+type TimelineEntryProps = PropsWithChildren<
+  TableRowProps & {
+    clickable?: boolean;
+  }
+>;
 
-export const TimelineEntry = ({
-  children,
-  clickable = true,
-  ...props
-}: PropsWithChildren<TimelineEntryProps & TableRowProps>): JSX.Element => {
+export const TimelineEntry = forwardRef(function TimelineEntry(
+  { children, clickable = true, ...props }: TimelineEntryProps,
+  ref?: React.ForwardedRef<HTMLTableRowElement>,
+) {
   const styles = useStyles();
+
   return (
     <TableRow
+      ref={ref}
       className={combineClasses({
         [styles.timelineEntry]: true,
         [styles.clickable]: clickable,
@@ -24,7 +27,7 @@ export const TimelineEntry = ({
       {children}
     </TableRow>
   );
-};
+});
 
 const useStyles = makeStyles((theme) => ({
   clickable: {
