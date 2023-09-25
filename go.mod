@@ -88,7 +88,7 @@ require (
 	github.com/coder/flog v1.1.0
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/retry v1.4.0
-	github.com/coder/terraform-provider-coder v0.11.1
+	github.com/coder/terraform-provider-coder v0.12.0
 	github.com/coder/wgtunnel v0.1.12
 	github.com/coreos/go-oidc/v3 v3.6.0
 	github.com/coreos/go-systemd v0.0.0-20191104093116-d3cd4ed1dbcf
