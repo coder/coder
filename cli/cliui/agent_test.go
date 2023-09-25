@@ -131,10 +131,15 @@ func TestAgent(t *testing.T) {
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
+					agent.LogSources = []codersdk.WorkspaceAgentLogSource{{
+						ID:          uuid.Nil,
+						DisplayName: "testing",
+					}}
 					logs <- []codersdk.WorkspaceAgentLog{
 						{
 							CreatedAt: time.Now(),
 							Output:    "Hello world",
+							SourceID:  uuid.Nil,
 						},
 					}
 					return nil
@@ -153,7 +158,7 @@ func TestAgent(t *testing.T) {
 			},
 			want: []string{
 				"⧗ Running workspace agent startup scripts",
-				"Hello world",
+				"testing: Hello world",
 				"Bye now",
 				"✔ Running workspace agent startup scripts",
 			},
