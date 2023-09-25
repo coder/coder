@@ -297,17 +297,32 @@ export const AgentRow: FC<AgentRowProps> = ({
                 >
                   {({ index, style }) => {
                     const log = startupLogs[index];
-                    const sourceIcon: string | undefined =
-                      logSourceByID[log.source_id].icon;
+                    // getLogSource always returns a valid log source.
+                    // This is necessary to support deployments before `coder_script`.
+                    // Existed that haven't restarted their agents.
+                    const getLogSource = (
+                      id: string,
+                    ): WorkspaceAgentLogSource => {
+                      return (
+                        logSourceByID[id] || {
+                          created_at: "",
+                          display_name: "Logs",
+                          icon: "",
+                          id: "00000000-0000-0000-0000-000000000000",
+                          workspace_agent_id: "",
+                        }
+                      );
+                    };
+                    const logSource = getLogSource(log.source_id);
 
                     let assignedIcon = false;
                     let icon: JSX.Element;
                     // If no icon is specified, we show a deterministic
                     // colored circle to identify unique scripts.
-                    if (sourceIcon) {
+                    if (logSource.icon) {
                       icon = (
                         <img
-                          src={sourceIcon}
+                          src={logSource.icon}
                           alt=""
                           width={16}
                           height={16}
@@ -324,7 +339,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                             height: 16,
                             marginRight: 8,
                             background: determineScriptDisplayColor(
-                              logSourceByID[log.source_id].display_name,
+                              logSource.display_name,
                             ),
                             borderRadius: "100%",
                           }}
@@ -336,7 +351,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                     let nextChangesSource = false;
                     if (index < startupLogs.length - 1) {
                       nextChangesSource =
-                        logSourceByID[startupLogs[index + 1].source_id].id !==
+                        getLogSource(startupLogs[index + 1].source_id).id !==
                         log.source_id;
                     }
                     // We don't want every line to repeat the icon, because
@@ -346,7 +361,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                     // same source.
                     if (
                       index > 0 &&
-                      logSourceByID[startupLogs[index - 1].source_id].id ===
+                      getLogSource(startupLogs[index - 1].source_id).id ===
                         log.source_id
                     ) {
                       icon = (
@@ -396,7 +411,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                           <Tooltip
                             title={
                               <>
-                                {logSourceByID[log.source_id].display_name}
+                                {logSource.display_name}
                                 {assignedIcon && (
                                   <i>
                                     <br />
