@@ -569,7 +569,10 @@ export const createServer = async (
   port: number,
 ): Promise<ReturnType<typeof express>> => {
   const e = express();
-  await new Promise<void>((r) => e.listen(port, r));
+  // We need to specify the local IP address as the web server
+  // tends to fail with IPv6 related error:
+  // listen EADDRINUSE: address already in use :::50516
+  await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
   return e;
 };
 

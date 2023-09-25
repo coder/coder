@@ -26,7 +26,7 @@ export const BuildRow: React.FC<BuildRowProps> = ({ build }) => {
   const styles = useStyles();
   const initiatedBy = getDisplayWorkspaceBuildInitiatedBy(build);
   const navigate = useNavigate();
-  const clickableProps = useClickable(() =>
+  const clickableProps = useClickable<HTMLTableRowElement>(() =>
     navigate(`builds/${build.build_number}`),
   );
 

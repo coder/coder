@@ -2,7 +2,6 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import * as API from "../../../api/api";
 import { renderWithAuth } from "../../../testHelpers/renderHelpers";
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage";
-import { Language as SSHKeysPageViewLanguage } from "./SSHKeysPageView";
 import { MockGitSSHKey, mockApiError } from "testHelpers/entities";
 
 describe("SSH keys Page", () => {
@@ -20,9 +19,7 @@ describe("SSH keys Page", () => {
         await screen.findByText(MockGitSSHKey.public_key);
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", {
-          name: SSHKeysPageViewLanguage.regenerateLabel,
-        });
+        const regenerateButton = screen.getByTestId("regenerate");
         fireEvent.click(regenerateButton);
         const confirmDialog = screen.getByRole("dialog");
         expect(confirmDialog).toHaveTextContent(
@@ -67,9 +64,7 @@ describe("SSH keys Page", () => {
         );
 
         // Click on the "Regenerate" button to display the confirm dialog
-        const regenerateButton = screen.getByRole("button", {
-          name: SSHKeysPageViewLanguage.regenerateLabel,
-        });
+        const regenerateButton = screen.getByTestId("regenerate");
         fireEvent.click(regenerateButton);
         const confirmDialog = screen.getByRole("dialog");
         expect(confirmDialog).toHaveTextContent(
