@@ -4,7 +4,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
-import { FC, ReactNode } from "react";
+import { type FC } from "react";
 import * as TypesGen from "../../../api/typesGenerated";
 import { combineClasses } from "../../../utils/combineClasses";
 import { AvatarData } from "../../../components/AvatarData/AvatarData";
