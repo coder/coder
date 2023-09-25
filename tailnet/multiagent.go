@@ -29,9 +29,12 @@ type MultiAgent struct {
 	OnSubscribe       func(enq Queue, agent uuid.UUID) (*Node, error)
 	OnUnsubscribe     func(enq Queue, agent uuid.UUID) error
 	OnNodeUpdate      func(id uuid.UUID, node *Node) error
-	OnRemove          func(id uuid.UUID)
+	OnRemove          func(enq Queue)
 
+	ctx       context.Context
+	ctxCancel func()
 	closed    bool
+
 	updates   chan []*Node
 	closeOnce sync.Once
 	start     int64
@@ -44,7 +47,12 @@ type MultiAgent struct {
 func (m *MultiAgent) Init() *MultiAgent {
 	m.updates = make(chan []*Node, 128)
 	m.start = time.Now().Unix()
+	m.ctx, m.ctxCancel = context.WithCancel(context.Background())
 	return m
+}
+
+func (*MultiAgent) Kind() QueueKind {
+	return QueueKindClient
 }
 
 func (m *MultiAgent) UniqueID() uuid.UUID {
@@ -156,8 +164,13 @@ func (m *MultiAgent) CoordinatorClose() error {
 	return nil
 }
 
+func (m *MultiAgent) Done() <-chan struct{} {
+	return m.ctx.Done()
+}
+
 func (m *MultiAgent) Close() error {
 	_ = m.CoordinatorClose()
-	m.closeOnce.Do(func() { m.OnRemove(m.ID) })
+	m.ctxCancel()
+	m.closeOnce.Do(func() { m.OnRemove(m) })
 	return nil
 }

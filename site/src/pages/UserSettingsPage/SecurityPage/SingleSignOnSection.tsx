@@ -7,13 +7,21 @@ import KeyIcon from "@mui/icons-material/VpnKey";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { convertToOAUTH } from "api/api";
-import { AuthMethods, LoginType, UserLoginType } from "api/typesGenerated";
-import Skeleton from "@mui/material/Skeleton";
+import {
+  AuthMethods,
+  LoginType,
+  OIDCAuthMethod,
+  UserLoginType,
+} from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { useMutation } from "@tanstack/react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getErrorMessage } from "api/errors";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
+import { EmptyState } from "components/EmptyState/EmptyState";
+import { makeStyles } from "@mui/styles";
+import Link from "@mui/material/Link";
+import { docs } from "utils/docs";
 
 type LoginTypeConfirmation =
   | {
@@ -93,6 +101,32 @@ export const useSingleSignOnSection = () => {
   };
 };
 
+const useEmptyStateStyles = makeStyles((theme) => ({
+  root: {
+    minHeight: 0,
+    padding: theme.spacing(6, 4),
+    backgroundColor: theme.palette.background.paper,
+    borderRadius: theme.shape.borderRadius,
+  },
+}));
+
+function SSOEmptyState() {
+  const styles = useEmptyStateStyles();
+
+  return (
+    <EmptyState
+      className={styles.root}
+      message="No SSO Providers"
+      description="No SSO providers are configured with this Coder deployment."
+      cta={
+        <Link href={docs("/admin/auth")} target="_blank" rel="noreferrer">
+          Learn how to add a provider
+        </Link>
+      }
+    />
+  );
+}
+
 type SingleSignOnSectionProps = ReturnType<typeof useSingleSignOnSection> & {
   authMethods: AuthMethods;
   userLoginType: UserLoginType;
@@ -108,6 +142,12 @@ export const SingleSignOnSection = ({
   isConfirming,
   error,
 }: SingleSignOnSectionProps) => {
+  const authList = Object.values(
+    authMethods,
+  ) as (typeof authMethods)[keyof typeof authMethods][];
+
+  const noSsoEnabled = !authList.some((method) => method.enabled);
+
   return (
     <>
       <Section
@@ -116,73 +156,69 @@ export const SingleSignOnSection = ({
         description="Authenticate in Coder using one-click"
       >
         <Box display="grid" gap="16px">
-          {authMethods && userLoginType ? (
-            userLoginType.login_type === "password" ? (
-              <>
-                {authMethods.github.enabled && (
-                  <Button
-                    disabled={isUpdating}
-                    onClick={() => openConfirmation("github")}
-                    startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
-                    fullWidth
-                    size="large"
-                  >
-                    GitHub
-                  </Button>
-                )}
-                {authMethods.oidc.enabled && (
-                  <Button
-                    size="large"
-                    startIcon={<OIDCIcon authMethods={authMethods} />}
-                    fullWidth
-                    disabled={isUpdating}
-                    onClick={() => openConfirmation("oidc")}
-                  >
-                    {getOIDCLabel(authMethods)}
-                  </Button>
-                )}
-              </>
-            ) : (
-              <Box
-                sx={{
-                  background: (theme) => theme.palette.background.paper,
-                  borderRadius: 1,
-                  border: (theme) => `1px solid ${theme.palette.divider}`,
-                  padding: 2,
-                  display: "flex",
-                  gap: 2,
-                  alignItems: "center",
-                  fontSize: 14,
-                }}
-              >
-                <CheckCircleOutlined
-                  sx={{
-                    color: (theme) => theme.palette.success.light,
-                    fontSize: 16,
-                  }}
-                />
-                <span>
-                  Authenticated with{" "}
-                  <strong>
-                    {userLoginType.login_type === "github"
-                      ? "GitHub"
-                      : getOIDCLabel(authMethods)}
-                  </strong>
-                </span>
-                <Box sx={{ ml: "auto", lineHeight: 1 }}>
-                  {userLoginType.login_type === "github" ? (
-                    <GitHubIcon sx={{ width: 16, height: 16 }} />
-                  ) : (
-                    <OIDCIcon authMethods={authMethods} />
-                  )}
-                </Box>
-              </Box>
-            )
+          {userLoginType.login_type === "password" ? (
+            <>
+              {authMethods.github.enabled && (
+                <Button
+                  size="large"
+                  fullWidth
+                  disabled={isUpdating}
+                  startIcon={<GitHubIcon sx={{ width: 16, height: 16 }} />}
+                  onClick={() => openConfirmation("github")}
+                >
+                  GitHub
+                </Button>
+              )}
+
+              {authMethods.oidc.enabled && (
+                <Button
+                  size="large"
+                  fullWidth
+                  disabled={isUpdating}
+                  startIcon={<OIDCIcon oidcAuth={authMethods.oidc} />}
+                  onClick={() => openConfirmation("oidc")}
+                >
+                  {getOIDCLabel(authMethods.oidc)}
+                </Button>
+              )}
+
+              {noSsoEnabled && <SSOEmptyState />}
+            </>
           ) : (
-            <Skeleton
-              variant="rectangular"
-              sx={{ height: 40, borderRadius: 1 }}
-            />
+            <Box
+              sx={{
+                background: (theme) => theme.palette.background.paper,
+                borderRadius: 1,
+                border: (theme) => `1px solid ${theme.palette.divider}`,
+                padding: 2,
+                display: "flex",
+                gap: 2,
+                alignItems: "center",
+                fontSize: 14,
+              }}
+            >
+              <CheckCircleOutlined
+                sx={{
+                  color: (theme) => theme.palette.success.light,
+                  fontSize: 16,
+                }}
+              />
+              <span>
+                Authenticated with{" "}
+                <strong>
+                  {userLoginType.login_type === "github"
+                    ? "GitHub"
+                    : getOIDCLabel(authMethods.oidc)}
+                </strong>
+              </span>
+              <Box sx={{ ml: "auto", lineHeight: 1 }}>
+                {userLoginType.login_type === "github" ? (
+                  <GitHubIcon sx={{ width: 16, height: 16 }} />
+                ) : (
+                  <OIDCIcon oidcAuth={authMethods.oidc} />
+                )}
+              </Box>
+            </Box>
           )}
         </Box>
       </Section>
@@ -198,21 +234,23 @@ export const SingleSignOnSection = ({
   );
 };
 
-const OIDCIcon = ({ authMethods }: { authMethods: AuthMethods }) => {
-  return authMethods.oidc.iconUrl ? (
+const OIDCIcon = ({ oidcAuth }: { oidcAuth: OIDCAuthMethod }) => {
+  if (!oidcAuth.iconUrl) {
+    return <KeyIcon sx={{ width: 16, height: 16 }} />;
+  }
+
+  return (
     <Box
       component="img"
       alt="Open ID Connect icon"
-      src={authMethods.oidc.iconUrl}
+      src={oidcAuth.iconUrl}
       sx={{ width: 16, height: 16 }}
     />
-  ) : (
-    <KeyIcon sx={{ width: 16, height: 16 }} />
   );
 };
 
-const getOIDCLabel = (authMethods: AuthMethods) => {
-  return authMethods.oidc.signInText || "OpenID Connect";
+const getOIDCLabel = (oidcAuth: OIDCAuthMethod) => {
+  return oidcAuth.signInText || "OpenID Connect";
 };
 
 const ConfirmLoginTypeChangeModal = ({

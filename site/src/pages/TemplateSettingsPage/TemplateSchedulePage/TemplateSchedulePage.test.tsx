@@ -36,19 +36,22 @@ const renderTemplateSchedulePage = async () => {
   await waitForLoaderToBeRemoved();
 };
 
+// Extracts all properties from TemplateScheduleFormValues that have a key that
+// ends in _ms, and makes those properties optional. Defined as mapped type to
+// ensure this stays in sync as TemplateScheduleFormValues changes
+type FillAndSubmitConfig = {
+  [Key in keyof TemplateScheduleFormValues as Key extends `${string}_ms`
+    ? Key
+    : never]?: TemplateScheduleFormValues[Key] | undefined;
+};
+
 const fillAndSubmitForm = async ({
   default_ttl_ms,
   max_ttl_ms,
   failure_ttl_ms,
   time_til_dormant_ms,
   time_til_dormant_autodelete_ms,
-}: {
-  default_ttl_ms?: number;
-  max_ttl_ms?: number;
-  failure_ttl_ms?: number;
-  time_til_dormant_ms?: number;
-  time_til_dormant_autodelete_ms?: number;
-}) => {
+}: FillAndSubmitConfig) => {
   const user = userEvent.setup();
 
   if (default_ttl_ms) {
@@ -61,6 +64,7 @@ const fillAndSubmitForm = async ({
 
   if (max_ttl_ms) {
     const maxTtlField = await screen.findByLabelText("Max lifetime (hours)");
+
     await user.clear(maxTtlField);
     await user.type(maxTtlField, max_ttl_ms.toString());
   }
@@ -89,15 +93,30 @@ const fillAndSubmitForm = async ({
     );
   }
 
-  const submitButton = await screen.findByText(
-    FooterFormLanguage.defaultSubmitLabel,
-  );
+  const submitButton = screen.getByRole("button", {
+    name: FooterFormLanguage.defaultSubmitLabel,
+  });
+
+  expect(submitButton).not.toBeDisabled();
   await user.click(submitButton);
 
-  // User needs to confirm dormancy and autodeletion fields.
+  // User needs to confirm dormancy and auto-deletion fields.
   const confirmButton = await screen.findByTestId("confirm-button");
   await user.click(confirmButton);
 };
+
+// One problem with the waitFor function is that if no additional config options
+// are passed in, it will hang indefinitely as it keeps retrying an assertion.
+// Even if Jest runs out of time and kills the test, you won't get a good error
+// message. Adding options to force test to give up before test timeout
+function waitForWithCutoff(callback: () => void | Promise<void>) {
+  return waitFor(callback, {
+    // Defined to end 500ms before global cut-off time of 20s. Wanted to define
+    // this in terms of an exported constant from jest.config, but since Jest
+    // is CJS-based, that would've involved weird CJS-ESM interop issues
+    timeout: 19_500,
+  });
+}
 
 describe("TemplateSchedulePage", () => {
   beforeEach(() => {
@@ -109,14 +128,17 @@ describe("TemplateSchedulePage", () => {
     jest.spyOn(API, "getExperiments").mockResolvedValue(["workspace_actions"]);
   });
 
-  it("succeeds", async () => {
+  it("Calls the API when user fills in and submits a form", async () => {
     await renderTemplateSchedulePage();
     jest.spyOn(API, "updateTemplateMeta").mockResolvedValueOnce({
       ...MockTemplate,
       ...validFormValues,
     });
+
     await fillAndSubmitForm(validFormValues);
-    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+    );
   });
 
   test("default and max ttl is converted to and from hours", async () => {
@@ -128,16 +150,19 @@ describe("TemplateSchedulePage", () => {
     });
 
     await fillAndSubmitForm(validFormValues);
-    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-    await waitFor(() =>
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+    );
+
+    await waitForWithCutoff(() => {
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
           default_ttl_ms: (validFormValues.default_ttl_ms || 0) * 3600000,
           max_ttl_ms: (validFormValues.max_ttl_ms || 0) * 3600000,
         }),
-      ),
-    );
+      );
+    });
   });
 
   test("failure, dormancy, and dormancy auto-deletion converted to and from days", async () => {
@@ -149,8 +174,11 @@ describe("TemplateSchedulePage", () => {
     });
 
     await fillAndSubmitForm(validFormValues);
-    await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
-    await waitFor(() =>
+    await waitForWithCutoff(() =>
+      expect(API.updateTemplateMeta).toBeCalledTimes(1),
+    );
+
+    await waitForWithCutoff(() => {
       expect(API.updateTemplateMeta).toBeCalledWith(
         "test-template",
         expect.objectContaining({
@@ -160,8 +188,8 @@ describe("TemplateSchedulePage", () => {
           time_til_dormant_autodelete_ms:
             (validFormValues.time_til_dormant_autodelete_ms || 0) * 86400000,
         }),
-      ),
-    );
+      );
+    });
   });
 
   it("allows a default ttl of 7 days", () => {
