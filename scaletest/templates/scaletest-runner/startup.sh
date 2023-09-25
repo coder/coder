@@ -28,22 +28,22 @@ failed_status=Failed
 on_exit() {
 	trap - ERR EXIT
 
-	case "${SCALETEST_CLEANUP_STRATEGY}" in
+	case "${SCALETEST_PARAM_CLEANUP_STRATEGY}" in
 	on_stop)
 		# Handled by shutdown script.
 		;;
 	on_success)
 		if [[ $(get_status) != "${failed_status}" ]]; then
-			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_CLEANUP_STRATEGY}"
+			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		fi
 		;;
 	on_error)
 		if [[ $(get_status) = "${failed_status}" ]]; then
-			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_CLEANUP_STRATEGY}"
+			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		fi
 		;;
 	*)
-		"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_CLEANUP_STRATEGY}"
+		"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		;;
 	esac
 
@@ -54,15 +54,21 @@ trap on_exit EXIT
 on_err() {
 	code=${?}
 	trap - ERR
+	set +e
 
 	log "Scaletest failed!"
 	GRAFANA_EXTRA_TAGS=error set_status "${failed_status} (exit=${code})"
+	"${SCRIPTS_DIR}/report.sh" failed
 	lock_status # Ensure we never rewrite the status after a failure.
 }
 trap on_err ERR
 
+# Pass session token since `prepare.sh` has not yet run.
+CODER_SESSION_TOKEN=$CODER_USER_TOKEN "${SCRIPTS_DIR}/report.sh" started
 annotate_grafana "" "Start scaletest"
 
 "${SCRIPTS_DIR}/prepare.sh"
 
 "${SCRIPTS_DIR}/run.sh"
+
+"${SCRIPTS_DIR}/report.sh" completed
