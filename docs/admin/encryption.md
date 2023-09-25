@@ -42,6 +42,9 @@ Additional database fields may be encrypted in the future.
 
 ## Enabling encryption
 
+> NOTE: Enabling encryption does not encrypt all existing data. To encrypt
+> existing data, see [rotating keys](#rotating-keys) below.
+
 - Ensure you have a valid backup of your database. **Do not skip this step.** If
   you are using the built-in PostgreSQL database, you can run
   [`coder server postgres-builtin-url`](../cli/server_postgres-builtin-url.md)
