@@ -1215,7 +1215,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Scripts: []codersdk.WorkspaceAgentScript{{
 				Script:     "sleep 3",
-				Timeout:    time.Nanosecond,
+				Timeout:    time.Millisecond,
 				RunOnStart: true,
 			}},
 		}, 0)

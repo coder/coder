@@ -47,7 +47,7 @@ func TestTimeout(t *testing.T) {
 	defer runner.Close()
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		Script:  "sleep 3",
-		Timeout: time.Nanosecond,
+		Timeout: time.Millisecond,
 	}})
 	require.NoError(t, err)
 	require.ErrorIs(t, runner.Execute(context.Background(), nil), agentscripts.ErrTimeout)

@@ -2,6 +2,7 @@ package agentscripts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -204,20 +205,6 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		return xerrors.Errorf("%s script: start command: %w", logPath, err)
 	}
 
-	// timeout stores whether the process timed out then was gracefully killed.
-	var timeout chan struct{}
-	if script.Timeout > 0 {
-		timeout = make(chan struct{})
-		timer := time.AfterFunc(script.Timeout, func() {
-			close(timeout)
-			err := cmd.Process.Signal(os.Interrupt)
-			if err != nil {
-				logger.Warn(ctx, "send interrupt signal to script", slog.Error(err))
-			}
-		})
-		defer timer.Stop()
-	}
-
 	cmdDone := make(chan error, 1)
 	err = r.trackCommandGoroutine(func() {
 		cmdDone <- cmd.Wait()
@@ -226,12 +213,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		return xerrors.Errorf("%s script: track command goroutine: %w", logPath, err)
 	}
 	select {
-	case <-timeout:
-		err = ErrTimeout
 	case <-ctx.Done():
 		err = ctx.Err()
 	case err = <-cmdDone:
 	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		err = ErrTimeout
+	}
+	fmt.Printf("ERROR %+v\n", err)
 	return err
 }
 
