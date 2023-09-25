@@ -8,10 +8,6 @@ import { Stack } from "components/Stack/Stack";
 import { FC } from "react";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 
-export const Language = {
-  regenerateLabel: "Regenerate",
-};
-
 export interface SSHKeysPageViewProps {
   isLoading: boolean;
   getSSHKeyError?: unknown;
@@ -57,8 +53,8 @@ export const SSHKeysPageView: FC<
           </p>
           <CodeExample code={sshKey.public_key.trim()} />
           <div>
-            <Button onClick={onRegenerateClick}>
-              {Language.regenerateLabel}
+            <Button onClick={onRegenerateClick} data-testid="regenerate">
+              Regenerate&hellip;
             </Button>
           </div>
         </>

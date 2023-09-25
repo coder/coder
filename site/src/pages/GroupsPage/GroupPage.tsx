@@ -1,5 +1,4 @@
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -60,6 +59,7 @@ export const GroupPage: React.FC = () => {
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+  const styles = useStyles();
 
   return (
     <>
@@ -80,17 +80,22 @@ export const GroupPage: React.FC = () => {
             <PageHeader
               actions={
                 <Maybe condition={canUpdateGroup}>
-                  <Link to="settings" component={RouterLink}>
-                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
-                  </Link>
+                  <Button
+                    startIcon={<SettingsOutlined />}
+                    to="settings"
+                    component={RouterLink}
+                  >
+                    Settings
+                  </Button>
                   <Button
                     disabled={groupData?.id === groupData?.organization_id}
                     onClick={() => {
                       setIsDeletingGroup(true);
                     }}
                     startIcon={<DeleteOutline />}
+                    className={styles.removeButton}
                   >
-                    Delete
+                    Delete&hellip;
                   </Button>
                 </Maybe>
               }
@@ -184,11 +189,11 @@ export const GroupPage: React.FC = () => {
         </Cond>
       </ChooseOne>
 
-      {group && (
+      {groupQuery.data && (
         <DeleteDialog
           isOpen={isDeletingGroup}
           confirmLoading={deleteGroupMutation.isLoading}
-          name={group.name}
+          name={groupQuery.data.name}
           entity="group"
           onConfirm={async () => {
             try {
@@ -303,9 +308,15 @@ const GroupMemberRow = (props: {
   );
 };
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   autoComplete: {
     width: 300,
+  },
+  removeButton: {
+    color: theme.palette.error.main,
+    "&:hover": {
+      backgroundColor: "transparent",
+    },
   },
 }));
 
