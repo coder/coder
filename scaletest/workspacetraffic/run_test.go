@@ -73,7 +73,8 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		resources := agenttest.New(t, client.URL, authToken).Wait(client, ws.ID)
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
 
@@ -191,7 +192,8 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		resources := agenttest.New(t, client.URL, authToken).Wait(client, ws.ID)
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)

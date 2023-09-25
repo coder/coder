@@ -276,7 +276,8 @@ func setupRunnerTest(t *testing.T) (client *codersdk.Client, agentID uuid.UUID) 
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	require.Eventually(t, func() bool {
 		t.Log("agent id", resources[0].Agents[0].ID)
 		return (*api.TailnetCoordinator.Load()).Node(resources[0].Agents[0].ID) != nil

@@ -20,12 +20,12 @@ import (
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -60,9 +60,13 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	agt := agenttest.New(t, client.URL, agentToken)
-	agt.Wait(client, workspace.ID)
-	return agt.Client(), agentToken, pubkey
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(agentToken)
+	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.Client = agentClient
+	})
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	return agentClient, agentToken, pubkey
 }
 
 func serveSSHForGitSSH(t *testing.T, handler func(ssh.Session), pubkeys ...gossh.PublicKey) *net.TCPAddr {

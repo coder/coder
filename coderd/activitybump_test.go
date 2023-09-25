@@ -85,7 +85,8 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		_ = agenttest.New(t, client.URL, agentToken).Wait(client, workspace.ID)
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Sanity-check that deadline is near.
 		workspace, err := client.Workspace(ctx, workspace.ID)

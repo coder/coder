@@ -484,7 +484,8 @@ func TestWorkspaceAgentListen(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -576,7 +577,8 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 	daemonCloser.Close()
 
-	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
@@ -630,7 +632,8 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, manifest.DisableDirectConnections)
 
-	resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentID := resources[0].Agents[0].ID
 
 	// Verify that the connection data has no STUN ports and
@@ -708,7 +711,8 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-		resources := agenttest.New(t, client.URL, authToken).Wait(client, workspace.ID)
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		return client, uint16(coderdPort), resources[0].Agents[0].ID
 	}
 
@@ -1427,10 +1431,9 @@ func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agt := agenttest.New(t, client.URL, agentToken)
-	resources := agt.Wait(client, workspace.ID)
+	agentCloser := agenttest.New(t, client.URL, agentToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentID := resources[0].Agents[0].ID
-	agentCloser := agt.Agent()
 
 	// Connect from a client.
 	ctx := testutil.Context(t, testutil.WaitLong)

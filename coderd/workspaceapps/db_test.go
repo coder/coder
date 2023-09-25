@@ -171,7 +171,8 @@ func Test_ResolveRequest(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	resources := agenttest.New(t, client.URL, agentAuthToken).Wait(client, workspace.ID, agentName)
+	_ = agenttest.New(t, client.URL, agentAuthToken)
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
 
 	agentID := uuid.Nil
 	for _, resource := range resources {

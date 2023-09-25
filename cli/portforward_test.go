@@ -16,7 +16,6 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
-
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -316,11 +315,12 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agenttest.New(t, client.URL, agentToken,
+	_ = agenttest.New(t, client.URL, agentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second
 		},
-	).Wait(client, workspace.ID)
+	)
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	return workspace
 }
