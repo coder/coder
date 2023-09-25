@@ -220,7 +220,6 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	if errors.Is(err, context.DeadlineExceeded) {
 		err = ErrTimeout
 	}
-	fmt.Printf("ERROR %+v\n", err)
 	return err
 }
 
