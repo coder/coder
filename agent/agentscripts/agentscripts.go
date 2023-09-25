@@ -202,6 +202,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 
 	err = cmd.Start()
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ErrTimeout
+		}
 		return xerrors.Errorf("%s script: start command: %w", logPath, err)
 	}
 
