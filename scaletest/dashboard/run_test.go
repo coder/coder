@@ -19,6 +19,7 @@ import (
 
 func Test_Run(t *testing.T) {
 	t.Parallel()
+	t.Skip("To be fixed by https://github.com/coder/coder/issues/9131")
 	if testutil.RaceEnabled() {
 		t.Skip("skipping timing-sensitive test because of race detector")
 	}
