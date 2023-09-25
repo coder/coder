@@ -297,24 +297,15 @@ export const AgentRow: FC<AgentRowProps> = ({
                 >
                   {({ index, style }) => {
                     const log = startupLogs[index];
-                    let sourceIcon: string | undefined =
+                    const sourceIcon: string | undefined =
                       logSourceByID[log.source_id].icon;
-                    if (!sourceIcon) {
-                      // Default to a globe for external.
-                      sourceIcon = "/emojis/1f310.png";
-                    }
-                    if (
-                      index > 0 &&
-                      logSourceByID[startupLogs[index - 1].source_id].id ===
-                        log.source_id
-                    ) {
-                      sourceIcon = undefined;
-                    }
 
-                    let icon = (
-                      <Tooltip
-                        title={logSourceByID[log.source_id].display_name}
-                      >
+                    let assignedIcon = false;
+                    let icon: JSX.Element;
+                    // If no icon is specified, we show a deterministic
+                    // colored circle to identify unique scripts.
+                    if (sourceIcon) {
+                      icon = (
                         <img
                           src={sourceIcon}
                           alt=""
@@ -324,16 +315,40 @@ export const AgentRow: FC<AgentRowProps> = ({
                             marginRight: 8,
                           }}
                         />
-                      </Tooltip>
-                    );
+                      );
+                    } else {
+                      icon = (
+                        <div
+                          style={{
+                            width: 16,
+                            height: 16,
+                            marginRight: 8,
+                            background: determineScriptDisplayColor(
+                              logSourceByID[log.source_id].display_name,
+                            ),
+                            borderRadius: "100%",
+                          }}
+                        />
+                      );
+                      assignedIcon = true;
+                    }
+
                     let nextChangesSource = false;
                     if (index < startupLogs.length - 1) {
                       nextChangesSource =
                         logSourceByID[startupLogs[index + 1].source_id].id !==
                         log.source_id;
                     }
-
-                    if (!sourceIcon) {
+                    // We don't want every line to repeat the icon, because
+                    // that is ugly and repetitive. This removes the icon
+                    // for subsequent lines of the same source and shows a
+                    // line instead, visually indicating they are from the
+                    // same source.
+                    if (
+                      index > 0 &&
+                      logSourceByID[startupLogs[index - 1].source_id].id ===
+                        log.source_id
+                    ) {
                       icon = (
                         <div
                           style={{
@@ -377,7 +392,23 @@ export const AgentRow: FC<AgentRowProps> = ({
                         number={index + 1}
                         maxNumber={startupLogs.length}
                         style={style}
-                        sourceIcon={icon}
+                        sourceIcon={
+                          <Tooltip
+                            title={
+                              <>
+                                {logSourceByID[log.source_id].display_name}
+                                {assignedIcon && (
+                                  <i>
+                                    <br />
+                                    No icon specified!
+                                  </i>
+                                )}
+                              </>
+                            }
+                          >
+                            {icon}
+                          </Tooltip>
+                        }
                       />
                     );
                   }}
@@ -674,3 +705,26 @@ const useStyles = makeStyles((theme) => ({
     textTransform: "capitalize",
   },
 }));
+
+// These colors were picked at random. Feel free
+// to add more, adjust, or change! Users will not
+// depend on these colors.
+const scriptDisplayColors = [
+  "#85A3B2",
+  "#A37EB2",
+  "#C29FDE",
+  "#90B3D7",
+  "#829AC7",
+  "#728B8E",
+  "#506080",
+  "#5654B0",
+  "#6B56D6",
+  "#7847CC",
+];
+
+const determineScriptDisplayColor = (displayName: string): string => {
+  const hash = displayName.split("").reduce((hash, char) => {
+    return (hash << 5) + hash + char.charCodeAt(0); // bit-shift and add for our simple hash
+  }, 0);
+  return scriptDisplayColors[Math.abs(hash) % scriptDisplayColors.length];
+};

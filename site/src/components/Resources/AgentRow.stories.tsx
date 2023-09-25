@@ -16,6 +16,7 @@ import {
   MockWorkspaceAgentTimeout,
   MockWorkspaceApp,
   MockProxyLatencies,
+  MockWorkspaceAgentLogSource,
 } from "testHelpers/entities";
 import { AgentRow, LineWithID } from "./AgentRow";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
@@ -95,7 +96,7 @@ const storybookLogs: LineWithID[] = [
   level: "info",
   output: line,
   time: "",
-  source_id: "",
+  source_id: MockWorkspaceAgentLogSource.id,
 }));
 
 const meta: Meta<typeof AgentRow> = {
