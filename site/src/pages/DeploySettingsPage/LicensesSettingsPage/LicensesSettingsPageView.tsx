@@ -110,10 +110,10 @@ const LicensesSettingsPageView: FC<Props> = ({
           <Stack alignItems="center" spacing={1}>
             <Stack alignItems="center" spacing={0.5}>
               <span className={styles.title}>
-                You don{"'"}t have any licenses!
+                You don&apos;t have any licenses!
               </span>
               <span className={styles.description}>
-                You{"'"}re missing out on high availability, RBAC, quotas, and
+                You&apos;re missing out on high availability, RBAC, quotas, and
                 much more. Contact{" "}
                 <MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
                 <MuiLink href="https://coder.com/trial">
