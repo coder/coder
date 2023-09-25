@@ -718,57 +718,78 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 };
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentConnecting,
-    MockWorkspaceAgentOutdated,
-  ],
-  created_at: "",
   id: "test-workspace-resource",
-  job_id: "",
   name: "a-workspace-resource",
+  agents: [MockWorkspaceAgent],
+  created_at: "",
+  job_id: "",
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: false,
   icon: "",
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
+  daily_cost: 10,
+};
+
+export const MockWorkspaceResourceSensitive: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-sensitive",
+  name: "workspace-resource-sensitive",
   metadata: [{ key: "api_key", value: "12345678", sensitive: true }],
-  daily_cost: 10,
 };
 
-export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-multiple-agents",
+  name: "workspace-resource-multiple-agents",
   agents: [
     MockWorkspaceAgent,
     MockWorkspaceAgentDisconnected,
     MockWorkspaceAgentOutdated,
   ],
+};
+
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-hidden",
+  name: "workspace-resource-hidden",
+  hide: true,
+};
+
+export const MockWorkspaceVolumeResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-volume-resource",
   created_at: "",
-  id: "test-workspace-resource-2",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
+  type: "docker_volume",
+  name: "home_volume",
   hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 10,
+  daily_cost: 0,
 };
 
-export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentDisconnected,
-    MockWorkspaceAgentOutdated,
-  ],
+export const MockWorkspaceImageResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-image-resource",
   created_at: "",
-  id: "test-workspace-resource-3",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
-  hide: true,
+  type: "docker_image",
+  name: "main",
+  hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 20,
+  daily_cost: 0,
+};
+
+export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-container-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_container",
+  name: "workspace",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
 };
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
