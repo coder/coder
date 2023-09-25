@@ -184,7 +184,7 @@ require (
 	golang.org/x/tools v0.13.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	golang.zx2c4.com/wireguard v0.0.0-20230704135630-469159ecf7d1
-	google.golang.org/api v0.141.0
+	google.golang.org/api v0.142.0
 	google.golang.org/grpc v1.58.1
 	google.golang.org/protobuf v1.31.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.55.0
@@ -398,7 +398,7 @@ require (
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230803162519-f966b187b2e5 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230822172742-b8732ec3820d // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230911183012-2d3300fd4832 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230913181813-007df8e322eb // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
