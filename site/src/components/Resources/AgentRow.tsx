@@ -84,13 +84,13 @@ export const AgentRow: FC<AgentRowProps> = ({
     showApps &&
     ((agent.status === "connected" && hasAppsToDisplay) ||
       agent.status === "connecting");
-      const logSourceByID = useMemo(() => {
-        const sources: { [id: string]: WorkspaceAgentLogSource } = {};
-        for (const source of agent.log_sources) {
-          sources[source.id] = source;
-        }
-        return sources;
-      }, [agent.log_sources]);
+  const logSourceByID = useMemo(() => {
+    const sources: { [id: string]: WorkspaceAgentLogSource } = {};
+    for (const source of agent.log_sources) {
+      sources[source.id] = source;
+    }
+    return sources;
+  }, [agent.log_sources]);
   const hasStartupFeatures = Boolean(agent.logs_length);
   const { proxy } = useProxy();
   const [showLogs, setShowLogs] = useState(
@@ -427,6 +427,7 @@ const useAgentLogs = (
   useEffect(() => {
     if (!enabled) {
       socket.current?.close();
+      setLogs([]);
       return;
     }
 
