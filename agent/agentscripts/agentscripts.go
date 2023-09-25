@@ -151,12 +151,13 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	}()
 
 	var cmd *exec.Cmd
+	cmdCtx := ctx
 	if script.Timeout > 0 {
 		var ctxCancel context.CancelFunc
-		ctx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
+		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
 		defer ctxCancel()
 	}
-	cmdPty, err := r.SSHServer.CreateCommand(ctx, script.Script, nil)
+	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
