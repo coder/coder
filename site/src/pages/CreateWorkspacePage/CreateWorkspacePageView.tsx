@@ -118,7 +118,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
-            {versionId !== template.active_version_id && (
+            {versionId && versionId !== template.active_version_id && (
               <Stack spacing={1} className={styles.hasDescription}>
                 <TextField
                   disabled
