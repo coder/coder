@@ -12,8 +12,16 @@ mkdir -p "${SCRIPTS_DIR}"
 unzip -o /tmp/scripts.zip -d "${SCRIPTS_DIR}"
 rm /tmp/scripts.zip
 
+echo "Cloning coder/coder repo..."
+if [[ ! -d "${HOME}/coder" ]]; then
+	git clone https://github.com/coder/coder.git "${HOME}/coder"
+fi
+(cd "${HOME}/coder" && git pull)
+
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"
+
+annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 
 # Show failure in the UI if script exits with error.
 failed_status=Failed
@@ -38,15 +46,23 @@ on_exit() {
 		"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_CLEANUP_STRATEGY}"
 		;;
 	esac
+
+	annotate_grafana_end "" "Start scaletest"
 }
 trap on_exit EXIT
 
 on_err() {
+	code=${?}
+	trap - ERR
+
 	log "Scaletest failed!"
-	set_status "${failed_status}"
+	GRAFANA_EXTRA_TAGS=error set_status "${failed_status} (exit=${code})"
 	lock_status # Ensure we never rewrite the status after a failure.
 }
 trap on_err ERR
 
+annotate_grafana "" "Start scaletest"
+
 "${SCRIPTS_DIR}/prepare.sh"
+
 "${SCRIPTS_DIR}/run.sh"

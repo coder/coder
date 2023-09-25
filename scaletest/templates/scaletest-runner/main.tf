@@ -43,6 +43,9 @@ locals {
   home_disk_size         = 10
   scaletest_run_id       = "scaletest-${time_static.start_time.rfc3339}"
   scaletest_run_dir      = "/home/coder/${local.scaletest_run_id}"
+  grafana_url            = "https://stats.dev.c8s.io"
+  grafana_dashboard_uid  = "qLVSTR-Vz"
+  grafana_dashboard_name = "coderv2-loadtest-dashboard"
 }
 
 data "coder_provisioner" "me" {
@@ -237,6 +240,9 @@ resource "coder_agent" "main" {
     SCALETEST_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
 
+    GRAFANA_URL : local.grafana_url,
+    # GRAFANA_DASHBOARD_UID : local.grafana_dashboard_uid,
+
     SCRIPTS_ZIP : filebase64(data.archive_file.scripts_zip.output_path),
     SCRIPTS_DIR : "/tmp/scripts",
   }
@@ -332,7 +338,7 @@ resource "coder_app" "grafana" {
   agent_id     = coder_agent.main.id
   slug         = "00-grafana"
   display_name = "Grafana"
-  url          = "https://stats.dev.c8s.io/d/qLVSTR-Vz/coderv2-loadtest-dashboard?orgId=1&from=${time_static.start_time.unix * 1000}&to=now"
+  url          = "${local.grafana_url}/d/${local.grafana_dashboard_uid}/${local.grafana_dashboard_name}?orgId=1&from=${time_static.start_time.unix * 1000}&to=now"
   icon         = "https://grafana.com/static/assets/img/fav32.png"
   external     = true
 }
@@ -440,6 +446,15 @@ resource "kubernetes_pod" "main" {
         name  = "CODER_AGENT_LOG_DIR"
         value = "${local.scaletest_run_dir}/logs"
       }
+      env {
+        name = "GRAFANA_API_TOKEN"
+        value_from {
+          secret_key_ref {
+            name = data.kubernetes_secret.grafana_editor_api_token.metadata[0].name
+            key  = "token"
+          }
+        }
+      }
       resources {
         # Set requests and limits values such that we can do performant
         # execution of `coder scaletest` commands.
@@ -502,6 +517,13 @@ resource "kubernetes_pod" "main" {
         }
       }
     }
+  }
+}
+
+data "kubernetes_secret" "grafana_editor_api_token" {
+  metadata {
+    name      = "grafana-editor-api-token"
+    namespace = data.coder_parameter.namespace.value
   }
 }
 

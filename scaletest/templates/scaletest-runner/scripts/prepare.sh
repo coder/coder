@@ -28,13 +28,6 @@ for dir in "${HOME}/scaletest-"*; do
 	fi
 done
 
-log "Cloning coder/coder repo..."
-
-if [[ ! -d "${HOME}/coder" ]]; then
-	git clone https://github.com/coder/coder.git "${HOME}/coder"
-fi
-(cd "${HOME}/coder" && git pull)
-
 log "Creating coder CLI token (needed for cleanup during shutdown)..."
 
 mkdir -p "${CODER_CONFIG_DIR}"
