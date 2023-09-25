@@ -67,3 +67,6 @@ result
 
 # Data dumps from unit tests
 **/*.test.sql
+
+# Filebrowser.db
+**/filebrowser.db
