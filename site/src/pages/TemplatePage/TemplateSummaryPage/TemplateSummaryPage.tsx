@@ -1,4 +1,4 @@
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";

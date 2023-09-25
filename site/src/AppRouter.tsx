@@ -1,9 +1,9 @@
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
-import { TemplateLayout } from "components/TemplateLayout/TemplateLayout";
 import { UsersLayout } from "components/UsersLayout/UsersLayout";
 import AuditPage from "pages/AuditPage/AuditPage";
 import LoginPage from "pages/LoginPage/LoginPage";
 import { SetupPage } from "pages/SetupPage/SetupPage";
+import { TemplateLayout } from "pages/TemplatePage/TemplateLayout";
 import TemplatesPage from "pages/TemplatesPage/TemplatesPage";
 import UsersPage from "pages/UsersPage/UsersPage";
 import WorkspacesPage from "pages/WorkspacesPage/WorkspacesPage";
