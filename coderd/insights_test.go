@@ -118,6 +118,102 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestUserActivityInsights(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, nil)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon:  true,
+		AgentStatsRefreshInterval: time.Millisecond * 100,
+	})
+
+	// Create two users, one that will appear in the report and another that
+	// won't (due to not having/using a workspace).
+	user := coderdtest.CreateFirstUser(t, client)
+	_, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+	authToken := uuid.NewString()
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		Parse:          echo.ParseComplete,
+		ProvisionPlan:  echo.PlanComplete,
+		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+	})
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
+
+	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+
+	// Start an agent so that we can generate stats.
+	agentClient := agentsdk.New(client.URL)
+	agentClient.SetSessionToken(authToken)
+	agentCloser := agent.New(agent.Options{
+		Logger: logger.Named("agent"),
+		Client: agentClient,
+	})
+	defer func() {
+		_ = agentCloser.Close()
+	}()
+	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+	// Start must be at the beginning of the day, initialize it early in case
+	// the day changes so that we get the relevant stats faster.
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Connect to the agent to generate usage/latency stats.
+	conn, err := client.DialWorkspaceAgent(ctx, resources[0].Agents[0].ID, &codersdk.DialWorkspaceAgentOptions{
+		Logger: logger.Named("client"),
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	sshConn, err := conn.SSHClient(ctx)
+	require.NoError(t, err)
+	defer sshConn.Close()
+
+	sess, err := sshConn.NewSession()
+	require.NoError(t, err)
+	defer sess.Close()
+
+	r, w := io.Pipe()
+	defer r.Close()
+	defer w.Close()
+	sess.Stdin = r
+	sess.Stdout = io.Discard
+	err = sess.Start("cat")
+	require.NoError(t, err)
+
+	var userActivities codersdk.UserActivityInsightsResponse
+	require.Eventuallyf(t, func() bool {
+		// Keep connection active.
+		_, err := w.Write([]byte("hello world\n"))
+		if !assert.NoError(t, err) {
+			return false
+		}
+		userActivities, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
+			StartTime:   today,
+			EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+			TemplateIDs: []uuid.UUID{template.ID},
+		})
+		if !assert.NoError(t, err) {
+			return false
+		}
+		return len(userActivities.Report.Users) > 0 && userActivities.Report.Users[0].Seconds > 0
+	}, testutil.WaitMedium, testutil.IntervalFast, "user activity is missing")
+
+	// We got our latency data, close the connection.
+	_ = sess.Close()
+	_ = sshConn.Close()
+
+	require.Len(t, userActivities.Report.Users, 1, "want only 1 user")
+	require.Equal(t, userActivities.Report.Users[0].UserID, user.UserID, "want user id to match")
+	assert.Greater(t, userActivities.Report.Users[0].Seconds, int64(0), "want usage in seconds to be greater than 0")
+}
+
 func TestUserLatencyInsights(t *testing.T) {
 	t.Parallel()
 
