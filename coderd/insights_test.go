@@ -1286,196 +1286,126 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 	}
 }
 
-func TestUserLatencyInsights_RBAC(t *testing.T) {
+func TestGenericInsights_RBAC(t *testing.T) {
 	t.Parallel()
 
 	y, m, d := time.Now().UTC().Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
 
+	type fetchInsightsFunc func(ctx context.Context, client *codersdk.Client, startTime, endTime time.Time, templateIDs ...uuid.UUID) error
+
 	type test struct {
 		withTemplate bool
 	}
 
-	tests := []test{
-		{true},
-		{false},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-
-		t.Run("AsOwner", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
-			}
-
+	endpoints := map[string]fetchInsightsFunc{
+		"UserLatency": func(ctx context.Context, client *codersdk.Client, startTime, endTime time.Time, templateIDs ...uuid.UUID) error {
 			_, err := client.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+				StartTime:   startTime,
+				EndTime:     endTime,
 				TemplateIDs: templateIDs,
 			})
-			require.NoError(t, err)
-		})
-		t.Run("AsTemplateAdmin", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
-			}
-
-			_, err := templateAdmin.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
-				TemplateIDs: templateIDs,
-			})
-			require.NoError(t, err)
-		})
-		t.Run("AsRegularUser", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
-			}
-
-			_, err := regular.UserLatencyInsights(ctx, codersdk.UserLatencyInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
-				TemplateIDs: templateIDs,
-			})
-			require.Error(t, err)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
-		})
-	}
-}
-
-func TestUserActivityInsights_RBAC(t *testing.T) {
-	t.Parallel()
-
-	y, m, d := time.Now().UTC().Date()
-	today := time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
-
-	type test struct {
-		withTemplate bool
-	}
-
-	tests := []test{
-		{true},
-		{false},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-
-		t.Run("AsOwner", func(t *testing.T) {
-			t.Parallel()
-
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
-			}
-
+			return err
+		},
+		"UserActivity": func(ctx context.Context, client *codersdk.Client, startTime, endTime time.Time, templateIDs ...uuid.UUID) error {
 			_, err := client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+				StartTime:   startTime,
+				EndTime:     endTime,
 				TemplateIDs: templateIDs,
 			})
-			require.NoError(t, err)
-		})
-		t.Run("AsTemplateAdmin", func(t *testing.T) {
+			return err
+		},
+	}
+
+	for endpointName, endpoint := range endpoints {
+		endpointName := endpointName
+		endpoint := endpoint
+
+		t.Run(fmt.Sprintf("With%sEndpoint", endpointName), func(t *testing.T) {
 			t.Parallel()
 
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
-
-			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
-
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
+			tests := []test{
+				{true},
+				{false},
 			}
 
-			_, err := templateAdmin.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
-				TemplateIDs: templateIDs,
-			})
-			require.NoError(t, err)
-		})
-		t.Run("AsRegularUser", func(t *testing.T) {
-			t.Parallel()
+			for _, tt := range tests {
+				tt := tt
 
-			client := coderdtest.New(t, &coderdtest.Options{})
-			admin := coderdtest.CreateFirstUser(t, client)
+				t.Run("AsOwner", func(t *testing.T) {
+					t.Parallel()
 
-			regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+					client := coderdtest.New(t, &coderdtest.Options{})
+					admin := coderdtest.CreateFirstUser(t, client)
 
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+					defer cancel()
 
-			var templateIDs []uuid.UUID
-			if tt.withTemplate {
-				version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-				template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-				templateIDs = append(templateIDs, template.ID)
+					var templateIDs []uuid.UUID
+					if tt.withTemplate {
+						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						templateIDs = append(templateIDs, template.ID)
+					}
+
+					err := endpoint(ctx, client,
+						today,
+						time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+						templateIDs...)
+					require.NoError(t, err)
+				})
+				t.Run("AsTemplateAdmin", func(t *testing.T) {
+					t.Parallel()
+
+					client := coderdtest.New(t, &coderdtest.Options{})
+					admin := coderdtest.CreateFirstUser(t, client)
+
+					templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+					defer cancel()
+
+					var templateIDs []uuid.UUID
+					if tt.withTemplate {
+						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						templateIDs = append(templateIDs, template.ID)
+					}
+
+					err := endpoint(ctx, templateAdmin,
+						today,
+						time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+						templateIDs...)
+					require.NoError(t, err)
+				})
+				t.Run("AsRegularUser", func(t *testing.T) {
+					t.Parallel()
+
+					client := coderdtest.New(t, &coderdtest.Options{})
+					admin := coderdtest.CreateFirstUser(t, client)
+
+					regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+					defer cancel()
+
+					var templateIDs []uuid.UUID
+					if tt.withTemplate {
+						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						templateIDs = append(templateIDs, template.ID)
+					}
+
+					err := endpoint(ctx, regular,
+						today,
+						time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
+						templateIDs...)
+					require.Error(t, err)
+					var apiErr *codersdk.Error
+					require.ErrorAs(t, err, &apiErr)
+					require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+				})
 			}
-
-			_, err := regular.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
-				StartTime:   today,
-				EndTime:     time.Now().UTC().Truncate(time.Hour).Add(time.Hour), // Round up to include the current hour.
-				TemplateIDs: templateIDs,
-			})
-			require.Error(t, err)
-			var apiErr *codersdk.Error
-			require.ErrorAs(t, err, &apiErr)
-			require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 		})
 	}
 }
