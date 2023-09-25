@@ -240,6 +240,37 @@ func TestUserLatencyInsights_BadRequest(t *testing.T) {
 	assert.Error(t, err, "want error for end time partial day when not today")
 }
 
+func TestUserActivityInsights_BadRequest(t *testing.T) {
+	t.Parallel()
+
+	saoPaulo, err := time.LoadLocation("America/Sao_Paulo")
+	require.NoError(t, err)
+	y, m, d := time.Now().UTC().Date()
+	today := time.Date(y, m, d, 0, 0, 0, 0, saoPaulo)
+
+	// Prepare
+
+	client := coderdtest.New(t, &coderdtest.Options{})
+	_ = coderdtest.CreateFirstUser(t, client)
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	// Test insights request
+	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
+		StartTime: today,
+		EndTime:   today.AddDate(0, 0, -1),
+	})
+	assert.Error(t, err, "want error for end time before start time")
+
+	// Test insights request
+	_, err = client.UserActivityInsights(ctx, codersdk.UserActivityInsightsRequest{
+		StartTime: today.AddDate(0, 0, -7),
+		EndTime:   today.Add(-time.Hour),
+	})
+	assert.Error(t, err, "want error for end time partial day when not today")
+}
+
 func TestTemplateInsights_Golden(t *testing.T) {
 	t.Parallel()
 
