@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -133,6 +134,19 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 	if logPath == "" {
 		logPath = fmt.Sprintf("coder-script-%s.log", script.LogSourceID)
 	}
+	if logPath[0] == '~' {
+		// First we check the environment.
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			u, err := user.Current()
+			if err != nil {
+				return xerrors.Errorf("current user: %w", err)
+			}
+			homeDir = u.HomeDir
+		}
+		logPath = filepath.Join(homeDir, logPath[1:])
+	}
+	logPath = os.ExpandEnv(logPath)
 	if !filepath.IsAbs(logPath) {
 		logPath = filepath.Join(r.LogDir, logPath)
 	}
