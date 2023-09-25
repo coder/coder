@@ -116,7 +116,7 @@ func (r *Runner) Execute(ctx context.Context, filter func(script codersdk.Worksp
 		eg.Go(func() error {
 			err := r.run(ctx, script)
 			if err != nil {
-				return xerrors.Errorf("run agent script %q: %w", script.LogPath, err)
+				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
 			}
 			return nil
 		})
@@ -217,8 +217,13 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		return xerrors.Errorf("%s script: track command goroutine: %w", logPath, err)
 	}
 	select {
-	case <-ctx.Done():
-		err = ctx.Err()
+	case <-cmdCtx.Done():
+		// Wait for the command to drain!
+		select {
+		case <-cmdDone:
+		case <-time.After(10 * time.Second):
+		}
+		err = cmdCtx.Err()
 	case err = <-cmdDone:
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
