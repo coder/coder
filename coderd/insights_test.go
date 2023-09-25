@@ -345,7 +345,6 @@ func TestUserActivityInsights_BadRequest(t *testing.T) {
 	today := time.Date(y, m, d, 0, 0, 0, 0, saoPaulo)
 
 	// Prepare
-
 	client := coderdtest.New(t, &coderdtest.Options{})
 	_ = coderdtest.CreateFirstUser(t, client)
 
