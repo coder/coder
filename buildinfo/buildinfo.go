@@ -71,9 +71,9 @@ func Version() string {
 // disregarded. If it detects that either version is a developer build it
 // returns true.
 func VersionsMatch(v1, v2 string) bool {
-	// Developer versions are disregarded...hopefully they know what they are
-	// doing.
-	if IsDevVersion(v1) || IsDevVersion(v2) {
+	// If no version is attached, then it is a dev build outside of CI. The version
+	// will be disregarded... hopefully they know what they are doing.
+	if strings.Contains(v1, noVersion) || strings.Contains(v2, noVersion) {
 		return true
 	}
 
