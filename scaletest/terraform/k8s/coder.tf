@@ -60,12 +60,20 @@ data "kubernetes_secret" "coder_tls" {
   }
 }
 
+# Also need an OTEL collector deployed. Manual for now.
+data "kubernetes_service" "otel_collector" {
+  metadata {
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    name      = "otel-collector"
+  }
+}
+
 resource "helm_release" "coder-chart" {
   repository = local.coder_helm_repo
   chart      = local.coder_helm_chart
   name       = local.coder_release_name
   version    = var.coder_chart_version
-  namespace  = kubernetes_namespace.coder_namespace
+  namespace  = kubernetes_namespace.coder_namespace.metadata.0.name
   values = [<<EOF
 coder:
   affinity:
@@ -124,6 +132,34 @@ coder:
         secretKeyRef:
           key: psk
           name: "${kubernetes_secret.provisionerd_psk.metadata.0.name}"
+    # Enable OIDC
+    - name: "CODER_OIDC_ISSUER_URL"
+      valueFrom:
+        secretKeyRef:
+          key: issuer-url
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_EMAIL_DOMAIN"
+      valueFrom:
+        secretKeyRef:
+          key: email-domain
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_CLIENT_ID"
+      valueFrom:
+        secretKeyRef:
+          key: client-id
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_CLIENT_SECRET"
+      valueFrom:
+        secretKeyRef:
+          key: client-secret
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # Send OTEL traces to the cluster-local collector to sample 10%
+    - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
+      value: "http://${data.kubernetes_service.otel_collector.metadata.0.name}.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
+    - name: "OTEL_TRACES_SAMPLER"
+      value: parentbased_traceidratio
+    - name: "OTEL_TRACES_SAMPLER_ARG"
+      value: "0.1"
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
@@ -158,7 +194,7 @@ resource "helm_release" "provisionerd_chart" {
   chart      = local.provisionerd_helm_chart
   name       = local.provisionerd_release_name
   version    = var.provisionerd_chart_version
-  namespace  = kubernetes_namespace.coder_namespace
+  namespace  = kubernetes_namespace.coder_namespace.metadata.0.name
   values = [<<EOF
 coder:
   affinity:
