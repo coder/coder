@@ -180,7 +180,7 @@ coder:
               operator: "In"
               values:   ["${local.coder_release_name}"]
   env:
-    - name: "CODER_ACCESS_URL"
+    - name: "CODER_URL"
       value: "${local.coder_access_url}"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
@@ -190,28 +190,14 @@ coder:
       value: "/dev/null"
     - name: "CODER_LOGGING_STACKDRIVER"
       value: "/dev/stderr"
-    - name: "CODER_PG_CONNECTION_URL"
-      valueFrom:
-        secretKeyRef:
-          name: "${kubernetes_secret.coder-db.metadata.0.name}"
-          key: url
     - name: "CODER_PPROF_ENABLE"
       value: "true"
     - name: "CODER_PROMETHEUS_ENABLE"
       value: "true"
-    - name: "CODER_PROMETHEUS_COLLECT_AGENT_STATS"
-      value: "true"
-    - name: "CODER_PROMETHEUS_COLLECT_DB_METRICS"
-      value: "true"
     - name: "CODER_VERBOSE"
       value: "true"
-    - name: "CODER_EXPERIMENTS"
-      value: "${var.coder_experiments}"
-    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
-      value: "true"
-    # Disabling built-in provisioner daemons
-    - name: "CODER_PROVISIONER_DAEMONS"
-      value: "0"
+    - name: "CODER_PROVISIONERD_TAGS"
+      value = "socpe=organization"
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
