@@ -108,7 +108,7 @@ func TestDebugHealth(t *testing.T) {
 		require.Equal(t, 1, calls)
 	})
 
-	t.Run("Simple", func(t *testing.T) {
+	t.Run("Text", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -129,7 +129,7 @@ func TestDebugHealth(t *testing.T) {
 		defer cancel()
 
 		sessionToken = client.SessionToken()
-		res, err := client.Request(ctx, "GET", "/api/v2/debug/health?format=simple", nil)
+		res, err := client.Request(ctx, "GET", "/api/v2/debug/health?format=text", nil)
 		require.NoError(t, err)
 		defer res.Body.Close()
 		resB, _ := io.ReadAll(res.Body)
