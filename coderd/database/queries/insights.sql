@@ -25,6 +25,10 @@ ORDER BY user_id ASC;
 -- GetUserActivityInsights returns the ranking with top active users.
 -- The result can be filtered on template_ids, meaning only user data from workspaces
 -- based on those templates will be included.
+-- Note: When selecting data from multiple templates or the entire deployment,
+-- be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
+-- users may be counted multiple times for the same time interval if they have used multiple templates
+-- simultaneously.
 WITH app_stats AS (
 	SELECT
 		s.start_time,

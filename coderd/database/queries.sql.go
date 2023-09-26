@@ -2110,6 +2110,10 @@ type GetUserActivityInsightsRow struct {
 // GetUserActivityInsights returns the ranking with top active users.
 // The result can be filtered on template_ids, meaning only user data from workspaces
 // based on those templates will be included.
+// Note: When selecting data from multiple templates or the entire deployment,
+// be aware that it may lead to an increase in "usage" numbers (cumulative). In such cases,
+// users may be counted multiple times for the same time interval if they have used multiple templates
+// simultaneously.
 func (q *sqlQuerier) GetUserActivityInsights(ctx context.Context, arg GetUserActivityInsightsParams) ([]GetUserActivityInsightsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserActivityInsights, pq.Array(arg.TemplateIDs), arg.StartTime, arg.EndTime)
 	if err != nil {
