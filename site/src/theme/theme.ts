@@ -8,10 +8,6 @@ export const BUTTON_MD_HEIGHT = 36;
 export const BUTTON_SM_HEIGHT = 32;
 
 export type PaletteIndex = keyof Theme["palette"];
-export type PaletteStatusIndex = Extract<
-  PaletteIndex,
-  "error" | "warning" | "info" | "success"
->;
 
 export let dark = createTheme({
   palette: {
