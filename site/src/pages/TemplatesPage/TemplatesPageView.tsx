@@ -8,7 +8,6 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Maybe } from "components/Conditionals/Maybe";
 import { FC } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -158,19 +157,21 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          <Maybe condition={canCreateTemplates}>
-            <Button component={RouterLink} to="/starter-templates">
-              Starter Templates
-            </Button>
-            <Button
-              startIcon={<AddIcon />}
-              component={RouterLink}
-              to="new"
-              variant="contained"
-            >
-              Create Template
-            </Button>
-          </Maybe>
+          canCreateTemplates && (
+            <>
+              <Button component={RouterLink} to="/starter-templates">
+                Starter Templates
+              </Button>
+              <Button
+                startIcon={<AddIcon />}
+                component={RouterLink}
+                to="new"
+                variant="contained"
+              >
+                Create Template
+              </Button>
+            </>
+          )
         }
       >
         <PageHeaderTitle>
@@ -179,11 +180,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        <Maybe condition={Boolean(templates && templates.length > 0)}>
+        {templates && templates.length > 0 && (
           <PageHeaderSubtitle>
             Select a template to create a workspace.
           </PageHeaderSubtitle>
-        </Maybe>
+        )}
       </PageHeader>
 
       <ChooseOne>
@@ -204,9 +205,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
                 </TableRow>
               </TableHead>
               <TableBody>
-                <Maybe condition={isLoading}>
-                  <TableLoader />
-                </Maybe>
+                {isLoading && <TableLoader />}
 
                 <ChooseOne>
                   <Cond condition={isEmpty}>

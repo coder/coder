@@ -12,7 +12,6 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { Maybe } from "components/Conditionals/Maybe";
 
 const roleDescriptions: Record<string, string> = {
   owner:
@@ -94,7 +93,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 
   return (
     <>
-      <Maybe condition={canSetRoles}>
+      {canSetRoles ? (
         <IconButton
           ref={anchorRef}
           size="small"
@@ -104,15 +103,14 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
         >
           <EditSquare />
         </IconButton>
-      </Maybe>
-      <Maybe condition={!canSetRoles}>
+      ) : (
         <HelpTooltip size="small">
           <HelpTooltipTitle>Externally controlled</HelpTooltipTitle>
           <HelpTooltipText>
             Roles for this user are controlled by the OIDC identity provider.
           </HelpTooltipText>
         </HelpTooltip>
-      </Maybe>
+      )}
 
       <Popover
         id={id}

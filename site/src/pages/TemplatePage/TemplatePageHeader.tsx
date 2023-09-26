@@ -6,7 +6,6 @@ import {
   TemplateVersion,
 } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { Maybe } from "components/Conditionals/Maybe";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
   PageHeader,
@@ -132,13 +131,13 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
         actions={
           <>
             <CreateWorkspaceButton templateName={template.name} />
-            <Maybe condition={permissions.canUpdateTemplate}>
+            {permissions.canUpdateTemplate && (
               <TemplateMenu
                 templateVersion={activeVersion.name}
                 templateName={template.name}
                 onDelete={deleteTemplate.openDeleteConfirmation}
               />
-            </Maybe>
+            )}
           </>
         }
       >

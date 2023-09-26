@@ -27,7 +27,6 @@ import {
   UserOrGroupAutocompleteValue,
 } from "components/UserOrGroupAutocomplete/UserOrGroupAutocomplete";
 import { FC, useState } from "react";
-import { Maybe } from "components/Conditionals/Maybe";
 import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { getGroupSubtitle } from "utils/groups";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -213,7 +212,7 @@ export const TemplatePermissionsPageView: FC<
       </PageHeader>
 
       <Stack spacing={2.5}>
-        <Maybe condition={canUpdatePermissions}>
+        {canUpdatePermissions && (
           <AddTemplateUserOrGroup
             templateACL={templateACL}
             templateID={templateID}
@@ -225,7 +224,7 @@ export const TemplatePermissionsPageView: FC<
                 : onAddUser(value, role, resetAutocomplete)
             }
           />
-        </Maybe>
+        )}
         <TableContainer>
           <Table>
             <TableHead>
@@ -288,7 +287,7 @@ export const TemplatePermissionsPageView: FC<
                       </TableCell>
 
                       <TableCell>
-                        <Maybe condition={canUpdatePermissions}>
+                        {canUpdatePermissions && (
                           <TableRowMenu
                             data={group}
                             menuItems={[
@@ -299,7 +298,7 @@ export const TemplatePermissionsPageView: FC<
                               },
                             ]}
                           />
-                        </Maybe>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -336,7 +335,7 @@ export const TemplatePermissionsPageView: FC<
                       </TableCell>
 
                       <TableCell>
-                        <Maybe condition={canUpdatePermissions}>
+                        {canUpdatePermissions && (
                           <TableRowMenu
                             data={user}
                             menuItems={[
@@ -347,7 +346,7 @@ export const TemplatePermissionsPageView: FC<
                               },
                             ]}
                           />
-                        </Maybe>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

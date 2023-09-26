@@ -29,7 +29,6 @@ import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { useLocalStorage } from "hooks";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import AlertTitle from "@mui/material/AlertTitle";
-import { Maybe } from "components/Conditionals/Maybe";
 import dayjs from "dayjs";
 
 export enum WorkspaceErrors {
@@ -278,7 +277,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 
-          <Maybe condition={showAlertPendingInQueue}>
+          {showAlertPendingInQueue && (
             <Alert severity="info">
               <AlertTitle>Workspace build is pending</AlertTitle>
               <AlertDetail>
@@ -294,7 +293,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
                 </div>
               </AlertDetail>
             </Alert>
-          </Maybe>
+          )}
 
           {workspace.latest_build.job.error && (
             <Alert

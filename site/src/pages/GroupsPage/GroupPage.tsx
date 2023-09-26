@@ -24,11 +24,10 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { Maybe } from "components/Conditionals/Maybe";
 import { makeStyles } from "@mui/styles";
 import {
   PaginationStatus,
@@ -47,7 +46,7 @@ import {
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 
-export const GroupPage: React.FC = () => {
+export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -79,25 +78,27 @@ export const GroupPage: React.FC = () => {
           <Margins>
             <PageHeader
               actions={
-                <Maybe condition={canUpdateGroup}>
-                  <Button
-                    startIcon={<SettingsOutlined />}
-                    to="settings"
-                    component={RouterLink}
-                  >
-                    Settings
-                  </Button>
-                  <Button
-                    disabled={groupData?.id === groupData?.organization_id}
-                    onClick={() => {
-                      setIsDeletingGroup(true);
-                    }}
-                    startIcon={<DeleteOutline />}
-                    className={styles.removeButton}
-                  >
-                    Delete&hellip;
-                  </Button>
-                </Maybe>
+                canUpdateGroup && (
+                  <>
+                    <Button
+                      startIcon={<SettingsOutlined />}
+                      to="settings"
+                      component={RouterLink}
+                    >
+                      Settings
+                    </Button>
+                    <Button
+                      disabled={groupData?.id === groupData?.organization_id}
+                      onClick={() => {
+                        setIsDeletingGroup(true);
+                      }}
+                      startIcon={<DeleteOutline />}
+                      className={styles.removeButton}
+                    >
+                      Delete&hellip;
+                    </Button>
+                  </>
+                )
               }
             >
               <PageHeaderTitle>
@@ -113,30 +114,26 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              <Maybe
-                condition={
-                  canUpdateGroup &&
-                  groupData !== undefined &&
-                  !isEveryoneGroup(groupData)
-                }
-              >
-                <AddGroupMember
-                  isLoading={addMemberMutation.isLoading}
-                  onSubmit={async (user, reset) => {
-                    try {
-                      await addMemberMutation.mutateAsync({
-                        groupId,
-                        userId: user.id,
-                      });
-                      reset();
-                    } catch (error) {
-                      displayError(
-                        getErrorMessage(error, "Failed to add member."),
-                      );
-                    }
-                  }}
-                />
-              </Maybe>
+              {canUpdateGroup &&
+                groupData !== undefined &&
+                !isEveryoneGroup(groupData) && (
+                  <AddGroupMember
+                    isLoading={addMemberMutation.isLoading}
+                    onSubmit={async (user, reset) => {
+                      try {
+                        await addMemberMutation.mutateAsync({
+                          groupId,
+                          userId: user.id,
+                        });
+                        reset();
+                      } catch (error) {
+                        displayError(
+                          getErrorMessage(error, "Failed to add member."),
+                        );
+                      }
+                    }}
+                  />
+                )}
               <TableToolbar>
                 <PaginationStatus
                   isLoading={Boolean(isLoading)}
