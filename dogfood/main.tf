@@ -224,20 +224,20 @@ resource "coder_agent" "dev" {
 }
 
 module "code-server" {
-  source = "https://registry.coder.com/modules/code-server"
+  source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev.id
 }
 
 module "personalize" {
-  source = "https://registry.coder.com/modules/personalize"
+  source   = "https://registry.coder.com/modules/personalize"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
-  source = "https://registry.coder.com/modules/git-clone"
+  source   = "https://registry.coder.com/modules/git-clone"
   agent_id = coder_agent.dev.id
-  repo = "https://github.com/coder/coder"
-  path = data.coder_parameter.repo_dir.value
+  repo     = "https://github.com/coder/coder"
+  path     = data.coder_parameter.repo_dir.value
 }
 
 resource "coder_app" "code-server" {
