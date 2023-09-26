@@ -56,6 +56,7 @@ Coder persists the root volume. The full filesystem is preserved when the worksp
 
 > **Note**
 > This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
+
 ## code-server
 
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
