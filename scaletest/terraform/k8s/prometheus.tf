@@ -14,6 +14,9 @@ resource "kubernetes_namespace" "prometheus_namespace" {
   metadata {
     name = local.prometheus_namespace
   }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_default_service_account]
+  }
 }
 
 # Create a secret to store the remote write key
@@ -28,6 +31,9 @@ resource "kubernetes_secret" "prometheus-credentials" {
   data = {
     username = var.prometheus_remote_write_user
     password = var.prometheus_remote_write_password
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
   }
 }
 
@@ -104,6 +110,9 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
   data = {
     username = var.prometheus_postgres_user
     password = var.prometheus_postgres_password
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
   }
 }
 

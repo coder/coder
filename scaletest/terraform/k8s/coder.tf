@@ -1,7 +1,7 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_access_url          = "http://${var.coder_address}"
+  coder_url                 = var.coder_access_url == "" ? "http://${var.coder_address}" : var.coder_access_url
   coder_admin_email         = "admin@coder.com"
   coder_admin_user          = "coder"
   coder_helm_repo           = "https://helm.coder.com/v2"
@@ -15,6 +15,9 @@ locals {
 resource "kubernetes_namespace" "coder_namespace" {
   metadata {
     name = local.coder_namespace
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_default_service_account]
   }
 }
 
@@ -31,6 +34,9 @@ resource "kubernetes_secret" "coder-db" {
   data = {
     url = var.coder_db_url
   }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
+  }
 }
 
 resource "kubernetes_secret" "provisionerd_psk" {
@@ -41,6 +47,9 @@ resource "kubernetes_secret" "provisionerd_psk" {
   }
   data = {
     psk = random_password.provisionerd_psk.result
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
   }
 }
 
@@ -96,10 +105,10 @@ coder:
               values:   ["${local.coder_release_name}"]
   env:
     - name: "CODER_ACCESS_URL"
-      value: "${local.coder_access_url}"
+      value: "${local.coder_url}"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
-    - name: "CODER_ENABLE_TELEMETRY"
+    - name: "CODER_TELEMETRY_ENABLE"
       value: "false"
     - name: "CODER_LOGGING_HUMAN"
       value: "/dev/null"
@@ -189,7 +198,7 @@ EOF
   ]
 }
 
-resource "helm_release" "provisionerd_chart" {
+resource "helm_release" "provisionerd-chart" {
   repository = local.coder_helm_repo
   chart      = local.provisionerd_helm_chart
   name       = local.provisionerd_release_name
@@ -217,40 +226,34 @@ coder:
               values:   ["${local.coder_release_name}"]
   env:
     - name: "CODER_URL"
-      value: "${local.coder_access_url}"
+      value: "${local.coder_url}"
+    - name: "CODER_VERBOSE"
+      value: "true"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
-    - name: "CODER_ENABLE_TELEMETRY"
+    - name: "CODER_TELEMETRY_ENABLE"
       value: "false"
     - name: "CODER_LOGGING_HUMAN"
       value: "/dev/null"
     - name: "CODER_LOGGING_STACKDRIVER"
       value: "/dev/stderr"
-    - name: "CODER_PPROF_ENABLE"
-      value: "true"
     - name: "CODER_PROMETHEUS_ENABLE"
-      value: "true"
-    - name: "CODER_VERBOSE"
       value: "true"
     - name: "CODER_PROVISIONERD_TAGS"
       value = "socpe=organization"
   image:
-    repo: ${var.coder_image_repo}
-    tag: ${var.coder_image_tag}
-  replicaCount: "${var.coder_replicas}"
+    repo: ${var.provisionerd_image_repo}
+    tag: ${var.provisionerd_image_tag}
+  replicaCount: "${var.provisionerd_replicas}"
   resources:
     requests:
-      cpu: "${var.coder_cpu_request}"
-      memory: "${var.coder_mem_request}"
+      cpu: "${var.provisionerd_cpu_request}"
+      memory: "${var.provisionerd_mem_request}"
     limits:
-      cpu: "${var.coder_cpu_limit}"
-      memory: "${var.coder_mem_limit}"
+      cpu: "${var.provisionerd_cpu_limit}"
+      memory: "${var.provisionerd_mem_limit}"
   securityContext:
     readOnlyRootFilesystem: true
-  service:
-    enable: true
-    sessionAffinity: None
-    loadBalancerIP: "${var.coder_address}"
   volumeMounts:
   - mountPath: "/tmp"
     name: cache
@@ -353,10 +356,10 @@ resource "local_file" "kubernetes_template" {
 
 resource "local_file" "output_vars" {
   filename = "${path.module}/../../.coderv2/url"
-  content  = local.coder_access_url
+  content  = local.coder_url
 }
 
 output "coder_url" {
   description = "URL of the Coder deployment"
-  value       = local.coder_access_url
+  value       = local.coder_url
 }
