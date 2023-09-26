@@ -200,39 +200,17 @@ resource "coder_agent" "dev" {
     timeout      = 5
   }
 
-
   startup_script_timeout = 60
   startup_script         = <<-EOT
-    set -eux -o pipefail
-
-    # change to home
-    cd "$HOME"
-
-    # install and start code-server
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
-
     # Install and launch filebrowser
     curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
     filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
-
-    repo_dir="${data.coder_parameter.repo_dir.value}"
-    repo_dir="$${repo_dir/#~\//$HOME\/}"
-    if [ ! -d "$repo_dir" ]; then
-      mkdir -p "$repo_dir"
-      git clone https://github.com/coder/coder "$repo_dir"
-    fi
 
     sudo service docker start
     DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
     rm -f ~/.personalize.log
     if [ -n "$${DOTFILES_URI// }" ]; then
       coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
-    fi
-    if [ -x ~/personalize ]; then
-      ~/personalize 2>&1 | tee -a ~/.personalize.log
-    elif [ -f ~/personalize ]; then
-      echo "~/personalize is not executable, skipping..." | tee -a ~/.personalize.log
     fi
 
     # Automatically authenticate the user if they are not
@@ -242,8 +220,24 @@ resource "coder_agent" "dev" {
     else
       echo "You are already authenticated with coder"
     fi
-
   EOT
+}
+
+module "code-server" {
+  source   = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev.id
+}
+
+module "personalize" {
+  source   = "https://registry.coder.com/modules/personalize"
+  agent_id = coder_agent.dev.id
+}
+
+module "git-clone" {
+  source   = "https://registry.coder.com/modules/git-clone"
+  agent_id = coder_agent.dev.id
+  repo     = "https://github.com/coder/coder"
+  path     = data.coder_parameter.repo_dir.value
 }
 
 resource "coder_app" "code-server" {
