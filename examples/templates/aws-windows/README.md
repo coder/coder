@@ -79,17 +79,14 @@ instances provisioned by Coder:
 
 ## Architecture
 
-> **Note**
-> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
-
 This template provisions the following resources:
 
 - AWS Instance
 
 Coder uses `aws_ec2_instance_state` to start and stop the VM. This example template is fully persistent, meaning the full filesystem is preserved when the workspace restarts. See this [community example](https://github.com/bpmct/coder-templates/tree/main/aws-linux-ephemeral) of an ephemeral AWS instance.
 
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ## code-server
 

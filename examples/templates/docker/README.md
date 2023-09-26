@@ -32,9 +32,6 @@ sudo -u coder docker ps
 
 ## Architecture
 
-> **Note**
-> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
-
 This template provisions the following resources:
 
 - Docker image (built by Docker socket and kept locally)
@@ -42,6 +39,9 @@ This template provisions the following resources:
 - Docker volume (persistent on `/home/coder`)
 
 This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/v2/latest/dotfiles) their workspaces with dotfiles.
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 
 ### Editing the image
 
