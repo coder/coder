@@ -4,7 +4,7 @@ import { makeStyles } from "@mui/styles";
 import Tooltip from "@mui/material/Tooltip";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import { PrimaryAgentButton } from "components/Resources/AgentButton";
-import { FC } from "react";
+import { FC, useState } from "react";
 import { combineClasses } from "utils/combineClasses";
 import * as TypesGen from "../../../api/typesGenerated";
 import { generateRandomString } from "../../../utils/random";
@@ -12,6 +12,7 @@ import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
 import { useProxy } from "contexts/ProxyContext";
 import { createAppLinkHref } from "utils/apps";
+import { getApiKey } from "api/api";
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -28,6 +29,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   const { proxy } = useProxy();
   const preferredPathBase = proxy.preferredPathAppURL;
   const appsHost = proxy.preferredWildcardHostname;
+  const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
 
   const styles = useStyles();
   const username = workspace.owner_name;
@@ -72,6 +74,9 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     primaryTooltip =
       "Your admin has not configured subdomain application access";
   }
+  if (fetchingSessionToken) {
+    canClick = false;
+  }
 
   const isPrivateApp = app.sharing_level === "owner";
 
@@ -103,7 +108,31 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
                   if (app.external && !app.url.startsWith("http")) {
                     // If the protocol is external the browser does not
                     // redirect the user from the page.
-                    window.location.href = href;
+
+                    // This is a magic undocumented string that is replaced
+                    // with a brand-new session token from the backend.
+                    // This only exists for external URLs, and should only
+                    // be used internally, and is highly subject to break.
+                    const magicTokenString = "$SESSION_TOKEN";
+                    const hasMagicToken = href.indexOf(magicTokenString);
+                    if (hasMagicToken !== -1) {
+                      setFetchingSessionToken(true);
+                      getApiKey()
+                        .then((key) => {
+                          const url = href.replaceAll(
+                            magicTokenString,
+                            key.key,
+                          );
+                          window.location.href = url;
+                          setFetchingSessionToken(false);
+                        })
+                        .catch((ex) => {
+                          console.error(ex);
+                          setFetchingSessionToken(false);
+                        });
+                    } else {
+                      window.location.href = href;
+                    }
                   } else {
                     window.open(
                       href,
