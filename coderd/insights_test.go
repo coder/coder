@@ -876,6 +876,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
 	require.NoError(t, err)
 
+	//nolint:dupl For testing purposes
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
@@ -1281,14 +1282,10 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		// Filled later.
 		id uuid.UUID
 	}
-	type buildParameter struct {
-		value string
-	}
 	type workspaceApp templateApp
 	type testWorkspace struct {
-		name            string
-		template        *testTemplate
-		buildParameters []buildParameter
+		name     string
+		template *testTemplate
 
 		// Filled later.
 		id          uuid.UUID
@@ -1670,6 +1667,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
 	require.NoError(t, err)
 
+	//nolint:dupl For testing purposes
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
