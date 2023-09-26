@@ -118,7 +118,7 @@ func TestDeploymentInsights(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestUserActivityInsights(t *testing.T) {
+func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	t.Parallel()
 
 	logger := slogtest.Make(t, nil)
@@ -1246,6 +1246,751 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
 					defer f.Close()
 					var want codersdk.TemplateInsightsResponse
+					err = json.NewDecoder(f).Decode(&want)
+					require.NoError(t, err, "want no error decoding golden file")
+
+					cmpOpts := []cmp.Option{
+						// Ensure readable UUIDs in diff.
+						cmp.Transformer("UUIDs", func(in []uuid.UUID) (s []string) {
+							for _, id := range in {
+								s = append(s, id.String())
+							}
+							return s
+						}),
+					}
+					// Use cmp.Diff here because it produces more readable diffs.
+					assert.Empty(t, cmp.Diff(want, report, cmpOpts...), "golden file mismatch (-want +got): %s, run \"make update-golden-files\", verify and commit the changes", goldenFile)
+				})
+			}
+		})
+	}
+}
+
+func TestUserActivityInsights_Golden(t *testing.T) {
+	t.Parallel()
+
+	// Prepare test data types.
+	type templateApp struct {
+		name string
+		icon string
+	}
+	type testTemplate struct {
+		name string
+		apps []templateApp
+
+		// Filled later.
+		id uuid.UUID
+	}
+	type buildParameter struct {
+		value string
+	}
+	type workspaceApp templateApp
+	type testWorkspace struct {
+		name            string
+		template        *testTemplate
+		buildParameters []buildParameter
+
+		// Filled later.
+		id          uuid.UUID
+		user        any // *testUser, but it's not available yet, defined below.
+		agentID     uuid.UUID
+		apps        []*workspaceApp
+		agentClient *agentsdk.Client
+	}
+	type testUser struct {
+		name       string
+		workspaces []*testWorkspace
+
+		client *codersdk.Client
+		sdk    codersdk.User
+	}
+
+	// Represent agent stats, to be inserted via stats batcher.
+	type agentStat struct {
+		// Set a range via start/end, multiple stats will be generated
+		// within the range.
+		startedAt time.Time
+		endedAt   time.Time
+
+		sessionCountVSCode          int64
+		sessionCountJetBrains       int64
+		sessionCountReconnectingPTY int64
+		sessionCountSSH             int64
+		noConnections               bool
+	}
+	// Represent app usage stats, to be inserted via stats reporter.
+	type appUsage struct {
+		app       *workspaceApp
+		startedAt time.Time
+		endedAt   time.Time
+		requests  int
+	}
+
+	// Represent actual data being generated on a per-workspace basis.
+	type testDataGen struct {
+		agentStats []agentStat
+		appUsage   []appUsage
+	}
+
+	prepareFixtureAndTestData := func(t *testing.T, makeFixture func() ([]*testTemplate, []*testUser), makeData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen) ([]*testTemplate, []*testUser, map[*testWorkspace]testDataGen) {
+		var stableIDs []uuid.UUID
+		newStableUUID := func() uuid.UUID {
+			stableIDs = append(stableIDs, uuid.MustParse(fmt.Sprintf("00000000-0000-0000-0000-%012d", len(stableIDs)+1)))
+			stableID := stableIDs[len(stableIDs)-1]
+			return stableID
+		}
+
+		templates, users := makeFixture()
+		for _, template := range templates {
+			template.id = newStableUUID()
+		}
+		for _, user := range users {
+			for _, workspace := range user.workspaces {
+				workspace.user = user
+				for _, app := range workspace.template.apps {
+					app := workspaceApp(app)
+					workspace.apps = append(workspace.apps, &app)
+				}
+			}
+		}
+
+		testData := makeData(templates, users)
+		// Sanity check.
+		for ws, data := range testData {
+			for _, usage := range data.appUsage {
+				found := false
+				for _, app := range ws.apps {
+					if usage.app == app { // Pointer equality
+						found = true
+						break
+					}
+				}
+				if !found {
+					for _, user := range users {
+						for _, workspace := range user.workspaces {
+							for _, app := range workspace.apps {
+								if usage.app == app { // Pointer equality
+									require.True(t, found, "test bug: app %q not in workspace %q: want user=%s workspace=%s; got user=%s workspace=%s ", usage.app.name, ws.name, ws.user.(*testUser).name, ws.name, user.name, workspace.name)
+									break
+								}
+							}
+						}
+					}
+					require.True(t, found, "test bug: app %q not in workspace %q", usage.app.name, ws.name)
+				}
+			}
+		}
+
+		return templates, users, testData
+	}
+
+	prepare := func(t *testing.T, templates []*testTemplate, users []*testUser, testData map[*testWorkspace]testDataGen) *codersdk.Client {
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database:                  db,
+			Pubsub:                    pubsub,
+			Logger:                    &logger,
+			IncludeProvisionerDaemon:  true,
+			AgentStatsRefreshInterval: time.Hour, // Not relevant for this test.
+		})
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		// Prepare all test users.
+		for _, user := range users {
+			user.client, user.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
+				r.Username = user.name
+			})
+			user.client.SetLogger(logger.Named("user").With(slog.Field{Name: "name", Value: user.name}))
+		}
+
+		// Prepare all the templates.
+		for _, template := range templates {
+			template := template
+
+			// Prepare all workspace resources (agents and apps).
+			var (
+				createWorkspaces []func(uuid.UUID)
+				waitWorkspaces   []func()
+			)
+			var resources []*proto.Resource
+			for _, user := range users {
+				user := user
+				for _, workspace := range user.workspaces {
+					workspace := workspace
+
+					if workspace.template != template {
+						continue
+					}
+					authToken := uuid.New()
+					agentClient := agentsdk.New(client.URL)
+					agentClient.SetSessionToken(authToken.String())
+					workspace.agentClient = agentClient
+
+					var apps []*proto.App
+					for _, app := range workspace.apps {
+						apps = append(apps, &proto.App{
+							Slug:         app.name,
+							DisplayName:  app.name,
+							Icon:         app.icon,
+							SharingLevel: proto.AppSharingLevel_OWNER,
+							Url:          "http://",
+						})
+					}
+
+					resources = append(resources, &proto.Resource{
+						Name: "example",
+						Type: "aws_instance",
+						Agents: []*proto.Agent{{
+							Id:   uuid.NewString(), // Doesn't matter, not used in DB.
+							Name: "dev",
+							Auth: &proto.Agent_Token{
+								Token: authToken.String(),
+							},
+							Apps: apps,
+						}},
+					})
+
+					createWorkspaces = append(createWorkspaces, func(templateID uuid.UUID) {
+						// Create workspace using the users client.
+						createdWorkspace := coderdtest.CreateWorkspace(t, user.client, firstUser.OrganizationID, templateID)
+						workspace.id = createdWorkspace.ID
+						waitWorkspaces = append(waitWorkspaces, func() {
+							coderdtest.AwaitWorkspaceBuildJob(t, user.client, createdWorkspace.LatestBuild.ID)
+							ctx := testutil.Context(t, testutil.WaitShort)
+							ws, err := user.client.Workspace(ctx, workspace.id)
+							require.NoError(t, err, "want no error getting workspace")
+
+							workspace.agentID = ws.LatestBuild.Resources[0].Agents[0].ID
+						})
+					})
+				}
+			}
+
+			// Create the template version and template.
+			version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
+				Parse:         echo.ParseComplete,
+				ProvisionPlan: echo.PlanComplete,
+				ProvisionApply: []*proto.Response{{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
+							Resources: resources,
+						},
+					},
+				}},
+			})
+			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+
+			// Create template, essentially a modified version of CreateTemplate
+			// where we can control the template ID.
+			// 	createdTemplate := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
+			createdTemplate := dbgen.Template(t, db, database.Template{
+				ID:              template.id,
+				ActiveVersionID: version.ID,
+				OrganizationID:  firstUser.OrganizationID,
+				CreatedBy:       firstUser.UserID,
+				GroupACL: database.TemplateACL{
+					firstUser.OrganizationID.String(): []rbac.Action{rbac.ActionRead},
+				},
+			})
+			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
+				ID: version.ID,
+				TemplateID: uuid.NullUUID{
+					UUID:  createdTemplate.ID,
+					Valid: true,
+				},
+			})
+			require.NoError(t, err, "want no error updating template version")
+
+			// Create all workspaces and wait for them.
+			for _, createWorkspace := range createWorkspaces {
+				createWorkspace(template.id)
+			}
+			for _, waitWorkspace := range waitWorkspaces {
+				waitWorkspace()
+			}
+		}
+
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+		// Use agent stats batcher to insert agent stats, similar to live system.
+		// NOTE(mafredri): Ideally we would pass batcher as a coderd option and
+		// insert using the agentClient, but we have a circular dependency on
+		// the database.
+		batcher, batcherCloser, err := batchstats.New(
+			ctx,
+			batchstats.WithStore(db),
+			batchstats.WithLogger(logger.Named("batchstats")),
+			batchstats.WithInterval(time.Hour),
+		)
+		require.NoError(t, err)
+		defer batcherCloser() // Flushes the stats, this is to ensure they're written.
+
+		for workspace, data := range testData {
+			for _, stat := range data.agentStats {
+				createdAt := stat.startedAt
+				connectionCount := int64(1)
+				if stat.noConnections {
+					connectionCount = 0
+				}
+				for createdAt.Before(stat.endedAt) {
+					err = batcher.Add(createdAt, workspace.agentID, workspace.template.id, workspace.user.(*testUser).sdk.ID, workspace.id, agentsdk.Stats{
+						ConnectionCount:             connectionCount,
+						SessionCountVSCode:          stat.sessionCountVSCode,
+						SessionCountJetBrains:       stat.sessionCountJetBrains,
+						SessionCountReconnectingPTY: stat.sessionCountReconnectingPTY,
+						SessionCountSSH:             stat.sessionCountSSH,
+					})
+					require.NoError(t, err, "want no error inserting agent stats")
+					createdAt = createdAt.Add(30 * time.Second)
+				}
+			}
+		}
+
+		// Insert app usage.
+		var stats []workspaceapps.StatsReport
+		for workspace, data := range testData {
+			for _, usage := range data.appUsage {
+				appName := usage.app.name
+				accessMethod := workspaceapps.AccessMethodPath
+				if usage.app.name == "terminal" {
+					appName = ""
+					accessMethod = workspaceapps.AccessMethodTerminal
+				}
+				stats = append(stats, workspaceapps.StatsReport{
+					UserID:           workspace.user.(*testUser).sdk.ID,
+					WorkspaceID:      workspace.id,
+					AgentID:          workspace.agentID,
+					AccessMethod:     accessMethod,
+					SlugOrPort:       appName,
+					SessionID:        uuid.New(),
+					SessionStartedAt: usage.startedAt,
+					SessionEndedAt:   usage.endedAt,
+					Requests:         usage.requests,
+				})
+			}
+		}
+		reporter := workspaceapps.NewStatsDBReporter(db, workspaceapps.DefaultStatsDBReporterBatchSize)
+		//nolint:gocritic // This is a test.
+		err = reporter.Report(dbauthz.AsSystemRestricted(ctx), stats)
+		require.NoError(t, err, "want no error inserting app stats")
+
+		return client
+	}
+
+	baseTemplateAndUserFixture := func() ([]*testTemplate, []*testUser) {
+		// Test templates and configuration to generate.
+		templates := []*testTemplate{
+			// Create two templates with near-identical apps and parameters
+			// to allow testing for grouping similar data.
+			{
+				name: "template1",
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			{
+				name: "template2",
+				apps: []templateApp{
+					{name: "app1", icon: "/icon1.png"},
+					{name: "app2", icon: "/icon2.png"},
+					{name: "app3", icon: "/icon2.png"},
+				},
+			},
+			// Create another template with different parameters and apps.
+			{
+				name: "othertemplate",
+				apps: []templateApp{
+					{name: "otherapp1", icon: "/icon1.png"},
+
+					// This "special test app" will be converted into web
+					// terminal usage, this is not included in stats since we
+					// currently rely on agent stats for this data.
+					{name: "terminal", icon: "/terminal.png"},
+				},
+			},
+		}
+
+		// Users and workspaces to generate.
+		users := []*testUser{
+			{
+				name: "user1",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+					},
+					{
+						name:     "workspace2",
+						template: templates[1],
+					},
+					{
+						name:     "otherworkspace3",
+						template: templates[2],
+					},
+				},
+			},
+			{
+				name: "user2",
+				workspaces: []*testWorkspace{
+					{
+						name:     "workspace1",
+						template: templates[0],
+					},
+				},
+			},
+			{
+				name: "user3",
+				workspaces: []*testWorkspace{
+					{
+						name:     "otherworkspace1",
+						template: templates[2],
+					},
+					{
+						name:     "workspace2",
+						template: templates[0],
+					},
+				},
+			},
+		}
+
+		return templates, users
+	}
+
+	// Time range for report, test data will be generated within and
+	// outside this range, but only data within the range should be
+	// included in the report.
+	frozenLastNight := time.Date(2023, 8, 22, 0, 0, 0, 0, time.UTC)
+	frozenWeekAgo := frozenLastNight.AddDate(0, 0, -7)
+
+	saoPaulo, err := time.LoadLocation("America/Sao_Paulo")
+	require.NoError(t, err)
+	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
+	require.NoError(t, err)
+
+	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
+		return map[*testWorkspace]testDataGen{
+			users[0].workspaces[0]: {
+				agentStats: []agentStat{
+					{ // One hour of usage.
+						startedAt:          frozenWeekAgo,
+						endedAt:            frozenWeekAgo.Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+					{ // 12 minutes of usage.
+						startedAt:       frozenWeekAgo.AddDate(0, 0, 1),
+						endedAt:         frozenWeekAgo.AddDate(0, 0, 1).Add(12 * time.Minute),
+						sessionCountSSH: 1,
+					},
+					{ // 1m30s of usage -> 2m rounded.
+						startedAt:             frozenWeekAgo.AddDate(0, 0, 2).Add(4*time.Minute + 30*time.Second),
+						endedAt:               frozenWeekAgo.AddDate(0, 0, 2).Add(6 * time.Minute),
+						sessionCountJetBrains: 1,
+					},
+				},
+				appUsage: []appUsage{
+					{ // One hour of usage.
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo,
+						endedAt:   frozenWeekAgo.Add(time.Hour),
+						requests:  1,
+					},
+					{ // 30s of app usage -> 1m rounded.
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.Add(2*time.Hour + 10*time.Second),
+						endedAt:   frozenWeekAgo.Add(2*time.Hour + 40*time.Second),
+						requests:  1,
+					},
+					{ // 1m30s of app usage -> 2m rounded (included in São Paulo).
+						app:       users[0].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.Add(3*time.Hour + 30*time.Second),
+						endedAt:   frozenWeekAgo.Add(3*time.Hour + 90*time.Second),
+						requests:  1,
+					},
+					{ // used an app on the last day, counts as active user, 12m.
+						app:       users[0].workspaces[0].apps[2],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 6),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 6).Add(12 * time.Minute),
+						requests:  1,
+					},
+				},
+			},
+			users[0].workspaces[1]: {
+				agentStats: []agentStat{
+					{
+						// One hour of usage in second template at the same time
+						// as in first template. When selecting both templates
+						// this user and their app usage will only be counted
+						// once but the template ID will show up in the data.
+						startedAt:          frozenWeekAgo,
+						endedAt:            frozenWeekAgo.Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+					{ // One hour of usage.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -12),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -12).Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
+					{ // Another one hour of usage, but "active users" shouldn't be increased twice.
+						startedAt:                   frozenWeekAgo.AddDate(0, 0, -10),
+						endedAt:                     frozenWeekAgo.AddDate(0, 0, -10).Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
+				},
+				appUsage: []appUsage{
+					// TODO(mafredri): This doesn't behave correctly right now
+					// and will add more usage to the app. This could be
+					// considered both correct and incorrect behavior.
+					// { // One hour of usage, but same user and same template app, only count once.
+					// 	app:       users[0].workspaces[1].apps[0],
+					// 	startedAt: frozenWeekAgo,
+					// 	endedAt:   frozenWeekAgo.Add(time.Hour),
+					// 	requests:  1,
+					// },
+					{
+						// Different templates but identical apps, apps will be
+						// combined and usage will be summed.
+						app:       users[0].workspaces[1].apps[0],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 2),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(6 * time.Hour),
+						requests:  1,
+					},
+				},
+			},
+			users[0].workspaces[2]: {
+				agentStats: []agentStat{},
+				appUsage:   []appUsage{},
+			},
+			users[1].workspaces[0]: {
+				agentStats: []agentStat{
+					{ // One hour of agent usage before timeframe (exclude).
+						startedAt:          frozenWeekAgo.Add(-time.Hour),
+						endedAt:            frozenWeekAgo,
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+					{ // One hour of usage.
+						startedAt:       frozenWeekAgo,
+						endedAt:         frozenWeekAgo.Add(time.Hour),
+						sessionCountSSH: 1,
+					},
+					{ // One hour of agent usage after timeframe (exclude in UTC, include in São Paulo).
+						startedAt:          frozenWeekAgo.AddDate(0, 0, 7),
+						endedAt:            frozenWeekAgo.AddDate(0, 0, 7).Add(time.Hour),
+						sessionCountVSCode: 1,
+						sessionCountSSH:    1,
+					},
+				},
+				appUsage: []appUsage{
+					{ // One hour of app usage before timeframe (exclude).
+						app:       users[1].workspaces[0].apps[2],
+						startedAt: frozenWeekAgo.Add(-time.Hour),
+						endedAt:   frozenWeekAgo,
+						requests:  1,
+					},
+					{ // One hour of app usage after timeframe (exclude in UTC, include in São Paulo).
+						app:       users[1].workspaces[0].apps[2],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 7),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 7).Add(time.Hour),
+						requests:  1,
+					},
+				},
+			},
+			users[2].workspaces[0]: {
+				agentStats: []agentStat{
+					{ // One hour of usage.
+						startedAt:                   frozenWeekAgo,
+						endedAt:                     frozenWeekAgo.Add(time.Hour),
+						sessionCountSSH:             1,
+						sessionCountReconnectingPTY: 1,
+					},
+				},
+				appUsage: []appUsage{
+					{
+						app:       users[2].workspaces[0].apps[0],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 2),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 2).Add(5 * time.Minute),
+						requests:  1,
+					},
+					{ // Special app; excluded from apps, but counted as active during the day.
+						app:       users[2].workspaces[0].apps[1],
+						startedAt: frozenWeekAgo.AddDate(0, 0, 3),
+						endedAt:   frozenWeekAgo.AddDate(0, 0, 3).Add(5 * time.Minute),
+						requests:  1,
+					},
+				},
+			},
+		}
+	}
+	type testRequest struct {
+		name        string
+		makeRequest func([]*testTemplate) codersdk.UserActivityInsightsRequest
+		ignoreTimes bool
+	}
+	tests := []struct {
+		name         string
+		makeFixture  func() ([]*testTemplate, []*testUser)
+		makeTestData func([]*testTemplate, []*testUser) map[*testWorkspace]testDataGen
+		requests     []testRequest
+	}{
+		{
+			name:         "multiple users and workspaces",
+			makeFixture:  baseTemplateAndUserFixture,
+			makeTestData: makeBaseTestData,
+			requests: []testRequest{
+				{
+					name: "week deployment wide",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							StartTime: frozenWeekAgo,
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "weekly aggregated deployment wide",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							StartTime: frozenWeekAgo.AddDate(0, 0, -3),
+							EndTime:   frozenWeekAgo.AddDate(0, 0, 4),
+						}
+					},
+				},
+				{
+					name: "week all templates",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "weekly aggregated templates",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id, templates[1].id, templates[2].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -1),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 6),
+						}
+					},
+				},
+				{
+					name: "week first template",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "weekly aggregated first template",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[0].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "week second template",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "three weeks second template",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					name: "week third template",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[2].id},
+							StartTime:   frozenWeekAgo,
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+						}
+					},
+				},
+				{
+					// São Paulo is three hours behind UTC, so we should not see
+					// any data between weekAgo and weekAgo.Add(3 * time.Hour).
+					name: "week other timezone (São Paulo)",
+					makeRequest: func(templates []*testTemplate) codersdk.UserActivityInsightsRequest {
+						return codersdk.UserActivityInsightsRequest{
+							StartTime: frozenWeekAgoSaoPaulo,
+							EndTime:   frozenWeekAgoSaoPaulo.AddDate(0, 0, 7),
+						}
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NotNil(t, tt.makeFixture, "test bug: makeFixture must be set")
+			require.NotNil(t, tt.makeTestData, "test bug: makeTestData must be set")
+			templates, users, testData := prepareFixtureAndTestData(t, tt.makeFixture, tt.makeTestData)
+			client := prepare(t, templates, users, testData)
+
+			for _, req := range tt.requests {
+				req := req
+				t.Run(req.name, func(t *testing.T) {
+					t.Parallel()
+
+					ctx := testutil.Context(t, testutil.WaitMedium)
+
+					report, err := client.UserActivityInsights(ctx, req.makeRequest(templates))
+					require.NoError(t, err, "want no error getting template insights")
+
+					if req.ignoreTimes {
+						// Ignore times, we're only interested in the data.
+						report.Report.StartTime = time.Time{}
+						report.Report.EndTime = time.Time{}
+					}
+
+					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
+					goldenFile := filepath.Join("testdata", "insights", "user-activity", partialName+".json.golden")
+					if *updateGoldenFiles {
+						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+						require.NoError(t, err, "want no error creating golden file directory")
+						f, err := os.Create(goldenFile)
+						require.NoError(t, err, "want no error creating golden file")
+						defer f.Close()
+						enc := json.NewEncoder(f)
+						enc.SetIndent("", "  ")
+						enc.Encode(report)
+						return
+					}
+
+					f, err := os.Open(goldenFile)
+					require.NoError(t, err, "open golden file, run \"make update-golden-files\" and commit the changes")
+					defer f.Close()
+					var want codersdk.UserActivityInsightsResponse
 					err = json.NewDecoder(f).Decode(&want)
 					require.NoError(t, err, "want no error decoding golden file")
 

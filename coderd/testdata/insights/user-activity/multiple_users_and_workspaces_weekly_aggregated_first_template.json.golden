@@ -1,0 +1,29 @@
+{
+  "report": {
+    "start_time": "2023-08-15T00:00:00Z",
+    "end_time": "2023-08-22T00:00:00Z",
+    "template_ids": [
+      "00000000-0000-0000-0000-000000000001"
+    ],
+    "users": [
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "user_id": "31972c11-d06a-44e5-ace7-d95192eaa8d6",
+        "username": "user2",
+        "avatar_url": "",
+        "seconds": 3600
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "user_id": "e114f18f-4e75-4533-bfe2-cb8acbad7563",
+        "username": "user1",
+        "avatar_url": "",
+        "seconds": 5340
+      }
+    ]
+  }
+}
