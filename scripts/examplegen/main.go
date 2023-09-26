@@ -67,7 +67,7 @@ func run() error {
 			return xerrors.Errorf("parse example %q front matter: %w", exampleID, err)
 		}
 
-		nameRaw, exists := frontMatter.FrontMatter["name"]
+		nameRaw, exists := frontMatter.FrontMatter["display_name"]
 		if !exists {
 			return xerrors.Errorf("example %q front matter does not contain name", exampleID)
 		}
@@ -110,6 +110,12 @@ func run() error {
 			if !valid {
 				return xerrors.Errorf("example %q icon isn't a string", exampleID)
 			}
+			icon, err = filepath.Rel("../site/static/", filepath.Join(examplesDir, name, icon))
+			if err != nil {
+				return xerrors.Errorf("example %q icon is not in site/static: %w", exampleID, err)
+			}
+			// The FE needs a static path!
+			icon = "/" + icon
 		}
 
 		examples = append(examples, codersdk.TemplateExample{
