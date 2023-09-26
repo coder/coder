@@ -1230,7 +1230,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					}
 
 					partialName := strings.Join(strings.Split(t.Name(), "/")[1:], "_")
-					goldenFile := filepath.Join("testdata", "insights", partialName+".json.golden")
+					goldenFile := filepath.Join("testdata", "insights", "template", partialName+".json.golden")
 					if *updateGoldenFiles {
 						err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
 						require.NoError(t, err, "want no error creating golden file directory")
