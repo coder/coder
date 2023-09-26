@@ -98,11 +98,22 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
             canClick
               ? (event) => {
                   event.preventDefault();
-                  window.open(
-                    href,
-                    Language.appTitle(appDisplayName, generateRandomString(12)),
-                    "width=900,height=600",
-                  );
+                  // This is an external URI like "vscode://", so
+                  // it needs to be opened with the browser protocol handler.
+                  if (app.external && !app.url.startsWith("http")) {
+                    // If the protocol is external the browser does not
+                    // redirect the user from the page.
+                    window.location.href = href;
+                  } else {
+                    window.open(
+                      href,
+                      Language.appTitle(
+                        appDisplayName,
+                        generateRandomString(12),
+                      ),
+                      "width=900,height=600",
+                    );
+                  }
                 }
               : undefined
           }
