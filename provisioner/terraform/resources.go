@@ -29,25 +29,26 @@ type agentMetadata struct {
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                     string            `mapstructure:"auth"`
-	OperatingSystem          string            `mapstructure:"os"`
-	Architecture             string            `mapstructure:"arch"`
-	Directory                string            `mapstructure:"dir"`
-	ID                       string            `mapstructure:"id"`
-	Token                    string            `mapstructure:"token"`
-	Env                      map[string]string `mapstructure:"env"`
-	StartupScript            string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string            `mapstructure:"motd_file"`
+	Auth            string            `mapstructure:"auth"`
+	OperatingSystem string            `mapstructure:"os"`
+	Architecture    string            `mapstructure:"arch"`
+	Directory       string            `mapstructure:"dir"`
+	ID              string            `mapstructure:"id"`
+	Token           string            `mapstructure:"token"`
+	Env             map[string]string `mapstructure:"env"`
 	// Deprecated, but remains here for backwards compatibility.
-	LoginBeforeReady             bool                         `mapstructure:"login_before_ready"`
-	StartupScriptBehavior        string                       `mapstructure:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds  int32                        `mapstructure:"startup_script_timeout"`
-	ShutdownScript               string                       `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32                        `mapstructure:"shutdown_script_timeout"`
-	Metadata                     []agentMetadata              `mapstructure:"metadata"`
-	DisplayApps                  []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+	StartupScript                string `mapstructure:"startup_script"`
+	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds  int32  `mapstructure:"startup_script_timeout"`
+	LoginBeforeReady             bool   `mapstructure:"login_before_ready"`
+	ShutdownScript               string `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32  `mapstructure:"shutdown_script_timeout"`
+
+	ConnectionTimeoutSeconds int32                        `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string                       `mapstructure:"troubleshooting_url"`
+	MOTDFile                 string                       `mapstructure:"motd_file"`
+	Metadata                 []agentMetadata              `mapstructure:"metadata"`
+	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -74,6 +75,19 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+type agentScriptAttributes struct {
+	AgentID          string `mapstructure:"agent_id"`
+	DisplayName      string `mapstructure:"display_name"`
+	Icon             string `mapstructure:"icon"`
+	Script           string `mapstructure:"script"`
+	Cron             string `mapstructure:"cron"`
+	LogPath          string `mapstructure:"log_path"`
+	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
+	RunOnStart       bool   `mapstructure:"run_on_start"`
+	RunOnStop        bool   `mapstructure:"run_on_stop"`
+	TimeoutSeconds   int32  `mapstructure:"timeout"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -107,6 +121,7 @@ type State struct {
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
+// nolint:gocognit // This function makes more sense being large for now, until refactored.
 func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
@@ -206,22 +221,39 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			}
 
 			agent := &proto.Agent{
-				Name:                         tfResource.Name,
-				Id:                           attrs.ID,
-				Env:                          attrs.Env,
-				StartupScript:                attrs.StartupScript,
-				OperatingSystem:              attrs.OperatingSystem,
-				Architecture:                 attrs.Architecture,
-				Directory:                    attrs.Directory,
-				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:           attrs.TroubleshootingURL,
-				MotdFile:                     attrs.MOTDFile,
-				StartupScriptBehavior:        startupScriptBehavior,
-				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
-				ShutdownScript:               attrs.ShutdownScript,
-				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
-				Metadata:                     metadata,
-				DisplayApps:                  displayApps,
+				Name:                     tfResource.Name,
+				Id:                       attrs.ID,
+				Env:                      attrs.Env,
+				OperatingSystem:          attrs.OperatingSystem,
+				Architecture:             attrs.Architecture,
+				Directory:                attrs.Directory,
+				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:       attrs.TroubleshootingURL,
+				MotdFile:                 attrs.MOTDFile,
+				Metadata:                 metadata,
+				DisplayApps:              displayApps,
+			}
+			// Support the legacy script attributes in the agent!
+			if attrs.StartupScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ▶️
+					Icon:             "/emojis/25b6.png",
+					LogPath:          "coder-startup-script.log",
+					DisplayName:      "Startup Script",
+					Script:           attrs.StartupScript,
+					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
+					RunOnStart:       true,
+				})
+			}
+			if attrs.ShutdownScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ◀️
+					Icon:        "/emojis/25c0.png",
+					LogPath:     "coder-shutdown-script.log",
+					DisplayName: "Shutdown Script",
+					Script:      attrs.ShutdownScript,
+					RunOnStop:   true,
+				})
 			}
 			switch attrs.Auth {
 			case "token":
@@ -403,6 +435,39 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 		}
 	}
 
+	// Associate scripts with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_script" {
+				continue
+			}
+			var attrs agentScriptAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode app attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if agent.Id != attrs.AgentID {
+						continue
+					}
+					agent.Scripts = append(agent.Scripts, &proto.Script{
+						DisplayName:      attrs.DisplayName,
+						Icon:             attrs.Icon,
+						Script:           attrs.Script,
+						Cron:             attrs.Cron,
+						LogPath:          attrs.LogPath,
+						StartBlocksLogin: attrs.StartBlocksLogin,
+						RunOnStart:       attrs.RunOnStart,
+						RunOnStop:        attrs.RunOnStop,
+						TimeoutSeconds:   attrs.TimeoutSeconds,
+					})
+				}
+			}
+		}
+	}
+
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
@@ -482,7 +547,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
 			}
-			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
+			if resource.Type == "coder_script" || resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
 				continue
 			}
 			label := convertAddressToLabel(resource.Address)

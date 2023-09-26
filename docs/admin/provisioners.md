@@ -78,9 +78,9 @@ the [Helm example](#example-running-an-external-provisioner-with-helm) below.
   > [subject to change](https://github.com/coder/coder/issues/6442).
 
 - **User provisioners** can only pick up jobs from user-tagged templates. Unlike
-  the other provisioner types, any Coder can run user provisioners, but they
-  have no impact unless there is at least one template with the `scope=user`
-  provisioner tag.
+  the other provisioner types, any Coder user can run user provisioners, but
+  they have no impact unless there is at least one template with the
+  `scope=user` provisioner tag.
 
   ```shell
   coder provisionerd start \

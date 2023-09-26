@@ -152,7 +152,7 @@ require (
 	github.com/prometheus/common v0.42.0
 	github.com/quasilyte/go-ruleguard/dsl v0.3.21
 	github.com/robfig/cron/v3 v3.0.1
-	github.com/spf13/afero v1.9.5
+	github.com/spf13/afero v1.10.0
 	github.com/spf13/pflag v1.0.5
 	github.com/sqlc-dev/pqtype v0.2.0
 	github.com/stretchr/testify v1.8.4

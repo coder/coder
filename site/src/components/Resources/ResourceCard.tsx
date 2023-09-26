@@ -10,8 +10,8 @@ import {
 } from "components/DropdownArrows/DropdownArrows";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
-import { Maybe } from "components/Conditionals/Maybe";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { type Theme } from "@mui/material/styles";
 
 export interface ResourceCardProps {
   resource: WorkspaceResource;
@@ -21,11 +21,19 @@ export interface ResourceCardProps {
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
     useState(false);
-  const styles = useStyles();
   const metadataToDisplay = resource.metadata ?? [];
   const visibleMetadata = shouldDisplayAllMetadata
     ? metadataToDisplay
     : metadataToDisplay.slice(0, 4);
+
+  // Add one to `metadataLength` if the resource has a cost, and hide one
+  // additional metadata item, because cost is displayed in the same grid.
+  let metadataLength = resource.metadata?.length ?? 0;
+  if (resource.daily_cost > 0) {
+    metadataLength += 1;
+    visibleMetadata.pop();
+  }
+  const styles = useStyles({ metadataLength });
 
   return (
     <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
@@ -49,57 +57,52 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
           </div>
         </Stack>
 
-        <Stack alignItems="flex-start" direction="row" spacing={5}>
-          <div className={styles.metadataHeader}>
-            {resource.daily_cost > 0 && (
-              <div className={styles.metadata}>
-                <div className={styles.metadataLabel}>
-                  <b>cost</b>
-                </div>
+        <div className={styles.metadataHeader}>
+          {resource.daily_cost > 0 && (
+            <div className={styles.metadata}>
+              <div className={styles.metadataLabel}>
+                <b>cost</b>
+              </div>
+              <div className={styles.metadataValue}>{resource.daily_cost}</div>
+            </div>
+          )}
+          {visibleMetadata.map((meta) => {
+            return (
+              <div className={styles.metadata} key={meta.key}>
+                <div className={styles.metadataLabel}>{meta.key}</div>
                 <div className={styles.metadataValue}>
-                  {resource.daily_cost}
+                  {meta.sensitive ? (
+                    <SensitiveValue value={meta.value} />
+                  ) : (
+                    <CopyableValue value={meta.value}>
+                      {meta.value}
+                    </CopyableValue>
+                  )}
                 </div>
               </div>
-            )}
-            {visibleMetadata.map((meta) => {
-              return (
-                <div className={styles.metadata} key={meta.key}>
-                  <div className={styles.metadataLabel}>{meta.key}</div>
-                  <div className={styles.metadataValue}>
-                    {meta.sensitive ? (
-                      <SensitiveValue value={meta.value} />
-                    ) : (
-                      <CopyableValue value={meta.value}>
-                        {meta.value}
-                      </CopyableValue>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <Maybe condition={metadataToDisplay.length > 4}>
-            <Tooltip
-              title={
-                shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"
-              }
+            );
+          })}
+        </div>
+        {metadataLength > 4 && (
+          <Tooltip
+            title={
+              shouldDisplayAllMetadata ? "Hide metadata" : "Show all metadata"
+            }
+          >
+            <IconButton
+              onClick={() => {
+                setShouldDisplayAllMetadata((value) => !value);
+              }}
+              size="large"
             >
-              <IconButton
-                onClick={() => {
-                  setShouldDisplayAllMetadata((value) => !value);
-                }}
-                size="large"
-              >
-                {shouldDisplayAllMetadata ? (
-                  <CloseDropdown margin={false} />
-                ) : (
-                  <OpenDropdown margin={false} />
-                )}
-              </IconButton>
-            </Tooltip>
-          </Maybe>
-        </Stack>
+              {shouldDisplayAllMetadata ? (
+                <CloseDropdown margin={false} />
+              ) : (
+                <OpenDropdown margin={false} />
+              )}
+            </IconButton>
+          </Tooltip>
+        )}
       </Stack>
 
       {resource.agents && resource.agents.length > 0 && (
@@ -109,7 +112,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const useStyles = makeStyles<Theme, { metadataLength: number }>((theme) => ({
   resourceCard: {
     background: theme.palette.background.paper,
     borderRadius: theme.shape.borderRadius,
@@ -141,12 +144,15 @@ const useStyles = makeStyles((theme) => ({
     },
   },
 
-  metadataHeader: {
+  metadataHeader: (props) => ({
+    flexGrow: 2,
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: `repeat(${
+      props.metadataLength === 1 ? 1 : 4
+    }, minmax(0, 1fr))`,
     gap: theme.spacing(5),
     rowGap: theme.spacing(3),
-  },
+  }),
 
   metadata: {
     ...theme.typography.body2,

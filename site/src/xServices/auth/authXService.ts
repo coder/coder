@@ -12,6 +12,7 @@ export const checks = {
   updateUsers: "updateUsers",
   createUser: "createUser",
   createTemplates: "createTemplates",
+  updateTemplates: "updateTemplates",
   deleteTemplates: "deleteTemplates",
   viewAuditLog: "viewAuditLog",
   viewDeploymentValues: "viewDeploymentValues",
@@ -42,6 +43,12 @@ export const permissionsToCheck = {
     action: "create",
   },
   [checks.createTemplates]: {
+    object: {
+      resource_type: "template",
+    },
+    action: "update",
+  },
+  [checks.updateTemplates]: {
     object: {
       resource_type: "template",
     },

@@ -1367,39 +1367,23 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
-		// Set the default in case it was not provided (e.g. echo provider).
-		if prAgent.GetStartupScriptBehavior() == "" {
-			prAgent.StartupScriptBehavior = string(codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking)
-		}
-
 		agentID := uuid.New()
 		dbAgent, err := db.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
-			ID:                   agentID,
-			CreatedAt:            dbtime.Now(),
-			UpdatedAt:            dbtime.Now(),
-			ResourceID:           resource.ID,
-			Name:                 prAgent.Name,
-			AuthToken:            authToken,
-			AuthInstanceID:       instanceID,
-			Architecture:         prAgent.Architecture,
-			EnvironmentVariables: env,
-			Directory:            prAgent.Directory,
-			OperatingSystem:      prAgent.OperatingSystem,
-			StartupScript: sql.NullString{
-				String: prAgent.StartupScript,
-				Valid:  prAgent.StartupScript != "",
-			},
-			ConnectionTimeoutSeconds:    prAgent.GetConnectionTimeoutSeconds(),
-			TroubleshootingURL:          prAgent.GetTroubleshootingUrl(),
-			MOTDFile:                    prAgent.GetMotdFile(),
-			StartupScriptBehavior:       database.StartupScriptBehavior(prAgent.GetStartupScriptBehavior()),
-			StartupScriptTimeoutSeconds: prAgent.GetStartupScriptTimeoutSeconds(),
-			ShutdownScript: sql.NullString{
-				String: prAgent.ShutdownScript,
-				Valid:  prAgent.ShutdownScript != "",
-			},
-			ShutdownScriptTimeoutSeconds: prAgent.GetShutdownScriptTimeoutSeconds(),
-			DisplayApps:                  convertDisplayApps(prAgent.GetDisplayApps()),
+			ID:                       agentID,
+			CreatedAt:                dbtime.Now(),
+			UpdatedAt:                dbtime.Now(),
+			ResourceID:               resource.ID,
+			Name:                     prAgent.Name,
+			AuthToken:                authToken,
+			AuthInstanceID:           instanceID,
+			Architecture:             prAgent.Architecture,
+			EnvironmentVariables:     env,
+			Directory:                prAgent.Directory,
+			OperatingSystem:          prAgent.OperatingSystem,
+			ConnectionTimeoutSeconds: prAgent.GetConnectionTimeoutSeconds(),
+			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
+			MOTDFile:                 prAgent.GetMotdFile(),
+			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -1419,6 +1403,57 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			if err != nil {
 				return xerrors.Errorf("insert agent metadata: %w, params: %+v", err, p)
 			}
+		}
+
+		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
+		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
+		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
+		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
+		scriptSources := make([]string, 0, len(prAgent.Scripts))
+		scriptCron := make([]string, 0, len(prAgent.Scripts))
+		scriptTimeout := make([]int32, 0, len(prAgent.Scripts))
+		scriptStartBlocksLogin := make([]bool, 0, len(prAgent.Scripts))
+		scriptRunOnStart := make([]bool, 0, len(prAgent.Scripts))
+		scriptRunOnStop := make([]bool, 0, len(prAgent.Scripts))
+
+		for _, script := range prAgent.Scripts {
+			logSourceIDs = append(logSourceIDs, uuid.New())
+			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
+			logSourceIcons = append(logSourceIcons, script.Icon)
+			scriptLogPaths = append(scriptLogPaths, script.LogPath)
+			scriptSources = append(scriptSources, script.Script)
+			scriptCron = append(scriptCron, script.Cron)
+			scriptTimeout = append(scriptTimeout, script.TimeoutSeconds)
+			scriptStartBlocksLogin = append(scriptStartBlocksLogin, script.StartBlocksLogin)
+			scriptRunOnStart = append(scriptRunOnStart, script.RunOnStart)
+			scriptRunOnStop = append(scriptRunOnStop, script.RunOnStop)
+		}
+
+		_, err = db.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+			WorkspaceAgentID: agentID,
+			ID:               logSourceIDs,
+			CreatedAt:        dbtime.Now(),
+			DisplayName:      logSourceDisplayNames,
+			Icon:             logSourceIcons,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent log sources: %w", err)
+		}
+
+		_, err = db.InsertWorkspaceAgentScripts(ctx, database.InsertWorkspaceAgentScriptsParams{
+			WorkspaceAgentID: agentID,
+			LogSourceID:      logSourceIDs,
+			LogPath:          scriptLogPaths,
+			CreatedAt:        dbtime.Now(),
+			Script:           scriptSources,
+			Cron:             scriptCron,
+			TimeoutSeconds:   scriptTimeout,
+			StartBlocksLogin: scriptStartBlocksLogin,
+			RunOnStart:       scriptRunOnStart,
+			RunOnStop:        scriptRunOnStop,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert agent scripts: %w", err)
 		}
 
 		for _, app := range prAgent.Apps {

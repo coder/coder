@@ -4,7 +4,7 @@ import {
   MockTemplateVersion,
   MockTemplateVersion3,
   MockWorkspaceResource,
-  MockWorkspaceResource2,
+  MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
 
@@ -20,7 +20,7 @@ export const Example: Story = {
   args: {
     template: MockTemplate,
     activeVersion: MockTemplateVersion,
-    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
   },
 };
 
@@ -28,7 +28,7 @@ export const NoIcon: Story = {
   args: {
     template: { ...MockTemplate, icon: "" },
     activeVersion: MockTemplateVersion,
-    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
   },
 };
 
@@ -49,7 +49,7 @@ export const SmallViewport: Story = {
     \`\`\`
     `,
     },
-    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
   },
 };
 
@@ -61,6 +61,6 @@ export const WithDeprecatedParameters: Story = {
   args: {
     template: MockTemplate,
     activeVersion: MockTemplateVersion3,
-    resources: [MockWorkspaceResource, MockWorkspaceResource2],
+    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
   },
 };

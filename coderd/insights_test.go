@@ -19,7 +19,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/batchstats"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -58,17 +58,8 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Logger: slogtest.Make(t, nil),
-		Client: agentClient,
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
+	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
@@ -145,15 +136,7 @@ func TestUserLatencyInsights(t *testing.T) {
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Logger: logger.Named("agent"),
-		Client: agentClient,
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
+	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Start must be at the beginning of the day, initialize it early in case

@@ -30,12 +30,12 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty"
@@ -103,15 +103,8 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer func() {
-			_ = agentCloser.Close()
-		}()
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
@@ -167,15 +160,8 @@ func TestSSH(t *testing.T) {
 		})
 		pty.ExpectMatch("Waiting")
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer func() {
-			_ = agentCloser.Close()
-		}()
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Ensure the agent is connected.
 		pty.WriteLine("echo hell'o'")
@@ -196,14 +182,9 @@ func TestSSH(t *testing.T) {
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
-			agentClient := agentsdk.New(client.URL)
-			agentClient.SetSessionToken(agentToken)
-			agentCloser := agent.New(agent.Options{
-				Client: agentClient,
-				Logger: slogtest.Make(t, nil).Named("agent"),
-			})
+			_ = agenttest.New(t, client.URL, agentToken)
+			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 			<-ctx.Done()
-			_ = agentCloser.Close()
 		})
 
 		clientOutput, clientInput := io.Pipe()
@@ -264,14 +245,9 @@ func TestSSH(t *testing.T) {
 		_, _ = tGoContext(t, func(ctx context.Context) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect.
-			agentClient := agentsdk.New(client.URL)
-			agentClient.SetSessionToken(agentToken)
-			agentCloser := agent.New(agent.Options{
-				Client: agentClient,
-				Logger: slogtest.Make(t, nil).Named("agent"),
-			})
+			_ = agenttest.New(t, client.URL, agentToken)
+			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 			<-ctx.Done()
-			_ = agentCloser.Close()
 		})
 
 		clientOutput, clientInput := io.Pipe()
@@ -333,13 +309,8 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer agentCloser.Close()
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Generate private key.
 		privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -424,13 +395,8 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer agentCloser.Close()
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -475,15 +441,8 @@ func TestSSH(t *testing.T) {
 
 		pty.ExpectMatch("Waiting")
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		defer func() {
-			_ = agentCloser.Close()
-		}()
+		agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
@@ -651,16 +610,12 @@ Expire-Date: 0
 
 	client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		EnvironmentVariables: map[string]string{
+	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.EnvironmentVariables = map[string]string{
 			"GNUPGHOME": gnupgHomeWorkspace,
-		},
-		Logger: slogtest.Make(t, nil).Named("agent"),
+		}
 	})
-	defer agentCloser.Close()
+	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	inv, root := clitest.New(t,
 		"ssh",

@@ -9,11 +9,11 @@ import {
   MockOwnerRole,
 } from "testHelpers/entities";
 import { Language as usersXServiceLanguage } from "xServices/users/usersXService";
-import * as API from "../../api/api";
-import { Role } from "../../api/typesGenerated";
+import * as API from "api/api";
+import { Role } from "api/typesGenerated";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
-import { renderWithAuth } from "../../testHelpers/renderHelpers";
-import { server } from "../../testHelpers/server";
+import { renderWithAuth } from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import { Language as UsersPageLanguage, UsersPage } from "./UsersPage";
 
 const renderPage = () => {
@@ -29,7 +29,7 @@ const suspendUser = async (setupActionSpies: () => void) => {
   await user.click(firstMoreButton);
 
   const menu = await screen.findByRole("menu");
-  const suspendButton = within(menu).getByText("Suspend");
+  const suspendButton = within(menu).getByText(/Suspend/);
 
   await user.click(suspendButton);
 
@@ -60,7 +60,7 @@ const deleteUser = async (setupActionSpies: () => void) => {
   await user.click(selectedMoreButton);
 
   const menu = await screen.findByRole("menu");
-  const deleteButton = within(menu).getByText("Delete");
+  const deleteButton = within(menu).getByText(/Delete/);
 
   await user.click(deleteButton);
 
@@ -89,7 +89,7 @@ const activateUser = async (setupActionSpies: () => void) => {
   fireEvent.click(suspendedMoreButton);
 
   const menu = screen.getByRole("menu");
-  const activateButton = within(menu).getByText("Activate");
+  const activateButton = within(menu).getByText(/Activate/);
   fireEvent.click(activateButton);
 
   // Check if the confirm message is displayed
@@ -115,7 +115,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(firstMoreButton);
 
   const menu = screen.getByRole("menu");
-  const resetPasswordButton = within(menu).getByText("Reset password");
+  const resetPasswordButton = within(menu).getByText(/Reset password/);
 
   fireEvent.click(resetPasswordButton);
 
