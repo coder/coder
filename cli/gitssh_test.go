@@ -20,15 +20,18 @@ import (
 	"github.com/stretchr/testify/require"
 	gossh "golang.org/x/crypto/ssh"
 
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, string, gossh.PublicKey) {
+func prepareTestGitSSH(ctx context.Context, t *testing.T) (*agentsdk.Client, string, gossh.PublicKey) {
 	t.Helper()
 
 	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -57,13 +60,12 @@ func prepareTestGitSSH(ctx context.Context, t *testing.T) (*codersdk.Client, str
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
 	// start workspace agent
-	inv, root := clitest.New(t, "agent", "--agent-token", agentToken, "--agent-url", client.URL.String())
-	agentClient := codersdk.New(client.URL)
+	agentClient := agentsdk.New(client.URL)
 	agentClient.SetSessionToken(agentToken)
-	clitest.SetupConfig(t, agentClient, root)
-	clitest.Start(t, inv)
-
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.Client = agentClient
+	})
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	return agentClient, agentToken, pubkey
 }
 
@@ -140,7 +142,7 @@ func TestGitSSH(t *testing.T) {
 		// set to agent config dir
 		inv, _ := clitest.New(t,
 			"gitssh",
-			"--agent-url", client.URL.String(),
+			"--agent-url", client.SDK.URL.String(),
 			"--agent-token", token,
 			"--",
 			fmt.Sprintf("-p%d", addr.Port),
@@ -203,7 +205,7 @@ func TestGitSSH(t *testing.T) {
 		pty := ptytest.New(t)
 		cmdArgs := []string{
 			"gitssh",
-			"--agent-url", client.URL.String(),
+			"--agent-url", client.SDK.URL.String(),
 			"--agent-token", token,
 			"--",
 			"-F", config,

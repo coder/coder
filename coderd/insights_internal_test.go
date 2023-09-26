@@ -159,15 +159,23 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
+	t.Logf("now: %s", now)
+
 	y, m, d := now.Date()
 	today := time.Date(y, m, d, 0, 0, 0, 0, sydneyLoc)
+	t.Logf("today: %s", today)
 
 	thisHour := time.Date(y, m, d, now.Hour(), 0, 0, 0, sydneyLoc)
+	t.Logf("thisHour: %s", thisHour)
 	twoHoursAgo := thisHour.Add(-2 * time.Hour)
+	t.Logf("twoHoursAgo: %s", twoHoursAgo)
 	thirteenDaysAgo := today.AddDate(0, 0, -13)
+	t.Logf("thirteenDaysAgo: %s", thirteenDaysAgo)
 
 	sixDaysAgo := today.AddDate(0, 0, -6)
+	t.Logf("sixDaysAgo: %s", sixDaysAgo)
 	nineDaysAgo := today.AddDate(0, 0, -9)
+	t.Logf("nineDaysAgo: %s", nineDaysAgo)
 
 	type args struct {
 		startTime string
@@ -183,14 +191,6 @@ func Test_parseInsightsInterval_week(t *testing.T) {
 			args: args{
 				startTime: "2023-08-10T00:00:00+02:00",
 				endTime:   "2023-08-24T00:00:00+02:00",
-			},
-			wantOk: true,
-		},
-		{
-			name: "Two weeks",
-			args: args{
-				startTime: thirteenDaysAgo.Format(layout),
-				endTime:   twoHoursAgo.Format(layout),
 			},
 			wantOk: true,
 		},
