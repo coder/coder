@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -1218,15 +1217,7 @@ func TestTemplateMetrics(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Logger: slogtest.Make(t, nil),
-		Client: agentClient,
-	})
-	defer func() {
-		_ = agentCloser.Close()
-	}()
+	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

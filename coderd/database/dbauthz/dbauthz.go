@@ -1593,6 +1593,13 @@ func (q *querier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, id uu
 	return q.db.GetWorkspaceAgentLifecycleStateByID(ctx, id)
 }
 
+func (q *querier) GetWorkspaceAgentLogSourcesByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, ids)
+}
+
 func (q *querier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
 	_, err := q.GetWorkspaceAgentByID(ctx, arg.AgentID)
 	if err != nil {
@@ -1613,6 +1620,13 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentI
 	}
 
 	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
+}
+
+func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceAgentScriptsByAgentIDs(ctx, ids)
 }
 
 func (q *querier) GetWorkspaceAgentStats(ctx context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -2080,13 +2094,15 @@ func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorksp
 	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 
-// Provisionerd server functions
-
 func (q *querier) InsertWorkspaceAgent(ctx context.Context, arg database.InsertWorkspaceAgentParams) (database.WorkspaceAgent, error) {
 	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.WorkspaceAgent{}, err
 	}
 	return q.db.InsertWorkspaceAgent(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentLogSources(ctx context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	return q.db.InsertWorkspaceAgentLogSources(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentLogs(ctx context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
@@ -2101,6 +2117,13 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	}
 
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentScripts(ctx context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceSystem); err != nil {
+		return []database.WorkspaceAgentScript{}, err
+	}
+	return q.db.InsertWorkspaceAgentScripts(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentStat(ctx context.Context, arg database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {

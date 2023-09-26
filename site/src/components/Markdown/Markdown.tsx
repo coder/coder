@@ -14,10 +14,6 @@ import { colors } from "theme/colors";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import { combineClasses } from "utils/combineClasses";
 
-export interface MarkdownProps {
-  children: string;
-}
-
 export const Markdown: FC<{ children: string; className?: string }> = ({
   children,
   className,

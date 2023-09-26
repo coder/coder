@@ -71,14 +71,6 @@ const TemplateMenu: FC<{
         </MenuItem>
         <MenuItem
           onClick={onMenuItemClick(() =>
-            navigate(`/templates/new?fromTemplate=${templateName}`),
-          )}
-        >
-          <FileCopyOutlined />
-          Duplicate
-        </MenuItem>
-        <MenuItem
-          onClick={onMenuItemClick(() =>
             navigate(
               `/templates/${templateName}/versions/${templateVersion}/edit`,
             ),
@@ -87,9 +79,17 @@ const TemplateMenu: FC<{
           <EditOutlined />
           Edit files
         </MenuItem>
+        <MenuItem
+          onClick={onMenuItemClick(() =>
+            navigate(`/templates/new?fromTemplate=${templateName}`),
+          )}
+        >
+          <FileCopyOutlined />
+          Duplicate&hellip;
+        </MenuItem>
         <MenuItem onClick={onMenuItemClick(onDelete)}>
           <DeleteOutlined />
-          Delete
+          Delete&hellip;
         </MenuItem>
       </Menu>
     </div>

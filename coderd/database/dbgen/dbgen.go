@@ -142,11 +142,7 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			Valid:      takeFirst(orig.EnvironmentVariables.Valid, false),
 		},
 		OperatingSystem: takeFirst(orig.OperatingSystem, "linux"),
-		StartupScript: sql.NullString{
-			String: takeFirst(orig.StartupScript.String, ""),
-			Valid:  takeFirst(orig.StartupScript.Valid, false),
-		},
-		Directory: takeFirst(orig.Directory, ""),
+		Directory:       takeFirst(orig.Directory, ""),
 		InstanceMetadata: pqtype.NullRawMessage{
 			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
@@ -155,11 +151,9 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 			RawMessage: takeFirstSlice(orig.ResourceMetadata.RawMessage, []byte("{}")),
 			Valid:      takeFirst(orig.ResourceMetadata.Valid, false),
 		},
-		ConnectionTimeoutSeconds:    takeFirst(orig.ConnectionTimeoutSeconds, 3600),
-		TroubleshootingURL:          takeFirst(orig.TroubleshootingURL, "https://example.com"),
-		MOTDFile:                    takeFirst(orig.TroubleshootingURL, ""),
-		StartupScriptBehavior:       takeFirst(orig.StartupScriptBehavior, "non-blocking"),
-		StartupScriptTimeoutSeconds: takeFirst(orig.StartupScriptTimeoutSeconds, 3600),
+		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
+		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
+		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
 	})
 	require.NoError(t, err, "insert workspace agent")
 	return workspace
@@ -180,6 +174,18 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 	})
 	require.NoError(t, err, "insert workspace")
 	return workspace
+}
+
+func WorkspaceAgentLogSource(t testing.TB, db database.Store, orig database.WorkspaceAgentLogSource) database.WorkspaceAgentLogSource {
+	sources, err := db.InsertWorkspaceAgentLogSources(genCtx, database.InsertWorkspaceAgentLogSourcesParams{
+		WorkspaceAgentID: takeFirst(orig.WorkspaceAgentID, uuid.New()),
+		ID:               []uuid.UUID{takeFirst(orig.ID, uuid.New())},
+		CreatedAt:        takeFirst(orig.CreatedAt, dbtime.Now()),
+		DisplayName:      []string{takeFirst(orig.DisplayName, namesgenerator.GetRandomName(1))},
+		Icon:             []string{takeFirst(orig.Icon, namesgenerator.GetRandomName(1))},
+	})
+	require.NoError(t, err, "insert workspace agent log source")
+	return sources[0]
 }
 
 func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuild) database.WorkspaceBuild {

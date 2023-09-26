@@ -1,9 +1,9 @@
 import { PropsWithChildren, FC, useState } from "react";
-import { ConfirmDialog } from "../../../components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { Section } from "../../../components/SettingsLayout/Section";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { Section } from "components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getErrorMessage } from "api/errors";
 

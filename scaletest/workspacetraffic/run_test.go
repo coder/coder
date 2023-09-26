@@ -10,10 +10,9 @@ import (
 
 	"golang.org/x/exp/slices"
 
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
@@ -33,6 +32,7 @@ func TestRun(t *testing.T) {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
+	//nolint:dupl
 	t.Run("PTY", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
@@ -73,20 +73,12 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-		})
-
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		ctx, cancel := context.WithCancel(context.Background())
 		t.Cleanup(cancel)
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
 
 		// Make sure the agent is connected before we go any further.
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		var agentID uuid.UUID
 		for _, res := range resources {
 			for _, agt := range res.Agents {
@@ -159,6 +151,7 @@ func TestRun(t *testing.T) {
 		assert.Zero(t, writeMetrics.Errors())
 	})
 
+	//nolint:dupl
 	t.Run("SSH", func(t *testing.T) {
 		t.Parallel()
 		// We need to stand up an in-memory coderd and run a fake workspace.
@@ -199,20 +192,13 @@ func TestRun(t *testing.T) {
 		)
 
 		// We also need a running agent to run this test.
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(authToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-		})
+		_ = agenttest.New(t, client.URL, authToken)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 
 		ctx, cancel := context.WithCancel(context.Background())
-		t.Cleanup(func() {
-			cancel()
-			_ = agentCloser.Close()
-		})
+		t.Cleanup(cancel)
 
 		// Make sure the agent is connected before we go any further.
-		resources := coderdtest.AwaitWorkspaceAgents(t, client, ws.ID)
 		var agentID uuid.UUID
 		for _, res := range resources {
 			for _, agt := range res.Agents {

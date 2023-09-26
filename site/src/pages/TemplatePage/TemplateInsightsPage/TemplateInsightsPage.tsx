@@ -5,7 +5,7 @@ import { BoxProps } from "@mui/system";
 import { useQuery } from "@tanstack/react-query";
 import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
 import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
   HelpTooltipTitle,
