@@ -5,7 +5,6 @@ icon: /icons/kubernetes.png
 maintainer_github: coder
 verified: true
 tags: [kubernetes, containers, docker-in-docker]
-registry-hide: true
 ---
 
 # envbox
