@@ -35,17 +35,18 @@ resource "null_resource" "permission_check" {
 }
 
 locals {
-  workspace_pod_name     = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_instance = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  service_account_name   = "scaletest-sa"
-  cpu                    = 16
-  memory                 = 64
-  home_disk_size         = 10
-  scaletest_run_id       = "scaletest-${time_static.start_time.rfc3339}"
-  scaletest_run_dir      = "/home/coder/${local.scaletest_run_id}"
-  grafana_url            = "https://stats.dev.c8s.io"
-  grafana_dashboard_uid  = "qLVSTR-Vz"
-  grafana_dashboard_name = "coderv2-loadtest-dashboard"
+  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_termination_grace_period_seconds = 7200 # 2 hours (cleanup timeout).
+  service_account_name                           = "scaletest-sa"
+  cpu                                            = 16
+  memory                                         = 64
+  home_disk_size                                 = 10
+  scaletest_run_id                               = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
+  grafana_url                                    = "https://stats.dev.c8s.io"
+  grafana_dashboard_uid                          = "qLVSTR-Vz"
+  grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
 }
 
 data "coder_provisioner" "me" {
@@ -318,7 +319,6 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
 
     GRAFANA_URL : local.grafana_url,
-    # GRAFANA_DASHBOARD_UID : local.grafana_dashboard_uid,
 
     SCRIPTS_ZIP : filebase64(data.archive_file.scripts_zip.output_path),
     SCRIPTS_DIR : "/tmp/scripts",
@@ -493,7 +493,7 @@ resource "kubernetes_pod" "main" {
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.
   timeouts {
-    delete = "122m"
+    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120) / 60}s"
   }
   spec {
     security_context {
@@ -505,8 +505,9 @@ resource "kubernetes_pod" "main" {
     service_account_name = local.service_account_name
 
     # Allow the coder agent to perform graceful shutdown and cleanup of
-    # scaletest resources, 2 hours (cleanup timeout) + 1 minute.
-    termination_grace_period_seconds = 7260
+    # scaletest resources. We add an extra minute so ensure work
+    # completion is prioritized over timeout.
+    termination_grace_period_seconds = local.workspace_pod_termination_grace_period_seconds + 60
 
     container {
       name              = "dev"
