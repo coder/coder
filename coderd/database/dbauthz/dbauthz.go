@@ -1478,6 +1478,25 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
+func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	for _, templateID := range arg.TemplateIDs {
+		template, err := q.db.GetTemplateByID(ctx, templateID)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, template); err != nil {
+			return nil, err
+		}
+	}
+	if len(arg.TemplateIDs) == 0 {
+		if err := q.authorizeContext(ctx, rbac.ActionUpdate, rbac.ResourceTemplate.All()); err != nil {
+			return nil, err
+		}
+	}
+	return q.db.GetUserActivityInsights(ctx, arg)
+}
+
 func (q *querier) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	return fetch(q.log, q.auth, q.db.GetUserByEmailOrUsername)(ctx, arg)
 }

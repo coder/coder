@@ -1194,6 +1194,35 @@ export interface User {
 }
 
 // From codersdk/insights.go
+export interface UserActivity {
+  readonly template_ids: string[];
+  readonly user_id: string;
+  readonly username: string;
+  readonly avatar_url: string;
+  readonly seconds: number;
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsReport {
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly users: UserActivity[];
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsRequest {
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsResponse {
+  readonly report: UserActivityInsightsReport;
+}
+
+// From codersdk/insights.go
 export interface UserLatency {
   readonly template_ids: string[];
   readonly user_id: string;

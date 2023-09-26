@@ -5183,6 +5183,83 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `status` | `active`    |
 | `status` | `suspended` |
 
+## codersdk.UserActivity
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "seconds": 80500,
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name           | Type            | Required | Restrictions | Description |
+| -------------- | --------------- | -------- | ------------ | ----------- |
+| `avatar_url`   | string          | false    |              |             |
+| `seconds`      | integer         | false    |              |             |
+| `template_ids` | array of string | false    |              |             |
+| `user_id`      | string          | false    |              |             |
+| `username`     | string          | false    |              |             |
+
+## codersdk.UserActivityInsightsReport
+
+```json
+{
+  "end_time": "2019-08-24T14:15:22Z",
+  "start_time": "2019-08-24T14:15:22Z",
+  "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "seconds": 80500,
+      "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+      "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                    | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------------- | -------- | ------------ | ----------- |
+| `end_time`     | string                                                  | false    |              |             |
+| `start_time`   | string                                                  | false    |              |             |
+| `template_ids` | array of string                                         | false    |              |             |
+| `users`        | array of [codersdk.UserActivity](#codersdkuseractivity) | false    |              |             |
+
+## codersdk.UserActivityInsightsResponse
+
+```json
+{
+  "report": {
+    "end_time": "2019-08-24T14:15:22Z",
+    "start_time": "2019-08-24T14:15:22Z",
+    "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+    "users": [
+      {
+        "avatar_url": "http://example.com",
+        "seconds": 80500,
+        "template_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+        "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
+        "username": "string"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name     | Type                                                                       | Required | Restrictions | Description |
+| -------- | -------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `report` | [codersdk.UserActivityInsightsReport](#codersdkuseractivityinsightsreport) | false    |              |             |
+
 ## codersdk.UserLatency
 
 ```json

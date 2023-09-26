@@ -934,6 +934,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/user-activity": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about user activity",
+                "operationId": "get-insights-about-user-activity",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserActivityInsightsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/insights/user-latency": {
             "get": {
                 "security": [
@@ -10375,6 +10400,67 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserActivity": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "seconds": {
+                    "type": "integer",
+                    "example": 80500
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserActivityInsightsReport": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserActivity"
+                    }
+                }
+            }
+        },
+        "codersdk.UserActivityInsightsResponse": {
+            "type": "object",
+            "properties": {
+                "report": {
+                    "$ref": "#/definitions/codersdk.UserActivityInsightsReport"
                 }
             }
         },

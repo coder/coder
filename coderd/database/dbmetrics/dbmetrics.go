@@ -774,6 +774,13 @@ func (m metricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.Lice
 	return licenses, err
 }
 
+func (m metricsStore) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserActivityInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserActivityInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetUserByEmailOrUsername(ctx context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	start := time.Now()
 	user, err := m.s.GetUserByEmailOrUsername(ctx, arg)

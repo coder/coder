@@ -1598,6 +1598,21 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(arg0 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), arg0)
 }
 
+// GetUserActivityInsights mocks base method.
+func (m *MockStore) GetUserActivityInsights(arg0 context.Context, arg1 database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserActivityInsights", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserActivityInsightsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserActivityInsights indicates an expected call of GetUserActivityInsights.
+func (mr *MockStoreMockRecorder) GetUserActivityInsights(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserActivityInsights", reflect.TypeOf((*MockStore)(nil).GetUserActivityInsights), arg0, arg1)
+}
+
 // GetUserByEmailOrUsername mocks base method.
 func (m *MockStore) GetUserByEmailOrUsername(arg0 context.Context, arg1 database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	m.ctrl.T.Helper()

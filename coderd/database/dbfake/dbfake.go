@@ -2831,6 +2831,142 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
+func (q *FakeQuerier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	type uniqueKey struct {
+		TemplateID uuid.UUID
+		UserID     uuid.UUID
+	}
+
+	combinedStats := make(map[uniqueKey]map[time.Time]int64)
+
+	// Get application stats
+	for _, s := range q.workspaceAppStats {
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
+		key := uniqueKey{
+			TemplateID: w.TemplateID,
+			UserID:     s.UserID,
+		}
+		if combinedStats[key] == nil {
+			combinedStats[key] = make(map[time.Time]int64)
+		}
+
+		t := s.SessionStartedAt.Truncate(time.Minute)
+		if t.Before(arg.StartTime) {
+			t = arg.StartTime
+		}
+		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
+			combinedStats[key][t] = 60
+			t = t.Add(1 * time.Minute)
+		}
+	}
+
+	// Get session stats
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		key := uniqueKey{
+			TemplateID: s.TemplateID,
+			UserID:     s.UserID,
+		}
+
+		if combinedStats[key] == nil {
+			combinedStats[key] = make(map[time.Time]int64)
+		}
+
+		if s.SessionCountJetBrains > 0 || s.SessionCountVSCode > 0 || s.SessionCountReconnectingPTY > 0 || s.SessionCountSSH > 0 {
+			t := s.CreatedAt.Truncate(time.Minute)
+			combinedStats[key][t] = 60
+		}
+	}
+
+	// Use temporary maps for aggregation purposes
+	mUserIDTemplateIDs := map[uuid.UUID]map[uuid.UUID]struct{}{}
+	mUserIDUsageSeconds := map[uuid.UUID]int64{}
+
+	for key, times := range combinedStats {
+		if mUserIDTemplateIDs[key.UserID] == nil {
+			mUserIDTemplateIDs[key.UserID] = make(map[uuid.UUID]struct{})
+			mUserIDUsageSeconds[key.UserID] = 0
+		}
+
+		if _, ok := mUserIDTemplateIDs[key.UserID][key.TemplateID]; !ok {
+			mUserIDTemplateIDs[key.UserID][key.TemplateID] = struct{}{}
+		}
+
+		for _, t := range times {
+			mUserIDUsageSeconds[key.UserID] += t
+		}
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(mUserIDUsageSeconds))
+	for userID := range mUserIDUsageSeconds {
+		userIDs = append(userIDs, userID)
+	}
+	sort.Slice(userIDs, func(i, j int) bool {
+		return userIDs[i].String() < userIDs[j].String()
+	})
+
+	// Finally, select stats
+	var rows []database.GetUserActivityInsightsRow
+
+	for _, userID := range userIDs {
+		user, err := q.getUserByIDNoLock(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		tids := mUserIDTemplateIDs[userID]
+		templateIDs := make([]uuid.UUID, 0, len(tids))
+		for key := range tids {
+			templateIDs = append(templateIDs, key)
+		}
+		sort.Slice(templateIDs, func(i, j int) bool {
+			return templateIDs[i].String() < templateIDs[j].String()
+		})
+
+		row := database.GetUserActivityInsightsRow{
+			UserID:       user.ID,
+			Username:     user.Username,
+			AvatarURL:    user.AvatarURL,
+			TemplateIDs:  templateIDs,
+			UsageSeconds: mUserIDUsageSeconds[userID],
+		}
+
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
