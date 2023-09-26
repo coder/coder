@@ -100,7 +100,7 @@ export const WorkspacesPageView: FC<
         <Maybe condition={hasError(error) && !isApiValidationError(error)}>
           <ErrorAlert error={error} />
         </Maybe>
-        {/* <ImpendingDeletionBanner/> determines its own visibility */}
+        {/* <DormantWorkspaceBanner/> determines its own visibility */}
         <DormantWorkspaceBanner
           workspaces={dormantWorkspaces}
           shouldRedisplayBanner={hasDormantWorkspace}

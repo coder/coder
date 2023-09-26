@@ -4,7 +4,7 @@ import { FC, PropsWithChildren } from "react";
 import { makeStyles } from "@mui/styles";
 import { combineClasses } from "utils/combineClasses";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { ImpendingDeletionText } from "components/WorkspaceDeletion";
+import { DormantDeletionText } from "components/WorkspaceDeletion";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import Tooltip, { TooltipProps, tooltipClasses } from "@mui/material/Tooltip";
 import { styled } from "@mui/material/styles";
@@ -63,9 +63,9 @@ export const WorkspaceStatusText: FC<
 
   return (
     <ChooseOne>
-      {/* <ImpendingDeletionText/> determines its own visibility */}
-      <Cond condition={Boolean(ImpendingDeletionText({ workspace }))}>
-        <ImpendingDeletionText workspace={workspace} />
+      {/* <DormantDeletionText/> determines its own visibility */}
+      <Cond condition={Boolean(DormantDeletionText({ workspace }))}>
+        <DormantDeletionText workspace={workspace} />
       </Cond>
       <Cond>
         <span

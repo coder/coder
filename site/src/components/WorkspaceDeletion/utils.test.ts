@@ -1,8 +1,8 @@
 import * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
-import { displayImpendingDeletion } from "./utils";
+import { displayDormantDeletion } from "./utils";
 
-describe("displayImpendingDeletion", () => {
+describe("displayDormantDeletion", () => {
   const today = new Date();
   it.each<[string, boolean, boolean, boolean]>([
     [
@@ -45,7 +45,7 @@ describe("displayImpendingDeletion", () => {
         deleting_at,
       };
       expect(
-        displayImpendingDeletion(
+        displayDormantDeletion(
           workspace,
           allowAdvancedScheduling,
           allowWorkspaceActions,

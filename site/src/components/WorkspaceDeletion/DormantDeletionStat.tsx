@@ -4,10 +4,10 @@ import Link from "@mui/material/Link";
 import { Link as RouterLink } from "react-router-dom";
 import styled from "@emotion/styled";
 import { Workspace } from "api/typesGenerated";
-import { displayImpendingDeletion } from "./utils";
+import { displayDormantDeletion } from "./utils";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 
-export const ImpendingDeletionStat = ({
+export const DormantDeletionStat = ({
   workspace,
 }: {
   workspace: Workspace;
@@ -21,7 +21,7 @@ export const ImpendingDeletionStat = ({
 
   return (
     <Maybe
-      condition={displayImpendingDeletion(
+      condition={displayDormantDeletion(
         workspace,
         allowAdvancedScheduling,
         allowWorkspaceActions,
