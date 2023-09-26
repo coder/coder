@@ -7,20 +7,17 @@ verified: true
 tags: [vm, linux, gcp]
 ---
 
-# gcp-linux
+# Remote Development on Google Compute Engine (Linux)
 
-To get started, run `coder templates init`. When prompted, select this template,
-and follow the on-screen instructions to proceed.
+## Prerequisites
 
-## Authentication
+### Authentication
 
 This template assumes that coderd is run in an environment that is authenticated
 with Google Cloud. For example, run `gcloud auth application-default login` to
 import credentials on the system and user running coderd. For other ways to
 authenticate [consult the Terraform
 docs](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/getting_started#adding-credentials).
-
-## Service account
 
 Coder requires a Google Cloud Service Account to provision workspaces. To create
 a service account:
@@ -48,6 +45,17 @@ a service account:
 1. Generate a **JSON private key**, which will be what you provide to Coder
    during the setup process.
 
+## Architecture
+
+This template provisions the following resources:
+
+- GCP VM (ephemeral)
+- GCP Disk (persistent, mounted to root)
+
+Coder persists the root volume. The full filesystem is preserved when the workspace restarts. See this [community example](https://github.com/bpmct/coder-templates/tree/main/aws-linux-ephemeral) of an ephemeral AWS instance.
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
 ## code-server
 
 `code-server` is installed via the `startup_script` argument in the `coder_agent`
