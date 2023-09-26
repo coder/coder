@@ -228,8 +228,32 @@ data "coder_parameter" "load_scenario_ssh_traffic_duration" {
   }
 }
 
-data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
+data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
   order       = 24
+  name        = "SSH Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the SSH traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_ssh_tick_interval" {
+  order       = 25
+  name        = "SSH Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the SSH traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
+  order       = 26
   name        = "Web Terminal Traffic Duration"
   type        = "number"
   description = "The duration of the web terminal traffic load scenario in minutes."
@@ -241,8 +265,32 @@ data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
   }
 }
 
+data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
+  order       = 27
+  name        = "Web Terminal Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the web terminal traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
+  order       = 28
+  name        = "Web Terminal Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the web terminal traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
 data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
-  order       = 25
+  order       = 29
   name        = "Dashboard Traffic Duration"
   type        = "number"
   description = "The duration of the dashboard traffic load scenario in minutes."
@@ -314,7 +362,11 @@ resource "coder_agent" "main" {
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
     SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
     SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_ssh_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_ssh_tick_interval.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_web_terminal_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_web_terminal_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_web_terminal_tick_interval.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_dashboard_traffic_duration.value}",
     SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
 

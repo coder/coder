@@ -31,8 +31,8 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	"SSH Traffic")
 		coder exp scaletest workspace-traffic \
 			--ssh \
-			--bytes-per-tick 1024 \
-			--tick-interval 100ms \
+			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK}" \
+			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL}ms" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
@@ -40,8 +40,8 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		;;
 	"Web Terminal Traffic")
 		coder exp scaletest workspace-traffic \
-			--bytes-per-tick 1024 \
-			--tick-interval 100ms \
+			--bytes-per-tick "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK}" \
+			--tick-interval "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL}ms" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
