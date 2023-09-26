@@ -7,7 +7,7 @@ verified: true
 tags: [vm, linux, aws, persistent-vm]
 ---
 
-# Remote Development on AWS EC2 VMs
+# Remote Development on AWS EC2 VMs (Linux)
 
 Provision AWS EC2 VMs as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
 
