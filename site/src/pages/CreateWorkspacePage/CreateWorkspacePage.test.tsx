@@ -20,7 +20,6 @@ import {
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
-import { delay } from "utils/delay";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -179,14 +178,12 @@ describe("CreateWorkspacePage", () => {
     });
 
     const githubButton = await screen.findByText("Login with GitHub");
-    userEvent.click(githubButton);
+    await userEvent.click(githubButton);
 
     jest
       .spyOn(API, "getTemplateVersionGitAuth")
       .mockResolvedValue([MockTemplateVersionGitAuthAuthenticated]);
 
-    // Wait for gitAuth to be refetched
-    await delay(1500);
     await screen.findByText("Authenticated with GitHub");
 
     const submitButton = screen.getByText(createWorkspaceText);
