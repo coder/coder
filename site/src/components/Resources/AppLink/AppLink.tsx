@@ -101,7 +101,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
           className={canClick ? styles.link : styles.disabledLink}
           onClick={
             canClick
-              ? (event) => {
+              ? async (event) => {
                   event.preventDefault();
                   // This is an external URI like "vscode://", so
                   // it needs to be opened with the browser protocol handler.
@@ -115,24 +115,14 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
                     // be used internally, and is highly subject to break.
                     const magicTokenString = "$SESSION_TOKEN";
                     const hasMagicToken = href.indexOf(magicTokenString);
+                    let url = href;
                     if (hasMagicToken !== -1) {
                       setFetchingSessionToken(true);
-                      getApiKey()
-                        .then((key) => {
-                          const url = href.replaceAll(
-                            magicTokenString,
-                            key.key,
-                          );
-                          window.location.href = url;
-                          setFetchingSessionToken(false);
-                        })
-                        .catch((ex) => {
-                          console.error(ex);
-                          setFetchingSessionToken(false);
-                        });
-                    } else {
-                      window.location.href = href;
+                      const key = await getApiKey();
+                      url = href.replaceAll(magicTokenString, key.key);
+                      setFetchingSessionToken(false);
                     }
+                    window.location.href = url;
                   } else {
                     window.open(
                       href,
