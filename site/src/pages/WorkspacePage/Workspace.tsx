@@ -264,7 +264,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               />
             </Cond>
             <Cond>
-              {/* <ImpendingDeletionBanner/> determines its own visibility */}
+              {/* <DormantWorkspaceBanner/> determines its own visibility */}
               <DormantWorkspaceBanner
                 workspaces={[workspace]}
                 shouldRedisplayBanner={

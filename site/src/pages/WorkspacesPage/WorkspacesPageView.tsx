@@ -99,7 +99,7 @@ export const WorkspacesPageView: FC<
         {hasError(error) && !isApiValidationError(error) && (
           <ErrorAlert error={error} />
         )}
-        {/* <ImpendingDeletionBanner/> determines its own visibility */}
+        {/* <DormantWorkspaceBanner/> determines its own visibility */}
         <DormantWorkspaceBanner
           workspaces={dormantWorkspaces}
           shouldRedisplayBanner={hasDormantWorkspace}
