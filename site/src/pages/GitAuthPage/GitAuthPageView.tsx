@@ -11,8 +11,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { FC, useEffect } from "react";
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
+import { type FC } from "react";
 
 export interface GitAuthPageViewProps {
   gitAuth: GitAuth;
@@ -32,18 +31,6 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
   viewGitAuthConfig,
 }) => {
   const styles = useStyles();
-
-  useEffect(() => {
-    if (!gitAuth.authenticated) {
-      return;
-    }
-    // This is used to notify the parent window that the Git auth token has been refreshed.
-    // It's critical in the create workspace flow!
-    // eslint-disable-next-line compat/compat -- It actually is supported... not sure why it's complaining.
-    const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL);
-    // The message doesn't matter, any message refreshes the page!
-    bc.postMessage("noop");
-  }, [gitAuth.authenticated]);
 
   if (!gitAuth.authenticated) {
     return (
@@ -76,7 +63,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
     <SignInLayout>
       <Welcome message={`You've authenticated with ${gitAuth.type}!`} />
       <p className={styles.text}>
-        Hey @{gitAuth.user?.login} 👋!{" "}
+        Hey @{gitAuth.user?.login}! 👋{" "}
         {(!gitAuth.app_installable || gitAuth.installations.length > 0) &&
           "You are now authenticated with Git. Feel free to close this window!"}
       </p>

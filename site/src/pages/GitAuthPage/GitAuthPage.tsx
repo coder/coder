@@ -5,12 +5,11 @@ import {
   getGitAuthProvider,
 } from "api/api";
 import { usePermissions } from "hooks";
-import { FC, useEffect } from "react";
+import { type FC } from "react";
 import { useParams } from "react-router-dom";
 import GitAuthPageView from "./GitAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
 
 const GitAuthPage: FC = () => {
   const { provider } = useParams();
@@ -51,17 +50,6 @@ const GitAuthPage: FC = () => {
     refetchOnWindowFocus: (query) =>
       query.state.status === "success" ? false : "always",
   });
-
-  useEffect(() => {
-    if (!getGitAuthProviderQuery.data?.authenticated) {
-      return;
-    }
-    // This is used to notify the parent window that the Git auth token has been refreshed.
-    // It's critical in the create workspace flow!
-    const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL);
-    // The message doesn't matter, any message refreshes the page!
-    bc.postMessage("noop");
-  }, [getGitAuthProviderQuery.data?.authenticated]);
 
   if (getGitAuthProviderQuery.isLoading || !getGitAuthProviderQuery.data) {
     return null;

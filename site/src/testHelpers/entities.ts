@@ -1190,17 +1190,23 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
   sensitive: false,
 };
 
-// requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
-  template_id: "test-template",
-  rich_parameter_values: [
-    {
-      name: MockTemplateVersionParameter1.name,
-      value: MockTemplateVersionParameter1.default_value,
-    },
-  ],
+  template_version_id: "test-template-version",
+  rich_parameter_values: [],
 };
+
+export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
+  {
+    name: "test",
+    template_version_id: "test-template-version",
+    rich_parameter_values: [
+      {
+        name: MockTemplateVersionParameter1.name,
+        value: MockTemplateVersionParameter1.default_value,
+      },
+    ],
+  };
 
 export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
@@ -2183,6 +2189,14 @@ export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   authenticate_url: "https://example.com/gitauth/github",
   authenticated: false,
 };
+
+export const MockTemplateVersionGitAuthAuthenticated: TypesGen.TemplateVersionGitAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/gitauth/github",
+    authenticated: true,
+  };
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
   aggregated_from: "2023-03-06T19:08:55.211625Z",

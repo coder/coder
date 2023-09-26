@@ -7,11 +7,13 @@ import {
   MockWorkspace,
   MockWorkspaceQuota,
   MockWorkspaceRequest,
+  MockWorkspaceRichParametersRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionGitAuth,
   MockOrganization,
+  MockTemplateVersionGitAuthAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -30,17 +32,6 @@ const renderCreateWorkspacePage = () => {
     path: "/templates/:template/workspace",
   });
 };
-
-Object.defineProperty(window, "BroadcastChannel", {
-  value: class {
-    addEventListener() {
-      // noop
-    }
-    close() {
-      // noop
-    }
-  },
-});
 
 describe("CreateWorkspacePage", () => {
   it("succeeds with default owner", async () => {
@@ -71,9 +62,9 @@ describe("CreateWorkspacePage", () => {
       expect(API.createWorkspace).toBeCalledWith(
         MockUser.organization_ids[0],
         MockUser.id,
-        {
-          ...MockWorkspaceRequest,
-        },
+        expect.objectContaining({
+          ...MockWorkspaceRichParametersRequest,
+        }),
       ),
     );
   });
@@ -165,6 +156,50 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
+  it("gitauth authenticates and succeeds", async () => {
+    jest
+      .spyOn(API, "getWorkspaceQuota")
+      .mockResolvedValueOnce(MockWorkspaceQuota);
+    jest
+      .spyOn(API, "getUsers")
+      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValue([MockTemplateVersionGitAuth]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const nameField = await screen.findByLabelText(nameLabelText);
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    });
+
+    const githubButton = await screen.findByText("Login with GitHub");
+    await userEvent.click(githubButton);
+
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValue([MockTemplateVersionGitAuthAuthenticated]);
+
+    await screen.findByText("Authenticated with GitHub");
+
+    const submitButton = screen.getByText(createWorkspaceText);
+    await userEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(API.createWorkspace).toBeCalledWith(
+        MockUser.organization_ids[0],
+        MockUser.id,
+        expect.objectContaining({
+          ...MockWorkspaceRequest,
+        }),
+      ),
+    );
+  });
+
   it("gitauth: errors if unauthenticated and submits", async () => {
     jest
       .spyOn(API, "getTemplateVersionGitAuth")
@@ -205,6 +240,31 @@ describe("CreateWorkspacePage", () => {
         "me",
         expect.objectContaining({
           template_id: MockTemplate.id,
+          rich_parameter_values: [{ name: param, value: paramValue }],
+        }),
+      );
+    });
+  });
+
+  it("auto create a workspace if uses mode=auto and version=version-id", async () => {
+    const param = "first_parameter";
+    const paramValue = "It works!";
+    const createWorkspaceSpy = jest.spyOn(API, "createWorkspace");
+
+    renderWithAuth(<CreateWorkspacePage />, {
+      route:
+        "/templates/" +
+        MockTemplate.name +
+        `/workspace?param.${param}=${paramValue}&mode=auto&version=test-template-version`,
+      path: "/templates/:template/workspace",
+    });
+
+    await waitFor(() => {
+      expect(createWorkspaceSpy).toBeCalledWith(
+        MockOrganization.id,
+        "me",
+        expect.objectContaining({
+          template_version_id: MockTemplate.active_version_id,
           rich_parameter_values: [{ name: param, value: paramValue }],
         }),
       );

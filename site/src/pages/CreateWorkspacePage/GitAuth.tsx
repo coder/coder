@@ -9,20 +9,30 @@ import { BitbucketIcon } from "components/Icons/BitbucketIcon";
 import { GitlabIcon } from "components/Icons/GitlabIcon";
 import { FC } from "react";
 import { makeStyles } from "@mui/styles";
+import { type GitAuthPollingState } from "./CreateWorkspacePage";
+import { Stack } from "components/Stack/Stack";
+import ReplayIcon from "@mui/icons-material/Replay";
+import { LoadingButton } from "components/LoadingButton/LoadingButton";
 
 export interface GitAuthProps {
   type: TypesGen.GitProvider;
   authenticated: boolean;
   authenticateURL: string;
+  gitAuthPollingState: GitAuthPollingState;
+  startPollingGitAuth: () => void;
   error?: string;
 }
 
-export const GitAuth: FC<GitAuthProps> = ({
-  type,
-  authenticated,
-  authenticateURL,
-  error,
-}) => {
+export const GitAuth: FC<GitAuthProps> = (props) => {
+  const {
+    type,
+    authenticated,
+    authenticateURL,
+    gitAuthPollingState,
+    startPollingGitAuth,
+    error,
+  } = props;
+
   const styles = useStyles({
     error: typeof error !== "undefined",
   });
@@ -52,12 +62,11 @@ export const GitAuth: FC<GitAuthProps> = ({
 
   return (
     <Tooltip
-      title={
-        authenticated ? "You're already authenticated! No action needed." : ``
-      }
+      title={authenticated && `${prettyName} has already been connected.`}
     >
-      <div>
-        <Button
+      <Stack alignItems="center" spacing={1}>
+        <LoadingButton
+          loading={gitAuthPollingState === "polling"}
           href={authenticateURL}
           variant="contained"
           size="large"
@@ -73,15 +82,21 @@ export const GitAuth: FC<GitAuthProps> = ({
               return;
             }
             window.open(authenticateURL, "_blank", "width=900,height=600");
+            startPollingGitAuth();
           }}
         >
           {authenticated
-            ? `You're authenticated with ${prettyName}!`
-            : `Click to login with ${prettyName}!`}
-        </Button>
+            ? `Authenticated with ${prettyName}`
+            : `Login with ${prettyName}`}
+        </LoadingButton>
 
+        {gitAuthPollingState === "abandoned" && (
+          <Button variant="text" onClick={startPollingGitAuth}>
+            <ReplayIcon /> Check again
+          </Button>
+        )}
         {error && <FormHelperText error>{error}</FormHelperText>}
-      </div>
+      </Stack>
     </Tooltip>
   );
 };

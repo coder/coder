@@ -2,13 +2,11 @@ import {
   checkAuthorization,
   createWorkspace,
   getTemplateByName,
-  getTemplateVersionGitAuth,
   getTemplateVersionRichParameters,
 } from "api/api";
 import {
   CreateWorkspaceRequest,
   Template,
-  TemplateVersionGitAuth,
   TemplateVersionParameter,
   User,
   Workspace,
@@ -16,7 +14,6 @@ import {
 } from "api/typesGenerated";
 import { assign, createMachine } from "xstate";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
-import { REFRESH_GITAUTH_BROADCAST_CHANNEL } from "utils/gitAuth";
 
 export type CreateWorkspaceMode = "form" | "auto";
 
@@ -33,7 +30,6 @@ type CreateWorkspaceContext = {
   template?: Template;
   parameters?: TemplateVersionParameter[];
   permissions?: Record<string, boolean>;
-  gitAuth?: TemplateVersionGitAuth[];
   // Used on auto-create
   defaultBuildParameters?: WorkspaceBuildParameter[];
 };
@@ -49,7 +45,7 @@ type RefreshGitAuthEvent = {
 };
 
 export const createWorkspaceMachine =
-  /** @xstate-layout N4IgpgJg5mDOIC5QGMBOYCGAXMB1A9qgNawAOGyYAyltmAHQxZYCWAdlACpgC2pANnVgBiCPjYN2AN3xEGaTDgLEyFarRyMwzdl14ChCafmTYW4gNoAGALrWbiUKXywWrcY5AAPRABYATAA0IACeiACMvgCs9ADssQBsVgDM-v5JyQnJUQkAvrnBCnTKJOSUNHRaOhzcfII4ImIS9MZy9EVKhKVqFZpMrDX69XBGbDKm7mz2FuEOSCDOrpOePgjJAJzr9AAcVr4J677bCeFWB3vBYQgBvvQJB-5R6+GxVulPUfmF6MVdquUaBj9XS1AwNYRgVCoQj0MEAM0IPHaP06KjK6kqwMGdUMxgm5imtnsnkWbgJK0QGy2u32h2Op3OvkuiH8vis9HCDxO0XC2z5CX8XxAHTwf3RvSB2gGehxOCoyAAFrwMKJxJIxrJ5CjRWieoCqtLQcN5UqeBhRuMzJYibYSS4yR55qtTv52bFeYlfPEor4XuFmddwlscqz1mdfMlfZlfEKRSV-hi+lKQUM6CblRCoTD4YjkYodd0AZjk9iwdRFcqLSYrYS7Lb5qTlk6Im83R6El7Yj6-QH4gl6M8ctsoht7skrJ8CsLtfHxfqsTKywAFDCoDA8bSQxpqloatpxsV64vVRfDFdrjc4VCwKv4611uZOe1N0DOgXhOKRjZf-axR4Btl2XWWJngSKJtgCHJwnSWMZ0PIskxPI06HPddN2vTNoVQWF6gRVAkQPXUEMlJDUxwVDLy3W8a2mesnyWclmwQTl-A-WIv3WH8Ej-KIAyyW4Em2Z5XV5fx1m48JYPzWcj0Qw0yLAABxNwAEEAFcsAVVVmlaLVpPgxMSPk2UlNUjSFWoyZaMfBZn0Y18WSDfsfUEvlfEHViA2SbZ-HoDZwPSe4omCwUp0IwtDINFMTOUrB1M0zDs1w3NwoTCUotLYZYviiy8Rom0bMbezvEc8T6BcvkII8-1Qj8dZfP2R4fXEziUliKTfiIyKK2QIhdCXSEeBYWBXHEbcdL3eQlV6gb8OG0a2FgYkGzsx0HIQfwfJiKJXmSZJoO88IRwAqwP22aD3OeLshP2DrUQi9Ker6jhZqGkaCRESEsJw7A8II6aiFe+aPuW+iHTYCkNqiKxtgHVi+XWYK2SZWqNr5HZslAiNoJSSdvn0rr0rhFh+H4frV3XEQAGEACUAFEVM4OmAH1cAAeRpgBpKglxUqm6dB2yGLWkq0cecrdv2-xDuO1GXluRH9s5H1wKObi7oLNL9WJ0nyYvEQqDpgAZOmqc4Zm2dwAA5OmacFoqRdWcd0asSWkZuoJUbSftpc2vZ6rZDsXg1mTiLzMwOFDsBtPVGR9zgwn9Q6XQo8sglrLtYWIaYzbxZ2lIpZl5IA3O+hLvWeleSiVj6pDgzHpRFODMS7Cc3w8P7q1ypk8jgy0-ve3Vuz9bc+2yWDvO2WrjE2HMcybZYiOHJYm2fIpzYfAIDgTxUrnOhM-ByGAFoEgDE-6CsS+3n8d0nl9aW8enAmHvnEtTyEA+X1F4cOWryM0k5JyTiAZWS3DSKBdIC9zjZDronY8xkyzpjNJ-YqqxXjORXuEfaEYAh9gAtLO4aQNgenqkdSMsCX7wOisuCmlFrwoMdhETazl9hCQ2NLKwFd1gnRiCkMM51og8k2BQruclqFZTMppBhw9RZBldvQTa0FzgdnuF5Y4ZdgrumyI8JyC8RF700E9fqg1gZjWkZDUBWwDgjjElgnawE1GxAUUJPYglwIjjeDGMKCdKGaB1mTF6tD4ArSzpDfabwdiXxApseqtjT6o1SE4txrVXTpHSF4-GnVfF6QjlAKO5ic5RCOn5LsbwjpHWeJyAMZVThHUgvcCSvp9GyRyTgCABT1rhN8rsV2MTYmgQDC6BR7xuznByCcZpYcvqEA6aLSxdxFa2OyCBWIAYimwxXvwoMrp3GrzXkAA */
+  /** @xstate-layout N4IgpgJg5mDOIC5QGMBOYCGAXMB1A9qgNawAOGyYAyltmAHTIAWYyRAlgHZQCy+EYAMQBtAAwBdRKFL5Y7LO3ycpIAB6IATABYAnPR2iDWgOwBmAGynRo4wFZbAGhABPRDoAc9d+8OnTARlF-Uy0NUQ0AXwinNEwcAmIyCmpaHEYWNi5efiFhf0kkEBk5BSUVdQQNU1svEPcq9wsDU3ctJ1dKv3pRd3NzHVNjf1sjHX8omPQ6BJJySho6egwAVyx8AGEphW5BCCUGLgA3fCIGWOnCWeSFtJW1zbishCP8ZGxFTjFxL5Vi+Q-yoh7MZ9MZjLoQqItN5jDp2ogALT+PSWWwaDR9dzGDTeXTuCYgc7xS5JeapBh3DZbLKCMCoVCEeikAA22AAZoQALaMLZ4ElzFKLSkPd7cZ6cY5vUqfCQ-Qp-aWAhAtPQtWxDaE+OxQ4zwhD+dw1US2cw4-zmLQ9WyicwEol8xICm4MZn4DAQLIAMS5ABFsBhdvt6C9Tjy4g6rmTFq73V7ff7xZL3kovnLpLJ-mVChVzNb6P5tDoMei7P5-G0XIgQqZ6BjbFrWuZGrC7byZqTBWkYx7uN7UJy-bRafTGSz2VywxdHddyfRu3H+4OMInXsmZd8JL8M4rs4hejWCzYLOYDSfjOY9SENPpgmYy+bgjodLbooS2-yZ4t2BBmUJ1gAlABRABBAAVQCAH1cAAeX-ABpKgAAVgPWQC0yKbcAV3BBLHMWs61EQZjQ0ZF3D1ewa36S0QlhasQlbcN2ydWciSyJjkkDTgDglE4znfacozSVjuHYygVylD5U03eVMKzUAc1MPRGh0cEtBMJ9Wj1MxPFsKwmg0DwwmGBip0jTs+MeESP0oYcGVQJlWSwDl+0nYkBPM1y2OssBxLXKSCnTEosPkxBQn8eh7FaewBjRU1THIwIb2CLQ+nrXN1SiV9OByeBCntUTzK3IK5LUKstFrWE4uNGxwQxPUkRsfNqnRfxzybE1+hMtyzOddJWA4bg+AEIrM2UbD6gq58qmqsFQgvSsEGfehLEMExWp0LRSK6iMO164VqW4EadxC5Ui2W0wNDBDVekfLTrx8cIAnBKxgVsbaCt6+de3jWgjuC0qcIsZbfBtPE-F1BaGn0AzIWxGK-HxV98u83rv1-P6SpzSx6EUtT+kIsYT38PUtFscKDTUw1zGxMmy3elGWIOqACoxsaTtNPCLs2-oGlNVq9SJ2tQcCS0eZS+n3N6+0IFZpV3A2-MtBadx1uRcIyIWuxPDsforEM6x7AlnrZ27QCR1QWXxthHHLrBJ8nxtJsSd0ehsQsJWNHrYYi0yiIgA */
   createMachine(
     {
       id: "createWorkspaceState",
@@ -64,7 +60,6 @@ export const createWorkspaceMachine =
               template: Template;
               permissions: CreateWSPermissions;
               parameters: TemplateVersionParameter[];
-              gitAuth: TemplateVersionGitAuth[];
             };
           };
           createWorkspace: {
@@ -112,16 +107,6 @@ export const createWorkspaceMachine =
           },
         },
         idle: {
-          invoke: [
-            {
-              src: () => (callback) => {
-                const channel = watchGitAuthRefresh(() => {
-                  callback("REFRESH_GITAUTH");
-                });
-                return () => channel.close();
-              },
-            },
-          ],
           on: {
             CREATE_WORKSPACE: {
               target: "creatingWorkspace",
@@ -189,23 +174,24 @@ export const createWorkspaceMachine =
             rich_parameter_values: defaultBuildParameters,
           });
         },
-        loadFormData: async ({ templateName, organizationId }) => {
+        loadFormData: async ({ templateName, organizationId, versionId }) => {
           const [template, permissions] = await Promise.all([
             getTemplateByName(organizationId, templateName),
             checkCreateWSPermissions(organizationId),
           ]);
-          const [parameters, gitAuth] = await Promise.all([
-            getTemplateVersionRichParameters(template.active_version_id).then(
-              (p) => p.filter(paramsUsedToCreateWorkspace),
+
+          const realizedVersionId = versionId ?? template.active_version_id;
+          const [parameters] = await Promise.all([
+            getTemplateVersionRichParameters(realizedVersionId).then((p) =>
+              p.filter(paramsUsedToCreateWorkspace),
             ),
-            getTemplateVersionGitAuth(template.active_version_id),
           ]);
 
           return {
             template,
             permissions,
             parameters,
-            gitAuth,
+            versionId: realizedVersionId,
           };
         },
       },
@@ -244,12 +230,6 @@ const checkCreateWSPermissions = async (organizationId: string) => {
   return checkAuthorization({
     checks: permissionsToCheck,
   }) as Promise<Record<keyof typeof permissionsToCheck, boolean>>;
-};
-
-export const watchGitAuthRefresh = (callback: () => void) => {
-  const bc = new BroadcastChannel(REFRESH_GITAUTH_BROADCAST_CHANNEL);
-  bc.addEventListener("message", callback);
-  return bc;
 };
 
 export type CreateWSPermissions = Awaited<
