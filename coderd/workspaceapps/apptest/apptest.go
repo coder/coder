@@ -1419,7 +1419,7 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 
 	// Brief pause to reduce the likelihood that we send keystrokes while
 	// the shell is simultaneously sending a prompt.
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
 		Data: "echo test\r\n",
