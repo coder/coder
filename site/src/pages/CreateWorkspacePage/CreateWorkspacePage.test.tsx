@@ -7,17 +7,20 @@ import {
   MockWorkspace,
   MockWorkspaceQuota,
   MockWorkspaceRequest,
+  MockWorkspaceRichParametersRequest,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockTemplateVersionGitAuth,
   MockOrganization,
+  MockTemplateVersionGitAuthAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
 } from "testHelpers/renderHelpers";
 import CreateWorkspacePage from "./CreateWorkspacePage";
+import { delay } from "utils/delay";
 
 const nameLabelText = "Workspace Name";
 const createWorkspaceText = "Create Workspace";
@@ -60,9 +63,9 @@ describe("CreateWorkspacePage", () => {
       expect(API.createWorkspace).toBeCalledWith(
         MockUser.organization_ids[0],
         MockUser.id,
-        {
-          ...MockWorkspaceRequest,
-        },
+        expect.objectContaining({
+          ...MockWorkspaceRichParametersRequest,
+        }),
       ),
     );
   });
@@ -152,6 +155,52 @@ describe("CreateWorkspacePage", () => {
       validationPatternNotMatched,
     );
     expect(validationError).toBeInTheDocument();
+  });
+
+  it("gitauth authenticates and succeeds", async () => {
+    jest
+      .spyOn(API, "getWorkspaceQuota")
+      .mockResolvedValueOnce(MockWorkspaceQuota);
+    jest
+      .spyOn(API, "getUsers")
+      .mockResolvedValueOnce({ users: [MockUser], count: 1 });
+    jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValue([MockTemplateVersionGitAuth]);
+
+    renderCreateWorkspacePage();
+    await waitForLoaderToBeRemoved();
+
+    const nameField = await screen.findByLabelText(nameLabelText);
+    // have to use fireEvent b/c userEvent isn't cleaning up properly between tests
+    fireEvent.change(nameField, {
+      target: { value: "test" },
+    });
+
+    const githubButton = await screen.findByText("Login with GitHub");
+    userEvent.click(githubButton);
+
+    jest
+      .spyOn(API, "getTemplateVersionGitAuth")
+      .mockResolvedValue([MockTemplateVersionGitAuthAuthenticated]);
+
+    // Wait for gitAuth to be refetched
+    await delay(1500);
+    await screen.findByText("Authenticated with GitHub");
+
+    const submitButton = screen.getByText(createWorkspaceText);
+    await userEvent.click(submitButton);
+
+    await waitFor(() =>
+      expect(API.createWorkspace).toBeCalledWith(
+        MockUser.organization_ids[0],
+        MockUser.id,
+        expect.objectContaining({
+          ...MockWorkspaceRequest,
+        }),
+      ),
+    );
   });
 
   it("gitauth: errors if unauthenticated and submits", async () => {
