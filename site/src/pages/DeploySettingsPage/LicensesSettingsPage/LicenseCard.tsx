@@ -36,7 +36,7 @@ export const LicenseCard = ({
   return (
     <Paper key={license.id} elevation={2} className={styles.licenseCard}>
       <ConfirmDialog
-        type="info"
+        type="delete"
         hideCancel={false}
         open={licenseIDMarkedForRemoval !== undefined}
         onConfirm={() => {
@@ -105,11 +105,11 @@ export const LicenseCard = ({
           <Stack spacing={2}>
             <Button
               className={styles.removeButton}
-              variant="text"
+              variant="contained"
               size="small"
               onClick={() => setLicenseIDMarkedForRemoval(license.id)}
             >
-              Remove
+              Remove&hellip;
             </Button>
           </Stack>
         </Stack>
@@ -148,10 +148,6 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
   },
   removeButton: {
-    height: "17px",
-    minHeight: "17px",
-    padding: 0,
-    border: "none",
     color: theme.palette.error.main,
     "&:hover": {
       backgroundColor: "transparent",

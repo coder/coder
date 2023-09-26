@@ -52,9 +52,34 @@ func TestAgent(t *testing.T) {
 			want: []string{
 				"⧗ Waiting for the workspace agent to connect",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"Notice: The startup script is still running and your workspace may be incomplete.",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"Notice: The startup scripts are still running and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
+			},
+		},
+		{
+			name: "Start timeout",
+			opts: cliui.AgentOptions{
+				FetchInterval: time.Millisecond,
+			},
+			iter: []func(context.Context, *codersdk.WorkspaceAgent, chan []codersdk.WorkspaceAgentLog) error{
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnecting
+					return nil
+				},
+				func(_ context.Context, agent *codersdk.WorkspaceAgent, logs chan []codersdk.WorkspaceAgentLog) error {
+					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStartTimeout
+					agent.FirstConnectedAt = ptr.Ref(time.Now())
+					return nil
+				},
+			},
+			want: []string{
+				"⧗ Waiting for the workspace agent to connect",
+				"✔ Waiting for the workspace agent to connect",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✘ Running workspace agent startup scripts (non-blocking)",
+				"Warning: A startup script timed out and your workspace may be incomplete.",
 			},
 		},
 		{
@@ -86,8 +111,8 @@ func TestAgent(t *testing.T) {
 				"The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.",
 				"For more information and troubleshooting, see",
 				"✔ Waiting for the workspace agent to connect",
-				"⧗ Running workspace agent startup script (non-blocking)",
-				"✔ Running workspace agent startup script (non-blocking)",
+				"⧗ Running workspace agent startup scripts (non-blocking)",
+				"✔ Running workspace agent startup scripts (non-blocking)",
 			},
 		},
 		{
@@ -120,7 +145,7 @@ func TestAgent(t *testing.T) {
 			},
 		},
 		{
-			name: "Startup script logs",
+			name: "Startup Logs",
 			opts: cliui.AgentOptions{
 				FetchInterval: time.Millisecond,
 				Wait:          true,
@@ -131,10 +156,15 @@ func TestAgent(t *testing.T) {
 					agent.FirstConnectedAt = ptr.Ref(time.Now())
 					agent.LifecycleState = codersdk.WorkspaceAgentLifecycleStarting
 					agent.StartedAt = ptr.Ref(time.Now())
+					agent.LogSources = []codersdk.WorkspaceAgentLogSource{{
+						ID:          uuid.Nil,
+						DisplayName: "testing",
+					}}
 					logs <- []codersdk.WorkspaceAgentLog{
 						{
 							CreatedAt: time.Now(),
 							Output:    "Hello world",
+							SourceID:  uuid.Nil,
 						},
 					}
 					return nil
@@ -152,10 +182,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
-				"Hello world",
+				"⧗ Running workspace agent startup scripts",
+				"testing: Hello world",
 				"Bye now",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 		},
 		{
@@ -181,10 +211,10 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✘ Running workspace agent startup script",
-				"Warning: The startup script exited with an error and your workspace may be incomplete.",
+				"✘ Running workspace agent startup scripts",
+				"Warning: A startup script exited with an error and your workspace may be incomplete.",
 				"For more information and troubleshooting, see",
 			},
 		},
@@ -229,9 +259,9 @@ func TestAgent(t *testing.T) {
 				},
 			},
 			want: []string{
-				"⧗ Running workspace agent startup script",
+				"⧗ Running workspace agent startup scripts",
 				"Hello world",
-				"✔ Running workspace agent startup script",
+				"✔ Running workspace agent startup scripts",
 			},
 			wantErr: true,
 		},
@@ -288,11 +318,10 @@ func TestAgent(t *testing.T) {
 
 			var buf bytes.Buffer
 			agent := codersdk.WorkspaceAgent{
-				ID:                    uuid.New(),
-				Status:                codersdk.WorkspaceAgentConnecting,
-				StartupScriptBehavior: codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking,
-				CreatedAt:             time.Now(),
-				LifecycleState:        codersdk.WorkspaceAgentLifecycleCreated,
+				ID:             uuid.New(),
+				Status:         codersdk.WorkspaceAgentConnecting,
+				CreatedAt:      time.Now(),
+				LifecycleState: codersdk.WorkspaceAgentLifecycleCreated,
 			}
 			logs := make(chan []codersdk.WorkspaceAgentLog, 1)
 
@@ -340,6 +369,9 @@ func TestAgent(t *testing.T) {
 				line := s.Text()
 				t.Log(line)
 				if len(tc.want) == 0 {
+					for i := 0; i < 5; i++ {
+						t.Log(line)
+					}
 					require.Fail(t, "unexpected line", line)
 				}
 				require.Contains(t, line, tc.want[0])

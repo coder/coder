@@ -56,10 +56,29 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
-	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+	var (
+		dbApps     []database.WorkspaceApp
+		scripts    []database.WorkspaceAgentScript
+		logSources []database.WorkspaceAgentLogSource
+	)
+
+	var eg errgroup.Group
+	eg.Go(func() (err error) {
+		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+		return err
+	})
+	eg.Go(func() (err error) {
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
+		return err
+	})
+	eg.Go(func() (err error) {
+		logSources, err = api.Database.GetWorkspaceAgentLogSourcesByAgentIDs(ctx, []uuid.UUID{workspaceAgent.ID})
+		return err
+	})
+	err := eg.Wait()
+	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent applications.",
+			Message: "Internal error fetching workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
@@ -99,7 +118,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -124,7 +143,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -134,52 +153,57 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	dbApps, err := api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent applications.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
-	metadata, err := api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace agent metadata.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	var (
+		dbApps    []database.WorkspaceApp
+		scripts   []database.WorkspaceAgentScript
+		metadata  []database.WorkspaceAgentMetadatum
+		resource  database.WorkspaceResource
+		build     database.WorkspaceBuild
+		workspace database.Workspace
+		owner     database.User
+	)
 
-	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+	var eg errgroup.Group
+	eg.Go(func() (err error) {
+		dbApps, err = api.Database.GetWorkspaceAppsByAgentID(ctx, workspaceAgent.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		return nil
+	})
+	eg.Go(func() (err error) {
+		// nolint:gocritic // This is necessary to fetch agent scripts!
+		scripts, err = api.Database.GetWorkspaceAgentScriptsByAgentIDs(dbauthz.AsSystemRestricted(ctx), []uuid.UUID{workspaceAgent.ID})
+		return err
+	})
+	eg.Go(func() (err error) {
+		metadata, err = api.Database.GetWorkspaceAgentMetadata(ctx, workspaceAgent.ID)
+		return err
+	})
+	eg.Go(func() (err error) {
+		resource, err = api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		if err != nil {
+			return xerrors.Errorf("getting resource by id: %w", err)
+		}
+		build, err = api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
+		if err != nil {
+			return xerrors.Errorf("getting workspace build by job id: %w", err)
+		}
+		workspace, err = api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
+		if err != nil {
+			return xerrors.Errorf("getting workspace by id: %w", err)
+		}
+		owner, err = api.Database.GetUserByID(ctx, workspace.OwnerID)
+		if err != nil {
+			return xerrors.Errorf("getting workspace owner by id: %w", err)
+		}
+		return err
+	})
+	err = eg.Wait()
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace resource.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	workspace, err := api.Database.GetWorkspaceByID(ctx, build.WorkspaceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace owner.",
+			Message: "Internal error fetching workspace agent manifest.",
 			Detail:  err.Error(),
 		})
 		return
@@ -200,17 +224,14 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
 		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
+		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
 		GitAuthConfigs:           len(api.GitAuthConfigs),
 		EnvironmentVariables:     apiAgent.EnvironmentVariables,
-		StartupScript:            apiAgent.StartupScript,
 		Directory:                apiAgent.Directory,
 		VSCodePortProxyURI:       vscodeProxyURI,
 		MOTDFile:                 workspaceAgent.MOTDFile,
-		StartupScriptTimeout:     time.Duration(apiAgent.StartupScriptTimeoutSeconds) * time.Second,
-		ShutdownScript:           apiAgent.ShutdownScript,
-		ShutdownScriptTimeout:    time.Duration(apiAgent.ShutdownScriptTimeoutSeconds) * time.Second,
 		DisableDirectConnections: api.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		Metadata:                 convertWorkspaceAgentMetadataDesc(metadata),
 	})
@@ -230,7 +251,7 @@ func (api *API) postWorkspaceAgentStartup(rw http.ResponseWriter, r *http.Reques
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -321,13 +342,37 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 		})
 		return
 	}
-	createdAt := make([]time.Time, 0)
+	// This is to support the legacy API where the log source ID was
+	// not provided in the request body. We default to the external
+	// log source in this case.
+	if req.LogSourceID == uuid.Nil {
+		// Use the external log source
+		externalSources, err := api.Database.InsertWorkspaceAgentLogSources(ctx, database.InsertWorkspaceAgentLogSourcesParams{
+			WorkspaceAgentID: workspaceAgent.ID,
+			CreatedAt:        dbtime.Now(),
+			ID:               []uuid.UUID{agentsdk.ExternalLogSourceID},
+			DisplayName:      []string{"External"},
+			Icon:             []string{"/emojis/1f310.png"},
+		})
+		if database.IsUniqueViolation(err, database.UniqueWorkspaceAgentLogSourcesPkey) {
+			err = nil
+			req.LogSourceID = agentsdk.ExternalLogSourceID
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to create external log source.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if len(externalSources) == 1 {
+			req.LogSourceID = externalSources[0].ID
+		}
+	}
 	output := make([]string, 0)
 	level := make([]database.LogLevel, 0)
-	source := make([]database.WorkspaceAgentLogSource, 0)
 	outputLength := 0
 	for _, logEntry := range req.Logs {
-		createdAt = append(createdAt, logEntry.CreatedAt)
 		output = append(output, logEntry.Output)
 		outputLength += len(logEntry.Output)
 		if logEntry.Level == "" {
@@ -343,28 +388,14 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			return
 		}
 		level = append(level, parsedLevel)
-
-		if logEntry.Source == "" {
-			// Default to "startup_script" to support older agents that didn't have the source field.
-			logEntry.Source = codersdk.WorkspaceAgentLogSourceStartupScript
-		}
-		parsedSource := database.WorkspaceAgentLogSource(logEntry.Source)
-		if !parsedSource.Valid() {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid log source provided.",
-				Detail:  fmt.Sprintf("invalid log source: %q", logEntry.Source),
-			})
-			return
-		}
-		source = append(source, parsedSource)
 	}
 
 	logs, err := api.Database.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      workspaceAgent.ID,
-		CreatedAt:    createdAt,
+		CreatedAt:    dbtime.Now(),
 		Output:       output,
 		Level:        level,
-		Source:       source,
+		LogSourceID:  req.LogSourceID,
 		OutputLength: int32(outputLength),
 	})
 	if err != nil {
@@ -734,7 +765,7 @@ func (api *API) workspaceAgentListeningPorts(rw http.ResponseWriter, r *http.Req
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, nil, nil, nil, api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -1403,6 +1434,37 @@ func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, 
 	return apps
 }
 
+func convertLogSources(dbLogSources []database.WorkspaceAgentLogSource) []codersdk.WorkspaceAgentLogSource {
+	logSources := make([]codersdk.WorkspaceAgentLogSource, 0)
+	for _, dbLogSource := range dbLogSources {
+		logSources = append(logSources, codersdk.WorkspaceAgentLogSource{
+			ID:               dbLogSource.ID,
+			DisplayName:      dbLogSource.DisplayName,
+			WorkspaceAgentID: dbLogSource.WorkspaceAgentID,
+			CreatedAt:        dbLogSource.CreatedAt,
+			Icon:             dbLogSource.Icon,
+		})
+	}
+	return logSources
+}
+
+func convertScripts(dbScripts []database.WorkspaceAgentScript) []codersdk.WorkspaceAgentScript {
+	scripts := make([]codersdk.WorkspaceAgentScript, 0)
+	for _, dbScript := range dbScripts {
+		scripts = append(scripts, codersdk.WorkspaceAgentScript{
+			LogPath:          dbScript.LogPath,
+			LogSourceID:      dbScript.LogSourceID,
+			Script:           dbScript.Script,
+			Cron:             dbScript.Cron,
+			RunOnStart:       dbScript.RunOnStart,
+			RunOnStop:        dbScript.RunOnStop,
+			StartBlocksLogin: dbScript.StartBlocksLogin,
+			Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
+		})
+	}
+	return scripts
+}
+
 func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) []codersdk.WorkspaceAgentMetadataDescription {
 	metadata := make([]codersdk.WorkspaceAgentMetadataDescription, 0)
 	for _, datum := range mds {
@@ -1417,7 +1479,10 @@ func convertWorkspaceAgentMetadataDesc(mds []database.WorkspaceAgentMetadatum) [
 	return metadata
 }
 
-func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator, dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string) (codersdk.WorkspaceAgent, error) {
+func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
+	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
+	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
+) (codersdk.WorkspaceAgent, error) {
 	var envs map[string]string
 	if dbAgent.EnvironmentVariables.Valid {
 		err := json.Unmarshal(dbAgent.EnvironmentVariables.RawMessage, &envs)
@@ -1434,33 +1499,41 @@ func convertWorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordin
 		subsystems[i] = codersdk.AgentSubsystem(subsystem)
 	}
 
+	legacyStartupScriptBehavior := codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking
+	for _, script := range scripts {
+		if !script.RunOnStart {
+			continue
+		}
+		if !script.StartBlocksLogin {
+			continue
+		}
+		legacyStartupScriptBehavior = codersdk.WorkspaceAgentStartupScriptBehaviorBlocking
+	}
+
 	workspaceAgent := codersdk.WorkspaceAgent{
-		ID:                           dbAgent.ID,
-		CreatedAt:                    dbAgent.CreatedAt,
-		UpdatedAt:                    dbAgent.UpdatedAt,
-		ResourceID:                   dbAgent.ResourceID,
-		InstanceID:                   dbAgent.AuthInstanceID.String,
-		Name:                         dbAgent.Name,
-		Architecture:                 dbAgent.Architecture,
-		OperatingSystem:              dbAgent.OperatingSystem,
-		StartupScript:                dbAgent.StartupScript.String,
-		StartupScriptBehavior:        codersdk.WorkspaceAgentStartupScriptBehavior(dbAgent.StartupScriptBehavior),
-		StartupScriptTimeoutSeconds:  dbAgent.StartupScriptTimeoutSeconds,
-		LogsLength:                   dbAgent.LogsLength,
-		LogsOverflowed:               dbAgent.LogsOverflowed,
-		Version:                      dbAgent.Version,
-		EnvironmentVariables:         envs,
-		Directory:                    dbAgent.Directory,
-		ExpandedDirectory:            dbAgent.ExpandedDirectory,
-		Apps:                         apps,
-		ConnectionTimeoutSeconds:     dbAgent.ConnectionTimeoutSeconds,
-		TroubleshootingURL:           troubleshootingURL,
-		LifecycleState:               codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
-		LoginBeforeReady:             dbAgent.StartupScriptBehavior != database.StartupScriptBehaviorBlocking,
-		ShutdownScript:               dbAgent.ShutdownScript.String,
-		ShutdownScriptTimeoutSeconds: dbAgent.ShutdownScriptTimeoutSeconds,
-		Subsystems:                   subsystems,
-		DisplayApps:                  convertDisplayApps(dbAgent.DisplayApps),
+		ID:                       dbAgent.ID,
+		CreatedAt:                dbAgent.CreatedAt,
+		UpdatedAt:                dbAgent.UpdatedAt,
+		ResourceID:               dbAgent.ResourceID,
+		InstanceID:               dbAgent.AuthInstanceID.String,
+		Name:                     dbAgent.Name,
+		Architecture:             dbAgent.Architecture,
+		OperatingSystem:          dbAgent.OperatingSystem,
+		Scripts:                  scripts,
+		StartupScriptBehavior:    legacyStartupScriptBehavior,
+		LogsLength:               dbAgent.LogsLength,
+		LogsOverflowed:           dbAgent.LogsOverflowed,
+		LogSources:               logSources,
+		Version:                  dbAgent.Version,
+		EnvironmentVariables:     envs,
+		Directory:                dbAgent.Directory,
+		ExpandedDirectory:        dbAgent.ExpandedDirectory,
+		Apps:                     apps,
+		ConnectionTimeoutSeconds: dbAgent.ConnectionTimeoutSeconds,
+		TroubleshootingURL:       troubleshootingURL,
+		LifecycleState:           codersdk.WorkspaceAgentLifecycle(dbAgent.LifecycleState),
+		Subsystems:               subsystems,
+		DisplayApps:              convertDisplayApps(dbAgent.DisplayApps),
 	}
 	node := coordinator.Node(dbAgent.ID)
 	if node != nil {
@@ -2327,6 +2400,7 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 		CreatedAt: logEntry.CreatedAt,
 		Output:    logEntry.Output,
 		Level:     codersdk.LogLevel(logEntry.Level),
+		SourceID:  logEntry.LogSourceID,
 	}
 }
 

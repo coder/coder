@@ -53,7 +53,7 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
     severity: "info",
     children: (
       <>
-        Startup script is still running. You can continue using this terminal,
+        Startup scripts are still running. You can continue using this terminal,
         but{" "}
         <Link
           title="your workspace may be incomplete."
@@ -71,10 +71,10 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
     severity: "success",
     children: (
       <>
-        Startup script has completed successfully. The workspace is ready but
+        Startup scripts have completed successfully. The workspace is ready but
         this{" "}
         <Link
-          title="session was started before the startup script finished"
+          title="session was started before the startup scripts finished"
           href={docs("/templates#your-workspace-may-be-incomplete")}
           target="_blank"
           rel="noreferrer"
