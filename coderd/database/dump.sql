@@ -144,15 +144,6 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
-CREATE TYPE workspace_agent_log_source AS ENUM (
-    'startup_script',
-    'shutdown_script',
-    'kubernetes_logs',
-    'envbox',
-    'envbuilder',
-    'external'
-);
-
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
@@ -789,13 +780,21 @@ COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key use
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
-CREATE TABLE workspace_agent_logs (
+CREATE TABLE workspace_agent_log_sources (
+    workspace_agent_id uuid NOT NULL,
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    display_name character varying(127) NOT NULL,
+    icon text NOT NULL
+);
+
+CREATE UNLOGGED TABLE workspace_agent_logs (
     agent_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     output character varying(1024) NOT NULL,
     id bigint NOT NULL,
     level log_level DEFAULT 'info'::log_level NOT NULL,
-    source workspace_agent_log_source DEFAULT 'startup_script'::workspace_agent_log_source NOT NULL
+    log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -808,6 +807,19 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
     timeout bigint NOT NULL,
     "interval" bigint NOT NULL,
     collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+);
+
+CREATE TABLE workspace_agent_scripts (
+    workspace_agent_id uuid NOT NULL,
+    log_source_id uuid NOT NULL,
+    log_path text NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    script text NOT NULL,
+    cron text NOT NULL,
+    start_blocks_login boolean NOT NULL,
+    run_on_start boolean NOT NULL,
+    run_on_stop boolean NOT NULL,
+    timeout_seconds integer NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -853,7 +865,6 @@ CREATE TABLE workspace_agents (
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
     operating_system character varying(64) NOT NULL,
-    startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
@@ -863,13 +874,9 @@ CREATE TABLE workspace_agents (
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    shutdown_script character varying(65534),
-    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     logs_length integer DEFAULT 0 NOT NULL,
     logs_overflowed boolean DEFAULT false NOT NULL,
-    startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
     subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
@@ -888,19 +895,11 @@ COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace c
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
-COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
-
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
-
-COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
-
-COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
 
 COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
 
 COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
-
-COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.';
 
 COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
 
@@ -1224,6 +1223,9 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_log_sources
+    ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
 
@@ -1418,8 +1420,14 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY workspace_agent_log_sources
+    ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_scripts
+    ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

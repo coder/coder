@@ -57,12 +57,18 @@ func TestBuildInfo(t *testing.T) {
 				expectMatch: true,
 			},
 			// Our CI instance uses a "-devel" prerelease
-			// flag. This is not the same as a developer WIP build.
+			// flag.
 			{
-				name:        "DevelPreleaseNotIgnored",
+				name:        "DevelPreleaseMajor",
 				v1:          "v1.1.1-devel+123abac",
 				v2:          "v1.2.3",
 				expectMatch: false,
+			},
+			{
+				name:        "DevelPreleaseSame",
+				v1:          "v1.1.1-devel+123abac",
+				v2:          "v1.1.9",
+				expectMatch: true,
 			},
 			{
 				name:        "MajorMismatch",

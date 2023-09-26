@@ -268,7 +268,7 @@ func TestWorkspaceAgent(t *testing.T) {
 	})
 }
 
-func TestWorkspaceAgentStartupLogs(t *testing.T) {
+func TestWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()

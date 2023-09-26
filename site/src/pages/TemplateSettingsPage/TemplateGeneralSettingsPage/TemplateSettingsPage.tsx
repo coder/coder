@@ -55,3 +55,5 @@ export const TemplateSettingsPage: FC = () => {
     </>
   );
 };
+
+export default TemplateSettingsPage;

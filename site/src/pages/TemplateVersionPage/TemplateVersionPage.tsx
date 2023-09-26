@@ -1,7 +1,8 @@
 import { useMachine } from "@xstate/react";
+import { usePermissions } from "hooks/usePermissions";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { useTab } from "hooks/useTab";
-import { FC } from "react";
+import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -21,6 +22,17 @@ export const TemplateVersionPage: FC = () => {
     context: { templateName, versionName, orgId },
   });
   const tab = useTab("file", "0");
+  const permissions = usePermissions();
+
+  const versionId = state.context.currentVersion?.id;
+  const createWorkspaceUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (versionId) {
+      params.set("version", versionId);
+      return `/templates/${templateName}/workspace?${params.toString()}`;
+    }
+    return undefined;
+  }, [templateName, versionId]);
 
   return (
     <>
@@ -33,6 +45,9 @@ export const TemplateVersionPage: FC = () => {
         versionName={versionName}
         templateName={templateName}
         tab={tab}
+        createWorkspaceUrl={
+          permissions.updateTemplates ? createWorkspaceUrl : undefined
+        }
       />
     </>
   );

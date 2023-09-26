@@ -1494,8 +1494,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID:                    uuid.New(),
-			StartupScriptBehavior: database.StartupScriptBehaviorNonBlocking,
+			ID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {

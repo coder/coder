@@ -80,6 +80,10 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
+	logSources := map[uuid.UUID]codersdk.WorkspaceAgentLogSource{}
+	for _, source := range agent.LogSources {
+		logSources[source.ID] = source
+	}
 
 	sw := &stageWriter{w: writer}
 
@@ -123,7 +127,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				return nil
 			}
 
-			stage := "Running workspace agent startup script"
+			stage := "Running workspace agent startup scripts"
 			follow := opts.Wait
 			if !follow {
 				stage += " (non-blocking)"
@@ -173,7 +177,12 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 							return nil
 						}
 						for _, log := range logs {
-							sw.Log(log.CreatedAt, log.Level, log.Output)
+							source, hasSource := logSources[log.SourceID]
+							output := log.Output
+							if hasSource && source.DisplayName != "" {
+								output = source.DisplayName + ": " + output
+							}
+							sw.Log(log.CreatedAt, log.Level, output)
 							lastLog = log
 						}
 					}
@@ -192,16 +201,19 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			switch agent.LifecycleState {
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+			case codersdk.WorkspaceAgentLifecycleStartTimeout:
+				sw.Fail(stage, 0)
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
-				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: The startup script exited with an error and your workspace may be incomplete.")
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
-					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup script is still running and your workspace may be incomplete.")
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't

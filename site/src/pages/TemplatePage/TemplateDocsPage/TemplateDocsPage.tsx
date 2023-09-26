@@ -1,6 +1,6 @@
 import { makeStyles } from "@mui/styles";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import frontMatter from "front-matter";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";

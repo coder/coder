@@ -1,0 +1,10 @@
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
+	 viewBox="0 0 185.69 237" enable-background="new 0 0 185.69 237" xml:space="preserve">
+<g>
+	<path fill="#333333" d="M135.96,0h-1.06H16.93C7.58,0,0,7.58,0,16.93v203.14C0,229.42,7.58,237,16.93,237h151.83
+		c9.35,0,16.93-7.58,16.93-16.93V50.79v-1.06L135.96,0z"/>
+	<circle fill="#3FA9F5" cx="92.84" cy="118.5" r="25.39"/>
+	<line fill="#1A1A1A" x1="185.69" y1="50.79" x2="134.9" y2="0"/>
+	<path fill="#3FA9F5" d="M135.96,32.8c0,9.35,7.58,16.93,16.93,16.93h32.8L135.96,0V32.8z"/>
+</g>
+</svg>

@@ -8,41 +8,14 @@ import { AgentRow } from "./AgentRow";
 import { ResourceCard } from "./ResourceCard";
 import { ProxyContext, getPreferredProxy } from "contexts/ProxyContext";
 import type { Meta, StoryObj } from "@storybook/react";
+import { type WorkspaceAgent } from "api/typesGenerated";
 
 const meta: Meta<typeof ResourceCard> = {
-  title: "components/ResourceCard",
+  title: "components/Resources/ResourceCard",
   component: ResourceCard,
   args: {
     resource: MockWorkspaceResource,
-    agentRow: (agent) => (
-      <ProxyContext.Provider
-        value={{
-          proxyLatencies: MockProxyLatencies,
-          proxy: getPreferredProxy([], undefined),
-          proxies: [],
-          isLoading: false,
-          isFetched: true,
-          setProxy: () => {
-            return;
-          },
-          clearProxy: () => {
-            return;
-          },
-          refetchProxyLatencies: (): Date => {
-            return new Date();
-          },
-        }}
-      >
-        <AgentRow
-          showApps
-          key={agent.id}
-          agent={agent}
-          workspace={MockWorkspace}
-          serverVersion=""
-          onUpdateAgent={action("updateAgent")}
-        />
-      </ProxyContext.Provider>
-    ),
+    agentRow: getAgentRow,
   },
 };
 
@@ -96,34 +69,38 @@ export const BunchOfMetadata: Story = {
         },
       ],
     },
-    agentRow: (agent) => (
-      <ProxyContext.Provider
-        value={{
-          proxyLatencies: MockProxyLatencies,
-          proxy: getPreferredProxy([], undefined),
-          proxies: [],
-          isLoading: false,
-          isFetched: true,
-          setProxy: () => {
-            return;
-          },
-          clearProxy: () => {
-            return;
-          },
-          refetchProxyLatencies: (): Date => {
-            return new Date();
-          },
-        }}
-      >
-        <AgentRow
-          showApps
-          key={agent.id}
-          agent={agent}
-          workspace={MockWorkspace}
-          serverVersion=""
-          onUpdateAgent={action("updateAgent")}
-        />
-      </ProxyContext.Provider>
-    ),
+    agentRow: getAgentRow,
   },
 };
+
+function getAgentRow(agent: WorkspaceAgent): JSX.Element {
+  return (
+    <ProxyContext.Provider
+      value={{
+        proxyLatencies: MockProxyLatencies,
+        proxy: getPreferredProxy([], undefined),
+        proxies: [],
+        isLoading: false,
+        isFetched: true,
+        setProxy: () => {
+          return;
+        },
+        clearProxy: () => {
+          return;
+        },
+        refetchProxyLatencies: (): Date => {
+          return new Date();
+        },
+      }}
+    >
+      <AgentRow
+        showApps
+        key={agent.id}
+        agent={agent}
+        workspace={MockWorkspace}
+        serverVersion=""
+        onUpdateAgent={action("updateAgent")}
+      />
+    </ProxyContext.Provider>
+  );
+}
