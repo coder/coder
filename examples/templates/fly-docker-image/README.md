@@ -1,7 +1,7 @@
 ---
 display_name: Fly.io Machines
 description: Provision Fly.io Machines as Coder workspaces
-icon: /icons/fly.io.svg
+icon: ../../../site/static/icon/fly.io.svg
 maintainer_github: coder
 verified: true
 tags: [fly, container]

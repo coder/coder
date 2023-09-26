@@ -1,7 +1,7 @@
 ---
 display_name: Google Compute Engine (VM Container)
 description: Provision Google Compute Engine instances as Coder workspaces
-icon: /icons/gcp.png
+icon: ../../../site/static/icon/gcp.png
 maintainer_github: coder
 verified: true
 tags: [vm-container, linux, gcp]

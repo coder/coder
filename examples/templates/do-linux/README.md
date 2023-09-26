@@ -1,7 +1,7 @@
 ---
 display_name: DigitalOcean Droplet (Linux)
 description: Provision DigitalOcean Droplets as Coder workspaces
-icon: /icons/do.png
+icon: ../../../site/static/icon/do.png
 maintainer_github: coder
 verified: true
 tags: [vm, linux, digitalocean]
