@@ -276,7 +276,7 @@ const GroupMemberRow = (props: {
         />
       </TableCell>
       <TableCell width="1%">
-        <Maybe condition={canUpdate}>
+        {canUpdate && (
           <TableRowMenu
             data={member}
             menuItems={[
@@ -299,7 +299,7 @@ const GroupMemberRow = (props: {
               },
             ]}
           />
-        </Maybe>
+        )}
       </TableCell>
     </TableRow>
   );
