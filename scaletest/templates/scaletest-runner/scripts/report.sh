@@ -20,6 +20,7 @@ esac
 . "${SCRIPTS_DIR}/lib.sh"
 
 # NOTE(mafredri): API returns HTML if we accidentally use `...//api` vs `.../api`.
+# https://github.com/coder/coder/issues/9877
 CODER_URL="${CODER_URL%/}"
 buildinfo="$(curl -sSL "${CODER_URL}/api/v2/buildinfo")"
 server_version="$(jq -r '.version' <<<"${buildinfo}")"
