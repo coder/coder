@@ -876,7 +876,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
 	require.NoError(t, err)
 
-	//nolint:dupl For testing purposes
+	//nolint:dupl // For testing purposes
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
@@ -1667,7 +1667,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 	frozenWeekAgoSaoPaulo, err := time.ParseInLocation(time.DateTime, frozenWeekAgo.Format(time.DateTime), saoPaulo)
 	require.NoError(t, err)
 
-	//nolint:dupl For testing purposes
+	//nolint:dupl // For testing purposes
 	makeBaseTestData := func(templates []*testTemplate, users []*testUser) map[*testWorkspace]testDataGen {
 		return map[*testWorkspace]testDataGen{
 			users[0].workspaces[0]: {
