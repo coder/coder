@@ -2872,7 +2872,7 @@ func (q *FakeQuerier) GetUserActivityInsights(ctx context.Context, arg database.
 			combinedStats[key] = make(map[time.Time]int64)
 		}
 
-		t := s.SessionStartedAt.Truncate(5 * time.Minute)
+		t := s.SessionStartedAt.Truncate(time.Minute)
 		if t.Before(arg.StartTime) {
 			t = arg.StartTime
 		}
