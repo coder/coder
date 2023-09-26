@@ -1,8 +1,10 @@
 ---
-name: Develop in a container on a Google Cloud VM
-description: Get started with Linux development on Google Cloud.
-tags: [cloud, google, container]
-icon: /icon/gcp.png
+display_name: Google Compute Engine (VM Container)
+description: Provision Google Compute Engine instances as Coder workspaces
+icon: /icons/gcp.png
+maintainer_github: coder
+verified: true
+tags: [vm-container, linux, gcp]
 ---
 
 # gcp-vm-container

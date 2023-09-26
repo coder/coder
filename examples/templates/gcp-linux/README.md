@@ -1,8 +1,10 @@
 ---
-name: Develop in Linux on Google Cloud
-description: Get started with Linux development on Google Cloud.
-tags: [cloud, google]
-icon: /icon/gcp.png
+display_name: Google Compute Engine (Linux)
+description: Provision Google Compute Engine instances as Coder workspaces
+icon: /icons/gcp.png
+maintainer_github: coder
+verified: true
+tags: [vm, linux, gcp]
 ---
 
 # gcp-linux

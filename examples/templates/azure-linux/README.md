@@ -1,8 +1,10 @@
 ---
-name: Develop in Linux on Azure
-description: Get started with Linux development on Microsoft Azure.
-tags: [cloud, azure, linux]
-icon: /icon/azure.png
+display_name: Azure VM (Linux)
+description: Provision Azure VMs as Coder workspaces
+icon: /icons/azure.png
+maintainer_github: coder
+verified: true
+tags: [vm, linux, azure]
 ---
 
 # azure-linux

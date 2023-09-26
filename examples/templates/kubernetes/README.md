@@ -1,6 +1,6 @@
 ---
-display_name: Kubernetes
-description: Develop inside a Kubernetes Pod
+display_name: Kubernetes (Deployment)
+description: Provision Kubernetes Deployments as Coder workspaces
 icon: /icons/k8s.png
 maintainer_github: coder
 verified: true

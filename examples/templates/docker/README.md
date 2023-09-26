@@ -1,8 +1,10 @@
 ---
-name: Develop in Docker
-description: Develop inside Docker containers using your local daemon
-tags: [local, docker]
-icon: /icon/docker.png
+display_name: Docker Containers
+description: Provision Docker containers as Coder workspaces
+icon: /icons/docker.png
+maintainer_github: coder
+verified: true
+tags: [docker, container]
 ---
 
 # docker

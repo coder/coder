@@ -1,8 +1,10 @@
 ---
-name: Develop in Linux on a Digital Ocean Droplet
-description: Get started with Linux development on a Digital Ocean Droplet.
-tags: [cloud, digitalocean]
-icon: /icon/do.png
+display_name: DigitalOcean Droplet (Linux)
+description: Provision DigitalOcean Droplets as Coder workspaces
+icon: /icons/do.png
+maintainer_github: coder
+verified: true
+tags: [vm, linux, digitalocean]
 ---
 
 # do-linux

@@ -1,8 +1,10 @@
 ---
-name: Devcontainers in Kubernetes
-description: Develop using devcontainers in Kubernetes
-tags: [local, kubernetes]
-icon: /icon/kubernetes.png
+display_name: Devcontainers (Kubernetes)
+description: Provision envbuilder pods as Coder workspaces
+icon: /icons/kubernetes.png
+maintainer_github: coder
+verified: true
+tags: [container, kubernetes, devcontainer]
 ---
 
 # devcontainer-kubernetes

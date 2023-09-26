@@ -1,8 +1,10 @@
 ---
-name: Develop in Windows on AWS
-description: Get started with Windows development on AWS.
-tags: [cloud, aws]
-icon: /icon/aws.png
+display_name: AWS EC2 (Windows)
+description: Provision AWS EC2 VMs as Coder workspaces
+icon: /icons/aws.png
+maintainer_github: coder
+verified: true
+tags: [vm, windows, aws]
 ---
 
 # aws-windows

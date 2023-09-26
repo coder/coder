@@ -1,8 +1,10 @@
 ---
-name: Develop in Linux on AWS EC2
-description: Get started with Linux development on AWS EC2.
-tags: [cloud, aws]
-icon: /icon/aws.png
+display_name: AWS EC2 (Linux)
+description: Provision AWS EC2 VMs as Coder workspaces
+icon: /icons/aws.png
+maintainer_github: coder
+verified: true
+tags: [vm, linux, aws, persistent-vm]
 ---
 
 # aws-linux

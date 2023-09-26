@@ -32,8 +32,6 @@ resource "coder_agent" "main" {
 }
 ```
 
-[Here's a complete example.](https://github.com/coder/coder/tree/main/examples/templates/docker-with-dotfiles#how-it-works)
-
 ## Persistent Home
 
 Sometimes you want to support personalization without requiring dotfiles.

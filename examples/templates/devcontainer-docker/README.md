@@ -1,8 +1,10 @@
 ---
-name: Devcontainers in Docker
-description: Develop using devcontainers in Docker
-tags: [local, docker]
-icon: /icon/docker.png
+display_name: Devcontainers (Docker)
+description: Provision envbuilder containers as Coder workspaces
+icon: /icons/docker.png
+maintainer_github: coder
+verified: true
+tags: [container, docker, devcontainer]
 ---
 
 # devcontainer-docker

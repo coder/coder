@@ -1,8 +1,10 @@
 ---
-name: Develop in Windows on Azure
-description: Get started with Windows development on Microsoft Azure.
-tags: [cloud, azure, windows]
-icon: /icon/azure.png
+display_name: Azure VM (Windows)
+description: Provision Azure VMs as Coder workspaces
+icon: /icons/azure.png
+maintainer_github: coder
+verified: true
+tags: [vm, windows, azure]
 ---
 
 # azure-windows

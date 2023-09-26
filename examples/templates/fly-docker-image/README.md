@@ -1,8 +1,10 @@
 ---
-name: Develop on a Fly.io container
-description: Run workspaces as Firecracker VMs on Fly.io
-tags: [docker, fly.io]
-icon: /icon/fly.io.svg
+display_name: Fly.io Machines
+description: Provision Fly.io Machines as Coder workspaces
+icon: /icons/fly.io.svg
+maintainer_github: coder
+verified: true
+tags: [fly, container]
 ---
 
 # Coder Fly.io Template

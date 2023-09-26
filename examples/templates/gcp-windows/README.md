@@ -1,8 +1,10 @@
 ---
-name: Develop in Windows on Google Cloud
-description: Get started with Windows development on Google Cloud.
-tags: [cloud, google]
-icon: /icon/gcp.png
+display_name: Google Compute Engine (Windows)
+description: Provision Google Compute Engine instances as Coder workspaces
+icon: /icons/gcp.png
+maintainer_github: coder
+verified: true
+tags: [vm, windows, gcp]
 ---
 
 # gcp-windows
