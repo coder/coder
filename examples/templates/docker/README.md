@@ -7,31 +7,42 @@ verified: true
 tags: [docker, container]
 ---
 
-# docker
+# Remote Development on Docker Containers
 
-To get started, run `coder templates init`. When prompted, select this template.
-Follow the on-screen instructions to proceed.
+Provision Kubernetes Pods as [Coder workspaces](https://coder.com/docs/coder-v2/latest) with this example template.
 
-## Editing the image
+<!-- TODO: Add screenshot -->
+
+## Prerequisites
+
+### Infrastructure
+
+The VM you run Coder on must have a running Docker socket and the `coder` user must be added to the Docker group:
+
+```sh
+# Add coder user to Docker group
+sudo adduser coder docker
+
+# Restart Coder server
+sudo systemctl restart coder
+
+# Test Docker
+sudo -u coder docker ps
+```
+
+## Architecture
+
+> **Note**
+> This template is designed to be a starting point! Edit the Terraform to extend the template to support your use case.
+
+This template provisions the following resources:
+
+- Docker image (built by Docker socket and kept locally)
+- Docker container pod (ephemeral)
+- Docker volume (persistent on `/home/coder`)
+
+This means, when the workspace restarts, any tools or files outside of the home directory are not persisted. To pre-bake tools into the workspace (e.g. `python3`), modify the container image. Alternatively, individual developers can [personalize](https://coder.com/docs/v2/latest/dotfiles) their workspaces with dotfiles.
+
+### Editing the image
 
 Edit the `Dockerfile` and run `coder templates push` to update workspaces.
-
-## code-server
-
-`code-server` is installed via the `startup_script` argument in the `coder_agent`
-resource block. The `coder_app` resource is defined to access `code-server` through
-the dashboard UI over `localhost:13337`.
-
-## Extending this template
-
-See the [kreuzwerker/docker](https://registry.terraform.io/providers/kreuzwerker/docker) Terraform provider documentation to
-add the following features to your Coder template:
-
-- SSH/TCP docker host
-- Registry authentication
-- Build args
-- Volume mounts
-- Custom container spec
-- More
-
-We also welcome contributions!
