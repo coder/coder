@@ -41,6 +41,15 @@ resource "google_container_cluster" "primary" {
   workload_identity_config {
     workload_pool = "${data.google_project.project.project_id}.svc.id.goog"
   }
+
+
+  lifecycle {
+    ignore_changes = [
+      maintenance_policy,
+      release_channel,
+      remove_default_node_pool
+    ]
+  }
 }
 
 resource "google_container_node_pool" "coder" {
@@ -51,9 +60,6 @@ resource "google_container_node_pool" "coder" {
   autoscaling {
     min_node_count = 1
     max_node_count = var.nodepool_size_coder
-  }
-  management {
-    auto_upgrade = false
   }
   node_config {
     oauth_scopes = [
@@ -77,6 +83,9 @@ resource "google_container_node_pool" "coder" {
       disable-legacy-endpoints = "true"
     }
   }
+  lifecycle {
+    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
+  }
 }
 
 resource "google_container_node_pool" "workspaces" {
@@ -85,8 +94,8 @@ resource "google_container_node_pool" "workspaces" {
   project  = var.project_id
   cluster  = google_container_cluster.primary.name
   autoscaling {
-    min_node_count = 0
-    max_node_count = var.nodepool_size_workspaces
+    min_node_count       = 0
+    total_max_node_count = var.nodepool_size_workspaces
   }
   management {
     auto_upgrade = false
@@ -112,6 +121,9 @@ resource "google_container_node_pool" "workspaces" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
+  }
+  lifecycle {
+    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
   }
 }
 
@@ -145,6 +157,9 @@ resource "google_container_node_pool" "misc" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
+  }
+  lifecycle {
+    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
   }
 }
 
