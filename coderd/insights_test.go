@@ -1300,6 +1300,9 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		client *codersdk.Client
 		sdk    codersdk.User
+
+		// Filled later.
+		id uuid.UUID
 	}
 
 	// Represent agent stats, to be inserted via stats batcher.
@@ -1341,6 +1344,10 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 		for _, template := range templates {
 			template.id = newStableUUID()
 		}
+		for _, user := range users {
+			user.id = newStableUUID()
+		}
+
 		for _, user := range users {
 			for _, workspace := range user.workspaces {
 				workspace.user = user
@@ -1395,9 +1402,30 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 
 		// Prepare all test users.
 		for _, user := range users {
-			user.client, user.sdk = coderdtest.CreateAnotherUserMutators(t, client, firstUser.OrganizationID, nil, func(r *codersdk.CreateUserRequest) {
-				r.Username = user.name
+			_ = dbgen.User(t, db, database.User{
+				ID:       user.id,
+				Username: user.name,
+				Status:   database.UserStatusActive,
 			})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.id,
+				OrganizationID: firstUser.OrganizationID,
+			})
+			token, err := client.CreateToken(context.Background(), user.id.String(), codersdk.CreateTokenRequest{
+				Lifetime:  time.Hour * 24,
+				Scope:     codersdk.APIKeyScopeAll,
+				TokenName: "no-password-user-token",
+			})
+			require.NoError(t, err)
+			userClient := codersdk.New(client.URL)
+			userClient.SetSessionToken(token.Key)
+
+			coderUser, err := userClient.User(context.Background(), user.id.String())
+			require.NoError(t, err)
+
+			user.client = userClient
+			user.sdk = coderUser
+
 			user.client.SetLogger(logger.Named("user").With(slog.Field{Name: "name", Value: user.name}))
 		}
 

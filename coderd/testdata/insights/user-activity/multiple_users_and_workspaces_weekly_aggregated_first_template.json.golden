@@ -10,19 +10,19 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "user_id": "037c6a21-c805-46d8-a1ff-d98096afb44a",
-        "username": "user2",
+        "user_id": "00000000-0000-0000-0000-000000000004",
+        "username": "user1",
         "avatar_url": "",
-        "seconds": 3600
+        "seconds": 5340
       },
       {
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "user_id": "aba84ddd-48c3-4041-98db-f80913a424a3",
-        "username": "user1",
+        "user_id": "00000000-0000-0000-0000-000000000005",
+        "username": "user2",
         "avatar_url": "",
-        "seconds": 5340
+        "seconds": 3600
       }
     ]
   }
