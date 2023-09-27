@@ -46,6 +46,7 @@ export interface AppHostResponse {
 
 // From codersdk/deployment.go
 export interface AppearanceConfig {
+  readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
   readonly support_links?: LinkConfig[];
@@ -1091,6 +1092,7 @@ export interface UpdateActiveTemplateVersion {
 
 // From codersdk/deployment.go
 export interface UpdateAppearanceConfig {
+  readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
 }

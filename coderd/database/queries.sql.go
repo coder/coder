@@ -4066,6 +4066,17 @@ func (q *sqlQuerier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	return value, err
 }
 
+const getApplicationName = `-- name: GetApplicationName :one
+SELECT value FROM site_configs WHERE key = 'application_name'
+`
+
+func (q *sqlQuerier) GetApplicationName(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getApplicationName)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getDERPMeshKey = `-- name: GetDERPMeshKey :one
 SELECT value FROM site_configs WHERE key = 'derp_mesh_key'
 `
@@ -4175,6 +4186,16 @@ ON CONFLICT (key) DO UPDATE set value = $1 WHERE site_configs.key = 'app_signing
 
 func (q *sqlQuerier) UpsertAppSecurityKey(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, upsertAppSecurityKey, value)
+	return err
+}
+
+const upsertApplicationName = `-- name: UpsertApplicationName :exec
+INSERT INTO site_configs (key, value) VALUES ('application_name', $1)
+ON CONFLICT (key) DO UPDATE SET value = $1 WHERE site_configs.key = 'application_name'
+`
+
+func (q *sqlQuerier) UpsertApplicationName(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, upsertApplicationName, value)
 	return err
 }
 

@@ -19,6 +19,7 @@ curl -X GET http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
+  "application_name": "string",
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -61,6 +62,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
+  "application_name": "string",
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -82,6 +84,7 @@ curl -X PUT http://coder-server:8080/api/v2/appearance \
 
 ```json
 {
+  "application_name": "string",
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
