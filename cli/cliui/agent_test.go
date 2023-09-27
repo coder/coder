@@ -133,6 +133,7 @@ func TestAgent(t *testing.T) {
 				},
 				func(_ context.Context, agent *codersdk.WorkspaceAgent, _ chan []codersdk.WorkspaceAgentLog) error {
 					agent.Status = codersdk.WorkspaceAgentConnected
+					agent.DisconnectedAt = nil
 					agent.LastConnectedAt = ptr.Ref(time.Now())
 					return nil
 				},

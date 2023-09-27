@@ -237,12 +237,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
 			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+
+			disconnectedAt := *agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
 				if agent, err = fetch(); err != nil {
 					return xerrors.Errorf("fetch: %w", err)
 				}
 			}
-			sw.Complete(stage, agent.LastConnectedAt.Sub(*agent.DisconnectedAt))
+			sw.Complete(stage, agent.LastConnectedAt.Sub(disconnectedAt))
 		}
 	}
 }
