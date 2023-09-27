@@ -1573,26 +1573,21 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			//nolint:dogsled
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
-			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			// --norc disables executing .bashrc, which is often used to customize the bash prompt
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn1.Close()
+			tr1 := testutil.NewTerminalReader(t, netConn1)
 
 			// A second simultaneous connection.
-			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn2.Close()
+			tr2 := testutil.NewTerminalReader(t, netConn2)
 
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = netConn1.Write(data)
-			require.NoError(t, err)
-
+			matchPrompt := func(line string) bool {
+				return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
+			}
 			matchEchoCommand := func(line string) bool {
 				return strings.Contains(line, "echo test")
 			}
@@ -1606,31 +1601,41 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
+			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
+			// will sometimes put the command output on the same line as the command and the test will flake
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+
 			// Once for typing the command...
-			tr1 := testutil.NewTerminalReader(t, netConn1)
 			require.NoError(t, tr1.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			// And another time for the actual output.
 			require.NoError(t, tr1.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Same for the other connection.
-			tr2 := testutil.NewTerminalReader(t, netConn2)
 			require.NoError(t, tr2.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			require.NoError(t, tr2.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
-			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn3.Close()
+			tr3 := testutil.NewTerminalReader(t, netConn3)
 
 			// Same output again!
-			tr3 := testutil.NewTerminalReader(t, netConn3)
 			require.NoError(t, tr3.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			require.NoError(t, tr3.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Exit should cause the connection to close.
 			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "exit\r\n",
+				Data: "exit\r",
 			})
 			require.NoError(t, err)
 			_, err = netConn3.Write(data)
