@@ -6233,6 +6233,9 @@
     "codersdk.AppearanceConfig": {
       "type": "object",
       "properties": {
+        "application_name": {
+          "type": "string"
+        },
         "logo_url": {
           "type": "string"
         },
@@ -9225,6 +9228,9 @@
     "codersdk.UpdateAppearanceConfig": {
       "type": "object",
       "properties": {
+        "application_name": {
+          "type": "string"
+        },
         "logo_url": {
           "type": "string"
         },

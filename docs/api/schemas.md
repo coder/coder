@@ -952,6 +952,7 @@ _None_
 
 ```json
 {
+  "application_name": "string",
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -970,11 +971,12 @@ _None_
 
 ### Properties
 
-| Name             | Type                                                         | Required | Restrictions | Description |
-| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `logo_url`       | string                                                       | false    |              |             |
-| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
-| `support_links`  | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
+| Name               | Type                                                         | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `application_name` | string                                                       | false    |              |             |
+| `logo_url`         | string                                                       | false    |              |             |
+| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
 ## codersdk.AssignableRoles
 
@@ -4950,6 +4952,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "application_name": "string",
   "logo_url": "string",
   "service_banner": {
     "background_color": "string",
@@ -4961,10 +4964,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                         | Required | Restrictions | Description |
-| ---------------- | ------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `logo_url`       | string                                                       | false    |              |             |
-| `service_banner` | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
+| Name               | Type                                                         | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `application_name` | string                                                       | false    |              |             |
+| `logo_url`         | string                                                       | false    |              |             |
+| `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 
 ## codersdk.UpdateCheckResponse
 

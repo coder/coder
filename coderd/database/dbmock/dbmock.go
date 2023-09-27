@@ -488,6 +488,21 @@ func (mr *MockStoreMockRecorder) GetAppSecurityKey(arg0 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppSecurityKey", reflect.TypeOf((*MockStore)(nil).GetAppSecurityKey), arg0)
 }
 
+// GetApplicationName mocks base method.
+func (m *MockStore) GetApplicationName(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApplicationName", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApplicationName indicates an expected call of GetApplicationName.
+func (mr *MockStoreMockRecorder) GetApplicationName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApplicationName", reflect.TypeOf((*MockStore)(nil).GetApplicationName), arg0)
+}
+
 // GetAuditLogsOffset mocks base method.
 func (m *MockStore) GetAuditLogsOffset(arg0 context.Context, arg1 database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	m.ctrl.T.Helper()
@@ -3696,6 +3711,20 @@ func (m *MockStore) UpsertAppSecurityKey(arg0 context.Context, arg1 string) erro
 func (mr *MockStoreMockRecorder) UpsertAppSecurityKey(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAppSecurityKey", reflect.TypeOf((*MockStore)(nil).UpsertAppSecurityKey), arg0, arg1)
+}
+
+// UpsertApplicationName mocks base method.
+func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertApplicationName", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertApplicationName indicates an expected call of UpsertApplicationName.
+func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

@@ -160,6 +160,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
+	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
 	oauthSigningKey         string
@@ -1126,6 +1127,17 @@ func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.appSecurityKey, nil
+}
+
+func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.applicationName == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.applicationName, nil
 }
 
 func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
@@ -6316,6 +6328,14 @@ func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error
 	defer q.mutex.Unlock()
 
 	q.appSecurityKey = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.applicationName = data
 	return nil
 }
 
