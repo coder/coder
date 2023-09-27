@@ -11,7 +11,9 @@ const hexMatcher = /^#[0-9A-Fa-f]{6}$/;
  * Mainly here to validate input before sending it to the server.
  */
 export function isHexColor(input: string): boolean {
-  return hexMatcher.test(input);
+  // Length check isn't necessary; it's just an fast way to validate before
+  // kicking things off to the slower regex check
+  return input.length === 7 && hexMatcher.test(input);
 }
 
 /**
@@ -41,7 +43,7 @@ export function isHslColor(input: string): boolean {
   }
 
   const hueN = Number(hue);
-  if (!Number.isInteger(hueN) || hueN < 0 || hueN >= 360) {
+  if (!Number.isInteger(hueN) || hueN < 0 || hueN > 359) {
     return false;
   }
 
@@ -50,7 +52,7 @@ export function isHslColor(input: string): boolean {
     return false;
   }
 
-  const lumN = Number(sat);
+  const lumN = Number(lum);
   if (!Number.isInteger(lumN) || lumN < 0 || lumN > 100) {
     return false;
   }
