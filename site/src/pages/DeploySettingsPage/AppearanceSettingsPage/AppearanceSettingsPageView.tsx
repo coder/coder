@@ -21,6 +21,7 @@ import { useFormik } from "formik";
 import { useTheme } from "@mui/styles";
 import Link from "@mui/material/Link";
 import { colors } from "theme/colors";
+import { hslToHex } from "utils/colors";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -30,6 +31,9 @@ export type AppearanceSettingsPageViewProps = {
     preview: boolean,
   ) => void;
 };
+
+const fallbackBgColor = hslToHex(colors.blue[7]);
+
 export const AppearanceSettingsPageView = ({
   appearance,
   isEntitled,
@@ -37,6 +41,7 @@ export const AppearanceSettingsPageView = ({
 }: AppearanceSettingsPageViewProps): JSX.Element => {
   const styles = useStyles();
   const theme = useTheme();
+
   const logoForm = useFormik<{
     logo_url: string;
   }>({
@@ -53,7 +58,7 @@ export const AppearanceSettingsPageView = ({
         message: appearance.service_banner.message,
         enabled: appearance.service_banner.enabled,
         background_color:
-          appearance.service_banner.background_color ?? colors.blue[7],
+          appearance.service_banner.background_color ?? fallbackBgColor,
       },
       onSubmit: (values) =>
         onSaveAppearance(
@@ -65,9 +70,11 @@ export const AppearanceSettingsPageView = ({
     },
   );
   const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm);
+
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
   );
+
   return (
     <>
       <Header
