@@ -28,6 +28,9 @@ variable "kubernetes_nodepool_misc" {
 }
 
 // These variables control the Coder deployment.
+variable "coder_access_url" {
+  description = "Access URL for the Coder deployment."
+}
 variable "coder_replicas" {
   description = "Number of Coder replicas to provision."
   default     = 1
@@ -68,12 +71,12 @@ variable "coder_mem_limit" {
 // Allow independently scaling provisionerd resources
 variable "provisionerd_cpu_request" {
   description = "CPU request to allocate to provisionerd."
-  default     = "500m"
+  default     = "100m"
 }
 
 variable "provisionerd_mem_request" {
   description = "Memory request to allocate to provisionerd."
-  default     = "512Mi"
+  default     = "1Gi"
 }
 
 variable "provisionerd_cpu_limit" {
@@ -83,7 +86,7 @@ variable "provisionerd_cpu_limit" {
 
 variable "provisionerd_mem_limit" {
   description = "Memory limit to allocate to provisionerd."
-  default     = "1024Mi"
+  default     = "1Gi"
 }
 
 variable "provisionerd_replicas" {
@@ -91,9 +94,19 @@ variable "provisionerd_replicas" {
   default     = 1
 }
 
-variable "provisionerd_concurrency" {
-  description = "Number of concurrent provisioner jobs per provisionerd instance."
-  default     = 3
+variable "provisionerd_chart_version" {
+  description = "Version of the Provisionerd Helm chart to install. Defaults to latest."
+  default     = null
+}
+
+variable "provisionerd_image_repo" {
+  description = "Repository to use for Provisionerd image."
+  default     = "ghcr.io/coder/coder"
+}
+
+variable "provisionerd_image_tag" {
+  description = "Tag to use for Provisionerd image."
+  default     = "latest"
 }
 
 variable "coder_chart_version" {

@@ -1,41 +1,79 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_helm_repo    = "https://helm.coder.com/v2"
-  coder_helm_chart   = "coder"
-  coder_release_name = var.name
-  coder_namespace    = "coder-${var.name}"
-  coder_admin_email  = "admin@coder.com"
-  coder_admin_user   = "coder"
-  coder_access_url   = "http://${var.coder_address}"
+  coder_url                 = var.coder_access_url == "" ? "http://${var.coder_address}" : var.coder_access_url
+  coder_admin_email         = "admin@coder.com"
+  coder_admin_user          = "coder"
+  coder_helm_repo           = "https://helm.coder.com/v2"
+  coder_helm_chart          = "coder"
+  coder_namespace           = "coder-${var.name}"
+  coder_release_name        = var.name
+  provisionerd_helm_chart   = "coder-provisioner"
+  provisionerd_release_name = "${var.name}-provisionerd"
 }
 
-resource "null_resource" "coder_namespace" {
-  triggers = {
-    namespace       = local.coder_namespace
-    kubeconfig_path = var.kubernetes_kubeconfig_path
+resource "kubernetes_namespace" "coder_namespace" {
+  metadata {
+    name = local.coder_namespace
   }
-  provisioner "local-exec" {
-    when    = create
-    command = <<EOF
-      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl create namespace ${self.triggers.namespace}
-    EOF
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_default_service_account]
   }
-  provisioner "local-exec" {
-    when    = destroy
-    command = "true"
-  }
+}
+
+resource "random_password" "provisionerd_psk" {
+  length = 26
 }
 
 resource "kubernetes_secret" "coder-db" {
   type = "Opaque"
   metadata {
     name      = "coder-db-url"
-    namespace = local.coder_namespace
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
   }
-  depends_on = [null_resource.coder_namespace]
   data = {
     url = var.coder_db_url
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
+  }
+}
+
+resource "kubernetes_secret" "provisionerd_psk" {
+  type = "Opaque"
+  metadata {
+    name      = "coder-provisioner-psk"
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+  }
+  data = {
+    psk = random_password.provisionerd_psk.result
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
+  }
+}
+
+# OIDC secret needs to be manually provisioned for now.
+data "kubernetes_secret" "coder_oidc" {
+  metadata {
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    name      = "coder-oidc"
+  }
+}
+
+# TLS needs to be provisioned manually for now.
+data "kubernetes_secret" "coder_tls" {
+  metadata {
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    name      = "${var.name}-tls"
+  }
+}
+
+# Also need an OTEL collector deployed. Manual for now.
+data "kubernetes_service" "otel_collector" {
+  metadata {
+    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    name      = "otel-collector"
   }
 }
 
@@ -44,10 +82,7 @@ resource "helm_release" "coder-chart" {
   chart      = local.coder_helm_chart
   name       = local.coder_release_name
   version    = var.coder_chart_version
-  namespace  = local.coder_namespace
-  depends_on = [
-    null_resource.coder_namespace
-  ]
+  namespace  = kubernetes_namespace.coder_namespace.metadata.0.name
   values = [<<EOF
 coder:
   affinity:
@@ -70,10 +105,10 @@ coder:
               values:   ["${local.coder_release_name}"]
   env:
     - name: "CODER_ACCESS_URL"
-      value: "${local.coder_access_url}"
+      value: "${local.coder_url}"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
-    - name: "CODER_ENABLE_TELEMETRY"
+    - name: "CODER_TELEMETRY_ENABLE"
       value: "false"
     - name: "CODER_LOGGING_HUMAN"
       value: "/dev/null"
@@ -101,6 +136,39 @@ coder:
     # Disabling built-in provisioner daemons
     - name: "CODER_PROVISIONER_DAEMONS"
       value: "0"
+    - name: CODER_PROVISIONER_DAEMON_PSK
+      valueFrom:
+        secretKeyRef:
+          key: psk
+          name: "${kubernetes_secret.provisionerd_psk.metadata.0.name}"
+    # Enable OIDC
+    - name: "CODER_OIDC_ISSUER_URL"
+      valueFrom:
+        secretKeyRef:
+          key: issuer-url
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_EMAIL_DOMAIN"
+      valueFrom:
+        secretKeyRef:
+          key: email-domain
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_CLIENT_ID"
+      valueFrom:
+        secretKeyRef:
+          key: client-id
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    - name: "CODER_OIDC_CLIENT_SECRET"
+      valueFrom:
+        secretKeyRef:
+          key: client-secret
+          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # Send OTEL traces to the cluster-local collector to sample 10%
+    - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
+      value: "http://${data.kubernetes_service.otel_collector.metadata.0.name}.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
+    - name: "OTEL_TRACES_SAMPLER"
+      value: parentbased_traceidratio
+    - name: "OTEL_TRACES_SAMPLER_ARG"
+      value: "0.1"
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
@@ -118,6 +186,74 @@ coder:
     enable: true
     sessionAffinity: None
     loadBalancerIP: "${var.coder_address}"
+  volumeMounts:
+  - mountPath: "/tmp"
+    name: cache
+    readOnly: false
+  volumes:
+  - emptyDir:
+      sizeLimit: 1024Mi
+    name: cache
+EOF
+  ]
+}
+
+resource "helm_release" "provisionerd-chart" {
+  repository = local.coder_helm_repo
+  chart      = local.provisionerd_helm_chart
+  name       = local.provisionerd_release_name
+  version    = var.provisionerd_chart_version
+  namespace  = kubernetes_namespace.coder_namespace.metadata.0.name
+  values = [<<EOF
+coder:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${var.kubernetes_nodepool_coder}"]
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+            - key:      "app.kubernetes.io/instance"
+              operator: "In"
+              values:   ["${local.coder_release_name}"]
+  env:
+    - name: "CODER_URL"
+      value: "${local.coder_url}"
+    - name: "CODER_VERBOSE"
+      value: "true"
+    - name: "CODER_CACHE_DIRECTORY"
+      value: "/tmp/coder"
+    - name: "CODER_TELEMETRY_ENABLE"
+      value: "false"
+    - name: "CODER_LOGGING_HUMAN"
+      value: "/dev/null"
+    - name: "CODER_LOGGING_STACKDRIVER"
+      value: "/dev/stderr"
+    - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
+    - name: "CODER_PROVISIONERD_TAGS"
+      value = "socpe=organization"
+  image:
+    repo: ${var.provisionerd_image_repo}
+    tag: ${var.provisionerd_image_tag}
+  replicaCount: "${var.provisionerd_replicas}"
+  resources:
+    requests:
+      cpu: "${var.provisionerd_cpu_request}"
+      memory: "${var.provisionerd_mem_request}"
+    limits:
+      cpu: "${var.provisionerd_cpu_limit}"
+      memory: "${var.provisionerd_mem_limit}"
+  securityContext:
+    readOnlyRootFilesystem: true
   volumeMounts:
   - mountPath: "/tmp"
     name: cache
@@ -218,174 +354,12 @@ resource "local_file" "kubernetes_template" {
   EOF
 }
 
-# TODO(cian): Remove this when we have support in the Helm chart.
-# Ref: https://github.com/coder/coder/issues/8243
-resource "local_file" "provisionerd_deployment" {
-  filename = "${path.module}/../.coderv2/provisionerd-deployment.yaml"
-  content  = <<EOF
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  labels:
-    app.kubernetes.io/instance: ${var.name}
-    app.kubernetes.io/name: provisionerd
-  name: provisionerd
-  namespace: ${local.coder_namespace}
-spec:
-  replicas: ${var.provisionerd_replicas}
-  selector:
-    matchLabels:
-      app.kubernetes.io/instance: ${var.name}
-      app.kubernetes.io/name: provisionerd
-  strategy:
-    rollingUpdate:
-      maxSurge: 25%
-      maxUnavailable: 25%
-    type: RollingUpdate
-  template:
-    metadata:
-      creationTimestamp: null
-      labels:
-        app.kubernetes.io/instance: ${var.name}
-        app.kubernetes.io/name: provisionerd
-    spec:
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-            - matchExpressions:
-              - key: cloud.google.com/gke-nodepool
-                operator: In
-                values:
-                - ${var.kubernetes_nodepool_coder}
-        podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - podAffinityTerm:
-              labelSelector:
-                matchExpressions:
-                - key: app.kubernetes.io/instance
-                  operator: In
-                  values:
-                  - ${var.name}
-              topologyKey: kubernetes.io/hostname
-            weight: 1
-      containers:
-      - args:
-        - server
-        command:
-        - /opt/coder
-        env:
-        - name: CODER_HTTP_ADDRESS
-          value: 0.0.0.0:8080
-        - name: CODER_PROMETHEUS_ADDRESS
-          value: 0.0.0.0:2112
-        - name: CODER_ACCESS_URL
-          value: ${local.coder_access_url}
-        - name: CODER_CACHE_DIRECTORY
-          value: /tmp/coder
-        - name: CODER_ENABLE_TELEMETRY
-          value: "false"
-        - name: CODER_LOGGING_HUMAN
-          value: /dev/null
-        - name: CODER_LOGGING_STACKDRIVER
-          value: /dev/stderr
-        - name: CODER_PG_CONNECTION_URL
-          valueFrom:
-            secretKeyRef:
-              key: url
-              name: coder-db-url
-        - name: CODER_PPROF_ENABLE
-          value: "true"
-        - name: CODER_PROMETHEUS_ENABLE
-          value: "true"
-        - name: CODER_PROMETHEUS_COLLECT_AGENT_STATS
-          value: "true"
-        - name: CODER_PROMETHEUS_COLLECT_DB_METRICS
-          value: "true"
-        - name: CODER_VERBOSE
-          value: "true"
-        - name: CODER_PROVISIONER_DAEMONS
-          value: "${var.provisionerd_concurrency}"
-        image: "${var.coder_image_repo}:${var.coder_image_tag}"
-        imagePullPolicy: IfNotPresent
-        lifecycle: {}
-        livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /api/v2/buildinfo
-            port: http
-            scheme: HTTP
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 1
-        name: provisionerd
-        ports:
-        - containerPort: 8080
-          name: http
-          protocol: TCP
-        - containerPort: 2112
-          name: prometheus-http
-          protocol: TCP
-        readinessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /api/v2/buildinfo
-            port: http
-            scheme: HTTP
-          periodSeconds: 10
-          successThreshold: 1
-          timeoutSeconds: 1
-        resources:
-          limits:
-            cpu: "${var.provisionerd_cpu_limit}"
-            memory: "${var.provisionerd_mem_limit}"
-          requests:
-            cpu: "${var.provisionerd_cpu_request}"
-            memory: "${var.provisionerd_mem_request}"
-        securityContext:
-          allowPrivilegeEscalation: false
-          readOnlyRootFilesystem: true
-          runAsGroup: 1000
-          runAsNonRoot: true
-          runAsUser: 1000
-          seccompProfile:
-            type: RuntimeDefault
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /tmp
-          name: cache
-      dnsPolicy: ClusterFirst
-      restartPolicy: Always
-      serviceAccount: coder
-      serviceAccountName: coder
-      terminationGracePeriodSeconds: 60
-      volumes:
-      - emptyDir:
-          sizeLimit: 10Gi
-        name: cache
-    EOF
-}
-
-resource "null_resource" "provisionerd_deployment_apply" {
-  depends_on = [helm_release.coder-chart, local_file.provisionerd_deployment]
-  triggers = {
-    kubeconfig_path = var.kubernetes_kubeconfig_path
-    manifest_path   = local_file.provisionerd_deployment.filename
-  }
-  provisioner "local-exec" {
-    command = <<EOF
-      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl apply -f ${self.triggers.manifest_path}
-    EOF
-  }
-}
-
 resource "local_file" "output_vars" {
   filename = "${path.module}/../../.coderv2/url"
-  content  = local.coder_access_url
+  content  = local.coder_url
 }
 
 output "coder_url" {
   description = "URL of the Coder deployment"
-  value       = local.coder_access_url
+  value       = local.coder_url
 }
