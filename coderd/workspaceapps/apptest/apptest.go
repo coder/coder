@@ -62,13 +62,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Run the test against the path app hostname since that's where the
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
-			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
-				AgentID:   appDetails.Agent.ID,
-				Reconnect: uuid.New(),
-				Height:    100,
-				Width:     100,
-				Command:   "bash",
-			})
+			testReconnectingPTY(ctx, t, client, appDetails.Agent.ID, "")
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -96,14 +90,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
-			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
-				AgentID:     appDetails.Agent.ID,
-				Reconnect:   uuid.New(),
-				Height:      100,
-				Width:       100,
-				Command:     "bash",
-				SignedToken: issueRes.SignedToken,
-			})
+			testReconnectingPTY(ctx, t, unauthedAppClient, appDetails.Agent.ID, issueRes.SignedToken)
 		})
 	})
 
@@ -1389,7 +1376,19 @@ func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.Stat
 	return nil
 }
 
-func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
+func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, agentID uuid.UUID, signedToken string) {
+	opts := codersdk.WorkspaceAgentReconnectingPTYOpts{
+		AgentID:   agentID,
+		Reconnect: uuid.New(),
+		Width:     80,
+		Height:    80,
+		// --norc disables executing .bashrc, which is often used to customize the bash prompt
+		Command:     "bash --norc",
+		SignedToken: signedToken,
+	}
+	matchPrompt := func(line string) bool {
+		return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
+	}
 	matchEchoCommand := func(line string) bool {
 		return strings.Contains(line, "echo test")
 	}
@@ -1407,34 +1406,24 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// First attempt to resize the TTY.
-	// The websocket will close if it fails!
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Height: 80,
-		Width:  80,
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(500 * time.Millisecond)
-
-	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "echo test\r\n",
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-
 	tr := testutil.NewTerminalReader(t, conn)
+	// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
+	// will sometimes put the command output on the same line as the command and the test will flake
+	require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "find prompt")
+
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
 	require.NoError(t, tr.ReadUntil(ctx, matchEchoCommand), "find echo command")
 	require.NoError(t, tr.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "exit\r\n",
+		Data: "exit\r",
 	})
 	require.NoError(t, err)
 	_, err = conn.Write(data)
