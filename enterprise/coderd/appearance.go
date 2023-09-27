@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 
 	"golang.org/x/sync/errgroup"
@@ -120,7 +119,7 @@ func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceC
 
 func validateHexColor(color string) error {
 	if len(color) != 7 {
-		return xerrors.New("expected 7 characters")
+		return xerrors.New("expected # prefix and 6 characters")
 	}
 	if color[0] != '#' {
 		return xerrors.New("no # prefix")
@@ -156,7 +155,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	if appearance.ServiceBanner.Enabled {
 		if err := validateHexColor(appearance.ServiceBanner.BackgroundColor); err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("parse color: %+v", err),
+				Message: "Invalid color format",
+				Detail:  err.Error(),
 			})
 			return
 		}
@@ -165,7 +165,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	serviceBannerJSON, err := json.Marshal(appearance.ServiceBanner)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("marshal banner: %+v", err),
+			Message: "Unable to marshal service banner",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -173,7 +174,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpsertServiceBanner(ctx, string(serviceBannerJSON))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("database error: %+v", err),
+			Message: "Unable to set service banner",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -181,7 +183,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpsertApplicationName(ctx, appearance.ApplicationName)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("database error: %+v", err),
+			Message: "Unable to set application name",
+			Detail:  err.Error(),
 		})
 		return
 	}
@@ -189,7 +192,8 @@ func (api *API) putAppearance(rw http.ResponseWriter, r *http.Request) {
 	err = api.Database.UpsertLogoURL(ctx, appearance.LogoURL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: fmt.Sprintf("database error: %+v", err),
+			Message: "Unable to set logo URL",
+			Detail:  err.Error(),
 		})
 		return
 	}

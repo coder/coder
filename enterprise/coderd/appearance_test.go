@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -108,6 +109,13 @@ func TestServiceBanners(t *testing.T) {
 		wantBanner.ServiceBanner.BackgroundColor = "#bad color"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		if assert.ErrorAs(t, err, &sdkErr) {
+			assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Invalid color format")
+			assert.Contains(t, sdkErr.Detail, "expected # prefix and 6 characters")
+		}
 	})
 
 	t.Run("Agent", func(t *testing.T) {
