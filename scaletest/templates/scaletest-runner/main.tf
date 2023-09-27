@@ -35,14 +35,18 @@ resource "null_resource" "permission_check" {
 }
 
 locals {
-  workspace_pod_name     = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_instance = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  service_account_name   = "scaletest-sa"
-  cpu                    = 2
-  memory                 = 2
-  home_disk_size         = 10
-  scaletest_run_id       = "scaletest-${time_static.start_time.rfc3339}"
-  scaletest_run_dir      = "/home/coder/${local.scaletest_run_id}"
+  workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
+  workspace_pod_termination_grace_period_seconds = 7200 # 2 hours (cleanup timeout).
+  service_account_name                           = "scaletest-sa"
+  cpu                                            = 16
+  memory                                         = 64
+  home_disk_size                                 = 10
+  scaletest_run_id                               = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
+  grafana_url                                    = "https://stats.dev.c8s.io"
+  grafana_dashboard_uid                          = "qLVSTR-Vz"
+  grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
 }
 
 data "coder_provisioner" "me" {
@@ -91,15 +95,14 @@ data "coder_parameter" "job_concurrency" {
   order       = 11
   type        = "number"
   name        = "Job concurrency"
-  default     = 10
+  default     = 0
   description = "The number of concurrent jobs (e.g. when producing workspace traffic)."
   mutable     = true
 
   # Setting zero = unlimited, but perhaps not a good idea,
   # we can raise this limit instead.
   validation {
-    min = 1
-    max = 100
+    min = 0
   }
 }
 
@@ -197,6 +200,121 @@ data "coder_parameter" "num_workspaces" {
   }
 }
 
+
+data "coder_parameter" "load_scenarios" {
+  order       = 22
+  name        = "Load Scenarios"
+  type        = "list(string)"
+  description = "The load scenarios to run."
+  mutable     = true
+  ephemeral   = true
+  default = jsonencode([
+    "SSH Traffic",
+    "Web Terminal Traffic",
+    "Dashboard Traffic",
+  ])
+}
+
+data "coder_parameter" "load_scenario_ssh_traffic_duration" {
+  order       = 23
+  name        = "SSH Traffic Duration"
+  type        = "number"
+  description = "The duration of the SSH traffic load scenario in minutes."
+  mutable     = true
+  default     = 30
+  validation {
+    min = 1
+    max = 1440 // 24 hours.
+  }
+}
+
+data "coder_parameter" "load_scenario_ssh_bytes_per_tick" {
+  order       = 24
+  name        = "SSH Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the SSH traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_ssh_tick_interval" {
+  order       = 25
+  name        = "SSH Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the SSH traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_web_terminal_traffic_duration" {
+  order       = 26
+  name        = "Web Terminal Traffic Duration"
+  type        = "number"
+  description = "The duration of the web terminal traffic load scenario in minutes."
+  mutable     = true
+  default     = 30
+  validation {
+    min = 1
+    max = 1440 // 24 hours.
+  }
+}
+
+data "coder_parameter" "load_scenario_web_terminal_bytes_per_tick" {
+  order       = 27
+  name        = "Web Terminal Bytes Per Tick"
+  type        = "number"
+  description = "The number of bytes to send per tick in the web terminal traffic load scenario."
+  mutable     = true
+  default     = 1024
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_web_terminal_tick_interval" {
+  order       = 28
+  name        = "Web Terminal Tick Interval"
+  type        = "number"
+  description = "The number of milliseconds between each tick in the web terminal traffic load scenario."
+  mutable     = true
+  default     = 100
+  validation {
+    min = 1
+  }
+}
+
+data "coder_parameter" "load_scenario_dashboard_traffic_duration" {
+  order       = 29
+  name        = "Dashboard Traffic Duration"
+  type        = "number"
+  description = "The duration of the dashboard traffic load scenario in minutes."
+  mutable     = true
+  default     = 30
+  validation {
+    min = 1
+    max = 1440 // 24 hours.
+  }
+}
+
+data "coder_parameter" "load_scenario_baseline_duration" {
+  order       = 26
+  name        = "Baseline Wait Duration"
+  type        = "number"
+  description = "The duration to wait before starting a load scenario in minutes."
+  mutable     = true
+  default     = 5
+  validation {
+    min = 0
+    max = 60
+  }
+}
+
 data "coder_parameter" "namespace" {
   order       = 999
   type        = "string"
@@ -221,6 +339,8 @@ resource "coder_agent" "main" {
     CODER_CONFIG_DIR : "/home/coder/.config/coderv2",
     CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
     CODER_URL : data.coder_workspace.me.access_url,
+    CODER_USER : data.coder_workspace.me.owner,
+    CODER_WORKSPACE : data.coder_workspace.me.name,
 
     # Global scaletest envs that may affect each `coder exp scaletest` invocation.
     CODER_SCALETEST_PROMETHEUS_ADDRESS : "0.0.0.0:21112",
@@ -228,14 +348,29 @@ resource "coder_agent" "main" {
     CODER_SCALETEST_CONCURRENCY : "${data.coder_parameter.job_concurrency.value}",
     CODER_SCALETEST_CLEANUP_CONCURRENCY : "${data.coder_parameter.cleanup_concurrency.value}",
 
+    # Expose as params as well, for reporting (TODO(mafredri): refactor, only have one).
+    SCALETEST_PARAM_SCALETEST_CONCURRENCY : "${data.coder_parameter.job_concurrency.value}",
+    SCALETEST_PARAM_SCALETEST_CLEANUP_CONCURRENCY : "${data.coder_parameter.cleanup_concurrency.value}",
+
     # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
-    SCALETEST_TEMPLATE : data.coder_parameter.workspace_template.value,
-    SCALETEST_SKIP_CLEANUP : "1",
-    SCALETEST_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
-    SCALETEST_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
-    SCALETEST_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
+
+    SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
+    SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
+    SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
+    SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
+    SCALETEST_PARAM_LOAD_SCENARIOS : data.coder_parameter.load_scenarios.value,
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_ssh_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_ssh_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_ssh_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_web_terminal_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_BYTES_PER_TICK : "${data.coder_parameter.load_scenario_web_terminal_bytes_per_tick.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_TICK_INTERVAL : "${data.coder_parameter.load_scenario_web_terminal_tick_interval.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION : "${data.coder_parameter.load_scenario_dashboard_traffic_duration.value}",
+    SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION : "${data.coder_parameter.load_scenario_baseline_duration.value}",
+
+    GRAFANA_URL : local.grafana_url,
 
     SCRIPTS_ZIP : filebase64(data.archive_file.scripts_zip.output_path),
     SCRIPTS_DIR : "/tmp/scripts",
@@ -244,12 +379,13 @@ resource "coder_agent" "main" {
     vscode     = false
     ssh_helper = false
   }
-  startup_script_timeout  = 3600
-  shutdown_script_timeout = 1800
+  startup_script_timeout  = 86400
+  shutdown_script_timeout = 7200
   startup_script_behavior = "blocking"
   startup_script          = file("startup.sh")
   shutdown_script         = file("shutdown.sh")
 
+  # IDEA(mafredri): It would be pretty cool to define metadata to expect JSON output, each field/item could become a separate metadata item.
   # Scaletest metadata.
   metadata {
     display_name = "Scaletest status"
@@ -332,7 +468,7 @@ resource "coder_app" "grafana" {
   agent_id     = coder_agent.main.id
   slug         = "00-grafana"
   display_name = "Grafana"
-  url          = "https://stats.dev.c8s.io/d/qLVSTR-Vz/coderv2-loadtest-dashboard?orgId=1&from=${time_static.start_time.unix * 1000}&to=now"
+  url          = "${local.grafana_url}/d/${local.grafana_dashboard_uid}/${local.grafana_dashboard_name}?orgId=1&from=${time_static.start_time.unix * 1000}&to=now"
   icon         = "https://grafana.com/static/assets/img/fav32.png"
   external     = true
 }
@@ -409,7 +545,7 @@ resource "kubernetes_pod" "main" {
   }
   # Set the pod delete timeout to termination_grace_period_seconds + 1m.
   timeouts {
-    delete = "32m"
+    delete = "${(local.workspace_pod_termination_grace_period_seconds + 120) / 60}s"
   }
   spec {
     security_context {
@@ -421,8 +557,9 @@ resource "kubernetes_pod" "main" {
     service_account_name = local.service_account_name
 
     # Allow the coder agent to perform graceful shutdown and cleanup of
-    # scaletest resources, 30 minutes (cleanup timeout) + 1 minute.
-    termination_grace_period_seconds = 1860
+    # scaletest resources. We add an extra minute so ensure work
+    # completion is prioritized over timeout.
+    termination_grace_period_seconds = local.workspace_pod_termination_grace_period_seconds + 60
 
     container {
       name              = "dev"
@@ -439,6 +576,24 @@ resource "kubernetes_pod" "main" {
       env {
         name  = "CODER_AGENT_LOG_DIR"
         value = "${local.scaletest_run_dir}/logs"
+      }
+      env {
+        name = "GRAFANA_API_TOKEN"
+        value_from {
+          secret_key_ref {
+            name = data.kubernetes_secret.grafana_editor_api_token.metadata[0].name
+            key  = "token"
+          }
+        }
+      }
+      env {
+        name = "SLACK_WEBHOOK_URL"
+        value_from {
+          secret_key_ref {
+            name = data.kubernetes_secret.slack_scaletest_notifications_webhook_url.metadata[0].name
+            key  = "url"
+          }
+        }
       }
       resources {
         # Set requests and limits values such that we can do performant
@@ -496,12 +651,26 @@ resource "kubernetes_pod" "main" {
             match_expressions {
               key      = "cloud.google.com/gke-nodepool"
               operator = "In"
-              values   = ["big-misc"] # Avoid placing on the same nodes as scaletest workspaces.
+              values   = ["big-workspacetraffic"] # Avoid placing on the same nodes as scaletest workspaces.
             }
           }
         }
       }
     }
+  }
+}
+
+data "kubernetes_secret" "grafana_editor_api_token" {
+  metadata {
+    name      = "grafana-editor-api-token"
+    namespace = data.coder_parameter.namespace.value
+  }
+}
+
+data "kubernetes_secret" "slack_scaletest_notifications_webhook_url" {
+  metadata {
+    name      = "slack-scaletest-notifications-webhook-url"
+    namespace = data.coder_parameter.namespace.value
   }
 }
 

@@ -11,4 +11,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
+annotate_grafana "workspace" "Agent stopping..."
+
 "${SCRIPTS_DIR}/cleanup.sh" shutdown
+
+annotate_grafana_end "workspace" "Agent running"
