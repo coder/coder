@@ -27,7 +27,7 @@ server_version="$(jq -r '.version' <<<"${buildinfo}")"
 server_version_commit="$(jq -r '.external_url' <<<"${buildinfo}")"
 
 # Since `coder show` doesn't support JSON output, we list the workspaces instead.
-# Use `command` here to bypass dryrun.
+# Use `command` here to bypass dry run.
 workspace_json="$(
 	command coder list --all --output json |
 		jq --arg workspace "${CODER_WORKSPACE}" --arg user "${CODER_USER}" 'map(select(.name == $workspace) | select(.owner_name == $user)) | .[0]'
