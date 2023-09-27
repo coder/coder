@@ -1129,7 +1129,7 @@ func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	return q.appSecurityKey, nil
 }
 
-func (q *FakeQuerier) GetApplicationName(ctx context.Context) (string, error) {
+func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
