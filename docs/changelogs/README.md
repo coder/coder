@@ -13,7 +13,7 @@ export CODER_IGNORE_MISSING_COMMIT_METADATA=1
 export BRANCH=main
 ./scripts/release/generate_release_notes.sh \
   --old-version=v2.1.5 \
-  --new-version=v2.1.6 \
+  --new-version=v2.2.0 \
   --ref=$(git rev-parse --short "${ref:-origin/$BRANCH}") \
-  > ./docs/changelogs/v2.1.6.md
+  > ./docs/changelogs/v2.2.0.md
 ```
