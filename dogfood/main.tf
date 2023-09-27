@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
+      source = "coder/coder"
     }
     docker = {
       source  = "kreuzwerker/docker"
@@ -75,10 +75,10 @@ module "dotfiles" {
 }
 
 module "git-clone" {
-  source = "https://registry.coder.com/modules/git-clone"
+  source   = "https://registry.coder.com/modules/git-clone"
   agent_id = coder_agent.dev.id
-  url = "https://github.com/coder/coder"
-  path = data.coder_parameter.repo_dir.value
+  url      = "https://github.com/coder/coder"
+  path     = data.coder_parameter.repo_dir.value
 }
 
 module "personalize" {
@@ -87,7 +87,7 @@ module "personalize" {
 }
 
 module "code-server" {
-  source = "https://registry.coder.com/modules/code-server"
+  source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev.id
 }
 
@@ -101,7 +101,7 @@ module "jetbrains_gateway" {
 }
 
 module "vscode" {
-  source = "https://registry.coder.com/modules/vscode-desktop"
+  source   = "https://registry.coder.com/modules/vscode-desktop"
   agent_id = coder_agent.dev.id
 }
 
