@@ -12,7 +12,6 @@ import {
 } from "components/DeploySettingsLayout/Badges";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
 import { getLatencyColor } from "utils/latency";
-import { Maybe } from "components/Conditionals/Maybe";
 import Box from "@mui/material/Box";
 
 export const ProxyRow: FC<{
@@ -72,7 +71,7 @@ export const ProxyRow: FC<{
           {latency ? `${latency.latencyMS.toFixed(0)} ms` : "Not available"}
         </TableCell>
       </TableRow>
-      <Maybe condition={shouldShowMessages}>
+      {shouldShowMessages && (
         <TableRow>
           <TableCell
             colSpan={4}
@@ -81,7 +80,7 @@ export const ProxyRow: FC<{
             <ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
           </TableCell>
         </TableRow>
-      </Maybe>
+      )}
     </>
   );
 };

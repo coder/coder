@@ -1,6 +1,5 @@
 import Link from "@mui/material/Link";
 import { Workspace } from "api/typesGenerated";
-import { Maybe } from "components/Conditionals/Maybe";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { ComponentProps, FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -97,9 +96,9 @@ export const WorkspacesPageView: FC<
       </PageHeader>
 
       <Stack>
-        <Maybe condition={hasError(error) && !isApiValidationError(error)}>
+        {hasError(error) && !isApiValidationError(error) && (
           <ErrorAlert error={error} />
-        </Maybe>
+        )}
         {/* <DormantWorkspaceBanner/> determines its own visibility */}
         <DormantWorkspaceBanner
           workspaces={dormantWorkspaces}

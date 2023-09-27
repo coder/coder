@@ -1,6 +1,5 @@
 import { useMachine } from "@xstate/react";
 import { isApiValidationError } from "api/errors";
-import { Maybe } from "components/Conditionals/Maybe";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { Loader } from "components/Loader/Loader";
@@ -55,14 +54,12 @@ const CreateTemplatePage: FC = () => {
       </Helmet>
 
       <FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
-        <Maybe condition={state.hasTag("loading")}>
-          <Loader />
-        </Maybe>
+        {state.hasTag("loading") && <Loader />}
 
         <Stack spacing={6}>
-          <Maybe condition={Boolean(error && !isApiValidationError(error))}>
+          {Boolean(error) && !isApiValidationError(error) && (
             <ErrorAlert error={error} />
-          </Maybe>
+          )}
 
           {shouldDisplayForm && (
             <CreateTemplateForm

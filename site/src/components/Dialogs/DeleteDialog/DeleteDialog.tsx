@@ -1,6 +1,5 @@
 import makeStyles from "@mui/styles/makeStyles";
 import TextField from "@mui/material/TextField";
-import { Maybe } from "components/Conditionals/Maybe";
 import { ChangeEvent, useState, PropsWithChildren, FC } from "react";
 import { ConfirmDialog } from "../ConfirmDialog/ConfirmDialog";
 
@@ -34,9 +33,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   const content = (
     <>
       <p>Deleting this {entity} is irreversible!</p>
-      <Maybe condition={info !== undefined}>
-        <p className={styles.warning}>{info}</p>
-      </Maybe>
+      {Boolean(info) && <p className={styles.warning}>{info}</p>}
       <p>Are you sure you want to proceed?</p>
       <p>Type {name} below to confirm.</p>
 

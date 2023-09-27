@@ -1,4 +1,3 @@
-import { Maybe } from "components/Conditionals/Maybe";
 import { StatsItem } from "components/Stats/Stats";
 import Link from "@mui/material/Link";
 import { Link as RouterLink } from "react-router-dom";
@@ -6,12 +5,15 @@ import styled from "@emotion/styled";
 import { Workspace } from "api/typesGenerated";
 import { displayDormantDeletion } from "./utils";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { type FC } from "react";
 
-export const DormantDeletionStat = ({
-  workspace,
-}: {
+interface DormantDeletionStatProps {
   workspace: Workspace;
-}): JSX.Element => {
+}
+
+export const DormantDeletionStat: FC<DormantDeletionStatProps> = ({
+  workspace,
+}) => {
   const { entitlements, experiments } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
@@ -19,29 +21,31 @@ export const DormantDeletionStat = ({
   // is merged up
   const allowWorkspaceActions = experiments.includes("workspace_actions");
 
+  if (
+    !displayDormantDeletion(
+      workspace,
+      allowAdvancedScheduling,
+      allowWorkspaceActions,
+    )
+  ) {
+    return null;
+  }
+
   return (
-    <Maybe
-      condition={displayDormantDeletion(
-        workspace,
-        allowAdvancedScheduling,
-        allowWorkspaceActions,
-      )}
-    >
-      <StyledStatsItem
-        label="Deletion on"
-        className="containerClass"
-        value={
-          <Link
-            component={RouterLink}
-            to={`/templates/${workspace.template_name}/settings/schedule`}
-            title="Schedule settings"
-          >
-            {/* We check for string existence in the conditional */}
-            {new Date(workspace.deleting_at as string).toLocaleString()}
-          </Link>
-        }
-      />
-    </Maybe>
+    <StyledStatsItem
+      label="Deletion on"
+      className="containerClass"
+      value={
+        <Link
+          component={RouterLink}
+          to={`/templates/${workspace.template_name}/settings/schedule`}
+          title="Schedule settings"
+        >
+          {/* We check for string existence in the conditional */}
+          {new Date(workspace.deleting_at!).toLocaleString()}
+        </Link>
+      }
+    />
   );
 };
 
