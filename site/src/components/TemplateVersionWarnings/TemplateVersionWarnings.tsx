@@ -8,10 +8,8 @@ export interface TemplateVersionWarningsProps {
 
 export const TemplateVersionWarnings: FC<
   React.PropsWithChildren<TemplateVersionWarningsProps>
-> = ({ warnings }) => {
-  if (!warnings) {
-    return <></>;
-  }
+> = (props) => {
+  const { warnings = [] } = props;
 
   if (!warnings.includes("UNSUPPORTED_WORKSPACES")) {
     return null;
