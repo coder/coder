@@ -161,7 +161,6 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			},
 		),
 		Handler: func(i *clibase.Invocation) error {
-			// fmt.Fprintf(i.Stderr, "env debug: %+v", i.Environ)
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
 			// cross-platform scripts to invoke the Coder binary
