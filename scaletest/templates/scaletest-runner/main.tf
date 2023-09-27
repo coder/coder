@@ -37,7 +37,7 @@ resource "null_resource" "permission_check" {
 locals {
   workspace_pod_name                             = "coder-scaletest-runner-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
   workspace_pod_instance                         = "coder-workspace-${lower(data.coder_workspace.me.owner)}-${lower(data.coder_workspace.me.name)}"
-  workspace_pod_termination_grace_period_seconds = 7200 # 2 hours (cleanup timeout).
+  workspace_pod_termination_grace_period_seconds = 5 * 60 * 60 # 5 hours (cleanup timeout).
   service_account_name                           = "scaletest-sa"
   cpu                                            = 16
   memory                                         = 64

@@ -27,7 +27,11 @@ server_version="$(jq -r '.version' <<<"${buildinfo}")"
 server_version_commit="$(jq -r '.external_url' <<<"${buildinfo}")"
 
 # Since `coder show` doesn't support JSON output, we list the workspaces instead.
-workspace_json="$(DRYRUN=0 coder list --all --output json | jq --arg workspace "${CODER_WORKSPACE}" --arg user "${CODER_USER}" 'map(select(.name == $workspace) | select(.owner_name == $user)) | .[0]')"
+# Use `command` here to bypass dry run.
+workspace_json="$(
+	command coder list --all --output json |
+		jq --arg workspace "${CODER_WORKSPACE}" --arg user "${CODER_USER}" 'map(select(.name == $workspace) | select(.owner_name == $user)) | .[0]'
+)"
 owner_name="$(jq -r '.latest_build.workspace_owner_name' <<<"${workspace_json}")"
 workspace_name="$(jq -r '.latest_build.workspace_name' <<<"${workspace_json}")"
 initiator_name="$(jq -r '.latest_build.initiator_name' <<<"${workspace_json}")"
@@ -43,7 +47,7 @@ while read -r app_name; do
 		app_url="${app_url//to=now/to=$(($(date +%s) * 1000))}"
 		bold='*'
 	fi
-	app_urls+=("${bullet} ${bold}${app_name}: ${app_url}${bold}")
+	app_urls+=("${bullet} ${bold}${app_name}${bold}: ${app_url}")
 done <<<"${app_urls_raw}"
 
 params=()
