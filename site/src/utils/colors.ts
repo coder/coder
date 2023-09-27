@@ -1,8 +1,15 @@
 /**
- * Does not support shorthand hex string (e.g., #fff)
+ * Does not support shorthand hex strings (e.g., #fff), just to maximize
+ * compatibility with server, which also doesn't support shorthand
  */
 const hexMatcher = /^#[0-9A-Fa-f]{6}$/;
 
+/**
+ * Determines whether a string is a hex color string. Returns false for
+ * shorthand hex strings.
+ *
+ * Mainly here to validate input before sending it to the server.
+ */
 export function isHexColor(input: string): boolean {
   return hexMatcher.test(input);
 }
