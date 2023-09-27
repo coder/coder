@@ -293,6 +293,13 @@ func (m metricsStore) GetAppSecurityKey(ctx context.Context) (string, error) {
 	return key, err
 }
 
+func (m metricsStore) GetApplicationName(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetApplicationName(ctx)
+	m.queryLatencies.WithLabelValues("GetApplicationName").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	start := time.Now()
 	rows, err := m.s.GetAuditLogsOffset(ctx, arg)
@@ -1758,6 +1765,13 @@ func (m metricsStore) UpsertAppSecurityKey(ctx context.Context, value string) er
 	start := time.Now()
 	r0 := m.s.UpsertAppSecurityKey(ctx, value)
 	m.queryLatencies.WithLabelValues("UpsertAppSecurityKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m metricsStore) UpsertApplicationName(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.UpsertApplicationName(ctx, value)
+	m.queryLatencies.WithLabelValues("UpsertApplicationName").Observe(time.Since(start).Seconds())
 	return r0
 }
 

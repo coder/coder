@@ -1088,6 +1088,7 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   } catch (ex) {
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
+        application_name: "",
         logo_url: "",
         service_banner: {
           enabled: false,

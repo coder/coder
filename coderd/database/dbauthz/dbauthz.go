@@ -851,6 +851,11 @@ func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	return q.db.GetAppSecurityKey(ctx)
 }
 
+func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetApplicationName(ctx)
+}
+
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	// To optimize audit logs, we only check the global audit log permission once.
 	// This is because we expect a large unbounded set of audit logs, and applying a SQL
@@ -2806,6 +2811,13 @@ func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Cont
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
 	return q.db.UpsertAppSecurityKey(ctx, data)
+}
+
+func (q *querier) UpsertApplicationName(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+		return err
+	}
+	return q.db.UpsertApplicationName(ctx, value)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

@@ -7023,6 +7023,9 @@ const docTemplate = `{
         "codersdk.AppearanceConfig": {
             "type": "object",
             "properties": {
+                "application_name": {
+                    "type": "string"
+                },
                 "logo_url": {
                     "type": "string"
                 },
@@ -10201,6 +10204,9 @@ const docTemplate = `{
         "codersdk.UpdateAppearanceConfig": {
             "type": "object",
             "properties": {
+                "application_name": {
+                    "type": "string"
+                },
                 "logo_url": {
                     "type": "string"
                 },
