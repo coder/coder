@@ -12,7 +12,7 @@ import {
   getTemplateVersionFiles,
   TemplateVersionFiles,
 } from "utils/templateVersion";
-import { getTemplatePageTitle } from "utils";
+import { getTemplatePageTitle } from "../utils";
 
 const fetchTemplateFiles = async (
   organizationId: string,

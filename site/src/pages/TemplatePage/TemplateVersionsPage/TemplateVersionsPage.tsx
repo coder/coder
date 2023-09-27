@@ -7,7 +7,7 @@ import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { VersionsTable } from "./VersionsTable";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { getTemplatePageTitle } from "utils";
+import { getTemplatePageTitle } from "../utils";
 
 const TemplateVersionsPage = () => {
   const { template, permissions } = useTemplateLayoutContext();
