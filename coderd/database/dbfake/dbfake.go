@@ -6331,7 +6331,7 @@ func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error
 	return nil
 }
 
-func (q *FakeQuerier) UpsertApplicationName(ctx context.Context, data string) error {
+func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
