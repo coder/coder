@@ -54,7 +54,7 @@ func TestStart(t *testing.T) {
 				Height: 24,
 			},
 		}))
-		pty, ps := ptytest.Start(t, pty.Command("env"), opts)
+		pty, ps := ptytest.Start(t, pty.Command("grep", "--binary-files=text", `SSH_TTY=/dev/`, "/proc/self/environ"), opts)
 		pty.ExpectMatch("SSH_TTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)
