@@ -207,3 +207,13 @@ variable "prometheus_remote_write_send_interval" {
   description = "Prometheus remote write interval."
   default     = "15s"
 }
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token."
+  sensitive   = true
+}
+
+variable "cloudflare_email" {
+  description = "Cloudflare email address."
+  sensitive   = true
+}

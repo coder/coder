@@ -1,7 +1,7 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_url                 = var.coder_access_url == "" ? "http://${var.coder_address}" : var.coder_access_url
+  coder_url                 = var.coder_access_url
   coder_admin_email         = "admin@coder.com"
   coder_admin_user          = "coder"
   coder_helm_repo           = "https://helm.coder.com/v2"
@@ -61,20 +61,31 @@ data "kubernetes_secret" "coder_oidc" {
   }
 }
 
-# TLS needs to be provisioned manually for now.
+resource "kubernetes_manifest" "coder_certificate" {
+  manifest = {
+    apiVersion = "cert-manager.io/v1"
+    kind       = "Certificate"
+    metadata = {
+      name      = "${var.name}"
+      namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+    }
+    spec = {
+      secretName = "${var.name}-tls"
+      dnsNames   = regex("https?://([^/]+)", local.coder_url)
+      issuerRef = {
+        name = kubernetes_manifest.cloudflare-cluster-issuer.manifest.metadata.name
+        kind = "ClusterIssuer"
+      }
+    }
+  }
+}
+
 data "kubernetes_secret" "coder_tls" {
   metadata {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
     name      = "${var.name}-tls"
   }
-}
-
-# Also need an OTEL collector deployed. Manual for now.
-data "kubernetes_service" "otel_collector" {
-  metadata {
-    namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-    name      = "otel-collector"
-  }
+  depends_on = [kubernetes_manifest.coder_certificate]
 }
 
 resource "helm_release" "coder-chart" {
@@ -164,7 +175,7 @@ coder:
           name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
     # Send OTEL traces to the cluster-local collector to sample 10%
     - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
-      value: "http://${data.kubernetes_service.otel_collector.metadata.0.name}.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
+      value: "http://${kubernetes_manifest.otel-collector.manifest.metadata.name}-collector.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
     - name: "OTEL_TRACES_SAMPLER"
       value: parentbased_traceidratio
     - name: "OTEL_TRACES_SAMPLER_ARG"
