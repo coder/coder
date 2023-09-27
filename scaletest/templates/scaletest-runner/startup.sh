@@ -43,9 +43,11 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 		log "Grabbing pprof dumps"
 		start="$(date +%s)"
 		annotate_grafana "pprof" "Grab pprof dumps (start=${start})"
-		for type in allocs block heap goroutine mutex profile?seconds=10 trace?seconds=5; do
+		for type in allocs block heap goroutine mutex 'profile?seconds=10' 'trace?seconds=5'; do
 			for port in "${ports[@]}"; do
-				maybedryrun "${DRY_RUN}" curl -sSL --output "${SCALETEST_PPROF_DIR}/pprof-${type}-${pods[${port}]}-${start}.gz" "http://localhost:${port}/debug/pprof/${type}"
+				tidy_type="${type//\?/_}"
+				tidy_type="${tidy_type//=/_}"
+				maybedryrun "${DRY_RUN}" curl -sSL --output "${SCALETEST_PPROF_DIR}/pprof-${tidy_type}-${pods[${port}]}-${start}.gz" "http://localhost:${port}/debug/pprof/${type}"
 			done
 		done
 		annotate_grafana_end "pprof" "Grab pprof dumps (start=${start})"
