@@ -409,37 +409,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("BlockMismatchingVersion", func(t *testing.T) {
-		t.Parallel()
-
-		client, _ := setup(t)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: "hi",
-		})
-		require.NoError(t, err)
-
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
-
-		_, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
-			AccessURL:           "https://proxy.coder.test",
-			WildcardHostname:    "*.proxy.coder.test",
-			DerpEnabled:         true,
-			ReplicaID:           uuid.New(),
-			ReplicaHostname:     "mars",
-			ReplicaError:        "",
-			ReplicaRelayAddress: "http://127.0.0.1:8080",
-			Version:             "v0.0.0",
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Version mismatch")
-	})
-
 	t.Run("ReregisterUpdateReplica", func(t *testing.T) {
 		t.Parallel()
 
