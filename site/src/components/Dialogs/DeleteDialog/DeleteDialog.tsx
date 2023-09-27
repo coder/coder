@@ -33,7 +33,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   const content = (
     <>
       <p>Deleting this {entity} is irreversible!</p>
-      {info !== undefined && <p className={styles.warning}>{info}</p>}
+      {Boolean(info) && <p className={styles.warning}>{info}</p>}
       <p>Are you sure you want to proceed?</p>
       <p>Type {name} below to confirm.</p>
 

@@ -1,6 +1,6 @@
 import { makeStyles } from "@mui/styles";
 import { type FC, type PropsWithChildren, type ReactNode } from "react";
-import { combineClasses } from "../../utils/combineClasses";
+import { combineClasses } from "utils/combineClasses";
 import { Stack } from "../Stack/Stack";
 
 export interface PageHeaderProps {

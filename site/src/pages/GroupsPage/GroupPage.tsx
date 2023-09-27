@@ -114,26 +114,24 @@ export const GroupPage: FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              {canUpdateGroup &&
-                groupData !== undefined &&
-                !isEveryoneGroup(groupData) && (
-                  <AddGroupMember
-                    isLoading={addMemberMutation.isLoading}
-                    onSubmit={async (user, reset) => {
-                      try {
-                        await addMemberMutation.mutateAsync({
-                          groupId,
-                          userId: user.id,
-                        });
-                        reset();
-                      } catch (error) {
-                        displayError(
-                          getErrorMessage(error, "Failed to add member."),
-                        );
-                      }
-                    }}
-                  />
-                )}
+              {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
+                <AddGroupMember
+                  isLoading={addMemberMutation.isLoading}
+                  onSubmit={async (user, reset) => {
+                    try {
+                      await addMemberMutation.mutateAsync({
+                        groupId,
+                        userId: user.id,
+                      });
+                      reset();
+                    } catch (error) {
+                      displayError(
+                        getErrorMessage(error, "Failed to add member."),
+                      );
+                    }
+                  }}
+                />
+              )}
               <TableToolbar>
                 <PaginationStatus
                   isLoading={Boolean(isLoading)}
