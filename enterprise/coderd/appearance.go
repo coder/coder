@@ -67,8 +67,16 @@ func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceC
 	}
 
 	var eg errgroup.Group
+	var applicationName string
 	var logoURL string
 	var serviceBannerJSON string
+	eg.Go(func() (err error) {
+		applicationName, err = api.Database.GetApplicationName(ctx)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return xerrors.Errorf("get application name: %w", err)
+		}
+		return nil
+	})
 	eg.Go(func() (err error) {
 		logoURL, err = api.Database.GetLogoURL(ctx)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -89,7 +97,8 @@ func (api *API) fetchAppearanceConfig(ctx context.Context) (codersdk.AppearanceC
 	}
 
 	cfg := codersdk.AppearanceConfig{
-		LogoURL: logoURL,
+		ApplicationName: applicationName,
+		LogoURL:         logoURL,
 	}
 	if serviceBannerJSON != "" {
 		err = json.Unmarshal([]byte(serviceBannerJSON), &cfg.ServiceBanner)

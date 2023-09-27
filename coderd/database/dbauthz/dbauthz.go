@@ -853,7 +853,7 @@ func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 
 func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
 	// No authz checks
-	return q.db.GetLogoURL(ctx)
+	return q.db.GetApplicationName(ctx)
 }
 
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
