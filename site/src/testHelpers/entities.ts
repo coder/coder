@@ -2152,6 +2152,7 @@ export const MockDeploymentConfig: DeploymentConfig = {
 };
 
 export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
+  application_name: "",
   logo_url: "",
   service_banner: {
     enabled: false,
