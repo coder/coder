@@ -2,7 +2,7 @@ import axios from "axios";
 import { useAuth } from "components/AuthProvider/AuthProvider";
 import { FC, useEffect } from "react";
 import { Outlet, Navigate, useLocation } from "react-router-dom";
-import { embedRedirect } from "../../utils/redirect";
+import { embedRedirect } from "utils/redirect";
 import { FullScreenLoader } from "../Loader/FullScreenLoader";
 import { DashboardProvider } from "components/Dashboard/DashboardProvider";
 import { ProxyProvider } from "contexts/ProxyContext";

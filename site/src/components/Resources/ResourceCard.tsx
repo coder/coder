@@ -1,6 +1,6 @@
 import { makeStyles } from "@mui/styles";
 import { FC, useState } from "react";
-import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated";
+import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";

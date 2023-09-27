@@ -2,7 +2,7 @@ import { useAuth } from "components/AuthProvider/AuthProvider";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { Navigate, useLocation } from "react-router-dom";
-import { retrieveRedirect } from "../../utils/redirect";
+import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
 
 export const LoginPage: FC = () => {

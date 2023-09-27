@@ -2,7 +2,7 @@ import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
 import { makeStyles } from "@mui/styles";
 import * as React from "react";
 import { colors } from "theme/colors";
-import { combineClasses } from "../../utils/combineClasses";
+import { combineClasses } from "utils/combineClasses";
 import {
   LoadingButton,
   LoadingButtonProps,

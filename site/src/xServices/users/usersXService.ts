@@ -5,15 +5,12 @@ import {
   PaginationMachineRef,
 } from "xServices/pagination/paginationXService";
 import { assign, createMachine, send, spawn } from "xstate";
-import * as API from "../../api/api";
-import { getErrorMessage } from "../../api/errors";
-import * as TypesGen from "../../api/typesGenerated";
-import {
-  displayError,
-  displaySuccess,
-} from "../../components/GlobalSnackbar/utils";
-import { queryToFilter } from "../../utils/filters";
-import { generateRandomString } from "../../utils/random";
+import * as API from "api/api";
+import { getErrorMessage } from "api/errors";
+import * as TypesGen from "api/typesGenerated";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { queryToFilter } from "utils/filters";
+import { generateRandomString } from "utils/random";
 
 const usersPaginationId = "usersPagination";
 

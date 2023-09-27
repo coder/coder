@@ -15,8 +15,8 @@ import {
   useNavigate,
 } from "react-router-dom";
 import { combineClasses } from "utils/combineClasses";
-import { Margins } from "../../components/Margins/Margins";
-import { Stack } from "../../components/Stack/Stack";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
 
 export const UsersLayout: FC = () => {
   const styles = useStyles();

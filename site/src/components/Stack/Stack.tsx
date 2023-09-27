@@ -2,7 +2,7 @@ import { makeStyles } from "@mui/styles";
 import { CSSProperties } from "@mui/styles/withStyles";
 import { FC } from "react";
 import { ReactNode } from "react-markdown/lib/react-markdown";
-import { combineClasses } from "../../utils/combineClasses";
+import { combineClasses } from "utils/combineClasses";
 
 type Direction = "column" | "row";
 

@@ -11,8 +11,8 @@ import { TextDecoder, TextEncoder } from "util";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
-} from "../../testHelpers/renderHelpers";
-import { server } from "../../testHelpers/server";
+} from "testHelpers/renderHelpers";
+import { server } from "testHelpers/server";
 import TerminalPage, { Language } from "./TerminalPage";
 import * as API from "api/api";
 

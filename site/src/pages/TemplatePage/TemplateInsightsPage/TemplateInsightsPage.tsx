@@ -16,7 +16,7 @@ import { getLatencyColor } from "utils/latency";
 import chroma from "chroma-js";
 import { colors } from "theme/colors";
 import { Helmet } from "react-helmet-async";
-import { getTemplatePageTitle } from "../utils";
+import { getTemplatePageTitle } from "utils";
 import { Loader } from "components/Loader/Loader";
 import {
   DAUsResponse,

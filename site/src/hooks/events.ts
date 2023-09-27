@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { CustomEventListener } from "../utils/events";
+import { CustomEventListener } from "utils/events";
 
 /**
  * Handles a custom event with descriptive type information.
