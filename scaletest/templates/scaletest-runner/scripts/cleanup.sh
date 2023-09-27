@@ -23,8 +23,8 @@ fi
 
 start_phase "Cleanup (${event})"
 coder exp scaletest cleanup \
-	--cleanup-job-timeout 15m \
-	--cleanup-timeout 2h |
+	--cleanup-job-timeout 2h \
+	--cleanup-timeout 5h |
 	tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
 end_phase
 

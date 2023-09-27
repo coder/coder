@@ -19,6 +19,9 @@ SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
+SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
+
+mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
 	maybedryrun "${DRY_RUN}" command coder "${@}"
@@ -142,9 +145,6 @@ annotate_grafana() {
 
 	log "Grafana annotation added!"
 
-	if [[ ! -f "${SCALETEST_STATE_DIR}" ]]; then
-		mkdir -p "${SCALETEST_STATE_DIR}"
-	fi
 	id="$(jq -r '.id' <<<"${resp}")"
 	echo "${id}:${tags}:${text}:${start}" >>"${SCALETEST_STATE_DIR}/grafana-annotations"
 }
