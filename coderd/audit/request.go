@@ -53,6 +53,7 @@ type BuildAuditParams[T Auditable] struct {
 	JobID            uuid.UUID
 	Status           int
 	Action           database.AuditAction
+	OrganizationID   uuid.UUID
 	AdditionalFields json.RawMessage
 
 	New T
@@ -267,6 +268,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		ID:               uuid.New(),
 		Time:             dbtime.Now(),
 		UserID:           p.UserID,
+		OrganizationID:   p.OrganizationID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),
