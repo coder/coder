@@ -1768,8 +1768,14 @@ func DeploymentOptionsWithoutSecrets(set clibase.OptionSet) clibase.OptionSet {
 	for _, opt := range set {
 		cpyOpt := opt
 		if IsSecretDeploymentOption(cpyOpt) {
-			var empty clibase.String
-			cpyOpt.Value = &empty
+			switch cpyOpt.Value.Type() {
+			case "string-array":
+				var empty clibase.StringArray
+				cpyOpt.Value = &empty
+			default:
+				var empty clibase.String
+				cpyOpt.Value = &empty
+			}
 		}
 		cpy = append(cpy, cpyOpt)
 	}
