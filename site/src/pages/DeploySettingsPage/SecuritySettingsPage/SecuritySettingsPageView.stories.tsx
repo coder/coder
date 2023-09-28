@@ -1,11 +1,10 @@
-import { DeploymentGroup, DeploymentOption } from "api/api";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
+import { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
 
-const group: DeploymentGroup = {
+const group: ClibaseGroup = {
   name: "Networking",
   description: "",
-  children: [] as DeploymentGroup[],
 };
 
 const meta: Meta<typeof SecuritySettingsPageView> = {
@@ -64,15 +63,15 @@ export const NoTLS = {
       {
         name: "SSH Keygen Algorithm",
         value: "1234",
-      } as DeploymentOption,
+      } as ClibaseOption,
       {
         name: "Disable Owner Workspace Access",
         value: false,
-      } as DeploymentOption,
+      } as ClibaseOption,
       {
         name: "Secure Auth Cookie",
         value: "1234",
-      } as DeploymentOption,
+      } as ClibaseOption,
     ],
   },
 };

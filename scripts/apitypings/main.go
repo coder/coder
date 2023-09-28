@@ -989,28 +989,13 @@ func (g *Generator) typescriptType(ty types.Type) (TypescriptType, error) {
 			}, nil
 		}
 
-		// Do support "Stringer" interfaces, they likely can get string
-		// marshaled.
-		for i := 0; i < intf.NumMethods(); i++ {
-			meth := intf.Method(i)
-			if meth.Name() == "String" {
-				return TypescriptType{
-					ValueType:     "string",
-					AboveTypeLine: indentedComment("actual value is an interface that implements 'String()'"),
-					Optional:      false,
-				}, nil
-			}
-		}
-
-		// All complex interfaces should be named. So if we get here, that means
-		// we are using anonymous interfaces. Which is just weird and not supported.
-		// Example:
-		//  type Foo struct {
-		//    Bar interface {
-		//      Baz() string
-		//    }
-		//  }
-		return TypescriptType{}, xerrors.New("only empty interface types are supported")
+		// Interfaces are difficult to determine the JSON type, so just return
+		// an 'any'.
+		return TypescriptType{
+			ValueType:     "any",
+			AboveTypeLine: indentedComment("eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type."),
+			Optional:      false,
+		}, nil
 	case *types.TypeParam:
 		_, ok := ty.Underlying().(*types.Interface)
 		if !ok {
