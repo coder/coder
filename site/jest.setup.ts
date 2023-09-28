@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 import crypto from "crypto";
-import { server } from "./src/testHelpers/server";
+import { server } from "testHelpers/server";
 import "jest-location-mock";
 import { TextEncoder, TextDecoder } from "util";
 import { Blob } from "buffer";
