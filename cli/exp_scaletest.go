@@ -1046,9 +1046,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		count   int64
-		minWait time.Duration
-		maxWait time.Duration
+		count    int64
+		minWait  time.Duration
+		maxWait  time.Duration
+		headless bool
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1094,19 +1095,38 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 
 			th := harness.NewTestHarness(strategy.toStrategy(), cleanupStrategy.toStrategy())
 
-			for i := int64(0); i < count; i++ {
-				name := fmt.Sprintf("dashboard-%d", i)
-				config := dashboard.Config{
-					MinWait:   minWait,
-					MaxWait:   maxWait,
-					Trace:     tracingEnabled,
-					Logger:    logger.Named(name),
-					RollTable: dashboard.DefaultActions,
+			users, err := getScaletestUsers(ctx, client)
+			if err != nil {
+				return xerrors.Errorf("get scaletest users")
+			}
+
+			for _, usr := range users {
+				name := fmt.Sprintf("dashboard-%s", usr.Username)
+				userTokResp, err := client.CreateToken(ctx, usr.ID.String(), codersdk.CreateTokenRequest{
+					Lifetime:  30 * 24 * time.Hour,
+					Scope:     "",
+					TokenName: fmt.Sprintf("scaletest-%d", time.Now().Unix()),
+				})
+				if err != nil {
+					return xerrors.Errorf("create token for user: %w", err)
 				}
+
+				userClient := codersdk.New(client.URL)
+				userClient.SetSessionToken(userTokResp.Key)
+
+				config := dashboard.Config{
+					MinWait:    minWait,
+					MaxWait:    maxWait,
+					Trace:      tracingEnabled,
+					Logger:     logger.Named(name),
+					Headless:   headless,
+					ActionFunc: dashboard.ClickRandomElement,
+				}
+				logger.Info(ctx, "runner config", slog.F("min_wait", minWait), slog.F("max_wait", maxWait), slog.F("headless", headless))
 				if err := config.Validate(); err != nil {
 					return err
 				}
-				var runner harness.Runnable = dashboard.NewRunner(client, metrics, config)
+				var runner harness.Runnable = dashboard.NewRunner(userClient, metrics, config)
 				if tracingEnabled {
 					runner = &runnableTraceWrapper{
 						tracer:   tracer,
@@ -1152,16 +1172,23 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		{
 			Flag:        "min-wait",
 			Env:         "CODER_SCALETEST_DASHBOARD_MIN_WAIT",
-			Default:     "100ms",
+			Default:     "1s",
 			Description: "Minimum wait between fetches.",
 			Value:       clibase.DurationOf(&minWait),
 		},
 		{
 			Flag:        "max-wait",
 			Env:         "CODER_SCALETEST_DASHBOARD_MAX_WAIT",
-			Default:     "1s",
+			Default:     "10s",
 			Description: "Maximum wait between fetches.",
 			Value:       clibase.DurationOf(&maxWait),
+		},
+		{
+			Flag:        "headless",
+			Env:         "CODER_SCALETEST_DASHBOARD_HEADLESS",
+			Default:     "true",
+			Description: "Controls headless mode. Setting to false is useful for debugging.",
+			Value:       clibase.BoolOf(&headless),
 		},
 	}
 
