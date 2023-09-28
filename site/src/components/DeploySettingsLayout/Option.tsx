@@ -71,13 +71,17 @@ export const OptionConfig = ({
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
         backgroundColor: (theme) =>
-          source ? "green" : theme.palette.background.paperLight,
+          source
+            ? theme.palette.success.dark
+            : theme.palette.background.paperLight,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,
         padding: (theme) => theme.spacing(0, 1),
         border: (theme) =>
-          `1px solid ${source ? "lightgreen" : theme.palette.divider}`,
+          `1px solid ${
+            source ? theme.palette.success.light : theme.palette.divider
+          }`,
         ...boxProps.sx,
       }}
     />
