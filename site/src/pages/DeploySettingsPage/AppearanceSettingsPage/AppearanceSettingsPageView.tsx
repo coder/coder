@@ -42,6 +42,16 @@ export const AppearanceSettingsPageView = ({
   const styles = useStyles();
   const theme = useTheme();
 
+  const applicationNameForm = useFormik<{
+    application_name: string;
+  }>({
+    initialValues: {
+      application_name: appearance.application_name,
+    },
+    onSubmit: (values) => onSaveAppearance(values, false),
+  });
+  const applicationNameFieldHelpers = getFormHelpers(applicationNameForm);
+
   const logoForm = useFormik<{
     logo_url: string;
   }>({
@@ -88,6 +98,22 @@ export const AppearanceSettingsPageView = ({
       </Badges>
 
       <Fieldset
+        title="Application name"
+        subtitle="Specify a custom application name to be displayed on the login page."
+        validation={!isEntitled ? "This is an Enterprise only feature." : ""}
+        onSubmit={applicationNameForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
+      >
+        <TextField
+          {...applicationNameFieldHelpers("application_name")}
+          defaultValue={appearance.application_name}
+          fullWidth
+          placeholder='Leave empty to display "Coder".'
+          disabled={!isEntitled}
+        />
+      </Fieldset>
+
+      <Fieldset
         title="Logo URL"
         subtitle="Specify a custom URL for your logo to be displayed in the top left
           corner of the dashboard."
@@ -99,6 +125,13 @@ export const AppearanceSettingsPageView = ({
         onSubmit={logoForm.handleSubmit}
         button={!isEntitled && <Button disabled>Submit</Button>}
       >
+        <TextField
+          {...logoFieldHelpers("application_name")}
+          defaultValue={appearance.application_name}
+          fullWidth
+          placeholder='Leave empty to display "Coder".'
+          disabled={!isEntitled}
+        />
         <TextField
           {...logoFieldHelpers("logo_url")}
           defaultValue={appearance.logo_url}
