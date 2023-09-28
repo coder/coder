@@ -1,11 +1,10 @@
-import { DeploymentGroup } from "api/api";
+import { ClibaseGroup } from "api/typesGenerated";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const group: DeploymentGroup = {
+const group: ClibaseGroup = {
   name: "Networking",
   description: "",
-  children: [] as DeploymentGroup[],
 };
 
 const meta: Meta<typeof NetworkSettingsPageView> = {

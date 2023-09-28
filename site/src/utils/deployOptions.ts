@@ -1,4 +1,3 @@
-import { DeploymentGroup } from "api/api";
 import { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
 import { useMemo } from "react";
 
