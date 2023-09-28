@@ -69,7 +69,7 @@
     "eventsourcemock": "2.0.0",
     "formik": "2.4.1",
     "front-matter": "4.0.2",
-    "jest-environment-jsdom": "29.5.0",
+    "jest-environment-jsdom": "29.7.0",
     "lodash": "4.17.21",
     "monaco-editor": "0.43.0",
     "pretty-bytes": "6.1.0",
