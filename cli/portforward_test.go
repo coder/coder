@@ -14,13 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -317,23 +315,11 @@ func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.
 	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
 	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("agent")
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SDK.SetLogger(logger)
-	agentClient.SDK.SetSessionToken(agentToken)
-	agnt := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: logger,
-		LogDir: t.TempDir(),
-		ExchangeToken: func(ctx context.Context) (string, error) {
-			return agentToken, nil
+	_ = agenttest.New(t, client.URL, agentToken,
+		func(o *agent.Options) {
+			o.SSHMaxTimeout = 60 * time.Second
 		},
-		SSHMaxTimeout: time.Second * 60,
-	})
-	t.Cleanup(func() {
-		err := agnt.Close()
-		assert.NoError(t, err)
-	})
+	)
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	return workspace

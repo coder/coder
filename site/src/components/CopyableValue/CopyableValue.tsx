@@ -15,7 +15,7 @@ export const CopyableValue: FC<CopyableValueProps> = ({
   ...props
 }) => {
   const { isCopied, copy } = useClipboard(value);
-  const clickableProps = useClickable(copy);
+  const clickableProps = useClickable<HTMLSpanElement>(copy);
   const styles = useStyles();
 
   return (

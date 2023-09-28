@@ -488,6 +488,21 @@ func (mr *MockStoreMockRecorder) GetAppSecurityKey(arg0 interface{}) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAppSecurityKey", reflect.TypeOf((*MockStore)(nil).GetAppSecurityKey), arg0)
 }
 
+// GetApplicationName mocks base method.
+func (m *MockStore) GetApplicationName(arg0 context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApplicationName", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApplicationName indicates an expected call of GetApplicationName.
+func (mr *MockStoreMockRecorder) GetApplicationName(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApplicationName", reflect.TypeOf((*MockStore)(nil).GetApplicationName), arg0)
+}
+
 // GetAuditLogsOffset mocks base method.
 func (m *MockStore) GetAuditLogsOffset(arg0 context.Context, arg1 database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	m.ctrl.T.Helper()
@@ -1598,6 +1613,21 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(arg0 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnexpiredLicenses", reflect.TypeOf((*MockStore)(nil).GetUnexpiredLicenses), arg0)
 }
 
+// GetUserActivityInsights mocks base method.
+func (m *MockStore) GetUserActivityInsights(arg0 context.Context, arg1 database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserActivityInsights", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserActivityInsightsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserActivityInsights indicates an expected call of GetUserActivityInsights.
+func (mr *MockStoreMockRecorder) GetUserActivityInsights(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserActivityInsights", reflect.TypeOf((*MockStore)(nil).GetUserActivityInsights), arg0, arg1)
+}
+
 // GetUserByEmailOrUsername mocks base method.
 func (m *MockStore) GetUserByEmailOrUsername(arg0 context.Context, arg1 database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	m.ctrl.T.Helper()
@@ -1793,6 +1823,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentLifecycleStateByID(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentLifecycleStateByID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentLifecycleStateByID), arg0, arg1)
 }
 
+// GetWorkspaceAgentLogSourcesByAgentIDs mocks base method.
+func (m *MockStore) GetWorkspaceAgentLogSourcesByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentLogSourcesByAgentIDs", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentLogSource)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentLogSourcesByAgentIDs indicates an expected call of GetWorkspaceAgentLogSourcesByAgentIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentLogSourcesByAgentIDs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentLogSourcesByAgentIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentLogSourcesByAgentIDs), arg0, arg1)
+}
+
 // GetWorkspaceAgentLogsAfter mocks base method.
 func (m *MockStore) GetWorkspaceAgentLogsAfter(arg0 context.Context, arg1 database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
 	m.ctrl.T.Helper()
@@ -1821,6 +1866,21 @@ func (m *MockStore) GetWorkspaceAgentMetadata(arg0 context.Context, arg1 uuid.UU
 func (mr *MockStoreMockRecorder) GetWorkspaceAgentMetadata(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentMetadata), arg0, arg1)
+}
+
+// GetWorkspaceAgentScriptsByAgentIDs mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptsByAgentIDs", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentScript)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentScriptsByAgentIDs indicates an expected call of GetWorkspaceAgentScriptsByAgentIDs.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptsByAgentIDs(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptsByAgentIDs", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptsByAgentIDs), arg0, arg1)
 }
 
 // GetWorkspaceAgentStats mocks base method.
@@ -2715,6 +2775,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgent(arg0, arg1 interface{}) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgent", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgent), arg0, arg1)
 }
 
+// InsertWorkspaceAgentLogSources mocks base method.
+func (m *MockStore) InsertWorkspaceAgentLogSources(arg0 context.Context, arg1 database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentLogSources", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentLogSource)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentLogSources indicates an expected call of InsertWorkspaceAgentLogSources.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentLogSources(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentLogSources", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentLogSources), arg0, arg1)
+}
+
 // InsertWorkspaceAgentLogs mocks base method.
 func (m *MockStore) InsertWorkspaceAgentLogs(arg0 context.Context, arg1 database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
 	m.ctrl.T.Helper()
@@ -2742,6 +2817,21 @@ func (m *MockStore) InsertWorkspaceAgentMetadata(arg0 context.Context, arg1 data
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), arg0, arg1)
+}
+
+// InsertWorkspaceAgentScripts mocks base method.
+func (m *MockStore) InsertWorkspaceAgentScripts(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScripts", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentScript)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentScripts indicates an expected call of InsertWorkspaceAgentScripts.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentScripts(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentScripts", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentScripts), arg0, arg1)
 }
 
 // InsertWorkspaceAgentStat mocks base method.
@@ -3621,6 +3711,20 @@ func (m *MockStore) UpsertAppSecurityKey(arg0 context.Context, arg1 string) erro
 func (mr *MockStoreMockRecorder) UpsertAppSecurityKey(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertAppSecurityKey", reflect.TypeOf((*MockStore)(nil).UpsertAppSecurityKey), arg0, arg1)
+}
+
+// UpsertApplicationName mocks base method.
+func (m *MockStore) UpsertApplicationName(arg0 context.Context, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertApplicationName", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertApplicationName indicates an expected call of UpsertApplicationName.
+func (mr *MockStoreMockRecorder) UpsertApplicationName(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertApplicationName", reflect.TypeOf((*MockStore)(nil).UpsertApplicationName), arg0, arg1)
 }
 
 // UpsertDefaultProxy mocks base method.

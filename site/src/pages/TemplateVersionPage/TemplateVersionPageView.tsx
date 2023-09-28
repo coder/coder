@@ -1,5 +1,5 @@
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
+import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
@@ -13,7 +13,7 @@ import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
 import { UseTabResult } from "hooks/useTab";
-import { FC } from "react";
+import { type FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { TemplateVersionMachineContext } from "xServices/templateVersion/templateVersionXService";
@@ -27,6 +27,7 @@ export interface TemplateVersionPageViewProps {
   templateName: string;
   tab: UseTabResult;
   context: TemplateVersionMachineContext;
+  createWorkspaceUrl?: string;
 }
 
 export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
@@ -34,6 +35,7 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
   tab,
   versionName,
   templateName,
+  createWorkspaceUrl,
 }) => {
   const { currentFiles, error, currentVersion, previousFiles } = context;
 
@@ -41,12 +43,25 @@ export const TemplateVersionPageView: FC<TemplateVersionPageViewProps> = ({
     <Margins>
       <PageHeader
         actions={
-          <Link
-            component={RouterLink}
-            to={`/templates/${templateName}/versions/${versionName}/edit`}
-          >
-            <Button startIcon={<EditIcon />}>Edit</Button>
-          </Link>
+          <>
+            {createWorkspaceUrl && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                component={RouterLink}
+                to={createWorkspaceUrl}
+              >
+                Create workspace
+              </Button>
+            )}
+            <Button
+              startIcon={<EditIcon />}
+              component={RouterLink}
+              to={`/templates/${templateName}/versions/${versionName}/edit`}
+            >
+              Edit
+            </Button>
+          </>
         }
       >
         <PageHeaderCaption>Version</PageHeaderCaption>

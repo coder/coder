@@ -46,6 +46,7 @@ export interface AppHostResponse {
 
 // From codersdk/deployment.go
 export interface AppearanceConfig {
+  readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
   readonly support_links?: LinkConfig[];
@@ -1091,6 +1092,7 @@ export interface UpdateActiveTemplateVersion {
 
 // From codersdk/deployment.go
 export interface UpdateAppearanceConfig {
+  readonly application_name: string;
   readonly logo_url: string;
   readonly service_banner: ServiceBannerConfig;
 }
@@ -1191,6 +1193,35 @@ export interface User {
   readonly roles: Role[];
   readonly avatar_url: string;
   readonly login_type: LoginType;
+}
+
+// From codersdk/insights.go
+export interface UserActivity {
+  readonly template_ids: string[];
+  readonly user_id: string;
+  readonly username: string;
+  readonly avatar_url: string;
+  readonly seconds: number;
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsReport {
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+  readonly users: UserActivity[];
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsRequest {
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly template_ids: string[];
+}
+
+// From codersdk/insights.go
+export interface UserActivityInsightsResponse {
+  readonly report: UserActivityInsightsReport;
 }
 
 // From codersdk/insights.go
@@ -1307,9 +1338,6 @@ export interface WorkspaceAgent {
   readonly architecture: string;
   readonly environment_variables: Record<string, string>;
   readonly operating_system: string;
-  readonly startup_script?: string;
-  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
-  readonly startup_script_timeout_seconds: number;
   readonly logs_length: number;
   readonly logs_overflowed: boolean;
   readonly directory?: string;
@@ -1319,12 +1347,12 @@ export interface WorkspaceAgent {
   readonly latency?: Record<string, DERPRegion>;
   readonly connection_timeout_seconds: number;
   readonly troubleshooting_url: string;
-  readonly login_before_ready: boolean;
-  readonly shutdown_script?: string;
-  readonly shutdown_script_timeout_seconds: number;
   readonly subsystems: AgentSubsystem[];
   readonly health: WorkspaceAgentHealth;
   readonly display_apps: DisplayApp[];
+  readonly log_sources: WorkspaceAgentLogSource[];
+  readonly scripts: WorkspaceAgentScript[];
+  readonly startup_script_behavior: WorkspaceAgentStartupScriptBehavior;
 }
 
 // From codersdk/workspaceagents.go
@@ -1351,6 +1379,16 @@ export interface WorkspaceAgentLog {
   readonly created_at: string;
   readonly output: string;
   readonly level: LogLevel;
+  readonly source_id: string;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentLogSource {
+  readonly workspace_agent_id: string;
+  readonly id: string;
+  readonly created_at: string;
+  readonly display_name: string;
+  readonly icon: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -1374,6 +1412,18 @@ export interface WorkspaceAgentMetadataResult {
   readonly age: number;
   readonly value: string;
   readonly error: string;
+}
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentScript {
+  readonly log_source_id: string;
+  readonly log_path: string;
+  readonly script: string;
+  readonly cron: string;
+  readonly run_on_start: boolean;
+  readonly run_on_stop: boolean;
+  readonly start_blocks_login: boolean;
+  readonly timeout: number;
 }
 
 // From codersdk/workspaceapps.go
@@ -1863,23 +1913,6 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
   "start_error",
   "start_timeout",
   "starting",
-];
-
-// From codersdk/workspaceagents.go
-export type WorkspaceAgentLogSource =
-  | "envbox"
-  | "envbuilder"
-  | "external"
-  | "kubernetes"
-  | "shutdown_script"
-  | "startup_script";
-export const WorkspaceAgentLogSources: WorkspaceAgentLogSource[] = [
-  "envbox",
-  "envbuilder",
-  "external",
-  "kubernetes",
-  "shutdown_script",
-  "startup_script",
 ];
 
 // From codersdk/workspaceagents.go

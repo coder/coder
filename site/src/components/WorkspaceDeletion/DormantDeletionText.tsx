@@ -1,10 +1,10 @@
 import { Workspace } from "api/typesGenerated";
-import { displayImpendingDeletion } from "./utils";
+import { displayDormantDeletion } from "./utils";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import styled from "@emotion/styled";
 import { Theme as MaterialUITheme } from "@mui/material/styles";
 
-export const ImpendingDeletionText = ({
+export const DormantDeletionText = ({
   workspace,
 }: {
   workspace: Workspace;
@@ -17,7 +17,7 @@ export const ImpendingDeletionText = ({
   const allowWorkspaceActions = experiments.includes("workspace_actions");
 
   if (
-    !displayImpendingDeletion(
+    !displayDormantDeletion(
       workspace,
       allowAdvancedScheduling,
       allowWorkspaceActions,

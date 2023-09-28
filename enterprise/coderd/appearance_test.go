@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -19,6 +20,37 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestCustomLogoAndCompanyName(t *testing.T) {
+	t.Parallel()
+
+	// Prepare enterprise deployment
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	defer cancel()
+
+	adminClient, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+	coderdenttest.AddLicense(t, adminClient, coderdenttest.LicenseOptions{
+		Features: license.Features{
+			codersdk.FeatureAppearance: 1,
+		},
+	})
+
+	// Update logo and application name
+	uac := codersdk.UpdateAppearanceConfig{
+		ApplicationName: "ACME Ltd",
+		LogoURL:         "http://logo-url/file.png",
+	}
+
+	err := adminClient.UpdateAppearance(ctx, uac)
+	require.NoError(t, err)
+
+	// Verify update
+	got, err := adminClient.Appearance(ctx)
+	require.NoError(t, err)
+
+	require.Equal(t, uac.ApplicationName, got.ApplicationName)
+	require.Equal(t, uac.LogoURL, got.LogoURL)
+}
 
 func TestServiceBanners(t *testing.T) {
 	t.Parallel()
@@ -77,6 +109,13 @@ func TestServiceBanners(t *testing.T) {
 		wantBanner.ServiceBanner.BackgroundColor = "#bad color"
 		err = adminClient.UpdateAppearance(ctx, wantBanner)
 		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		if assert.ErrorAs(t, err, &sdkErr) {
+			assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+			assert.Contains(t, sdkErr.Message, "Invalid color format")
+			assert.Contains(t, sdkErr.Detail, "expected # prefix and 6 characters")
+		}
 	})
 
 	t.Run("Agent", func(t *testing.T) {

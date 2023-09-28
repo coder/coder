@@ -1832,14 +1832,16 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 }
 
 type AppearanceConfig struct {
-	LogoURL       string              `json:"logo_url"`
-	ServiceBanner ServiceBannerConfig `json:"service_banner"`
-	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
+	ApplicationName string              `json:"application_name"`
+	LogoURL         string              `json:"logo_url"`
+	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
-	LogoURL       string              `json:"logo_url"`
-	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+	ApplicationName string              `json:"application_name"`
+	LogoURL         string              `json:"logo_url"`
+	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
 }
 
 type ServiceBannerConfig struct {

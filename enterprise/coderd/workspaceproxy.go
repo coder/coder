@@ -572,9 +572,9 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Version check should be forced in non-dev builds and when running in
-	// tests.
+	// tests. Only Major + minor versions are checked.
 	shouldForceVersion := !buildinfo.IsDev() || flag.Lookup("test.v") != nil
-	if shouldForceVersion && req.Version != buildinfo.Version() {
+	if shouldForceVersion && !buildinfo.VersionsMatch(req.Version, buildinfo.Version()) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Version mismatch.",
 			Detail:  fmt.Sprintf("Proxy version %q does not match primary server version %q", req.Version, buildinfo.Version()),

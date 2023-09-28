@@ -895,6 +895,7 @@ func New(options *Options) *API {
 		r.Route("/insights", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
+			r.Get("/user-activity", api.insightsUserActivity)
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
 		})

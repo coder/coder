@@ -59,6 +59,93 @@ func (api *API) deploymentDAUs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get insights about user activity
+// @ID get-insights-about-user-activity
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Insights
+// @Success 200 {object} codersdk.UserActivityInsightsResponse
+// @Router /insights/user-activity [get]
+func (api *API) insightsUserActivity(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	p := httpapi.NewQueryParamParser().
+		Required("start_time").
+		Required("end_time")
+	vals := r.URL.Query()
+	var (
+		// The QueryParamParser does not preserve timezone, so we need
+		// to parse the time ourselves.
+		startTimeString = p.String(vals, "", "start_time")
+		endTimeString   = p.String(vals, "", "end_time")
+		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+	)
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, startTimeString, endTimeString)
+	if !ok {
+		return
+	}
+
+	rows, err := api.Database.GetUserActivityInsights(ctx, database.GetUserActivityInsightsParams{
+		StartTime:   startTime,
+		EndTime:     endTime,
+		TemplateIDs: templateIDs,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user activity.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	templateIDSet := make(map[uuid.UUID]struct{})
+	userActivities := make([]codersdk.UserActivity, 0, len(rows))
+	for _, row := range rows {
+		for _, templateID := range row.TemplateIDs {
+			templateIDSet[templateID] = struct{}{}
+		}
+		userActivities = append(userActivities, codersdk.UserActivity{
+			TemplateIDs: row.TemplateIDs,
+			UserID:      row.UserID,
+			Username:    row.Username,
+			AvatarURL:   row.AvatarURL.String,
+			Seconds:     row.UsageSeconds,
+		})
+	}
+
+	// TemplateIDs that contributed to the data.
+	seenTemplateIDs := make([]uuid.UUID, 0, len(templateIDSet))
+	for templateID := range templateIDSet {
+		seenTemplateIDs = append(seenTemplateIDs, templateID)
+	}
+	slices.SortFunc(seenTemplateIDs, func(a, b uuid.UUID) int {
+		return slice.Ascending(a.String(), b.String())
+	})
+
+	resp := codersdk.UserActivityInsightsResponse{
+		Report: codersdk.UserActivityInsightsReport{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: seenTemplateIDs,
+			Users:       userActivities,
+		},
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // @Summary Get insights about user latency
 // @ID get-insights-about-user-latency
 // @Security CoderSessionToken

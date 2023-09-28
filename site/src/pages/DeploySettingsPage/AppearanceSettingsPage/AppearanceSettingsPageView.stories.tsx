@@ -6,6 +6,7 @@ const meta: Meta<typeof AppearanceSettingsPageView> = {
   component: AppearanceSettingsPageView,
   args: {
     appearance: {
+      application_name: "",
       logo_url: "https://github.com/coder.png",
       service_banner: {
         enabled: true,

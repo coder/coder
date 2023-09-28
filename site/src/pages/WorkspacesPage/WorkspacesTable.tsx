@@ -250,15 +250,31 @@ const WorkspacesRow: FC<{
   checked: boolean;
 }> = ({ workspace, children, checked }) => {
   const navigate = useNavigate();
+
   const workspacePageLink = `/@${workspace.owner_name}/${workspace.name}`;
-  const clickable = useClickableTableRow(() => {
-    navigate(workspacePageLink);
+  const openLinkInNewTab = () => window.open(workspacePageLink, "_blank");
+
+  const clickableProps = useClickableTableRow({
+    onMiddleClick: openLinkInNewTab,
+    onClick: (event) => {
+      // Order of booleans actually matters here for Windows-Mac compatibility;
+      // meta key is Cmd on Macs, but on Windows, it's either the Windows key,
+      // or the key does nothing at all (depends on the browser)
+      const shouldOpenInNewTab =
+        event.shiftKey || event.metaKey || event.ctrlKey;
+
+      if (shouldOpenInNewTab) {
+        openLinkInNewTab();
+      } else {
+        navigate(workspacePageLink);
+      }
+    },
   });
 
   return (
     <TableRow
+      {...clickableProps}
       data-testid={`workspace-${workspace.id}`}
-      {...clickable}
       sx={{
         backgroundColor: (theme) =>
           checked ? theme.palette.action.hover : undefined,

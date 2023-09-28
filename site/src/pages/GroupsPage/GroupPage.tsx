@@ -1,5 +1,4 @@
 import Button from "@mui/material/Button";
-import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -25,11 +24,10 @@ import {
 import { Stack } from "components/Stack/Stack";
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { useState } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link as RouterLink, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { Maybe } from "components/Conditionals/Maybe";
 import { makeStyles } from "@mui/styles";
 import {
   PaginationStatus,
@@ -48,7 +46,7 @@ import {
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 
-export const GroupPage: React.FC = () => {
+export const GroupPage: FC = () => {
   const { groupId } = useParams() as { groupId: string };
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -60,6 +58,7 @@ export const GroupPage: React.FC = () => {
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const isLoading = !groupData || !permissions;
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+  const styles = useStyles();
 
   return (
     <>
@@ -79,20 +78,27 @@ export const GroupPage: React.FC = () => {
           <Margins>
             <PageHeader
               actions={
-                <Maybe condition={canUpdateGroup}>
-                  <Link to="settings" component={RouterLink}>
-                    <Button startIcon={<SettingsOutlined />}>Settings</Button>
-                  </Link>
-                  <Button
-                    disabled={groupData?.id === groupData?.organization_id}
-                    onClick={() => {
-                      setIsDeletingGroup(true);
-                    }}
-                    startIcon={<DeleteOutline />}
-                  >
-                    Delete
-                  </Button>
-                </Maybe>
+                canUpdateGroup && (
+                  <>
+                    <Button
+                      startIcon={<SettingsOutlined />}
+                      to="settings"
+                      component={RouterLink}
+                    >
+                      Settings
+                    </Button>
+                    <Button
+                      disabled={groupData?.id === groupData?.organization_id}
+                      onClick={() => {
+                        setIsDeletingGroup(true);
+                      }}
+                      startIcon={<DeleteOutline />}
+                      className={styles.removeButton}
+                    >
+                      Delete&hellip;
+                    </Button>
+                  </>
+                )
               }
             >
               <PageHeaderTitle>
@@ -108,13 +114,7 @@ export const GroupPage: React.FC = () => {
             </PageHeader>
 
             <Stack spacing={1}>
-              <Maybe
-                condition={
-                  canUpdateGroup &&
-                  groupData !== undefined &&
-                  !isEveryoneGroup(groupData)
-                }
-              >
+              {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
                 <AddGroupMember
                   isLoading={addMemberMutation.isLoading}
                   onSubmit={async (user, reset) => {
@@ -131,7 +131,7 @@ export const GroupPage: React.FC = () => {
                     }
                   }}
                 />
-              </Maybe>
+              )}
               <TableToolbar>
                 <PaginationStatus
                   isLoading={Boolean(isLoading)}
@@ -184,11 +184,11 @@ export const GroupPage: React.FC = () => {
         </Cond>
       </ChooseOne>
 
-      {group && (
+      {groupQuery.data && (
         <DeleteDialog
           isOpen={isDeletingGroup}
           confirmLoading={deleteGroupMutation.isLoading}
-          name={group.name}
+          name={groupQuery.data.name}
           entity="group"
           onConfirm={async () => {
             try {
@@ -274,7 +274,7 @@ const GroupMemberRow = (props: {
         />
       </TableCell>
       <TableCell width="1%">
-        <Maybe condition={canUpdate}>
+        {canUpdate && (
           <TableRowMenu
             data={member}
             menuItems={[
@@ -297,15 +297,21 @@ const GroupMemberRow = (props: {
               },
             ]}
           />
-        </Maybe>
+        )}
       </TableCell>
     </TableRow>
   );
 };
 
-const useStyles = makeStyles(() => ({
+const useStyles = makeStyles((theme) => ({
   autoComplete: {
     width: 300,
+  },
+  removeButton: {
+    color: theme.palette.error.main,
+    "&:hover": {
+      backgroundColor: "transparent",
+    },
   },
 }));
 

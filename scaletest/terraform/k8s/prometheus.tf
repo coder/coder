@@ -10,37 +10,30 @@ locals {
 }
 
 # Create a namespace to hold our Prometheus deployment.
-resource "null_resource" "prometheus_namespace" {
-  triggers = {
-    namespace       = local.prometheus_namespace
-    kubeconfig_path = var.kubernetes_kubeconfig_path
+resource "kubernetes_namespace" "prometheus_namespace" {
+  metadata {
+    name = local.prometheus_namespace
   }
-  depends_on = []
-  provisioner "local-exec" {
-    when    = create
-    command = <<EOF
-      KUBECONFIG=${self.triggers.kubeconfig_path} kubectl create namespace ${self.triggers.namespace}
-    EOF
-  }
-  provisioner "local-exec" {
-    when    = destroy
-    command = "true"
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_default_service_account]
   }
 }
 
 # Create a secret to store the remote write key
 resource "kubernetes_secret" "prometheus-credentials" {
-  count      = local.prometheus_remote_write_enabled ? 1 : 0
-  type       = "kubernetes.io/basic-auth"
-  depends_on = [null_resource.prometheus_namespace]
+  count = local.prometheus_remote_write_enabled ? 1 : 0
+  type  = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-credentials"
-    namespace = local.prometheus_namespace
+    namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
   }
 
   data = {
     username = var.prometheus_remote_write_user
     password = var.prometheus_remote_write_password
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
   }
 }
 
@@ -49,8 +42,7 @@ resource "helm_release" "prometheus-chart" {
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  namespace  = local.prometheus_namespace
-  depends_on = [null_resource.prometheus_namespace]
+  namespace  = kubernetes_namespace.prometheus_namespace.metadata.0.name
   values = [<<EOF
 alertmanager:
   enabled: false
@@ -113,12 +105,14 @@ resource "kubernetes_secret" "prometheus-postgres-password" {
   type = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-postgres"
-    namespace = local.prometheus_namespace
+    namespace = kubernetes_namespace.prometheus_namespace.metadata.0.name
   }
-  depends_on = [null_resource.prometheus_namespace]
   data = {
     username = var.prometheus_postgres_user
     password = var.prometheus_postgres_password
+  }
+  lifecycle {
+    ignore_changes = [timeouts, wait_for_service_account_token]
   }
 }
 
@@ -153,35 +147,27 @@ serviceMonitor:
   ]
 }
 
-# NOTE: this is created as a local file before being applied
-# as the kubernetes_manifest resource needs to be run separately
-# after creating a cluster, and we want this to be brought up
-# with a single command.
-resource "local_file" "coder-monitoring-manifest" {
-  filename   = "${path.module}/../.coderv2/coder-monitoring.yaml"
+resource "kubernetes_manifest" "coder_monitoring" {
   depends_on = [helm_release.prometheus-chart]
-  content    = <<EOF
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  namespace: ${local.coder_namespace}
-  name: coder-monitoring
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: coder
-  podMetricsEndpoints:
-  - port: prometheus-http
-    interval: 30s
-  EOF
-}
-
-resource "null_resource" "coder-monitoring-manifest_apply" {
-  provisioner "local-exec" {
-    working_dir = "${abspath(path.module)}/../.coderv2"
-    command     = <<EOF
-KUBECONFIG=${var.kubernetes_kubeconfig_path} kubectl apply -f ${abspath(local_file.coder-monitoring-manifest.filename)}
-    EOF
+  manifest = {
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "PodMonitor"
+    metadata = {
+      namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+      name      = "coder-monitoring"
+    }
+    spec = {
+      selector = {
+        matchLabels = {
+          "app.kubernetes.io/name" : "coder"
+        }
+      }
+      podMetricsEndpoints = [
+        {
+          port     = "prometheus-http"
+          interval = "30s"
+        }
+      ]
+    }
   }
-  depends_on = [helm_release.prometheus-chart]
 }

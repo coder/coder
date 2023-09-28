@@ -232,6 +232,9 @@ type htmlState struct {
 	CSRF csrfState
 
 	// Below are HTML escaped JSON strings of the respective structs.
+	ApplicationName string
+	LogoURL         string
+
 	BuildInfo    string
 	User         string
 	Entitlements string
@@ -313,6 +316,14 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		SessionTokenFunc:            nil,
 	})
 	if !ok || apiKey == nil || actor == nil {
+		var cfg codersdk.AppearanceConfig
+		if h.AppearanceFetcher != nil {
+			// nolint:gocritic // User is not expected to be signed in.
+			ctx := dbauthz.AsSystemRestricted(r.Context())
+			cfg, _ = h.AppearanceFetcher(ctx)
+		}
+		state.ApplicationName = applicationNameOrDefault(cfg)
+		state.LogoURL = cfg.LogoURL
 		return execTmpl(tmpl, state)
 	}
 
@@ -368,6 +379,8 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 					appearance, err := json.Marshal(cfg)
 					if err == nil {
 						state.Appearance = html.EscapeString(string(appearance))
+						state.ApplicationName = applicationNameOrDefault(cfg)
+						state.LogoURL = cfg.LogoURL
 					}
 				}
 			}()
@@ -840,4 +853,11 @@ func (b *binHashCache) getHash(name string) (string, error) {
 
 	//nolint:forcetypeassert
 	return strings.ToLower(v.(string)), nil
+}
+
+func applicationNameOrDefault(cfg codersdk.AppearanceConfig) string {
+	if cfg.ApplicationName != "" {
+		return cfg.ApplicationName
+	}
+	return "Coder"
 }

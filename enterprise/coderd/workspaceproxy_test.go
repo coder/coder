@@ -14,16 +14,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
@@ -412,37 +409,6 @@ func TestProxyRegisterDeregister(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("BlockMismatchingVersion", func(t *testing.T) {
-		t.Parallel()
-
-		client, _ := setup(t)
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		createRes, err := client.CreateWorkspaceProxy(ctx, codersdk.CreateWorkspaceProxyRequest{
-			Name: "hi",
-		})
-		require.NoError(t, err)
-
-		proxyClient := wsproxysdk.New(client.URL)
-		proxyClient.SetSessionToken(createRes.ProxyToken)
-
-		_, err = proxyClient.RegisterWorkspaceProxy(ctx, wsproxysdk.RegisterWorkspaceProxyRequest{
-			AccessURL:           "https://proxy.coder.test",
-			WildcardHostname:    "*.proxy.coder.test",
-			DerpEnabled:         true,
-			ReplicaID:           uuid.New(),
-			ReplicaHostname:     "mars",
-			ReplicaError:        "",
-			ReplicaRelayAddress: "http://127.0.0.1:8080",
-			Version:             "v0.0.0",
-		})
-		require.Error(t, err)
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Response.Message, "Version mismatch")
-	})
-
 	t.Run("ReregisterUpdateReplica", func(t *testing.T) {
 		t.Parallel()
 
@@ -677,17 +643,8 @@ func TestIssueSignedAppToken(t *testing.T) {
 	workspace.LatestBuild = build
 
 	// Connect an agent to the workspace
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	proxyRes, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
@@ -787,16 +744,8 @@ func TestReconnectingPTYSignedToken(t *testing.T) {
 
 	// Connect an agent to the workspace
 	agentID := build.Resources[0].Agents[0].ID
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	proxyURL, err := url.Parse(fmt.Sprintf("https://%s.com", namesgenerator.GetRandomName(1)))
 	require.NoError(t, err)

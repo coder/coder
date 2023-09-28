@@ -539,6 +539,25 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
   },
 };
 
+export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
+  created_at: "2023-05-04T11:30:41.402072Z",
+  id: "dc790496-eaec-4f88-a53f-8ce1f61a1fff",
+  display_name: "Startup Script",
+  icon: "",
+  workspace_agent_id: "",
+};
+
+export const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
+  log_source_id: MockWorkspaceAgentLogSource.id,
+  cron: "",
+  log_path: "",
+  run_on_start: true,
+  run_on_stop: false,
+  script: "echo 'hello world'",
+  start_blocks_login: false,
+  timeout: 0,
+};
+
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   apps: [MockWorkspaceApp],
   architecture: "amd64",
@@ -560,12 +579,11 @@ export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {
   connection_timeout_seconds: 120,
   troubleshooting_url: "https://coder.com/troubleshoot",
   lifecycle_state: "starting",
-  login_before_ready: false, // Deprecated.
-  startup_script_behavior: "blocking",
   logs_length: 0,
   logs_overflowed: false,
-  startup_script_timeout_seconds: 120,
-  shutdown_script_timeout_seconds: 120,
+  log_sources: [MockWorkspaceAgentLogSource],
+  scripts: [MockWorkspaceAgentScript],
+  startup_script_behavior: "non-blocking",
   subsystems: ["envbox", "exectrace"],
   health: {
     healthy: true,
@@ -718,57 +736,78 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 };
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentConnecting,
-    MockWorkspaceAgentOutdated,
-  ],
-  created_at: "",
   id: "test-workspace-resource",
-  job_id: "",
   name: "a-workspace-resource",
+  agents: [MockWorkspaceAgent],
+  created_at: "",
+  job_id: "",
   type: "google_compute_disk",
   workspace_transition: "start",
   hide: false,
   icon: "",
+  metadata: [{ key: "size", value: "32GB", sensitive: false }],
+  daily_cost: 10,
+};
+
+export const MockWorkspaceResourceSensitive: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-sensitive",
+  name: "workspace-resource-sensitive",
   metadata: [{ key: "api_key", value: "12345678", sensitive: true }],
-  daily_cost: 10,
 };
 
-export const MockWorkspaceResource2: TypesGen.WorkspaceResource = {
+export const MockWorkspaceResourceMultipleAgents: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-multiple-agents",
+  name: "workspace-resource-multiple-agents",
   agents: [
     MockWorkspaceAgent,
     MockWorkspaceAgentDisconnected,
     MockWorkspaceAgentOutdated,
   ],
+};
+
+export const MockWorkspaceResourceHidden: TypesGen.WorkspaceResource = {
+  ...MockWorkspaceResource,
+  id: "test-workspace-resource-hidden",
+  name: "workspace-resource-hidden",
+  hide: true,
+};
+
+export const MockWorkspaceVolumeResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-volume-resource",
   created_at: "",
-  id: "test-workspace-resource-2",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
+  type: "docker_volume",
+  name: "home_volume",
   hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 10,
+  daily_cost: 0,
 };
 
-export const MockWorkspaceResource3: TypesGen.WorkspaceResource = {
-  agents: [
-    MockWorkspaceAgent,
-    MockWorkspaceAgentDisconnected,
-    MockWorkspaceAgentOutdated,
-  ],
+export const MockWorkspaceImageResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-image-resource",
   created_at: "",
-  id: "test-workspace-resource-3",
   job_id: "",
-  name: "another-workspace-resource",
-  type: "google_compute_disk",
   workspace_transition: "start",
-  hide: true,
+  type: "docker_image",
+  name: "main",
+  hide: false,
   icon: "",
-  metadata: [{ key: "size", value: "32GB", sensitive: false }],
-  daily_cost: 20,
+  daily_cost: 0,
+};
+
+export const MockWorkspaceContainerResource: TypesGen.WorkspaceResource = {
+  id: "test-workspace-container-resource",
+  created_at: "",
+  job_id: "",
+  workspace_transition: "start",
+  type: "docker_container",
+  name: "workspace",
+  hide: false,
+  icon: "",
+  daily_cost: 0,
 };
 
 export const MockWorkspaceAutostartDisabled: TypesGen.UpdateWorkspaceAutostartRequest =
@@ -1151,17 +1190,23 @@ export const MockTemplateVersionVariable5: TypesGen.TemplateVersionVariable = {
   sensitive: false,
 };
 
-// requests the MockWorkspace
 export const MockWorkspaceRequest: TypesGen.CreateWorkspaceRequest = {
   name: "test",
-  template_id: "test-template",
-  rich_parameter_values: [
-    {
-      name: MockTemplateVersionParameter1.name,
-      value: MockTemplateVersionParameter1.default_value,
-    },
-  ],
+  template_version_id: "test-template-version",
+  rich_parameter_values: [],
 };
+
+export const MockWorkspaceRichParametersRequest: TypesGen.CreateWorkspaceRequest =
+  {
+    name: "test",
+    template_version_id: "test-template-version",
+    rich_parameter_values: [
+      {
+        name: MockTemplateVersionParameter1.name,
+        value: MockTemplateVersionParameter1.default_value,
+      },
+    ],
+  };
 
 export const MockUserAgent = {
   browser: "Chrome 99.0.4844",
@@ -2088,6 +2133,7 @@ export const MockPermissions: Permissions = {
   createTemplates: true,
   createUser: true,
   deleteTemplates: true,
+  updateTemplates: true,
   readAllUsers: true,
   updateUsers: true,
   viewAuditLog: true,
@@ -2106,6 +2152,7 @@ export const MockDeploymentConfig: DeploymentConfig = {
 };
 
 export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
+  application_name: "",
   logo_url: "",
   service_banner: {
     enabled: false,
@@ -2144,6 +2191,14 @@ export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
   authenticated: false,
 };
 
+export const MockTemplateVersionGitAuthAuthenticated: TypesGen.TemplateVersionGitAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/gitauth/github",
+    authenticated: true,
+  };
+
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
   aggregated_from: "2023-03-06T19:08:55.211625Z",
   collected_at: "2023-03-06T19:12:55.211625Z",
@@ -2180,6 +2235,7 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     created_at: "2023-05-04T11:30:41.402072Z",
     output: "+ curl -fsSL https://code-server.dev/install.sh",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166664,
@@ -2187,18 +2243,21 @@ export const MockWorkspaceAgentLogs: TypesGen.WorkspaceAgentLog[] = [
     output:
       "+ sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.8.3",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166665,
     created_at: "2023-05-04T11:30:42.590731Z",
     output: "Ubuntu 22.04.2 LTS",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
   {
     id: 166666,
     created_at: "2023-05-04T11:30:42.593686Z",
     output: "Installing v4.8.3 of the amd64 release from GitHub.",
     level: "info",
+    source_id: MockWorkspaceAgentLogSource.id,
   },
 ];
 

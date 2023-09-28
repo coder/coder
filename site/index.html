@@ -13,7 +13,7 @@
   <title>Coder</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#17172E" />
-  <meta name="application-name" content="Coder" />
+  <meta name="application-name" content="{{ .ApplicationName }}" />
   <meta property="og:type" content="website" />
   <meta property="csrf-token" content="{{ .CSRF.Token }}" />
   <meta property="build-info" content="{{ .BuildInfo }}" />
@@ -23,6 +23,7 @@
   <meta property="experiments" content="{{ .Experiments }}" />
   <meta property="regions" content="{{ .Regions }}" />
   <meta property="docs-url" content="{{ .DocsURL }}" />
+  <meta property="logo-url" content="{{ .LogoURL }}" />
   <!-- We need to set data-react-helmet to be able to override it in the workspace page -->
   <link
     rel="alternate icon"

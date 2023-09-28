@@ -142,6 +142,8 @@ type data struct {
 	workspaceAgents               []database.WorkspaceAgent
 	workspaceAgentMetadata        []database.WorkspaceAgentMetadatum
 	workspaceAgentLogs            []database.WorkspaceAgentLog
+	workspaceAgentLogSources      []database.WorkspaceAgentLogSource
+	workspaceAgentScripts         []database.WorkspaceAgentScript
 	workspaceApps                 []database.WorkspaceApp
 	workspaceAppStatsLastInsertID int64
 	workspaceAppStats             []database.WorkspaceAppStat
@@ -158,6 +160,7 @@ type data struct {
 	derpMeshKey             string
 	lastUpdateCheck         []byte
 	serviceBanner           []byte
+	applicationName         string
 	logoURL                 string
 	appSecurityKey          string
 	oauthSigningKey         string
@@ -1124,6 +1127,17 @@ func (q *FakeQuerier) GetAppSecurityKey(_ context.Context) (string, error) {
 	defer q.mutex.RUnlock()
 
 	return q.appSecurityKey, nil
+}
+
+func (q *FakeQuerier) GetApplicationName(_ context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if q.applicationName == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.applicationName, nil
 }
 
 func (q *FakeQuerier) GetAuditLogsOffset(_ context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
@@ -2829,6 +2843,142 @@ func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.Licens
 	return results, nil
 }
 
+func (q *FakeQuerier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	type uniqueKey struct {
+		TemplateID uuid.UUID
+		UserID     uuid.UUID
+	}
+
+	combinedStats := make(map[uniqueKey]map[time.Time]int64)
+
+	// Get application stats
+	for _, s := range q.workspaceAppStats {
+		if !(((s.SessionStartedAt.After(arg.StartTime) || s.SessionStartedAt.Equal(arg.StartTime)) && s.SessionStartedAt.Before(arg.EndTime)) ||
+			(s.SessionEndedAt.After(arg.StartTime) && s.SessionEndedAt.Before(arg.EndTime)) ||
+			(s.SessionStartedAt.Before(arg.StartTime) && (s.SessionEndedAt.After(arg.EndTime) || s.SessionEndedAt.Equal(arg.EndTime)))) {
+			continue
+		}
+
+		w, err := q.getWorkspaceByIDNoLock(ctx, s.WorkspaceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, w.TemplateID) {
+			continue
+		}
+
+		key := uniqueKey{
+			TemplateID: w.TemplateID,
+			UserID:     s.UserID,
+		}
+		if combinedStats[key] == nil {
+			combinedStats[key] = make(map[time.Time]int64)
+		}
+
+		t := s.SessionStartedAt.Truncate(time.Minute)
+		if t.Before(arg.StartTime) {
+			t = arg.StartTime
+		}
+		for t.Before(s.SessionEndedAt) && t.Before(arg.EndTime) {
+			combinedStats[key][t] = 60
+			t = t.Add(1 * time.Minute)
+		}
+	}
+
+	// Get session stats
+	for _, s := range q.workspaceAgentStats {
+		if s.CreatedAt.Before(arg.StartTime) || s.CreatedAt.Equal(arg.EndTime) || s.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		if len(arg.TemplateIDs) > 0 && !slices.Contains(arg.TemplateIDs, s.TemplateID) {
+			continue
+		}
+		if s.ConnectionCount == 0 {
+			continue
+		}
+
+		key := uniqueKey{
+			TemplateID: s.TemplateID,
+			UserID:     s.UserID,
+		}
+
+		if combinedStats[key] == nil {
+			combinedStats[key] = make(map[time.Time]int64)
+		}
+
+		if s.SessionCountJetBrains > 0 || s.SessionCountVSCode > 0 || s.SessionCountReconnectingPTY > 0 || s.SessionCountSSH > 0 {
+			t := s.CreatedAt.Truncate(time.Minute)
+			combinedStats[key][t] = 60
+		}
+	}
+
+	// Use temporary maps for aggregation purposes
+	mUserIDTemplateIDs := map[uuid.UUID]map[uuid.UUID]struct{}{}
+	mUserIDUsageSeconds := map[uuid.UUID]int64{}
+
+	for key, times := range combinedStats {
+		if mUserIDTemplateIDs[key.UserID] == nil {
+			mUserIDTemplateIDs[key.UserID] = make(map[uuid.UUID]struct{})
+			mUserIDUsageSeconds[key.UserID] = 0
+		}
+
+		if _, ok := mUserIDTemplateIDs[key.UserID][key.TemplateID]; !ok {
+			mUserIDTemplateIDs[key.UserID][key.TemplateID] = struct{}{}
+		}
+
+		for _, t := range times {
+			mUserIDUsageSeconds[key.UserID] += t
+		}
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(mUserIDUsageSeconds))
+	for userID := range mUserIDUsageSeconds {
+		userIDs = append(userIDs, userID)
+	}
+	sort.Slice(userIDs, func(i, j int) bool {
+		return userIDs[i].String() < userIDs[j].String()
+	})
+
+	// Finally, select stats
+	var rows []database.GetUserActivityInsightsRow
+
+	for _, userID := range userIDs {
+		user, err := q.getUserByIDNoLock(userID)
+		if err != nil {
+			return nil, err
+		}
+
+		tids := mUserIDTemplateIDs[userID]
+		templateIDs := make([]uuid.UUID, 0, len(tids))
+		for key := range tids {
+			templateIDs = append(templateIDs, key)
+		}
+		sort.Slice(templateIDs, func(i, j int) bool {
+			return templateIDs[i].String() < templateIDs[j].String()
+		})
+
+		row := database.GetUserActivityInsightsRow{
+			UserID:       user.ID,
+			Username:     user.Username,
+			AvatarURL:    user.AvatarURL,
+			TemplateIDs:  templateIDs,
+			UsageSeconds: mUserIDUsageSeconds[userID],
+		}
+
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetUserByEmailOrUsername(_ context.Context, arg database.GetUserByEmailOrUsernameParams) (database.User, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.User{}, err
@@ -3213,6 +3363,22 @@ func (q *FakeQuerier) GetWorkspaceAgentLifecycleStateByID(ctx context.Context, i
 	}, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceAgentLogSourcesByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentLogSource, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	logSources := make([]database.WorkspaceAgentLogSource, 0)
+	for _, logSource := range q.workspaceAgentLogSources {
+		for _, id := range ids {
+			if logSource.WorkspaceAgentID == id {
+				logSources = append(logSources, logSource)
+				break
+			}
+		}
+	}
+	return logSources, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceAgentLogsAfter(_ context.Context, arg database.GetWorkspaceAgentLogsAfterParams) ([]database.WorkspaceAgentLog, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return nil, err
@@ -3245,6 +3411,22 @@ func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgen
 		}
 	}
 	return metadata, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for _, script := range q.workspaceAgentScripts {
+		for _, id := range ids {
+			if script.WorkspaceAgentID == id {
+				scripts = append(scripts, script)
+				break
+			}
+		}
+	}
+	return scripts, nil
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -3467,9 +3649,6 @@ func (q *FakeQuerier) GetWorkspaceAppsByAgentID(_ context.Context, id uuid.UUID)
 		if app.AgentID == id {
 			apps = append(apps, app)
 		}
-	}
-	if len(apps) == 0 {
-		return nil, sql.ErrNoRows
 	}
 	return apps, nil
 }
@@ -4588,20 +4767,41 @@ func (q *FakeQuerier) InsertWorkspaceAgent(_ context.Context, arg database.Inser
 		Architecture:             arg.Architecture,
 		OperatingSystem:          arg.OperatingSystem,
 		Directory:                arg.Directory,
-		StartupScriptBehavior:    arg.StartupScriptBehavior,
-		StartupScript:            arg.StartupScript,
 		InstanceMetadata:         arg.InstanceMetadata,
 		ResourceMetadata:         arg.ResourceMetadata,
 		ConnectionTimeoutSeconds: arg.ConnectionTimeoutSeconds,
 		TroubleshootingURL:       arg.TroubleshootingURL,
 		MOTDFile:                 arg.MOTDFile,
 		LifecycleState:           database.WorkspaceAgentLifecycleStateCreated,
-		ShutdownScript:           arg.ShutdownScript,
 		DisplayApps:              arg.DisplayApps,
 	}
 
 	q.workspaceAgents = append(q.workspaceAgents, agent)
 	return agent, nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentLogSources(_ context.Context, arg database.InsertWorkspaceAgentLogSourcesParams) ([]database.WorkspaceAgentLogSource, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	logSources := make([]database.WorkspaceAgentLogSource, 0)
+	for index, source := range arg.ID {
+		logSource := database.WorkspaceAgentLogSource{
+			ID:               source,
+			WorkspaceAgentID: arg.WorkspaceAgentID,
+			CreatedAt:        arg.CreatedAt,
+			DisplayName:      arg.DisplayName[index],
+			Icon:             arg.Icon[index],
+		}
+		logSources = append(logSources, logSource)
+	}
+	q.workspaceAgentLogSources = append(q.workspaceAgentLogSources, logSources...)
+	return logSources, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.InsertWorkspaceAgentLogsParams) ([]database.WorkspaceAgentLog, error) {
@@ -4621,12 +4821,12 @@ func (q *FakeQuerier) InsertWorkspaceAgentLogs(_ context.Context, arg database.I
 	for index, output := range arg.Output {
 		id++
 		logs = append(logs, database.WorkspaceAgentLog{
-			ID:        id,
-			AgentID:   arg.AgentID,
-			CreatedAt: arg.CreatedAt[index],
-			Level:     arg.Level[index],
-			Source:    arg.Source[index],
-			Output:    output,
+			ID:          id,
+			AgentID:     arg.AgentID,
+			CreatedAt:   arg.CreatedAt,
+			Level:       arg.Level[index],
+			LogSourceID: arg.LogSourceID,
+			Output:      output,
 		})
 		outputLength += int32(len(output))
 	}
@@ -4665,6 +4865,35 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentScripts(_ context.Context, arg database.InsertWorkspaceAgentScriptsParams) ([]database.WorkspaceAgentScript, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for index, source := range arg.LogSourceID {
+		script := database.WorkspaceAgentScript{
+			LogSourceID:      source,
+			WorkspaceAgentID: arg.WorkspaceAgentID,
+			LogPath:          arg.LogPath[index],
+			Script:           arg.Script[index],
+			Cron:             arg.Cron[index],
+			StartBlocksLogin: arg.StartBlocksLogin[index],
+			RunOnStart:       arg.RunOnStart[index],
+			RunOnStop:        arg.RunOnStop[index],
+			TimeoutSeconds:   arg.TimeoutSeconds[index],
+			CreatedAt:        arg.CreatedAt,
+		}
+		scripts = append(scripts, script)
+	}
+	q.workspaceAgentScripts = append(q.workspaceAgentScripts, scripts...)
+	return scripts, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentStat(_ context.Context, p database.InsertWorkspaceAgentStatParams) (database.WorkspaceAgentStat, error) {
@@ -6099,6 +6328,14 @@ func (q *FakeQuerier) UpsertAppSecurityKey(_ context.Context, data string) error
 	defer q.mutex.Unlock()
 
 	q.appSecurityKey = data
+	return nil
+}
+
+func (q *FakeQuerier) UpsertApplicationName(_ context.Context, data string) error {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	q.applicationName = data
 	return nil
 }
 

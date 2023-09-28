@@ -30,6 +30,7 @@ import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXS
 import { GitAuth } from "./GitAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
+import { type GitAuthPollingState } from "./CreateWorkspacePage";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
@@ -38,6 +39,8 @@ export interface CreateWorkspacePageViewProps {
   template: TypesGen.Template;
   versionId?: string;
   gitAuth: TypesGen.TemplateVersionGitAuth[];
+  gitAuthPollingState: GitAuthPollingState;
+  startPollingGitAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
   permissions: CreateWSPermissions;
@@ -56,6 +59,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   template,
   versionId,
   gitAuth,
+  gitAuthPollingState,
+  startPollingGitAuth,
   parameters,
   defaultBuildParameters,
   permissions,
@@ -113,7 +118,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
-            {versionId && (
+            {versionId && versionId !== template.active_version_id && (
               <Stack spacing={1} className={styles.hasDescription}>
                 <TextField
                   disabled
@@ -161,11 +166,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             description="This template requires authentication to automatically perform Git operations on create."
           >
             <FormFields>
-              {gitAuth.map((auth, index) => (
+              {gitAuth.map((auth) => (
                 <GitAuth
-                  key={index}
+                  key={auth.id}
                   authenticateURL={auth.authenticate_url}
                   authenticated={auth.authenticated}
+                  gitAuthPollingState={gitAuthPollingState}
+                  startPollingGitAuth={startPollingGitAuth}
                   type={auth.type}
                   error={gitAuthErrors[auth.id]}
                 />
@@ -229,12 +236,8 @@ type GitAuthErrors = Record<string, string>;
 const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
   const [gitAuthErrors, setGitAuthErrors] = useState<GitAuthErrors>({});
 
+  // Clear errors when gitAuth is refreshed
   useEffect(() => {
-    // templateGitAuth is refreshed automatically using a BroadcastChannel
-    // which may change the `authenticated` property.
-    //
-    // If the provider becomes authenticated, we want the error message
-    // to disappear.
     setGitAuthErrors({});
   }, [gitAuth]);
 

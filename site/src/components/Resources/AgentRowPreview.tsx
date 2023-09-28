@@ -1,9 +1,8 @@
 import { makeStyles } from "@mui/styles";
 import { AppPreviewLink } from "components/Resources/AppLink/AppPreviewLink";
-import { Maybe } from "components/Conditionals/Maybe";
 import { FC } from "react";
 import { combineClasses } from "utils/combineClasses";
-import { WorkspaceAgent } from "../../api/typesGenerated";
+import { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 
 interface AgentRowPreviewStyles {
@@ -90,9 +89,9 @@ export const AgentRowPreview: FC<AgentRowPreviewProps> = ({
               {agent.apps.map((app) => (
                 <AppPreviewLink key={app.slug} app={app} />
               ))}
-              <Maybe condition={agent.apps.length === 0}>
+              {agent.apps.length === 0 && (
                 <span className={styles.agentDataValue}>None</span>
-              </Maybe>
+              )}
             </Stack>
           </Stack>
         </Stack>

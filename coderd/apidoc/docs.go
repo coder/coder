@@ -934,6 +934,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/user-activity": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about user activity",
+                "operationId": "get-insights-about-user-activity",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserActivityInsightsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/insights/user-latency": {
             "get": {
                 "security": [
@@ -6398,9 +6423,6 @@ const docTemplate = `{
                 },
                 "output": {
                     "type": "string"
-                },
-                "source": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
                 }
             }
         },
@@ -6447,17 +6469,11 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
-                "shutdown_script": {
-                    "type": "string"
-                },
-                "shutdown_script_timeout": {
-                    "type": "integer"
-                },
-                "startup_script": {
-                    "type": "string"
-                },
-                "startup_script_timeout": {
-                    "type": "integer"
+                "scripts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScript"
+                    }
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"
@@ -6467,6 +6483,9 @@ const docTemplate = `{
         "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
+                "log_source_id": {
+                    "type": "string"
+                },
                 "logs": {
                     "type": "array",
                     "items": {
@@ -7004,6 +7023,9 @@ const docTemplate = `{
         "codersdk.AppearanceConfig": {
             "type": "object",
             "properties": {
+                "application_name": {
+                    "type": "string"
+                },
                 "logo_url": {
                     "type": "string"
                 },
@@ -10182,6 +10204,9 @@ const docTemplate = `{
         "codersdk.UpdateAppearanceConfig": {
             "type": "object",
             "properties": {
+                "application_name": {
+                    "type": "string"
+                },
                 "logo_url": {
                     "type": "string"
                 },
@@ -10381,6 +10406,67 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserActivity": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "seconds": {
+                    "type": "integer",
+                    "example": 80500
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.UserActivityInsightsReport": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "template_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.UserActivity"
+                    }
+                }
+            }
+        },
+        "codersdk.UserActivityInsightsResponse": {
+            "type": "object",
+            "properties": {
+                "report": {
+                    "$ref": "#/definitions/codersdk.UserActivityInsightsReport"
                 }
             }
         },
@@ -10694,9 +10780,11 @@ const docTemplate = `{
                 "lifecycle_state": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentLifecycle"
                 },
-                "login_before_ready": {
-                    "description": "Deprecated: Use StartupScriptBehavior instead.",
-                    "type": "boolean"
+                "log_sources": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentLogSource"
+                    }
                 },
                 "logs_length": {
                     "type": "integer"
@@ -10718,25 +10806,23 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
-                "shutdown_script": {
-                    "type": "string"
-                },
-                "shutdown_script_timeout_seconds": {
-                    "type": "integer"
+                "scripts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentScript"
+                    }
                 },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
                 },
-                "startup_script": {
-                    "type": "string"
-                },
                 "startup_script_behavior": {
-                    "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
-                },
-                "startup_script_timeout_seconds": {
-                    "description": "StartupScriptTimeoutSeconds is the number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.",
-                    "type": "integer"
+                    "description": "StartupScriptBehavior is a legacy field that is deprecated in favor\nof the ` + "`" + `coder_script` + "`" + ` resource. It's only referenced by old clients.\nDeprecated: Remove in the future!",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentStartupScriptBehavior"
+                        }
+                    ]
                 },
                 "status": {
                     "$ref": "#/definitions/codersdk.WorkspaceAgentStatus"
@@ -10856,27 +10942,35 @@ const docTemplate = `{
                 },
                 "output": {
                     "type": "string"
+                },
+                "source_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
         "codersdk.WorkspaceAgentLogSource": {
-            "type": "string",
-            "enum": [
-                "startup_script",
-                "shutdown_script",
-                "kubernetes",
-                "envbox",
-                "envbuilder",
-                "external"
-            ],
-            "x-enum-varnames": [
-                "WorkspaceAgentLogSourceStartupScript",
-                "WorkspaceAgentLogSourceShutdownScript",
-                "WorkspaceAgentLogSourceKubernetes",
-                "WorkspaceAgentLogSourceEnvbox",
-                "WorkspaceAgentLogSourceEnvbuilder",
-                "WorkspaceAgentLogSourceExternal"
-            ]
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
         },
         "codersdk.WorkspaceAgentMetadataDescription": {
             "type": "object",
@@ -10892,6 +10986,36 @@ const docTemplate = `{
                 },
                 "script": {
                     "type": "string"
+                },
+                "timeout": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.WorkspaceAgentScript": {
+            "type": "object",
+            "properties": {
+                "cron": {
+                    "type": "string"
+                },
+                "log_path": {
+                    "type": "string"
+                },
+                "log_source_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "run_on_start": {
+                    "type": "boolean"
+                },
+                "run_on_stop": {
+                    "type": "boolean"
+                },
+                "script": {
+                    "type": "string"
+                },
+                "start_blocks_login": {
+                    "type": "boolean"
                 },
                 "timeout": {
                     "type": "integer"

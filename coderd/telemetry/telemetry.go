@@ -559,10 +559,8 @@ func ConvertWorkspaceAgent(agent database.WorkspaceAgent) WorkspaceAgent {
 		Architecture:             agent.Architecture,
 		OperatingSystem:          agent.OperatingSystem,
 		EnvironmentVariables:     agent.EnvironmentVariables.Valid,
-		StartupScript:            agent.StartupScript.Valid,
 		Directory:                agent.Directory != "",
 		ConnectionTimeoutSeconds: agent.ConnectionTimeoutSeconds,
-		ShutdownScript:           agent.ShutdownScript.Valid,
 		Subsystems:               subsystems,
 	}
 	if agent.FirstConnectedAt.Valid {
@@ -792,13 +790,11 @@ type WorkspaceAgent struct {
 	Architecture             string     `json:"architecture"`
 	OperatingSystem          string     `json:"operating_system"`
 	EnvironmentVariables     bool       `json:"environment_variables"`
-	StartupScript            bool       `json:"startup_script"`
 	Directory                bool       `json:"directory"`
 	FirstConnectedAt         *time.Time `json:"first_connected_at"`
 	LastConnectedAt          *time.Time `json:"last_connected_at"`
 	DisconnectedAt           *time.Time `json:"disconnected_at"`
 	ConnectionTimeoutSeconds int32      `json:"connection_timeout_seconds"`
-	ShutdownScript           bool       `json:"shutdown_script"`
 	Subsystems               []string   `json:"subsystems"`
 }
 
