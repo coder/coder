@@ -58,21 +58,27 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
   return <span className={styles.optionValue}>{JSON.stringify(children)}</span>;
 };
 
-export const OptionConfig = (props: BoxProps) => {
+// OptionalConfig takes a source bool to indicate if the Option is the source of the configured value.
+export const OptionConfig = ({
+  source,
+  ...boxProps
+}: { source?: boolean } & BoxProps) => {
   return (
     <Box
-      {...props}
+      {...boxProps}
       sx={{
         fontSize: 13,
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
-        backgroundColor: (theme) => theme.palette.background.paperLight,
+        backgroundColor: (theme) =>
+          source ? "green" : theme.palette.background.paperLight,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,
         padding: (theme) => theme.spacing(0, 1),
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        ...props.sx,
+        border: (theme) =>
+          `1px solid ${source ? "lightgreen" : theme.palette.divider}`,
+        ...boxProps.sx,
       }}
     />
   );
