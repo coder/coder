@@ -245,9 +245,9 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// BuildAudit creates an audit log for a workspace build.
+// WorkspaceBuildAudit creates an audit log for a workspace build.
 // The audit log is committed upon invocation.
-func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	// As the audit request has not been initiated directly by a user, we omit
 	// certain user details.
 	ip := parseIP("")
