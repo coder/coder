@@ -1,8 +1,8 @@
-import { DeploymentOption } from "api/api";
+import { ClibaseOption } from "api/typesGenerated";
 import { intervalToDuration, formatDuration } from "date-fns";
 
 // optionValue is a helper function to format the value of a specific deployment options
-export function optionValue(option: DeploymentOption) {
+export function optionValue(option: ClibaseOption) {
   switch (option.name) {
     case "Max Token Lifetime":
     case "Session Duration":

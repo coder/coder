@@ -1,17 +1,15 @@
-import { DeploymentGroup } from "api/api";
+import { ClibaseGroup } from "api/typesGenerated";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const oidcGroup: DeploymentGroup = {
+const oidcGroup: ClibaseGroup = {
   name: "OIDC",
   description: "",
-  children: [] as DeploymentGroup[],
 };
 
-const ghGroup: DeploymentGroup = {
+const ghGroup: ClibaseGroup = {
   name: "GitHub",
   description: "",
-  children: [] as DeploymentGroup[],
 };
 
 const meta: Meta<typeof UserAuthSettingsPageView> = {
