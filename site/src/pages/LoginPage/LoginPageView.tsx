@@ -6,7 +6,7 @@ import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService";
 import { SignInForm } from "./SignInForm";
 import { retrieveRedirect } from "utils/redirect";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { getLogoURL } from "utils/appearance";
+import { getApplicationName, getLogoURL } from "utils/appearance";
 
 export interface LoginPageViewProps {
   context: AuthContext;
@@ -29,11 +29,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
   const info = new URLSearchParams(location.search).get("info") || undefined;
+  const applicationName = getApplicationName();
   const logoURL = getLogoURL();
   const applicationLogo = logoURL ? (
     <div>
       <img
-        alt=""
+        alt={applicationName}
         src={logoURL}
         // This prevent browser to display the ugly error icon if the
         // image path is wrong or user didn't finish typing the url
