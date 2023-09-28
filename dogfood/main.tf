@@ -89,6 +89,7 @@ module "personalize" {
 module "code-server" {
   source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev.id
+  folder   = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
 }
 
 module "jetbrains_gateway" {
