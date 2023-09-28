@@ -187,6 +187,7 @@ resource "docker_container" "workspace" {
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }
+
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"
