@@ -1,5 +1,12 @@
 import * as API from "api/api";
-import { UpdateUserPasswordRequest } from "api/typesGenerated";
+import { UpdateUserPasswordRequest, UsersRequest } from "api/typesGenerated";
+
+export const users = (req: UsersRequest) => {
+  return {
+    queryKey: ["users", req],
+    queryFn: () => API.getUsers(req),
+  };
+};
 
 export const updatePassword = () => {
   return {

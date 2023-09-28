@@ -1,13 +1,10 @@
 import { useMachine } from "@xstate/react";
 import { User } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import {
-  getPaginationContext,
-  nonInitialPage,
-} from "components/PaginationWidget/utils";
+import { nonInitialPage } from "components/PaginationWidget/utils";
 import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
-import { FC, ReactNode, useEffect } from "react";
+import { FC, ReactNode } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { usersMachine } from "xServices/users/usersXService";
@@ -22,6 +19,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getAuthMethods } from "api/api";
 import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
+import { prepareQuery } from "utils/filters";
+import { usePagination } from "hooks";
+import * as UsersQuery from "api/queries/users";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -39,28 +39,27 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const navigate = useNavigate();
   const searchParamsResult = useSearchParams();
   const { entitlements } = useDashboard();
-  const [searchParams, setSearchParams] = searchParamsResult;
+  const [searchParams] = searchParamsResult;
   const filter = searchParams.get("filter") ?? "";
-  const [usersState, usersSend] = useMachine(usersMachine, {
-    context: {
-      filter,
-      paginationContext: getPaginationContext(searchParams),
-    },
-    actions: {
-      updateURL: (context, event) =>
-        setSearchParams({ page: event.page, filter: context.filter }),
-    },
+  const [usersState, usersSend] = useMachine(usersMachine);
+  const pagination = usePagination({
+    searchParamsResult,
   });
+  const usersQuery = useQuery(
+    UsersQuery.users({
+      q: prepareQuery(filter),
+      limit: pagination.limit,
+      offset: pagination.offset,
+    }),
+  );
+  const users = usersQuery.data?.users;
+  const count = usersQuery.data?.count;
   const {
-    users,
-    getUsersError,
     usernameToDelete,
     usernameToSuspend,
     usernameToActivate,
     userIdToResetPassword,
     newUserPassword,
-    paginationRef,
-    count,
   } = usersState.context;
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
@@ -77,12 +76,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const useFilterResult = useFilter({
     searchParamsResult,
     onUpdate: () => {
-      usersSend({ type: "UPDATE_PAGE", page: "1" });
+      pagination.goToPage(1);
     },
   });
-  useEffect(() => {
-    usersSend({ type: "UPDATE_FILTER", query: useFilterResult.query });
-  }, [useFilterResult.query, usersSend]);
   const statusMenu = useStatusFilterMenu({
     value: useFilterResult.values.status,
     onChange: (option) =>
@@ -97,13 +93,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       return getAuthMethods();
     },
   });
-  // Is loading if
-  // - users are loading or
-  // - the user can edit the users but the roles are loading
   const isLoading =
-    usersState.matches("gettingUsers") ||
-    rolesQuery.isLoading ||
-    authMethods.isLoading;
+    usersQuery.isLoading || rolesQuery.isLoading || authMethods.isLoading;
 
   return (
     <>
@@ -115,7 +106,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         roles={rolesQuery.data}
         users={users}
         authMethods={authMethods.data}
-        count={count}
         onListWorkspaces={(user) => {
           navigate(
             "/workspaces?filter=" +
@@ -162,16 +152,19 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}
-        paginationRef={paginationRef}
         isNonInitialPage={nonInitialPage(searchParams)}
         actorID={me.id}
         filterProps={{
           filter: useFilterResult,
-          error: getUsersError,
+          error: usersQuery.error,
           menus: {
             status: statusMenu,
           },
         }}
+        count={count}
+        page={pagination.page}
+        limit={pagination.limit}
+        onPageChange={pagination.goToPage}
       />
 
       <DeleteDialog

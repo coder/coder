@@ -1,18 +1,9 @@
-import { getPaginationData } from "components/PaginationWidget/utils";
-import {
-  PaginationContext,
-  paginationMachine,
-  PaginationMachineRef,
-} from "xServices/pagination/paginationXService";
-import { assign, createMachine, send, spawn } from "xstate";
+import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import { getErrorMessage } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { queryToFilter } from "utils/filters";
 import { generateRandomString } from "utils/random";
-
-const usersPaginationId = "usersPagination";
 
 export const Language = {
   getUsersError: "Error getting users.",
@@ -29,10 +20,6 @@ export const Language = {
 };
 
 export interface UsersContext {
-  // Get users
-  users?: TypesGen.User[];
-  filter: string;
-  getUsersError?: unknown;
   // Suspend user
   userIdToSuspend?: TypesGen.User["id"];
   usernameToSuspend?: TypesGen.User["username"];
@@ -52,13 +39,9 @@ export interface UsersContext {
   // Update user roles
   userIdToUpdateRoles?: TypesGen.User["id"];
   updateUserRolesError?: unknown;
-  paginationContext: PaginationContext;
-  paginationRef: PaginationMachineRef;
-  count: number;
 }
 
 export type UsersEvent =
-  | { type: "GET_USERS"; query?: string }
   // Suspend events
   | {
       type: "SUSPEND_USER";
@@ -92,11 +75,7 @@ export type UsersEvent =
       type: "UPDATE_USER_ROLES";
       userId: TypesGen.User["id"];
       roles: TypesGen.Role["name"][];
-    }
-  // Filter
-  | { type: "UPDATE_FILTER"; query: string }
-  // Pagination
-  | { type: "UPDATE_PAGE"; page: string };
+    };
 
 export const usersMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QFdZgE6wMoBcCGOYAdLPujgJYB2UACnlNQRQPZUDEA2gAwC6ioAA4tYFSmwEgAHogC0ARgBMigBxEAnCoCsAdhWrdK9QBYdAGhABPRPO7ruRAMzdj3HYuNbFANm5b1AL4BFqgY2PiERDA4lDQAqmiY7BBsxNQAbiwA1sTRCWE8-EggwqLiVJIyCArc8upOxt6K-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-j-ITHPcS7DXhWc1XMTT-qATGa4jxDoK5kxWjeL0mqIJ5NczwUEIAA */
@@ -107,9 +86,6 @@ export const usersMachine =
         context: {} as UsersContext,
         events: {} as UsersEvent,
         services: {} as {
-          getUsers: {
-            data: TypesGen.GetUsersResponse;
-          };
           createUser: {
             data: TypesGen.User;
           };
@@ -132,43 +108,8 @@ export const usersMachine =
       },
       predictableActionArguments: true,
       id: "usersState",
-      on: {
-        UPDATE_FILTER: {
-          actions: ["assignFilter", "sendResetPage"],
-        },
-        UPDATE_PAGE: {
-          target: "gettingUsers",
-          actions: "updateURL",
-        },
-      },
-      initial: "startingPagination",
+      initial: "idle",
       states: {
-        startingPagination: {
-          entry: "assignPaginationRef",
-          always: {
-            target: "gettingUsers",
-          },
-        },
-        gettingUsers: {
-          entry: "clearGetUsersError",
-          invoke: {
-            src: "getUsers",
-            id: "getUsers",
-            onDone: [
-              {
-                target: "idle",
-                actions: "assignUsers",
-              },
-            ],
-            onError: [
-              {
-                target: "idle",
-                actions: ["clearUsers", "assignGetUsersError"],
-              },
-            ],
-          },
-          tags: "loading",
-        },
         idle: {
           entry: "clearSelectedUser",
           on: {
@@ -234,7 +175,7 @@ export const usersMachine =
             id: "suspendUser",
             onDone: [
               {
-                target: "gettingUsers",
+                target: "idle",
                 actions: "displaySuspendSuccess",
               },
             ],
@@ -256,7 +197,7 @@ export const usersMachine =
             id: "deleteUser",
             onDone: [
               {
-                target: "gettingUsers",
+                target: "idle",
                 actions: "displayDeleteSuccess",
               },
             ],
@@ -275,7 +216,7 @@ export const usersMachine =
             id: "activateUser",
             onDone: [
               {
-                target: "gettingUsers",
+                target: "idle",
                 actions: "displayActivateSuccess",
               },
             ],
@@ -348,17 +289,6 @@ export const usersMachine =
     },
     {
       services: {
-        // Passing API.getUsers directly does not invoke the function properly
-        // when it is mocked. This happen in the UsersPage tests inside of the
-        // "shows a success message and refresh the page" test case.
-        getUsers: (context) => {
-          const { offset, limit } = getPaginationData(context.paginationRef);
-          return API.getUsers({
-            ...queryToFilter(context.filter),
-            offset,
-            limit,
-          });
-        },
         suspendUser: (context) => {
           if (!context.userIdToSuspend) {
             throw new Error("userIdToSuspend is undefined");
@@ -413,16 +343,6 @@ export const usersMachine =
           userIdToResetPassword: (_) => undefined,
           userIdToUpdateRoles: (_) => undefined,
         }),
-        assignUsers: assign({
-          users: (_, event) => event.data.users,
-          count: (_, event) => event.data.count,
-        }),
-        assignFilter: assign({
-          filter: (_, event) => event.query,
-        }),
-        assignGetUsersError: assign({
-          getUsersError: (_, event) => event.data,
-        }),
         assignUserToSuspend: assign({
           userIdToSuspend: (_, event) => event.userId,
           usernameToSuspend: (_, event) => event.username,
@@ -441,10 +361,6 @@ export const usersMachine =
         assignUserIdToUpdateRoles: assign({
           userIdToUpdateRoles: (_, event) => event.userId,
         }),
-        clearGetUsersError: assign((context: UsersContext) => ({
-          ...context,
-          getUsersError: undefined,
-        })),
         assignSuspendUserError: assign({
           suspendUserError: (_, event) => event.data,
         }),
@@ -460,11 +376,6 @@ export const usersMachine =
         assignUpdateRolesError: assign({
           updateUserRolesError: (_, event) => event.data,
         }),
-        clearUsers: assign((context: UsersContext) => ({
-          ...context,
-          users: undefined,
-          count: undefined,
-        })),
         clearSuspendUserError: assign({
           suspendUserError: (_) => undefined,
         }),
@@ -531,24 +442,15 @@ export const usersMachine =
           newUserPassword: (_) => generateRandomString(12),
         }),
         updateUserRolesInTheList: assign({
-          users: ({ users }, event) => {
-            if (!users) {
-              return users;
-            }
-
-            return users.map((u) => {
-              return u.id === event.data.id ? event.data : u;
-            });
-          },
+          // users: ({ users }, event) => {
+          //   if (!users) {
+          //     return users;
+          //   }
+          //   return users.map((u) => {
+          //     return u.id === event.data.id ? event.data : u;
+          //   });
+          // },
         }),
-        assignPaginationRef: assign({
-          paginationRef: (context) =>
-            spawn(
-              paginationMachine.withContext(context.paginationContext),
-              usersPaginationId,
-            ),
-        }),
-        sendResetPage: send({ type: "RESET_PAGE" }, { to: usersPaginationId }),
       },
     },
   );
