@@ -41,6 +41,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	if err != nil {
 		return xerrors.Errorf("get scaletest user: %w", err)
 	}
+	//nolint:gocritic
 	r.cfg.Logger.Info(ctx, "running as user", slog.F("username", me.Username))
 	if len(me.OrganizationIDs) == 0 {
 		return xerrors.Errorf("user has no organizations")
@@ -70,8 +71,10 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			r.metrics.ObserveDuration(string(l), elapsed)
 			if err != nil {
 				r.metrics.IncErrors(string(l))
+				//nolint:gocritic
 				r.cfg.Logger.Error(ctx, "action failed", slog.F("label", l), slog.Error(err))
 			} else {
+				//nolint:gocritic
 				r.cfg.Logger.Info(ctx, "action success", slog.F("label", l))
 			}
 		}
@@ -83,9 +86,9 @@ func (*Runner) Cleanup(_ context.Context, _ string) error {
 }
 
 func (r *Runner) randWait() time.Duration {
-	// nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
 	var wait time.Duration
 	if r.cfg.MaxWait > r.cfg.MinWait {
+		//nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
 		wait = time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
 	}
 

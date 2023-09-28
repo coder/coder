@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"math/rand"
 	"net/url"
 	"os"
 	"time"
@@ -18,56 +19,106 @@ type Action func(ctx context.Context) error
 // Selector locates an element on a page.
 type Selector string
 
+// Target is a thing that can be clicked.
+type Target struct {
+	// Label is a human-readable label for the target.
+	Label Label
+	// ClickOn is the selector that locates the element to be clicked.
+	ClickOn Selector
+	// WaitFor is a selector that is expected to appear after the target is clicked.
+	WaitFor Selector
+}
+
 // Label identifies an action.
 type Label string
 
-// defaultSelectors is a map of labels to selectors.
-var defaultSelectors = map[Label]Selector{
-	"workspaces_list":            `nav a[href="/workspaces"]:not(.active)`,
-	"templates_list":             `nav a[href="/templates"]:not(.active)`,
-	"users_list":                 `nav a[href^="/users"]:not(.active)`,
-	"deployment_status":          `nav a[href="/deployment/general"]:not(.active)`,
-	"starter_templates":          `a[href="/starter-templates"]`,
-	"workspaces_table_row":       `tr[role="button"][data-testid^="workspace-"]`,
-	"workspace_builds_table_row": `tr[role="button"][data-testid^="build-"]`,
-	"templates_table_row":        `tr[role="button"][data-testid^="template-"]`,
-	"template_docs":              `a[href^="/templates/"][href$="/docs"]:not([aria-current])`,
-	"template_files":             `a[href^="/templates/"][href$="/files"]:not([aria-current])`,
-	"template_versions":          `a[href^="/templates/"][href$="/versions"]:not([aria-current])`,
-	"template_embed":             `a[href^="/templates/"][href$="/embed"]:not([aria-current])`,
-	"template_insights":          `a[href^="/templates/"][href$="/insights"]:not([aria-current])`,
+var defaultTargets = []Target{
+	{
+		Label:   "workspace_list",
+		ClickOn: `nav a[href="/workspaces"]:not(.active)`,
+		WaitFor: `tr[role="button"][data-testid^="workspace-"]`,
+	},
+	{
+		Label:   "starter_templates",
+		ClickOn: `a[href="/starter-templates"]`,
+		WaitFor: `a[href^="/starter-templates/"]`,
+	},
+	{
+		Label:   "workspace_details",
+		ClickOn: `tr[role="button"][data-testid^="workspace-"]`,
+		WaitFor: `tr[role="button"][data-testid^="build-"]`,
+	},
+	{
+		Label:   "workspace_build_details",
+		ClickOn: `tr[role="button"][data-testid^="build-"]`,
+		WaitFor: `*[aria-label="Build details"]`,
+	},
+	{
+		Label:   "template_list",
+		ClickOn: `nav a[href="/templates"]:not(.active)`,
+		WaitFor: `tr[role="button"][data-testid^="template-"]`,
+	},
+	{
+		Label:   "template_docs",
+		ClickOn: `a[href^="/templates/"][href$="/docs"]:not([aria-current])`,
+		WaitFor: `#readme`,
+	},
+	{
+		Label:   "template_files",
+		ClickOn: `a[href^="/templates/"][href$="/docs"]:not([aria-current])`,
+		WaitFor: `.monaco-editor`,
+	},
+	{
+		Label:   "template_versions",
+		ClickOn: `a[href^="/templates/"][href$="/versions"]:not([aria-current])`,
+		WaitFor: `tr[role="button"][data-testid^="version-"]`,
+	},
+	{
+		Label:   "template_version_details",
+		ClickOn: `tr[role="button"][data-testid^="version-"]`,
+		WaitFor: `.monaco-editor`,
+	},
+	{
+		Label:   "user_list",
+		ClickOn: `nav a[href^="/users"]:not(.active)`,
+		WaitFor: `tr[data-testid^="user-"]`,
+	},
 }
 
-// ClickRandomElement returns an action that will click an element from the given selectors at random.
+// ClickRandomElement returns an action that will click an element from defaultTargets.
 // If no elements are found, an error is returned.
 // If more than one element is found, one is chosen at random.
 // The label of the clicked element is returned.
 func ClickRandomElement(ctx context.Context) (Label, Action, error) {
-	var matched Selector
-	var matchedLabel Label
+	var xpath Selector
 	var found bool
 	var err error
-	for l, s := range defaultSelectors {
-		matched, found, err = randMatch(ctx, s)
+	matches := make(map[Label]Selector)
+	waitFor := make(map[Label]Selector)
+	for _, tgt := range defaultTargets {
+		xpath, found, err = randMatch(ctx, tgt.ClickOn)
 		if err != nil {
-			return "", nil, xerrors.Errorf("find matches for %q: %w", s, err)
+			return "", nil, xerrors.Errorf("find matches for %q: %w", tgt.ClickOn, err)
 		}
 		if !found {
 			continue
 		}
-		matchedLabel = l
-		break
-	}
-	if !found {
-		return "", nil, xerrors.Errorf("no matches found")
+		matches[tgt.Label] = xpath
+		waitFor[tgt.Label] = tgt.WaitFor
 	}
 
-	return "click_" + matchedLabel, func(ctx context.Context) error {
-		if err := clickAndWait(ctx, matched); err != nil {
-			return xerrors.Errorf("click %q: %w", matched, err)
+	// rely on map iteration order being random
+	for lbl, tgt := range matches {
+		act := func(actx context.Context) error {
+			if err := clickAndWait(actx, tgt, waitFor[lbl]); err != nil {
+				return xerrors.Errorf("click %q: %w", tgt, err)
+			}
+			return nil
 		}
-		return nil
-	}, nil
+		return lbl, act, nil
+	}
+
+	return "", nil, xerrors.Errorf("no matches found")
 }
 
 // randMatch returns a random match for the given selector.
@@ -89,17 +140,10 @@ func randMatch(ctx context.Context, s Selector) (Selector, bool, error) {
 
 // clickAndWait clicks the given selector and waits for the page to finish loading.
 // The page is considered loaded when the network event "LoadingFinished" is received.
-func clickAndWait(ctx context.Context, s Selector) error {
+func clickAndWait(ctx context.Context, clickOn, waitFor Selector) error {
 	return chromedp.Run(ctx, chromedp.Tasks{
-		chromedp.Click(s, chromedp.NodeVisible),
-		chromedp.ActionFunc(func(ctx context.Context) error {
-			return waitForEvent(ctx, func(e interface{}) bool {
-				if _, ok := e.(*network.EventLoadingFinished); ok {
-					return true
-				}
-				return false
-			})
-		}),
+		chromedp.Click(clickOn, chromedp.NodeVisible),
+		chromedp.WaitVisible(waitFor, chromedp.NodeVisible),
 	})
 }
 
@@ -107,7 +151,7 @@ func clickAndWait(ctx context.Context, s Selector) error {
 //
 //nolint:revive // yes, headless is a control flag
 func initChromeDPCtx(ctx context.Context, u *url.URL, sessionToken string, headless bool) (context.Context, context.CancelFunc, error) {
-	dir, err := os.MkdirTemp("", "scaletest-dashboard")
+	dir, err := os.MkdirTemp("", "scaletest-dashboard-*")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -145,7 +189,7 @@ func initChromeDPCtx(ctx context.Context, u *url.URL, sessionToken string, headl
 }
 
 func setSessionTokenCookie(ctx context.Context, token, domain string) error {
-	exp := cdp.TimeSinceEpoch(time.Now().Add(30 * 24 * time.Hour))
+	exp := cdp.TimeSinceEpoch(time.Now().Add(24 * time.Hour))
 	err := chromedp.Run(ctx, network.SetCookie("coder_session_token", token).
 		WithExpires(&exp).
 		WithDomain(domain).
@@ -156,26 +200,17 @@ func setSessionTokenCookie(ctx context.Context, token, domain string) error {
 	return nil
 }
 
-// waitForEvent waits for a lifecycle event that matches the given function.
-// Adapted from https://github.com/chromedp/chromedp/issues/431
-func waitForEvent(ctx context.Context, matcher func(e interface{}) bool) error {
-	ch := make(chan struct{})
-	cctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	chromedp.ListenTarget(cctx, func(evt interface{}) {
-		if matcher(evt) {
-			cancel()
-			close(ch)
-		}
-	})
-	select {
-	case <-ch:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
 func visitMainPage(ctx context.Context, u *url.URL) error {
 	return chromedp.Run(ctx, chromedp.Navigate(u.String()))
+}
+
+// pick chooses a random element from a slice.
+// If the slice is empty, it returns the zero value of the type.
+func pick[T any](s []T) T {
+	if len(s) == 0 {
+		var zero T
+		return zero
+	}
+	// nolint:gosec
+	return s[rand.Intn(len(s))]
 }
