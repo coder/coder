@@ -1016,15 +1016,6 @@ export const getDeploymentSSHConfig =
     return response.data;
   };
 
-// The Deployment types are not generated on from the Go generator yet because
-// it does not know how to generate OptionSet
-export interface DeploymentGroup {
-  readonly name: string;
-  readonly parent?: DeploymentGroup;
-  readonly description: string;
-  readonly children: DeploymentGroup[];
-}
-
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
   readonly options: TypesGen.ClibaseOption[];

@@ -15,6 +15,7 @@ import {
 import { FC } from "react";
 import { optionValue } from "./optionValue";
 import Box from "@mui/material/Box";
+import { ClibaseOption } from "api/typesGenerated";
 
 const OptionsTable: FC<{
   options: ClibaseOption[];
