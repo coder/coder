@@ -1,6 +1,5 @@
 import TextField from "@mui/material/TextField";
 import { Group } from "api/typesGenerated";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Loader } from "components/Loader/Loader";
@@ -123,24 +122,20 @@ export const SettingsGroupPageView: FC<SettingsGroupPageViewProps> = ({
   isLoading,
   isUpdating,
 }) => {
-  return (
-    <ChooseOne>
-      <Cond condition={isLoading}>
-        <Loader />
-      </Cond>
+  if (isLoading) {
+    return <Loader />;
+  }
 
-      <Cond>
-        <Margins>
-          <UpdateGroupForm
-            group={group as Group}
-            onCancel={onCancel}
-            errors={formErrors}
-            isLoading={isUpdating}
-            onSubmit={onSubmit}
-          />
-        </Margins>
-      </Cond>
-    </ChooseOne>
+  return (
+    <Margins>
+      <UpdateGroupForm
+        group={group!}
+        onCancel={onCancel}
+        errors={formErrors}
+        isLoading={isUpdating}
+        onSubmit={onSubmit}
+      />
+    </Margins>
   );
 };
 

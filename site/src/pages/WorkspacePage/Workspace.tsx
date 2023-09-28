@@ -27,7 +27,6 @@ import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/Temp
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
 import { useLocalStorage } from "hooks";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import AlertTitle from "@mui/material/AlertTitle";
 import dayjs from "dayjs";
 
@@ -257,23 +256,19 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               </Alert>
             )}
 
-          <ChooseOne>
-            <Cond condition={workspace.latest_build.status === "deleted"}>
-              <WorkspaceDeletedBanner
-                handleClick={() => navigate(`/templates`)}
-              />
-            </Cond>
-            <Cond>
-              {/* <DormantWorkspaceBanner/> determines its own visibility */}
-              <DormantWorkspaceBanner
-                workspaces={[workspace]}
-                shouldRedisplayBanner={
-                  getLocal("dismissedWorkspace") !== workspace.id
-                }
-                onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
-              />
-            </Cond>
-          </ChooseOne>
+          {workspace.latest_build.status === "deleted" && (
+            <WorkspaceDeletedBanner
+              handleClick={() => navigate(`/templates`)}
+            />
+          )}
+          {/* <DormantWorkspaceBanner/> determines its own visibility */}
+          <DormantWorkspaceBanner
+            workspaces={[workspace]}
+            shouldRedisplayBanner={
+              getLocal("dismissedWorkspace") !== workspace.id
+            }
+            onDismiss={() => saveLocal("dismissedWorkspace", workspace.id)}
+          />
 
           <TemplateVersionWarnings warnings={templateWarnings} />
 

@@ -1,5 +1,4 @@
 import { useMachine } from "@xstate/react";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Loader } from "components/Loader/Loader";
 import { FC } from "react";
 import { useParams } from "react-router-dom";
@@ -32,35 +31,29 @@ export const WorkspacePage: FC = () => {
   const quotaQuery = useQuery(workspaceQuota(username));
   const pageError = error ?? quotaQuery.error;
 
+  if (pageError) {
+    return (
+      <Margins>
+        <ErrorAlert error={pageError} sx={{ my: 2 }} />
+      </Margins>
+    );
+  }
+
+  if (!workspace || !workspaceState.matches("ready") || !quotaQuery.isSuccess) {
+    return <Loader />;
+  }
+
   return (
     <RequirePermission
       isFeatureVisible={
         !(isAxiosError(pageError) && pageError.response?.status === 404)
       }
     >
-      <ChooseOne>
-        <Cond condition={Boolean(pageError)}>
-          <Margins>
-            <ErrorAlert error={pageError} sx={{ my: 2 }} />
-          </Margins>
-        </Cond>
-        <Cond
-          condition={
-            Boolean(workspace) &&
-            workspaceState.matches("ready") &&
-            quotaQuery.isSuccess
-          }
-        >
-          <WorkspaceReadyPage
-            workspaceState={workspaceState}
-            quota={quotaQuery.data}
-            workspaceSend={workspaceSend}
-          />
-        </Cond>
-        <Cond>
-          <Loader />
-        </Cond>
-      </ChooseOne>
+      <WorkspaceReadyPage
+        workspaceState={workspaceState}
+        quota={quotaQuery.data}
+        workspaceSend={workspaceSend}
+      />
     </RequirePermission>
   );
 };
