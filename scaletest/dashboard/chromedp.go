@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"math/rand"
 	"net/url"
 	"os"
 	"time"
@@ -178,4 +179,15 @@ func waitForEvent(ctx context.Context, matcher func(e interface{}) bool) error {
 
 func visitMainPage(ctx context.Context, u *url.URL) error {
 	return chromedp.Run(ctx, chromedp.Navigate(u.String()))
+}
+
+// pick chooses a random element from a slice.
+// If the slice is empty, it returns the zero value of the type.
+func pick[T any](s []T) T {
+	if len(s) == 0 {
+		var zero T
+		return zero
+	}
+	// nolint:gosec
+	return s[rand.Intn(len(s))]
 }

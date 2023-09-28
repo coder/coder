@@ -1122,7 +1122,8 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 					Headless:   headless,
 					ActionFunc: dashboard.ClickRandomElement,
 				}
-				logger.Info(ctx, "runner config", slog.F("min_wait", minWait), slog.F("max_wait", maxWait), slog.F("headless", headless))
+				//nolint:gocritic
+				logger.Info(ctx, "runner config", slog.F("min_wait", minWait), slog.F("max_wait", maxWait), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
 					return err
 				}
