@@ -1762,6 +1762,20 @@ type LinkConfig struct {
 	Icon   string `json:"icon" yaml:"icon"`
 }
 
+// DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
+func DeploymentOptionsWithoutSecrets(set clibase.OptionSet) clibase.OptionSet {
+	cpy := make(clibase.OptionSet, 0, len(set))
+	for _, opt := range set {
+		cpyOpt := opt
+		if IsSecretDeploymentOption(cpyOpt) {
+			var empty clibase.String
+			cpyOpt.Value = &empty
+		}
+		cpy = append(cpy, cpyOpt)
+	}
+	return cpy
+}
+
 // WithoutSecrets returns a copy of the config without secret values.
 func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 	var ff DeploymentValues

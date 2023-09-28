@@ -156,6 +156,7 @@ type Options struct {
 	// DeploymentOptions do contain the copy of DeploymentValues, but contain
 	// contextual information about how the values were set.
 	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
+	// All secrets values are stripped.
 	DeploymentOptions  clibase.OptionSet
 	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
