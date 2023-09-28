@@ -1033,6 +1033,7 @@ export interface DeploymentOption {
   readonly hidden: boolean;
   readonly group?: DeploymentGroup;
   readonly env?: string;
+  readonly yaml?: string;
 }
 
 export type DeploymentConfig = {

@@ -75,6 +75,12 @@ const OptionsTable: FC<{
                         {option.env}
                       </OptionConfig>
                     )}
+                    {option.yaml && (
+                      <OptionConfig>
+                        <OptionConfigFlag>YAML</OptionConfigFlag>
+                        {option.yaml}
+                      </OptionConfig>
+                    )}
                   </Box>
                 </TableCell>
 
