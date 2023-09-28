@@ -617,6 +617,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   vals.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            vals,
+				DeploymentOptions:           opts,
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                int(vals.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
