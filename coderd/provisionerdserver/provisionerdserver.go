@@ -898,10 +898,11 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					s.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
 				}
 
-				audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+				audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 					Audit:            *auditor,
 					Log:              s.Logger,
 					UserID:           job.InitiatorID,
+					OrganizationID:   workspace.OrganizationID,
 					JobID:            job.ID,
 					Action:           auditAction,
 					Old:              previousBuild,
@@ -1236,10 +1237,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				s.Logger.Error(ctx, "marshal resource info for successful job", slog.Error(err))
 			}
 
-			audit.BuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
+			audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.WorkspaceBuild]{
 				Audit:            *auditor,
 				Log:              s.Logger,
 				UserID:           job.InitiatorID,
+				OrganizationID:   workspace.OrganizationID,
 				JobID:            job.ID,
 				Action:           auditAction,
 				Old:              previousBuild,
