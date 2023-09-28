@@ -72,7 +72,7 @@ export const OptionConfig = ({
         fontWeight: 600,
         backgroundColor: (theme) =>
           source
-            ? theme.palette.success.dark
+            ? theme.palette.primary.dark
             : theme.palette.background.paperLight,
         display: "inline-flex",
         alignItems: "center",
@@ -80,7 +80,7 @@ export const OptionConfig = ({
         padding: (theme) => theme.spacing(0, 1),
         border: (theme) =>
           `1px solid ${
-            source ? theme.palette.success.light : theme.palette.divider
+            source ? theme.palette.primary.main : theme.palette.divider
           }`,
         ...boxProps.sx,
       }}
