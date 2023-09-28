@@ -2106,8 +2106,8 @@ export interface ClibaseOption {
   readonly env?: string;
   readonly yaml?: string;
   readonly default?: string;
-  // actual value is an interface that implements 'String()'
-  readonly value?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
+  readonly value?: any;
   readonly annotations?: ClibaseAnnotations;
   readonly group?: ClibaseGroup;
   readonly use_instead?: ClibaseOption[];

@@ -14,11 +14,10 @@ import {
 } from "components/DeploySettingsLayout/Option";
 import { FC } from "react";
 import { optionValue } from "./optionValue";
-import { DeploymentOption } from "api/api";
 import Box from "@mui/material/Box";
 
 const OptionsTable: FC<{
-  options: DeploymentOption[];
+  options: ClibaseOption[];
 }> = ({ options }) => {
   const styles = useStyles();
 

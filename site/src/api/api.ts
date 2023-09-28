@@ -1024,21 +1024,10 @@ export interface DeploymentGroup {
   readonly description: string;
   readonly children: DeploymentGroup[];
 }
-export interface DeploymentOption {
-  readonly name: string;
-  readonly description: string;
-  readonly flag: string;
-  readonly flag_shorthand: string;
-  readonly value: unknown;
-  readonly hidden: boolean;
-  readonly group?: DeploymentGroup;
-  readonly env?: string;
-  readonly yaml?: string;
-}
 
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
-  readonly options: DeploymentOption[];
+  readonly options: TypesGen.ClibaseOption[];
 };
 
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {
