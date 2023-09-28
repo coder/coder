@@ -1,8 +1,8 @@
 import Link from "@mui/material/Link";
 import { SecondaryAgentButton } from "components/Resources/AgentButton";
 import { FC } from "react";
-import * as TypesGen from "../../../api/typesGenerated";
-import { generateRandomString } from "../../../utils/random";
+import * as TypesGen from "api/typesGenerated";
+import { generateRandomString } from "utils/random";
 
 export const Language = {
   linkText: "Terminal",

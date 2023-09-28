@@ -3,11 +3,11 @@ import userEvent from "@testing-library/user-event";
 import * as API from "api/api";
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
-import { MockTemplate } from "../../../testHelpers/entities";
+import { MockTemplate } from "testHelpers/entities";
 import {
   renderWithTemplateSettingsLayout,
   waitForLoaderToBeRemoved,
-} from "../../../testHelpers/renderHelpers";
+} from "testHelpers/renderHelpers";
 import { getValidationSchema } from "./TemplateSettingsForm";
 import { TemplateSettingsPage } from "./TemplateSettingsPage";
 

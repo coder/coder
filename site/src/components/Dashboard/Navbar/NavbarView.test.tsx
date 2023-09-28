@@ -1,9 +1,6 @@
 import { screen } from "@testing-library/react";
-import {
-  MockPrimaryWorkspaceProxy,
-  MockUser,
-} from "../../../testHelpers/entities";
-import { renderWithAuth } from "../../../testHelpers/renderHelpers";
+import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as navLanguage, NavbarView } from "./NavbarView";
 import { ProxyContextValue } from "contexts/ProxyContext";
 import { action } from "@storybook/addon-actions";

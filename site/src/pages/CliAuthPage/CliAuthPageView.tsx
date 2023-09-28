@@ -5,7 +5,7 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import { FullScreenLoader } from "../../components/Loader/FullScreenLoader";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 export interface CliAuthPageViewProps {
   sessionToken: string | null;

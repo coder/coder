@@ -1,10 +1,10 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import * as API from "../../../api/api";
+import * as API from "api/api";
 import * as SecurityForm from "./SettingsSecurityForm";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
-} from "../../../testHelpers/renderHelpers";
+} from "testHelpers/renderHelpers";
 import { SecurityPage } from "./SecurityPage";
 import {
   MockAuthMethodsWithPasswordType,

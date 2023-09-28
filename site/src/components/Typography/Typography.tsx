@@ -8,7 +8,7 @@ import MuiTypography, {
   TypographyProps as MuiTypographyProps,
 } from "@mui/material/Typography";
 import * as React from "react";
-import { appendCSSString, combineClasses } from "../../utils/combineClasses";
+import { appendCSSString, combineClasses } from "utils/combineClasses";
 
 export interface TypographyProps extends MuiTypographyProps {
   short?: boolean;

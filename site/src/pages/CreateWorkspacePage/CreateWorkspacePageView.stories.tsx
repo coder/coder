@@ -6,7 +6,7 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockUser,
-} from "../../testHelpers/entities";
+} from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
