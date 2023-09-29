@@ -288,7 +288,7 @@ func TestAcquireJob(t *testing.T) {
 							Value: "second_value",
 						},
 					},
-					GitAuthProviders: []*sdkproto.GitAuthProvider{{
+					ExternalAuthProviders: []*sdkproto.ExternalAuthProvider{{
 						Id:          gitAuthProvider,
 						AccessToken: "access_token",
 					}},
