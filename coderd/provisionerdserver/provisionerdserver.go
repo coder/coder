@@ -48,8 +48,8 @@ import (
 const DefaultAcquireJobLongPollDur = time.Second * 5
 
 type Options struct {
-	OIDCConfig     httpmw.OAuth2Config
-	GitAuthConfigs []*gitauth.Config
+	OIDCConfig          httpmw.OAuth2Config
+	ExternalAuthConfigs []*gitauth.Config
 	// TimeNowFn is only used in tests
 	TimeNowFn func() time.Time
 
@@ -62,7 +62,7 @@ type server struct {
 	ID                          uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
-	GitAuthConfigs              []*gitauth.Config
+	ExternalAuthConfigs         []*gitauth.Config
 	Tags                        Tags
 	Database                    database.Store
 	Pubsub                      pubsub.Pubsub
@@ -157,7 +157,7 @@ func NewServer(
 		ID:                          id,
 		Logger:                      logger,
 		Provisioners:                provisioners,
-		GitAuthConfigs:              options.GitAuthConfigs,
+		ExternalAuthConfigs:         options.ExternalAuthConfigs,
 		Tags:                        tags,
 		Database:                    db,
 		Pubsub:                      ps,
@@ -404,9 +404,9 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			return nil, failJob(fmt.Sprintf("get workspace build parameters: %s", err))
 		}
 
-		gitAuthProviders := []*sdkproto.GitAuthProvider{}
-		for _, p := range templateVersion.GitAuthProviders {
-			link, err := s.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		externalAuthProviders := []*sdkproto.ExternalAuthProvider{}
+		for _, p := range templateVersion.ExternalAuthProviders {
+			link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: p,
 				UserID:     owner.ID,
 			})
@@ -414,10 +414,10 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				continue
 			}
 			if err != nil {
-				return nil, failJob(fmt.Sprintf("acquire git auth link: %s", err))
+				return nil, failJob(fmt.Sprintf("acquire external auth link: %s", err))
 			}
 			var config *gitauth.Config
-			for _, c := range s.GitAuthConfigs {
+			for _, c := range s.ExternalAuthConfigs {
 				if c.ID != p {
 					continue
 				}
@@ -426,8 +426,8 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 			// We weren't able to find a matching config for the ID!
 			if config == nil {
-				s.Logger.Warn(ctx, "workspace build job is missing git provider",
-					slog.F("git_provider_id", p),
+				s.Logger.Warn(ctx, "workspace build job is missing external auth provider",
+					slog.F("provider_id", p),
 					slog.F("template_version_id", templateVersion.ID),
 					slog.F("workspace_id", workspaceBuild.WorkspaceID))
 				continue
@@ -435,12 +435,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 			link, valid, err := config.RefreshToken(ctx, s.Database, link)
 			if err != nil {
-				return nil, failJob(fmt.Sprintf("refresh git auth link %q: %s", p, err))
+				return nil, failJob(fmt.Sprintf("refresh external auth link %q: %s", p, err))
 			}
 			if !valid {
 				continue
 			}
-			gitAuthProviders = append(gitAuthProviders, &sdkproto.GitAuthProvider{
+			externalAuthProviders = append(externalAuthProviders, &sdkproto.ExternalAuthProvider{
 				Id:          p,
 				AccessToken: link.OAuthAccessToken,
 			})
@@ -448,12 +448,12 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		protoJob.Type = &proto.AcquiredJob_WorkspaceBuild_{
 			WorkspaceBuild: &proto.AcquiredJob_WorkspaceBuild{
-				WorkspaceBuildId:    workspaceBuild.ID.String(),
-				WorkspaceName:       workspace.Name,
-				State:               workspaceBuild.ProvisionerState,
-				RichParameterValues: convertRichParameterValues(workspaceBuildParameters),
-				VariableValues:      asVariableValues(templateVariables),
-				GitAuthProviders:    gitAuthProviders,
+				WorkspaceBuildId:      workspaceBuild.ID.String(),
+				WorkspaceName:         workspace.Name,
+				State:                 workspaceBuild.ProvisionerState,
+				RichParameterValues:   convertRichParameterValues(workspaceBuildParameters),
+				VariableValues:        asVariableValues(templateVariables),
+				ExternalAuthProviders: externalAuthProviders,
 				Metadata: &sdkproto.Metadata{
 					CoderUrl:                      s.AccessURL.String(),
 					WorkspaceTransition:           transition,
@@ -1028,30 +1028,30 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		var completedError sql.NullString
 
-		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
+		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {
 			contains := false
-			for _, configuredProvider := range s.GitAuthConfigs {
-				if configuredProvider.ID == gitAuthProvider {
+			for _, configuredProvider := range s.ExternalAuthConfigs {
+				if configuredProvider.ID == externalAuthProvider {
 					contains = true
 					break
 				}
 			}
 			if !contains {
 				completedError = sql.NullString{
-					String: fmt.Sprintf("git auth provider %q is not configured", gitAuthProvider),
+					String: fmt.Sprintf("external auth provider %q is not configured", externalAuthProvider),
 					Valid:  true,
 				}
 				break
 			}
 		}
 
-		err = s.Database.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
-			JobID:            jobID,
-			GitAuthProviders: jobType.TemplateImport.GitAuthProviders,
-			UpdatedAt:        dbtime.Now(),
+		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 jobID,
+			ExternalAuthProviders: jobType.TemplateImport.ExternalAuthProviders,
+			UpdatedAt:             dbtime.Now(),
 		})
 		if err != nil {
-			return nil, xerrors.Errorf("update template version git auth providers: %w", err)
+			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
 		}
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{

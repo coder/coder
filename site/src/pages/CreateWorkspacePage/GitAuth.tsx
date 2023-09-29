@@ -15,7 +15,7 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
 
 export interface GitAuthProps {
-  type: TypesGen.GitProvider;
+  type: TypesGen.ExternalAuthProvider;
   authenticated: boolean;
   authenticateURL: string;
   gitAuthPollingState: GitAuthPollingState;

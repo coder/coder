@@ -2184,14 +2184,15 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 };
 
-export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
-  id: "github",
-  type: "github",
-  authenticate_url: "https://example.com/gitauth/github",
-  authenticated: false,
-};
+export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/gitauth/github",
+    authenticated: false,
+  };
 
-export const MockTemplateVersionGitAuthAuthenticated: TypesGen.TemplateVersionGitAuth =
+export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
   {
     id: "github",
     type: "github",

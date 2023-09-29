@@ -20,8 +20,8 @@ The following database fields are currently encrypted:
 
 - `user_links.oauth_access_token`
 - `user_links.oauth_refresh_token`
-- `git_auth_links.oauth_access_token`
-- `git_auth_links.oauth_refresh_token`
+- `external_auth_links.oauth_access_token`
+- `external_auth_links.oauth_refresh_token`
 
 Additional database fields may be encrypted in the future.
 

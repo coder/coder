@@ -33,11 +33,11 @@ type TemplateVersion struct {
 	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
 }
 
-type TemplateVersionGitAuth struct {
-	ID              string      `json:"id"`
-	Type            GitProvider `json:"type"`
-	AuthenticateURL string      `json:"authenticate_url"`
-	Authenticated   bool        `json:"authenticated"`
+type TemplateVersionExternalAuth struct {
+	ID              string               `json:"id"`
+	Type            ExternalAuthProvider `json:"type"`
+	AuthenticateURL string               `json:"authenticate_url"`
+	Authenticated   bool                 `json:"authenticated"`
 }
 
 type ValidationMonotonicOrder string
@@ -132,8 +132,8 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
 
-// TemplateVersionGitAuth returns git authentication for the requested template version.
-func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionGitAuth, error) {
+// TemplateVersionExternalAuth returns authentication providers for the requested template version.
+func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionExternalAuth, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/gitauth", version), nil)
 	if err != nil {
 		return nil, err
@@ -142,8 +142,8 @@ func (c *Client) TemplateVersionGitAuth(ctx context.Context, version uuid.UUID) 
 	if res.StatusCode != http.StatusOK {
 		return nil, ReadBodyAsError(res)
 	}
-	var gitAuth []TemplateVersionGitAuth
-	return gitAuth, json.NewDecoder(res.Body).Decode(&gitAuth)
+	var extAuth []TemplateVersionExternalAuth
+	return extAuth, json.NewDecoder(res.Body).Decode(&extAuth)
 }
 
 // TemplateVersionResources returns resources a template version declares.

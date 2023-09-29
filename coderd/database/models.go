@@ -1537,16 +1537,7 @@ type DBCryptKey struct {
 	Test string `db:"test" json:"test"`
 }
 
-type File struct {
-	Hash      string    `db:"hash" json:"hash"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
-	Mimetype  string    `db:"mimetype" json:"mimetype"`
-	Data      []byte    `db:"data" json:"data"`
-	ID        uuid.UUID `db:"id" json:"id"`
-}
-
-type GitAuthLink struct {
+type ExternalAuthLink struct {
 	ProviderID        string    `db:"provider_id" json:"provider_id"`
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	CreatedAt         time.Time `db:"created_at" json:"created_at"`
@@ -1558,6 +1549,15 @@ type GitAuthLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+}
+
+type File struct {
+	Hash      string    `db:"hash" json:"hash"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedBy uuid.UUID `db:"created_by" json:"created_by"`
+	Mimetype  string    `db:"mimetype" json:"mimetype"`
+	Data      []byte    `db:"data" json:"data"`
+	ID        uuid.UUID `db:"id" json:"id"`
 }
 
 type GitSSHKey struct {
@@ -1796,19 +1796,19 @@ type TemplateTable struct {
 
 // Joins in the username + avatar url of the created by user.
 type TemplateVersion struct {
-	ID                 uuid.UUID      `db:"id" json:"id"`
-	TemplateID         uuid.NullUUID  `db:"template_id" json:"template_id"`
-	OrganizationID     uuid.UUID      `db:"organization_id" json:"organization_id"`
-	CreatedAt          time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt          time.Time      `db:"updated_at" json:"updated_at"`
-	Name               string         `db:"name" json:"name"`
-	Readme             string         `db:"readme" json:"readme"`
-	JobID              uuid.UUID      `db:"job_id" json:"job_id"`
-	CreatedBy          uuid.UUID      `db:"created_by" json:"created_by"`
-	GitAuthProviders   []string       `db:"git_auth_providers" json:"git_auth_providers"`
-	Message            string         `db:"message" json:"message"`
-	CreatedByAvatarURL sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
-	CreatedByUsername  string         `db:"created_by_username" json:"created_by_username"`
+	ID                    uuid.UUID      `db:"id" json:"id"`
+	TemplateID            uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID        uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt             time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt             time.Time      `db:"updated_at" json:"updated_at"`
+	Name                  string         `db:"name" json:"name"`
+	Readme                string         `db:"readme" json:"readme"`
+	JobID                 uuid.UUID      `db:"job_id" json:"job_id"`
+	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
+	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
+	Message               string         `db:"message" json:"message"`
+	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
+	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
 }
 
 type TemplateVersionParameter struct {
@@ -1858,7 +1858,7 @@ type TemplateVersionTable struct {
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
 	// IDs of Git auth providers for a specific template version
-	GitAuthProviders []string `db:"git_auth_providers" json:"git_auth_providers"`
+	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
 	Message string `db:"message" json:"message"`
 }

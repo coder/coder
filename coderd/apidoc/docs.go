@@ -2799,7 +2799,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.TemplateVersionGitAuth"
+                                "$ref": "#/definitions/codersdk.TemplateVersionExternalAuth"
                             }
                         }
                     }
@@ -8186,6 +8186,23 @@ const docTemplate = `{
                 "ExperimentDeploymentHealthPage"
             ]
         },
+        "codersdk.ExternalAuthProvider": {
+            "type": "string",
+            "enum": [
+                "azure-devops",
+                "github",
+                "gitlab",
+                "bitbucket",
+                "openid-connect"
+            ],
+            "x-enum-varnames": [
+                "ExternalAuthProviderAzureDevops",
+                "ExternalAuthProviderGitHub",
+                "ExternalAuthProviderGitLab",
+                "ExternalAuthProviderBitBucket",
+                "ExternalAuthProviderOpenIDConnect"
+            ]
+        },
         "codersdk.Feature": {
             "type": "object",
             "properties": {
@@ -8359,21 +8376,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.GitProvider": {
-            "type": "string",
-            "enum": [
-                "azure-devops",
-                "github",
-                "gitlab",
-                "bitbucket"
-            ],
-            "x-enum-varnames": [
-                "GitProviderAzureDevops",
-                "GitProviderGitHub",
-                "GitProviderGitLab",
-                "GitProviderBitBucket"
-            ]
         },
         "codersdk.GitSSHKey": {
             "type": "object",
@@ -10007,7 +10009,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.TemplateVersionGitAuth": {
+        "codersdk.TemplateVersionExternalAuth": {
             "type": "object",
             "properties": {
                 "authenticate_url": {
@@ -10020,7 +10022,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "$ref": "#/definitions/codersdk.GitProvider"
+                    "$ref": "#/definitions/codersdk.ExternalAuthProvider"
                 }
             }
         },

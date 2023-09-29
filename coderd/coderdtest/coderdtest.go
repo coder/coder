@@ -105,7 +105,7 @@ type Options struct {
 	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
-	GitAuthConfigs        []*gitauth.Config
+	ExternalAuthConfigs   []*gitauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
@@ -392,7 +392,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-			GitAuthConfigs:                 options.GitAuthConfigs,
+			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
 			AWSCertificates:                    options.AWSCertificates,

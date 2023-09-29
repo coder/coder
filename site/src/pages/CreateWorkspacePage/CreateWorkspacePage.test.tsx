@@ -11,9 +11,9 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
-  MockTemplateVersionGitAuth,
+  MockTemplateVersionExternalAuthGithub,
   MockOrganization,
-  MockTemplateVersionGitAuthAuthenticated,
+  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -166,7 +166,7 @@ describe("CreateWorkspacePage", () => {
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
       .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValue([MockTemplateVersionGitAuth]);
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -182,7 +182,7 @@ describe("CreateWorkspacePage", () => {
 
     jest
       .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValue([MockTemplateVersionGitAuthAuthenticated]);
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
     await screen.findByText("Authenticated with GitHub");
 
@@ -203,7 +203,7 @@ describe("CreateWorkspacePage", () => {
   it("gitauth: errors if unauthenticated and submits", async () => {
     jest
       .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValueOnce([MockTemplateVersionGitAuth]);
+      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
