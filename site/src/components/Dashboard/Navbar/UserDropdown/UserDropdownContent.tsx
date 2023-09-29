@@ -60,17 +60,6 @@ const styles = {
   menuItemText: {
     fontSize: 14,
   },
-  divider: (theme) => css`
-    margin: ${theme.spacing(1, 0)};
-
-    &:first-of-type {
-      margin-top: 0;
-    }
-
-    &:last-of-type {
-      margin-bottom: 0;
-    }
-  `,
   footerText: (theme) => css`
     font-size: 12px;
     text-decoration: none;
@@ -111,7 +100,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         <span css={styles.userEmail}>{user.email}</span>
       </Stack>
 
-      <Divider css={styles.divider} />
+      <Divider css={{ marginTop: "0 !important" }} />
 
       <Link to="/settings/account" css={styles.link}>
         <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
@@ -125,7 +114,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         <span css={styles.menuItemText}>{Language.signOutLabel}</span>
       </MenuItem>
 
-      <Divider css={styles.divider} />
+      <Divider css={{ marginBottom: "0 !important" }} />
 
       {supportLinks &&
         supportLinks.map((link) => (
