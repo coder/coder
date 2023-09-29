@@ -143,7 +143,7 @@ func TestAcquireJob(t *testing.T) {
 			gitAuthProvider := "github"
 			srv, db, ps := setup(t, false, &overrides{
 				deploymentValues: dv,
-				gitAuthConfigs: []*gitauth.Config{{
+				externalAuthConfigs: []*gitauth.Config{{
 					ID:           gitAuthProvider,
 					OAuth2Config: &testutil.OAuth2Config{},
 				}},
@@ -158,7 +158,7 @@ func TestAcquireJob(t *testing.T) {
 				OAuthExpiry:      dbtime.Now().Add(time.Hour),
 				OAuthAccessToken: "access-token",
 			})
-			dbgen.GitAuthLink(t, db, database.ExternalAuthLink{
+			dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				ProviderID: gitAuthProvider,
 				UserID:     user.ID,
 			})
@@ -941,7 +941,7 @@ func TestCompleteJob(t *testing.T) {
 		srvID := uuid.New()
 		srv, db, _ := setup(t, false, &overrides{
 			id: &srvID,
-			gitAuthConfigs: []*gitauth.Config{{
+			externalAuthConfigs: []*gitauth.Config{{
 				ID: "github",
 			}},
 		})
@@ -1675,7 +1675,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 type overrides struct {
 	deploymentValues            *codersdk.DeploymentValues
-	gitAuthConfigs              []*gitauth.Config
+	externalAuthConfigs         []*gitauth.Config
 	id                          *uuid.UUID
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -1691,7 +1691,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	db := dbfake.New()
 	ps := pubsub.NewInMemory()
 	deploymentValues := &codersdk.DeploymentValues{}
-	var gitAuthConfigs []*gitauth.Config
+	var externalAuthConfigs []*gitauth.Config
 	srvID := uuid.New()
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
@@ -1701,8 +1701,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		if ov.deploymentValues != nil {
 			deploymentValues = ov.deploymentValues
 		}
-		if ov.gitAuthConfigs != nil {
-			gitAuthConfigs = ov.gitAuthConfigs
+		if ov.externalAuthConfigs != nil {
+			externalAuthConfigs = ov.externalAuthConfigs
 		}
 		if ov.id != nil {
 			srvID = *ov.id
@@ -1748,7 +1748,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		uqhss,
 		deploymentValues,
 		provisionerdserver.Options{
-			ExternalAuthConfigs:   gitAuthConfigs,
+			ExternalAuthConfigs:   externalAuthConfigs,
 			TimeNowFn:             timeNowFn,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,

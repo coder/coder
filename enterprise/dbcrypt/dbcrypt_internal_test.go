@@ -220,14 +220,14 @@ func TestUserLinks(t *testing.T) {
 	})
 }
 
-func TestGitAuthLinks(t *testing.T) {
+func TestExternalAuthLinks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	t.Run("InsertGitAuthLink", func(t *testing.T) {
+	t.Run("InsertExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
-		link := dbgen.GitAuthLink(t, crypt, database.ExternalAuthLink{
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
@@ -243,10 +243,10 @@ func TestGitAuthLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
 	})
 
-	t.Run("UpdateGitAuthLink", func(t *testing.T) {
+	t.Run("UpdateExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
-		link := dbgen.GitAuthLink(t, crypt, database.ExternalAuthLink{})
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{})
 		updated, err := crypt.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
@@ -270,7 +270,7 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
-			link := dbgen.GitAuthLink(t, crypt, database.ExternalAuthLink{
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 				OAuthAccessToken:  "access",
 				OAuthRefreshToken: "refresh",
 			})
@@ -285,7 +285,7 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Run("DecryptErr", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
-			link := dbgen.GitAuthLink(t, db, database.ExternalAuthLink{
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				OAuthAccessToken:       fakeBase64RandomData(t, 32),
 				OAuthRefreshToken:      fakeBase64RandomData(t, 32),
 				OAuthAccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
@@ -309,7 +309,7 @@ func TestGitAuthLinks(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, crypt, database.User{})
-			link := dbgen.GitAuthLink(t, crypt, database.ExternalAuthLink{
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 				UserID:            user.ID,
 				OAuthAccessToken:  "access",
 				OAuthRefreshToken: "refresh",
@@ -332,7 +332,7 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Run("DecryptErr", func(t *testing.T) {
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, db, database.User{})
-			link := dbgen.GitAuthLink(t, db, database.ExternalAuthLink{
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				UserID:                 user.ID,
 				OAuthAccessToken:       fakeBase64RandomData(t, 32),
 				OAuthRefreshToken:      fakeBase64RandomData(t, 32),

@@ -222,7 +222,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 					Status:    status,
 					Deleted:   deleted,
 				})
-				_ = dbgen.GitAuthLink(t, db, database.ExternalAuthLink{
+				_ = dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					UserID:            usr.ID,
 					ProviderID:        "fake",
 					OAuthAccessToken:  "access-" + usr.ID.String(),

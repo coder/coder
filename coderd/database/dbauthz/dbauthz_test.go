@@ -954,21 +954,21 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(key, rbac.ActionUpdate).Returns(key)
 	}))
 	s.Run("GetExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.ExternalAuthLink{})
+		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
 		check.Args(database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		}).Asserts(link, rbac.ActionRead).Returns(link)
 	}))
-	s.Run("InsertGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertExternalAuthLinkParams{
 			ProviderID: uuid.NewString(),
 			UserID:     u.ID,
 		}).Asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate)
 	}))
-	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.ExternalAuthLink{})
+	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
+		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
 		check.Args(database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,

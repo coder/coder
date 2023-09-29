@@ -1169,7 +1169,7 @@ func (m metricsStore) InsertDeploymentID(ctx context.Context, value string) erro
 func (m metricsStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.InsertExternalAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertGitAuthLink").Observe(time.Since(start).Seconds())
+	m.queryLatencies.WithLabelValues("InsertExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
 }
 
@@ -1442,7 +1442,7 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 func (m metricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateGitAuthLink").Observe(time.Since(start).Seconds())
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
 }
 
@@ -1554,7 +1554,7 @@ func (m metricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.Contex
 func (m metricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionGitAuthProvidersByJobID").Observe(time.Since(start).Seconds())
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAuthProvidersByJobID").Observe(time.Since(start).Seconds())
 	return err
 }
 
