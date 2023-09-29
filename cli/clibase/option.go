@@ -1,6 +1,8 @@
 package clibase
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -65,6 +67,20 @@ type Option struct {
 	ValueSource ValueSource `json:"value_source,omitempty"`
 }
 
+// optionNoMethods is just a wrapper around Option so we can defer to the
+// default json.Unmarshaler behavior.
+type optionNoMethods Option
+
+func (o *Option) UnmarshalJSON(data []byte) error {
+	// If an option has no values, we have no idea how to unmarshal it.
+	// So just discard the json data.
+	if o.Value == nil {
+		o.Value = &DiscardValue
+	}
+
+	return json.Unmarshal(data, (*optionNoMethods)(o))
+}
+
 func (o Option) YAMLPath() string {
 	if o.YAML == "" {
 		return ""
@@ -78,6 +94,85 @@ func (o Option) YAMLPath() string {
 
 // OptionSet is a group of options that can be applied to a command.
 type OptionSet []Option
+
+// UnmarshalJSON implements json.Unmarshaler for OptionSets. Options have an
+// interface Value type that cannot handle unmarshalling because the types cannot
+// be inferred. Since it is a slice, instantiating the Options first does not
+// help.
+//
+// However, we typically do instantiate the slice to have the correct types.
+// So this unmarshaller will attempt to find the named option in the existing
+// set, if it cannot, the value is discarded. If the option exists, the value
+// is unmarshalled into the existing option, and replaces the existing option.
+//
+// The value is discarded if it's type cannot be inferred. This behavior just
+// feels "safer", although it should never happen if the correct option set
+// is passed in.
+func (os *OptionSet) UnmarshalJSON(data []byte) error {
+	dec := json.NewDecoder(bytes.NewBuffer(data))
+	// Should be a json array, so consume the starting open bracket.
+	t, err := dec.Token()
+	if err != nil {
+		return xerrors.Errorf("read array open bracket: %w", err)
+	}
+	if t != json.Delim('[') {
+		return xerrors.Errorf("expected array open bracket, got %q", t)
+	}
+
+	// As long as json elements exist, consume them. The counter is used for
+	// better errors.
+	var i int
+OptionSetDecodeLoop:
+	for dec.More() {
+		var opt Option
+		// jValue is a placeholder value that allows us to capture the
+		// raw json for the value to attempt to unmarshal later.
+		var jValue jsonValue
+		opt.Value = &jValue
+		err := dec.Decode(&opt)
+		if err != nil {
+			return xerrors.Errorf("decode %d option: %w", i, err)
+		}
+
+		// Try to see if the option already exists in the option set.
+		// If it does, just update the existing option.
+		for i, have := range *os {
+			if have.Name == opt.Name {
+				if jValue != nil {
+					err := json.Unmarshal(jValue, &(*os)[i].Value)
+					if err != nil {
+						return xerrors.Errorf("decode option %q value: %w", have.Name, err)
+					}
+					// Set the opt's value
+					opt.Value = (*os)[i].Value
+				} else {
+					// Discard the value if it's nil.
+					opt.Value = DiscardValue
+				}
+				// Override the existing.
+				(*os)[i] = opt
+				// Go to the next option to decode.
+				continue OptionSetDecodeLoop
+			}
+		}
+
+		// If the option doesn't exist, the value will be discarded.
+		// We do this because we cannot infer the type of the value.
+		opt.Value = DiscardValue
+		*os = append(*os, opt)
+		i++
+	}
+
+	t, err = dec.Token()
+	if err != nil {
+		return xerrors.Errorf("read array close bracket: %w", err)
+	}
+	if t != json.Delim(']') {
+		return xerrors.Errorf("expected array close bracket, got %q", t)
+	}
+
+	return nil
+}
 
 // Add adds the given Options to the OptionSet.
 func (s *OptionSet) Add(opts ...Option) {

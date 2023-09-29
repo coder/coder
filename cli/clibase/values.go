@@ -430,6 +430,32 @@ func (discardValue) Type() string {
 	return "discard"
 }
 
+func (discardValue) UnmarshalJSON(data []byte) error {
+	return nil
+}
+
+type jsonValue json.RawMessage
+
+func (jsonValue) Set(string) error {
+	return xerrors.Errorf("json value is read-only")
+}
+
+func (jsonValue) String() string {
+	return ""
+}
+
+func (jsonValue) Type() string {
+	return "json"
+}
+
+func (j *jsonValue) UnmarshalJSON(data []byte) error {
+	if j == nil {
+		return xerrors.New("json.RawMessage: UnmarshalJSON on nil pointer")
+	}
+	*j = append((*j)[0:0], data...)
+	return nil
+}
+
 var _ pflag.Value = (*Enum)(nil)
 
 type Enum struct {
