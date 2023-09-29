@@ -832,9 +832,9 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			JobID:      jobID,
 		})
-		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
-			JobID:            jobID,
-			GitAuthProviders: []string{},
+		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 jobID,
+			ExternalAuthProviders: []string{},
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
 }
@@ -954,22 +954,22 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(key, rbac.ActionUpdate).Returns(key)
 	}))
 	s.Run("GetGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
-		check.Args(database.GetGitAuthLinkParams{
+		link := dbgen.GitAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		}).Asserts(link, rbac.ActionRead).Returns(link)
 	}))
 	s.Run("InsertGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertGitAuthLinkParams{
+		check.Args(database.InsertExternalAuthLinkParams{
 			ProviderID: uuid.NewString(),
 			UserID:     u.ID,
 		}).Asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate)
 	}))
 	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
-		check.Args(database.UpdateGitAuthLinkParams{
+		link := dbgen.GitAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			OAuthAccessToken:  link.OAuthAccessToken,

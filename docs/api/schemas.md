@@ -2752,6 +2752,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_autostop_requirement` |
 | `deployment_health_page`        |
 
+## codersdk.ExternalAuthProvider
+
+```json
+"azure-devops"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value            |
+| ---------------- |
+| `azure-devops`   |
+| `github`         |
+| `gitlab`         |
+| `bitbucket`      |
+| `openid-connect` |
+
 ## codersdk.Feature
 
 ```json
@@ -2964,23 +2982,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `login`       | string | false    |              |             |
 | `name`        | string | false    |              |             |
 | `profile_url` | string | false    |              |             |
-
-## codersdk.GitProvider
-
-```json
-"azure-devops"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value          |
-| -------------- |
-| `azure-devops` |
-| `github`       |
-| `gitlab`       |
-| `bitbucket`    |
 
 ## codersdk.GitSSHKey
 
@@ -4734,7 +4735,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `updated_at`      | string                                                                      | false    |              |             |
 | `warnings`        | array of [codersdk.TemplateVersionWarning](#codersdktemplateversionwarning) | false    |              |             |
 
-## codersdk.TemplateVersionGitAuth
+## codersdk.TemplateVersionExternalAuth
 
 ```json
 {
@@ -4747,12 +4748,12 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                         | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------- | -------- | ------------ | ----------- |
-| `authenticate_url` | string                                       | false    |              |             |
-| `authenticated`    | boolean                                      | false    |              |             |
-| `id`               | string                                       | false    |              |             |
-| `type`             | [codersdk.GitProvider](#codersdkgitprovider) | false    |              |             |
+| Name               | Type                                                           | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string                                                         | false    |              |             |
+| `authenticated`    | boolean                                                        | false    |              |             |
+| `id`               | string                                                         | false    |              |             |
+| `type`             | [codersdk.ExternalAuthProvider](#codersdkexternalauthprovider) | false    |              |             |
 
 ## codersdk.TemplateVersionParameter
 

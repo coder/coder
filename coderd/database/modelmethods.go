@@ -250,7 +250,7 @@ func (u GitSSHKey) RBACObject() rbac.Object {
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }
 
-func (u GitAuthLink) RBACObject() rbac.Object {
+func (u ExternalAuthLink) RBACObject() rbac.Object {
 	// I assume UserData is ok?
 	return rbac.ResourceUserData.WithID(u.UserID).WithOwner(u.UserID.String())
 }

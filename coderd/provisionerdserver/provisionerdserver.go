@@ -406,7 +406,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 
 		gitAuthProviders := []*sdkproto.GitAuthProvider{}
 		for _, p := range templateVersion.GitAuthProviders {
-			link, err := s.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: p,
 				UserID:     owner.ID,
 			})
@@ -1045,10 +1045,10 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
-		err = s.Database.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
-			JobID:            jobID,
-			GitAuthProviders: jobType.TemplateImport.GitAuthProviders,
-			UpdatedAt:        dbtime.Now(),
+		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 jobID,
+			ExternalAuthProviders: jobType.TemplateImport.GitAuthProviders,
+			UpdatedAt:             dbtime.Now(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version git auth providers: %w", err)

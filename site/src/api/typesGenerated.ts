@@ -1010,9 +1010,9 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
-export interface TemplateVersionGitAuth {
+export interface TemplateVersionExternalAuth {
   readonly id: string;
-  readonly type: GitProvider;
+  readonly type: ExternalAuthProvider;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
 }
@@ -1655,6 +1655,21 @@ export const Experiments: Experiment[] = [
   "workspace_actions",
 ];
 
+// From codersdk/workspaceagents.go
+export type ExternalAuthProvider =
+  | "azure-devops"
+  | "bitbucket"
+  | "github"
+  | "gitlab"
+  | "openid-connect";
+export const ExternalAuthProviders: ExternalAuthProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+  "openid-connect",
+];
+
 // From codersdk/deployment.go
 export type FeatureName =
   | "advanced_template_scheduling"
@@ -1688,15 +1703,6 @@ export const FeatureNames: FeatureName[] = [
   "user_role_management",
   "workspace_batch_actions",
   "workspace_proxy",
-];
-
-// From codersdk/workspaceagents.go
-export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab";
-export const GitProviders: GitProvider[] = [
-  "azure-devops",
-  "bitbucket",
-  "github",
-  "gitlab",
 ];
 
 // From codersdk/groups.go

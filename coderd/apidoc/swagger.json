@@ -2457,7 +2457,7 @@
             "schema": {
               "type": "array",
               "items": {
-                "$ref": "#/definitions/codersdk.TemplateVersionGitAuth"
+                "$ref": "#/definitions/codersdk.TemplateVersionExternalAuth"
               }
             }
           }
@@ -7334,6 +7334,23 @@
         "ExperimentDeploymentHealthPage"
       ]
     },
+    "codersdk.ExternalAuthProvider": {
+      "type": "string",
+      "enum": [
+        "azure-devops",
+        "github",
+        "gitlab",
+        "bitbucket",
+        "openid-connect"
+      ],
+      "x-enum-varnames": [
+        "ExternalAuthProviderAzureDevops",
+        "ExternalAuthProviderGitHub",
+        "ExternalAuthProviderGitLab",
+        "ExternalAuthProviderBitBucket",
+        "ExternalAuthProviderOpenIDConnect"
+      ]
+    },
     "codersdk.Feature": {
       "type": "object",
       "properties": {
@@ -7507,16 +7524,6 @@
           "type": "string"
         }
       }
-    },
-    "codersdk.GitProvider": {
-      "type": "string",
-      "enum": ["azure-devops", "github", "gitlab", "bitbucket"],
-      "x-enum-varnames": [
-        "GitProviderAzureDevops",
-        "GitProviderGitHub",
-        "GitProviderGitLab",
-        "GitProviderBitBucket"
-      ]
     },
     "codersdk.GitSSHKey": {
       "type": "object",
@@ -9049,7 +9056,7 @@
         }
       }
     },
-    "codersdk.TemplateVersionGitAuth": {
+    "codersdk.TemplateVersionExternalAuth": {
       "type": "object",
       "properties": {
         "authenticate_url": {
@@ -9062,7 +9069,7 @@
           "type": "string"
         },
         "type": {
-          "$ref": "#/definitions/codersdk.GitProvider"
+          "$ref": "#/definitions/codersdk.ExternalAuthProvider"
         }
       }
     },

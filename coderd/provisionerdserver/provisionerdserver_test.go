@@ -158,7 +158,7 @@ func TestAcquireJob(t *testing.T) {
 				OAuthExpiry:      dbtime.Now().Add(time.Hour),
 				OAuthAccessToken: "access-token",
 			})
-			dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			dbgen.GitAuthLink(t, db, database.ExternalAuthLink{
 				ProviderID: gitAuthProvider,
 				UserID:     user.ID,
 			})
@@ -175,7 +175,7 @@ func TestAcquireJob(t *testing.T) {
 				},
 				JobID: uuid.New(),
 			})
-			err := db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
+			err := db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 				JobID:            version.JobID,
 				GitAuthProviders: []string{gitAuthProvider},
 				UpdatedAt:        dbtime.Now(),

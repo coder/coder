@@ -38,7 +38,7 @@ export interface CreateWorkspacePageViewProps {
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
   versionId?: string;
-  gitAuth: TypesGen.TemplateVersionGitAuth[];
+  gitAuth: TypesGen.TemplateVersionExternalAuth[];
   gitAuthPollingState: GitAuthPollingState;
   startPollingGitAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
@@ -233,7 +233,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 type GitAuthErrors = Record<string, string>;
 
-const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
+const useGitAuthVerification = (
+  gitAuth: TypesGen.TemplateVersionExternalAuth[],
+) => {
   const [gitAuthErrors, setGitAuthErrors] = useState<GitAuthErrors>({});
 
   // Clear errors when gitAuth is refreshed

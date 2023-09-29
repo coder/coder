@@ -1836,30 +1836,31 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/g
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionGitAuth](schemas.md#codersdktemplateversiongitauth) |
+| Status | Meaning                                                 | Description | Schema                                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionExternalAuth](schemas.md#codersdktemplateversionexternalauth) |
 
 <h3 id="get-git-auth-by-template-version-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                 | Type                                                   | Required | Restrictions | Description |
-| -------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`       | array                                                  | false    |              |             |
-| `» authenticate_url` | string                                                 | false    |              |             |
-| `» authenticated`    | boolean                                                | false    |              |             |
-| `» id`               | string                                                 | false    |              |             |
-| `» type`             | [codersdk.GitProvider](schemas.md#codersdkgitprovider) | false    |              |             |
+| Name                 | Type                                                                     | Required | Restrictions | Description |
+| -------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`       | array                                                                    | false    |              |             |
+| `» authenticate_url` | string                                                                   | false    |              |             |
+| `» authenticated`    | boolean                                                                  | false    |              |             |
+| `» id`               | string                                                                   | false    |              |             |
+| `» type`             | [codersdk.ExternalAuthProvider](schemas.md#codersdkexternalauthprovider) | false    |              |             |
 
 #### Enumerated Values
 
-| Property | Value          |
-| -------- | -------------- |
-| `type`   | `azure-devops` |
-| `type`   | `github`       |
-| `type`   | `gitlab`       |
-| `type`   | `bitbucket`    |
+| Property | Value            |
+| -------- | ---------------- |
+| `type`   | `azure-devops`   |
+| `type`   | `github`         |
+| `type`   | `gitlab`         |
+| `type`   | `bitbucket`      |
+| `type`   | `openid-connect` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
