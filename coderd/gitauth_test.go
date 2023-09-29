@@ -31,7 +31,7 @@ func TestGitAuthByID(t *testing.T) {
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
 				Type:         codersdk.ExternalAuthProviderGitHub,
@@ -47,7 +47,7 @@ func TestGitAuthByID(t *testing.T) {
 		// still return that the provider is authenticated.
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
 				// AzureDevops doesn't have a user endpoint!
@@ -71,7 +71,7 @@ func TestGitAuthByID(t *testing.T) {
 		}))
 		defer validateSrv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID:           "test",
 				ValidateURL:  validateSrv.URL,
 				OAuth2Config: &testutil.OAuth2Config{},
@@ -111,12 +111,12 @@ func TestGitAuthByID(t *testing.T) {
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
-				ID:                     "test",
-				ValidateURL:            srv.URL + "/user",
-				GitAppInstallationsURL: srv.URL + "/installs",
-				OAuth2Config:           &testutil.OAuth2Config{},
-				Type:                   codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				ID:                  "test",
+				ValidateURL:         srv.URL + "/user",
+				AppInstallationsURL: srv.URL + "/installs",
+				OAuth2Config:        &testutil.OAuth2Config{},
+				Type:                codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
@@ -137,7 +137,7 @@ func TestGitAuthDevice(t *testing.T) {
 	t.Run("NotSupported", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID: "test",
 			}},
 		})
@@ -156,7 +156,7 @@ func TestGitAuthDevice(t *testing.T) {
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID: "test",
 				DeviceAuth: &gitauth.DeviceAuth{
 					ClientID: "test",
@@ -180,7 +180,7 @@ func TestGitAuthDevice(t *testing.T) {
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				ID: "test",
 				DeviceAuth: &gitauth.DeviceAuth{
 					ClientID: "test",
@@ -220,7 +220,7 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs:           []*gitauth.Config{},
+			ExternalAuthConfigs:      []*gitauth.Config{},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
@@ -245,11 +245,11 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config:  &testutil.OAuth2Config{},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -274,11 +274,11 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config:  &testutil.OAuth2Config{},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
@@ -288,11 +288,11 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config:  &testutil.OAuth2Config{},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -314,12 +314,12 @@ func TestGitAuthCallback(t *testing.T) {
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
-				ValidateURL:   srv.URL,
-				OAuth2Config:  &testutil.OAuth2Config{},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				ValidateURL:  srv.URL,
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -366,7 +366,7 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{
 					Token: &oauth2.Token{
 						AccessToken:  "token",
@@ -374,10 +374,10 @@ func TestGitAuthCallback(t *testing.T) {
 						Expiry:       dbtime.Now().Add(-time.Hour),
 					},
 				},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
-				NoRefresh:     true,
+				ID:        "github",
+				Regex:     regexp.MustCompile(`github\.com`),
+				Type:      codersdk.ExternalAuthProviderGitHub,
+				NoRefresh: true,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -416,11 +416,11 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
-				OAuth2Config:  &testutil.OAuth2Config{},
-				ID:            "github",
-				GitCloneRegex: regexp.MustCompile(`github\.com`),
-				Type:          codersdk.ExternalAuthProviderGitHub,
+			ExternalAuthConfigs: []*gitauth.Config{{
+				OAuth2Config: &testutil.OAuth2Config{},
+				ID:           "github",
+				Regex:        regexp.MustCompile(`github\.com`),
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)

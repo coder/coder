@@ -49,18 +49,18 @@ type Config struct {
 	// not be validated before being returned.
 	ValidateURL string
 
-	// GitCloneRegex is a Regexp matched against URLs for
+	// Regex is a Regexp matched against URLs for
 	// a Git clone. e.g. "Username for 'https://github.com':"
 	// The regex would be `github\.com`..
-	GitCloneRegex *regexp.Regexp
-	// GitAppInstallURL is for GitHub App's (and hopefully others eventually)
+	Regex *regexp.Regexp
+	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
 	// for the user to authenticate but the application to not.
-	GitAppInstallURL string
-	// InstallationsURL is an API endpoint that returns a list of
+	AppInstallURL string
+	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
-	GitAppInstallationsURL string
+	AppInstallationsURL string
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -195,10 +195,10 @@ type AppInstallation struct {
 // AppInstallations returns a list of app installations for the given token.
 // If the provider does not support app installations, it returns nil.
 func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.GitAuthAppInstallation, bool, error) {
-	if c.GitAppInstallationsURL == "" {
+	if c.AppInstallationsURL == "" {
 		return nil, false, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.GitAppInstallationsURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.AppInstallationsURL, nil)
 	if err != nil {
 		return nil, false, err
 	}
@@ -324,14 +324,14 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		}
 
 		cfg := &Config{
-			OAuth2Config:           oauthConfig,
-			ID:                     entry.ID,
-			GitCloneRegex:          regex,
-			Type:                   typ,
-			NoRefresh:              entry.NoRefresh,
-			ValidateURL:            entry.ValidateURL,
-			GitAppInstallationsURL: entry.AppInstallationsURL,
-			GitAppInstallURL:       entry.AppInstallURL,
+			OAuth2Config:        oauthConfig,
+			ID:                  entry.ID,
+			Regex:               regex,
+			Type:                typ,
+			NoRefresh:           entry.NoRefresh,
+			ValidateURL:         entry.ValidateURL,
+			AppInstallationsURL: entry.AppInstallationsURL,
+			AppInstallURL:       entry.AppInstallURL,
 		}
 
 		if entry.DeviceFlow {

@@ -292,7 +292,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *gitauth.Config
-		for _, provider := range api.GitAuthConfigs {
+		for _, provider := range api.ExternalAuthConfigs {
 			if provider.ID == rawProvider {
 				config = provider
 				break

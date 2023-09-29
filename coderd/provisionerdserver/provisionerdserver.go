@@ -48,8 +48,8 @@ import (
 const DefaultAcquireJobLongPollDur = time.Second * 5
 
 type Options struct {
-	OIDCConfig     httpmw.OAuth2Config
-	GitAuthConfigs []*gitauth.Config
+	OIDCConfig          httpmw.OAuth2Config
+	ExternalAuthConfigs []*gitauth.Config
 	// TimeNowFn is only used in tests
 	TimeNowFn func() time.Time
 
@@ -62,7 +62,7 @@ type server struct {
 	ID                          uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
-	GitAuthConfigs              []*gitauth.Config
+	ExternalAuthConfigs         []*gitauth.Config
 	Tags                        Tags
 	Database                    database.Store
 	Pubsub                      pubsub.Pubsub
@@ -157,7 +157,7 @@ func NewServer(
 		ID:                          id,
 		Logger:                      logger,
 		Provisioners:                provisioners,
-		GitAuthConfigs:              options.GitAuthConfigs,
+		ExternalAuthConfigs:         options.ExternalAuthConfigs,
 		Tags:                        tags,
 		Database:                    db,
 		Pubsub:                      ps,
@@ -417,7 +417,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				return nil, failJob(fmt.Sprintf("acquire git auth link: %s", err))
 			}
 			var config *gitauth.Config
-			for _, c := range s.GitAuthConfigs {
+			for _, c := range s.ExternalAuthConfigs {
 				if c.ID != p {
 					continue
 				}
@@ -1030,7 +1030,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		for _, gitAuthProvider := range jobType.TemplateImport.GitAuthProviders {
 			contains := false
-			for _, configuredProvider := range s.GitAuthConfigs {
+			for _, configuredProvider := range s.ExternalAuthConfigs {
 				if configuredProvider.ID == gitAuthProvider {
 					contains = true
 					break

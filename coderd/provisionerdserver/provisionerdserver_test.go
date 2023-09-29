@@ -1748,7 +1748,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		uqhss,
 		deploymentValues,
 		provisionerdserver.Options{
-			GitAuthConfigs:        gitAuthConfigs,
+			ExternalAuthConfigs:   gitAuthConfigs,
 			TimeNowFn:             timeNowFn,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,

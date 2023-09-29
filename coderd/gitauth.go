@@ -32,7 +32,7 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	res := codersdk.GitAuth{
 		Authenticated:    false,
 		Device:           config.DeviceAuth != nil,
-		AppInstallURL:    config.GitAppInstallURL,
+		AppInstallURL:    config.AppInstallURL,
 		Type:             config.Type.Pretty(),
 		AppInstallations: []codersdk.GitAuthAppInstallation{},
 	}

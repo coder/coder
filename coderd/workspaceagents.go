@@ -229,7 +229,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		GitAuthConfigs:           len(api.GitAuthConfigs),
+		GitAuthConfigs:           len(api.ExternalAuthConfigs),
 		EnvironmentVariables:     apiAgent.EnvironmentVariables,
 		Directory:                apiAgent.Directory,
 		VSCodePortProxyURI:       vscodeProxyURI,
@@ -2179,8 +2179,8 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	listen := r.URL.Query().Has("listen")
 
 	var gitAuthConfig *gitauth.Config
-	for _, gitAuth := range api.GitAuthConfigs {
-		matches := gitAuth.GitCloneRegex.MatchString(gitURL)
+	for _, gitAuth := range api.ExternalAuthConfigs {
+		matches := gitAuth.Regex.MatchString(gitURL)
 		if !matches {
 			continue
 		}
@@ -2188,10 +2188,10 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 	if gitAuthConfig == nil {
 		detail := "No git providers are configured."
-		if len(api.GitAuthConfigs) > 0 {
-			regexURLs := make([]string, 0, len(api.GitAuthConfigs))
-			for _, gitAuth := range api.GitAuthConfigs {
-				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.GitCloneRegex.String()))
+		if len(api.ExternalAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
+			for _, gitAuth := range api.ExternalAuthConfigs {
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.Regex.String()))
 			}
 			detail = fmt.Sprintf("The configured git provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
 		}

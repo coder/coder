@@ -114,7 +114,7 @@ type Options struct {
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
-	GitAuthConfigs                 []*gitauth.Config
+	ExternalAuthConfigs            []*gitauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
@@ -541,7 +541,7 @@ func New(options *Options) *API {
 
 	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
-		for _, gitAuthConfig := range options.GitAuthConfigs {
+		for _, gitAuthConfig := range options.ExternalAuthConfigs {
 			// We don't need to register a callback handler for device auth.
 			if gitAuthConfig.DeviceAuth != nil {
 				continue
@@ -610,7 +610,7 @@ func New(options *Options) *API {
 		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+				httpmw.ExtractGitAuthParam(options.ExternalAuthConfigs),
 			)
 			r.Get("/", api.gitAuthByID)
 			r.Post("/device", api.postGitAuthDeviceByID)
@@ -1111,8 +1111,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 		api.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			OIDCConfig:     api.OIDCConfig,
-			GitAuthConfigs: api.GitAuthConfigs,
+			OIDCConfig:          api.OIDCConfig,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
 		},
 	)
 	if err != nil {
