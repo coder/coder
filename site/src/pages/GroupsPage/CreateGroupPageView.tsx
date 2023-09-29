@@ -61,7 +61,6 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
                 "display_name",
                 "Optional: keep empty to default to the name.",
               )}
-              onChange={onChangeTrimmed(form)}
               autoComplete="display_name"
               autoFocus
               fullWidth
