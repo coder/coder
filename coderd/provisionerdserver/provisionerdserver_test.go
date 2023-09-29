@@ -923,8 +923,8 @@ func TestCompleteJob(t *testing.T) {
 							Name: "hello",
 							Type: "aws_instance",
 						}},
-						StopResources:    []*sdkproto.Resource{},
-						GitAuthProviders: []string{"github"},
+						StopResources:         []*sdkproto.Resource{},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			})
@@ -977,8 +977,8 @@ func TestCompleteJob(t *testing.T) {
 							Name: "hello",
 							Type: "aws_instance",
 						}},
-						StopResources:    []*sdkproto.Resource{},
-						GitAuthProviders: []string{"github"},
+						StopResources:         []*sdkproto.Resource{},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			})
