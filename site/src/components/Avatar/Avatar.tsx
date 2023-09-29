@@ -1,9 +1,8 @@
 // This is the only place MuiAvatar can be used
 // eslint-disable-next-line no-restricted-imports -- Read above
 import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
-import { makeStyles } from "@mui/styles";
 import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
+import { css, type Theme } from "@emotion/react";
 
 export type AvatarProps = MuiAvatarProps & {
   size?: "sm" | "md" | "xl";
@@ -11,25 +10,49 @@ export type AvatarProps = MuiAvatarProps & {
   fitImage?: boolean;
 };
 
+const sizeStyles = {
+  sm: (theme: Theme) => ({
+    width: theme.spacing(3),
+    height: theme.spacing(3),
+    fontSize: theme.spacing(1.5),
+  }),
+  md: {},
+  xl: (theme: Theme) => ({
+    width: theme.spacing(6),
+    height: theme.spacing(6),
+    fontSize: theme.spacing(3),
+  }),
+};
+
+const colorStyles = {
+  light: {},
+  darken: (theme: Theme) => ({
+    background: theme.palette.divider,
+    color: theme.palette.text.primary,
+  }),
+};
+
+const fitImageStyles = css`
+  & .MuiAvatar-img {
+    object-fit: contain;
+  }
+`;
+
 export const Avatar: FC<AvatarProps> = ({
   size = "md",
   colorScheme = "light",
   fitImage,
-  className,
   children,
   ...muiProps
 }) => {
-  const styles = useStyles();
-
   return (
     <MuiAvatar
       {...muiProps}
-      className={combineClasses([
-        className,
-        styles[size],
-        styles[colorScheme],
-        fitImage && styles.fitImage,
-      ])}
+      css={[
+        sizeStyles[size],
+        colorStyles[colorScheme],
+        fitImage && fitImageStyles,
+      ]}
     >
       {typeof children === "string" ? firstLetter(children) : children}
     </MuiAvatar>
@@ -40,8 +63,15 @@ export const Avatar: FC<AvatarProps> = ({
  * Use it to make an img element behaves like a MaterialUI Icon component
  */
 export const AvatarIcon: FC<{ src: string }> = ({ src }) => {
-  const styles = useStyles();
-  return <img src={src} alt="" className={styles.avatarIcon} />;
+  return (
+    <img
+      src={src}
+      alt=""
+      css={{
+        maxWidth: "50%",
+      }}
+    />
+  );
 };
 
 const firstLetter = (str: string): string => {
@@ -51,36 +81,3 @@ const firstLetter = (str: string): string => {
 
   return "";
 };
-
-const useStyles = makeStyles((theme) => ({
-  // Size styles
-  sm: {
-    width: theme.spacing(3),
-    height: theme.spacing(3),
-    fontSize: theme.spacing(1.5),
-  },
-  // Just use the default value from theme
-  md: {},
-  xl: {
-    width: theme.spacing(6),
-    height: theme.spacing(6),
-    fontSize: theme.spacing(3),
-  },
-  // Colors
-  // Just use the default value from theme
-  light: {},
-  darken: {
-    background: theme.palette.divider,
-    color: theme.palette.text.primary,
-  },
-  // Avatar icon
-  avatarIcon: {
-    maxWidth: "50%",
-  },
-  // Fit image
-  fitImage: {
-    "& .MuiAvatar-img": {
-      objectFit: "contain",
-    },
-  },
-}));

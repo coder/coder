@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ComponentProps, FC } from "react";
 import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
@@ -19,11 +18,13 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   error,
   workspace,
 }) => {
-  const styles = useStyles();
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader
+        css={{
+          paddingTop: 0,
+        }}
+      >
         <PageHeaderTitle>Workspace Settings</PageHeaderTitle>
       </PageHeader>
 
@@ -37,9 +38,3 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));

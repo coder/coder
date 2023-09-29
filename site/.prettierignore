@@ -33,14 +33,13 @@ e2e/states/*.json
 e2e/.auth.json
 playwright-report/*
 .swc
-dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
 
 # Build
-../build/
-../dist/
+build/
+dist/
 out/
 
 # Bundle analysis
