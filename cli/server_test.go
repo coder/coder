@@ -1504,6 +1504,9 @@ func TestServer(t *testing.T) {
 			gotConfig.Options.ByName("Config Path").Value.Set("")
 			// We check the options individually for better error messages.
 			for i := range wantConfig.Options {
+				// ValueSource is not going to be correct on the `want`, so just
+				// match that field.
+				wantConfig.Options[i].ValueSource = gotConfig.Options[i].ValueSource
 				assert.Equal(
 					t, wantConfig.Options[i],
 					gotConfig.Options[i],
