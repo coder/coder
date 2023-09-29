@@ -65,7 +65,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230621095435-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.6.2-0.20230901043036-3e17d6de9749
+	cdr.dev/slog v1.6.2-0.20230929193652-f0c466fabe10
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
