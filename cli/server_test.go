@@ -1188,6 +1188,22 @@ func TestServer(t *testing.T) {
 			require.Equal(t, map[string]string{"serious_business_unit": "serious_business_unit"}, deploymentConfig.Values.OIDC.GroupMapping.Value)
 			require.Equal(t, "Sign In With Coder", deploymentConfig.Values.OIDC.SignInText.Value())
 			require.Equal(t, "https://example.com/icon.png", deploymentConfig.Values.OIDC.IconURL.Value().String())
+
+			// Verify the option values
+			for _, opt := range deploymentConfig.Options {
+				switch opt.Flag {
+				case "access-url":
+					require.Equal(t, "http://example.com", opt.Value.String())
+				case "oidc-icon-url":
+					require.Equal(t, "https://example.com/icon.png", opt.Value.String())
+				case "oidc-sign-in-text":
+					require.Equal(t, "Sign In With Coder", opt.Value.String())
+				case "redirect-to-access-url":
+					require.Equal(t, "false", opt.Value.String())
+				case "derp-server-region-id":
+					require.Equal(t, "999", opt.Value.String())
+				}
+			}
 		})
 	})
 
@@ -1488,6 +1504,9 @@ func TestServer(t *testing.T) {
 			gotConfig.Options.ByName("Config Path").Value.Set("")
 			// We check the options individually for better error messages.
 			for i := range wantConfig.Options {
+				// ValueSource is not going to be correct on the `want`, so just
+				// match that field.
+				wantConfig.Options[i].ValueSource = gotConfig.Options[i].ValueSource
 				assert.Equal(
 					t, wantConfig.Options[i],
 					gotConfig.Options[i],

@@ -5,7 +5,9 @@ import { useTheme } from "@mui/system";
 import { DisabledBadge, EnabledBadge } from "./Badges";
 import { css } from "@emotion/react";
 
-export const OptionName: FC<PropsWithChildren> = ({ children }) => {
+export const OptionName: FC<PropsWithChildren> = (props) => {
+  const { children } = props;
+
   return (
     <span
       css={{
@@ -17,8 +19,10 @@ export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
+export const OptionDescription: FC<PropsWithChildren> = (props) => {
+  const { children } = props;
   const theme = useTheme();
+
   return (
     <span
       css={{
@@ -33,7 +37,12 @@ export const OptionDescription: FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
+interface OptionValueProps {
+  children?: boolean | number | string | string[];
+}
+
+export const OptionValue: FC<OptionValueProps> = (props) => {
+  const { children } = props;
   const theme = useTheme();
 
   const optionStyles = css`
@@ -55,15 +64,15 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
     return <span css={optionStyles}>{children}</span>;
   }
 
+  if (!children || children.length < 1) {
+    return <span css={optionStyles}>Not set</span>;
+  }
+
   if (typeof children === "string") {
     return <span css={optionStyles}>{children}</span>;
   }
 
   if (Array.isArray(children)) {
-    if (children.length === 0) {
-      return <span css={optionStyles}>Not set</span>;
-    }
-
     return (
       <ul
         css={{
@@ -84,48 +93,67 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
     );
   }
 
-  if (children === "") {
-    return <span css={optionStyles}>Not set</span>;
-  }
-
   return <span css={optionStyles}>{JSON.stringify(children)}</span>;
 };
 
-export const OptionConfig = (props: BoxProps) => {
+interface OptionConfigProps extends BoxProps {
+  source?: boolean;
+}
+
+// OptionalConfig takes a source bool to indicate if the Option is the source of the configured value.
+export const OptionConfig = (props: OptionConfigProps) => {
+  const { source, sx, ...attrs } = props;
+  const theme = useTheme();
+  const borderColor = source
+    ? theme.palette.primary.main
+    : theme.palette.divider;
+
   return (
     <Box
-      {...props}
+      {...attrs}
       sx={{
         fontSize: 13,
         fontFamily: MONOSPACE_FONT_FAMILY,
         fontWeight: 600,
-        backgroundColor: (theme) => theme.palette.background.paperLight,
+        backgroundColor: (theme) =>
+          source
+            ? theme.palette.primary.dark
+            : theme.palette.background.paperLight,
         display: "inline-flex",
         alignItems: "center",
         borderRadius: 0.25,
         padding: (theme) => theme.spacing(0, 1),
-        border: (theme) => `1px solid ${theme.palette.divider}`,
-        ...props.sx,
+        border: `1px solid ${borderColor}`,
+        ...sx,
       }}
     />
   );
 };
 
-export const OptionConfigFlag = (props: BoxProps) => {
+interface OptionConfigFlagProps extends BoxProps {
+  source?: boolean;
+}
+
+export const OptionConfigFlag = (props: OptionConfigFlagProps) => {
+  const { children, source, sx, ...attrs } = props;
+
   return (
     <Box
-      {...props}
+      {...attrs}
       sx={{
         fontSize: 10,
         fontWeight: 600,
         margin: (theme) => theme.spacing(0, 0.75, 0, -0.5),
         display: "block",
-        backgroundColor: (theme) => theme.palette.divider,
+        backgroundColor: (theme) =>
+          source ? "rgba(0, 0, 0, 0.7)" : theme.palette.divider,
         lineHeight: 1,
         padding: (theme) => theme.spacing(0.25, 0.5),
         borderRadius: 0.25,
-        ...props.sx,
+        ...sx,
       }}
-    />
+    >
+      {children}
+    </Box>
   );
 };

@@ -40,6 +40,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
@@ -152,7 +153,12 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentValues            *codersdk.DeploymentValues
-	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
+	// DeploymentOptions do contain the copy of DeploymentValues, and contain
+	// contextual information about how the values were set.
+	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
+	// All secrets values are stripped.
+	DeploymentOptions  clibase.OptionSet
+	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
 	// SSHConfig is the response clients use to configure config-ssh locally.
 	SSHConfig codersdk.SSHConfigResponse
