@@ -146,8 +146,10 @@ OptionSetDecodeLoop:
 					// Set the opt's value
 					opt.Value = (*optSet)[i].Value
 				} else {
-					// Discard the value if it's nil.
-					opt.Value = DiscardValue
+					// Hopefully the user passed empty values in the option set. There is no easy way
+					// to tell, and if we do not do this, it breaks json.Marshal if we do it again on
+					// this new option set.
+					opt.Value = (*optSet)[i].Value
 				}
 				// Override the existing.
 				(*optSet)[i] = opt

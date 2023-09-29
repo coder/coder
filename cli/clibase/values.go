@@ -381,6 +381,7 @@ func (s *Struct[T]) String() string {
 func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 	var n yaml.Node
 	err := n.Encode(s.Value)
+
 	if err != nil {
 		return nil, err
 	}
@@ -492,6 +493,25 @@ func (e *Enum) String() string {
 }
 
 type Regexp regexp.Regexp
+
+func (r *Regexp) MarshalJSON() ([]byte, error) {
+	return json.Marshal(r.String())
+}
+
+func (r *Regexp) UnmarshalJSON(data []byte) error {
+	var source string
+	err := json.Unmarshal(data, &source)
+	if err != nil {
+		return err
+	}
+
+	exp, err := regexp.Compile(source)
+	if err != nil {
+		return xerrors.Errorf("invalid regex expression: %w", err)
+	}
+	*r = Regexp(*exp)
+	return nil
+}
 
 func (r *Regexp) MarshalYAML() (interface{}, error) {
 	return yaml.Node{

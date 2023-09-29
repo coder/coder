@@ -1,11 +1,16 @@
 package clibase_test
 
 import (
+	"bytes"
+	"encoding/json"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestOptionSet_ParseFlags(t *testing.T) {
@@ -200,4 +205,130 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, expected, actual.Value)
 	})
+}
+
+func TestOptionSet_JsonMarshal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RegexCase", func(t *testing.T) {
+		val := clibase.Regexp(*regexp.MustCompile(".*"))
+		opts := clibase.OptionSet{
+			clibase.Option{
+				Name:    "Regex",
+				Value:   &val,
+				Default: ".*",
+			},
+		}
+		data, err := json.Marshal(opts)
+		require.NoError(t, err, "marshal option set")
+
+		var foundVal clibase.Regexp
+		newOpts := clibase.OptionSet{
+			clibase.Option{
+				Name:  "Regex",
+				Value: &foundVal,
+			},
+		}
+		err = json.Unmarshal(data, &newOpts)
+		require.NoError(t, err, "unmarshal option set")
+
+		require.EqualValues(t, opts[0].Value.String(), newOpts[0].Value.String())
+	})
+
+	t.Run("AllValues", func(t *testing.T) {
+		t.Parallel()
+
+		vals := coderdtest.DeploymentValues(t)
+		opts := vals.Options()
+		sources := []clibase.ValueSource{
+			clibase.ValueSourceNone,
+			clibase.ValueSourceFlag,
+			clibase.ValueSourceEnv,
+			clibase.ValueSourceYAML,
+			clibase.ValueSourceDefault,
+		}
+		for i := range opts {
+			opts[i].ValueSource = sources[i%len(sources)]
+		}
+
+		data, err := json.Marshal(opts)
+		require.NoError(t, err, "marshal option set")
+
+		newOpts := (&codersdk.DeploymentValues{}).Options()
+		err = json.Unmarshal(data, &newOpts)
+		require.NoError(t, err, "unmarshal option set")
+
+		for i := range opts {
+			exp := opts[i]
+			found := newOpts[i]
+
+			compareOptions(t, exp, found)
+		}
+
+		thirdOpts := (&codersdk.DeploymentValues{}).Options()
+		data, err = json.Marshal(newOpts)
+		require.NoError(t, err, "marshal option set")
+
+		err = json.Unmarshal(data, &thirdOpts)
+		require.NoError(t, err, "unmarshal option set")
+		// Compare to the original opts again
+		for i := range opts {
+			exp := opts[i]
+			found := thirdOpts[i]
+
+			compareOptions(t, exp, found)
+		}
+	})
+}
+
+func compareOptions(t *testing.T, exp, found clibase.Option) {
+	require.Equalf(t, exp.Name, found.Name, "option name %q", exp.Name)
+	require.Equalf(t, exp.Description, found.Description, "option description %q", exp.Name)
+	require.Equalf(t, exp.Required, found.Required, "option required %q", exp.Name)
+	require.Equalf(t, exp.Flag, found.Flag, "option flag %q", exp.Name)
+	require.Equalf(t, exp.FlagShorthand, found.FlagShorthand, "option flag shorthand %q", exp.Name)
+	require.Equalf(t, exp.Env, found.Env, "option env %q", exp.Name)
+	require.Equalf(t, exp.YAML, found.YAML, "option yaml %q", exp.Name)
+	require.Equalf(t, exp.Default, found.Default, "option default %q", exp.Name)
+	require.Equalf(t, exp.ValueSource, found.ValueSource, "option value source %q", exp.Name)
+	require.Equalf(t, exp.Hidden, found.Hidden, "option hidden %q", exp.Name)
+	require.Equalf(t, exp.Annotations, found.Annotations, "option annotations %q", exp.Name)
+	require.Equalf(t, exp.Group, found.Group, "option group %q", exp.Name)
+	// UseInstead is the same comparison problem, just check the length
+	require.Equalf(t, len(exp.UseInstead), len(found.UseInstead), "option use instead %q", exp.Name)
+
+	compareValues(t, exp, found)
+}
+
+func compareValues(t *testing.T, exp, found clibase.Option) {
+	if exp.Value.String() != found.Value.String() && found.Value.String() == "" {
+		// If the string values are different, this can be a "nil" issue.
+		// So only run this case if the found string is the empty string.
+		// We use MarshalYAML for struct strings, and it will return an
+		// empty string '""' for nil slices/maps/etc.
+		// So use json to compare.
+
+		expJson, err := json.Marshal(exp.Value)
+		require.NoError(t, err, "marshal")
+		foundJson, err := json.Marshal(found.Value)
+		require.NoError(t, err, "marshal")
+
+		expJson = normalizeJSON(expJson)
+		foundJson = normalizeJSON(foundJson)
+		require.Equalf(t, string(expJson), string(foundJson), "option value %q", exp.Name)
+	} else {
+		require.Equal(t,
+			exp.Value.String(),
+			found.Value.String(),
+			"option value %q", exp.Name)
+	}
+}
+
+// normalizeJSON handles the fact that an empty map/slice is not the same
+// as a nil empty/slice. For our purposes, they are the same.
+func normalizeJSON(data []byte) []byte {
+	if bytes.Compare(data, []byte("[]")) == 0 || bytes.Compare(data, []byte("{}")) == 0 {
+		return []byte("null")
+	}
+	return data
 }
