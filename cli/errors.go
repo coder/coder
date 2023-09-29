@@ -25,8 +25,10 @@ func (RootCmd) errorExample() *clibase.Cmd {
 	recorder := httptest.NewRecorder()
 	recorder.WriteHeader(http.StatusBadRequest)
 	resp := recorder.Result()
+	_ = resp.Body.Close()
 	resp.Request, _ = http.NewRequest(http.MethodPost, "http://example.com", nil)
 	apiError := codersdk.ReadBodyAsError(resp)
+	//nolint:errorlint
 	apiError.(*codersdk.Error).Response = codersdk.Response{
 		Message: "Top level sdk error message.",
 		Detail:  "magic dust unavailable, please try again later",
@@ -37,6 +39,7 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			},
 		},
 	}
+	//nolint:errorlint
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
 	// Some flags

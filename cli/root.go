@@ -23,7 +23,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
@@ -964,15 +963,6 @@ func (p *prettyErrorFormatter) format(err error) {
 	_, _ = p.w.Write([]byte(output + "\n"))
 }
 
-func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...interface{}) {
-	s := style.Render(fmt.Sprintf(format, a...))
-	_, _ = p.w.Write(
-		[]byte(
-			s,
-		),
-	)
-}
-
 type formatOpts struct {
 	Verbose bool
 }
@@ -986,6 +976,7 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 		opts = &formatOpts{}
 	}
 
+	//nolint:errorlint
 	if multi, ok := err.(interface{ Unwrap() []error }); ok {
 		multiErrors := multi.Unwrap()
 		if len(multiErrors) == 1 {
@@ -1010,10 +1001,10 @@ func cliHumanFormatError(err error, opts *formatOpts) string {
 	// Default just printing the error. Use +v for verbose to handle stack
 	// traces of xerrors.
 	if opts.Verbose {
-		return headLineStyle().Render(fmt.Sprintf("%+v", err))
+		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err))
 	}
 
-	return headLineStyle().Render(fmt.Sprintf("%v", err))
+	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err))
 }
 
 // formatMultiError formats a multi-error. It formats it as a list of errors.
@@ -1032,7 +1023,7 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 
 	// Write errors out
 	var str strings.Builder
-	_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("%d errors encountered:", len(multi))))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered:", len(multi))))
 	for i, errStr := range errorStrings {
 		// Indent each error
 		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
@@ -1059,7 +1050,7 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 // formatter and add it to cliHumanFormatError function.
 func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) string {
 	var str strings.Builder
-	_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
 	msgString := fmt.Sprintf("%v", err.Err)
 	if opts.Verbose {
@@ -1067,7 +1058,7 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 		msgString = fmt.Sprintf("%+v", err.Err)
 	}
 	_, _ = str.WriteString("\n")
-	_, _ = str.WriteString(tailLineStyle().Render(msgString))
+	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
 	return str.String()
 }
 
@@ -1076,30 +1067,30 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
-		_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
 		_, _ = str.WriteString("\n")
 	}
 
-	_, _ = str.WriteString(headLineStyle().Render(err.Message))
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
 	if err.Helper != "" {
 		_, _ = str.WriteString("\n")
-		_, _ = str.WriteString(tailLineStyle().Render(err.Helper))
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Helper))
 	}
 	// By default we do not show the Detail with the helper.
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
 		_, _ = str.WriteString("\n")
-		_, _ = str.WriteString(tailLineStyle().Render(err.Detail))
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
 	}
 	return str.String()
 }
 
 // These styles are arbitrary.
-func headLineStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
+func headLineStyle() pretty.Style {
+	return cliui.DefaultStyles.Error
 }
 
-func tailLineStyle() lipgloss.Style {
-	return headLineStyle().Copy().Foreground(lipgloss.Color("#969696"))
+func tailLineStyle() pretty.Style {
+	return pretty.Style{pretty.Nop}
 }
 
 //nolint:unused
