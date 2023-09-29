@@ -1,11 +1,11 @@
-import { DeploymentOption, DeploymentGroup } from "api/api";
+import { ClibaseGroup, ClibaseOption } from "api/typesGenerated";
 import { useMemo } from "react";
 
 const deploymentOptions = (
-  options: DeploymentOption[],
+  options: ClibaseOption[],
   ...names: string[]
-): DeploymentOption[] => {
-  const found: DeploymentOption[] = [];
+): ClibaseOption[] => {
+  const found: ClibaseOption[] = [];
   for (const name of names) {
     const option = options.find((o) => o.name === name);
     if (option) {
@@ -18,14 +18,14 @@ const deploymentOptions = (
 };
 
 export const useDeploymentOptions = (
-  options: DeploymentOption[],
+  options: ClibaseOption[],
   ...names: string[]
-): DeploymentOption[] => {
+): ClibaseOption[] => {
   return useMemo(() => deploymentOptions(options, ...names), [options, names]);
 };
 
 export const deploymentGroupHasParent = (
-  group: DeploymentGroup | undefined,
+  group: ClibaseGroup | undefined,
   parent: string,
 ): boolean => {
   if (!group) {

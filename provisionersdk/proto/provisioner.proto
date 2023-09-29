@@ -81,7 +81,7 @@ message InstanceIdentityAuth {
     string instance_id = 1;
 }
 
-message GitAuthProvider {
+message ExternalAuthProvider {
     string id = 1;
     string access_token = 2;
 }
@@ -237,7 +237,7 @@ message PlanRequest {
     Metadata metadata = 1;
     repeated RichParameterValue rich_parameter_values = 2;
     repeated VariableValue variable_values = 3;
-    repeated GitAuthProvider git_auth_providers = 4;
+    repeated ExternalAuthProvider external_auth_providers = 4;
 }
 
 // PlanComplete indicates a request to plan completed.

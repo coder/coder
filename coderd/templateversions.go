@@ -279,7 +279,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} codersdk.TemplateVersionGitAuth
+// @Success 200 {array} codersdk.TemplateVersionExternalAuth
 // @Router /templateversions/{templateversion}/gitauth [get]
 func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -288,11 +288,11 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	rawProviders := templateVersion.GitAuthProviders
-	providers := make([]codersdk.TemplateVersionGitAuth, 0)
+	rawProviders := templateVersion.ExternalAuthProviders
+	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *gitauth.Config
-		for _, provider := range api.GitAuthConfigs {
+		for _, provider := range api.ExternalAuthConfigs {
 			if provider.ID == rawProvider {
 				config = provider
 				break
@@ -316,13 +316,13 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		provider := codersdk.TemplateVersionGitAuth{
+		provider := codersdk.TemplateVersionExternalAuth{
 			ID:              config.ID,
 			Type:            config.Type,
 			AuthenticateURL: redirectURL.String(),
 		}
 
-		authLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: config.ID,
 			UserID:     apiKey.UserID,
 		})

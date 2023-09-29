@@ -26,11 +26,11 @@ func TestGitAuth(t *testing.T) {
 		Handler: func(inv *clibase.Invocation) error {
 			var fetched atomic.Bool
 			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					defer fetched.Store(true)
-					return []codersdk.TemplateVersionGitAuth{{
+					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
-						Type:            codersdk.GitProviderGitHub,
+						Type:            codersdk.ExternalAuthProviderGitHub,
 						Authenticated:   fetched.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github",
 					}}, nil

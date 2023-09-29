@@ -333,7 +333,7 @@ export const createTemplateVersion = async (
 
 export const getTemplateVersionGitAuth = async (
   versionId: string,
-): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/gitauth`,
   );
@@ -1016,28 +1016,9 @@ export const getDeploymentSSHConfig =
     return response.data;
   };
 
-// The Deployment types are not generated on from the Go generator yet because
-// it does not know how to generate OptionSet
-export interface DeploymentGroup {
-  readonly name: string;
-  readonly parent?: DeploymentGroup;
-  readonly description: string;
-  readonly children: DeploymentGroup[];
-}
-export interface DeploymentOption {
-  readonly name: string;
-  readonly description: string;
-  readonly flag: string;
-  readonly flag_shorthand: string;
-  readonly value: unknown;
-  readonly hidden: boolean;
-  readonly group?: DeploymentGroup;
-  readonly env?: string;
-}
-
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
-  readonly options: DeploymentOption[];
+  readonly options: TypesGen.ClibaseOption[];
 };
 
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {

@@ -14,11 +14,11 @@ import {
 } from "components/DeploySettingsLayout/Option";
 import { FC } from "react";
 import { optionValue } from "./optionValue";
-import { DeploymentOption } from "api/api";
 import Box from "@mui/material/Box";
+import { ClibaseOption } from "api/typesGenerated";
 
 const OptionsTable: FC<{
-  options: DeploymentOption[];
+  options: ClibaseOption[];
 }> = ({ options }) => {
   const styles = useStyles();
 
@@ -58,21 +58,27 @@ const OptionsTable: FC<{
                     }}
                   >
                     {option.flag && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>
                         --{option.flag}
                       </OptionConfig>
                     )}
                     {option.flag_shorthand && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>-
                         {option.flag_shorthand}
                       </OptionConfig>
                     )}
                     {option.env && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "env"}>
                         <OptionConfigFlag>ENV</OptionConfigFlag>
                         {option.env}
+                      </OptionConfig>
+                    )}
+                    {option.yaml && (
+                      <OptionConfig source={option.value_source === "yaml"}>
+                        <OptionConfigFlag>YAML</OptionConfigFlag>
+                        {option.yaml}
                       </OptionConfig>
                     )}
                   </Box>

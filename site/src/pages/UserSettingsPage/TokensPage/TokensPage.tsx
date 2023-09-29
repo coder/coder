@@ -1,7 +1,6 @@
 import { FC, PropsWithChildren, useState } from "react";
 import { Section } from "components/SettingsLayout/Section";
 import { TokensPageView } from "./TokensPageView";
-import makeStyles from "@mui/styles/makeStyles";
 import { useTokensData } from "./hooks";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { Stack } from "components/Stack/Stack";
@@ -9,14 +8,19 @@ import Button from "@mui/material/Button";
 import { Link as RouterLink } from "react-router-dom";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import { APIKeyWithOwner } from "api/typesGenerated";
+import { css } from "@emotion/react";
 
 export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
-  const styles = useStyles();
-
   const cliCreateCommand = "coder tokens create";
 
   const TokenActions = () => (
-    <Stack direction="row" justifyContent="end" className={styles.tokenActions}>
+    <Stack
+      direction="row"
+      justifyContent="end"
+      css={(theme) => ({
+        marginBottom: theme.spacing(1),
+      })}
+    >
       <Button startIcon={<AddIcon />} component={RouterLink} to="new">
         Add token
       </Button>
@@ -43,7 +47,15 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     <>
       <Section
         title="Tokens"
-        className={styles.section}
+        css={(theme) => css`
+          & code {
+            background: ${theme.palette.divider};
+            font-size: 12px;
+            padding: 2px 4px;
+            color: ${theme.palette.text.primary};
+            border-radius: 2px;
+          }
+        `}
         description={
           <>
             Tokens are used to authenticate with the Coder API. You can create a
@@ -72,20 +84,5 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  section: {
-    "& code": {
-      background: theme.palette.divider,
-      fontSize: 12,
-      padding: "2px 4px",
-      color: theme.palette.text.primary,
-      borderRadius: 2,
-    },
-  },
-  tokenActions: {
-    marginBottom: theme.spacing(1),
-  },
-}));
 
 export default TokensPage;

@@ -40,6 +40,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/batchstats"
@@ -114,7 +115,7 @@ type Options struct {
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
-	GitAuthConfigs                 []*gitauth.Config
+	ExternalAuthConfigs            []*gitauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
@@ -152,7 +153,12 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentValues            *codersdk.DeploymentValues
-	UpdateCheckOptions          *updatecheck.Options // Set non-nil to enable update checking.
+	// DeploymentOptions do contain the copy of DeploymentValues, and contain
+	// contextual information about how the values were set.
+	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
+	// All secrets values are stripped.
+	DeploymentOptions  clibase.OptionSet
+	UpdateCheckOptions *updatecheck.Options // Set non-nil to enable update checking.
 
 	// SSHConfig is the response clients use to configure config-ssh locally.
 	SSHConfig codersdk.SSHConfigResponse
@@ -541,7 +547,7 @@ func New(options *Options) *API {
 
 	// Register callback handlers for each OAuth2 provider.
 	r.Route("/gitauth", func(r chi.Router) {
-		for _, gitAuthConfig := range options.GitAuthConfigs {
+		for _, gitAuthConfig := range options.ExternalAuthConfigs {
 			// We don't need to register a callback handler for device auth.
 			if gitAuthConfig.DeviceAuth != nil {
 				continue
@@ -610,7 +616,7 @@ func New(options *Options) *API {
 		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractGitAuthParam(options.GitAuthConfigs),
+				httpmw.ExtractGitAuthParam(options.ExternalAuthConfigs),
 			)
 			r.Get("/", api.gitAuthByID)
 			r.Post("/device", api.postGitAuthDeviceByID)
@@ -1111,8 +1117,8 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 		api.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			OIDCConfig:     api.OIDCConfig,
-			GitAuthConfigs: api.GitAuthConfigs,
+			OIDCConfig:          api.OIDCConfig,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
 		},
 	)
 	if err != nil {

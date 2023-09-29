@@ -186,9 +186,6 @@
     ]
   },
   "eslint.workingDirectories": ["./site"],
-  "files.exclude": {
-    "**/node_modules": true
-  },
   "search.exclude": {
     "**.pb.go": true,
     "**/*.gen.json": true,
@@ -198,7 +195,11 @@
     "docs/api/*.md": true,
     "docs/templates/*.md": true,
     "LICENSE": true,
-    "scripts/metricsdocgen/metrics": true
+    "scripts/metricsdocgen/metrics": true,
+    "site/out/**": true,
+    "site/storybook-static/**": true,
+    "**.map": true,
+    "pnpm-lock.yaml": true
   },
   // Ensure files always have a newline.
   "files.insertFinalNewline": true,

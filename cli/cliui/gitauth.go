@@ -12,7 +12,7 @@ import (
 )
 
 type GitAuthOptions struct {
-	Fetch         func(context.Context) ([]codersdk.TemplateVersionGitAuth, error)
+	Fetch         func(context.Context) ([]codersdk.TemplateVersionExternalAuth, error)
 	FetchInterval time.Duration
 }
 

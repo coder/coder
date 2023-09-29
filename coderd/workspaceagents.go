@@ -229,7 +229,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		GitAuthConfigs:           len(api.GitAuthConfigs),
+		GitAuthConfigs:           len(api.ExternalAuthConfigs),
 		EnvironmentVariables:     apiAgent.EnvironmentVariables,
 		Directory:                apiAgent.Directory,
 		VSCodePortProxyURI:       vscodeProxyURI,
@@ -2179,7 +2179,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	listen := r.URL.Query().Has("listen")
 
 	var gitAuthConfig *gitauth.Config
-	for _, gitAuth := range api.GitAuthConfigs {
+	for _, gitAuth := range api.ExternalAuthConfigs {
 		matches := gitAuth.Regex.MatchString(gitURL)
 		if !matches {
 			continue
@@ -2188,9 +2188,9 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 	if gitAuthConfig == nil {
 		detail := "No git providers are configured."
-		if len(api.GitAuthConfigs) > 0 {
-			regexURLs := make([]string, 0, len(api.GitAuthConfigs))
-			for _, gitAuth := range api.GitAuthConfigs {
+		if len(api.ExternalAuthConfigs) > 0 {
+			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
+			for _, gitAuth := range api.ExternalAuthConfigs {
 				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.Regex.String()))
 			}
 			detail = fmt.Sprintf("The configured git provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
@@ -2239,7 +2239,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				return
 			case <-ticker.C:
 			}
-			gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			gitAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: gitAuthConfig.ID,
 				UserID:     workspace.OwnerID,
 			})
@@ -2287,7 +2287,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	gitAuthLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+	gitAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: gitAuthConfig.ID,
 		UserID:     workspace.OwnerID,
 	})
@@ -2324,16 +2324,16 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 }
 
 // Provider types have different username/password formats.
-func formatGitAuthAccessToken(typ codersdk.GitProvider, token string) agentsdk.GitAuthResponse {
+func formatGitAuthAccessToken(typ codersdk.ExternalAuthProvider, token string) agentsdk.GitAuthResponse {
 	var resp agentsdk.GitAuthResponse
 	switch typ {
-	case codersdk.GitProviderGitLab:
+	case codersdk.ExternalAuthProviderGitLab:
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication
 		resp = agentsdk.GitAuthResponse{
 			Username: "oauth2",
 			Password: token,
 		}
-	case codersdk.GitProviderBitBucket:
+	case codersdk.ExternalAuthProviderBitBucket:
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.GitAuthResponse{
 			Username: "x-token-auth",

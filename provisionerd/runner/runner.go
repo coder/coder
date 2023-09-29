@@ -568,10 +568,10 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 		JobId: r.job.JobId,
 		Type: &proto.CompletedJob_TemplateImport_{
 			TemplateImport: &proto.CompletedJob_TemplateImport{
-				StartResources:   startProvision.Resources,
-				StopResources:    stopProvision.Resources,
-				RichParameters:   startProvision.Parameters,
-				GitAuthProviders: startProvision.GitAuthProviders,
+				StartResources:        startProvision.Resources,
+				StopResources:         stopProvision.Resources,
+				RichParameters:        startProvision.Parameters,
+				ExternalAuthProviders: startProvision.ExternalAuthProviders,
 			},
 		},
 	}, nil
@@ -627,9 +627,9 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 }
 
 type templateImportProvision struct {
-	Resources        []*sdkproto.Resource
-	Parameters       []*sdkproto.RichParameter
-	GitAuthProviders []string
+	Resources             []*sdkproto.Resource
+	Parameters            []*sdkproto.RichParameter
+	ExternalAuthProviders []string
 }
 
 // Performs a dry-run provision when importing a template.
@@ -718,9 +718,9 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 			)
 
 			return &templateImportProvision{
-				Resources:        c.Resources,
-				Parameters:       c.Parameters,
-				GitAuthProviders: c.GitAuthProviders,
+				Resources:             c.Resources,
+				Parameters:            c.Parameters,
+				ExternalAuthProviders: c.GitAuthProviders,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -925,10 +925,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 	resp, failed := r.buildWorkspace(ctx, "Planning infrastructure", &sdkproto.Request{
 		Type: &sdkproto.Request_Plan{
 			Plan: &sdkproto.PlanRequest{
-				Metadata:            r.job.GetWorkspaceBuild().Metadata,
-				RichParameterValues: r.job.GetWorkspaceBuild().RichParameterValues,
-				VariableValues:      r.job.GetWorkspaceBuild().VariableValues,
-				GitAuthProviders:    r.job.GetWorkspaceBuild().GitAuthProviders,
+				Metadata:              r.job.GetWorkspaceBuild().Metadata,
+				RichParameterValues:   r.job.GetWorkspaceBuild().RichParameterValues,
+				VariableValues:        r.job.GetWorkspaceBuild().VariableValues,
+				ExternalAuthProviders: r.job.GetWorkspaceBuild().ExternalAuthProviders,
 			},
 		},
 	})
