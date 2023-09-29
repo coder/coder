@@ -29,8 +29,6 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  | { type: "CONFIRM_USER_SUSPENSION" }
-  | { type: "CANCEL_USER_SUSPENSION" }
   // Delete events
   | {
       type: "DELETE_USER";
