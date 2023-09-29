@@ -825,7 +825,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
