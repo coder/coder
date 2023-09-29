@@ -1046,7 +1046,6 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		count    int64
 		minWait  time.Duration
 		maxWait  time.Duration
 		headless bool
@@ -1163,13 +1162,6 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	}
 
 	cmd.Options = []clibase.Option{
-		{
-			Flag:        "count",
-			Env:         "CODER_SCALETEST_DASHBOARD_COUNT",
-			Default:     "1",
-			Description: "Number of concurrent workers.",
-			Value:       clibase.Int64Of(&count),
-		},
 		{
 			Flag:        "min-wait",
 			Env:         "CODER_SCALETEST_DASHBOARD_MIN_WAIT",
