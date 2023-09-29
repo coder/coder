@@ -381,7 +381,6 @@ func (s *Struct[T]) String() string {
 func (s *Struct[T]) MarshalYAML() (interface{}, error) {
 	var n yaml.Node
 	err := n.Encode(s.Value)
-
 	if err != nil {
 		return nil, err
 	}
