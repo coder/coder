@@ -473,7 +473,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
-	t.Run("Create", func(t *testing.T) {
+	t.Run("CreateWithAuditLogs", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
@@ -483,16 +483,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
-
-		require.Eventually(t, func() bool {
-			if len(auditor.AuditLogs()) < 6 {
-				return false
-			}
-			return auditor.AuditLogs()[4].Action == database.AuditActionCreate
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		verifyAuditWorkspaceCreated(t, auditor, workspace.Name)
 	})
 
-	t.Run("CreateFromVersion", func(t *testing.T) {
+	t.Run("CreateFromVersionWithAuditLogs", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
@@ -513,12 +507,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 		require.Equal(t, testWorkspaceBuild.TemplateVersionID, versionTest.ID)
 		require.Equal(t, defaultWorkspaceBuild.TemplateVersionID, versionDefault.ID)
-		require.Eventually(t, func() bool {
-			if len(auditor.AuditLogs()) < 6 {
-				return false
-			}
-			return auditor.AuditLogs()[4].Action == database.AuditActionCreate
-		}, testutil.WaitMedium, testutil.IntervalFast)
+		verifyAuditWorkspaceCreated(t, auditor, defaultWorkspace.Name)
 	})
 
 	t.Run("InvalidCombinationOfTemplateAndTemplateVersion", func(t *testing.T) {
@@ -2918,4 +2907,26 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
 	})
+}
+
+func verifyAuditWorkspaceCreated(t *testing.T, auditor *audit.MockAuditor, workspaceName string) {
+	var auditLogs []database.AuditLog
+	ok := assert.Eventually(t, func() bool {
+		auditLogs = auditor.AuditLogs()
+
+		for _, auditLog := range auditLogs {
+			if auditLog.Action == database.AuditActionCreate &&
+				auditLog.ResourceType == database.ResourceTypeWorkspace &&
+				auditLog.ResourceTarget == workspaceName {
+				return true
+			}
+		}
+		return false
+	}, testutil.WaitMedium, testutil.IntervalFast)
+
+	if !ok {
+		for i, auditLog := range auditLogs {
+			t.Logf("%d. Audit: ID=%s action=%s resourceID=%s resourceType=%s resourceTarget=%s", i+1, auditLog.ID, auditLog.Action, auditLog.ResourceID, auditLog.ResourceType, auditLog.ResourceTarget)
+		}
+	}
 }
