@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"regexp"
 	"strconv"
 
@@ -69,6 +70,15 @@ func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
 func parseRemoteForwardUnixSocket(matches []string) (net.Addr, net.Addr, error) {
 	remoteSocket := matches[1]
 	localSocket := matches[2]
+
+	fileInfo, err := os.Stat(localSocket)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if fileInfo.Mode()&os.ModeSocket == 0 {
+		return nil, nil, xerrors.New("File is not a Unix domain socket file")
+	}
 
 	remoteAddr := &net.UnixAddr{
 		Name: remoteSocket,
