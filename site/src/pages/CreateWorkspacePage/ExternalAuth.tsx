@@ -9,27 +9,27 @@ import { BitbucketIcon } from "components/Icons/BitbucketIcon";
 import { GitlabIcon } from "components/Icons/GitlabIcon";
 import { FC } from "react";
 import { makeStyles } from "@mui/styles";
-import { type GitAuthPollingState } from "./CreateWorkspacePage";
+import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 import { Stack } from "components/Stack/Stack";
 import ReplayIcon from "@mui/icons-material/Replay";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
 
-export interface GitAuthProps {
+export interface ExternalAuthProps {
   type: TypesGen.ExternalAuthProvider;
   authenticated: boolean;
   authenticateURL: string;
-  gitAuthPollingState: GitAuthPollingState;
-  startPollingGitAuth: () => void;
+  externalAuthPollingState: ExternalAuthPollingState;
+  startPollingExternalAuth: () => void;
   error?: string;
 }
 
-export const GitAuth: FC<GitAuthProps> = (props) => {
+export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
   const {
     type,
     authenticated,
     authenticateURL,
-    gitAuthPollingState,
-    startPollingGitAuth,
+    externalAuthPollingState,
+    startPollingExternalAuth,
     error,
   } = props;
 
@@ -66,7 +66,7 @@ export const GitAuth: FC<GitAuthProps> = (props) => {
     >
       <Stack alignItems="center" spacing={1}>
         <LoadingButton
-          loading={gitAuthPollingState === "polling"}
+          loading={externalAuthPollingState === "polling"}
           href={authenticateURL}
           variant="contained"
           size="large"
@@ -82,7 +82,7 @@ export const GitAuth: FC<GitAuthProps> = (props) => {
               return;
             }
             window.open(authenticateURL, "_blank", "width=900,height=600");
-            startPollingGitAuth();
+            startPollingExternalAuth();
           }}
         >
           {authenticated
@@ -90,8 +90,8 @@ export const GitAuth: FC<GitAuthProps> = (props) => {
             : `Login with ${prettyName}`}
         </LoadingButton>
 
-        {gitAuthPollingState === "abandoned" && (
-          <Button variant="text" onClick={startPollingGitAuth}>
+        {externalAuthPollingState === "abandoned" && (
+          <Button variant="text" onClick={startPollingExternalAuth}>
             <ReplayIcon /> Check again
           </Button>
         )}

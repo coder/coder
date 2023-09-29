@@ -7,11 +7,11 @@ import {
 import { usePermissions } from "hooks";
 import { type FC } from "react";
 import { useParams } from "react-router-dom";
-import GitAuthPageView from "./GitAuthPageView";
+import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
 
-const GitAuthPage: FC = () => {
+const ExternalAuthPage: FC = () => {
   const { provider } = useParams();
   if (!provider) {
     throw new Error("provider must exist");
@@ -37,7 +37,11 @@ const GitAuthPage: FC = () => {
       exchangeExternalAuthDevice(provider, {
         device_code: getExternalAuthDeviceQuery.data?.device_code || "",
       }),
-    queryKey: ["externalauth", provider, getExternalAuthDeviceQuery.data?.device_code],
+    queryKey: [
+      "externalauth",
+      provider,
+      getExternalAuthDeviceQuery.data?.device_code,
+    ],
     enabled: Boolean(getExternalAuthDeviceQuery.data),
     onSuccess: () => {
       // Force a refresh of the Git auth status.
@@ -51,7 +55,10 @@ const GitAuthPage: FC = () => {
       query.state.status === "success" ? false : "always",
   });
 
-  if (getExternalAuthProviderQuery.isLoading || !getExternalAuthProviderQuery.data) {
+  if (
+    getExternalAuthProviderQuery.isLoading ||
+    !getExternalAuthProviderQuery.data
+  ) {
     return null;
   }
 
@@ -71,7 +78,7 @@ const GitAuthPage: FC = () => {
   }
 
   return (
-    <GitAuthPageView
+    <ExternalAuthPageView
       externalAuth={getExternalAuthProviderQuery.data}
       onReauthenticate={() => {
         queryClient.setQueryData(["externalauth", provider], {
@@ -79,11 +86,11 @@ const GitAuthPage: FC = () => {
           authenticated: false,
         });
       }}
-      viewExternalAuthConfig={permissions.viewGitAuthConfig}
+      viewExternalAuthConfig={permissions.viewExternalAuthConfig}
       deviceExchangeError={deviceExchangeError}
       externalAuthDevice={getExternalAuthDeviceQuery.data}
     />
   );
 };
 
-export default GitAuthPage;
+export default ExternalAuthPage;

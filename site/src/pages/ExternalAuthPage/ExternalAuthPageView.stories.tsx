@@ -1,13 +1,15 @@
 import { Meta, StoryFn } from "@storybook/react";
-import GitAuthPageView, { GitAuthPageViewProps } from "./GitAuthPageView";
+import ExternalAuthPageView, {
+  ExternalAuthPageViewProps,
+} from "./ExternalAuthPageView";
 
 export default {
-  title: "pages/GitAuthPageView",
-  component: GitAuthPageView,
-} as Meta<typeof GitAuthPageView>;
+  title: "pages/ExternalAuthPageView",
+  component: ExternalAuthPageView,
+} as Meta<typeof ExternalAuthPageView>;
 
-const Template: StoryFn<GitAuthPageViewProps> = (args) => (
-  <GitAuthPageView {...args} />
+const Template: StoryFn<ExternalAuthPageViewProps> = (args) => (
+  <ExternalAuthPageView {...args} />
 );
 
 export const WebAuthenticated = Template.bind({});
