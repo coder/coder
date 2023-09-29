@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -211,6 +212,8 @@ func TestOptionSet_JsonMarshal(t *testing.T) {
 	t.Parallel()
 
 	t.Run("RegexCase", func(t *testing.T) {
+		t.Parallel()
+
 		val := clibase.Regexp(*regexp.MustCompile(".*"))
 		opts := clibase.OptionSet{
 			clibase.Option{
@@ -282,6 +285,8 @@ func TestOptionSet_JsonMarshal(t *testing.T) {
 }
 
 func compareOptions(t *testing.T, exp, found clibase.Option) {
+	t.Helper()
+
 	require.Equalf(t, exp.Name, found.Name, "option name %q", exp.Name)
 	require.Equalf(t, exp.Description, found.Description, "option description %q", exp.Name)
 	require.Equalf(t, exp.Required, found.Required, "option required %q", exp.Name)
@@ -301,7 +306,9 @@ func compareOptions(t *testing.T, exp, found clibase.Option) {
 }
 
 func compareValues(t *testing.T, exp, found clibase.Option) {
-	if exp.Value.String() != found.Value.String() && found.Value.String() == "" {
+	t.Helper()
+
+	if (exp.Value == nil || found.Value == nil) || (exp.Value.String() != found.Value.String() && found.Value.String() == "") {
 		// If the string values are different, this can be a "nil" issue.
 		// So only run this case if the found string is the empty string.
 		// We use MarshalYAML for struct strings, and it will return an
@@ -315,9 +322,9 @@ func compareValues(t *testing.T, exp, found clibase.Option) {
 
 		expJson = normalizeJSON(expJson)
 		foundJson = normalizeJSON(foundJson)
-		require.Equalf(t, string(expJson), string(foundJson), "option value %q", exp.Name)
+		assert.Equalf(t, string(expJson), string(foundJson), "option value %q", exp.Name)
 	} else {
-		require.Equal(t,
+		assert.Equal(t,
 			exp.Value.String(),
 			found.Value.String(),
 			"option value %q", exp.Name)
