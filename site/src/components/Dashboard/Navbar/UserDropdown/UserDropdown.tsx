@@ -1,6 +1,5 @@
 import Badge from "@mui/material/Badge";
 import MenuItem from "@mui/material/MenuItem";
-import { makeStyles } from "@mui/styles";
 import { useState, FC, PropsWithChildren, MouseEvent } from "react";
 import { colors } from "theme/colors";
 import * as TypesGen from "api/typesGenerated";
@@ -13,6 +12,7 @@ import {
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserDropdownContent } from "./UserDropdownContent";
 import { BUTTON_SM_HEIGHT } from "theme/theme";
+import { css } from "@emotion/react";
 
 export interface UserDropdownProps {
   user: TypesGen.User;
@@ -27,7 +27,6 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   supportLinks,
   onSignOut,
 }: UserDropdownProps) => {
-  const styles = useStyles();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | undefined>();
 
   const handleDropdownClick = (ev: MouseEvent<HTMLLIElement>): void => {
@@ -40,11 +39,25 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
   return (
     <>
       <MenuItem
-        className={styles.menuItem}
+        css={(theme) => css`
+          height: ${navHeight}px;
+          padding: ${theme.spacing(1.5, 0)};
+
+          &:hover {
+            background-color: transparent;
+          }
+        `}
         onClick={handleDropdownClick}
         data-testid="user-dropdown-trigger"
       >
-        <div className={styles.inner}>
+        <div
+          css={{
+            display: "flex",
+            alignItems: "center",
+            minWidth: 0,
+            maxWidth: 300,
+          }}
+        >
           <Badge overlap="circular">
             <UserAvatar
               sx={{
@@ -90,24 +103,3 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
     </>
   );
 };
-
-export const useStyles = makeStyles((theme) => ({
-  divider: {
-    marginTop: theme.spacing(1),
-    marginBottom: theme.spacing(1),
-  },
-  inner: {
-    display: "flex",
-    alignItems: "center",
-    minWidth: 0,
-    maxWidth: 300,
-  },
-  menuItem: {
-    height: navHeight,
-    padding: theme.spacing(1.5, 0),
-
-    "&:hover": {
-      backgroundColor: "transparent",
-    },
-  },
-}));

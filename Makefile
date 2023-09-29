@@ -107,9 +107,9 @@ endif
 
 
 clean:
-	rm -rf build site/out
-	mkdir -p build site/out/bin
-	git restore site/out
+	rm -rf build/ site/build/ site/out/
+	mkdir -p build/ site/out/bin/
+	git restore site/out/
 .PHONY: clean
 
 build-slim: $(CODER_SLIM_BINARIES)
