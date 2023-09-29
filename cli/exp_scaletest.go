@@ -1065,6 +1065,12 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
+			if !(minWait > 0) {
+				return xerrors.Errorf("--min-wait must be greater than zero")
+			}
+			if !(maxWait > minWait) {
+				return xerrors.Errorf("--max-wait must be greater than --min-wait")
+			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)

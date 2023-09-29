@@ -86,11 +86,7 @@ func (*Runner) Cleanup(_ context.Context, _ string) error {
 }
 
 func (r *Runner) randWait() time.Duration {
-	var wait time.Duration
-	if r.cfg.MaxWait > r.cfg.MinWait {
-		//nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
-		wait = time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
-	}
-
+	//nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
+	wait := time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
 	return r.cfg.MinWait + wait
 }
