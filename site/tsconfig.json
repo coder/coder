@@ -18,5 +18,10 @@
   },
   "include": ["**/*"],
   "exclude": ["node_modules/", "_jest"],
-  "types": ["node", "jest", "@testing-library/jest-dom"]
+  "types": [
+    "@emotion/react/types/css-prop",
+    "@testing-library/jest-dom",
+    "jest",
+    "node"
+  ]
 }
