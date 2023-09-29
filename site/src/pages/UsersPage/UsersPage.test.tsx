@@ -301,7 +301,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserSuccess);
+        await screen.findByText("User activated");
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1);
@@ -317,7 +317,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserError);
+        await screen.findByText("Error activating user");
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1);

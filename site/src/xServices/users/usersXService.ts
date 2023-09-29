@@ -8,8 +8,6 @@ import { generateRandomString } from "utils/random";
 export const Language = {
   deleteUserSuccess: "Successfully deleted the user.",
   deleteUserError: "Error deleting user.",
-  activateUserSuccess: "Successfully activated the user.",
-  activateUserError: "Error activating user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
   resetUserPasswordError: "Error on resetting the user password.",
   updateUserRolesSuccess: "Successfully updated the user roles.",
@@ -21,10 +19,6 @@ export interface UsersContext {
   userIdToDelete?: TypesGen.User["id"];
   usernameToDelete?: TypesGen.User["username"];
   deleteUserError?: unknown;
-  // Activate user
-  userIdToActivate?: TypesGen.User["id"];
-  usernameToActivate?: TypesGen.User["username"];
-  activateUserError?: unknown;
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"];
   resetUserPasswordError?: unknown;
@@ -45,14 +39,6 @@ export type UsersEvent =
     }
   | { type: "CONFIRM_USER_DELETE" }
   | { type: "CANCEL_USER_DELETE" }
-  // Activate events
-  | {
-      type: "ACTIVATE_USER";
-      userId: TypesGen.User["id"];
-      username: TypesGen.User["username"];
-    }
-  | { type: "CONFIRM_USER_ACTIVATION" }
-  | { type: "CANCEL_USER_ACTIVATION" }
   // Reset password events
   | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
@@ -104,10 +90,6 @@ export const usersMachine =
               target: "confirmUserDeletion",
               actions: "assignUserToDelete",
             },
-            ACTIVATE_USER: {
-              target: "confirmUserActivation",
-              actions: "assignUserToActivate",
-            },
             RESET_USER_PASSWORD: {
               target: "confirmUserPasswordReset",
               actions: [
@@ -131,16 +113,6 @@ export const usersMachine =
             },
           },
         },
-        confirmUserActivation: {
-          on: {
-            CONFIRM_USER_ACTIVATION: {
-              target: "activatingUser",
-            },
-            CANCEL_USER_ACTIVATION: {
-              target: "idle",
-            },
-          },
-        },
         deletingUser: {
           entry: "clearDeleteUserError",
           invoke: {
@@ -156,28 +128,6 @@ export const usersMachine =
               {
                 target: "idle",
                 actions: ["assignDeleteUserError", "displayDeleteErrorMessage"],
-              },
-            ],
-          },
-        },
-        activatingUser: {
-          entry: "clearActivateUserError",
-          invoke: {
-            src: "activateUser",
-            id: "activateUser",
-            onDone: [
-              {
-                target: "idle",
-                actions: "displayActivateSuccess",
-              },
-            ],
-            onError: [
-              {
-                target: "idle",
-                actions: [
-                  "assignActivateUserError",
-                  "displayActivatedErrorMessage",
-                ],
               },
             ],
           },
@@ -246,13 +196,6 @@ export const usersMachine =
           }
           return API.deleteUser(context.userIdToDelete);
         },
-        activateUser: (context) => {
-          if (!context.userIdToActivate) {
-            throw new Error("userIdToActivate is undefined");
-          }
-
-          return API.activateUser(context.userIdToActivate);
-        },
         resetUserPassword: (context) => {
           if (!context.userIdToResetPassword) {
             throw new Error("userIdToResetPassword is undefined");
@@ -280,18 +223,12 @@ export const usersMachine =
         clearSelectedUser: assign({
           userIdToDelete: (_) => undefined,
           usernameToDelete: (_) => undefined,
-          userIdToActivate: (_) => undefined,
-          usernameToActivate: (_) => undefined,
           userIdToResetPassword: (_) => undefined,
           userIdToUpdateRoles: (_) => undefined,
         }),
         assignUserToDelete: assign({
           userIdToDelete: (_, event) => event.userId,
           usernameToDelete: (_, event) => event.username,
-        }),
-        assignUserToActivate: assign({
-          userIdToActivate: (_, event) => event.userId,
-          usernameToActivate: (_, event) => event.username,
         }),
         assignUserIdToResetPassword: assign({
           userIdToResetPassword: (_, event) => event.userId,
@@ -302,9 +239,6 @@ export const usersMachine =
         assignDeleteUserError: assign({
           deleteUserError: (_, event) => event.data,
         }),
-        assignActivateUserError: assign({
-          activateUserError: (_, event) => event.data,
-        }),
         assignResetUserPasswordError: assign({
           resetUserPasswordError: (_, event) => event.data,
         }),
@@ -313,9 +247,6 @@ export const usersMachine =
         }),
         clearDeleteUserError: assign({
           deleteUserError: (_) => undefined,
-        }),
-        clearActivateUserError: assign({
-          activateUserError: (_) => undefined,
         }),
         clearResetUserPasswordError: assign({
           resetUserPasswordError: (_) => undefined,
@@ -330,16 +261,6 @@ export const usersMachine =
           const message = getErrorMessage(
             context.deleteUserError,
             Language.deleteUserError,
-          );
-          displayError(message);
-        },
-        displayActivateSuccess: () => {
-          displaySuccess(Language.activateUserSuccess);
-        },
-        displayActivatedErrorMessage: (context) => {
-          const message = getErrorMessage(
-            context.activateUserError,
-            Language.activateUserError,
           );
           displayError(message);
         },

@@ -21,7 +21,7 @@ import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
 import { prepareQuery } from "utils/filters";
 import { usePagination } from "hooks";
-import { users, suspendUser } from "api/queries/users";
+import { users, suspendUser, activateUser } from "api/queries/users";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 
@@ -55,12 +55,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       offset: pagination.offset,
     }),
   );
-  const {
-    usernameToDelete,
-    usernameToActivate,
-    userIdToResetPassword,
-    newUserPassword,
-  } = usersState.context;
+  const { usernameToDelete, userIdToResetPassword, newUserPassword } =
+    usersState.context;
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
   const { data: deploymentValues } = useQuery({
@@ -97,6 +93,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     usersQuery.isLoading || rolesQuery.isLoading || authMethods.isLoading;
   const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
   const suspendUserMutation = useMutation(suspendUser(queryClient));
+  const [confirmActivateUser, setConfirmActivateUser] = useState<User>();
+  const activateUserMutation = useMutation(activateUser(queryClient));
 
   return (
     <>
@@ -127,13 +125,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           });
         }}
         onSuspendUser={setConfirmSuspendUser}
-        onActivateUser={(user) => {
-          usersSend({
-            type: "ACTIVATE_USER",
-            userId: user.id,
-            username: user.username,
-          });
-        }}
+        onActivateUser={setConfirmActivateUser}
         onResetUserPassword={(user) => {
           usersSend({ type: "RESET_USER_PASSWORD", userId: user.id });
         }}
@@ -210,24 +202,26 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="success"
         hideCancel={false}
-        open={
-          usersState.matches("confirmUserActivation") ||
-          usersState.matches("activatingUser")
-        }
-        confirmLoading={usersState.matches("activatingUser")}
+        open={confirmActivateUser !== undefined}
+        confirmLoading={activateUserMutation.isLoading}
         title={Language.activateDialogTitle}
         confirmText={Language.activateDialogAction}
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_ACTIVATION");
+        onConfirm={async () => {
+          try {
+            await activateUserMutation.mutateAsync(confirmActivateUser!.id);
+            setConfirmActivateUser(undefined);
+            displaySuccess("User activated");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error activating user"));
+          }
         }}
         onClose={() => {
-          usersSend("CANCEL_USER_ACTIVATION");
+          setConfirmActivateUser(undefined);
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix}
-            {usernameToActivate && " "}
-            <strong>{usernameToActivate ?? ""}</strong>?
+            {Language.activateDialogMessagePrefix}{" "}
+            <strong>{confirmActivateUser?.username ?? ""}</strong>?
           </>
         }
       />
