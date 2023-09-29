@@ -542,11 +542,10 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./coders
 	cd site
 	pnpm run format:types ./src/api/typesGenerated.ts
 
-site/e2e/provisionerGenerated.ts:
+site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
-
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
