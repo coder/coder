@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,6 +20,8 @@ func (RootCmd) errorExample() *clibase.Cmd {
 			},
 		}
 	}
+
+	// Make an api error
 	recorder := httptest.NewRecorder()
 	recorder.WriteHeader(http.StatusBadRequest)
 	resp := recorder.Result()
@@ -35,6 +38,9 @@ func (RootCmd) errorExample() *clibase.Cmd {
 		},
 	}
 	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
+
+	// Some flags
+	var magicWord clibase.String
 
 	cmd := &clibase.Cmd{
 		Use:   "example-error",
@@ -63,6 +69,26 @@ func (RootCmd) errorExample() *clibase.Cmd {
 					}
 
 					return xerrors.Errorf("some error: %w", errorWithStackTrace())
+				},
+			},
+
+			{
+				Use: "validation",
+				Options: clibase.OptionSet{
+					clibase.Option{
+						Name:        "magic-word",
+						Description: "Take a good guess.",
+						Required:    true,
+						Flag:        "magic-word",
+						Default:     "",
+						Value: clibase.Validate(&magicWord, func(value *clibase.String) error {
+							return xerrors.Errorf("magic word is incorrect")
+						}),
+					},
+				},
+				Handler: func(i *clibase.Invocation) error {
+					_, _ = fmt.Fprint(i.Stdout, "Try setting the --magic-word flag\n")
+					return nil
 				},
 			},
 		},
