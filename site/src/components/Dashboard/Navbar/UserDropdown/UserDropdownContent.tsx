@@ -100,7 +100,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         <span css={styles.userEmail}>{user.email}</span>
       </Stack>
 
-      <Divider css={{ marginTop: "0 !important" }} />
+      <Divider css={{ marginBottom: 8 }} />
 
       <Link to="/settings/account" css={styles.link}>
         <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
@@ -136,7 +136,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
         </>
       )}
 
-      {supportLinks && <Divider css={{ marginBottom: "0 !important" }} />}
+      <Divider css={{ marginBottom: "0 !important" }} />
 
       <Stack css={styles.info} spacing={0}>
         <a
