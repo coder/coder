@@ -6,9 +6,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { generateRandomString } from "utils/random";
 
 export const Language = {
-  getUsersError: "Error getting users.",
-  suspendUserSuccess: "Successfully suspended the user.",
-  suspendUserError: "Error suspending user.",
   deleteUserSuccess: "Successfully deleted the user.",
   deleteUserError: "Error deleting user.",
   activateUserSuccess: "Successfully activated the user.",
@@ -20,10 +17,6 @@ export const Language = {
 };
 
 export interface UsersContext {
-  // Suspend user
-  userIdToSuspend?: TypesGen.User["id"];
-  usernameToSuspend?: TypesGen.User["username"];
-  suspendUserError?: unknown;
   // Delete user
   userIdToDelete?: TypesGen.User["id"];
   usernameToDelete?: TypesGen.User["username"];
@@ -42,12 +35,6 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  // Suspend events
-  | {
-      type: "SUSPEND_USER";
-      userId: TypesGen.User["id"];
-      username: TypesGen.User["username"];
-    }
   | { type: "CONFIRM_USER_SUSPENSION" }
   | { type: "CANCEL_USER_SUSPENSION" }
   // Delete events
@@ -113,10 +100,6 @@ export const usersMachine =
         idle: {
           entry: "clearSelectedUser",
           on: {
-            SUSPEND_USER: {
-              target: "confirmUserSuspension",
-              actions: "assignUserToSuspend",
-            },
             DELETE_USER: {
               target: "confirmUserDeletion",
               actions: "assignUserToDelete",
@@ -138,16 +121,6 @@ export const usersMachine =
             },
           },
         },
-        confirmUserSuspension: {
-          on: {
-            CONFIRM_USER_SUSPENSION: {
-              target: "suspendingUser",
-            },
-            CANCEL_USER_SUSPENSION: {
-              target: "idle",
-            },
-          },
-        },
         confirmUserDeletion: {
           on: {
             CONFIRM_USER_DELETE: {
@@ -166,28 +139,6 @@ export const usersMachine =
             CANCEL_USER_ACTIVATION: {
               target: "idle",
             },
-          },
-        },
-        suspendingUser: {
-          entry: "clearSuspendUserError",
-          invoke: {
-            src: "suspendUser",
-            id: "suspendUser",
-            onDone: [
-              {
-                target: "idle",
-                actions: "displaySuspendSuccess",
-              },
-            ],
-            onError: [
-              {
-                target: "idle",
-                actions: [
-                  "assignSuspendUserError",
-                  "displaySuspendedErrorMessage",
-                ],
-              },
-            ],
           },
         },
         deletingUser: {
@@ -289,13 +240,6 @@ export const usersMachine =
     },
     {
       services: {
-        suspendUser: (context) => {
-          if (!context.userIdToSuspend) {
-            throw new Error("userIdToSuspend is undefined");
-          }
-
-          return API.suspendUser(context.userIdToSuspend);
-        },
         deleteUser: (context) => {
           if (!context.userIdToDelete) {
             throw new Error("userIdToDelete is undefined");
@@ -334,18 +278,12 @@ export const usersMachine =
 
       actions: {
         clearSelectedUser: assign({
-          userIdToSuspend: (_) => undefined,
-          usernameToSuspend: (_) => undefined,
           userIdToDelete: (_) => undefined,
           usernameToDelete: (_) => undefined,
           userIdToActivate: (_) => undefined,
           usernameToActivate: (_) => undefined,
           userIdToResetPassword: (_) => undefined,
           userIdToUpdateRoles: (_) => undefined,
-        }),
-        assignUserToSuspend: assign({
-          userIdToSuspend: (_, event) => event.userId,
-          usernameToSuspend: (_, event) => event.username,
         }),
         assignUserToDelete: assign({
           userIdToDelete: (_, event) => event.userId,
@@ -361,9 +299,6 @@ export const usersMachine =
         assignUserIdToUpdateRoles: assign({
           userIdToUpdateRoles: (_, event) => event.userId,
         }),
-        assignSuspendUserError: assign({
-          suspendUserError: (_, event) => event.data,
-        }),
         assignDeleteUserError: assign({
           deleteUserError: (_, event) => event.data,
         }),
@@ -375,9 +310,6 @@ export const usersMachine =
         }),
         assignUpdateRolesError: assign({
           updateUserRolesError: (_, event) => event.data,
-        }),
-        clearSuspendUserError: assign({
-          suspendUserError: (_) => undefined,
         }),
         clearDeleteUserError: assign({
           deleteUserError: (_) => undefined,
@@ -391,16 +323,6 @@ export const usersMachine =
         clearUpdateUserRolesError: assign({
           updateUserRolesError: (_) => undefined,
         }),
-        displaySuspendSuccess: () => {
-          displaySuccess(Language.suspendUserSuccess);
-        },
-        displaySuspendedErrorMessage: (context) => {
-          const message = getErrorMessage(
-            context.suspendUserError,
-            Language.suspendUserError,
-          );
-          displayError(message);
-        },
         displayDeleteSuccess: () => {
           displaySuccess(Language.deleteUserSuccess);
         },

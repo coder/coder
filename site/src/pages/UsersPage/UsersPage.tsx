@@ -4,7 +4,7 @@ import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { nonInitialPage } from "components/PaginationWidget/utils";
 import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
-import { FC, ReactNode } from "react";
+import { FC, ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { usersMachine } from "xServices/users/usersXService";
@@ -15,13 +15,15 @@ import { UsersPageView } from "./UsersPageView";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getAuthMethods } from "api/api";
 import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
 import { prepareQuery } from "utils/filters";
 import { usePagination } from "hooks";
-import * as UsersQuery from "api/queries/users";
+import { users, suspendUser } from "api/queries/users";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import { getErrorMessage } from "api/errors";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -36,6 +38,7 @@ const getSelectedUser = (id: string, users?: User[]) =>
   users?.find((u) => u.id === id);
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const searchParamsResult = useSearchParams();
   const { entitlements } = useDashboard();
@@ -46,17 +49,14 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     searchParamsResult,
   });
   const usersQuery = useQuery(
-    UsersQuery.users({
+    users({
       q: prepareQuery(filter),
       limit: pagination.limit,
       offset: pagination.offset,
     }),
   );
-  const users = usersQuery.data?.users;
-  const count = usersQuery.data?.count;
   const {
     usernameToDelete,
-    usernameToSuspend,
     usernameToActivate,
     userIdToResetPassword,
     newUserPassword,
@@ -95,6 +95,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   });
   const isLoading =
     usersQuery.isLoading || rolesQuery.isLoading || authMethods.isLoading;
+  const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
+  const suspendUserMutation = useMutation(suspendUser(queryClient));
 
   return (
     <>
@@ -104,7 +106,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <UsersPageView
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
         roles={rolesQuery.data}
-        users={users}
+        users={usersQuery.data?.users}
         authMethods={authMethods.data}
         onListWorkspaces={(user) => {
           navigate(
@@ -124,13 +126,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             username: user.username,
           });
         }}
-        onSuspendUser={(user) => {
-          usersSend({
-            type: "SUSPEND_USER",
-            userId: user.id,
-            username: user.username,
-          });
-        }}
+        onSuspendUser={setConfirmSuspendUser}
         onActivateUser={(user) => {
           usersSend({
             type: "ACTIVATE_USER",
@@ -161,7 +157,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             status: statusMenu,
           },
         }}
-        count={count}
+        count={usersQuery.data?.count}
         page={pagination.page}
         limit={pagination.limit}
         onPageChange={pagination.goToPage}
@@ -187,24 +183,26 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       <ConfirmDialog
         type="delete"
         hideCancel={false}
-        open={
-          usersState.matches("confirmUserSuspension") ||
-          usersState.matches("suspendingUser")
-        }
-        confirmLoading={usersState.matches("suspendingUser")}
-        title={Language.suspendDialogTitle}
-        confirmText={Language.suspendDialogAction}
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_SUSPENSION");
+        open={confirmSuspendUser !== undefined}
+        confirmLoading={suspendUserMutation.isLoading}
+        title="Suspend user"
+        confirmText="Suspend"
+        onConfirm={async () => {
+          try {
+            await suspendUserMutation.mutateAsync(confirmSuspendUser!.id);
+            setConfirmSuspendUser(undefined);
+            displaySuccess("User suspended");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error suspending user"));
+          }
         }}
         onClose={() => {
-          usersSend("CANCEL_USER_SUSPENSION");
+          setConfirmSuspendUser(undefined);
         }}
         description={
           <>
-            {Language.suspendDialogMessagePrefix}
-            {usernameToSuspend && " "}
-            <strong>{usernameToSuspend ?? ""}</strong>?
+            Do you want to suspend the user{" "}
+            <strong>{confirmSuspendUser?.username ?? ""}</strong>?
           </>
         }
       />
@@ -241,7 +239,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             usersState.matches("resettingUserPassword")
           }
           loading={usersState.matches("resettingUserPassword")}
-          user={getSelectedUser(userIdToResetPassword, users)}
+          user={getSelectedUser(userIdToResetPassword, usersQuery.data?.users)}
           newPassword={newUserPassword}
           onClose={() => {
             usersSend("CANCEL_USER_PASSWORD_RESET");

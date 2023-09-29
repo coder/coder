@@ -176,7 +176,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserSuccess);
+        await screen.findByText("User suspended");
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1);
@@ -195,7 +195,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserError);
+        await screen.findByText("Error suspending user");
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1);

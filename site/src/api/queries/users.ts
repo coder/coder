@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/react-query";
 import * as API from "api/api";
 import { UpdateUserPasswordRequest, UsersRequest } from "api/typesGenerated";
 
@@ -27,5 +28,14 @@ export const createUser = () => {
 export const createFirstUser = () => {
   return {
     mutationFn: API.createFirstUser,
+  };
+};
+
+export const suspendUser = (queryClient: QueryClient) => {
+  return {
+    mutationFn: API.suspendUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["users"]);
+    },
   };
 };
