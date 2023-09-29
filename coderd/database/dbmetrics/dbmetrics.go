@@ -366,14 +366,14 @@ func (m metricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database
 func (m metricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.GetExternalAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGitAuthLink").Observe(time.Since(start).Seconds())
+	m.queryLatencies.WithLabelValues("GetExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
 }
 
 func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetExternalAuthLinksByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetGitAuthLinksByUserID").Observe(time.Since(start).Seconds())
+	m.queryLatencies.WithLabelValues("GetExternalAuthLinksByUserID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

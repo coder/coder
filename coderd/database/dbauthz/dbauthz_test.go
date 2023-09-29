@@ -953,7 +953,7 @@ func (s *MethodTestSuite) TestUser() {
 			UpdatedAt: key.UpdatedAt,
 		}).Asserts(key, rbac.ActionUpdate).Returns(key)
 	}))
-	s.Run("GetGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.GitAuthLink(s.T(), db, database.ExternalAuthLink{})
 		check.Args(database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,

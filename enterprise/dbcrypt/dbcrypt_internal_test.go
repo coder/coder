@@ -266,7 +266,7 @@ func TestGitAuthLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
 	})
 
-	t.Run("GetGitAuthLink", func(t *testing.T) {
+	t.Run("GetExternalAuthLink", func(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
@@ -302,7 +302,7 @@ func TestGitAuthLinks(t *testing.T) {
 		})
 	})
 
-	t.Run("GetGitAuthLinksByUserID", func(t *testing.T) {
+	t.Run("GetExternalAuthLinksByUserID", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("OK", func(t *testing.T) {
