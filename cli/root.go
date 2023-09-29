@@ -1039,7 +1039,7 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 		// Error now looks like
 		// |  <line>
 		// |  <line>
-		var prefix = fmt.Sprintf("%d. ", i+1)
+		prefix := fmt.Sprintf("%d. ", i+1)
 		if len(prefix) < len(indent) {
 			// Indent the prefix to match the indent
 			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
