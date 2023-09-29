@@ -207,7 +207,7 @@ export const AppRouter: FC = () => {
 
               <Route path="health" element={<HealthPage />} />
 
-              <Route path="gitauth/:provider" element={<GitAuthPage />} />
+              <Route path="externalauth/:provider" element={<GitAuthPage />} />
 
               <Route path="workspaces" element={<WorkspacesPage />} />
 

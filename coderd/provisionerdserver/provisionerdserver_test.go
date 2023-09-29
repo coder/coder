@@ -31,7 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -143,7 +143,7 @@ func TestAcquireJob(t *testing.T) {
 			gitAuthProvider := "github"
 			srv, db, ps := setup(t, false, &overrides{
 				deploymentValues: dv,
-				externalAuthConfigs: []*gitauth.Config{{
+				externalAuthConfigs: []*externalauth.Config{{
 					ID:           gitAuthProvider,
 					OAuth2Config: &testutil.OAuth2Config{},
 				}},
@@ -941,7 +941,7 @@ func TestCompleteJob(t *testing.T) {
 		srvID := uuid.New()
 		srv, db, _ := setup(t, false, &overrides{
 			id: &srvID,
-			externalAuthConfigs: []*gitauth.Config{{
+			externalAuthConfigs: []*externalauth.Config{{
 				ID: "github",
 			}},
 		})
@@ -1675,7 +1675,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 type overrides struct {
 	deploymentValues            *codersdk.DeploymentValues
-	externalAuthConfigs         []*gitauth.Config
+	externalAuthConfigs         []*externalauth.Config
 	id                          *uuid.UUID
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
@@ -1691,7 +1691,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	db := dbfake.New()
 	ps := pubsub.NewInMemory()
 	deploymentValues := &codersdk.DeploymentValues{}
-	var externalAuthConfigs []*gitauth.Config
+	var externalAuthConfigs []*externalauth.Config
 	srvID := uuid.New()
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()

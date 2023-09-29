@@ -720,7 +720,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 			return &templateImportProvision{
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
-				ExternalAuthProviders: c.GitAuthProviders,
+				ExternalAuthProviders: c.ExternalAuthProviders,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",

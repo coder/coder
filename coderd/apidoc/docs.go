@@ -602,6 +602,103 @@ const docTemplate = `{
                 }
             }
         },
+        "/externalauth/{externalauth}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get external auth by ID",
+                "operationId": "get-external-auth-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuth"
+                        }
+                    }
+                }
+            }
+        },
+        "/externalauth/{externalauth}/device": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Get external auth device by ID.",
+                "operationId": "get-external-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Git Provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ExternalAuthDevice"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Git"
+                ],
+                "summary": "Post external auth device by ID",
+                "operationId": "post-external-auth-device-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "External Provider ID",
+                        "name": "externalauth",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/files": {
             "post": {
                 "security": [
@@ -673,103 +770,6 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
-                    }
-                }
-            }
-        },
-        "/gitauth/{gitauth}": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Git"
-                ],
-                "summary": "Get git auth by ID",
-                "operationId": "get-git-auth-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "string",
-                        "description": "Git Provider ID",
-                        "name": "gitauth",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.GitAuth"
-                        }
-                    }
-                }
-            }
-        },
-        "/gitauth/{gitauth}/device": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Git"
-                ],
-                "summary": "Get git auth device by ID.",
-                "operationId": "get-git-auth-device-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "string",
-                        "description": "Git Provider ID",
-                        "name": "gitauth",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.GitAuthDevice"
-                        }
-                    }
-                }
-            },
-            "post": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "tags": [
-                    "Git"
-                ],
-                "summary": "Post git auth device by ID",
-                "operationId": "post-git-auth-device-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "string",
-                        "description": "Git Provider ID",
-                        "name": "gitauth",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
                     }
                 }
             }
@@ -2768,7 +2768,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/gitauth": {
+        "/templateversions/{templateversion}/externalauth": {
             "get": {
                 "security": [
                     {
@@ -2781,8 +2781,8 @@ const docTemplate = `{
                 "tags": [
                     "Templates"
                 ],
-                "summary": "Get git auth by template version",
-                "operationId": "get-git-auth-by-template-version",
+                "summary": "Get external auth by template version",
+                "operationId": "get-external-auth-by-template-version",
                 "parameters": [
                     {
                         "type": "string",
@@ -8186,6 +8186,77 @@ const docTemplate = `{
                 "ExperimentDeploymentHealthPage"
             ]
         },
+        "codersdk.ExternalAuth": {
+            "type": "object",
+            "properties": {
+                "app_install_url": {
+                    "description": "AppInstallURL is the URL to install the app.",
+                    "type": "string"
+                },
+                "app_installable": {
+                    "description": "AppInstallable is true if the request for app installs was successful.",
+                    "type": "boolean"
+                },
+                "authenticated": {
+                    "type": "boolean"
+                },
+                "device": {
+                    "type": "boolean"
+                },
+                "installations": {
+                    "description": "AppInstallations are the installations that the user has access to.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
+                    }
+                },
+                "type": {
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User is the user that authenticated with the provider.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ExternalAuthUser"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ExternalAuthAppInstallation": {
+            "type": "object",
+            "properties": {
+                "account": {
+                    "$ref": "#/definitions/codersdk.ExternalAuthUser"
+                },
+                "configure_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.ExternalAuthDevice": {
+            "type": "object",
+            "properties": {
+                "device_code": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "interval": {
+                    "type": "integer"
+                },
+                "user_code": {
+                    "type": "string"
+                },
+                "verification_uri": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ExternalAuthProvider": {
             "type": "string",
             "enum": [
@@ -8202,6 +8273,23 @@ const docTemplate = `{
                 "ExternalAuthProviderBitBucket",
                 "ExternalAuthProviderOpenIDConnect"
             ]
+        },
+        "codersdk.ExternalAuthUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "login": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "profile_url": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.Feature": {
             "type": "object",
@@ -8239,57 +8327,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.User"
                     }
-                }
-            }
-        },
-        "codersdk.GitAuth": {
-            "type": "object",
-            "properties": {
-                "app_install_url": {
-                    "description": "AppInstallURL is the URL to install the app.",
-                    "type": "string"
-                },
-                "app_installable": {
-                    "description": "AppInstallable is true if the request for app installs was successful.",
-                    "type": "boolean"
-                },
-                "authenticated": {
-                    "type": "boolean"
-                },
-                "device": {
-                    "type": "boolean"
-                },
-                "installations": {
-                    "description": "AppInstallations are the installations that the user has access to.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.GitAuthAppInstallation"
-                    }
-                },
-                "type": {
-                    "type": "string"
-                },
-                "user": {
-                    "description": "User is the user that authenticated with the provider.",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.GitAuthUser"
-                        }
-                    ]
-                }
-            }
-        },
-        "codersdk.GitAuthAppInstallation": {
-            "type": "object",
-            "properties": {
-                "account": {
-                    "$ref": "#/definitions/codersdk.GitAuthUser"
-                },
-                "configure_url": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
                 }
             }
         },
@@ -8336,43 +8373,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "validate_url": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.GitAuthDevice": {
-            "type": "object",
-            "properties": {
-                "device_code": {
-                    "type": "string"
-                },
-                "expires_in": {
-                    "type": "integer"
-                },
-                "interval": {
-                    "type": "integer"
-                },
-                "user_code": {
-                    "type": "string"
-                },
-                "verification_uri": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.GitAuthUser": {
-            "type": "object",
-            "properties": {
-                "avatar_url": {
-                    "type": "string"
-                },
-                "login": {
-                    "type": "string"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "profile_url": {
                     "type": "string"
                 }
             }

@@ -39,6 +39,7 @@
     "enterprisemeta",
     "errgroup",
     "eventsourcemock",
+    "externalauth",
     "Failf",
     "fatih",
     "Formik",

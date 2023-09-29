@@ -156,7 +156,7 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
-  it("gitauth authenticates and succeeds", async () => {
+  it("external auth authenticates and succeeds", async () => {
     jest
       .spyOn(API, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
@@ -165,7 +165,7 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
+      .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
@@ -181,7 +181,7 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(githubButton);
 
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
+      .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
     await screen.findByText("Authenticated with GitHub");
@@ -200,9 +200,9 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("gitauth: errors if unauthenticated and submits", async () => {
+  it("external auth: errors if unauthenticated and submits", async () => {
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
+      .spyOn(API, "getTemplateVersionExternalAuth")
       .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();

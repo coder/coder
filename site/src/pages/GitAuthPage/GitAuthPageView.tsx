@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { makeStyles } from "@mui/styles";
 import { ApiErrorResponse } from "api/errors";
-import { GitAuth, GitAuthDevice } from "api/typesGenerated";
+import { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
@@ -14,10 +14,10 @@ import { Welcome } from "components/Welcome/Welcome";
 import { type FC } from "react";
 
 export interface GitAuthPageViewProps {
-  gitAuth: GitAuth;
-  viewGitAuthConfig: boolean;
+  externalAuth: ExternalAuth;
+  viewExternalAuthConfig: boolean;
 
-  gitAuthDevice?: GitAuthDevice;
+  externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
 
   onReauthenticate: () => void;
@@ -25,10 +25,10 @@ export interface GitAuthPageViewProps {
 
 const GitAuthPageView: FC<GitAuthPageViewProps> = ({
   deviceExchangeError,
-  gitAuth,
-  gitAuthDevice,
+  externalAuth: gitAuth,
+  externalAuthDevice: gitAuthDevice,
   onReauthenticate,
-  viewGitAuthConfig,
+  viewExternalAuthConfig: viewGitAuthConfig,
 }) => {
   const styles = useStyles();
 
@@ -40,7 +40,7 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
         {gitAuth.device && (
           <GitDeviceAuth
             deviceExchangeError={deviceExchangeError}
-            gitAuthDevice={gitAuthDevice}
+            externalAuthDevice={gitAuthDevice}
           />
         )}
       </SignInLayout>
@@ -136,9 +136,9 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
 };
 
 const GitDeviceAuth: FC<{
-  gitAuthDevice?: GitAuthDevice;
+  externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
-}> = ({ gitAuthDevice, deviceExchangeError }) => {
+}> = ({ externalAuthDevice, deviceExchangeError }) => {
   const styles = useStyles();
 
   let status = (
@@ -175,7 +175,7 @@ const GitDeviceAuth: FC<{
     }
   }
 
-  if (!gitAuthDevice) {
+  if (!externalAuthDevice) {
     return <CircularProgress />;
   }
 
@@ -184,8 +184,8 @@ const GitDeviceAuth: FC<{
       <p className={styles.text}>
         Copy your one-time code:&nbsp;
         <div className={styles.copyCode}>
-          <span className={styles.code}>{gitAuthDevice.user_code}</span>&nbsp;{" "}
-          <CopyButton text={gitAuthDevice.user_code} />
+          <span className={styles.code}>{externalAuthDevice.user_code}</span>&nbsp;{" "}
+          <CopyButton text={externalAuthDevice.user_code} />
         </div>
         <br />
         Then open the link below and paste it:
@@ -193,7 +193,7 @@ const GitDeviceAuth: FC<{
       <div className={styles.links}>
         <Link
           className={styles.link}
-          href={gitAuthDevice.verification_uri}
+          href={externalAuthDevice.verification_uri}
           target="_blank"
           rel="noreferrer"
         >

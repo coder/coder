@@ -10,31 +10,31 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get git auth by ID
-// @ID get-git-auth-by-id
+// @Summary Get external auth by ID
+// @ID get-external-auth-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Git
-// @Param gitauth path string true "Git Provider ID" format(string)
-// @Success 200 {object} codersdk.GitAuth
-// @Router /gitauth/{gitauth} [get]
-func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
-	config := httpmw.GitAuthParam(r)
+// @Param externalauth path string true "Git Provider ID" format(string)
+// @Success 200 {object} codersdk.ExternalAuth
+// @Router /externalauth/{externalauth} [get]
+func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
+	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
 	ctx := r.Context()
 
-	res := codersdk.GitAuth{
+	res := codersdk.ExternalAuth{
 		Authenticated:    false,
 		Device:           config.DeviceAuth != nil,
 		AppInstallURL:    config.AppInstallURL,
 		Type:             config.Type.Pretty(),
-		AppInstallations: []codersdk.GitAuthAppInstallation{},
+		AppInstallations: []codersdk.ExternalAuthAppInstallation{},
 	}
 
 	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
@@ -44,7 +44,7 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, w, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get git auth link.",
+				Message: "Failed to get external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -71,24 +71,24 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if res.AppInstallations == nil {
-		res.AppInstallations = []codersdk.GitAuthAppInstallation{}
+		res.AppInstallations = []codersdk.ExternalAuthAppInstallation{}
 	}
 	httpapi.Write(ctx, w, http.StatusOK, res)
 }
 
-// @Summary Post git auth device by ID
-// @ID post-git-auth-device-by-id
+// @Summary Post external auth device by ID
+// @ID post-external-auth-device-by-id
 // @Security CoderSessionToken
 // @Tags Git
-// @Param gitauth path string true "Git Provider ID" format(string)
+// @Param externalauth path string true "External Provider ID" format(string)
 // @Success 204
-// @Router /gitauth/{gitauth}/device [post]
-func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
+// @Router /externalauth/{externalauth}/device [post]
+func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
-	config := httpmw.GitAuthParam(r)
+	config := httpmw.ExternalAuthParam(r)
 
-	var req codersdk.GitAuthDeviceExchange
+	var req codersdk.ExternalAuthDeviceExchange
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -116,7 +116,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get git auth link.",
+				Message: "Failed to get external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -133,7 +133,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to insert git auth link.",
+				Message: "Failed to insert external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -149,7 +149,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to update git auth link.",
+				Message: "Failed to update external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -158,16 +158,16 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// @Summary Get git auth device by ID.
-// @ID get-git-auth-device-by-id
+// @Summary Get external auth device by ID.
+// @ID get-external-auth-device-by-id
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Git
-// @Param gitauth path string true "Git Provider ID" format(string)
-// @Success 200 {object} codersdk.GitAuthDevice
-// @Router /gitauth/{gitauth}/device [get]
-func (*API) gitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
-	config := httpmw.GitAuthParam(r)
+// @Param externalauth path string true "Git Provider ID" format(string)
+// @Success 200 {object} codersdk.ExternalAuthDevice
+// @Router /externalauth/{externalauth}/device [get]
+func (*API) externalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
+	config := httpmw.ExternalAuthParam(r)
 	ctx := r.Context()
 
 	if config.DeviceAuth == nil {
@@ -189,7 +189,7 @@ func (*API) gitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, deviceAuth)
 }
 
-func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc {
+func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
 			ctx    = r.Context()
@@ -198,20 +198,20 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 		)
 
 		_, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-			ProviderID: gitAuthConfig.ID,
+			ProviderID: externalAuthConfig.ID,
 			UserID:     apiKey.UserID,
 		})
 		if err != nil {
 			if !errors.Is(err, sql.ErrNoRows) {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to get git auth link.",
+					Message: "Failed to get external auth link.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
 			_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
+				ProviderID:        externalAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				CreatedAt:         dbtime.Now(),
 				UpdatedAt:         dbtime.Now(),
@@ -221,14 +221,14 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to insert git auth link.",
+					Message: "Failed to insert external auth link.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 		} else {
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-				ProviderID:        gitAuthConfig.ID,
+				ProviderID:        externalAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				UpdatedAt:         dbtime.Now(),
 				OAuthAccessToken:  state.Token.AccessToken,
@@ -237,7 +237,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-					Message: "Failed to update git auth link.",
+					Message: "Failed to update external auth link.",
 					Detail:  err.Error(),
 				})
 				return
@@ -247,7 +247,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 		redirect := state.Redirect
 		if redirect == "" {
 			// This is a nicely rendered screen on the frontend
-			redirect = fmt.Sprintf("/gitauth/%s", gitAuthConfig.ID)
+			redirect = fmt.Sprintf("/externalauth/%s", externalAuthConfig.ID)
 		}
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}

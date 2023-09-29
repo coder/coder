@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  exchangeGitAuthDevice,
-  getGitAuthDevice,
-  getGitAuthProvider,
+  exchangeExternalAuthDevice,
+  getExternalAuthDevice,
+  getExternalAuthProvider,
 } from "api/api";
 import { usePermissions } from "hooks";
 import { type FC } from "react";
@@ -18,70 +18,70 @@ const GitAuthPage: FC = () => {
   }
   const permissions = usePermissions();
   const queryClient = useQueryClient();
-  const getGitAuthProviderQuery = useQuery({
-    queryKey: ["gitauth", provider],
-    queryFn: () => getGitAuthProvider(provider),
+  const getExternalAuthProviderQuery = useQuery({
+    queryKey: ["externalauth", provider],
+    queryFn: () => getExternalAuthProvider(provider),
     refetchOnWindowFocus: true,
   });
 
-  const getGitAuthDeviceQuery = useQuery({
+  const getExternalAuthDeviceQuery = useQuery({
     enabled:
-      Boolean(!getGitAuthProviderQuery.data?.authenticated) &&
-      Boolean(getGitAuthProviderQuery.data?.device),
-    queryFn: () => getGitAuthDevice(provider),
-    queryKey: ["gitauth", provider, "device"],
+      Boolean(!getExternalAuthProviderQuery.data?.authenticated) &&
+      Boolean(getExternalAuthProviderQuery.data?.device),
+    queryFn: () => getExternalAuthDevice(provider),
+    queryKey: ["externalauth", provider, "device"],
     refetchOnMount: false,
   });
-  const exchangeGitAuthDeviceQuery = useQuery({
+  const exchangeExternalAuthDeviceQuery = useQuery({
     queryFn: () =>
-      exchangeGitAuthDevice(provider, {
-        device_code: getGitAuthDeviceQuery.data?.device_code || "",
+      exchangeExternalAuthDevice(provider, {
+        device_code: getExternalAuthDeviceQuery.data?.device_code || "",
       }),
-    queryKey: ["gitauth", provider, getGitAuthDeviceQuery.data?.device_code],
-    enabled: Boolean(getGitAuthDeviceQuery.data),
+    queryKey: ["externalauth", provider, getExternalAuthDeviceQuery.data?.device_code],
+    enabled: Boolean(getExternalAuthDeviceQuery.data),
     onSuccess: () => {
       // Force a refresh of the Git auth status.
-      queryClient.invalidateQueries(["gitauth", provider]).catch((ex) => {
+      queryClient.invalidateQueries(["externalauth", provider]).catch((ex) => {
         console.error("invalidate queries", ex);
       });
     },
     retry: true,
-    retryDelay: (getGitAuthDeviceQuery.data?.interval || 5) * 1000,
+    retryDelay: (getExternalAuthDeviceQuery.data?.interval || 5) * 1000,
     refetchOnWindowFocus: (query) =>
       query.state.status === "success" ? false : "always",
   });
 
-  if (getGitAuthProviderQuery.isLoading || !getGitAuthProviderQuery.data) {
+  if (getExternalAuthProviderQuery.isLoading || !getExternalAuthProviderQuery.data) {
     return null;
   }
 
   let deviceExchangeError: ApiErrorResponse | undefined;
-  if (isAxiosError(exchangeGitAuthDeviceQuery.failureReason)) {
+  if (isAxiosError(exchangeExternalAuthDeviceQuery.failureReason)) {
     deviceExchangeError =
-      exchangeGitAuthDeviceQuery.failureReason.response?.data;
+      exchangeExternalAuthDeviceQuery.failureReason.response?.data;
   }
 
   if (
-    !getGitAuthProviderQuery.data.authenticated &&
-    !getGitAuthProviderQuery.data.device
+    !getExternalAuthProviderQuery.data.authenticated &&
+    !getExternalAuthProviderQuery.data.device
   ) {
-    window.location.href = `/gitauth/${provider}/callback`;
+    window.location.href = `/externalauth/${provider}/callback`;
 
     return null;
   }
 
   return (
     <GitAuthPageView
-      gitAuth={getGitAuthProviderQuery.data}
+      externalAuth={getExternalAuthProviderQuery.data}
       onReauthenticate={() => {
-        queryClient.setQueryData(["gitauth", provider], {
-          ...getGitAuthProviderQuery.data,
+        queryClient.setQueryData(["externalauth", provider], {
+          ...getExternalAuthProviderQuery.data,
           authenticated: false,
         });
       }}
-      viewGitAuthConfig={permissions.viewGitAuthConfig}
+      viewExternalAuthConfig={permissions.viewGitAuthConfig}
       deviceExchangeError={deviceExchangeError}
-      gitAuthDevice={getGitAuthDeviceQuery.data}
+      externalAuthDevice={getExternalAuthDeviceQuery.data}
     />
   );
 };

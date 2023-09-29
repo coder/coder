@@ -37,6 +37,7 @@ import (
 
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
+	"github.com/coder/coder/v2/coderd/externalauth"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -47,7 +48,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -115,7 +115,7 @@ type Options struct {
 	SSHKeygenAlgorithm             gitsshkey.Algorithm
 	Telemetry                      telemetry.Reporter
 	TracerProvider                 trace.TracerProvider
-	ExternalAuthConfigs            []*gitauth.Config
+	ExternalAuthConfigs            []*externalauth.Config
 	RealIPConfig                   *httpmw.RealIPConfig
 	TrialGenerator                 func(ctx context.Context, email string) error
 	// TLSCertificates is used to mesh DERP servers securely.
@@ -546,21 +546,24 @@ func New(options *Options) *API {
 	})
 
 	// Register callback handlers for each OAuth2 provider.
-	r.Route("/gitauth", func(r chi.Router) {
-		for _, gitAuthConfig := range options.ExternalAuthConfigs {
-			// We don't need to register a callback handler for device auth.
-			if gitAuthConfig.DeviceAuth != nil {
-				continue
+	// We must support gitauth and externalauth for backwards compatibility.
+	for _, route := range []string{"gitauth", "externalauth"} {
+		r.Route("/"+route, func(r chi.Router) {
+			for _, externalAuthConfig := range options.ExternalAuthConfigs {
+				// We don't need to register a callback handler for device auth.
+				if externalAuthConfig.DeviceAuth != nil {
+					continue
+				}
+				r.Route(fmt.Sprintf("/%s/callback", externalAuthConfig.ID), func(r chi.Router) {
+					r.Use(
+						apiKeyMiddlewareRedirect,
+						httpmw.ExtractOAuth2(externalAuthConfig, options.HTTPClient, nil),
+					)
+					r.Get("/", api.externalAuthCallback(externalAuthConfig))
+				})
 			}
-			r.Route(fmt.Sprintf("/%s/callback", gitAuthConfig.ID), func(r chi.Router) {
-				r.Use(
-					apiKeyMiddlewareRedirect,
-					httpmw.ExtractOAuth2(gitAuthConfig, options.HTTPClient, nil),
-				)
-				r.Get("/", api.gitAuthCallback(gitAuthConfig))
-			})
-		}
-	})
+		})
+	}
 
 	r.Route("/api/v2", func(r chi.Router) {
 		api.APIHandler = r
@@ -613,14 +616,14 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/gitauth/{gitauth}", func(r chi.Router) {
+		r.Route("/externalauth/{externalauth}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
-				httpmw.ExtractGitAuthParam(options.ExternalAuthConfigs),
+				httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
 			)
-			r.Get("/", api.gitAuthByID)
-			r.Post("/device", api.postGitAuthDeviceByID)
-			r.Get("/device", api.gitAuthDeviceByID)
+			r.Get("/", api.externalAuthByID)
+			r.Post("/device", api.postExternalAuthDeviceByID)
+			r.Get("/device", api.externalAuthDeviceByID)
 		})
 		r.Route("/organizations", func(r chi.Router) {
 			r.Use(
@@ -686,7 +689,7 @@ func New(options *Options) *API {
 			r.Get("/schema", templateVersionSchemaDeprecated)
 			r.Get("/parameters", templateVersionParametersDeprecated)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
-			r.Get("/gitauth", api.templateVersionGitAuth)
+			r.Get("/externalauth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)

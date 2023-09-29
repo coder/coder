@@ -1,15 +1,15 @@
 import { test } from "@playwright/test";
 import { gitAuth } from "../constants";
 import { Endpoints } from "@octokit/types";
-import { GitAuthDevice } from "api/typesGenerated";
+import { ExternalAuthDevice } from "api/typesGenerated";
 import { Awaiter, createServer } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
 // Ensures that a Git auth provider with the device flow functions and completes!
-test("git auth device", async ({ page }) => {
-  const device: GitAuthDevice = {
+test("external auth device", async ({ page }) => {
+  const device: ExternalAuthDevice = {
     device_code: "1234",
     user_code: "1234-5678",
     expires_in: 900,
@@ -46,7 +46,7 @@ test("git auth device", async ({ page }) => {
     sentPending.done();
   });
 
-  await page.goto(`/gitauth/${gitAuth.deviceProvider}`, {
+  await page.goto(`/externalauth/${gitAuth.deviceProvider}`, {
     waitUntil: "domcontentloaded",
   });
   await page.getByText(device.user_code).isVisible();
@@ -57,7 +57,7 @@ test("git auth device", async ({ page }) => {
   await page.waitForSelector("text=1 organization authorized");
 });
 
-test("git auth web", async ({ baseURL, page }) => {
+test("external auth web", async ({ baseURL, page }) => {
   const srv = await createServer(gitAuth.webPort);
   // The GitHub validate endpoint returns the currently authenticated user!
   srv.use(gitAuth.validatePath, (req, res) => {
@@ -70,11 +70,11 @@ test("git auth web", async ({ baseURL, page }) => {
   });
   srv.use(gitAuth.authPath, (req, res) => {
     res.redirect(
-      `${baseURL}/gitauth/${gitAuth.webProvider}/callback?code=1234&state=` +
+      `${baseURL}/externalauth/${gitAuth.webProvider}/callback?code=1234&state=` +
         req.query.state,
     );
   });
-  await page.goto(`/gitauth/${gitAuth.webProvider}`, {
+  await page.goto(`/externalauth/${gitAuth.webProvider}`, {
     waitUntil: "domcontentloaded",
   });
   // This endpoint doesn't have the installations URL set intentionally!

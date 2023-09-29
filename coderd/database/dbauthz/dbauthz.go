@@ -2486,7 +2486,7 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 }
 
 func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
-	// An actor is allowed to update the template version git auth providers if they are authorized to update the template.
+	// An actor is allowed to update the template version external auth providers if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err

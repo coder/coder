@@ -130,6 +130,6 @@ export const templateVersionGitAuthKey = (versionId: string) => [
 export const templateVersionGitAuth = (versionId: string) => {
   return {
     queryKey: templateVersionGitAuthKey(versionId),
-    queryFn: () => API.getTemplateVersionGitAuth(versionId),
+    queryFn: () => API.getTemplateVersionExternalAuth(versionId),
   };
 };

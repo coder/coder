@@ -1,4 +1,4 @@
-package gitauth
+package externalauth
 
 import (
 	"context"
@@ -107,7 +107,7 @@ type DeviceAuth struct {
 
 // AuthorizeDevice begins the device authorization flow.
 // See: https://tools.ietf.org/html/rfc8628#section-3.1
-func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevice, error) {
+func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAuthDevice, error) {
 	if c.CodeURL == "" {
 		return nil, xerrors.New("oauth2: device code URL not set")
 	}
@@ -126,7 +126,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 	}
 	defer resp.Body.Close()
 	var r struct {
-		codersdk.GitAuthDevice
+		codersdk.ExternalAuthDevice
 		ErrorDescription string `json:"error_description"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&r)
@@ -136,7 +136,7 @@ func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.GitAuthDevi
 	if r.ErrorDescription != "" {
 		return nil, xerrors.New(r.ErrorDescription)
 	}
-	return &r.GitAuthDevice, nil
+	return &r.ExternalAuthDevice, nil
 }
 
 type ExchangeDeviceCodeResponse struct {

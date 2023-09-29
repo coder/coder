@@ -18,7 +18,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -26,19 +26,19 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestGitAuthByID(t *testing.T) {
+func TestExternalAuthByID(t *testing.T) {
 	t.Parallel()
 	t.Run("Unauthenticated", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
 				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		auth, err := client.GitAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.False(t, auth.Authenticated)
 	})
@@ -47,7 +47,7 @@ func TestGitAuthByID(t *testing.T) {
 		// still return that the provider is authenticated.
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
 				// AzureDevops doesn't have a user endpoint!
@@ -55,9 +55,9 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
 		_ = resp.Body.Close()
-		auth, err := client.GitAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 	})
@@ -71,7 +71,7 @@ func TestGitAuthByID(t *testing.T) {
 		}))
 		defer validateSrv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID:           "test",
 				ValidateURL:  validateSrv.URL,
 				OAuth2Config: &testutil.OAuth2Config{},
@@ -79,9 +79,9 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
 		_ = resp.Body.Close()
-		auth, err := client.GitAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 		require.NotNil(t, auth.User)
@@ -111,7 +111,7 @@ func TestGitAuthByID(t *testing.T) {
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID:                  "test",
 				ValidateURL:         srv.URL + "/user",
 				AppInstallationsURL: srv.URL + "/installs",
@@ -120,9 +120,9 @@ func TestGitAuthByID(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestGitAuthCallback(t, "test", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "test", client)
 		_ = resp.Body.Close()
-		auth, err := client.GitAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 		require.NotNil(t, auth.User)
@@ -137,12 +137,12 @@ func TestGitAuthDevice(t *testing.T) {
 	t.Run("NotSupported", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID: "test",
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		_, err := client.GitAuthDeviceByID(context.Background(), "test")
+		_, err := client.ExternalAuthDeviceByID(context.Background(), "test")
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
@@ -150,15 +150,15 @@ func TestGitAuthDevice(t *testing.T) {
 	t.Run("FetchCode", func(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.GitAuthDevice{
+			httpapi.Write(r.Context(), w, http.StatusOK, codersdk.ExternalAuthDevice{
 				UserCode: "hey",
 			})
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID: "test",
-				DeviceAuth: &gitauth.DeviceAuth{
+				DeviceAuth: &externalauth.DeviceAuth{
 					ClientID: "test",
 					CodeURL:  srv.URL,
 					Scopes:   []string{"repo"},
@@ -166,13 +166,13 @@ func TestGitAuthDevice(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		device, err := client.GitAuthDeviceByID(context.Background(), "test")
+		device, err := client.ExternalAuthDeviceByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.Equal(t, "hey", device.UserCode)
 	})
 	t.Run("ExchangeCode", func(t *testing.T) {
 		t.Parallel()
-		resp := gitauth.ExchangeDeviceCodeResponse{
+		resp := externalauth.ExchangeDeviceCodeResponse{
 			Error: "authorization_pending",
 		}
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -180,9 +180,9 @@ func TestGitAuthDevice(t *testing.T) {
 		}))
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ID: "test",
-				DeviceAuth: &gitauth.DeviceAuth{
+				DeviceAuth: &externalauth.DeviceAuth{
 					ClientID: "test",
 					TokenURL: srv.URL,
 					Scopes:   []string{"repo"},
@@ -190,7 +190,7 @@ func TestGitAuthDevice(t *testing.T) {
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
-		err := client.GitAuthDeviceExchange(context.Background(), "test", codersdk.GitAuthDeviceExchange{
+		err := client.ExternalAuthDeviceExchange(context.Background(), "test", codersdk.ExternalAuthDeviceExchange{
 			DeviceCode: "hey",
 		})
 		var sdkErr *codersdk.Error
@@ -198,16 +198,16 @@ func TestGitAuthDevice(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Equal(t, "authorization_pending", sdkErr.Detail)
 
-		resp = gitauth.ExchangeDeviceCodeResponse{
+		resp = externalauth.ExchangeDeviceCodeResponse{
 			AccessToken: "hey",
 		}
 
-		err = client.GitAuthDeviceExchange(context.Background(), "test", codersdk.GitAuthDeviceExchange{
+		err = client.ExternalAuthDeviceExchange(context.Background(), "test", codersdk.ExternalAuthDeviceExchange{
 			DeviceCode: "hey",
 		})
 		require.NoError(t, err)
 
-		auth, err := client.GitAuthByID(context.Background(), "test")
+		auth, err := client.ExternalAuthByID(context.Background(), "test")
 		require.NoError(t, err)
 		require.True(t, auth.Authenticated)
 	})
@@ -220,7 +220,7 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs:      []*gitauth.Config{},
+			ExternalAuthConfigs:      []*externalauth.Config{},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()
@@ -245,7 +245,7 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
@@ -268,27 +268,27 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
-		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/gitauth/%s", "github")))
+		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/externalauth/%s", "github")))
 	})
 	t.Run("UnauthorizedCallback", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
 				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	})
 	t.Run("AuthorizedCallback", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
@@ -296,14 +296,14 @@ func TestGitAuthCallback(t *testing.T) {
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
-		require.Equal(t, "/gitauth/github", location.Path)
+		require.Equal(t, "/externalauth/github", location.Path)
 
 		// Callback again to simulate updating the token.
-		resp = coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp = coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	})
 	t.Run("ValidateURL", func(t *testing.T) {
@@ -314,7 +314,7 @@ func TestGitAuthCallback(t *testing.T) {
 		defer srv.Close()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				ValidateURL:  srv.URL,
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
@@ -337,7 +337,7 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// If the validation URL says unauthorized, the callback
@@ -359,14 +359,14 @@ func TestGitAuthCallback(t *testing.T) {
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
-		require.Equal(t, "validate git auth token: status 403: body: Something went wrong!", apiError.Detail)
+		require.Equal(t, "validate external auth token: status 403: body: Something went wrong!", apiError.Detail)
 	})
 
 	t.Run("ExpiredNoRefresh", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{
 					Token: &oauth2.Token{
 						AccessToken:  "token",
@@ -402,7 +402,7 @@ func TestGitAuthCallback(t *testing.T) {
 		// In the configuration, we set our OAuth provider
 		// to return an expired token. Coder consumes this
 		// and stores it.
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// Because the token is expired and `NoRefresh` is specified,
@@ -416,7 +416,7 @@ func TestGitAuthCallback(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			ExternalAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
@@ -452,7 +452,7 @@ func TestGitAuthCallback(t *testing.T) {
 
 		time.Sleep(250 * time.Millisecond)
 
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		token = <-tokenChan
 		require.Equal(t, "access_token", token.Username)

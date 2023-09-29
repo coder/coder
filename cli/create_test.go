@@ -14,7 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -600,7 +600,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 			{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						GitAuthProviders: []string{"github"},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			},
@@ -609,7 +609,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 	}
 
 	client := coderdtest.New(t, &coderdtest.Options{
-		ExternalAuthConfigs: []*gitauth.Config{{
+		ExternalAuthConfigs: []*externalauth.Config{{
 			OAuth2Config: &testutil.OAuth2Config{},
 			ID:           "github",
 			Regex:        regexp.MustCompile(`github\.com`),
@@ -628,7 +628,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 	clitest.Start(t, inv)
 
 	pty.ExpectMatch("You must authenticate with GitHub to create a workspace")
-	resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+	resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 	pty.ExpectMatch("Confirm create?")
