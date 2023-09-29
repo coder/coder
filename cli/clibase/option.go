@@ -134,6 +134,11 @@ OptionSetDecodeLoop:
 		if err != nil {
 			return xerrors.Errorf("decode %d option: %w", i, err)
 		}
+		// This counter is used to contextualize errors to show which element of
+		// the array we failed to decode. It is only used in the error above, as
+		// if the above works, we can instead use the Option.Name which is more
+		// descriptive and useful. So increment here for the next decode.
+		i++
 
 		// Try to see if the option already exists in the option set.
 		// If it does, just update the existing option.
@@ -163,7 +168,6 @@ OptionSetDecodeLoop:
 		// We do this because we cannot infer the type of the value.
 		opt.Value = DiscardValue
 		*optSet = append(*optSet, opt)
-		i++
 	}
 
 	t, err = dec.Token()
