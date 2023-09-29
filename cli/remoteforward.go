@@ -26,22 +26,18 @@ type cookieAddr struct {
 var remoteForwardRegexTCP = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
 
 // remote_socket_path:local_socket_path (both absolute paths)
-var remoteForwardRegexUnixSocket = regexp.MustCompile(`^(\\.+):(\\.+)$`)
+var remoteForwardRegexUnixSocket = regexp.MustCompile(`^(\/.+):(\/.+)$`)
 
 func remoteForwardTCP(flag string) bool {
-	reg := remoteForwardRegexTCP.MatchString(flag)
-	fmt.Println("remoteForwardTCP", reg)
-	return reg
+	return remoteForwardRegexTCP.MatchString(flag)
 }
 
 func remoteForwardUnixSocket(flag string) bool {
-	reg := remoteForwardRegexUnixSocket.MatchString(flag)
-	fmt.Println("remoteForwardUnixSocket", reg)
-	return reg
+	return remoteForwardRegexUnixSocket.MatchString(flag)
 }
 
 func validateRemoteForward(flag string) bool {
-	return remoteForwardUnixSocket(flag) || remoteForwardTCP(flag)
+	return remoteForwardTCP(flag) || remoteForwardUnixSocket(flag)
 }
 
 func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
