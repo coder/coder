@@ -933,7 +933,7 @@ func TestCompleteJob(t *testing.T) {
 		completeJob()
 		job, err = db.GetProvisionerJobByID(ctx, job.ID)
 		require.NoError(t, err)
-		require.Contains(t, job.Error.String, `git auth provider "github" is not configured`)
+		require.Contains(t, job.Error.String, `external auth provider "github" is not configured`)
 	})
 
 	t.Run("TemplateImport_WithGitAuth", func(t *testing.T) {
