@@ -17,53 +17,53 @@ import (
 )
 
 // endpoint contains default SaaS URLs for each Git provider.
-var endpoint = map[codersdk.GitProvider]oauth2.Endpoint{
-	codersdk.GitProviderAzureDevops: {
+var endpoint = map[codersdk.ExternalAuthProvider]oauth2.Endpoint{
+	codersdk.ExternalAuthProviderAzureDevops: {
 		AuthURL:  "https://app.vssps.visualstudio.com/oauth2/authorize",
 		TokenURL: "https://app.vssps.visualstudio.com/oauth2/token",
 	},
-	codersdk.GitProviderBitBucket: {
+	codersdk.ExternalAuthProviderBitBucket: {
 		AuthURL:  "https://bitbucket.org/site/oauth2/authorize",
 		TokenURL: "https://bitbucket.org/site/oauth2/access_token",
 	},
-	codersdk.GitProviderGitLab: {
+	codersdk.ExternalAuthProviderGitLab: {
 		AuthURL:  "https://gitlab.com/oauth/authorize",
 		TokenURL: "https://gitlab.com/oauth/token",
 	},
-	codersdk.GitProviderGitHub: github.Endpoint,
+	codersdk.ExternalAuthProviderGitHub: github.Endpoint,
 }
 
 // validateURL contains defaults for each provider.
-var validateURL = map[codersdk.GitProvider]string{
-	codersdk.GitProviderGitHub:    "https://api.github.com/user",
-	codersdk.GitProviderGitLab:    "https://gitlab.com/oauth/token/info",
-	codersdk.GitProviderBitBucket: "https://api.bitbucket.org/2.0/user",
+var validateURL = map[codersdk.ExternalAuthProvider]string{
+	codersdk.ExternalAuthProviderGitHub:    "https://api.github.com/user",
+	codersdk.ExternalAuthProviderGitLab:    "https://gitlab.com/oauth/token/info",
+	codersdk.ExternalAuthProviderBitBucket: "https://api.bitbucket.org/2.0/user",
 }
 
-var deviceAuthURL = map[codersdk.GitProvider]string{
-	codersdk.GitProviderGitHub: "https://github.com/login/device/code",
+var deviceAuthURL = map[codersdk.ExternalAuthProvider]string{
+	codersdk.ExternalAuthProviderGitHub: "https://github.com/login/device/code",
 }
 
-var appInstallationsURL = map[codersdk.GitProvider]string{
-	codersdk.GitProviderGitHub: "https://api.github.com/user/installations",
+var appInstallationsURL = map[codersdk.ExternalAuthProvider]string{
+	codersdk.ExternalAuthProviderGitHub: "https://api.github.com/user/installations",
 }
 
 // scope contains defaults for each Git provider.
-var scope = map[codersdk.GitProvider][]string{
-	codersdk.GitProviderAzureDevops: {"vso.code_write"},
-	codersdk.GitProviderBitBucket:   {"account", "repository:write"},
-	codersdk.GitProviderGitLab:      {"write_repository"},
+var scope = map[codersdk.ExternalAuthProvider][]string{
+	codersdk.ExternalAuthProviderAzureDevops: {"vso.code_write"},
+	codersdk.ExternalAuthProviderBitBucket:   {"account", "repository:write"},
+	codersdk.ExternalAuthProviderGitLab:      {"write_repository"},
 	// "workflow" is required for managing GitHub Actions in a repository.
-	codersdk.GitProviderGitHub: {"repo", "workflow"},
+	codersdk.ExternalAuthProviderGitHub: {"repo", "workflow"},
 }
 
 // regex provides defaults for each Git provider to match their SaaS host URL.
 // This is configurable by each provider.
-var regex = map[codersdk.GitProvider]*regexp.Regexp{
-	codersdk.GitProviderAzureDevops: regexp.MustCompile(`^(https?://)?dev\.azure\.com(/.*)?$`),
-	codersdk.GitProviderBitBucket:   regexp.MustCompile(`^(https?://)?bitbucket\.org(/.*)?$`),
-	codersdk.GitProviderGitLab:      regexp.MustCompile(`^(https?://)?gitlab\.com(/.*)?$`),
-	codersdk.GitProviderGitHub:      regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`),
+var regex = map[codersdk.ExternalAuthProvider]*regexp.Regexp{
+	codersdk.ExternalAuthProviderAzureDevops: regexp.MustCompile(`^(https?://)?dev\.azure\.com(/.*)?$`),
+	codersdk.ExternalAuthProviderBitBucket:   regexp.MustCompile(`^(https?://)?bitbucket\.org(/.*)?$`),
+	codersdk.ExternalAuthProviderGitLab:      regexp.MustCompile(`^(https?://)?gitlab\.com(/.*)?$`),
+	codersdk.ExternalAuthProviderGitHub:      regexp.MustCompile(`^(https?://)?github\.com(/.*)?$`),
 }
 
 // jwtConfig is a new OAuth2 config that uses a custom

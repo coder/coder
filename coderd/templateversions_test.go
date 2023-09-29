@@ -331,18 +331,18 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		_, err := client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 	})
 	t.Run("Authenticated", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*gitauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.GitProviderGitHub,
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -362,7 +362,7 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		defer cancel()
 
 		// Not authenticated to start!
-		providers, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		providers, err := client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.False(t, providers[0].Authenticated)
@@ -373,7 +373,7 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// Ensure that the returned Git auth for the template is authenticated!
-		providers, err = client.TemplateVersionGitAuth(ctx, version.ID)
+		providers, err = client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.True(t, providers[0].Authenticated)

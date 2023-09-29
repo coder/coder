@@ -37,7 +37,7 @@ func (api *API) gitAuthByID(w http.ResponseWriter, r *http.Request) {
 		AppInstallations: []codersdk.GitAuthAppInstallation{},
 	}
 
-	link, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+	link, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
@@ -109,7 +109,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err = api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+	_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 		ProviderID: config.ID,
 		UserID:     apiKey.UserID,
 	})
@@ -122,7 +122,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
+		_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 			ProviderID:        config.ID,
 			UserID:            apiKey.UserID,
 			CreatedAt:         dbtime.Now(),
@@ -139,7 +139,7 @@ func (api *API) postGitAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:        config.ID,
 			UserID:            apiKey.UserID,
 			UpdatedAt:         dbtime.Now(),
@@ -197,7 +197,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 			apiKey = httpmw.APIKey(r)
 		)
 
-		_, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		_, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: gitAuthConfig.ID,
 			UserID:     apiKey.UserID,
 		})
@@ -210,7 +210,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 				return
 			}
 
-			_, err = api.Database.InsertGitAuthLink(ctx, database.InsertGitAuthLinkParams{
+			_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				CreatedAt:         dbtime.Now(),
@@ -227,7 +227,7 @@ func (api *API) gitAuthCallback(gitAuthConfig *gitauth.Config) http.HandlerFunc 
 				return
 			}
 		} else {
-			_, err = api.Database.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 				ProviderID:        gitAuthConfig.ID,
 				UserID:            apiKey.UserID,
 				UpdatedAt:         dbtime.Now(),

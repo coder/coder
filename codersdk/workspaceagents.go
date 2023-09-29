@@ -744,30 +744,33 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}), nil
 }
 
-// GitProvider is a constant that represents the
+// ExternalAuthProvider is a constant that represents the
 // type of providers that are supported within Coder.
-type GitProvider string
+type ExternalAuthProvider string
 
-func (g GitProvider) Pretty() string {
+func (g ExternalAuthProvider) Pretty() string {
 	switch g {
-	case GitProviderAzureDevops:
+	case ExternalAuthProviderAzureDevops:
 		return "Azure DevOps"
-	case GitProviderGitHub:
+	case ExternalAuthProviderGitHub:
 		return "GitHub"
-	case GitProviderGitLab:
+	case ExternalAuthProviderGitLab:
 		return "GitLab"
-	case GitProviderBitBucket:
+	case ExternalAuthProviderBitBucket:
 		return "Bitbucket"
+	case ExternalAuthProviderOpenIDConnect:
+		return "OpenID Connect"
 	default:
 		return string(g)
 	}
 }
 
 const (
-	GitProviderAzureDevops GitProvider = "azure-devops"
-	GitProviderGitHub      GitProvider = "github"
-	GitProviderGitLab      GitProvider = "gitlab"
-	GitProviderBitBucket   GitProvider = "bitbucket"
+	ExternalAuthProviderAzureDevops   ExternalAuthProvider = "azure-devops"
+	ExternalAuthProviderGitHub        ExternalAuthProvider = "github"
+	ExternalAuthProviderGitLab        ExternalAuthProvider = "gitlab"
+	ExternalAuthProviderBitBucket     ExternalAuthProvider = "bitbucket"
+	ExternalAuthProviderOpenIDConnect ExternalAuthProvider = "openid-connect"
 )
 
 type WorkspaceAgentLog struct {

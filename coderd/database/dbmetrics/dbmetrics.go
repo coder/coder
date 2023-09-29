@@ -363,6 +363,20 @@ func (m metricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return row, err
 }
 
+func (m metricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	start := time.Now()
+	link, err := m.s.GetExternalAuthLink(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetExternalAuthLink").Observe(time.Since(start).Seconds())
+	return link, err
+}
+
+func (m metricsStore) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetExternalAuthLinksByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetExternalAuthLinksByUserID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	start := time.Now()
 	file, err := m.s.GetFileByHashAndCreator(ctx, arg)
@@ -382,20 +396,6 @@ func (m metricsStore) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([
 	rows, err := m.s.GetFileTemplates(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetFileTemplates").Observe(time.Since(start).Seconds())
 	return rows, err
-}
-
-func (m metricsStore) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	start := time.Now()
-	link, err := m.s.GetGitAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetGitAuthLink").Observe(time.Since(start).Seconds())
-	return link, err
-}
-
-func (m metricsStore) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetGitAuthLinksByUserID(ctx, userID)
-	m.queryLatencies.WithLabelValues("GetGitAuthLinksByUserID").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -1166,18 +1166,18 @@ func (m metricsStore) InsertDeploymentID(ctx context.Context, value string) erro
 	return err
 }
 
+func (m metricsStore) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	start := time.Now()
+	link, err := m.s.InsertExternalAuthLink(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertExternalAuthLink").Observe(time.Since(start).Seconds())
+	return link, err
+}
+
 func (m metricsStore) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
 	start := time.Now()
 	file, err := m.s.InsertFile(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertFile").Observe(time.Since(start).Seconds())
 	return file, err
-}
-
-func (m metricsStore) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	start := time.Now()
-	link, err := m.s.InsertGitAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertGitAuthLink").Observe(time.Since(start).Seconds())
-	return link, err
 }
 
 func (m metricsStore) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -1439,10 +1439,10 @@ func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateA
 	return err
 }
 
-func (m metricsStore) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+func (m metricsStore) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
-	link, err := m.s.UpdateGitAuthLink(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateGitAuthLink").Observe(time.Since(start).Seconds())
+	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
 }
 
@@ -1551,10 +1551,10 @@ func (m metricsStore) UpdateTemplateVersionDescriptionByJobID(ctx context.Contex
 	return err
 }
 
-func (m metricsStore) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+func (m metricsStore) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	start := time.Now()
-	err := m.s.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateTemplateVersionGitAuthProvidersByJobID").Observe(time.Since(start).Seconds())
+	err := m.s.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateTemplateVersionExternalAuthProvidersByJobID").Observe(time.Since(start).Seconds())
 	return err
 }
 

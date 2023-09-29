@@ -608,7 +608,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				GitAuthConfigs:              gitAuthConfigs,
+				ExternalAuthConfigs:         gitAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

@@ -504,8 +504,8 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 	return link
 }
 
-func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
-	link, err := db.InsertGitAuthLink(genCtx, database.InsertGitAuthLinkParams{
+func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAuthLink) database.ExternalAuthLink {
+	link, err := db.InsertExternalAuthLink(genCtx, database.InsertExternalAuthLinkParams{
 		ProviderID:             takeFirst(orig.ProviderID, uuid.New().String()),
 		UserID:                 takeFirst(orig.UserID, uuid.New()),
 		OAuthAccessToken:       takeFirst(orig.OAuthAccessToken, uuid.NewString()),
@@ -517,7 +517,7 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
 	})
 
-	require.NoError(t, err, "insert git auth link")
+	require.NoError(t, err, "insert external auth link")
 	return link
 }
 

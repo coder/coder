@@ -99,7 +99,7 @@ func TestRefreshToken(t *testing.T) {
 				},
 			},
 		}
-		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.GitAuthLink{
+		_, refreshed, err := config.RefreshToken(context.Background(), nil, database.ExternalAuthLink{
 			OAuthExpiry: expired,
 		})
 		require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *gitauth.Config) {
-				cfg.Type = codersdk.GitProviderGitHub
+				cfg.Type = codersdk.ExternalAuthProviderGitHub
 			},
 		})
 
@@ -207,7 +207,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *gitauth.Config) {
-				cfg.Type = codersdk.GitProviderGitHub
+				cfg.Type = codersdk.ExternalAuthProviderGitHub
 			},
 		})
 
@@ -238,7 +238,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *gitauth.Config) {
-				cfg.Type = codersdk.GitProviderGitHub
+				cfg.Type = codersdk.ExternalAuthProviderGitHub
 			},
 			DB: db,
 		})
@@ -254,7 +254,7 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, 1, refreshCalls, "token is refreshed")
 		require.NotEqualf(t, link.OAuthAccessToken, updated.OAuthAccessToken, "token is updated")
 		//nolint:gocritic // testing
-		dbLink, err := db.GetGitAuthLink(dbauthz.AsSystemRestricted(context.Background()), database.GetGitAuthLinkParams{
+		dbLink, err := db.GetExternalAuthLink(dbauthz.AsSystemRestricted(context.Background()), database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		})
@@ -279,30 +279,30 @@ func TestConvertYAML(t *testing.T) {
 	}, {
 		Name: "InvalidID",
 		Input: []codersdk.GitAuthConfig{{
-			Type: string(codersdk.GitProviderGitHub),
+			Type: string(codersdk.ExternalAuthProviderGitHub),
 			ID:   "$hi$",
 		}},
 		Error: "doesn't have a valid id",
 	}, {
 		Name: "NoClientID",
 		Input: []codersdk.GitAuthConfig{{
-			Type: string(codersdk.GitProviderGitHub),
+			Type: string(codersdk.ExternalAuthProviderGitHub),
 		}},
 		Error: "client_id must be provided",
 	}, {
 		Name: "DuplicateType",
 		Input: []codersdk.GitAuthConfig{{
-			Type:         string(codersdk.GitProviderGitHub),
+			Type:         string(codersdk.ExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 		}, {
-			Type: string(codersdk.GitProviderGitHub),
+			Type: string(codersdk.ExternalAuthProviderGitHub),
 		}},
 		Error: "multiple github git auth providers provided",
 	}, {
 		Name: "InvalidRegex",
 		Input: []codersdk.GitAuthConfig{{
-			Type:         string(codersdk.GitProviderGitHub),
+			Type:         string(codersdk.ExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 			Regex:        `\K`,
@@ -311,7 +311,7 @@ func TestConvertYAML(t *testing.T) {
 	}, {
 		Name: "NoDeviceURL",
 		Input: []codersdk.GitAuthConfig{{
-			Type:         string(codersdk.GitProviderGitLab),
+			Type:         string(codersdk.ExternalAuthProviderGitLab),
 			ClientID:     "example",
 			ClientSecret: "example",
 			DeviceFlow:   true,
@@ -334,7 +334,7 @@ func TestConvertYAML(t *testing.T) {
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
 		config, err := gitauth.ConvertConfig([]codersdk.GitAuthConfig{{
-			Type:         string(codersdk.GitProviderGitLab),
+			Type:         string(codersdk.ExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",
@@ -359,7 +359,7 @@ type testConfig struct {
 // No http servers are started so use the fake IDP's HTTPClient to make requests.
 // The returned token is a fully valid token for the IDP. Feel free to manipulate it
 // to test different scenarios.
-func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *gitauth.Config, database.GitAuthLink) {
+func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *gitauth.Config, database.ExternalAuthLink) {
 	t.Helper()
 
 	const providerID = "test-idp"
@@ -380,7 +380,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *git
 	require.NoError(t, err)
 
 	now := time.Now()
-	link := database.GitAuthLink{
+	link := database.ExternalAuthLink{
 		ProviderID:        providerID,
 		UserID:            uuid.New(),
 		CreatedAt:         now,
@@ -393,7 +393,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *git
 
 	if settings.DB != nil {
 		// Feel free to insert additional things like the user, etc if required.
-		link, err = settings.DB.InsertGitAuthLink(context.Background(), database.InsertGitAuthLinkParams{
+		link, err = settings.DB.InsertExternalAuthLink(context.Background(), database.InsertExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			CreatedAt:         link.CreatedAt,
