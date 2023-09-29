@@ -1032,7 +1032,7 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 
 	// Write errors out
 	var str strings.Builder
-	str.WriteString(headLineStyle().Render(fmt.Sprintf("%d errors encountered:", len(multi))))
+	_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("%d errors encountered:", len(multi))))
 	for i, errStr := range errorStrings {
 		// Indent each error
 		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
@@ -1048,7 +1048,7 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 		// Now looks like
 		// |1.<line>
 		// |  <line>
-		str.WriteString("\n" + errStr)
+		_, _ = str.WriteString("\n" + errStr)
 	}
 	return str.String()
 }
@@ -1059,15 +1059,15 @@ func formatMultiError(multi []error, opts *formatOpts) string {
 // formatter and add it to cliHumanFormatError function.
 func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) string {
 	var str strings.Builder
-	str.WriteString(headLineStyle().Render(fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+	_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
 
 	msgString := fmt.Sprintf("%v", err.Err)
 	if opts.Verbose {
 		// '%+v' includes stack traces
 		msgString = fmt.Sprintf("%+v", err.Err)
 	}
-	str.WriteString("\n")
-	str.WriteString(tailLineStyle().Render(msgString))
+	_, _ = str.WriteString("\n")
+	_, _ = str.WriteString(tailLineStyle().Render(msgString))
 	return str.String()
 }
 
@@ -1076,19 +1076,19 @@ func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) strin
 func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
 	var str strings.Builder
 	if opts.Verbose {
-		str.WriteString(headLineStyle().Render(fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
-		str.WriteString("\n")
+		_, _ = str.WriteString(headLineStyle().Render(fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+		_, _ = str.WriteString("\n")
 	}
 
-	str.WriteString(headLineStyle().Render(err.Message))
+	_, _ = str.WriteString(headLineStyle().Render(err.Message))
 	if err.Helper != "" {
-		str.WriteString("\n")
-		str.WriteString(tailLineStyle().Render(err.Helper))
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(tailLineStyle().Render(err.Helper))
 	}
 	// By default we do not show the Detail with the helper.
 	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
-		str.WriteString("\n")
-		str.WriteString(tailLineStyle().Render(err.Detail))
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(tailLineStyle().Render(err.Detail))
 	}
 	return str.String()
 }
