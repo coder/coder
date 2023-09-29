@@ -1,6 +1,8 @@
 package clibase
 
 import (
+	"bytes"
+	"encoding/json"
 	"os"
 	"strings"
 
@@ -65,6 +67,20 @@ type Option struct {
 	ValueSource ValueSource `json:"value_source,omitempty"`
 }
 
+// optionNoMethods is just a wrapper around Option so we can defer to the
+// default json.Unmarshaler behavior.
+type optionNoMethods Option
+
+func (o *Option) UnmarshalJSON(data []byte) error {
+	// If an option has no values, we have no idea how to unmarshal it.
+	// So just discard the json data.
+	if o.Value == nil {
+		o.Value = &DiscardValue
+	}
+
+	return json.Unmarshal(data, (*optionNoMethods)(o))
+}
+
 func (o Option) YAMLPath() string {
 	if o.YAML == "" {
 		return ""
@@ -79,15 +95,101 @@ func (o Option) YAMLPath() string {
 // OptionSet is a group of options that can be applied to a command.
 type OptionSet []Option
 
+// UnmarshalJSON implements json.Unmarshaler for OptionSets. Options have an
+// interface Value type that cannot handle unmarshalling because the types cannot
+// be inferred. Since it is a slice, instantiating the Options first does not
+// help.
+//
+// However, we typically do instantiate the slice to have the correct types.
+// So this unmarshaller will attempt to find the named option in the existing
+// set, if it cannot, the value is discarded. If the option exists, the value
+// is unmarshalled into the existing option, and replaces the existing option.
+//
+// The value is discarded if it's type cannot be inferred. This behavior just
+// feels "safer", although it should never happen if the correct option set
+// is passed in. The situation where this could occur is if a client and server
+// are on different versions with different options.
+func (optSet *OptionSet) UnmarshalJSON(data []byte) error {
+	dec := json.NewDecoder(bytes.NewBuffer(data))
+	// Should be a json array, so consume the starting open bracket.
+	t, err := dec.Token()
+	if err != nil {
+		return xerrors.Errorf("read array open bracket: %w", err)
+	}
+	if t != json.Delim('[') {
+		return xerrors.Errorf("expected array open bracket, got %q", t)
+	}
+
+	// As long as json elements exist, consume them. The counter is used for
+	// better errors.
+	var i int
+OptionSetDecodeLoop:
+	for dec.More() {
+		var opt Option
+		// jValue is a placeholder value that allows us to capture the
+		// raw json for the value to attempt to unmarshal later.
+		var jValue jsonValue
+		opt.Value = &jValue
+		err := dec.Decode(&opt)
+		if err != nil {
+			return xerrors.Errorf("decode %d option: %w", i, err)
+		}
+		// This counter is used to contextualize errors to show which element of
+		// the array we failed to decode. It is only used in the error above, as
+		// if the above works, we can instead use the Option.Name which is more
+		// descriptive and useful. So increment here for the next decode.
+		i++
+
+		// Try to see if the option already exists in the option set.
+		// If it does, just update the existing option.
+		for optIndex, have := range *optSet {
+			if have.Name == opt.Name {
+				if jValue != nil {
+					err := json.Unmarshal(jValue, &(*optSet)[optIndex].Value)
+					if err != nil {
+						return xerrors.Errorf("decode option %q value: %w", have.Name, err)
+					}
+					// Set the opt's value
+					opt.Value = (*optSet)[optIndex].Value
+				} else {
+					// Hopefully the user passed empty values in the option set. There is no easy way
+					// to tell, and if we do not do this, it breaks json.Marshal if we do it again on
+					// this new option set.
+					opt.Value = (*optSet)[optIndex].Value
+				}
+				// Override the existing.
+				(*optSet)[optIndex] = opt
+				// Go to the next option to decode.
+				continue OptionSetDecodeLoop
+			}
+		}
+
+		// If the option doesn't exist, the value will be discarded.
+		// We do this because we cannot infer the type of the value.
+		opt.Value = DiscardValue
+		*optSet = append(*optSet, opt)
+	}
+
+	t, err = dec.Token()
+	if err != nil {
+		return xerrors.Errorf("read array close bracket: %w", err)
+	}
+	if t != json.Delim(']') {
+		return xerrors.Errorf("expected array close bracket, got %q", t)
+	}
+
+	return nil
+}
+
 // Add adds the given Options to the OptionSet.
-func (s *OptionSet) Add(opts ...Option) {
-	*s = append(*s, opts...)
+func (optSet *OptionSet) Add(opts ...Option) {
+	*optSet = append(*optSet, opts...)
 }
 
 // Filter will only return options that match the given filter. (return true)
-func (s OptionSet) Filter(filter func(opt Option) bool) OptionSet {
+func (optSet OptionSet) Filter(filter func(opt Option) bool) OptionSet {
 	cpy := make(OptionSet, 0)
-	for _, opt := range s {
+	for _, opt := range optSet {
 		if filter(opt) {
 			cpy = append(cpy, opt)
 		}
@@ -96,13 +198,13 @@ func (s OptionSet) Filter(filter func(opt Option) bool) OptionSet {
 }
 
 // FlagSet returns a pflag.FlagSet for the OptionSet.
-func (s *OptionSet) FlagSet() *pflag.FlagSet {
-	if s == nil {
+func (optSet *OptionSet) FlagSet() *pflag.FlagSet {
+	if optSet == nil {
 		return &pflag.FlagSet{}
 	}
 
 	fs := pflag.NewFlagSet("", pflag.ContinueOnError)
-	for _, opt := range *s {
+	for _, opt := range *optSet {
 		if opt.Flag == "" {
 			continue
 		}
@@ -139,8 +241,8 @@ func (s *OptionSet) FlagSet() *pflag.FlagSet {
 
 // ParseEnv parses the given environment variables into the OptionSet.
 // Use EnvsWithPrefix to filter out prefixes.
-func (s *OptionSet) ParseEnv(vs []EnvVar) error {
-	if s == nil {
+func (optSet *OptionSet) ParseEnv(vs []EnvVar) error {
+	if optSet == nil {
 		return nil
 	}
 
@@ -154,7 +256,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 		envs[v.Name] = v.Value
 	}
 
-	for i, opt := range *s {
+	for i, opt := range *optSet {
 		if opt.Env == "" {
 			continue
 		}
@@ -172,7 +274,7 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 			continue
 		}
 
-		(*s)[i].ValueSource = ValueSourceEnv
+		(*optSet)[i].ValueSource = ValueSourceEnv
 		if err := opt.Value.Set(envVal); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),
@@ -185,14 +287,14 @@ func (s *OptionSet) ParseEnv(vs []EnvVar) error {
 
 // SetDefaults sets the default values for each Option, skipping values
 // that already have a value source.
-func (s *OptionSet) SetDefaults() error {
-	if s == nil {
+func (optSet *OptionSet) SetDefaults() error {
+	if optSet == nil {
 		return nil
 	}
 
 	var merr *multierror.Error
 
-	for i, opt := range *s {
+	for i, opt := range *optSet {
 		// Skip values that may have already been set by the user.
 		if opt.ValueSource != ValueSourceNone {
 			continue
@@ -212,7 +314,7 @@ func (s *OptionSet) SetDefaults() error {
 			)
 			continue
 		}
-		(*s)[i].ValueSource = ValueSourceDefault
+		(*optSet)[i].ValueSource = ValueSourceDefault
 		if err := opt.Value.Set(opt.Default); err != nil {
 			merr = multierror.Append(
 				merr, xerrors.Errorf("parse %q: %w", opt.Name, err),
@@ -224,9 +326,9 @@ func (s *OptionSet) SetDefaults() error {
 
 // ByName returns the Option with the given name, or nil if no such option
 // exists.
-func (s *OptionSet) ByName(name string) *Option {
-	for i := range *s {
-		opt := &(*s)[i]
+func (optSet *OptionSet) ByName(name string) *Option {
+	for i := range *optSet {
+		opt := &(*optSet)[i]
 		if opt.Name == name {
 			return opt
 		}

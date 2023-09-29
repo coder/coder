@@ -617,6 +617,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   vals.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            vals,
+				// Do not pass secret values to DeploymentOptions. All values should be read from
+				// the DeploymentValues instead, this just serves to indicate the source of each
+				// option. This is just defensive to prevent accidentally leaking.
+				DeploymentOptions:           codersdk.DeploymentOptionsWithoutSecrets(opts),
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                int(vals.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
