@@ -333,7 +333,7 @@ export const createTemplateVersion = async (
 
 export const getTemplateVersionGitAuth = async (
   versionId: string,
-): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
     `/api/v2/templateversions/${versionId}/gitauth`,
   );

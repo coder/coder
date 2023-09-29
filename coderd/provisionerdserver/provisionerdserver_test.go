@@ -176,9 +176,9 @@ func TestAcquireJob(t *testing.T) {
 				JobID: uuid.New(),
 			})
 			err := db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-				JobID:            version.JobID,
-				GitAuthProviders: []string{gitAuthProvider},
-				UpdatedAt:        dbtime.Now(),
+				JobID:                 version.JobID,
+				ExternalAuthProviders: []string{gitAuthProvider},
+				UpdatedAt:             dbtime.Now(),
 			})
 			require.NoError(t, err)
 			// Import version job
