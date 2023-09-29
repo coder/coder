@@ -22,7 +22,7 @@ const SidebarNavItem: FC<
   const activeStyles = css`
     background-color: ${theme.palette.action.hover};
 
-    &:before {
+    &::before {
       content: "";
       display: block;
       width: 3px;
@@ -33,7 +33,7 @@ const SidebarNavItem: FC<
       background-color: ${theme.palette.secondary.dark};
       border-top-left-radius: ${theme.shape.borderRadius};
       border-bottom-left-radius: ${theme.shape.borderRadius};
-    },
+    }
   `;
 
   return (
@@ -44,16 +44,16 @@ const SidebarNavItem: FC<
 
         color: inherit;
         display: block;
-        fontsize: 14;
-        textdecoration: none;
+        font-size: 14px;
+        text-decoration: none;
         padding: ${theme.spacing(1.5, 1.5, 1.5, 2)};
-        borderradius: ${theme.shape.borderRadius / 2};
+        border-radius: ${theme.shape.borderRadius / 2};
         transition: background-color 0.15s ease-in-out;
-        marginbottom: 1;
+        margin-bottom: 1;
         position: relative;
 
         &:hover {
-          backgroundcolor: ${theme.palette.action.hover};
+          background-color: ${theme.palette.action.hover};
         }
       `}
     >

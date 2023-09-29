@@ -44,7 +44,7 @@ export const OptionValue: FC<{ children?: unknown }> = ({ children }) => {
 
     & ul {
       padding: ${theme.spacing(2)};
-    },
+    }
   `;
 
   if (typeof children === "boolean") {

@@ -50,10 +50,10 @@ export const TokensPage: FC<PropsWithChildren<unknown>> = () => {
         css={(theme) => css`
           & code {
             background: ${theme.palette.divider};
-            fontsize: 12px;
+            font-size: 12px;
             padding: 2px 4px;
             color: ${theme.palette.text.primary};
-            borderradius: 2px;
+            border-radius: 2px;
           }
         `}
         description={
