@@ -135,6 +135,7 @@ will use in concert with the Helm chart for deploying the Coder server.
      tags:
        location: auh
        kind: k8s
+       scope: organization
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10
