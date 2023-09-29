@@ -11,6 +11,8 @@ import (
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 )
 
 // Action is just a function that does something.
@@ -150,7 +152,7 @@ func clickAndWait(ctx context.Context, clickOn, waitFor Selector) error {
 // initChromeDPCtx initializes a chromedp context with the given session token cookie
 //
 //nolint:revive // yes, headless is a control flag
-func initChromeDPCtx(ctx context.Context, u *url.URL, sessionToken string, headless bool) (context.Context, context.CancelFunc, error) {
+func initChromeDPCtx(ctx context.Context, log slog.Logger, u *url.URL, sessionToken string, headless bool) (context.Context, context.CancelFunc, error) {
 	dir, err := os.MkdirTemp("", "scaletest-dashboard-*")
 	if err != nil {
 		return nil, nil, err
@@ -170,7 +172,9 @@ func initChromeDPCtx(ctx context.Context, u *url.URL, sessionToken string, headl
 	cancelFunc := func() {
 		cdpCancel()
 		allocCtxCancel()
-		_ = os.RemoveAll(dir)
+		if err := os.RemoveAll(dir); err != nil {
+			log.Error(ctx, "failed to remove temp user data dir", slog.F("dir", dir), slog.Error(err))
+		}
 	}
 
 	// set cookies

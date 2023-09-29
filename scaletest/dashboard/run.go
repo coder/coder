@@ -47,7 +47,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 		return xerrors.Errorf("user has no organizations")
 	}
 
-	cdpCtx, cdpCancel, err := initChromeDPCtx(ctx, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
+	cdpCtx, cdpCancel, err := initChromeDPCtx(ctx, r.cfg.Logger, r.client.URL, r.client.SessionToken(), r.cfg.Headless)
 	if err != nil {
 		return xerrors.Errorf("init chromedp ctx: %w", err)
 	}
