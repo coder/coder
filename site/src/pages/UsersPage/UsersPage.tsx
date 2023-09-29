@@ -21,7 +21,12 @@ import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
 import { prepareQuery } from "utils/filters";
 import { usePagination } from "hooks";
-import { users, suspendUser, activateUser } from "api/queries/users";
+import {
+  users,
+  suspendUser,
+  activateUser,
+  deleteUser,
+} from "api/queries/users";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 
@@ -55,8 +60,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       offset: pagination.offset,
     }),
   );
-  const { usernameToDelete, userIdToResetPassword, newUserPassword } =
-    usersState.context;
+  const { userIdToResetPassword, newUserPassword } = usersState.context;
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
   const { data: deploymentValues } = useQuery({
@@ -91,10 +95,15 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   });
   const isLoading =
     usersQuery.isLoading || rolesQuery.isLoading || authMethods.isLoading;
+  // Suspend
   const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
   const suspendUserMutation = useMutation(suspendUser(queryClient));
+  // Activate
   const [confirmActivateUser, setConfirmActivateUser] = useState<User>();
   const activateUserMutation = useMutation(activateUser(queryClient));
+  // Delete
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState<User>();
+  const deleteUserMutation = useMutation(deleteUser(queryClient));
 
   return (
     <>
@@ -117,13 +126,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             "/audit?filter=" + encodeURIComponent(`username:${user.username}`),
           );
         }}
-        onDeleteUser={(user) => {
-          usersSend({
-            type: "DELETE_USER",
-            userId: user.id,
-            username: user.username,
-          });
-        }}
+        onDeleteUser={setConfirmDeleteUser}
         onSuspendUser={setConfirmSuspendUser}
         onActivateUser={setConfirmActivateUser}
         onResetUserPassword={(user) => {
@@ -156,19 +159,22 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       />
 
       <DeleteDialog
-        key={usernameToDelete}
-        isOpen={
-          usersState.matches("confirmUserDeletion") ||
-          usersState.matches("deletingUser")
-        }
-        confirmLoading={usersState.matches("deletingUser")}
-        name={usernameToDelete ?? ""}
+        key={confirmDeleteUser?.username}
+        isOpen={confirmDeleteUser !== undefined}
+        confirmLoading={deleteUserMutation.isLoading}
+        name={confirmDeleteUser?.username ?? ""}
         entity="user"
-        onConfirm={() => {
-          usersSend("CONFIRM_USER_DELETE");
+        onConfirm={async () => {
+          try {
+            await deleteUserMutation.mutateAsync(confirmDeleteUser!.id);
+            setConfirmDeleteUser(undefined);
+            displaySuccess("User deleted");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error deleting user"));
+          }
         }}
         onCancel={() => {
-          usersSend("CANCEL_USER_DELETE");
+          setConfirmDeleteUser(undefined);
         }}
       />
 

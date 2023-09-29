@@ -6,8 +6,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { generateRandomString } from "utils/random";
 
 export const Language = {
-  deleteUserSuccess: "Successfully deleted the user.",
-  deleteUserError: "Error deleting user.",
   resetUserPasswordSuccess: "Successfully updated the user password.",
   resetUserPasswordError: "Error on resetting the user password.",
   updateUserRolesSuccess: "Successfully updated the user roles.",
@@ -15,10 +13,6 @@ export const Language = {
 };
 
 export interface UsersContext {
-  // Delete user
-  userIdToDelete?: TypesGen.User["id"];
-  usernameToDelete?: TypesGen.User["username"];
-  deleteUserError?: unknown;
   // Reset user password
   userIdToResetPassword?: TypesGen.User["id"];
   resetUserPasswordError?: unknown;
@@ -29,14 +23,6 @@ export interface UsersContext {
 }
 
 export type UsersEvent =
-  // Delete events
-  | {
-      type: "DELETE_USER";
-      userId: TypesGen.User["id"];
-      username: TypesGen.User["username"];
-    }
-  | { type: "CONFIRM_USER_DELETE" }
-  | { type: "CANCEL_USER_DELETE" }
   // Reset password events
   | { type: "RESET_USER_PASSWORD"; userId: TypesGen.User["id"] }
   | { type: "CONFIRM_USER_PASSWORD_RESET" }
@@ -84,10 +70,6 @@ export const usersMachine =
         idle: {
           entry: "clearSelectedUser",
           on: {
-            DELETE_USER: {
-              target: "confirmUserDeletion",
-              actions: "assignUserToDelete",
-            },
             RESET_USER_PASSWORD: {
               target: "confirmUserPasswordReset",
               actions: [
@@ -99,35 +81,6 @@ export const usersMachine =
               target: "updatingUserRoles",
               actions: "assignUserIdToUpdateRoles",
             },
-          },
-        },
-        confirmUserDeletion: {
-          on: {
-            CONFIRM_USER_DELETE: {
-              target: "deletingUser",
-            },
-            CANCEL_USER_DELETE: {
-              target: "idle",
-            },
-          },
-        },
-        deletingUser: {
-          entry: "clearDeleteUserError",
-          invoke: {
-            src: "deleteUser",
-            id: "deleteUser",
-            onDone: [
-              {
-                target: "idle",
-                actions: "displayDeleteSuccess",
-              },
-            ],
-            onError: [
-              {
-                target: "idle",
-                actions: ["assignDeleteUserError", "displayDeleteErrorMessage"],
-              },
-            ],
           },
         },
         confirmUserPasswordReset: {
@@ -188,12 +141,6 @@ export const usersMachine =
     },
     {
       services: {
-        deleteUser: (context) => {
-          if (!context.userIdToDelete) {
-            throw new Error("userIdToDelete is undefined");
-          }
-          return API.deleteUser(context.userIdToDelete);
-        },
         resetUserPassword: (context) => {
           if (!context.userIdToResetPassword) {
             throw new Error("userIdToResetPassword is undefined");
@@ -219,49 +166,31 @@ export const usersMachine =
 
       actions: {
         clearSelectedUser: assign({
-          userIdToDelete: (_) => undefined,
-          usernameToDelete: (_) => undefined,
           userIdToResetPassword: (_) => undefined,
           userIdToUpdateRoles: (_) => undefined,
         }),
-        assignUserToDelete: assign({
-          userIdToDelete: (_, event) => event.userId,
-          usernameToDelete: (_, event) => event.username,
-        }),
+
         assignUserIdToResetPassword: assign({
           userIdToResetPassword: (_, event) => event.userId,
         }),
         assignUserIdToUpdateRoles: assign({
           userIdToUpdateRoles: (_, event) => event.userId,
         }),
-        assignDeleteUserError: assign({
-          deleteUserError: (_, event) => event.data,
-        }),
+
         assignResetUserPasswordError: assign({
           resetUserPasswordError: (_, event) => event.data,
         }),
         assignUpdateRolesError: assign({
           updateUserRolesError: (_, event) => event.data,
         }),
-        clearDeleteUserError: assign({
-          deleteUserError: (_) => undefined,
-        }),
+
         clearResetUserPasswordError: assign({
           resetUserPasswordError: (_) => undefined,
         }),
         clearUpdateUserRolesError: assign({
           updateUserRolesError: (_) => undefined,
         }),
-        displayDeleteSuccess: () => {
-          displaySuccess(Language.deleteUserSuccess);
-        },
-        displayDeleteErrorMessage: (context) => {
-          const message = getErrorMessage(
-            context.deleteUserError,
-            Language.deleteUserError,
-          );
-          displayError(message);
-        },
+
         displayResetPasswordSuccess: () => {
           displaySuccess(Language.resetUserPasswordSuccess);
         },

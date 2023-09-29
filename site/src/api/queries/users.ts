@@ -19,9 +19,12 @@ export const updatePassword = () => {
   };
 };
 
-export const createUser = () => {
+export const createUser = (queryClient: QueryClient) => {
   return {
     mutationFn: API.createUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["users"]);
+    },
   };
 };
 
@@ -43,6 +46,15 @@ export const suspendUser = (queryClient: QueryClient) => {
 export const activateUser = (queryClient: QueryClient) => {
   return {
     mutationFn: API.activateUser,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["users"]);
+    },
+  };
+};
+
+export const deleteUser = (queryClient: QueryClient) => {
+  return {
+    mutationFn: API.deleteUser,
     onSuccess: async () => {
       await queryClient.invalidateQueries(["users"]);
     },

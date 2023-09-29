@@ -252,7 +252,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.deleteUserSuccess);
+        await screen.findByText("User deleted");
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1);
@@ -274,7 +274,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.deleteUserError);
+        await screen.findByText("Error deleting user");
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1);
