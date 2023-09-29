@@ -107,7 +107,8 @@ type OptionSet []Option
 //
 // The value is discarded if it's type cannot be inferred. This behavior just
 // feels "safer", although it should never happen if the correct option set
-// is passed in.
+// is passed in. The situation where this could occur is if a client and server
+// are on different versions with different options.
 func (optSet *OptionSet) UnmarshalJSON(data []byte) error {
 	dec := json.NewDecoder(bytes.NewBuffer(data))
 	// Should be a json array, so consume the starting open bracket.
@@ -136,23 +137,23 @@ OptionSetDecodeLoop:
 
 		// Try to see if the option already exists in the option set.
 		// If it does, just update the existing option.
-		for i, have := range *optSet {
+		for optIndex, have := range *optSet {
 			if have.Name == opt.Name {
 				if jValue != nil {
-					err := json.Unmarshal(jValue, &(*optSet)[i].Value)
+					err := json.Unmarshal(jValue, &(*optSet)[optIndex].Value)
 					if err != nil {
 						return xerrors.Errorf("decode option %q value: %w", have.Name, err)
 					}
 					// Set the opt's value
-					opt.Value = (*optSet)[i].Value
+					opt.Value = (*optSet)[optIndex].Value
 				} else {
 					// Hopefully the user passed empty values in the option set. There is no easy way
 					// to tell, and if we do not do this, it breaks json.Marshal if we do it again on
 					// this new option set.
-					opt.Value = (*optSet)[i].Value
+					opt.Value = (*optSet)[optIndex].Value
 				}
 				// Override the existing.
-				(*optSet)[i] = opt
+				(*optSet)[optIndex] = opt
 				// Go to the next option to decode.
 				continue OptionSetDecodeLoop
 			}

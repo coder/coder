@@ -153,7 +153,7 @@ type Options struct {
 	MetricsCacheRefreshInterval time.Duration
 	AgentStatsRefreshInterval   time.Duration
 	DeploymentValues            *codersdk.DeploymentValues
-	// DeploymentOptions do contain the copy of DeploymentValues, but contain
+	// DeploymentOptions do contain the copy of DeploymentValues, and contain
 	// contextual information about how the values were set.
 	// Do not use DeploymentOptions to retrieve values, use DeploymentValues instead.
 	// All secrets values are stripped.
