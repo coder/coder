@@ -27,16 +27,16 @@ const styles = {
     display: flex;
     align-items: center;
   `,
-  category: (theme: Theme) => ({
+  category: (theme) => ({
     marginRight: theme.spacing(2),
     color: theme.palette.text.primary,
   }),
-  values: (theme: Theme) => ({
+  values: (theme) => ({
     display: "flex",
     gap: theme.spacing(1),
     color: theme.palette.text.secondary,
   }),
-  value: (theme: Theme) => css`
+  value: (theme) => css`
     display: flex;
     align-items: center;
     gap: ${theme.spacing(0.5)};
