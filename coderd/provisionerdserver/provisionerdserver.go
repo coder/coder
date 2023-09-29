@@ -405,7 +405,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		}
 
 		gitAuthProviders := []*sdkproto.GitAuthProvider{}
-		for _, p := range templateVersion.GitAuthProviders {
+		for _, p := range templateVersion.ExternalAuthProviders {
 			link, err := s.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				ProviderID: p,
 				UserID:     owner.ID,

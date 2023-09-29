@@ -683,7 +683,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.readme,
     template_versions.job_id,
     template_versions.created_by,
-    template_versions.external_auth_providers AS git_auth_providers,
+    template_versions.external_auth_providers,
     template_versions.message,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username

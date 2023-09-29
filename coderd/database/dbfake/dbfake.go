@@ -1438,6 +1438,37 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for _, gitAuthLink := range q.externalAuthLinks {
+		if arg.UserID != gitAuthLink.UserID {
+			continue
+		}
+		if arg.ProviderID != gitAuthLink.ProviderID {
+			continue
+		}
+		return gitAuthLink, nil
+	}
+	return database.ExternalAuthLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetExternalAuthLinksByUserID(_ context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	gals := make([]database.ExternalAuthLink, 0)
+	for _, gal := range q.externalAuthLinks {
+		if gal.UserID == userID {
+			gals = append(gals, gal)
+		}
+	}
+	return gals, nil
+}
+
 func (q *FakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
@@ -1505,37 +1536,6 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	}
 
 	return rows, nil
-}
-
-func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.ExternalAuthLink{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	for _, gitAuthLink := range q.externalAuthLinks {
-		if arg.UserID != gitAuthLink.UserID {
-			continue
-		}
-		if arg.ProviderID != gitAuthLink.ProviderID {
-			continue
-		}
-		return gitAuthLink, nil
-	}
-	return database.ExternalAuthLink{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetExternalAuthLinksByUserID(_ context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	gals := make([]database.ExternalAuthLink, 0)
-	for _, gal := range q.externalAuthLinks {
-		if gal.UserID == userID {
-			gals = append(gals, gal)
-		}
-	}
-	return gals, nil
 }
 
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -4205,27 +4205,6 @@ func (q *FakeQuerier) InsertDeploymentID(_ context.Context, id string) error {
 	return nil
 }
 
-func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.File{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	//nolint:gosimple
-	file := database.File{
-		ID:        arg.ID,
-		Hash:      arg.Hash,
-		CreatedAt: arg.CreatedAt,
-		CreatedBy: arg.CreatedBy,
-		Mimetype:  arg.Mimetype,
-		Data:      arg.Data,
-	}
-	q.files = append(q.files, file)
-	return file, nil
-}
-
 func (q *FakeQuerier) InsertExternalAuthLink(_ context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -4247,6 +4226,27 @@ func (q *FakeQuerier) InsertExternalAuthLink(_ context.Context, arg database.Ins
 	}
 	q.externalAuthLinks = append(q.externalAuthLinks, gitAuthLink)
 	return gitAuthLink, nil
+}
+
+func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.File{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	//nolint:gosimple
+	file := database.File{
+		ID:        arg.ID,
+		Hash:      arg.Hash,
+		CreatedAt: arg.CreatedAt,
+		CreatedBy: arg.CreatedBy,
+		Mimetype:  arg.Mimetype,
+		Data:      arg.Data,
+	}
+	q.files = append(q.files, file)
+	return file, nil
 }
 
 func (q *FakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {

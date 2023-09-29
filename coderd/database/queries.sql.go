@@ -5303,7 +5303,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5337,7 +5337,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5347,7 +5347,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5367,7 +5367,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5377,7 +5377,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5397,7 +5397,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5407,7 +5407,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5433,7 +5433,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5443,7 +5443,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5469,7 +5469,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
@@ -5489,7 +5489,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5553,7 +5553,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
@@ -5572,7 +5572,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -5594,7 +5594,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,

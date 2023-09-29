@@ -288,7 +288,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	rawProviders := templateVersion.GitAuthProviders
+	rawProviders := templateVersion.ExternalAuthProviders
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
 		var config *gitauth.Config
