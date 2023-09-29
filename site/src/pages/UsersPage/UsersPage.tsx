@@ -14,7 +14,6 @@ import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getAuthMethods } from "api/api";
 import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
 import { prepareQuery } from "utils/filters";
@@ -26,6 +25,7 @@ import {
   deleteUser,
   updatePassword,
   updateRoles,
+  authMethods,
 } from "api/queries/users";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
@@ -74,14 +74,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         status: option?.value,
       }),
   });
-  const authMethods = useQuery({
-    queryKey: ["authMethods"],
-    queryFn: () => {
-      return getAuthMethods();
-    },
-  });
+  const authMethodsQuery = useQuery(authMethods());
   const isLoading =
-    usersQuery.isLoading || rolesQuery.isLoading || authMethods.isLoading;
+    usersQuery.isLoading || rolesQuery.isLoading || authMethodsQuery.isLoading;
   // Suspend
   const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
   const suspendUserMutation = useMutation(suspendUser(queryClient));
@@ -109,7 +104,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         oidcRoleSyncEnabled={oidcRoleSyncEnabled}
         roles={rolesQuery.data}
         users={usersQuery.data?.users}
-        authMethods={authMethods.data}
+        authMethods={authMethodsQuery.data}
         onListWorkspaces={(user) => {
           navigate(
             "/workspaces?filter=" +
