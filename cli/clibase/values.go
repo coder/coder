@@ -430,7 +430,7 @@ func (discardValue) Type() string {
 	return "discard"
 }
 
-func (discardValue) UnmarshalJSON(data []byte) error {
+func (discardValue) UnmarshalJSON([]byte) error {
 	return nil
 }
 
