@@ -345,14 +345,14 @@ func compareValues(t *testing.T, exp, found clibase.Option) {
 		// empty string '""' for nil slices/maps/etc.
 		// So use json to compare.
 
-		expJson, err := json.Marshal(exp.Value)
+		expJSON, err := json.Marshal(exp.Value)
 		require.NoError(t, err, "marshal")
-		foundJson, err := json.Marshal(found.Value)
+		foundJSON, err := json.Marshal(found.Value)
 		require.NoError(t, err, "marshal")
 
-		expJson = normalizeJSON(expJson)
-		foundJson = normalizeJSON(foundJson)
-		assert.Equalf(t, string(expJson), string(foundJson), "option value %q", exp.Name)
+		expJSON = normalizeJSON(expJSON)
+		foundJSON = normalizeJSON(foundJSON)
+		assert.Equalf(t, string(expJSON), string(foundJSON), "option value %q", exp.Name)
 	} else {
 		assert.Equal(t,
 			exp.Value.String(),
@@ -364,7 +364,7 @@ func compareValues(t *testing.T, exp, found clibase.Option) {
 // normalizeJSON handles the fact that an empty map/slice is not the same
 // as a nil empty/slice. For our purposes, they are the same.
 func normalizeJSON(data []byte) []byte {
-	if bytes.Compare(data, []byte("[]")) == 0 || bytes.Compare(data, []byte("{}")) == 0 {
+	if bytes.Equal(data, []byte("[]")) || bytes.Equal(data, []byte("{}")) {
 		return []byte("null")
 	}
 	return data
