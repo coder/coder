@@ -40,7 +40,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
     <>
       <MenuItem
         css={(theme) => css`
-          height: ${navHeight};
+          height: ${navHeight}px;
           padding: ${theme.spacing(1.5, 0)};
 
           &:hover {
