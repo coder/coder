@@ -150,7 +150,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   canCreateTemplates,
 }) => {
   const isLoading = !templates;
-  const isEmpty = Boolean(templates && templates.length === 0);
+  const isEmpty = templates && templates.length === 0;
 
   return (
     <Margins>
@@ -186,7 +186,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
         )}
       </PageHeader>
 
-      {Boolean(error) ? (
+      {error ? (
         <ErrorAlert error={error} />
       ) : (
         <TableContainer>

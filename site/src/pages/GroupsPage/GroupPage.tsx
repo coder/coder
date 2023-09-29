@@ -156,7 +156,7 @@ export const GroupPage: FC = () => {
               </TableHead>
 
               <TableBody>
-                {Boolean(groupData?.members.length === 0) ? (
+                {groupData?.members.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={999}>
                       <EmptyState
