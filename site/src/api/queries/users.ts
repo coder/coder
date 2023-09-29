@@ -60,3 +60,13 @@ export const deleteUser = (queryClient: QueryClient) => {
     },
   };
 };
+
+export const updateRoles = (queryClient: QueryClient) => {
+  return {
+    mutationFn: ({ userId, roles }: { userId: string; roles: string[] }) =>
+      API.updateUserRoles(roles, userId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["users"]);
+    },
+  };
+};

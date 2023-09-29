@@ -188,7 +188,7 @@ const useStyles = makeStyles((theme) => ({
     padding: 0,
 
     "&:disabled": {
-      opacity: 0,
+      opacity: 0.5,
     },
   },
   options: {

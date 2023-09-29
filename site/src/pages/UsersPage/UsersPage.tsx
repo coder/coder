@@ -1,4 +1,3 @@
-import { useMachine } from "@xstate/react";
 import { User } from "api/typesGenerated";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { nonInitialPage } from "components/PaginationWidget/utils";
@@ -7,7 +6,6 @@ import { usePermissions } from "hooks/usePermissions";
 import { FC, ReactNode, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { usersMachine } from "xServices/users/usersXService";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { pageTitle } from "utils/page";
@@ -27,6 +25,7 @@ import {
   activateUser,
   deleteUser,
   updatePassword,
+  updateRoles,
 } from "api/queries/users";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
@@ -48,7 +47,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const { entitlements } = useDashboard();
   const [searchParams] = searchParamsResult;
   const filter = searchParams.get("filter") ?? "";
-  const [usersState, usersSend] = useMachine(usersMachine);
   const pagination = usePagination({
     searchParamsResult,
   });
@@ -108,6 +106,8 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     newPassword: string;
   }>();
   const updatePasswordMutation = useMutation(updatePassword());
+  // Update roles
+  const updateRolesMutation = useMutation(updateRoles(queryClient));
 
   return (
     <>
@@ -139,14 +139,18 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
             newPassword: generateRandomString(12),
           });
         }}
-        onUpdateUserRoles={(user, roles) => {
-          usersSend({
-            type: "UPDATE_USER_ROLES",
-            userId: user.id,
-            roles,
-          });
+        onUpdateUserRoles={async (user, roles) => {
+          try {
+            await updateRolesMutation.mutateAsync({
+              userId: user.id,
+              roles,
+            });
+            displaySuccess("User roles updated");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error updating user roles"));
+          }
         }}
-        isUpdatingUserRoles={usersState.matches("updatingUserRoles")}
+        isUpdatingUserRoles={updateRolesMutation.isLoading}
         isLoading={isLoading}
         canEditUsers={canEditUsers}
         canViewActivity={entitlements.features.audit_log.enabled}

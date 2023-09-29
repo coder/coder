@@ -8,7 +8,6 @@ import {
   MockAuditorRole,
   MockOwnerRole,
 } from "testHelpers/entities";
-import { Language as usersXServiceLanguage } from "xServices/users/usersXService";
 import * as API from "api/api";
 import { Role } from "api/typesGenerated";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
@@ -406,10 +405,7 @@ describe("UsersPage", () => {
         }, MockAuditorRole);
 
         // Check if the error message is displayed
-        const errorMessage = await screen.findByText(
-          usersXServiceLanguage.updateUserRolesError,
-        );
-        await waitFor(() => expect(errorMessage).toBeDefined());
+        await waitFor(() => expect("Error updating user roles").toBeDefined());
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name);
