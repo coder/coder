@@ -37,7 +37,7 @@ func remoteForwardUnixSocket(flag string) bool {
 }
 
 func validateRemoteForward(flag string) bool {
-	return remoteForwardTCP(flag) || remoteForwardUnixSocket(flag)
+	return remoteForwardUnixSocket(flag) || remoteForwardTCP(flag)
 }
 
 func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
