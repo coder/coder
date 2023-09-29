@@ -60,7 +60,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			return nil
 		case <-t.C:
 			t.Reset(r.randWait())
-			l, act, err := r.cfg.ActionFunc(cdpCtx)
+			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.RandIntn)
 			if err != nil {
 				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
 				continue

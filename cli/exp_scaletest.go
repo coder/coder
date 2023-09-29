@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
@@ -1049,6 +1050,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		minWait  time.Duration
 		maxWait  time.Duration
 		headless bool
+		randSeed int64
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1106,6 +1108,8 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 
 			for _, usr := range users {
+				//nolint:gosec // not used for cryptographic purposes
+				rndGen := rand.New(rand.NewSource(randSeed))
 				name := fmt.Sprintf("dashboard-%s", usr.Username)
 				userTokResp, err := client.CreateToken(ctx, usr.ID.String(), codersdk.CreateTokenRequest{
 					Lifetime:  30 * 24 * time.Hour,
@@ -1126,6 +1130,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 					Logger:     logger.Named(name),
 					Headless:   headless,
 					ActionFunc: dashboard.ClickRandomElement,
+					RandIntn:   rndGen.Intn,
 				}
 				//nolint:gocritic
 				logger.Info(ctx, "runner config", slog.F("min_wait", minWait), slog.F("max_wait", maxWait), slog.F("headless", headless), slog.F("trace", tracingEnabled))
@@ -1188,6 +1193,13 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			Default:     "true",
 			Description: "Controls headless mode. Setting to false is useful for debugging.",
 			Value:       clibase.BoolOf(&headless),
+		},
+		{
+			Flag:        "rand-seed",
+			Env:         "CODER_SCALETEST_DASHBOARD_RAND_SEED",
+			Default:     "0",
+			Description: "Seed for the random number generator.",
+			Value:       clibase.Int64Of(&randSeed),
 		},
 	}
 

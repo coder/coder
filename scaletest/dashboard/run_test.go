@@ -36,6 +36,9 @@ func Test_Run(t *testing.T) {
 		return assert.AnError
 	}
 
+	//nolint: gosec // just for testing
+	rg := rand.New(rand.NewSource(0)) // deterministic for testing
+
 	client := coderdtest.New(t, nil)
 	_ = coderdtest.CreateFirstUser(t, client)
 
@@ -48,12 +51,13 @@ func Test_Run(t *testing.T) {
 		MaxWait:  500 * time.Millisecond,
 		Logger:   log,
 		Headless: true,
-		ActionFunc: func(ctx context.Context) (dashboard.Label, dashboard.Action, error) {
-			if rand.Intn(2) == 0 { //nolint:gosec // just for testing
+		ActionFunc: func(_ context.Context, rnd func(int) int) (dashboard.Label, dashboard.Action, error) {
+			if rnd(2) == 0 {
 				return "fails", failAction, nil
 			}
 			return "succeeds", successAction, nil
 		},
+		RandIntn: rg.Intn,
 	}
 	r := dashboard.NewRunner(client, m, cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)

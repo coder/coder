@@ -156,6 +156,7 @@ func TestScaleTestDashboard(t *testing.T) {
 			"--timeout", "5s",
 			"--scaletest-prometheus-address", "127.0.0.1:0",
 			"--scaletest-prometheus-wait", "0s",
+			"--rand-seed", "1234567890",
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)

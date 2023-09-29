@@ -2,7 +2,6 @@ package dashboard
 
 import (
 	"context"
-	"math/rand"
 	"net/url"
 	"os"
 	"time"
@@ -91,43 +90,45 @@ var defaultTargets = []Target{
 // If no elements are found, an error is returned.
 // If more than one element is found, one is chosen at random.
 // The label of the clicked element is returned.
-func ClickRandomElement(ctx context.Context) (Label, Action, error) {
+func ClickRandomElement(ctx context.Context, randIntn func(int) int) (Label, Action, error) {
 	var xpath Selector
 	var found bool
 	var err error
-	matches := make(map[Label]Selector)
-	waitFor := make(map[Label]Selector)
+	matches := make([]Target, 0)
 	for _, tgt := range defaultTargets {
-		xpath, found, err = randMatch(ctx, tgt.ClickOn)
+		xpath, found, err = randMatch(ctx, tgt.ClickOn, randIntn)
 		if err != nil {
 			return "", nil, xerrors.Errorf("find matches for %q: %w", tgt.ClickOn, err)
 		}
 		if !found {
 			continue
 		}
-		matches[tgt.Label] = xpath
-		waitFor[tgt.Label] = tgt.WaitFor
+		matches = append(matches, Target{
+			Label:   tgt.Label,
+			ClickOn: xpath,
+			WaitFor: tgt.WaitFor,
+		})
 	}
 
+	if len(matches) == 0 {
+		return "", nil, xerrors.Errorf("no matches found")
+	}
+	match := pick(matches, randIntn)
 	// rely on map iteration order being random
-	for lbl, tgt := range matches {
-		act := func(actx context.Context) error {
-			if err := clickAndWait(actx, tgt, waitFor[lbl]); err != nil {
-				return xerrors.Errorf("click %q: %w", tgt, err)
-			}
-			return nil
+	act := func(actx context.Context) error {
+		if err := clickAndWait(actx, match.ClickOn, match.WaitFor); err != nil {
+			return xerrors.Errorf("click %q: %w", match.ClickOn, err)
 		}
-		return lbl, act, nil
+		return nil
 	}
-
-	return "", nil, xerrors.Errorf("no matches found")
+	return match.Label, act, nil
 }
 
 // randMatch returns a random match for the given selector.
 // The returned selector is the full XPath of the matched node.
 // If no matches are found, an error is returned.
 // If multiple matches are found, one is chosen at random.
-func randMatch(ctx context.Context, s Selector) (Selector, bool, error) {
+func randMatch(ctx context.Context, s Selector, randIntn func(int) int) (Selector, bool, error) {
 	var nodes []*cdp.Node
 	err := chromedp.Run(ctx, chromedp.Nodes(s, &nodes, chromedp.NodeVisible, chromedp.AtLeast(0)))
 	if err != nil {
@@ -136,7 +137,7 @@ func randMatch(ctx context.Context, s Selector) (Selector, bool, error) {
 	if len(nodes) == 0 {
 		return "", false, nil
 	}
-	n := pick(nodes)
+	n := pick(nodes, randIntn)
 	return Selector(n.FullXPath()), true, nil
 }
 
@@ -210,11 +211,11 @@ func visitMainPage(ctx context.Context, u *url.URL) error {
 
 // pick chooses a random element from a slice.
 // If the slice is empty, it returns the zero value of the type.
-func pick[T any](s []T) T {
+func pick[T any](s []T, randIntn func(int) int) T {
 	if len(s) == 0 {
 		var zero T
 		return zero
 	}
 	// nolint:gosec
-	return s[rand.Intn(len(s))]
+	return s[randIntn(len(s))]
 }
