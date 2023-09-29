@@ -211,6 +211,36 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 func TestOptionSet_JsonMarshal(t *testing.T) {
 	t.Parallel()
 
+	// This unit test ensures if the source optionset is missing the option
+	// and cannot determine the type, it will not panic. The unmarshal will
+	// succeed with a best effort.
+	t.Run("MissingSrcOption", func(t *testing.T) {
+		t.Parallel()
+
+		var str clibase.String = "something"
+		var arr clibase.StringArray = []string{"foo", "bar"}
+		opts := clibase.OptionSet{
+			clibase.Option{
+				Name:  "StringOpt",
+				Value: &str,
+			},
+			clibase.Option{
+				Name:  "ArrayOpt",
+				Value: &arr,
+			},
+		}
+		data, err := json.Marshal(opts)
+		require.NoError(t, err, "marshal option set")
+
+		tgt := clibase.OptionSet{}
+		err = json.Unmarshal(data, &tgt)
+		require.NoError(t, err, "unmarshal option set")
+		for i := range opts {
+			compareOptionsExceptValues(t, opts[i], tgt[i])
+			require.Empty(t, tgt[i].Value.String(), "unknown value types are empty")
+		}
+	})
+
 	t.Run("RegexCase", func(t *testing.T) {
 		t.Parallel()
 
@@ -265,7 +295,8 @@ func TestOptionSet_JsonMarshal(t *testing.T) {
 			exp := opts[i]
 			found := newOpts[i]
 
-			compareOptions(t, exp, found)
+			compareOptionsExceptValues(t, exp, found)
+			compareValues(t, exp, found)
 		}
 
 		thirdOpts := (&codersdk.DeploymentValues{}).Options()
@@ -279,12 +310,13 @@ func TestOptionSet_JsonMarshal(t *testing.T) {
 			exp := opts[i]
 			found := thirdOpts[i]
 
-			compareOptions(t, exp, found)
+			compareOptionsExceptValues(t, exp, found)
+			compareValues(t, exp, found)
 		}
 	})
 }
 
-func compareOptions(t *testing.T, exp, found clibase.Option) {
+func compareOptionsExceptValues(t *testing.T, exp, found clibase.Option) {
 	t.Helper()
 
 	require.Equalf(t, exp.Name, found.Name, "option name %q", exp.Name)
@@ -301,8 +333,6 @@ func compareOptions(t *testing.T, exp, found clibase.Option) {
 	require.Equalf(t, exp.Group, found.Group, "option group %q", exp.Name)
 	// UseInstead is the same comparison problem, just check the length
 	require.Equalf(t, len(exp.UseInstead), len(found.UseInstead), "option use instead %q", exp.Name)
-
-	compareValues(t, exp, found)
 }
 
 func compareValues(t *testing.T, exp, found clibase.Option) {
