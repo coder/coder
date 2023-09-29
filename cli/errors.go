@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -11,7 +10,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
-func (r *RootCmd) errorExample() *clibase.Cmd {
+func (RootCmd) errorExample() *clibase.Cmd {
 	errorCmd := func(use string, err error) *clibase.Cmd {
 		return &clibase.Cmd{
 			Use: use,
@@ -70,18 +69,6 @@ func (r *RootCmd) errorExample() *clibase.Cmd {
 	}
 
 	return cmd
-}
-
-type errorClose struct {
-	io.ReadCloser
-}
-
-func (e errorClose) Close() error {
-	err := e.ReadCloser.Close()
-	if err == nil {
-		return xerrors.Errorf("always close error")
-	}
-	return err
 }
 
 func errorWithStackTrace() error {
