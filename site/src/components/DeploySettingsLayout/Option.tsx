@@ -3,6 +3,7 @@ import { PropsWithChildren, FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { DisabledBadge, EnabledBadge } from "./Badges";
 import Box, { BoxProps } from "@mui/material/Box";
+import { combineClasses } from "utils/combineClasses";
 
 export const OptionName: FC<PropsWithChildren> = ({ children }) => {
   const styles = useStyles();
@@ -82,6 +83,9 @@ export const OptionConfig = ({
           `1px solid ${
             source ? theme.palette.primary.main : theme.palette.divider
           }`,
+        "& .option-config-flag": {
+          backgroundColor: source ? "rgba(0, 0, 0, 0.7)" : undefined,
+        },
         ...boxProps.sx,
       }}
     />
@@ -92,6 +96,7 @@ export const OptionConfigFlag = (props: BoxProps) => {
   return (
     <Box
       {...props}
+      className={combineClasses([props.className, "option-config-flag"])}
       sx={{
         fontSize: 10,
         fontWeight: 600,
