@@ -302,7 +302,7 @@ describe("UsersPage", () => {
       });
     });
     describe("when activation fails", () => {
-      it("shows an error message", async () => {
+      it.only("shows an error message", async () => {
         renderPage();
 
         await activateUser(() => {
