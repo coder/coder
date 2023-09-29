@@ -8,6 +8,7 @@ set -e
 
 cleanup() {
 	coder tokens remove scaletest_runner >/dev/null 2>&1 || true
+	rm -f "${CODER_CONFIG_DIR}/session"
 }
 trap cleanup EXIT
 
