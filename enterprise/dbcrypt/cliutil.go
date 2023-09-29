@@ -177,7 +177,7 @@ BEGIN;
 DELETE FROM user_links
   WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
-DELETE FROM git_auth_links
+DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
 COMMIT;
