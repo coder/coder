@@ -186,9 +186,6 @@
     ]
   },
   "eslint.workingDirectories": ["./site"],
-  "files.exclude": {
-    "**/node_modules": true
-  },
   "search.exclude": {
     "**.pb.go": true,
     "**/*.gen.json": true,
