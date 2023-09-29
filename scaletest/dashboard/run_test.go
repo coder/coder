@@ -47,8 +47,8 @@ func Test_Run(t *testing.T) {
 	})
 	m := &testMetrics{}
 	cfg := dashboard.Config{
-		MinWait:  100 * time.Millisecond,
-		MaxWait:  500 * time.Millisecond,
+		Interval: 500 * time.Millisecond,
+		Jitter:   100 * time.Millisecond,
 		Logger:   log,
 		Headless: true,
 		ActionFunc: func(_ context.Context, rnd func(int) int) (dashboard.Label, dashboard.Action, error) {

@@ -3,7 +3,6 @@ package dashboard
 import (
 	"context"
 	"io"
-	"math/rand"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -59,7 +58,12 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 		case <-cdpCtx.Done():
 			return nil
 		case <-t.C:
-			t.Reset(r.randWait())
+			var offset time.Duration
+			if r.cfg.Jitter > 0 {
+				offset = time.Duration(r.cfg.RandIntn(int(2*r.cfg.Jitter)) - int(r.cfg.Jitter))
+			}
+			wait := r.cfg.Interval + offset
+			t.Reset(wait)
 			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.RandIntn)
 			if err != nil {
 				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
@@ -83,10 +87,4 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 
 func (*Runner) Cleanup(_ context.Context, _ string) error {
 	return nil
-}
-
-func (r *Runner) randWait() time.Duration {
-	//nolint:gosec // This is not for cryptographic purposes. Chill, gosec. Chill.
-	wait := time.Duration(rand.Intn(int(r.cfg.MaxWait) - int(r.cfg.MinWait)))
-	return r.cfg.MinWait + wait
 }

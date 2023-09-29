@@ -104,7 +104,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
-			"--min-wait", "0s",
+			"--interval", "0s",
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -112,7 +112,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		inv.Stderr = pty.Output()
 
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "--min-wait must be greater than zero")
+		require.ErrorContains(t, err, "--interval must be greater than zero")
 	})
 
 	t.Run("MaxWait", func(t *testing.T) {
@@ -127,8 +127,8 @@ func TestScaleTestDashboard(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
-			"--min-wait", "1s",
-			"--max-wait", "1s",
+			"--interval", "1s",
+			"--jitter", "1s",
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
@@ -136,7 +136,7 @@ func TestScaleTestDashboard(t *testing.T) {
 		inv.Stderr = pty.Output()
 
 		err := inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "--max-wait must be greater than --min-wait")
+		require.ErrorContains(t, err, "--jitter must be less than --interval")
 	})
 
 	t.Run("OK", func(t *testing.T) {
@@ -151,8 +151,8 @@ func TestScaleTestDashboard(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
-			"--min-wait", "100ms",
-			"--max-wait", "1s",
+			"--interval", "1s",
+			"--jitter", "500ms",
 			"--timeout", "5s",
 			"--scaletest-prometheus-address", "127.0.0.1:0",
 			"--scaletest-prometheus-wait", "0s",

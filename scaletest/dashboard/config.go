@@ -10,10 +10,10 @@ import (
 )
 
 type Config struct {
-	// MinWait is the minimum interval between fetches.
-	MinWait time.Duration `json:"min_wait"`
-	// MaxWait is the maximum interval between fetches.
-	MaxWait time.Duration `json:"max_wait"`
+	// Interval is the minimum interval between fetches.
+	Interval time.Duration `json:"interval"`
+	// Jitter is the maximum interval between fetches.
+	Jitter time.Duration `json:"jitter"`
 	// Trace is whether to trace the requests.
 	Trace bool `json:"trace"`
 	// Logger is the logger to use.
@@ -27,16 +27,20 @@ type Config struct {
 }
 
 func (c Config) Validate() error {
-	if !(c.MinWait > 0) {
-		return xerrors.Errorf("validate min_wait: must be greater than zero")
+	if !(c.Interval > 0) {
+		return xerrors.Errorf("validate interval: must be greater than zero")
 	}
 
-	if !(c.MaxWait > c.MinWait) {
-		return xerrors.Errorf("validate max_wait: must be greater than min_wait")
+	if !(c.Jitter < c.Interval) {
+		return xerrors.Errorf("validate jitter: must be less than interval")
 	}
 
 	if c.ActionFunc == nil {
 		return xerrors.Errorf("validate action func: must not be nil")
+	}
+
+	if c.RandIntn == nil {
+		return xerrors.Errorf("validate rand intn: must not be nil")
 	}
 
 	return nil

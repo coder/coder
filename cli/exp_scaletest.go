@@ -1047,8 +1047,8 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *clibase.Cmd {
 
 func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 	var (
-		minWait  time.Duration
-		maxWait  time.Duration
+		interval time.Duration
+		jitter   time.Duration
 		headless bool
 		randSeed int64
 
@@ -1067,11 +1067,11 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			if !(minWait > 0) {
-				return xerrors.Errorf("--min-wait must be greater than zero")
+			if !(interval > 0) {
+				return xerrors.Errorf("--interval must be greater than zero")
 			}
-			if !(maxWait > minWait) {
-				return xerrors.Errorf("--max-wait must be greater than --min-wait")
+			if !(jitter < interval) {
+				return xerrors.Errorf("--jitter must be less than --interval")
 			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
@@ -1124,8 +1124,8 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				userClient.SetSessionToken(userTokResp.Key)
 
 				config := dashboard.Config{
-					MinWait:    minWait,
-					MaxWait:    maxWait,
+					Interval:   interval,
+					Jitter:     jitter,
 					Trace:      tracingEnabled,
 					Logger:     logger.Named(name),
 					Headless:   headless,
@@ -1133,7 +1133,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 					RandIntn:   rndGen.Intn,
 				}
 				//nolint:gocritic
-				logger.Info(ctx, "runner config", slog.F("min_wait", minWait), slog.F("max_wait", maxWait), slog.F("headless", headless), slog.F("trace", tracingEnabled))
+				logger.Info(ctx, "runner config", slog.F("min_wait", interval), slog.F("max_wait", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
 					return err
 				}
@@ -1174,18 +1174,18 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 
 	cmd.Options = []clibase.Option{
 		{
-			Flag:        "min-wait",
-			Env:         "CODER_SCALETEST_DASHBOARD_MIN_WAIT",
-			Default:     "1s",
-			Description: "Minimum wait between fetches.",
-			Value:       clibase.DurationOf(&minWait),
+			Flag:        "interval",
+			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
+			Default:     "3s",
+			Description: "Interval between actions.",
+			Value:       clibase.DurationOf(&interval),
 		},
 		{
-			Flag:        "max-wait",
-			Env:         "CODER_SCALETEST_DASHBOARD_MAX_WAIT",
-			Default:     "10s",
-			Description: "Maximum wait between fetches.",
-			Value:       clibase.DurationOf(&maxWait),
+			Flag:        "jitter",
+			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
+			Default:     "2s",
+			Description: "Jitter between actions.",
+			Value:       clibase.DurationOf(&jitter),
 		},
 		{
 			Flag:        "headless",
