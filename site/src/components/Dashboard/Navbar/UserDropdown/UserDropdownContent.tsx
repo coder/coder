@@ -76,7 +76,7 @@ const styles = {
     text-decoration: none;
     color: ${theme.palette.text.secondary};
     display: flex;
-    alignitems: center;
+    align-items: center;
     gap: 4px;
 
     & svg {
@@ -127,25 +127,23 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
       <Divider css={styles.divider} />
 
-      <>
-        {supportLinks &&
-          supportLinks.map((link) => (
-            <a
-              href={includeBuildInfo(link.target, buildInfo)}
-              key={link.name}
-              target="_blank"
-              rel="noreferrer"
-              css={styles.link}
-            >
-              <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
-                {link.icon === "bug" && <BugIcon css={styles.menuItemIcon} />}
-                {link.icon === "chat" && <ChatIcon css={styles.menuItemIcon} />}
-                {link.icon === "docs" && <DocsIcon css={styles.menuItemIcon} />}
-                <span css={styles.menuItemText}>{link.name}</span>
-              </MenuItem>
-            </a>
-          ))}
-      </>
+      {supportLinks &&
+        supportLinks.map((link) => (
+          <a
+            href={includeBuildInfo(link.target, buildInfo)}
+            key={link.name}
+            target="_blank"
+            rel="noreferrer"
+            css={styles.link}
+          >
+            <MenuItem css={styles.menuItem} onClick={onPopoverClose}>
+              {link.icon === "bug" && <BugIcon css={styles.menuItemIcon} />}
+              {link.icon === "chat" && <ChatIcon css={styles.menuItemIcon} />}
+              {link.icon === "docs" && <DocsIcon css={styles.menuItemIcon} />}
+              <span css={styles.menuItemText}>{link.name}</span>
+            </MenuItem>
+          </a>
+        ))}
 
       {supportLinks && <Divider css={styles.divider} />}
 
