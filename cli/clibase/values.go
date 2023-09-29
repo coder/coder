@@ -434,6 +434,9 @@ func (discardValue) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// jsonValue is intentionally not exported. It is just used to store the raw JSON
+// data for a value to defer it's unmarshal. It implements the pflag.Value to be
+// usable in an Option.
 type jsonValue json.RawMessage
 
 func (jsonValue) Set(string) error {
