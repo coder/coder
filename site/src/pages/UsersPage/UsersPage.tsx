@@ -31,15 +31,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 import { generateRandomString } from "utils/random";
 
-export const Language = {
-  suspendDialogTitle: "Suspend user",
-  suspendDialogAction: "Suspend",
-  suspendDialogMessagePrefix: "Do you want to suspend the user",
-  activateDialogTitle: "Activate user",
-  activateDialogAction: "Activate",
-  activateDialogMessagePrefix: "Do you want to activate the user",
-};
-
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -145,9 +136,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
               userId: user.id,
               roles,
             });
-            displaySuccess("User roles updated");
+            displaySuccess("Successfully updated the user roles.");
           } catch (e) {
-            displayError(getErrorMessage(e, "Error updating user roles"));
+            displayError(
+              getErrorMessage(e, "Error on updating the user roles."),
+            );
           }
         }}
         isUpdatingUserRoles={updateRolesMutation.isLoading}
@@ -179,9 +172,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           try {
             await deleteUserMutation.mutateAsync(confirmDeleteUser!.id);
             setConfirmDeleteUser(undefined);
-            displaySuccess("User deleted");
+            displaySuccess("Successfully deleted the user.");
           } catch (e) {
-            displayError(getErrorMessage(e, "Error deleting user"));
+            displayError(getErrorMessage(e, "Error deleting user."));
           }
         }}
         onCancel={() => {
@@ -200,9 +193,9 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
           try {
             await suspendUserMutation.mutateAsync(confirmSuspendUser!.id);
             setConfirmSuspendUser(undefined);
-            displaySuccess("User suspended");
+            displaySuccess("Successfully suspended the user.");
           } catch (e) {
-            displayError(getErrorMessage(e, "Error suspending user"));
+            displayError(getErrorMessage(e, "Error suspending user."));
           }
         }}
         onClose={() => {
@@ -221,15 +214,15 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         hideCancel={false}
         open={confirmActivateUser !== undefined}
         confirmLoading={activateUserMutation.isLoading}
-        title={Language.activateDialogTitle}
-        confirmText={Language.activateDialogAction}
+        title="Activate user"
+        confirmText="Activate"
         onConfirm={async () => {
           try {
             await activateUserMutation.mutateAsync(confirmActivateUser!.id);
             setConfirmActivateUser(undefined);
-            displaySuccess("User activated");
+            displaySuccess("Successfully activated the user.");
           } catch (e) {
-            displayError(getErrorMessage(e, "Error activating user"));
+            displayError(getErrorMessage(e, "Error activating user."));
           }
         }}
         onClose={() => {
@@ -237,7 +230,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            {Language.activateDialogMessagePrefix}{" "}
+            Do you want to activate the user{" "}
             <strong>{confirmActivateUser?.username ?? ""}</strong>?
           </>
         }
@@ -260,9 +253,11 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
               old_password: "",
             });
             setConfirmResetPassword(undefined);
-            displaySuccess("Password reset");
+            displaySuccess("Successfully updated the user password.");
           } catch (e) {
-            displayError(getErrorMessage(e, "Error resetting password"));
+            displayError(
+              getErrorMessage(e, "Error on resetting the user password."),
+            );
           }
         }}
       />

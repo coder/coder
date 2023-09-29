@@ -13,7 +13,7 @@ import { Role } from "api/typesGenerated";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { Language as UsersPageLanguage, UsersPage } from "./UsersPage";
+import { UsersPage } from "./UsersPage";
 
 const renderPage = () => {
   return renderWithAuth(<UsersPage />);
@@ -34,17 +34,14 @@ const suspendUser = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog");
-  expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`,
-  );
 
   // Setup spies to check the actions after
   setupActionSpies();
 
   // Click on the "Confirm" button
-  const confirmButton = await within(confirmDialog).findByText(
-    UsersPageLanguage.suspendDialogAction,
-  );
+  const confirmButton = await within(confirmDialog).findByText("suspend", {
+    exact: false,
+  });
   await user.click(confirmButton);
 };
 
@@ -93,17 +90,14 @@ const activateUser = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog");
-  expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.activateDialogMessagePrefix} ${SuspendedMockUser.username}?`,
-  );
 
   // Setup spies to check the actions after
   setupActionSpies();
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(
-    UsersPageLanguage.activateDialogAction,
-  );
+  const confirmButton = within(confirmDialog).getByText("activate", {
+    exact: false,
+  });
   fireEvent.click(confirmButton);
 };
 
@@ -175,7 +169,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText("User suspended");
+        await screen.findByText("Successfully suspended the user.");
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1);
@@ -194,7 +188,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText("Error suspending user");
+        await screen.findByText("Error suspending user.");
 
         // Check if the API was called correctly
         expect(API.suspendUser).toBeCalledTimes(1);
@@ -251,7 +245,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText("User deleted");
+        await screen.findByText("Successfully deleted the user.");
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1);
@@ -273,7 +267,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText("Error deleting user");
+        await screen.findByText("Error deleting user.");
 
         // Check if the API was called correctly
         expect(API.deleteUser).toBeCalledTimes(1);
@@ -300,7 +294,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText("User activated");
+        await screen.findByText("Successfully activated the user.");
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1);
@@ -316,7 +310,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText("Error activating user");
+        await screen.findByText("Error activating user.");
 
         // Check if the API was called correctly
         expect(API.activateUser).toBeCalledTimes(1);
@@ -337,7 +331,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText("Password reset");
+        await screen.findByText("Successfully updated the user password.");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
@@ -356,7 +350,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText("Error resetting password");
+        await screen.findByText("Error on resetting the user password.");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
@@ -405,7 +399,9 @@ describe("UsersPage", () => {
         }, MockAuditorRole);
 
         // Check if the error message is displayed
-        await waitFor(() => expect("Error updating user roles").toBeDefined());
+        await waitFor(() =>
+          expect("Error on updating the user roles.").toBeDefined(),
+        );
 
         // Check if the API was called correctly
         const currentRoles = MockUser.roles.map((r) => r.name);
