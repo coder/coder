@@ -45,6 +45,8 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
   const containerStyles = css`
     ${theme.typography.body2 as CSSObject}
 
+    display: flex;
+    align-items: center;
     padding: ${theme.spacing(1.5)};
     background-color: ${type === "error"
       ? colors.red[12]
@@ -82,19 +84,9 @@ export const LicenseBannerView: React.FC<LicenseBannerViewProps> = ({
           </Link>
         </div>
         <Expander expanded={showDetails} setExpanded={setShowDetails}>
-          <ul
-            css={{
-              padding: theme.spacing(1),
-              margin: 0,
-            }}
-          >
+          <ul css={{ padding: theme.spacing(1), margin: 0 }}>
             {messages.map((message) => (
-              <li
-                css={{
-                  margin: theme.spacing(0.5),
-                }}
-                key={message}
-              >
+              <li css={{ margin: theme.spacing(0.5) }} key={message}>
                 {message}
               </li>
             ))}
