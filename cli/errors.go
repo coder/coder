@@ -2,6 +2,8 @@ package cli
 
 import (
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 
 	"github.com/coder/coder/v2/cli/clibase"
@@ -18,6 +20,22 @@ func (r *RootCmd) errorExample() *clibase.Cmd {
 			},
 		}
 	}
+	recorder := httptest.NewRecorder()
+	recorder.WriteHeader(http.StatusBadRequest)
+	resp := recorder.Result()
+	resp.Request, _ = http.NewRequest(http.MethodPost, "http://example.com", nil)
+	apiError := codersdk.ReadBodyAsError(resp)
+	apiError.(*codersdk.Error).Response = codersdk.Response{
+		Message: "Top level sdk error message.",
+		Detail:  "magic dust unavailable, please try again later",
+		Validations: []codersdk.ValidationError{
+			{
+				Field:  "region",
+				Detail: "magic dust is not available in your region",
+			},
+		},
+	}
+	apiError.(*codersdk.Error).Helper = "Have you tried turning it off and on again?"
 
 	cmd := &clibase.Cmd{
 		Use:   "example-error",
@@ -29,20 +47,8 @@ func (r *RootCmd) errorExample() *clibase.Cmd {
 			return inv.Command.HelpHandler(inv)
 		},
 		Children: []*clibase.Cmd{
-			// Typical codersdk error
-			errorCmd("sdk", &codersdk.Error{
-				Response: codersdk.Response{
-					Message: "Top level sdk error message.",
-					Detail:  "magic dust unavailable, please try again later",
-					Validations: []codersdk.ValidationError{
-						{
-							Field:  "region",
-							Detail: "magic dust is not available in your region",
-						},
-					},
-				},
-				Helper: "Have you tried turning it off and on again?",
-			}),
+			// Typical codersdk api error
+			errorCmd("api", apiError),
 
 			// Typical cli error
 			errorCmd("cmd", xerrors.Errorf("some error: %w", errorWithStackTrace())),
