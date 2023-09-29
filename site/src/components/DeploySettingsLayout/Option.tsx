@@ -64,7 +64,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     return <span css={optionStyles}>{children}</span>;
   }
 
-  if (!children || children.length < 1) {
+  if (!children || children.length === 0) {
     return <span css={optionStyles}>Not set</span>;
   }
 
