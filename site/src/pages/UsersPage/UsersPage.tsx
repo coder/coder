@@ -26,9 +26,11 @@ import {
   suspendUser,
   activateUser,
   deleteUser,
+  updatePassword,
 } from "api/queries/users";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
+import { generateRandomString } from "utils/random";
 
 export const Language = {
   suspendDialogTitle: "Suspend user",
@@ -38,9 +40,6 @@ export const Language = {
   activateDialogAction: "Activate",
   activateDialogMessagePrefix: "Do you want to activate the user",
 };
-
-const getSelectedUser = (id: string, users?: User[]) =>
-  users?.find((u) => u.id === id);
 
 export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const queryClient = useQueryClient();
@@ -60,7 +59,6 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
       offset: pagination.offset,
     }),
   );
-  const { userIdToResetPassword, newUserPassword } = usersState.context;
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
   const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
   const { data: deploymentValues } = useQuery({
@@ -104,6 +102,12 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   // Delete
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User>();
   const deleteUserMutation = useMutation(deleteUser(queryClient));
+  // Reset password
+  const [confirmResetPassword, setConfirmResetPassword] = useState<{
+    user: User;
+    newPassword: string;
+  }>();
+  const updatePasswordMutation = useMutation(updatePassword());
 
   return (
     <>
@@ -130,7 +134,10 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         onSuspendUser={setConfirmSuspendUser}
         onActivateUser={setConfirmActivateUser}
         onResetUserPassword={(user) => {
-          usersSend({ type: "RESET_USER_PASSWORD", userId: user.id });
+          setConfirmResetPassword({
+            user,
+            newPassword: generateRandomString(12),
+          });
         }}
         onUpdateUserRoles={(user, roles) => {
           usersSend({
@@ -232,23 +239,29 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }
       />
 
-      {userIdToResetPassword && (
-        <ResetPasswordDialog
-          open={
-            usersState.matches("confirmUserPasswordReset") ||
-            usersState.matches("resettingUserPassword")
+      <ResetPasswordDialog
+        key={confirmResetPassword?.user.username}
+        open={confirmResetPassword !== undefined}
+        loading={updatePasswordMutation.isLoading}
+        user={confirmResetPassword?.user}
+        newPassword={confirmResetPassword?.newPassword}
+        onClose={() => {
+          setConfirmResetPassword(undefined);
+        }}
+        onConfirm={async () => {
+          try {
+            await updatePasswordMutation.mutateAsync({
+              userId: confirmResetPassword!.user.id,
+              password: confirmResetPassword!.newPassword,
+              old_password: "",
+            });
+            setConfirmResetPassword(undefined);
+            displaySuccess("Password reset");
+          } catch (e) {
+            displayError(getErrorMessage(e, "Error resetting password"));
           }
-          loading={usersState.matches("resettingUserPassword")}
-          user={getSelectedUser(userIdToResetPassword, usersQuery.data?.users)}
-          newPassword={newUserPassword}
-          onClose={() => {
-            usersSend("CANCEL_USER_PASSWORD_RESET");
-          }}
-          onConfirm={() => {
-            usersSend("CONFIRM_USER_PASSWORD_RESET");
-          }}
-        />
-      )}
+        }}
+      />
     </>
   );
 };

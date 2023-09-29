@@ -338,7 +338,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess);
+        await screen.findByText("Password reset");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
@@ -357,7 +357,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordError);
+        await screen.findByText("Error resetting password");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
