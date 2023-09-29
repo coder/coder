@@ -127,7 +127,8 @@ func TestScaleTestDashboard(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		inv, root := clitest.New(t, "exp", "scaletest", "dashboard",
-			"--min-wait", "0s",
+			"--min-wait", "1s",
+			"--max-wait", "1s",
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t)
