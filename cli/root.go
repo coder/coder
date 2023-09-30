@@ -23,7 +23,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/exp/slices"
@@ -131,14 +130,13 @@ func (r *RootCmd) RunMain(subcommands []*clibase.Cmd) {
 	if err != nil {
 		panic(err)
 	}
-
 	err = cmd.Invoke().WithOS().Run()
 	if err != nil {
 		if errors.Is(err, cliui.Canceled) {
 			//nolint:revive
 			os.Exit(1)
 		}
-		f := prettyErrorFormatter{w: os.Stderr}
+		f := prettyErrorFormatter{w: os.Stderr, verbose: r.verbose}
 		f.format(err)
 		//nolint:revive
 		os.Exit(1)
@@ -951,67 +949,148 @@ func isConnectionError(err error) bool {
 
 type prettyErrorFormatter struct {
 	w io.Writer
+	// verbose turns on more detailed error logs, such as stack traces.
+	verbose bool
 }
 
+// format formats the error to the console. This error should be human
+// readable.
 func (p *prettyErrorFormatter) format(err error) {
-	errTail := errors.Unwrap(err)
+	output := cliHumanFormatError(err, &formatOpts{
+		Verbose: p.verbose,
+	})
+	// always trail with a newline
+	_, _ = p.w.Write([]byte(output + "\n"))
+}
+
+type formatOpts struct {
+	Verbose bool
+}
+
+const indent = "    "
+
+// cliHumanFormatError formats an error for the CLI. Newlines and styling are
+// included.
+func cliHumanFormatError(err error, opts *formatOpts) string {
+	if opts == nil {
+		opts = &formatOpts{}
+	}
 
 	//nolint:errorlint
-	if _, ok := err.(*clibase.RunCommandError); ok && errTail != nil {
-		// Avoid extra nesting.
-		p.format(errTail)
-		return
+	if multi, ok := err.(interface{ Unwrap() []error }); ok {
+		multiErrors := multi.Unwrap()
+		if len(multiErrors) == 1 {
+			// Format as a single error
+			return cliHumanFormatError(multiErrors[0], opts)
+		}
+		return formatMultiError(multiErrors, opts)
 	}
 
-	var headErr string
-	if errTail != nil {
-		headErr = strings.TrimSuffix(err.Error(), ": "+errTail.Error())
-	} else {
-		headErr = err.Error()
-	}
-
-	var msg string
+	// First check for sentinel errors that we want to handle specially.
+	// Order does matter! We want to check for the most specific errors first.
 	var sdkError *codersdk.Error
 	if errors.As(err, &sdkError) {
-		// We don't want to repeat the same error message twice, so we
-		// only show the SDK error on the top of the stack.
-		msg = sdkError.Message
-		if sdkError.Helper != "" {
-			msg = msg + "\n" + sdkError.Helper
-		} else if sdkError.Detail != "" {
-			msg = msg + "\n" + sdkError.Detail
-		}
-		// The SDK error is usually good enough, and we don't want to overwhelm
-		// the user with output.
-		errTail = nil
-	} else {
-		msg = headErr
+		return formatCoderSDKError(sdkError, opts)
 	}
 
-	headStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#D16644"))
-	p.printf(
-		headStyle,
-		"%s",
-		msg,
-	)
-
-	tailStyle := headStyle.Copy().Foreground(lipgloss.Color("#969696"))
-
-	if errTail != nil {
-		p.printf(headStyle, ": ")
-		// Grey out the less important, deep errors.
-		p.printf(tailStyle, "%s", errTail.Error())
+	var cmdErr *clibase.RunCommandError
+	if errors.As(err, &cmdErr) {
+		return formatRunCommandError(cmdErr, opts)
 	}
-	p.printf(tailStyle, "\n")
+
+	// Default just printing the error. Use +v for verbose to handle stack
+	// traces of xerrors.
+	if opts.Verbose {
+		return pretty.Sprint(headLineStyle(), fmt.Sprintf("%+v", err))
+	}
+
+	return pretty.Sprint(headLineStyle(), fmt.Sprintf("%v", err))
 }
 
-func (p *prettyErrorFormatter) printf(style lipgloss.Style, format string, a ...interface{}) {
-	s := style.Render(fmt.Sprintf(format, a...))
-	_, _ = p.w.Write(
-		[]byte(
-			s,
-		),
-	)
+// formatMultiError formats a multi-error. It formats it as a list of errors.
+//
+//	Multiple Errors:
+//	<# errors encountered>:
+//		1. <heading error message>
+//		   <verbose error message>
+//		2. <heading error message>
+//		   <verbose error message>
+func formatMultiError(multi []error, opts *formatOpts) string {
+	var errorStrings []string
+	for _, err := range multi {
+		errorStrings = append(errorStrings, cliHumanFormatError(err, opts))
+	}
+
+	// Write errors out
+	var str strings.Builder
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("%d errors encountered:", len(multi))))
+	for i, errStr := range errorStrings {
+		// Indent each error
+		errStr = strings.ReplaceAll(errStr, "\n", "\n"+indent)
+		// Error now looks like
+		// |  <line>
+		// |  <line>
+		prefix := fmt.Sprintf("%d. ", i+1)
+		if len(prefix) < len(indent) {
+			// Indent the prefix to match the indent
+			prefix = prefix + strings.Repeat(" ", len(indent)-len(prefix))
+		}
+		errStr = prefix + errStr
+		// Now looks like
+		// |1.<line>
+		// |  <line>
+		_, _ = str.WriteString("\n" + errStr)
+	}
+	return str.String()
+}
+
+// formatRunCommandError are cli command errors. This kind of error is very
+// broad, as it contains all errors that occur when running a command.
+// If you know the error is something else, like a codersdk.Error, make a new
+// formatter and add it to cliHumanFormatError function.
+func formatRunCommandError(err *clibase.RunCommandError, opts *formatOpts) string {
+	var str strings.Builder
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("Encountered an error running %q", err.Cmd.FullName())))
+
+	msgString := fmt.Sprintf("%v", err.Err)
+	if opts.Verbose {
+		// '%+v' includes stack traces
+		msgString = fmt.Sprintf("%+v", err.Err)
+	}
+	_, _ = str.WriteString("\n")
+	_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), msgString))
+	return str.String()
+}
+
+// formatCoderSDKError come from API requests. In verbose mode, add the
+// request debug information.
+func formatCoderSDKError(err *codersdk.Error, opts *formatOpts) string {
+	var str strings.Builder
+	if opts.Verbose {
+		_, _ = str.WriteString(pretty.Sprint(headLineStyle(), fmt.Sprintf("API request error to \"%s:%s\". Status code %d", err.Method(), err.URL(), err.StatusCode())))
+		_, _ = str.WriteString("\n")
+	}
+
+	_, _ = str.WriteString(pretty.Sprint(headLineStyle(), err.Message))
+	if err.Helper != "" {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Helper))
+	}
+	// By default we do not show the Detail with the helper.
+	if opts.Verbose || (err.Helper == "" && err.Detail != "") {
+		_, _ = str.WriteString("\n")
+		_, _ = str.WriteString(pretty.Sprint(tailLineStyle(), err.Detail))
+	}
+	return str.String()
+}
+
+// These styles are arbitrary.
+func headLineStyle() pretty.Style {
+	return cliui.DefaultStyles.Error
+}
+
+func tailLineStyle() pretty.Style {
+	return pretty.Style{pretty.Nop}
 }
 
 //nolint:unused

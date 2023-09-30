@@ -359,6 +359,8 @@ func ReadBodyAsError(res *http.Response) error {
 		}
 		return &Error{
 			statusCode: res.StatusCode,
+			method:     requestMethod,
+			url:        requestURL,
 			Response: Response{
 				Message: fmt.Sprintf("unexpected non-JSON response %q", contentType),
 				Detail:  string(resp),
@@ -412,6 +414,14 @@ type Error struct {
 
 func (e *Error) StatusCode() int {
 	return e.statusCode
+}
+
+func (e *Error) Method() string {
+	return e.method
+}
+
+func (e *Error) URL() string {
+	return e.url
 }
 
 func (e *Error) Friendly() string {
