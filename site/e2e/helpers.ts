@@ -523,7 +523,7 @@ const createTemplateVersionTar = async (
       error: "",
       resources: [],
       parameters: [],
-      gitAuthProviders: [],
+      externalAuthProviders: [],
       ...response.plan,
     } as PlanComplete;
     response.plan.resources = response.plan.resources?.map(fillResource);
