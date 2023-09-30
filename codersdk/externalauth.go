@@ -10,7 +10,7 @@ import (
 type ExternalAuth struct {
 	Authenticated bool   `json:"authenticated"`
 	Device        bool   `json:"device"`
-	Type          string `json:"type"`
+	DisplayName   string `json:"display_name"`
 
 	// User is the user that authenticated with the provider.
 	User *ExternalAuthUser `json:"user"`

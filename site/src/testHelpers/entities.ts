@@ -2190,6 +2190,8 @@ export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExte
     type: "github",
     authenticate_url: "https://example.com/externalauth/github",
     authenticated: false,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
   };
 
 export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
@@ -2198,6 +2200,8 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
     type: "github",
     authenticate_url: "https://example.com/externalauth/github",
     authenticated: true,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
   };
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {

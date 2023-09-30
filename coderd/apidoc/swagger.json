@@ -7351,15 +7351,15 @@
         "device": {
           "type": "boolean"
         },
+        "display_name": {
+          "type": "string"
+        },
         "installations": {
           "description": "AppInstallations are the installations that the user has access to.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
           }
-        },
-        "type": {
-          "type": "string"
         },
         "user": {
           "description": "User is the user that authenticated with the provider.",
@@ -7407,13 +7407,7 @@
     },
     "codersdk.ExternalAuthProvider": {
       "type": "string",
-      "enum": [
-        "azure-devops",
-        "github",
-        "gitlab",
-        "bitbucket",
-        "openid-connect"
-      ],
+      "enum": ["azure-devops", "github", "gitlab", "bitbucket", "oidc"],
       "x-enum-varnames": [
         "ExternalAuthProviderAzureDevops",
         "ExternalAuthProviderGitHub",
@@ -7498,6 +7492,12 @@
         },
         "device_flow": {
           "type": "boolean"
+        },
+        "display_icon": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
         },
         "id": {
           "type": "string"
@@ -9064,6 +9064,12 @@
         },
         "authenticated": {
           "type": "boolean"
+        },
+        "display_icon": {
+          "type": "string"
+        },
+        "display_name": {
+          "type": "string"
         },
         "id": {
           "type": "string"

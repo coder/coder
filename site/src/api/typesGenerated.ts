@@ -426,7 +426,7 @@ export type Experiments = Experiment[];
 export interface ExternalAuth {
   readonly authenticated: boolean;
   readonly device: boolean;
-  readonly type: string;
+  readonly display_name: string;
   readonly user?: ExternalAuthUser;
   readonly app_installable: boolean;
   readonly installations: ExternalAuthAppInstallation[];
@@ -496,6 +496,8 @@ export interface GitAuthConfig {
   readonly scopes: string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
+  readonly display_name: string;
+  readonly display_icon: string;
 }
 
 // From codersdk/gitsshkey.go
@@ -1013,6 +1015,8 @@ export interface TemplateVersion {
 export interface TemplateVersionExternalAuth {
   readonly id: string;
   readonly type: ExternalAuthProvider;
+  readonly display_name: string;
+  readonly display_icon: string;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
 }
@@ -1661,13 +1665,13 @@ export type ExternalAuthProvider =
   | "bitbucket"
   | "github"
   | "gitlab"
-  | "openid-connect";
+  | "oidc";
 export const ExternalAuthProviders: ExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
-  "openid-connect",
+  "oidc",
 ];
 
 // From codersdk/deployment.go

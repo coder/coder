@@ -320,6 +320,8 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			ID:              config.ID,
 			Type:            config.Type,
 			AuthenticateURL: redirectURL.String(),
+			DisplayName:     config.DisplayName,
+			DisplayIcon:     config.DisplayIcon,
 		}
 
 		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{

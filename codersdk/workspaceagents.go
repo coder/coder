@@ -770,7 +770,7 @@ const (
 	ExternalAuthProviderGitHub        ExternalAuthProvider = "github"
 	ExternalAuthProviderGitLab        ExternalAuthProvider = "gitlab"
 	ExternalAuthProviderBitBucket     ExternalAuthProvider = "bitbucket"
-	ExternalAuthProviderOpenIDConnect ExternalAuthProvider = "openid-connect"
+	ExternalAuthProviderOpenIDConnect ExternalAuthProvider = "oidc"
 )
 
 type WorkspaceAgentLog struct {

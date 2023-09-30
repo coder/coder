@@ -336,6 +336,8 @@ type GitAuthConfig struct {
 	Scopes              []string `json:"scopes"`
 	DeviceFlow          bool     `json:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url"`
+	DisplayName         string   `json:"display_name"`
+	DisplayIcon         string   `json:"display_icon"`
 }
 
 type ProvisionerConfig struct {

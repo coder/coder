@@ -29,6 +29,7 @@ curl -X GET http://coder-server:8080/api/v2/externalauth/{externalauth} \
   "app_installable": true,
   "authenticated": true,
   "device": true,
+  "display_name": "string",
   "installations": [
     {
       "account": {
@@ -41,7 +42,6 @@ curl -X GET http://coder-server:8080/api/v2/externalauth/{externalauth} \
       "id": 0
     }
   ],
-  "type": "string",
   "user": {
     "avatar_url": "string",
     "login": "string",

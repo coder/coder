@@ -6,9 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/codersdk"
-	"golang.org/x/xerrors"
 )
 
 func (RootCmd) errorExample() *clibase.Cmd {

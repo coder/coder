@@ -21,6 +21,8 @@ const meta: Meta<typeof GitAuthSettingsPageView> = {
           scopes: [],
           device_flow: true,
           device_code_url: "",
+          display_icon: "",
+          display_name: "GitHub",
         },
       ],
     },

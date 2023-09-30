@@ -632,6 +632,8 @@ _None_
       "client_id": "string",
       "device_code_url": "string",
       "device_flow": true,
+      "display_icon": "string",
+      "display_name": "string",
       "id": "string",
       "no_refresh": true,
       "regex": "string",
@@ -2053,6 +2055,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "client_id": "string",
           "device_code_url": "string",
           "device_flow": true,
+          "display_icon": "string",
+          "display_name": "string",
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2418,6 +2422,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "client_id": "string",
         "device_code_url": "string",
         "device_flow": true,
+        "display_icon": "string",
+        "display_name": "string",
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2760,6 +2766,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "app_installable": true,
   "authenticated": true,
   "device": true,
+  "display_name": "string",
   "installations": [
     {
       "account": {
@@ -2772,7 +2779,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0
     }
   ],
-  "type": "string",
   "user": {
     "avatar_url": "string",
     "login": "string",
@@ -2790,8 +2796,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
 | `authenticated`   | boolean                                                                               | false    |              |                                                                         |
 | `device`          | boolean                                                                               | false    |              |                                                                         |
+| `display_name`    | string                                                                                | false    |              |                                                                         |
 | `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `type`            | string                                                                                | false    |              |                                                                         |
 | `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
@@ -2849,13 +2855,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value            |
-| ---------------- |
-| `azure-devops`   |
-| `github`         |
-| `gitlab`         |
-| `bitbucket`      |
-| `openid-connect` |
+| Value          |
+| -------------- |
+| `azure-devops` |
+| `github`       |
+| `gitlab`       |
+| `bitbucket`    |
+| `oidc`         |
 
 ## codersdk.ExternalAuthUser
 
@@ -2955,6 +2961,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "client_id": "string",
   "device_code_url": "string",
   "device_flow": true,
+  "display_icon": "string",
+  "display_name": "string",
   "id": "string",
   "no_refresh": true,
   "regex": "string",
@@ -2975,6 +2983,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `client_id`             | string          | false    |              |             |
 | `device_code_url`       | string          | false    |              |             |
 | `device_flow`           | boolean         | false    |              |             |
+| `display_icon`          | string          | false    |              |             |
+| `display_name`          | string          | false    |              |             |
 | `id`                    | string          | false    |              |             |
 | `no_refresh`            | boolean         | false    |              |             |
 | `regex`                 | string          | false    |              |             |
@@ -4741,6 +4751,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "authenticate_url": "string",
   "authenticated": true,
+  "display_icon": "string",
+  "display_name": "string",
   "id": "string",
   "type": "azure-devops"
 }
@@ -4752,6 +4764,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
 | `authenticate_url` | string                                                         | false    |              |             |
 | `authenticated`    | boolean                                                        | false    |              |             |
+| `display_icon`     | string                                                         | false    |              |             |
+| `display_name`     | string                                                         | false    |              |             |
 | `id`               | string                                                         | false    |              |             |
 | `type`             | [codersdk.ExternalAuthProvider](#codersdkexternalauthprovider) | false    |              |             |
 

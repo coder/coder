@@ -171,6 +171,10 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			provider.AppInstallURL = v.Value
 		case "APP_INSTALLATIONS_URL":
 			provider.AppInstallationsURL = v.Value
+		case "DISPLAY_NAME":
+			provider.DisplayName = v.Value
+		case "DISPLAY_ICON":
+			provider.DisplayIcon = v.Value
 		}
 		providers[providerNum] = provider
 	}

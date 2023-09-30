@@ -37,6 +37,10 @@ type Config struct {
 	Type codersdk.ExternalAuthProvider
 	// DeviceAuth is set if the provider uses the device flow.
 	DeviceAuth *DeviceAuth
+	// DisplayName is the name of the provider to display to the user.
+	DisplayName string
+	// DisplayIcon is the path to an image that will be displayed to the user.
+	DisplayIcon string
 
 	// NoRefresh stops Coder from using the refresh token
 	// to renew the access token.
@@ -258,6 +262,8 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			typ = codersdk.ExternalAuthProviderGitHub
 		case codersdk.ExternalAuthProviderGitLab:
 			typ = codersdk.ExternalAuthProviderGitLab
+		case codersdk.ExternalAuthProviderOpenIDConnect:
+			typ = codersdk.ExternalAuthProviderOpenIDConnect
 		default:
 			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)
 		}
@@ -332,6 +338,12 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			ValidateURL:         entry.ValidateURL,
 			AppInstallationsURL: entry.AppInstallationsURL,
 			AppInstallURL:       entry.AppInstallURL,
+			DisplayName:         entry.DisplayName,
+			DisplayIcon:         entry.DisplayIcon,
+		}
+
+		if cfg.DisplayName == "" {
+			cfg.DisplayName = typ.Pretty()
 		}
 
 		if entry.DeviceFlow {

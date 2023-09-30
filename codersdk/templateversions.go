@@ -36,6 +36,8 @@ type TemplateVersion struct {
 type TemplateVersionExternalAuth struct {
 	ID              string               `json:"id"`
 	Type            ExternalAuthProvider `json:"type"`
+	DisplayName     string               `json:"display_name"`
+	DisplayIcon     string               `json:"display_icon"`
 	AuthenticateURL string               `json:"authenticate_url"`
 	Authenticated   bool                 `json:"authenticated"`
 }

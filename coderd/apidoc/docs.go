@@ -8203,15 +8203,15 @@ const docTemplate = `{
                 "device": {
                     "type": "boolean"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "installations": {
                     "description": "AppInstallations are the installations that the user has access to.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
-                },
-                "type": {
-                    "type": "string"
                 },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",
@@ -8264,7 +8264,7 @@ const docTemplate = `{
                 "github",
                 "gitlab",
                 "bitbucket",
-                "openid-connect"
+                "oidc"
             ],
             "x-enum-varnames": [
                 "ExternalAuthProviderAzureDevops",
@@ -8350,6 +8350,12 @@ const docTemplate = `{
                 },
                 "device_flow": {
                     "type": "boolean"
+                },
+                "display_icon": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string"
@@ -10017,6 +10023,12 @@ const docTemplate = `{
                 },
                 "authenticated": {
                     "type": "boolean"
+                },
+                "display_icon": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
                 },
                 "id": {
                     "type": "string"

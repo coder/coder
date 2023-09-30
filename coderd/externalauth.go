@@ -33,7 +33,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 		Authenticated:    false,
 		Device:           config.DeviceAuth != nil,
 		AppInstallURL:    config.AppInstallURL,
-		Type:             config.Type.Pretty(),
+		DisplayName:      config.DisplayName,
 		AppInstallations: []codersdk.ExternalAuthAppInstallation{},
 	}
 
