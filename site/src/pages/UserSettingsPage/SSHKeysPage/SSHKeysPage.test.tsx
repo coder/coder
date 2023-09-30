@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
-import * as API from "../../../api/api";
-import { renderWithAuth } from "../../../testHelpers/renderHelpers";
+import * as API from "api/api";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { Language as SSHKeysPageLanguage, SSHKeysPage } from "./SSHKeysPage";
 import { MockGitSSHKey, mockApiError } from "testHelpers/entities";
 

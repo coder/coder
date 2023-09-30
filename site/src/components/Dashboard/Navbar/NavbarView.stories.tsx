@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockUser, MockUser2 } from "../../../testHelpers/entities";
+import { MockUser, MockUser2 } from "testHelpers/entities";
 import { NavbarView } from "./NavbarView";
 
 const meta: Meta<typeof NavbarView> = {

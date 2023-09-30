@@ -1,6 +1,6 @@
 import { rest } from "msw";
-import { CreateWorkspaceBuildRequest } from "../api/typesGenerated";
-import { permissionsToCheck } from "../xServices/auth/authXService";
+import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import { permissionsToCheck } from "xServices/auth/authXService";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 import fs from "fs";
@@ -112,7 +112,7 @@ export const handlers = [
     },
   ),
   rest.get(
-    "/api/v2/templateversions/:templateVersionId/gitauth",
+    "/api/v2/templateversions/:templateVersionId/externalauth",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([]));
     },

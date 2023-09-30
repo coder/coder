@@ -683,6 +683,36 @@ func (mr *MockStoreMockRecorder) GetDeploymentWorkspaceStats(arg0 interface{}) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDeploymentWorkspaceStats", reflect.TypeOf((*MockStore)(nil).GetDeploymentWorkspaceStats), arg0)
 }
 
+// GetExternalAuthLink mocks base method.
+func (m *MockStore) GetExternalAuthLink(arg0 context.Context, arg1 database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalAuthLink", arg0, arg1)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalAuthLink indicates an expected call of GetExternalAuthLink.
+func (mr *MockStoreMockRecorder) GetExternalAuthLink(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLink", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLink), arg0, arg1)
+}
+
+// GetExternalAuthLinksByUserID mocks base method.
+func (m *MockStore) GetExternalAuthLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetExternalAuthLinksByUserID", arg0, arg1)
+	ret0, _ := ret[0].([]database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetExternalAuthLinksByUserID indicates an expected call of GetExternalAuthLinksByUserID.
+func (mr *MockStoreMockRecorder) GetExternalAuthLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetExternalAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetExternalAuthLinksByUserID), arg0, arg1)
+}
+
 // GetFileByHashAndCreator mocks base method.
 func (m *MockStore) GetFileByHashAndCreator(arg0 context.Context, arg1 database.GetFileByHashAndCreatorParams) (database.File, error) {
 	m.ctrl.T.Helper()
@@ -726,36 +756,6 @@ func (m *MockStore) GetFileTemplates(arg0 context.Context, arg1 uuid.UUID) ([]da
 func (mr *MockStoreMockRecorder) GetFileTemplates(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFileTemplates", reflect.TypeOf((*MockStore)(nil).GetFileTemplates), arg0, arg1)
-}
-
-// GetGitAuthLink mocks base method.
-func (m *MockStore) GetGitAuthLink(arg0 context.Context, arg1 database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetGitAuthLink", arg0, arg1)
-	ret0, _ := ret[0].(database.GitAuthLink)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetGitAuthLink indicates an expected call of GetGitAuthLink.
-func (mr *MockStoreMockRecorder) GetGitAuthLink(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLink", reflect.TypeOf((*MockStore)(nil).GetGitAuthLink), arg0, arg1)
-}
-
-// GetGitAuthLinksByUserID mocks base method.
-func (m *MockStore) GetGitAuthLinksByUserID(arg0 context.Context, arg1 uuid.UUID) ([]database.GitAuthLink, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetGitAuthLinksByUserID", arg0, arg1)
-	ret0, _ := ret[0].([]database.GitAuthLink)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetGitAuthLinksByUserID indicates an expected call of GetGitAuthLinksByUserID.
-func (mr *MockStoreMockRecorder) GetGitAuthLinksByUserID(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGitAuthLinksByUserID", reflect.TypeOf((*MockStore)(nil).GetGitAuthLinksByUserID), arg0, arg1)
 }
 
 // GetGitSSHKey mocks base method.
@@ -2449,6 +2449,21 @@ func (mr *MockStoreMockRecorder) InsertDeploymentID(arg0, arg1 interface{}) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDeploymentID", reflect.TypeOf((*MockStore)(nil).InsertDeploymentID), arg0, arg1)
 }
 
+// InsertExternalAuthLink mocks base method.
+func (m *MockStore) InsertExternalAuthLink(arg0 context.Context, arg1 database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertExternalAuthLink", arg0, arg1)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertExternalAuthLink indicates an expected call of InsertExternalAuthLink.
+func (mr *MockStoreMockRecorder) InsertExternalAuthLink(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertExternalAuthLink", reflect.TypeOf((*MockStore)(nil).InsertExternalAuthLink), arg0, arg1)
+}
+
 // InsertFile mocks base method.
 func (m *MockStore) InsertFile(arg0 context.Context, arg1 database.InsertFileParams) (database.File, error) {
 	m.ctrl.T.Helper()
@@ -2462,21 +2477,6 @@ func (m *MockStore) InsertFile(arg0 context.Context, arg1 database.InsertFilePar
 func (mr *MockStoreMockRecorder) InsertFile(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertFile", reflect.TypeOf((*MockStore)(nil).InsertFile), arg0, arg1)
-}
-
-// InsertGitAuthLink mocks base method.
-func (m *MockStore) InsertGitAuthLink(arg0 context.Context, arg1 database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertGitAuthLink", arg0, arg1)
-	ret0, _ := ret[0].(database.GitAuthLink)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertGitAuthLink indicates an expected call of InsertGitAuthLink.
-func (mr *MockStoreMockRecorder) InsertGitAuthLink(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertGitAuthLink", reflect.TypeOf((*MockStore)(nil).InsertGitAuthLink), arg0, arg1)
 }
 
 // InsertGitSSHKey mocks base method.
@@ -3038,19 +3038,19 @@ func (mr *MockStoreMockRecorder) UpdateAPIKeyByID(arg0, arg1 interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAPIKeyByID", reflect.TypeOf((*MockStore)(nil).UpdateAPIKeyByID), arg0, arg1)
 }
 
-// UpdateGitAuthLink mocks base method.
-func (m *MockStore) UpdateGitAuthLink(arg0 context.Context, arg1 database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+// UpdateExternalAuthLink mocks base method.
+func (m *MockStore) UpdateExternalAuthLink(arg0 context.Context, arg1 database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateGitAuthLink", arg0, arg1)
-	ret0, _ := ret[0].(database.GitAuthLink)
+	ret := m.ctrl.Call(m, "UpdateExternalAuthLink", arg0, arg1)
+	ret0, _ := ret[0].(database.ExternalAuthLink)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateGitAuthLink indicates an expected call of UpdateGitAuthLink.
-func (mr *MockStoreMockRecorder) UpdateGitAuthLink(arg0, arg1 interface{}) *gomock.Call {
+// UpdateExternalAuthLink indicates an expected call of UpdateExternalAuthLink.
+func (mr *MockStoreMockRecorder) UpdateExternalAuthLink(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateGitAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateGitAuthLink), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLink), arg0, arg1)
 }
 
 // UpdateGitSSHKey mocks base method.
@@ -3268,18 +3268,18 @@ func (mr *MockStoreMockRecorder) UpdateTemplateVersionDescriptionByJobID(arg0, a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionDescriptionByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionDescriptionByJobID), arg0, arg1)
 }
 
-// UpdateTemplateVersionGitAuthProvidersByJobID mocks base method.
-func (m *MockStore) UpdateTemplateVersionGitAuthProvidersByJobID(arg0 context.Context, arg1 database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+// UpdateTemplateVersionExternalAuthProvidersByJobID mocks base method.
+func (m *MockStore) UpdateTemplateVersionExternalAuthProvidersByJobID(arg0 context.Context, arg1 database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateTemplateVersionGitAuthProvidersByJobID", arg0, arg1)
+	ret := m.ctrl.Call(m, "UpdateTemplateVersionExternalAuthProvidersByJobID", arg0, arg1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// UpdateTemplateVersionGitAuthProvidersByJobID indicates an expected call of UpdateTemplateVersionGitAuthProvidersByJobID.
-func (mr *MockStoreMockRecorder) UpdateTemplateVersionGitAuthProvidersByJobID(arg0, arg1 interface{}) *gomock.Call {
+// UpdateTemplateVersionExternalAuthProvidersByJobID indicates an expected call of UpdateTemplateVersionExternalAuthProvidersByJobID.
+func (mr *MockStoreMockRecorder) UpdateTemplateVersionExternalAuthProvidersByJobID(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionGitAuthProvidersByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionGitAuthProvidersByJobID), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTemplateVersionExternalAuthProvidersByJobID", reflect.TypeOf((*MockStore)(nil).UpdateTemplateVersionExternalAuthProvidersByJobID), arg0, arg1)
 }
 
 // UpdateTemplateWorkspacesLastUsedAt mocks base method.

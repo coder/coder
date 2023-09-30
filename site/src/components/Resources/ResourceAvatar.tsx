@@ -1,6 +1,6 @@
 import { Avatar, AvatarIcon } from "components/Avatar/Avatar";
 import { FC } from "react";
-import { WorkspaceResource } from "../../api/typesGenerated";
+import { WorkspaceResource } from "api/typesGenerated";
 
 const FALLBACK_ICON = "/icon/widgets.svg";
 

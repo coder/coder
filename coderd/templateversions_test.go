@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
@@ -319,7 +319,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 }
 
-func TestTemplateVersionsGitAuth(t *testing.T) {
+func TestTemplateVersionsExternalAuth(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
@@ -331,18 +331,18 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		_, err := client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 	})
 	t.Run("Authenticated", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			GitAuthConfigs: []*gitauth.Config{{
+			ExternalAuthConfigs: []*externalauth.Config{{
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.GitProviderGitHub,
+				Type:         codersdk.ExternalAuthProviderGitHub,
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -351,7 +351,7 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 			ProvisionPlan: []*proto.Response{{
 				Type: &proto.Response_Plan{
 					Plan: &proto.PlanComplete{
-						GitAuthProviders: []string{"github"},
+						ExternalAuthProviders: []string{"github"},
 					},
 				},
 			}},
@@ -362,18 +362,18 @@ func TestTemplateVersionsGitAuth(t *testing.T) {
 		defer cancel()
 
 		// Not authenticated to start!
-		providers, err := client.TemplateVersionGitAuth(ctx, version.ID)
+		providers, err := client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.False(t, providers[0].Authenticated)
 
 		// Perform the Git auth callback to authenticate the user...
-		resp := coderdtest.RequestGitAuthCallback(t, "github", client)
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		// Ensure that the returned Git auth for the template is authenticated!
-		providers, err = client.TemplateVersionGitAuth(ctx, version.ID)
+		providers, err = client.TemplateVersionExternalAuth(ctx, version.ID)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		require.True(t, providers[0].Authenticated)

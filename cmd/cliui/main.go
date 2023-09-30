@@ -332,16 +332,16 @@ func main() {
 				gitlabAuthed.Store(true)
 			}()
 			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					count.Add(1)
-					return []codersdk.TemplateVersionGitAuth{{
+					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
-						Type:            codersdk.GitProviderGitHub,
+						Type:            codersdk.ExternalAuthProviderGitHub,
 						Authenticated:   githubAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}, {
 						ID:              "gitlab",
-						Type:            codersdk.GitProviderGitLab,
+						Type:            codersdk.ExternalAuthProviderGitLab,
 						Authenticated:   gitlabAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/gitlab?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}}, nil

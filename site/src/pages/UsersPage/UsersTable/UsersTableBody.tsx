@@ -5,15 +5,15 @@ import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
 import { type FC } from "react";
-import * as TypesGen from "../../../api/typesGenerated";
-import { combineClasses } from "../../../utils/combineClasses";
-import { AvatarData } from "../../../components/AvatarData/AvatarData";
-import { EmptyState } from "../../../components/EmptyState/EmptyState";
+import * as TypesGen from "api/typesGenerated";
+import { combineClasses } from "utils/combineClasses";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "../../../components/TableLoader/TableLoader";
-import { TableRowMenu } from "../../../components/TableRowMenu/TableRowMenu";
+} from "components/TableLoader/TableLoader";
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { EditRolesButton } from "./EditRolesButton";
 import { Stack } from "components/Stack/Stack";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";

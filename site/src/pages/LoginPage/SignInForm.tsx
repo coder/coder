@@ -9,6 +9,7 @@ import Button from "@mui/material/Button";
 import EmailIcon from "@mui/icons-material/EmailOutlined";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { getApplicationName } from "utils/appearance";
 
 export const Language = {
   emailLabel: "Email",
@@ -90,11 +91,12 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
   const styles = useStyles();
+  const applicationName = getApplicationName();
 
   return (
     <div className={styles.root}>
       <h1 className={styles.title}>
-        Sign in to <strong>Coder</strong>
+        Sign in to <strong>{applicationName}</strong>
       </h1>
 
       {Boolean(error) && (

@@ -195,7 +195,7 @@ func TestServerDBCrypt(t *testing.T) {
 		userLinks, err := db.GetUserLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get user links for user %s", usr.ID)
 		require.Empty(t, userLinks)
-		gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, usr.ID)
+		gitAuthLinks, err := db.GetExternalAuthLinksByUserID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get git auth links for user %s", usr.ID)
 		require.Empty(t, gitAuthLinks)
 	}
@@ -222,7 +222,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 					Status:    status,
 					Deleted:   deleted,
 				})
-				_ = dbgen.GitAuthLink(t, db, database.GitAuthLink{
+				_ = dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 					UserID:            usr.ID,
 					ProviderID:        "fake",
 					OAuthAccessToken:  "access-" + usr.ID.String(),
@@ -277,7 +277,7 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 		require.Equal(t, c.HexDigest(), ul.OAuthAccessTokenKeyID.String)
 		require.Equal(t, c.HexDigest(), ul.OAuthRefreshTokenKeyID.String)
 	}
-	gitAuthLinks, err := db.GetGitAuthLinksByUserID(ctx, userID)
+	gitAuthLinks, err := db.GetExternalAuthLinksByUserID(ctx, userID)
 	require.NoError(t, err, "failed to get git auth links for user %s", userID)
 	for _, gal := range gitAuthLinks {
 		requireEncryptedEquals(t, c, "access-"+userID.String(), gal.OAuthAccessToken)

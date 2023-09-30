@@ -2140,7 +2140,7 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
-  viewGitAuthConfig: true,
+  viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
 };
 
@@ -2184,18 +2184,19 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 };
 
-export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
-  id: "github",
-  type: "github",
-  authenticate_url: "https://example.com/gitauth/github",
-  authenticated: false,
-};
-
-export const MockTemplateVersionGitAuthAuthenticated: TypesGen.TemplateVersionGitAuth =
+export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
   {
     id: "github",
     type: "github",
-    authenticate_url: "https://example.com/gitauth/github",
+    authenticate_url: "https://example.com/externalauth/github",
+    authenticated: false,
+  };
+
+export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/externalauth/github",
     authenticated: true,
   };
 

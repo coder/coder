@@ -11,9 +11,9 @@ import {
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
-  MockTemplateVersionGitAuth,
+  MockTemplateVersionExternalAuthGithub,
   MockOrganization,
-  MockTemplateVersionGitAuthAuthenticated,
+  MockTemplateVersionExternalAuthGithubAuthenticated,
 } from "testHelpers/entities";
 import {
   renderWithAuth,
@@ -156,7 +156,7 @@ describe("CreateWorkspacePage", () => {
     expect(validationError).toBeInTheDocument();
   });
 
-  it("gitauth authenticates and succeeds", async () => {
+  it("external auth authenticates and succeeds", async () => {
     jest
       .spyOn(API, "getWorkspaceQuota")
       .mockResolvedValueOnce(MockWorkspaceQuota);
@@ -165,8 +165,8 @@ describe("CreateWorkspacePage", () => {
       .mockResolvedValueOnce({ users: [MockUser], count: 1 });
     jest.spyOn(API, "createWorkspace").mockResolvedValueOnce(MockWorkspace);
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValue([MockTemplateVersionGitAuth]);
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();
@@ -181,8 +181,8 @@ describe("CreateWorkspacePage", () => {
     await userEvent.click(githubButton);
 
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValue([MockTemplateVersionGitAuthAuthenticated]);
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValue([MockTemplateVersionExternalAuthGithubAuthenticated]);
 
     await screen.findByText("Authenticated with GitHub");
 
@@ -200,10 +200,10 @@ describe("CreateWorkspacePage", () => {
     );
   });
 
-  it("gitauth: errors if unauthenticated and submits", async () => {
+  it("external auth: errors if unauthenticated and submits", async () => {
     jest
-      .spyOn(API, "getTemplateVersionGitAuth")
-      .mockResolvedValueOnce([MockTemplateVersionGitAuth]);
+      .spyOn(API, "getTemplateVersionExternalAuth")
+      .mockResolvedValueOnce([MockTemplateVersionExternalAuthGithub]);
 
     renderCreateWorkspacePage();
     await waitForLoaderToBeRemoved();

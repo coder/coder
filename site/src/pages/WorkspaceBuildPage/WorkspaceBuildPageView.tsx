@@ -1,9 +1,9 @@
 import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
 import { FC } from "react";
-import { ProvisionerJobLog, WorkspaceBuild } from "../../api/typesGenerated";
-import { Loader } from "../../components/Loader/Loader";
-import { Stack } from "../../components/Stack/Stack";
-import { WorkspaceBuildLogs } from "../../components/WorkspaceBuildLogs/WorkspaceBuildLogs";
+import { ProvisionerJobLog, WorkspaceBuild } from "api/typesGenerated";
+import { Loader } from "components/Loader/Loader";
+import { Stack } from "components/Stack/Stack";
+import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { makeStyles } from "@mui/styles";
 import {
   FullWidthPageHeader,

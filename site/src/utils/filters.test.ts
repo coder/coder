@@ -1,4 +1,4 @@
-import * as TypesGen from "../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import { queryToFilter } from "./filters";
 
 describe("queryToFilter", () => {

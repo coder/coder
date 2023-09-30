@@ -24,9 +24,9 @@ import {
   NumberDictionary,
 } from "unique-names-generator";
 import { useQuery } from "@tanstack/react-query";
-import { templateVersionGitAuth } from "api/queries/templates";
+import { templateVersionExternalAuth } from "api/queries/templates";
 
-export type GitAuthPollingState = "idle" | "polling" | "abandoned";
+export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId();
@@ -58,43 +58,44 @@ const CreateWorkspacePage: FC = () => {
     ? "Creating workspace..."
     : "Create workspace";
 
-  const [gitAuthPollingState, setGitAuthPollingState] =
-    useState<GitAuthPollingState>("idle");
+  const [externalAuthPollingState, setExternalAuthPollingState] =
+    useState<ExternalAuthPollingState>("idle");
 
-  const startPollingGitAuth = useCallback(() => {
-    setGitAuthPollingState("polling");
+  const startPollingExternalAuth = useCallback(() => {
+    setExternalAuthPollingState("polling");
   }, []);
 
-  const { data: gitAuth, error } = useQuery(
+  const { data: externalAuth, error } = useQuery(
     versionId
       ? {
-          ...templateVersionGitAuth(versionId),
-          refetchInterval: gitAuthPollingState === "polling" ? 1000 : false,
+          ...templateVersionExternalAuth(versionId),
+          refetchInterval:
+            externalAuthPollingState === "polling" ? 1000 : false,
         }
       : { enabled: false },
   );
 
-  const allSignedIn = gitAuth?.every((it) => it.authenticated);
+  const allSignedIn = externalAuth?.every((it) => it.authenticated);
 
   useEffect(() => {
     if (allSignedIn) {
-      setGitAuthPollingState("idle");
+      setExternalAuthPollingState("idle");
       return;
     }
 
-    if (gitAuthPollingState !== "polling") {
+    if (externalAuthPollingState !== "polling") {
       return;
     }
 
     // Poll for a maximum of one minute
     const quitPolling = setTimeout(
-      () => setGitAuthPollingState("abandoned"),
+      () => setExternalAuthPollingState("abandoned"),
       60_000,
     );
     return () => {
       clearTimeout(quitPolling);
     };
-  }, [gitAuthPollingState, allSignedIn]);
+  }, [externalAuthPollingState, allSignedIn]);
 
   return (
     <>
@@ -116,9 +117,9 @@ const CreateWorkspacePage: FC = () => {
           error={error}
           template={template!}
           versionId={versionId}
-          gitAuth={gitAuth ?? []}
-          gitAuthPollingState={gitAuthPollingState}
-          startPollingGitAuth={startPollingGitAuth}
+          externalAuth={externalAuth ?? []}
+          externalAuthPollingState={externalAuthPollingState}
+          startPollingExternalAuth={startPollingExternalAuth}
           permissions={permissions as CreateWSPermissions}
           parameters={parameters!}
           creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
