@@ -26,7 +26,6 @@ import (
 
 func TestRefreshToken(t *testing.T) {
 	t.Parallel()
-	const providerID = "test-idp"
 	expired := time.Now().Add(time.Hour * -1)
 
 	t.Run("NoRefreshExpired", func(t *testing.T) {
