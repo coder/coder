@@ -34,7 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -2178,25 +2178,25 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	// new token to be issued!
 	listen := r.URL.Query().Has("listen")
 
-	var gitAuthConfig *gitauth.Config
+	var externalAuthConfig *externalauth.Config
 	for _, gitAuth := range api.ExternalAuthConfigs {
 		matches := gitAuth.Regex.MatchString(gitURL)
 		if !matches {
 			continue
 		}
-		gitAuthConfig = gitAuth
+		externalAuthConfig = gitAuth
 	}
-	if gitAuthConfig == nil {
-		detail := "No git providers are configured."
+	if externalAuthConfig == nil {
+		detail := "No external auth providers are configured."
 		if len(api.ExternalAuthConfigs) > 0 {
 			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
-			for _, gitAuth := range api.ExternalAuthConfigs {
-				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", gitAuth.ID, gitAuth.Regex.String()))
+			for _, extAuth := range api.ExternalAuthConfigs {
+				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
 			}
-			detail = fmt.Sprintf("The configured git provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
+			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
 		}
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No matching git provider found in Coder for the url %q.", gitURL),
+			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", gitURL),
 			Detail:  detail,
 		})
 		return
@@ -2239,8 +2239,8 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				return
 			case <-ticker.C:
 			}
-			gitAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-				ProviderID: gitAuthConfig.ID,
+			externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+				ProviderID: externalAuthConfig.ID,
 				UserID:     workspace.OwnerID,
 			})
 			if err != nil {
@@ -2248,7 +2248,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 					continue
 				}
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Failed to get git auth link.",
+					Message: "Failed to get external auth link.",
 					Detail:  err.Error(),
 				})
 				return
@@ -2258,27 +2258,27 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			// to expire.
 			// See
 			// https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-a-user-access-token-for-a-github-app.
-			if gitAuthLink.OAuthExpiry.Before(dbtime.Now()) && !gitAuthLink.OAuthExpiry.IsZero() {
+			if externalAuthLink.OAuthExpiry.Before(dbtime.Now()) && !externalAuthLink.OAuthExpiry.IsZero() {
 				continue
 			}
-			valid, _, err := gitAuthConfig.ValidateToken(ctx, gitAuthLink.OAuthAccessToken)
+			valid, _, err := externalAuthConfig.ValidateToken(ctx, externalAuthLink.OAuthAccessToken)
 			if err != nil {
-				api.Logger.Warn(ctx, "failed to validate git auth token",
+				api.Logger.Warn(ctx, "failed to validate external auth token",
 					slog.F("workspace_owner_id", workspace.OwnerID.String()),
-					slog.F("validate_url", gitAuthConfig.ValidateURL),
+					slog.F("validate_url", externalAuthConfig.ValidateURL),
 					slog.Error(err),
 				)
 			}
 			if !valid {
 				continue
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
+			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
 			return
 		}
 	}
 
 	// This is the URL that will redirect the user with a state token.
-	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", gitAuthConfig.ID))
+	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/externalauth/%s", externalAuthConfig.ID))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse access URL.",
@@ -2287,14 +2287,14 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	gitAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-		ProviderID: gitAuthConfig.ID,
+	externalAuthLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		ProviderID: externalAuthConfig.ID,
 		UserID:     workspace.OwnerID,
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to get git auth link.",
+				Message: "Failed to get external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -2306,10 +2306,10 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	gitAuthLink, updated, err := gitAuthConfig.RefreshToken(ctx, api.Database, gitAuthLink)
+	externalAuthLink, updated, err := externalAuthConfig.RefreshToken(ctx, api.Database, externalAuthLink)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to refresh git auth token.",
+			Message: "Failed to refresh external auth token.",
 			Detail:  err.Error(),
 		})
 		return
@@ -2320,7 +2320,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(gitAuthConfig.Type, gitAuthLink.OAuthAccessToken))
+	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
 }
 
 // Provider types have different username/password formats.

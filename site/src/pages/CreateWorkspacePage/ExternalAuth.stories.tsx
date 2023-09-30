@@ -1,13 +1,13 @@
-import { GitAuth } from "./GitAuth";
+import { ExternalAuth } from "./ExternalAuth";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const meta: Meta<typeof GitAuth> = {
-  title: "components/GitAuth",
-  component: GitAuth,
+const meta: Meta<typeof ExternalAuth> = {
+  title: "components/ExternalAuth",
+  component: ExternalAuth,
 };
 
 export default meta;
-type Story = StoryObj<typeof GitAuth>;
+type Story = StoryObj<typeof ExternalAuth>;
 
 export const GithubNotAuthenticated: Story = {
   args: {

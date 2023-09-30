@@ -2140,7 +2140,7 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
-  viewGitAuthConfig: true,
+  viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
 };
 
@@ -2188,7 +2188,7 @@ export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExte
   {
     id: "github",
     type: "github",
-    authenticate_url: "https://example.com/gitauth/github",
+    authenticate_url: "https://example.com/externalauth/github",
     authenticated: false,
   };
 
@@ -2196,7 +2196,7 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
   {
     id: "github",
     type: "github",
-    authenticate_url: "https://example.com/gitauth/github",
+    authenticate_url: "https://example.com/externalauth/github",
     authenticated: true,
   };
 

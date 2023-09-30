@@ -1800,18 +1800,18 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get git auth by template version
+## Get external auth by template version
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/gitauth \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/externalauth \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/gitauth`
+`GET /templateversions/{templateversion}/externalauth`
 
 ### Parameters
 
@@ -1840,7 +1840,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/g
 | ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionExternalAuth](schemas.md#codersdktemplateversionexternalauth) |
 
-<h3 id="get-git-auth-by-template-version-responseschema">Response Schema</h3>
+<h3 id="get-external-auth-by-template-version-responseschema">Response Schema</h3>
 
 Status Code **200**
 

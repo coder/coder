@@ -134,7 +134,7 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 
 // TemplateVersionExternalAuth returns authentication providers for the requested template version.
 func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionExternalAuth, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/gitauth", version), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/externalauth", version), nil)
 	if err != nil {
 		return nil, err
 	}

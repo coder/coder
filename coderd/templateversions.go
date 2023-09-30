@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/parameter"
@@ -273,15 +273,15 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
 }
 
-// @Summary Get git auth by template version
-// @ID get-git-auth-by-template-version
+// @Summary Get external auth by template version
+// @ID get-external-auth-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {array} codersdk.TemplateVersionExternalAuth
-// @Router /templateversions/{templateversion}/gitauth [get]
-func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
+// @Router /templateversions/{templateversion}/externalauth [get]
+func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
 		apiKey          = httpmw.APIKey(r)
@@ -291,7 +291,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 	rawProviders := templateVersion.ExternalAuthProviders
 	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
-		var config *gitauth.Config
+		var config *externalauth.Config
 		for _, provider := range api.ExternalAuthConfigs {
 			if provider.ID == rawProvider {
 				config = provider
@@ -307,7 +307,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 
 		// This is the URL that will redirect the user with a state token.
-		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", config.ID))
+		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/externalauth/%s", config.ID))
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to parse access URL.",
@@ -333,7 +333,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching git auth link.",
+				Message: "Internal error fetching external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -342,7 +342,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to refresh git auth token.",
+				Message: "Failed to refresh external auth token.",
 				Detail:  err.Error(),
 			})
 			return

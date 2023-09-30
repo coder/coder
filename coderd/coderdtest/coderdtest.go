@@ -59,7 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -105,7 +105,7 @@ type Options struct {
 	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
-	ExternalAuthConfigs   []*gitauth.Config
+	ExternalAuthConfigs   []*externalauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
@@ -899,14 +899,14 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	return ws
 }
 
-// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
-// to the git auth callback endpoint.
-func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+// RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
+// to the external auth callback endpoint.
+func RequestExternalAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/externalauth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)

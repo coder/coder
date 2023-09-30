@@ -72,7 +72,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/devtunnel"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -574,16 +574,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			vals.GitAuthProviders.Value = append(vals.GitAuthProviders.Value, gitAuthEnv...)
-			gitAuthConfigs, err := gitauth.ConvertConfig(
+			externalAuthConfigs, err := externalauth.ConvertConfig(
 				vals.GitAuthProviders.Value,
 				vals.AccessURL.Value(),
 			)
 			if err != nil {
-				return xerrors.Errorf("convert git auth config: %w", err)
+				return xerrors.Errorf("convert external auth config: %w", err)
 			}
-			for _, c := range gitAuthConfigs {
+			for _, c := range externalAuthConfigs {
 				logger.Debug(
-					ctx, "loaded git auth config",
+					ctx, "loaded external auth config",
 					slog.F("id", c.ID),
 				)
 			}
@@ -608,7 +608,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				ExternalAuthConfigs:         gitAuthConfigs,
+				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

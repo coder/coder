@@ -31,7 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -49,7 +49,7 @@ const DefaultAcquireJobLongPollDur = time.Second * 5
 
 type Options struct {
 	OIDCConfig          httpmw.OAuth2Config
-	ExternalAuthConfigs []*gitauth.Config
+	ExternalAuthConfigs []*externalauth.Config
 	// TimeNowFn is only used in tests
 	TimeNowFn func() time.Time
 
@@ -62,7 +62,7 @@ type server struct {
 	ID                          uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
-	ExternalAuthConfigs         []*gitauth.Config
+	ExternalAuthConfigs         []*externalauth.Config
 	Tags                        Tags
 	Database                    database.Store
 	Pubsub                      pubsub.Pubsub
@@ -416,7 +416,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			if err != nil {
 				return nil, failJob(fmt.Sprintf("acquire external auth link: %s", err))
 			}
-			var config *gitauth.Config
+			var config *externalauth.Config
 			for _, c := range s.ExternalAuthConfigs {
 				if c.ID != p {
 					continue

@@ -542,7 +542,7 @@ site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./coders
 	cd site
 	pnpm run format:types ./src/api/typesGenerated.ts
 
-site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go
+site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner

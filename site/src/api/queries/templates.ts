@@ -121,15 +121,15 @@ export const updateActiveTemplateVersion = (
   };
 };
 
-export const templateVersionGitAuthKey = (versionId: string) => [
+export const templateVersionExternalAuthKey = (versionId: string) => [
   "templateVersion",
   versionId,
-  "gitAuth",
+  "externalAuth",
 ];
 
-export const templateVersionGitAuth = (versionId: string) => {
+export const templateVersionExternalAuth = (versionId: string) => {
   return {
-    queryKey: templateVersionGitAuthKey(versionId),
-    queryFn: () => API.getTemplateVersionGitAuth(versionId),
+    queryKey: templateVersionExternalAuthKey(versionId),
+    queryFn: () => API.getTemplateVersionExternalAuth(versionId),
   };
 };

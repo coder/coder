@@ -331,11 +331,11 @@ export const createTemplateVersion = async (
   return response.data;
 };
 
-export const getTemplateVersionGitAuth = async (
+export const getTemplateVersionExternalAuth = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/gitauth`,
+    `/api/v2/templateversions/${versionId}/externalauth`,
   );
   return response.data;
 };
@@ -855,25 +855,25 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 };
 
-export const getGitAuthProvider = async (
+export const getExternalAuthProvider = async (
   provider: string,
-): Promise<TypesGen.GitAuth> => {
-  const resp = await axios.get(`/api/v2/gitauth/${provider}`);
+): Promise<TypesGen.ExternalAuth> => {
+  const resp = await axios.get(`/api/v2/externalauth/${provider}`);
   return resp.data;
 };
 
-export const getGitAuthDevice = async (
+export const getExternalAuthDevice = async (
   provider: string,
-): Promise<TypesGen.GitAuthDevice> => {
-  const resp = await axios.get(`/api/v2/gitauth/${provider}/device`);
+): Promise<TypesGen.ExternalAuthDevice> => {
+  const resp = await axios.get(`/api/v2/externalauth/${provider}/device`);
   return resp.data;
 };
 
-export const exchangeGitAuthDevice = async (
+export const exchangeExternalAuthDevice = async (
   provider: string,
-  req: TypesGen.GitAuthDeviceExchange,
+  req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/api/v2/gitauth/${provider}/device`, req);
+  const resp = await axios.post(`/api/v2/externalauth/${provider}/device`, req);
   return resp.data;
 };
 
