@@ -39,7 +39,7 @@
     "@types/react": "18.2.17",
     "@types/react-dom": "18.2.7",
     "eslint": "8.49.0",
-    "eslint-config-next": "13.4.10",
+    "eslint-config-next": "13.5.3",
     "prettier": "3.0.0",
     "typescript": "5.1.6"
   },
