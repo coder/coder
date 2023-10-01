@@ -46,7 +46,7 @@
     "@mui/styles": "5.14.0",
     "@mui/system": "5.14.0",
     "@tanstack/react-query": "4.35.3",
-    "@vitejs/plugin-react": "4.0.1",
+    "@vitejs/plugin-react": "4.1.0",
     "@xstate/inspect": "0.8.0",
     "@xstate/react": "3.2.1",
     "ansi-to-html": "0.7.2",
