@@ -29,16 +29,16 @@ var remoteForwardRegexTCP = regexp.MustCompile(`^(\d+):(.+):(\d+)$`)
 // remote_socket_path:local_socket_path (both absolute paths)
 var remoteForwardRegexUnixSocket = regexp.MustCompile(`^(\/.+):(\/.+)$`)
 
-func remoteForwardTCP(flag string) bool {
+func isRemoteForwardTCP(flag string) bool {
 	return remoteForwardRegexTCP.MatchString(flag)
 }
 
-func remoteForwardUnixSocket(flag string) bool {
+func isRemoteForwardUnixSocket(flag string) bool {
 	return remoteForwardRegexUnixSocket.MatchString(flag)
 }
 
 func validateRemoteForward(flag string) bool {
-	return remoteForwardTCP(flag) || remoteForwardUnixSocket(flag)
+	return isRemoteForwardTCP(flag) || isRemoteForwardUnixSocket(flag)
 }
 
 func parseRemoteForwardTCP(matches []string) (net.Addr, net.Addr, error) {
