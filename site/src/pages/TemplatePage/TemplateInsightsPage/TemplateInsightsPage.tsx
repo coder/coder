@@ -58,7 +58,7 @@ export default function TemplateInsightsPage() {
     endDate: now,
   };
 
-  const [interval, setInterval] = useState<InsightsInterval>("day");
+  const [interval, setInterval] = useState<InsightsInterval>("week");
   const [weeklyPreset, setWeeklyPreset] =
     useState<WeeklyPreset>(defaultWeeklyPreset);
   const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(
