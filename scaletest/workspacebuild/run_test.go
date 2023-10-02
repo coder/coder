@@ -103,7 +103,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// Since the runner creates the workspace on it's own, we have to keep
 		// listing workspaces until we find it, then wait for the build to
@@ -127,7 +127,7 @@ func Test_Runner(t *testing.T) {
 				time.Sleep(100 * time.Millisecond)
 			}
 
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 			// Start the three agents.
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
@@ -177,7 +177,7 @@ func Test_Runner(t *testing.T) {
 		workspaces := res.Workspaces
 		require.Len(t, workspaces, 1)
 
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspaces[0].LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaces[0].LatestBuild.ID)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
 
 		err = runner.Cleanup(ctx, "1")
@@ -212,7 +212,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
 			OrganizationID: user.OrganizationID,

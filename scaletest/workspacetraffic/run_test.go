@@ -64,12 +64,12 @@ func TestRun(t *testing.T) {
 				}},
 			})
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
 			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
-			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		)
 
 		// We also need a running agent to run this test.
@@ -183,12 +183,12 @@ func TestRun(t *testing.T) {
 				}},
 			})
 			template = coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-			_        = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			// In order to be picked up as a scaletest workspace, the workspace must be named specifically
 			ws = coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.Name = "scaletest-test"
 			})
-			_ = coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+			_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		)
 
 		// We also need a running agent to run this test.

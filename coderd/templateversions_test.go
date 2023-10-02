@@ -229,7 +229,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -326,7 +326,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -356,7 +356,7 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 				},
 			}},
 		})
-		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		require.Empty(t, version.Job.Error)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -420,7 +420,7 @@ func TestTemplateVersionResources(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -627,7 +627,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				},
 			},
 		})
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -721,7 +721,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				},
 			})
 
-			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
 
 			closer.Close()
@@ -745,7 +745,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
@@ -792,7 +792,7 @@ func TestTemplateVersionDryRun(t *testing.T) {
 				},
 			})
 
-			version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
 
 			closer.Close()
@@ -974,14 +974,14 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		// from another template
 		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateAVersion1.ID)
 		// Create two versions for the template B to be sure if we try to get the
 		// previous version of the first version it will returns a 404
 		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion1.ID)
 		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1001,14 +1001,14 @@ func TestPreviousTemplateVersion(t *testing.T) {
 		// from another template
 		templateAVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.CreateTemplate(t, client, user.OrganizationID, templateAVersion1.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateAVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateAVersion1.ID)
 		// Create two versions for the template B so we can try to get the previous
 		// version of version 2
 		templateBVersion1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		templateB := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateBVersion1.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion1.ID)
 		templateBVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, templateB.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, templateBVersion2.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateBVersion2.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -1082,7 +1082,7 @@ func TestTemplateVersionVariables(t *testing.T) {
 				}
 			},
 		)
-		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		templateVersion := coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// As user passed the value for the first parameter, the job will succeed.
 		require.Empty(t, templateVersion.Job.Error)
@@ -1124,7 +1124,7 @@ func TestTemplateVersionVariables(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponses(templateVariables))
-		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		templateVersion := coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// As the first variable is marked as required and misses the default value,
 		// the job will fail, but will populate the template_version_variables table with existing variables.
@@ -1177,7 +1177,7 @@ func TestTemplateVersionVariables(t *testing.T) {
 				}
 			},
 		)
-		templateVersion := coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		templateVersion := coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// As user passed the value for the first parameter, the job will succeed.
 		require.Empty(t, templateVersion.Job.Error)
@@ -1453,7 +1453,7 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 		},
 		ProvisionApply: echo.ApplyComplete,
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()

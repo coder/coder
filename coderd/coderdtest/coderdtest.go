@@ -880,7 +880,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 	})
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)

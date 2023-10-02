@@ -31,13 +31,13 @@ func TestScheduleShow(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.AutostartSchedule = ptr.Ref(schedCron)
 				cwr.TTLMillis = ptr.Ref(ttl.Milliseconds())
 			})
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			cmdArgs   = []string{"schedule", "show", workspace.Name}
 			stdoutBuf = &bytes.Buffer{}
 		)
@@ -68,13 +68,13 @@ func TestScheduleShow(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.AutostartSchedule = nil
 				cwr.TTLMillis = nil
 			})
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			cmdArgs   = []string{"schedule", "show", workspace.Name}
 			stdoutBuf = &bytes.Buffer{}
 		)
@@ -101,7 +101,7 @@ func TestScheduleShow(t *testing.T) {
 			client  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user    = coderdtest.CreateFirstUser(t, client)
 			version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_       = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_       = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		)
 
 		inv, root := clitest.New(t, "schedule", "show", "doesnotexist")
@@ -120,12 +120,12 @@ func TestScheduleStart(t *testing.T) {
 		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.AutostartSchedule = nil
 		})
-		_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		tz        = "Europe/Dublin"
 		sched     = "CRON_TZ=Europe/Dublin 30 9 * * Mon-Fri"
 		stdoutBuf = &bytes.Buffer{}
@@ -177,11 +177,11 @@ func TestScheduleStop(t *testing.T) {
 		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		ttl       = 8*time.Hour + 30*time.Minute
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-		_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		stdoutBuf = &bytes.Buffer{}
 	)
 
@@ -230,7 +230,7 @@ func TestScheduleOverride(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "10h"}
@@ -238,7 +238,7 @@ func TestScheduleOverride(t *testing.T) {
 		)
 
 		// Given: we wait for the workspace to be built
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		expectedDeadline := time.Now().Add(10 * time.Hour)
@@ -271,7 +271,7 @@ func TestScheduleOverride(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
 			cmdArgs   = []string{"schedule", "override-stop", workspace.Name, "kwyjibo"}
@@ -279,7 +279,7 @@ func TestScheduleOverride(t *testing.T) {
 		)
 
 		// Given: we wait for the workspace to be built
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
@@ -307,7 +307,7 @@ func TestScheduleOverride(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 				cwr.TTLMillis = nil
@@ -327,7 +327,7 @@ func TestScheduleOverride(t *testing.T) {
 		require.Nil(t, workspace.TTLMillis)
 
 		// Given: we wait for the workspace to build
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
@@ -362,7 +362,7 @@ func TestScheduleStartDefaults(t *testing.T) {
 		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user      = coderdtest.CreateFirstUser(t, client)
 		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.AutostartSchedule = nil
