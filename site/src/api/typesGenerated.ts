@@ -396,7 +396,7 @@ export interface DeploymentValues {
   readonly disable_session_expiry_refresh?: boolean;
   readonly disable_password_auth?: boolean;
   readonly support?: SupportConfig;
-  readonly git_auth?: GitAuthConfig[];
+  readonly external_auth?: ExternalAuthConfig[];
   readonly config_ssh?: SSHConfig;
   readonly wgtunnel_host?: string;
   readonly disable_owner_workspace_exec?: boolean;
@@ -440,6 +440,25 @@ export interface ExternalAuthAppInstallation {
   readonly configure_url: string;
 }
 
+// From codersdk/deployment.go
+export interface ExternalAuthConfig {
+  readonly type: string;
+  readonly client_id: string;
+  readonly id: string;
+  readonly auth_url: string;
+  readonly token_url: string;
+  readonly validate_url: string;
+  readonly app_install_url: string;
+  readonly app_installations_url: string;
+  readonly no_refresh: boolean;
+  readonly scopes: string[];
+  readonly device_flow: boolean;
+  readonly device_code_url: string;
+  readonly regex: string;
+  readonly display_name: string;
+  readonly display_icon: string;
+}
+
 // From codersdk/externalauth.go
 export interface ExternalAuthDevice {
   readonly device_code: string;
@@ -479,25 +498,6 @@ export interface GenerateAPIKeyResponse {
 export interface GetUsersResponse {
   readonly users: User[];
   readonly count: number;
-}
-
-// From codersdk/deployment.go
-export interface GitAuthConfig {
-  readonly id: string;
-  readonly type: string;
-  readonly client_id: string;
-  readonly auth_url: string;
-  readonly token_url: string;
-  readonly validate_url: string;
-  readonly app_install_url: string;
-  readonly app_installations_url: string;
-  readonly regex: string;
-  readonly no_refresh: boolean;
-  readonly scopes: string[];
-  readonly device_flow: boolean;
-  readonly device_code_url: string;
-  readonly display_name: string;
-  readonly display_icon: string;
 }
 
 // From codersdk/gitsshkey.go
