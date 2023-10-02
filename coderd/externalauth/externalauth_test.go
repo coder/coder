@@ -266,41 +266,43 @@ func TestConvertYAML(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		Name   string
-		Input  []codersdk.GitAuthConfig
+		Input  []codersdk.ExternalAuthConfig
 		Output []*externalauth.Config
 		Error  string
 	}{{
 		Name: "InvalidType",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type: "moo",
 		}},
-		Error: "unknown git provider type",
+		Error: "unknown external auth provider type",
 	}, {
 		Name: "InvalidID",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type: string(codersdk.ExternalAuthProviderGitHub),
 			ID:   "$hi$",
 		}},
 		Error: "doesn't have a valid id",
 	}, {
 		Name: "NoClientID",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type: string(codersdk.ExternalAuthProviderGitHub),
 		}},
 		Error: "client_id must be provided",
 	}, {
 		Name: "DuplicateType",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.ExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 		}, {
-			Type: string(codersdk.ExternalAuthProviderGitHub),
+			Type:         string(codersdk.ExternalAuthProviderGitHub),
+			ClientID:     "example-2",
+			ClientSecret: "example-2",
 		}},
 		Error: "multiple github external auth providers provided",
 	}, {
 		Name: "InvalidRegex",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.ExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
@@ -309,7 +311,7 @@ func TestConvertYAML(t *testing.T) {
 		Error: "compile regex for external auth provider",
 	}, {
 		Name: "NoDeviceURL",
-		Input: []codersdk.GitAuthConfig{{
+		Input: []codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.ExternalAuthProviderGitLab),
 			ClientID:     "example",
 			ClientSecret: "example",
@@ -332,7 +334,7 @@ func TestConvertYAML(t *testing.T) {
 
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
-		config, err := externalauth.ConvertConfig([]codersdk.GitAuthConfig{{
+		config, err := externalauth.ConvertConfig([]codersdk.ExternalAuthConfig{{
 			Type:         string(codersdk.ExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",

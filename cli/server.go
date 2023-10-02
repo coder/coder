@@ -101,11 +101,11 @@ import (
 // ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
 // viper CLI.
 // DEPRECATED
-func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, error) {
+func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuthConfig, error) {
 	// The index numbers must be in-order.
 	sort.Strings(environ)
 
-	var providers []codersdk.GitAuthConfig
+	var providers []codersdk.ExternalAuthConfig
 	for _, v := range clibase.ParseEnviron(environ, "CODER_GITAUTH_") {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
@@ -117,7 +117,7 @@ func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, er
 			return nil, xerrors.Errorf("parse number: %s", v.Name)
 		}
 
-		var provider codersdk.GitAuthConfig
+		var provider codersdk.ExternalAuthConfig
 		switch {
 		case len(providers) < providerNum:
 			return nil, xerrors.Errorf(
@@ -820,7 +820,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if vals.Telemetry.Enable {
 				gitAuth := make([]telemetry.GitAuth, 0)
 				// TODO:
-				var gitAuthConfigs []codersdk.GitAuthConfig
+				var gitAuthConfigs []codersdk.ExternalAuthConfig
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
 						Type: cfg.Type,
