@@ -82,7 +82,7 @@
     "react-use": "17.4.0",
     "react-virtualized-auto-sizer": "1.0.20",
     "react-window": "1.8.8",
-    "remark-gfm": "3.0.1",
+    "remark-gfm": "4.0.0",
     "rollup-plugin-visualizer": "5.9.0",
     "semver": "7.5.3",
     "ts-proto": "1.159.1",
