@@ -4,7 +4,7 @@ import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
 import { useQuery } from "@tanstack/react-query";
 import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
-import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
+import { ActiveUsersTitle, DAUChart } from "components/DAUChart/DAUChart";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
@@ -144,7 +144,7 @@ export const TemplateInsightsPageView = ({
           gap: (theme) => theme.spacing(3),
         }}
       >
-        <DailyUsersPanel
+        <ActiveUsersPanel
           sx={{ gridColumn: "span 2" }}
           data={templateInsights?.interval_reports}
         />
@@ -162,7 +162,7 @@ export const TemplateInsightsPageView = ({
   );
 };
 
-const DailyUsersPanel = ({
+const ActiveUsersPanel = ({
   data,
   ...panelProps
 }: PanelProps & {
@@ -172,7 +172,7 @@ const DailyUsersPanel = ({
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>
-          <DAUTitle />
+          <ActiveUsersTitle />
         </PanelTitle>
       </PanelHeader>
       <PanelContent>

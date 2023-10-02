@@ -115,17 +115,15 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   );
 };
 
-export const DAUTitle = () => {
+export const ActiveUsersTitle = () => {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      Daily Active Users
+      Active Users
       <HelpTooltip size="small">
-        <HelpTooltipTitle>
-          How do we calculate daily active users?
-        </HelpTooltipTitle>
+        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
         <HelpTooltipText>
           When a connection is initiated to a user&apos;s workspace they are
-          considered a daily active user. e.g. apps, web terminal, SSH
+          considered an active user. e.g. apps, web terminal, SSH
         </HelpTooltipText>
       </HelpTooltip>
     </Box>
