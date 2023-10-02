@@ -39,9 +39,13 @@ ChartJS.register(
 
 export interface ActiveUserChartProps {
   data: { date: string; amount: number }[];
+  interval: "day" | "week";
 }
 
-export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
+export const ActiveUserChart: FC<ActiveUserChartProps> = ({
+  data,
+  interval,
+}) => {
   const theme: Theme = useTheme();
 
   const labels = data.map((val) => {
@@ -85,7 +89,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
         },
         type: "time",
         time: {
-          unit: "day",
+          unit: interval,
         },
       },
     },

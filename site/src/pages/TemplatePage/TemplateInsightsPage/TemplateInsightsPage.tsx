@@ -112,6 +112,7 @@ export default function TemplateInsightsPage() {
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
+        interval={interval}
       />
     </>
   );
@@ -121,10 +122,12 @@ export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
   controls,
+  interval,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
   controls: ReactNode;
+  interval: InsightsInterval;
 }) => {
   return (
     <>
@@ -148,6 +151,7 @@ export const TemplateInsightsPageView = ({
       >
         <ActiveUsersPanel
           sx={{ gridColumn: "span 2" }}
+          interval={interval}
           data={templateInsights?.interval_reports}
         />
         <UserLatencyPanel data={userLatency} />
@@ -166,9 +170,11 @@ export const TemplateInsightsPageView = ({
 
 const ActiveUsersPanel = ({
   data,
+  interval,
   ...panelProps
 }: PanelProps & {
   data: TemplateInsightsResponse["interval_reports"] | undefined;
+  interval: InsightsInterval;
 }) => {
   return (
     <Panel {...panelProps}>
@@ -182,6 +188,7 @@ const ActiveUsersPanel = ({
         {data && data.length === 0 && <NoDataAvailable />}
         {data && data.length > 0 && (
           <ActiveUserChart
+            interval={interval}
             data={data.map((d) => {
               return {
                 amount: d.active_users,
