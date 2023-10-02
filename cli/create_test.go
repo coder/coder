@@ -614,6 +614,7 @@ func TestCreateWithGitAuth(t *testing.T) {
 			ID:           "github",
 			Regex:        regexp.MustCompile(`github\.com`),
 			Type:         codersdk.ExternalAuthProviderGitHub,
+			DisplayName:  "GitHub",
 		}},
 		IncludeProvisionerDaemon: true,
 	})
