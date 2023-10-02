@@ -4,7 +4,10 @@ import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
 import { useQuery } from "@tanstack/react-query";
 import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
-import { ActiveUsersTitle, DAUChart } from "components/DAUChart/DAUChart";
+import {
+  ActiveUsersTitle,
+  ActiveUserChart,
+} from "components/ActiveUserChart/ActiveUserChart";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
@@ -19,7 +22,6 @@ import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
-  DAUsResponse,
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
@@ -178,7 +180,16 @@ const ActiveUsersPanel = ({
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
         {data && data.length === 0 && <NoDataAvailable />}
-        {data && data.length > 0 && <DAUChart daus={mapToDAUsResponse(data)} />}
+        {data && data.length > 0 && (
+          <ActiveUserChart
+            data={data.map((d) => {
+              return {
+                amount: d.active_users,
+                date: d.start_time,
+              };
+            })}
+          />
+        )}
       </PanelContent>
     </Panel>
   );
@@ -635,20 +646,6 @@ const getWeeklyRange = (numberOfWeeks: WeeklyPreset) => {
   const endDate = isSunday(now) ? endOfDay(now) : endOfWeek(subWeeks(now, 1));
   return { startDate, endDate };
 };
-
-function mapToDAUsResponse(
-  data: TemplateInsightsResponse["interval_reports"],
-): DAUsResponse {
-  return {
-    tz_hour_offset: 0,
-    entries: data.map((d) => {
-      return {
-        amount: d.active_users,
-        date: d.start_time,
-      };
-    }),
-  };
-}
 
 function formatTime(seconds: number): string {
   if (seconds < 60) {

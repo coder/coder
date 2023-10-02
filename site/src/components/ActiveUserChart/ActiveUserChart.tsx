@@ -1,7 +1,6 @@
 import Box from "@mui/material/Box";
 import { Theme } from "@mui/material/styles";
 import useTheme from "@mui/styles/useTheme";
-import * as TypesGen from "api/typesGenerated";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -38,18 +37,18 @@ ChartJS.register(
   Legend,
 );
 
-export interface DAUChartProps {
-  daus: TypesGen.DAUsResponse;
+export interface ActiveUserChartProps {
+  data: { date: string; amount: number }[];
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
+export const ActiveUserChart: FC<ActiveUserChartProps> = ({ data }) => {
   const theme: Theme = useTheme();
 
-  const labels = daus.entries.map((val) => {
+  const labels = data.map((val) => {
     return dayjs(val.date).format("YYYY-MM-DD");
   });
 
-  const data = daus.entries.map((val) => {
+  const chartData = data.map((val) => {
     return val.amount;
   });
 
@@ -82,7 +81,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
 
       x: {
         ticks: {
-          stepSize: daus.entries.length > 10 ? 2 : undefined,
+          stepSize: data.length > 10 ? 2 : undefined,
         },
         type: "time",
         time: {
@@ -101,7 +100,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         datasets: [
           {
             label: "Daily Active Users",
-            data: data,
+            data: chartData,
             pointBackgroundColor: theme.palette.info.light,
             pointBorderColor: theme.palette.info.light,
             borderColor: theme.palette.info.light,
