@@ -21,6 +21,11 @@ fi
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"
 
+appearance_json="$(get_appearance)"
+service_banner_message=$(jq -r '.service_banner.message' <<<"${appearance_json}")
+service_banner_message="${service_banner_message/% | */}"
+service_banner_color="#D65D0F" # Orange.
+
 annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 
 {
@@ -55,8 +60,9 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 } &
 pprof_pid=$!
 
+set_appearance "${appearance_json}" "${service_banner_color}" "${service_banner_message} | Scaletest running: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
+
 # Show failure in the UI if script exits with error.
-failed_status=Failed
 on_exit() {
 	code=${?}
 	trap - ERR EXIT
@@ -64,24 +70,36 @@ on_exit() {
 
 	kill -INT "${pprof_pid}"
 
+	message_color="#4CD473" # Green.
+	message_status=COMPLETE
+	if ((code > 0)); then
+		message_color="#D94A5D" # Red.
+		message_status=FAILED
+	fi
+
 	case "${SCALETEST_PARAM_CLEANUP_STRATEGY}" in
 	on_stop)
 		# Handled by shutdown script.
 		;;
 	on_success)
 		if ((code == 0)); then
+			set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE}), cleaning up..."
 			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		fi
 		;;
 	on_error)
 		if ((code > 0)); then
+			set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE}), cleaning up..."
 			"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		fi
 		;;
 	*)
+		set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE}), cleaning up..."
 		"${SCRIPTS_DIR}/cleanup.sh" "${SCALETEST_PARAM_CLEANUP_STRATEGY}"
 		;;
 	esac
+
+	set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
 	annotate_grafana_end "" "Start scaletest"
 }
@@ -93,7 +111,7 @@ on_err() {
 	set +e
 
 	log "Scaletest failed!"
-	GRAFANA_EXTRA_TAGS=error set_status "${failed_status} (exit=${code})"
+	GRAFANA_EXTRA_TAGS=error set_status "Failed (exit=${code})"
 	"${SCRIPTS_DIR}/report.sh" failed
 	lock_status # Ensure we never rewrite the status after a failure.
 

@@ -210,3 +210,33 @@ wait_baseline() {
 	maybedryrun "$DRY_RUN" sleep $((s * 60))
 	PHASE_TYPE="phase-wait" end_phase
 }
+
+get_appearance() {
+	session_token=$CODER_USER_TOKEN
+	if [[ -f "${CODER_CONFIG_DIR}/session" ]]; then
+		session_token="$(<"${CODER_CONFIG_DIR}/session")"
+	fi
+	curl -sSL \
+		-H "Coder-Session-Token: ${session_token}" \
+		"${CODER_URL}/api/v2/appearance"
+}
+set_appearance() {
+	local json=$1 color=$2 message=$3
+
+	session_token=$CODER_USER_TOKEN
+	if [[ -f "${CODER_CONFIG_DIR}/session" ]]; then
+		session_token="$(<"${CODER_CONFIG_DIR}/session")"
+	fi
+	newjson="$(
+		jq \
+			--arg color "${color}" \
+			--arg message "${message}" \
+			'. | .service_banner.message |= $message | .service_banner.background_color |= $color' <<<"${json}"
+	)"
+	maybedryrun "${DRY_RUN}" curl -sSL \
+		-X PUT \
+		-H 'Content-Type: application/json' \
+		-H "Coder-Session-Token: ${session_token}" \
+		--data "${newjson}" \
+		"${CODER_URL}/api/v2/appearance"
+}
