@@ -101,6 +101,14 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	orgMem, err := api.Database.GetOrganizationMemberByUserID(ctx, database.GetOrganizationMemberByUserIDParams{
+		UserID: user.ID,
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
 	diff, err := json.Marshal(codersdk.AuditDiff{
 		"foo": codersdk.AuditDiffField{Old: "bar", New: "baz"},
 	})
@@ -154,9 +162,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Diff:             diff,
 		StatusCode:       http.StatusOK,
 		AdditionalFields: params.AdditionalFields,
-		OrganizationID:   uuid.Nil,
 		RequestID:        uuid.Nil, // no request ID to attach this to
 		ResourceIcon:     "",
+		OrganizationID:   orgMem.OrganizationID,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
