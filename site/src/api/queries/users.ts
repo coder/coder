@@ -1,11 +1,15 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, QueryOptions } from "@tanstack/react-query";
 import * as API from "api/api";
-import { UpdateUserPasswordRequest, UsersRequest } from "api/typesGenerated";
+import {
+  GetUsersResponse,
+  UpdateUserPasswordRequest,
+  UsersRequest,
+} from "api/typesGenerated";
 
-export const users = (req: UsersRequest) => {
+export const users = (req: UsersRequest): QueryOptions<GetUsersResponse> => {
   return {
     queryKey: ["users", req],
-    queryFn: () => API.getUsers(req),
+    queryFn: ({ signal }) => API.getUsers(req, signal),
   };
 };
 
