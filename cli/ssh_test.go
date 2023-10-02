@@ -453,7 +453,7 @@ func TestSSH(t *testing.T) {
 			"ssh",
 			workspace.Name,
 			"--remote-forward",
-			agentSock+":/tmp/test.sock",
+			"/tmp/test.sock:"+agentSock,
 		)
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
