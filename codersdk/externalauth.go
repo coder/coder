@@ -50,7 +50,7 @@ type ExternalAuthDeviceExchange struct {
 }
 
 func (c *Client) ExternalAuthDeviceByID(ctx context.Context, provider string) (ExternalAuthDevice, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/externalauth/%s/device", provider), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/external-auth/%s/device", provider), nil)
 	if err != nil {
 		return ExternalAuthDevice{}, err
 	}
@@ -64,7 +64,7 @@ func (c *Client) ExternalAuthDeviceByID(ctx context.Context, provider string) (E
 
 // ExchangeGitAuth exchanges a device code for an external auth token.
 func (c *Client) ExternalAuthDeviceExchange(ctx context.Context, provider string, req ExternalAuthDeviceExchange) error {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/externalauth/%s/device", provider), req)
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/external-auth/%s/device", provider), req)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (c *Client) ExternalAuthDeviceExchange(ctx context.Context, provider string
 
 // ExternalAuthByID returns the external auth for the given provider by ID.
 func (c *Client) ExternalAuthByID(ctx context.Context, provider string) (ExternalAuth, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/externalauth/%s", provider), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/external-auth/%s", provider), nil)
 	if err != nil {
 		return ExternalAuth{}, err
 	}

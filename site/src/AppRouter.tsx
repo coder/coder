@@ -210,7 +210,7 @@ export const AppRouter: FC = () => {
               <Route path="health" element={<HealthPage />} />
 
               <Route
-                path="externalauth/:provider"
+                path="external-auth/:provider"
                 element={<ExternalAuthPage />}
               />
 

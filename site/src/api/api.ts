@@ -335,7 +335,7 @@ export const getTemplateVersionExternalAuth = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/externalauth`,
+    `/api/v2/templateversions/${versionId}/external-auth`,
   );
   return response.data;
 };
@@ -858,14 +858,14 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
 export const getExternalAuthProvider = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuth> => {
-  const resp = await axios.get(`/api/v2/externalauth/${provider}`);
+  const resp = await axios.get(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
 export const getExternalAuthDevice = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuthDevice> => {
-  const resp = await axios.get(`/api/v2/externalauth/${provider}/device`);
+  const resp = await axios.get(`/api/v2/external-auth/${provider}/device`);
   return resp.data;
 };
 
@@ -873,7 +873,7 @@ export const exchangeExternalAuthDevice = async (
   provider: string,
   req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/api/v2/externalauth/${provider}/device`, req);
+  const resp = await axios.post(`/api/v2/external-auth/${provider}/device`, req);
   return resp.data;
 };
 

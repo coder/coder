@@ -268,7 +268,7 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
-		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/externalauth/%s", "github")))
+		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/external-auth/%s", "github")))
 	})
 	t.Run("UnauthorizedCallback", func(t *testing.T) {
 		t.Parallel()
@@ -300,7 +300,7 @@ func TestGitAuthCallback(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
-		require.Equal(t, "/externalauth/github", location.Path)
+		require.Equal(t, "/external-auth/github", location.Path)
 
 		// Callback again to simulate updating the token.
 		resp = coderdtest.RequestExternalAuthCallback(t, "github", client)

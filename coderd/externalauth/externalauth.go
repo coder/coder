@@ -407,9 +407,9 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		}
 		ids[entry.ID] = struct{}{}
 
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/externalauth/%s/callback", entry.ID))
+		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse externalauth callback url: %w", err)
+			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
 		}
 
 		var regex *regexp.Regexp
