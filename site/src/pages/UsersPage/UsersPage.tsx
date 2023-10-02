@@ -225,7 +225,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
         }}
         description={
           <>
-            Do you want to activate the user{" "}
+            Do you want to activate{" "}
             <strong>{confirmActivateUser?.username ?? ""}</strong>?
           </>
         }
