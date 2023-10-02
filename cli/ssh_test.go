@@ -468,7 +468,7 @@ func TestSSH(t *testing.T) {
 		_ = pty.Peek(ctx, 1)
 
 		// Download the test page
-		pty.WriteLine("ss -xl state listening src /var/roo/daemon.sock | wc -l")
+		pty.WriteLine("ss -xl state listening src /tmp/test.sock | wc -l")
 		pty.ExpectMatch("2")
 
 		// And we're done.
