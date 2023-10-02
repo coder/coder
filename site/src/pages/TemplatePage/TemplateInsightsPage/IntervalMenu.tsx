@@ -4,7 +4,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import { useState, MouseEvent } from "react";
+import { useState, useRef } from "react";
 
 export const insightsIntervals = {
   day: {
@@ -24,34 +24,41 @@ export const IntervalMenu = ({
   value: InsightsInterval;
   onChange: (value: InsightsInterval) => void;
 }) => {
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const open = Boolean(anchorEl);
-  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+
   const handleClose = () => {
-    setAnchorEl(null);
+    setOpen(false);
   };
 
   return (
     <div>
       <Button
+        ref={anchorRef}
         id="interval-button"
         aria-controls={open ? "interval-menu" : undefined}
         aria-haspopup="true"
         aria-expanded={open ? "true" : undefined}
-        onClick={handleClick}
+        onClick={() => setOpen(true)}
         endIcon={<ExpandMoreOutlined />}
       >
         {insightsIntervals[value].label}
       </Button>
       <Menu
         id="interval-menu"
-        anchorEl={anchorEl}
+        anchorEl={anchorRef.current}
         open={open}
         onClose={handleClose}
         MenuListProps={{
           "aria-labelledby": "interval-button",
+        }}
+        anchorOrigin={{
+          vertical: "bottom",
+          horizontal: "left",
+        }}
+        transformOrigin={{
+          vertical: "top",
+          horizontal: "left",
         }}
       >
         {Object.keys(insightsIntervals).map((interval) => {
