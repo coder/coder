@@ -2888,23 +2888,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
 
-## codersdk.ExternalAuthProvider
-
-```json
-"azure-devops"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value          |
-| -------------- |
-| `azure-devops` |
-| `github`       |
-| `gitlab`       |
-| `bitbucket`    |
-
 ## codersdk.ExternalAuthUser
 
 ```json
@@ -4754,20 +4737,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "display_icon": "string",
   "display_name": "string",
   "id": "string",
-  "type": "azure-devops"
+  "type": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `authenticate_url` | string                                                         | false    |              |             |
-| `authenticated`    | boolean                                                        | false    |              |             |
-| `display_icon`     | string                                                         | false    |              |             |
-| `display_name`     | string                                                         | false    |              |             |
-| `id`               | string                                                         | false    |              |             |
-| `type`             | [codersdk.ExternalAuthProvider](#codersdkexternalauthprovider) | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string  | false    |              |             |
+| `authenticated`    | boolean | false    |              |             |
+| `display_icon`     | string  | false    |              |             |
+| `display_name`     | string  | false    |              |             |
+| `id`               | string  | false    |              |             |
+| `type`             | string  | false    |              |             |
 
 ## codersdk.TemplateVersionParameter
 

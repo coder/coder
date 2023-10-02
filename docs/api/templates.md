@@ -1831,7 +1831,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
     "display_icon": "string",
     "display_name": "string",
     "id": "string",
-    "type": "azure-devops"
+    "type": "string"
   }
 ]
 ```
@@ -1846,24 +1846,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 
 Status Code **200**
 
-| Name                 | Type                                                                     | Required | Restrictions | Description |
-| -------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`       | array                                                                    | false    |              |             |
-| `» authenticate_url` | string                                                                   | false    |              |             |
-| `» authenticated`    | boolean                                                                  | false    |              |             |
-| `» display_icon`     | string                                                                   | false    |              |             |
-| `» display_name`     | string                                                                   | false    |              |             |
-| `» id`               | string                                                                   | false    |              |             |
-| `» type`             | [codersdk.ExternalAuthProvider](schemas.md#codersdkexternalauthprovider) | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value          |
-| -------- | -------------- |
-| `type`   | `azure-devops` |
-| `type`   | `github`       |
-| `type`   | `gitlab`       |
-| `type`   | `bitbucket`    |
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]`       | array   | false    |              |             |
+| `» authenticate_url` | string  | false    |              |             |
+| `» authenticated`    | boolean | false    |              |             |
+| `» display_icon`     | string  | false    |              |             |
+| `» display_name`     | string  | false    |              |             |
+| `» id`               | string  | false    |              |             |
+| `» type`             | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

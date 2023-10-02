@@ -1014,7 +1014,7 @@ export interface TemplateVersion {
 // From codersdk/templateversions.go
 export interface TemplateVersionExternalAuth {
   readonly id: string;
-  readonly type: ExternalAuthProvider;
+  readonly type: string;
   readonly display_name: string;
   readonly display_icon: string;
   readonly authenticate_url: string;
@@ -1634,6 +1634,19 @@ export const DisplayApps: DisplayApp[] = [
   "web_terminal",
 ];
 
+// From codersdk/externalauth.go
+export type EnhancedExternalAuthProvider =
+  | "azure-devops"
+  | "bitbucket"
+  | "github"
+  | "gitlab";
+export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+];
+
 // From codersdk/deployment.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled";
 export const Entitlements: Entitlement[] = [
@@ -1657,19 +1670,6 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "workspace_actions",
-];
-
-// From codersdk/workspaceagents.go
-export type ExternalAuthProvider =
-  | "azure-devops"
-  | "bitbucket"
-  | "github"
-  | "gitlab";
-export const ExternalAuthProviders: ExternalAuthProvider[] = [
-  "azure-devops",
-  "bitbucket",
-  "github",
-  "gitlab",
 ];
 
 // From codersdk/deployment.go

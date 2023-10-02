@@ -8315,21 +8315,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ExternalAuthProvider": {
-            "type": "string",
-            "enum": [
-                "azure-devops",
-                "github",
-                "gitlab",
-                "bitbucket"
-            ],
-            "x-enum-varnames": [
-                "ExternalAuthProviderAzureDevops",
-                "ExternalAuthProviderGitHub",
-                "ExternalAuthProviderGitLab",
-                "ExternalAuthProviderBitBucket"
-            ]
-        },
         "codersdk.ExternalAuthUser": {
             "type": "object",
             "properties": {
@@ -10037,7 +10022,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "type": {
-                    "$ref": "#/definitions/codersdk.ExternalAuthProvider"
+                    "type": "string"
                 }
             }
         },
