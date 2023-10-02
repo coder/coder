@@ -35,6 +35,7 @@ import {
   endOfWeek,
   isSunday,
   endOfDay,
+  addWeeks,
 } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
@@ -58,7 +59,11 @@ export default function TemplateInsightsPage() {
     endDate: now,
   };
 
-  const [interval, setInterval] = useState<InsightsInterval>("week");
+  const [interval, setInterval] = useState<InsightsInterval>(() => {
+    const templateCreateDate = new Date(template.created_at);
+    const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+    return hasFiveWeeksOrMore ? "week" : "day";
+  });
   const [weeklyPreset, setWeeklyPreset] =
     useState<WeeklyPreset>(defaultWeeklyPreset);
   const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(
