@@ -155,7 +155,7 @@ export const UsersTableBody: FC<
                   : sortRoles(user.roles);
 
               return (
-                <TableRow key={user.id}>
+                <TableRow key={user.id} data-testid={`user-${user.id}`}>
                   <TableCell>
                     <AvatarData
                       title={user.username}

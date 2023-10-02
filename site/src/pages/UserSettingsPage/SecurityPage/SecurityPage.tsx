@@ -3,30 +3,27 @@ import { ComponentProps, FC } from "react";
 import { Section } from "components/SettingsLayout/Section";
 import { SecurityForm } from "./SettingsSecurityForm";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { getAuthMethods, getUserLoginType } from "api/api";
+import { getUserLoginType } from "api/api";
 import {
   SingleSignOnSection,
   useSingleSignOnSection,
 } from "./SingleSignOnSection";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { updatePassword } from "api/queries/users";
+import { authMethods, updatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const SecurityPage: FC = () => {
   const me = useMe();
   const updatePasswordMutation = useMutation(updatePassword());
-  const { data: authMethods } = useQuery({
-    queryKey: ["authMethods"],
-    queryFn: getAuthMethods,
-  });
+  const authMethodsQuery = useQuery(authMethods());
   const { data: userLoginType } = useQuery({
     queryKey: ["loginType"],
     queryFn: getUserLoginType,
   });
   const singleSignOnSection = useSingleSignOnSection();
 
-  if (!authMethods || !userLoginType) {
+  if (!authMethodsQuery.data || !userLoginType) {
     return <Loader />;
   }
 
@@ -51,7 +48,7 @@ export const SecurityPage: FC = () => {
       }}
       oidc={{
         section: {
-          authMethods,
+          authMethods: authMethodsQuery.data,
           userLoginType,
           ...singleSignOnSection,
         },

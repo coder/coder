@@ -353,20 +353,18 @@ const PresetMenu = ({
           View advanced filtering
         </MenuItem>
         {learnMoreLink2 && learnMoreLabel2 && (
-          <>
-            <MenuItem
-              component="a"
-              href={learnMoreLink2}
-              target="_blank"
-              sx={{ fontSize: 13, fontWeight: 500 }}
-              onClick={() => {
-                setIsOpen(false);
-              }}
-            >
-              <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
-              {learnMoreLabel2}
-            </MenuItem>
-          </>
+          <MenuItem
+            component="a"
+            href={learnMoreLink2}
+            target="_blank"
+            sx={{ fontSize: 13, fontWeight: 500 }}
+            onClick={() => {
+              setIsOpen(false);
+            }}
+          >
+            <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
+            {learnMoreLabel2}
+          </MenuItem>
         )}
       </Menu>
     </>

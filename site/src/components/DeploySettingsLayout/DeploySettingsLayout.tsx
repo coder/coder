@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { Sidebar } from "./Sidebar";
@@ -31,15 +30,18 @@ export const useDeploySettings = (): DeploySettingsContextValue => {
 
 export const DeploySettingsLayout: FC = () => {
   const deploymentConfigQuery = useQuery(deploymentConfig());
-  const styles = useStyles();
   const permissions = usePermissions();
 
   return (
     <RequirePermission isFeatureVisible={permissions.viewDeploymentValues}>
       <Margins>
-        <Stack className={styles.wrapper} direction="row" spacing={6}>
+        <Stack
+          css={(theme) => ({ padding: theme.spacing(6, 0) })}
+          direction="row"
+          spacing={6}
+        >
           <Sidebar />
-          <main className={styles.content}>
+          <main css={{ maxWidth: 800, width: "100%" }}>
             {deploymentConfigQuery.data ? (
               <DeploySettingsContext.Provider
                 value={{
@@ -59,14 +61,3 @@ export const DeploySettingsLayout: FC = () => {
     </RequirePermission>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  wrapper: {
-    padding: theme.spacing(6, 0),
-  },
-
-  content: {
-    maxWidth: 800,
-    width: "100%",
-  },
-}));
