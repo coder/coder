@@ -77,22 +77,22 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
   const authMethodsQuery = useQuery(authMethods());
   const isLoading =
     usersQuery.isLoading || rolesQuery.isLoading || authMethodsQuery.isLoading;
-  // Suspend
+
   const [confirmSuspendUser, setConfirmSuspendUser] = useState<User>();
   const suspendUserMutation = useMutation(suspendUser(queryClient));
-  // Activate
+
   const [confirmActivateUser, setConfirmActivateUser] = useState<User>();
   const activateUserMutation = useMutation(activateUser(queryClient));
-  // Delete
+
   const [confirmDeleteUser, setConfirmDeleteUser] = useState<User>();
   const deleteUserMutation = useMutation(deleteUser(queryClient));
-  // Reset password
+
   const [confirmResetPassword, setConfirmResetPassword] = useState<{
     user: User;
     newPassword: string;
   }>();
   const updatePasswordMutation = useMutation(updatePassword());
-  // Update roles
+
   const updateRolesMutation = useMutation(updateRoles(queryClient));
 
   return (
