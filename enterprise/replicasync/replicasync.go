@@ -425,8 +425,8 @@ func (m *Manager) Close() error {
 		Hostname:        m.self.Hostname,
 		Version:         m.self.Version,
 		Error:           m.self.Error,
-		DatabaseLatency: m.self.DatabaseLatency,
-		Primary:         m.self.Primary,
+		DatabaseLatency: 0,     // A stopped replica has no latency.
+		Primary:         false, // A stopped replica cannot be primary.
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
