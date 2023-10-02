@@ -2,20 +2,20 @@ import { useDeploySettings } from "components/DeploySettingsLayout/DeploySetting
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { GitAuthSettingsPageView } from "./GitAuthSettingsPageView";
+import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 
-const GitAuthSettingsPage: FC = () => {
+const ExternalAuthSettingsPage: FC = () => {
   const { deploymentValues: deploymentValues } = useDeploySettings();
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle("Git Authentication Settings")}</title>
+        <title>{pageTitle("External Authentication Settings")}</title>
       </Helmet>
 
-      <GitAuthSettingsPageView config={deploymentValues.config} />
+      <ExternalAuthSettingsPageView config={deploymentValues.config} />
     </>
   );
 };
 
-export default GitAuthSettingsPage;
+export default ExternalAuthSettingsPage;

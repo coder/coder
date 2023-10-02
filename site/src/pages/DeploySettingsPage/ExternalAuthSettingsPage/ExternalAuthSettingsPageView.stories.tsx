@@ -1,12 +1,12 @@
-import { GitAuthSettingsPageView } from "./GitAuthSettingsPageView";
+import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
-const meta: Meta<typeof GitAuthSettingsPageView> = {
-  title: "pages/GitAuthSettingsPageView",
-  component: GitAuthSettingsPageView,
+const meta: Meta<typeof ExternalAuthSettingsPageView> = {
+  title: "pages/ExternalAuthSettingsPageView",
+  component: ExternalAuthSettingsPageView,
   args: {
     config: {
-      git_auth: [
+      external_auth: [
         {
           id: "0000-1111",
           type: "GitHub",
@@ -30,6 +30,6 @@ const meta: Meta<typeof GitAuthSettingsPageView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof GitAuthSettingsPageView>;
+type Story = StoryObj<typeof ExternalAuthSettingsPageView>;
 
 export const Page: Story = {};
