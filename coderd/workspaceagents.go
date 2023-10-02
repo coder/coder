@@ -2278,7 +2278,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// This is the URL that will redirect the user with a state token.
-	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/externalauth/%s", externalAuthConfig.ID))
+	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse access URL.",
