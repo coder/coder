@@ -26,7 +26,14 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
 import { ComponentProps, ReactNode, useState } from "react";
-import { subDays, isToday } from "date-fns";
+import {
+  subDays,
+  subWeeks,
+  startOfWeek,
+  endOfWeek,
+  isSunday,
+  endOfDay,
+} from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import { DateRange, DateRangeValue } from "./DateRange";
@@ -37,23 +44,30 @@ import { getDateRangeFilter } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
+import { WeeklyPreset, WeeklyPresetsMenu } from "./WeeklyPresetsMenu";
 
 export default function TemplateInsightsPage() {
+  const { template } = useTemplateLayoutContext();
   const now = new Date();
-  const [interval, setInterval] = useState<InsightsInterval>("day");
-  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
+
+  const defaultWeeklyPreset = 4;
+  const defaultDateRangeValue = {
     startDate: subDays(now, 6),
     endDate: now,
-  });
-  const { template } = useTemplateLayoutContext();
+  };
+
+  const [interval, setInterval] = useState<InsightsInterval>("day");
+  const [weeklyPreset, setWeeklyPreset] =
+    useState<WeeklyPreset>(defaultWeeklyPreset);
+  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(
+    defaultDateRangeValue,
+  );
+
+  const dateRange =
+    interval === "day" ? dateRangeValue : getWeeklyRange(weeklyPreset);
   const commonFilters = {
     template_ids: template.id,
-    ...getDateRangeFilter({
-      startDate: dateRangeValue.startDate,
-      endDate: dateRangeValue.endDate,
-      now,
-      isToday,
-    }),
+    ...getDateRangeFilter(dateRange),
   };
   const insightsFilter = { ...commonFilters, interval };
   const { data: templateInsights } = useQuery({
@@ -73,8 +87,25 @@ export default function TemplateInsightsPage() {
       <TemplateInsightsPageView
         controls={
           <>
-            <IntervalMenu value={interval} onChange={setInterval} />
-            <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+            <IntervalMenu
+              value={interval}
+              onChange={(interval) => {
+                setInterval(interval);
+                if (interval === "week") {
+                  setWeeklyPreset(defaultWeeklyPreset);
+                } else {
+                  setDateRangeValue(defaultDateRangeValue);
+                }
+              }}
+            />
+            {interval === "day" ? (
+              <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+            ) : (
+              <WeeklyPresetsMenu
+                value={weeklyPreset}
+                onChange={setWeeklyPreset}
+              />
+            )}
           </>
         }
         templateInsights={templateInsights}
@@ -596,6 +627,13 @@ const TextValue = ({ children }: { children: ReactNode }) => {
       </Box>
     </Box>
   );
+};
+
+const getWeeklyRange = (numberOfWeeks: WeeklyPreset) => {
+  const now = new Date();
+  const startDate = startOfWeek(subWeeks(now, numberOfWeeks));
+  const endDate = isSunday(now) ? endOfDay(now) : endOfWeek(subWeeks(now, 1));
+  return { startDate, endDate };
 };
 
 function mapToDAUsResponse(
