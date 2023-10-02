@@ -1035,7 +1035,6 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		}
 
 		var completedError sql.NullString
-		var completedErrorCode sql.NullString
 
 		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {
 			contains := false
@@ -1071,7 +1070,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				Valid: true,
 			},
 			Error:     completedError,
-			ErrorCode: completedErrorCode,
+			ErrorCode: sql.NullString{},
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
