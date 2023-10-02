@@ -112,6 +112,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                       to="/templates"
                       startIcon={<AddOutlined />}
                       variant="contained"
+                      data-testid="button-select-template"
                     >
                       Select a Template
                     </Button>
