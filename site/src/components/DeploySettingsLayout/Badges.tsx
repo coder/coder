@@ -1,119 +1,10 @@
-import { makeStyles } from "@mui/styles";
-import { Stack } from "components/Stack/Stack";
-import { PropsWithChildren, FC } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
-import { combineClasses } from "utils/combineClasses";
+import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { Stack } from "components/Stack/Stack";
 
-export const EnabledBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
-      Enabled
-    </span>
-  );
-};
-
-export const EntitledBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
-      Entitled
-    </span>
-  );
-};
-
-export const HealthyBadge: FC<{ derpOnly: boolean }> = ({ derpOnly }) => {
-  const styles = useStyles();
-  let text = "Healthy";
-  if (derpOnly) {
-    text = "Healthy (DERP Only)";
-  }
-  return (
-    <span className={combineClasses([styles.badge, styles.enabledBadge])}>
-      {text}
-    </span>
-  );
-};
-
-export const NotHealthyBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.errorBadge])}>
-      Unhealthy
-    </span>
-  );
-};
-
-export const NotRegisteredBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <Tooltip title="Workspace Proxy has never come online and needs to be started.">
-      <span className={combineClasses([styles.badge, styles.warnBadge])}>
-        Never Seen
-      </span>
-    </Tooltip>
-  );
-};
-
-export const NotReachableBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
-      <span className={combineClasses([styles.badge, styles.warnBadge])}>
-        Not Dialable
-      </span>
-    </Tooltip>
-  );
-};
-
-export const DisabledBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.disabledBadge])}>
-      Disabled
-    </span>
-  );
-};
-
-export const EnterpriseBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.enterpriseBadge])}>
-      Enterprise
-    </span>
-  );
-};
-
-export const AlphaBadge: FC = () => {
-  const styles = useStyles();
-  return (
-    <span className={combineClasses([styles.badge, styles.alphaBadge])}>
-      Alpha
-    </span>
-  );
-};
-
-export const Badges: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return (
-    <Stack
-      className={styles.badges}
-      direction="row"
-      alignItems="center"
-      spacing={1}
-    >
-      {children}
-    </Stack>
-  );
-};
-
-const useStyles = makeStyles((theme) => ({
-  badges: {
-    margin: theme.spacing(0, 0, 2),
-  },
-
-  badge: {
+const styles = {
+  badge: (theme) => ({
     fontSize: 10,
     height: 24,
     fontWeight: 600,
@@ -125,45 +16,121 @@ const useStyles = makeStyles((theme) => ({
     alignItems: "center",
     width: "fit-content",
     whiteSpace: "nowrap",
-  },
+  }),
 
-  enterpriseBadge: {
-    backgroundColor: theme.palette.info.dark,
-    border: `1px solid ${theme.palette.info.light}`,
-  },
-
-  alphaBadge: {
-    border: `1px solid ${theme.palette.error.light}`,
-    backgroundColor: theme.palette.error.dark,
-  },
-
-  versionBadge: {
+  enabledBadge: (theme) => ({
     border: `1px solid ${theme.palette.success.light}`,
     backgroundColor: theme.palette.success.dark,
-    textTransform: "none",
-    color: "white",
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    textDecoration: "none",
-    fontSize: 12,
-  },
-
-  enabledBadge: {
-    border: `1px solid ${theme.palette.success.light}`,
-    backgroundColor: theme.palette.success.dark,
-  },
-
-  errorBadge: {
+  }),
+  errorBadge: (theme) => ({
     border: `1px solid ${theme.palette.error.light}`,
     backgroundColor: theme.palette.error.dark,
-  },
-
-  warnBadge: {
+  }),
+  warnBadge: (theme) => ({
     border: `1px solid ${theme.palette.warning.light}`,
     backgroundColor: theme.palette.warning.dark,
-  },
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
-  disabledBadge: {
-    border: `1px solid ${theme.palette.divider}`,
-    backgroundColor: theme.palette.background.paper,
-  },
-}));
+export const EnabledBadge: FC = () => {
+  return <span css={[styles.badge, styles.enabledBadge]}>Enabled</span>;
+};
+
+export const EntitledBadge: FC = () => {
+  return <span css={[styles.badge, styles.enabledBadge]}>Entitled</span>;
+};
+
+interface HealthyBadge {
+  derpOnly: boolean;
+}
+export const HealthyBadge: FC<HealthyBadge> = (props) => {
+  const { derpOnly } = props;
+  return (
+    <span css={[styles.badge, styles.enabledBadge]}>
+      {derpOnly ? "Healthy (DERP only)" : "Healthy"}
+    </span>
+  );
+};
+
+export const NotHealthyBadge: FC = () => {
+  return <span css={[styles.badge, styles.errorBadge]}>Unhealthy</span>;
+};
+
+export const NotRegisteredBadge: FC = () => {
+  return (
+    <Tooltip title="Workspace Proxy has never come online and needs to be started.">
+      <span css={[styles.badge, styles.warnBadge]}>Never seen</span>
+    </Tooltip>
+  );
+};
+
+export const NotReachableBadge: FC = () => {
+  return (
+    <Tooltip title="Workspace Proxy not responding to http(s) requests.">
+      <span css={[styles.badge, styles.warnBadge]}>Not reachable</span>
+    </Tooltip>
+  );
+};
+
+export const DisabledBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          border: `1px solid ${theme.palette.divider}`,
+          backgroundColor: theme.palette.background.paper,
+        }),
+      ]}
+    >
+      Disabled
+    </span>
+  );
+};
+
+export const EnterpriseBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          backgroundColor: theme.palette.info.dark,
+          border: `1px solid ${theme.palette.info.light}`,
+        }),
+      ]}
+    >
+      Enterprise
+    </span>
+  );
+};
+
+export const AlphaBadge: FC = () => {
+  return (
+    <span
+      css={[
+        styles.badge,
+        (theme) => ({
+          border: `1px solid ${theme.palette.error.light}`,
+          backgroundColor: theme.palette.error.dark,
+        }),
+      ]}
+    >
+      Alpha
+    </span>
+  );
+};
+
+export const Badges: FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <Stack
+      css={(theme) => ({
+        margin: theme.spacing(0, 0, 2),
+      })}
+      direction="row"
+      alignItems="center"
+      spacing={1}
+    >
+      {children}
+    </Stack>
+  );
+};
