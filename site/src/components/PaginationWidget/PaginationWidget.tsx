@@ -4,7 +4,6 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import { useActor } from "@xstate/react";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { CSSProperties } from "react";
 import { PaginationMachineRef } from "xServices/pagination/paginationXService";
 import { PageButton } from "./PageButton";
@@ -54,35 +53,32 @@ export const PaginationWidget = ({
         <KeyboardArrowLeft />
         <div>{prevLabel}</div>
       </Button>
-      <ChooseOne>
-        <Cond condition={isMobile}>
-          <PageButton
-            activePage={currentPage}
-            page={currentPage}
-            numPages={numPages}
-          />
-        </Cond>
-        <Cond>
-          {buildPagedList(numPages, currentPage).map((page) =>
-            typeof page !== "number" ? (
-              <PageButton
-                key={`Page${page}`}
-                activePage={currentPage}
-                placeholder="..."
-                disabled
-              />
-            ) : (
-              <PageButton
-                key={`Page${page}`}
-                activePage={currentPage}
-                page={page}
-                numPages={numPages}
-                onPageClick={() => send({ type: "GO_TO_PAGE", page })}
-              />
-            ),
-          )}
-        </Cond>
-      </ChooseOne>
+      {isMobile ? (
+        <PageButton
+          activePage={currentPage}
+          page={currentPage}
+          numPages={numPages}
+        />
+      ) : (
+        buildPagedList(numPages, currentPage).map((page) =>
+          typeof page !== "number" ? (
+            <PageButton
+              key={`Page${page}`}
+              activePage={currentPage}
+              placeholder="..."
+              disabled
+            />
+          ) : (
+            <PageButton
+              key={`Page${page}`}
+              activePage={currentPage}
+              page={page}
+              numPages={numPages}
+              onPageClick={() => send({ type: "GO_TO_PAGE", page })}
+            />
+          ),
+        )
+      )}
       <Button
         aria-label="Next page"
         disabled={lastPageActive}
