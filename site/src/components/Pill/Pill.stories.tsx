@@ -64,3 +64,11 @@ export const WarningLight: Story = {
     lightBorder: true,
   },
 };
+
+export const Neutral: Story = {
+  args: {
+    text: "Neutral",
+    type: "neutral",
+    lightBorder: true,
+  },
+};

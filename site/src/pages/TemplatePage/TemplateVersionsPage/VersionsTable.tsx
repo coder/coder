@@ -31,6 +31,10 @@ export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
 }) => {
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
+      if (against.job.status !== "succeeded") {
+        return latestSoFar;
+      }
+
       if (!latestSoFar) {
         return against;
       }

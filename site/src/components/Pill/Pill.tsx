@@ -1,13 +1,13 @@
-import { PaletteColor, Theme } from "@mui/material/styles";
+import { type PaletteColor, type Theme } from "@mui/material/styles";
 import { makeStyles } from "@mui/styles";
-import { FC } from "react";
-import { PaletteIndex } from "theme/theme";
+import { type FC, type ReactNode } from "react";
+import { type PaletteIndex } from "theme/theme";
 import { combineClasses } from "utils/combineClasses";
 
 export interface PillProps {
   className?: string;
-  icon?: React.ReactNode;
-  text: string;
+  icon?: ReactNode;
+  text: ReactNode;
   type?: PaletteIndex;
   lightBorder?: boolean;
   title?: string;

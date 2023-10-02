@@ -426,9 +426,10 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
 		first := coderdtest.CreateFirstUser(t, client)
-
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -440,6 +441,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		version := coderdtest.CreateTemplateVersion(t, other, org.ID, nil)
 		template := coderdtest.CreateTemplate(t, other, org.ID, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		_, err = client.CreateWorkspace(ctx, first.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
