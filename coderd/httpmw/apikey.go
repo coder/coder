@@ -369,7 +369,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// If the API Key is associated with a user_link (e.g. Github/OIDC)
 		// then we want to update the relevant oauth fields.
 		if link.UserID != uuid.Nil {
-			// nolint:gocritic // system needs to update user link
+			//nolint:gocritic // system needs to update user link
 			link, err = cfg.DB.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
 				UserID:                 link.UserID,
 				LoginType:              link.LoginType,
@@ -390,7 +390,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		// We only want to update this occasionally to reduce DB write
 		// load. We update alongside the UserLink and APIKey since it's
 		// easier on the DB to colocate writes.
-		// nolint:gocritic // system needs to update user last seen at
+		//nolint:gocritic // system needs to update user last seen at
 		_, err = cfg.DB.UpdateUserLastSeenAt(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLastSeenAtParams{
 			ID:         key.UserID,
 			LastSeenAt: dbtime.Now(),
@@ -407,7 +407,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 	// If the key is valid, we also fetch the user roles and status.
 	// The roles are used for RBAC authorize checks, and the status
 	// is to block 'suspended' users from accessing the platform.
-	// nolint:gocritic // system needs to update user roles
+	//nolint:gocritic // system needs to update user roles
 	roles, err := cfg.DB.GetAuthorizationUserRoles(dbauthz.AsSystemRestricted(ctx), key.UserID)
 	if err != nil {
 		return write(http.StatusUnauthorized, codersdk.Response{
