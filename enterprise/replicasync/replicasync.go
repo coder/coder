@@ -420,11 +420,13 @@ func (m *Manager) Close() error {
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
-		RelayAddress: m.self.RelayAddress,
-		RegionID:     m.self.RegionID,
-		Hostname:     m.self.Hostname,
-		Version:      m.self.Version,
-		Error:        m.self.Error,
+		RelayAddress:    m.self.RelayAddress,
+		RegionID:        m.self.RegionID,
+		Hostname:        m.self.Hostname,
+		Version:         m.self.Version,
+		Error:           m.self.Error,
+		DatabaseLatency: m.self.DatabaseLatency,
+		Primary:         m.self.Primary,
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
