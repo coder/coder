@@ -20,6 +20,8 @@ locals {
     "sa-saopaulo"   = "tcp://100.99.64.123:2375"
     "eu-paris"      = "tcp://100.74.161.61:2375"
   }
+
+  repo_dir = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
 }
 
 data "coder_parameter" "repo_dir" {
@@ -78,7 +80,7 @@ module "git-clone" {
   source   = "https://registry.coder.com/modules/git-clone"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
-  path     = data.coder_parameter.repo_dir.value
+  path     = local.repo_dir
 }
 
 module "personalize" {
@@ -89,14 +91,14 @@ module "personalize" {
 module "code-server" {
   source   = "https://registry.coder.com/modules/code-server"
   agent_id = coder_agent.dev.id
-  folder   = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  folder   = local.repo_dir
 }
 
 module "jetbrains_gateway" {
   source            = "https://registry.coder.com/modules/jetbrains-gateway"
   agent_id          = coder_agent.dev.id
   agent_name        = "dev"
-  project_directory = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  project_directory = local.repo_dir
   jetbrains_ides    = ["GO", "WS"]
   default           = "GO"
 }
@@ -104,6 +106,7 @@ module "jetbrains_gateway" {
 module "vscode-desktop" {
   source   = "https://registry.coder.com/modules/vscode-desktop"
   agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
 }
 
 module "filebrowser" {
