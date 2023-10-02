@@ -760,8 +760,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJob awaits for an import job to reach completed status.
-func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+// AwaitTemplateImportJobCompleted awaits for an import job to reach completed status.
+func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -778,8 +778,8 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJobCompleted(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
