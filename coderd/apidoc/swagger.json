@@ -7465,13 +7465,12 @@
     },
     "codersdk.ExternalAuthProvider": {
       "type": "string",
-      "enum": ["azure-devops", "github", "gitlab", "bitbucket", "oidc"],
+      "enum": ["azure-devops", "github", "gitlab", "bitbucket"],
       "x-enum-varnames": [
         "ExternalAuthProviderAzureDevops",
         "ExternalAuthProviderGitHub",
         "ExternalAuthProviderGitLab",
-        "ExternalAuthProviderBitBucket",
-        "ExternalAuthProviderOpenIDConnect"
+        "ExternalAuthProviderBitBucket"
       ]
     },
     "codersdk.ExternalAuthUser": {

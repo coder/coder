@@ -2904,7 +2904,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `github`       |
 | `gitlab`       |
 | `bitbucket`    |
-| `oidc`         |
 
 ## codersdk.ExternalAuthUser
 

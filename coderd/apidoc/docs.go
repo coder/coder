@@ -8321,15 +8321,13 @@ const docTemplate = `{
                 "azure-devops",
                 "github",
                 "gitlab",
-                "bitbucket",
-                "oidc"
+                "bitbucket"
             ],
             "x-enum-varnames": [
                 "ExternalAuthProviderAzureDevops",
                 "ExternalAuthProviderGitHub",
                 "ExternalAuthProviderGitLab",
-                "ExternalAuthProviderBitBucket",
-                "ExternalAuthProviderOpenIDConnect"
+                "ExternalAuthProviderBitBucket"
             ]
         },
         "codersdk.ExternalAuthUser": {

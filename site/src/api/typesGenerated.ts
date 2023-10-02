@@ -1664,14 +1664,12 @@ export type ExternalAuthProvider =
   | "azure-devops"
   | "bitbucket"
   | "github"
-  | "gitlab"
-  | "oidc";
+  | "gitlab";
 export const ExternalAuthProviders: ExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
-  "oidc",
 ];
 
 // From codersdk/deployment.go

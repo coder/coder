@@ -270,12 +270,6 @@ func TestConvertYAML(t *testing.T) {
 		Output []*externalauth.Config
 		Error  string
 	}{{
-		Name: "InvalidType",
-		Input: []codersdk.ExternalAuthConfig{{
-			Type: "moo",
-		}},
-		Error: "unknown external auth provider type",
-	}, {
 		Name: "InvalidID",
 		Input: []codersdk.ExternalAuthConfig{{
 			Type: string(codersdk.ExternalAuthProviderGitHub),

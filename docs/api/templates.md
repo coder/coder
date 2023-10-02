@@ -1864,7 +1864,6 @@ Status Code **200**
 | `type`   | `github`       |
 | `type`   | `gitlab`       |
 | `type`   | `bitbucket`    |
-| `type`   | `oidc`         |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
