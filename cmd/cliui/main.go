@@ -336,12 +336,12 @@ func main() {
 					count.Add(1)
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
-						Type:            codersdk.ExternalAuthProviderGitHub,
+						Type:            codersdk.EnhancedExternalAuthProviderGitHub.String(),
 						Authenticated:   githubAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}, {
 						ID:              "gitlab",
-						Type:            codersdk.ExternalAuthProviderGitLab,
+						Type:            codersdk.EnhancedExternalAuthProviderGitLab.String(),
 						Authenticated:   gitlabAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/gitlab?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}}, nil

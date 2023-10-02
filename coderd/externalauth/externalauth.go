@@ -35,7 +35,7 @@ type Config struct {
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
-	Type codersdk.ExternalAuthProvider
+	Type string
 	// DeviceAuth is set if the provider uses the device flow.
 	DeviceAuth *DeviceAuth
 	// DisplayName is the name of the provider to display to the user.
@@ -117,7 +117,7 @@ validate:
 		// to the read replica in time.
 		//
 		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == codersdk.ExternalAuthProviderGitHub && r.Wait(retryCtx) {
+		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
 			goto validate
 		}
 		// The token is no longer valid!
@@ -173,7 +173,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 	}
 
 	var user *codersdk.ExternalAuthUser
-	if c.Type == codersdk.ExternalAuthProviderGitHub {
+	if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
 		var ghUser github.User
 		err = json.NewDecoder(res.Body).Decode(&ghUser)
 		if err == nil {
@@ -219,7 +219,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, nil
 	}
 	installs := []codersdk.ExternalAuthAppInstallation{}
-	if c.Type == codersdk.ExternalAuthProviderGitHub {
+	if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
 		var ghInstalls struct {
 			Installations []*github.Installation `json:"installations"`
 		}
@@ -368,24 +368,10 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 	for _, entry := range entries {
 		entry := entry
 
-		var typ codersdk.ExternalAuthProvider
-		switch codersdk.ExternalAuthProvider(entry.Type) {
-		case codersdk.ExternalAuthProviderAzureDevops:
-			typ = codersdk.ExternalAuthProviderAzureDevops
-		case codersdk.ExternalAuthProviderBitBucket:
-			typ = codersdk.ExternalAuthProviderBitBucket
-		case codersdk.ExternalAuthProviderGitHub:
-			typ = codersdk.ExternalAuthProviderGitHub
-		case codersdk.ExternalAuthProviderGitLab:
-			typ = codersdk.ExternalAuthProviderGitLab
-		default:
-			typ = codersdk.ExternalAuthProvider(entry.Type)
-		}
-
 		// Applies defaults to the config entry.
 		// This allows users to very simply state that they type is "GitHub",
 		// apply their client secret and ID, and have the UI appear nicely.
-		applyDefaultsToConfig(typ, &entry)
+		applyDefaultsToConfig(&entry)
 
 		valid := httpapi.NameValid(entry.ID)
 		if valid != nil {
@@ -400,8 +386,8 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 
 		_, exists := ids[entry.ID]
 		if exists {
-			if entry.ID == string(typ) {
-				return nil, xerrors.Errorf("multiple %s external auth providers provided. you must specify a unique id for each", typ)
+			if entry.ID == entry.Type {
+				return nil, xerrors.Errorf("multiple %s external auth providers provided. you must specify a unique id for each", entry.Type)
 			}
 			return nil, xerrors.Errorf("multiple external auth providers exist with the id %q. specify a unique id for each", entry.ID)
 		}
@@ -433,7 +419,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 
 		var oauthConfig OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
-		if typ == codersdk.ExternalAuthProviderAzureDevops {
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
 
@@ -441,7 +427,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			OAuth2Config:        oauthConfig,
 			ID:                  entry.ID,
 			Regex:               regex,
-			Type:                typ,
+			Type:                entry.Type,
 			NoRefresh:           entry.NoRefresh,
 			ValidateURL:         entry.ValidateURL,
 			AppInstallationsURL: entry.AppInstallationsURL,
@@ -468,8 +454,8 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 }
 
 // applyDefaultsToConfig applies defaults to the config entry.
-func applyDefaultsToConfig(typ codersdk.ExternalAuthProvider, config *codersdk.ExternalAuthConfig) {
-	defaults := defaults[typ]
+func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
+	defaults := defaults[codersdk.EnhancedExternalAuthProvider(config.Type)]
 	if config.AuthURL == "" {
 		config.AuthURL = defaults.AuthURL
 	}
@@ -503,10 +489,10 @@ func applyDefaultsToConfig(typ codersdk.ExternalAuthProvider, config *codersdk.E
 
 	// Apply defaults if it's still empty...
 	if config.ID == "" {
-		config.ID = string(typ)
+		config.ID = config.Type
 	}
 	if config.DisplayName == "" {
-		config.DisplayName = string(typ)
+		config.DisplayName = config.Type
 	}
 	if config.DisplayIcon == "" {
 		// This is a key emoji.
@@ -514,8 +500,8 @@ func applyDefaultsToConfig(typ codersdk.ExternalAuthProvider, config *codersdk.E
 	}
 }
 
-var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
-	codersdk.ExternalAuthProviderAzureDevops: {
+var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
+	codersdk.EnhancedExternalAuthProviderAzureDevops: {
 		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
 		TokenURL:    "https://app.vssps.visualstudio.com/oauth2/token",
 		DisplayName: "Azure DevOps",
@@ -523,7 +509,7 @@ var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
 		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
 		Scopes:      []string{"vso.code_write"},
 	},
-	codersdk.ExternalAuthProviderBitBucket: {
+	codersdk.EnhancedExternalAuthProviderBitBucket: {
 		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
 		TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
 		ValidateURL: "https://api.bitbucket.org/2.0/user",
@@ -532,7 +518,7 @@ var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
 		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
 		Scopes:      []string{"account", "repository:write"},
 	},
-	codersdk.ExternalAuthProviderGitLab: {
+	codersdk.EnhancedExternalAuthProviderGitLab: {
 		AuthURL:     "https://gitlab.com/oauth/authorize",
 		TokenURL:    "https://gitlab.com/oauth/token",
 		ValidateURL: "https://gitlab.com/oauth/token/info",
@@ -541,7 +527,7 @@ var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
 		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
 		Scopes:      []string{"write_repository"},
 	},
-	codersdk.ExternalAuthProviderGitHub: {
+	codersdk.EnhancedExternalAuthProviderGitHub: {
 		AuthURL:     xgithub.Endpoint.AuthURL,
 		TokenURL:    xgithub.Endpoint.TokenURL,
 		ValidateURL: "https://api.github.com/user",

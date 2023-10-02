@@ -31,7 +31,7 @@ func TestExternalAuth(t *testing.T) {
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
 						DisplayName:     "GitHub",
-						Type:            codersdk.ExternalAuthProviderGitHub,
+						Type:            codersdk.EnhancedExternalAuthProviderGitHub.String(),
 						Authenticated:   fetched.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github",
 					}}, nil

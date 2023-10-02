@@ -7,6 +7,35 @@ import (
 	"net/http"
 )
 
+// EnhancedExternalAuthProvider is a constant that represents enhanced
+// support for a type of external authentication. All of the Git providers
+// are examples of enhanced, because they support intercepting "git clone".
+type EnhancedExternalAuthProvider string
+
+func (e EnhancedExternalAuthProvider) String() string {
+	return string(e)
+}
+
+// Git returns whether the provider is a Git provider.
+func (e EnhancedExternalAuthProvider) Git() bool {
+	switch e {
+	case EnhancedExternalAuthProviderGitHub,
+		EnhancedExternalAuthProviderGitLab,
+		EnhancedExternalAuthProviderBitBucket,
+		EnhancedExternalAuthProviderAzureDevops:
+		return true
+	default:
+		return false
+	}
+}
+
+const (
+	EnhancedExternalAuthProviderAzureDevops EnhancedExternalAuthProvider = "azure-devops"
+	EnhancedExternalAuthProviderGitHub      EnhancedExternalAuthProvider = "github"
+	EnhancedExternalAuthProviderGitLab      EnhancedExternalAuthProvider = "gitlab"
+	EnhancedExternalAuthProviderBitBucket   EnhancedExternalAuthProvider = "bitbucket"
+)
+
 type ExternalAuth struct {
 	Authenticated bool   `json:"authenticated"`
 	Device        bool   `json:"device"`

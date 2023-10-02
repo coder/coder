@@ -176,7 +176,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *externalauth.Config) {
-				cfg.Type = codersdk.ExternalAuthProviderGitHub
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
 
@@ -206,7 +206,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *externalauth.Config) {
-				cfg.Type = codersdk.ExternalAuthProviderGitHub
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
 
@@ -237,7 +237,7 @@ func TestRefreshToken(t *testing.T) {
 				}),
 			},
 			GitConfigOpt: func(cfg *externalauth.Config) {
-				cfg.Type = codersdk.ExternalAuthProviderGitHub
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 			DB: db,
 		})
@@ -272,24 +272,24 @@ func TestConvertYAML(t *testing.T) {
 	}{{
 		Name: "InvalidID",
 		Input: []codersdk.ExternalAuthConfig{{
-			Type: string(codersdk.ExternalAuthProviderGitHub),
+			Type: string(codersdk.EnhancedExternalAuthProviderGitHub),
 			ID:   "$hi$",
 		}},
 		Error: "doesn't have a valid id",
 	}, {
 		Name: "NoClientID",
 		Input: []codersdk.ExternalAuthConfig{{
-			Type: string(codersdk.ExternalAuthProviderGitHub),
+			Type: string(codersdk.EnhancedExternalAuthProviderGitHub),
 		}},
 		Error: "client_id must be provided",
 	}, {
 		Name: "DuplicateType",
 		Input: []codersdk.ExternalAuthConfig{{
-			Type:         string(codersdk.ExternalAuthProviderGitHub),
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 		}, {
-			Type:         string(codersdk.ExternalAuthProviderGitHub),
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitHub),
 			ClientID:     "example-2",
 			ClientSecret: "example-2",
 		}},
@@ -297,7 +297,7 @@ func TestConvertYAML(t *testing.T) {
 	}, {
 		Name: "InvalidRegex",
 		Input: []codersdk.ExternalAuthConfig{{
-			Type:         string(codersdk.ExternalAuthProviderGitHub),
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitHub),
 			ClientID:     "example",
 			ClientSecret: "example",
 			Regex:        `\K`,
@@ -306,7 +306,7 @@ func TestConvertYAML(t *testing.T) {
 	}, {
 		Name: "NoDeviceURL",
 		Input: []codersdk.ExternalAuthConfig{{
-			Type:         string(codersdk.ExternalAuthProviderGitLab),
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "example",
 			ClientSecret: "example",
 			DeviceFlow:   true,
@@ -329,7 +329,7 @@ func TestConvertYAML(t *testing.T) {
 	t.Run("CustomScopesAndEndpoint", func(t *testing.T) {
 		t.Parallel()
 		config, err := externalauth.ConvertConfig([]codersdk.ExternalAuthConfig{{
-			Type:         string(codersdk.ExternalAuthProviderGitLab),
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
 			ClientID:     "id",
 			ClientSecret: "secret",
 			AuthURL:      "https://auth.com",
