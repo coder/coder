@@ -121,7 +121,7 @@
     "@types/express": "4.17.17",
     "@types/jest": "29.5.2",
     "@types/lodash": "4.14.196",
-    "@types/node": "18.17.0",
+    "@types/node": "18.18.1",
     "@types/react": "18.2.6",
     "@types/react-color": "3.0.6",
     "@types/react-date-range": "1.4.4",

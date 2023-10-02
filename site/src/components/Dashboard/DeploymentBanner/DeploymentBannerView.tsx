@@ -2,7 +2,6 @@ import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
 import { FC, useMemo, useEffect, useState } from "react";
 import prettyBytes from "pretty-bytes";
 import BuildingIcon from "@mui/icons-material/Build";
-import { makeStyles } from "@mui/styles";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Tooltip from "@mui/material/Tooltip";
@@ -19,8 +18,35 @@ import CollectedIcon from "@mui/icons-material/Compare";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Button from "@mui/material/Button";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
+import { css, type Theme, type Interpolation, useTheme } from "@emotion/react";
 
 export const bannerHeight = 36;
+
+const styles = {
+  group: css`
+    display: flex;
+    align-items: center;
+  `,
+  category: (theme) => ({
+    marginRight: theme.spacing(2),
+    color: theme.palette.text.primary,
+  }),
+  values: (theme) => ({
+    display: "flex",
+    gap: theme.spacing(1),
+    color: theme.palette.text.secondary,
+  }),
+  value: (theme) => css`
+    display: flex;
+    align-items: center;
+    gap: ${theme.spacing(0.5)};
+
+    & svg {
+      width: 12px;
+      height: 12px;
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;
 
 export interface DeploymentBannerViewProps {
   fetchStats?: () => void;
@@ -31,7 +57,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   stats,
   fetchStats,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
       return;
@@ -80,15 +106,46 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
   }, [timeUntilRefresh, stats]);
 
   return (
-    <div className={styles.container}>
+    <div
+      css={{
+        position: "sticky",
+        height: bannerHeight,
+        bottom: 0,
+        zIndex: 1,
+        padding: theme.spacing(0, 2),
+        backgroundColor: theme.palette.background.paper,
+        display: "flex",
+        alignItems: "center",
+        fontFamily: MONOSPACE_FONT_FAMILY,
+        fontSize: 12,
+        gap: theme.spacing(4),
+        borderTop: `1px solid ${theme.palette.divider}`,
+        overflowX: "auto",
+        whiteSpace: "nowrap",
+      }}
+    >
       <Tooltip title="Status of your Coder deployment. Only visible for admins!">
-        <div className={styles.rocket}>
+        <div
+          css={css`
+            display: flex;
+            align-items: center;
+
+            & svg {
+              width: 16px;
+              height: 16px;
+            }
+
+            ${theme.breakpoints.down("lg")} {
+              display: none;
+            }
+          `}
+        >
           <RocketIcon />
         </div>
       </Tooltip>
-      <div className={styles.group}>
-        <div className={styles.category}>Workspaces</div>
-        <div className={styles.values}>
+      <div css={styles.group}>
+        <div css={styles.category}>Workspaces</div>
+        <div css={styles.values}>
           <WorkspaceBuildValue
             status="pending"
             count={stats?.workspaces.pending}
@@ -115,21 +172,21 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           />
         </div>
       </div>
-      <div className={styles.group}>
+      <div css={styles.group}>
         <Tooltip title={`Activity in the last ~${aggregatedMinutes} minutes`}>
-          <div className={styles.category}>Transmission</div>
+          <div css={styles.category}>Transmission</div>
         </Tooltip>
 
-        <div className={styles.values}>
+        <div css={styles.values}>
           <Tooltip title="Data sent to workspaces">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <DownloadIcon />
               {stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
             </div>
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Data sent from workspaces">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <UploadIcon />
               {stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
             </div>
@@ -142,20 +199,26 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
                 : "The average latency of user connections to workspaces"
             }
           >
-            <div className={styles.value}>
+            <div css={styles.value}>
               <LatencyIcon />
               {displayLatency > 0 ? displayLatency?.toFixed(2) + " ms" : "-"}
             </div>
           </Tooltip>
         </div>
       </div>
-      <div className={styles.group}>
-        <div className={styles.category}>Active Connections</div>
+      <div css={styles.group}>
+        <div css={styles.category}>Active Connections</div>
 
-        <div className={styles.values}>
+        <div css={styles.values}>
           <Tooltip title="VS Code Editors with the Coder Remote Extension">
-            <div className={styles.value}>
-              <VSCodeIcon className={styles.iconStripColor} />
+            <div css={styles.value}>
+              <VSCodeIcon
+                css={css`
+                  & * {
+                    fill: currentColor;
+                  }
+                `}
+              />
               {typeof stats?.session_count.vscode === "undefined"
                 ? "-"
                 : stats?.session_count.vscode}
@@ -163,7 +226,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="SSH Sessions">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <TerminalIcon />
               {typeof stats?.session_count.ssh === "undefined"
                 ? "-"
@@ -172,7 +235,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </Tooltip>
           <ValueSeparator />
           <Tooltip title="Web Terminal Sessions">
-            <div className={styles.value}>
+            <div css={styles.value}>
               <WebTerminalIcon />
               {typeof stats?.session_count.reconnecting_pty === "undefined"
                 ? "-"
@@ -181,9 +244,17 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
           </Tooltip>
         </div>
       </div>
-      <div className={styles.refresh}>
+      <div
+        css={{
+          color: theme.palette.text.primary,
+          marginLeft: "auto",
+          display: "flex",
+          alignItems: "center",
+          gap: theme.spacing(2),
+        }}
+      >
         <Tooltip title="The last time stats were aggregated. Workspaces report statistics periodically, so it may take a bit for these to update!">
-          <div className={styles.value}>
+          <div css={styles.value}>
             <CollectedIcon />
             {lastAggregated}
           </div>
@@ -191,7 +262,23 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 
         <Tooltip title="A countdown until stats are fetched again. Click to refresh!">
           <Button
-            className={`${styles.value} ${styles.refreshButton}`}
+            css={css`
+              ${styles.value(theme)}
+
+              margin: 0;
+              padding: 0 8px;
+              height: unset;
+              min-height: unset;
+              font-size: unset;
+              color: unset;
+              border: 0;
+              min-width: unset;
+              font-family: inherit;
+
+              & svg {
+                margin-right: ${theme.spacing(0.5)};
+              }
+            `}
             onClick={() => {
               if (fetchStats) {
                 fetchStats();
@@ -209,15 +296,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
 };
 
 const ValueSeparator: FC = () => {
-  const styles = useStyles();
-  return <div className={styles.valueSeparator}>/</div>;
+  const theme = useTheme();
+  const separatorStyles = css`
+    color: ${theme.palette.text.disabled};
+  `;
+
+  return <div css={separatorStyles}>/</div>;
 };
 
 const WorkspaceBuildValue: FC<{
   status: WorkspaceStatus;
   count?: number;
 }> = ({ status, count }) => {
-  const styles = useStyles();
   const displayStatus = getDisplayWorkspaceStatus(status);
   let statusText = displayStatus.text;
   let icon = displayStatus.icon;
@@ -232,7 +322,7 @@ const WorkspaceBuildValue: FC<{
         component={RouterLink}
         to={`/workspaces?filter=${encodeURIComponent("status:" + status)}`}
       >
-        <div className={styles.value}>
+        <div css={styles.value}>
           {icon}
           {typeof count === "undefined" ? "-" : count}
         </div>
@@ -240,88 +330,3 @@ const WorkspaceBuildValue: FC<{
     </Tooltip>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  rocket: {
-    display: "flex",
-    alignItems: "center",
-
-    "& svg": {
-      width: 16,
-      height: 16,
-    },
-
-    [theme.breakpoints.down("lg")]: {
-      display: "none",
-    },
-  },
-  container: {
-    position: "sticky",
-    height: bannerHeight,
-    bottom: 0,
-    zIndex: 1,
-    padding: theme.spacing(0, 2),
-    backgroundColor: theme.palette.background.paper,
-    display: "flex",
-    alignItems: "center",
-    fontFamily: MONOSPACE_FONT_FAMILY,
-    fontSize: 12,
-    gap: theme.spacing(4),
-    borderTop: `1px solid ${theme.palette.divider}`,
-    overflowX: "auto",
-    whiteSpace: "nowrap",
-  },
-  group: {
-    display: "flex",
-    alignItems: "center",
-  },
-  category: {
-    marginRight: theme.spacing(2),
-    color: theme.palette.text.primary,
-  },
-  values: {
-    display: "flex",
-    gap: theme.spacing(1),
-    color: theme.palette.text.secondary,
-  },
-  valueSeparator: {
-    color: theme.palette.text.disabled,
-  },
-  value: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(0.5),
-
-    "& svg": {
-      width: 12,
-      height: 12,
-    },
-  },
-  iconStripColor: {
-    "& *": {
-      fill: "currentColor",
-    },
-  },
-  refresh: {
-    color: theme.palette.text.primary,
-    marginLeft: "auto",
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(2),
-  },
-  refreshButton: {
-    margin: 0,
-    padding: "0px 8px",
-    height: "unset",
-    minHeight: "unset",
-    fontSize: "unset",
-    color: "unset",
-    border: 0,
-    minWidth: "unset",
-    fontFamily: "inherit",
-
-    "& svg": {
-      marginRight: theme.spacing(0.5),
-    },
-  },
-}));
