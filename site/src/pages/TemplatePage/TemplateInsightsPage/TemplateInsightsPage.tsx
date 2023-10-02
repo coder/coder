@@ -36,15 +36,17 @@ import CancelOutlined from "@mui/icons-material/CancelOutlined";
 import { getDateRangeFilter } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
+import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 
 export default function TemplateInsightsPage() {
   const now = new Date();
+  const [interval, setInterval] = useState<InsightsInterval>("day");
   const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
     startDate: subDays(now, 6),
     endDate: now,
   });
   const { template } = useTemplateLayoutContext();
-  const insightsFilter = {
+  const commonFilters = {
     template_ids: template.id,
     ...getDateRangeFilter({
       startDate: dateRangeValue.startDate,
@@ -53,13 +55,14 @@ export default function TemplateInsightsPage() {
       isToday,
     }),
   };
+  const insightsFilter = { ...commonFilters, interval };
   const { data: templateInsights } = useQuery({
     queryKey: ["templates", template.id, "usage", insightsFilter],
     queryFn: () => getInsightsTemplate(insightsFilter),
   });
   const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency", insightsFilter],
-    queryFn: () => getInsightsUserLatency(insightsFilter),
+    queryKey: ["templates", template.id, "user-latency", commonFilters],
+    queryFn: () => getInsightsUserLatency(commonFilters),
   });
 
   return (
@@ -68,8 +71,11 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
-        dateRange={
-          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        controls={
+          <>
+            <IntervalMenu value={interval} onChange={setInterval} />
+            <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+          </>
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
@@ -81,15 +87,24 @@ export default function TemplateInsightsPage() {
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
-  dateRange,
+  controls,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
-  dateRange: ReactNode;
+  controls: ReactNode;
 }) => {
   return (
     <>
-      <Box sx={{ mb: 4 }}>{dateRange}</Box>
+      <Box
+        css={(theme) => ({
+          marginBottom: theme.spacing(4),
+          display: "flex",
+          alignItems: "center",
+          gap: theme.spacing(1),
+        })}
+      >
+        {controls}
+      </Box>
       <Box
         sx={{
           display: "grid",

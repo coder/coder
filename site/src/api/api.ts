@@ -1483,12 +1483,9 @@ export const getInsightsUserLatency = async (
 };
 
 export const getInsightsTemplate = async (
-  filters: InsightsFilter,
+  filters: InsightsFilter & { interval: "day" | "week" },
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams({
-    ...filters,
-    interval: "day",
-  });
+  const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/templates?${params}`);
   return response.data;
 };
