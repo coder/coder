@@ -6,12 +6,12 @@
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/externalauth/{externalauth} \
+curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth} \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /externalauth/{externalauth}`
+`GET /external-auth/{externalauth}`
 
 ### Parameters
 
@@ -65,12 +65,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/externalauth/{externalauth}/device \
+curl -X GET http://coder-server:8080/api/v2/external-auth/{externalauth}/device \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /externalauth/{externalauth}/device`
+`GET /external-auth/{externalauth}/device`
 
 ### Parameters
 
@@ -106,11 +106,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/externalauth/{externalauth}/device \
+curl -X POST http://coder-server:8080/api/v2/external-auth/{externalauth}/device \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /externalauth/{externalauth}/device`
+`POST /external-auth/{externalauth}/device`
 
 ### Parameters
 

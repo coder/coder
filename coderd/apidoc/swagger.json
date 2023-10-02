@@ -512,7 +512,7 @@
         }
       }
     },
-    "/externalauth/{externalauth}": {
+    "/external-auth/{externalauth}": {
       "get": {
         "security": [
           {
@@ -543,7 +543,7 @@
         }
       }
     },
-    "/externalauth/{externalauth}/device": {
+    "/external-auth/{externalauth}/device": {
       "get": {
         "security": [
           {
@@ -2430,7 +2430,7 @@
         }
       }
     },
-    "/templateversions/{templateversion}/externalauth": {
+    "/templateversions/{templateversion}/external-auth": {
       "get": {
         "security": [
           {

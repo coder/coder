@@ -602,7 +602,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/externalauth/{externalauth}": {
+        "/external-auth/{externalauth}": {
             "get": {
                 "security": [
                     {
@@ -637,7 +637,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/externalauth/{externalauth}/device": {
+        "/external-auth/{externalauth}/device": {
             "get": {
                 "security": [
                     {
@@ -2768,7 +2768,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/externalauth": {
+        "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
                     {
