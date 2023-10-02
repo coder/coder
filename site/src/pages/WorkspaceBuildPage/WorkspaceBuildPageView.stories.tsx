@@ -3,7 +3,7 @@ import {
   MockFailedWorkspaceBuild,
   MockWorkspaceBuild,
   MockWorkspaceBuildLogs,
-} from "../../testHelpers/entities";
+} from "testHelpers/entities";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
 
 const defaultBuilds = Array.from({ length: 15 }, (_, i) => ({

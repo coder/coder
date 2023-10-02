@@ -5,7 +5,7 @@ import {
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows";
 import { FC, useState } from "react";
-import { WorkspaceAgent, WorkspaceResource } from "../../api/typesGenerated";
+import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 import { ResourceCard } from "./ResourceCard";
 

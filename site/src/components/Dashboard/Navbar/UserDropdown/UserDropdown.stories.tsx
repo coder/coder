@@ -1,4 +1,4 @@
-import { MockUser } from "../../../../testHelpers/entities";
+import { MockUser } from "testHelpers/entities";
 import { UserDropdown } from "./UserDropdown";
 import type { Meta, StoryObj } from "@storybook/react";
 

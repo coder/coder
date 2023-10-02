@@ -750,6 +750,180 @@ func (q *sqlQuerier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest strin
 	return err
 }
 
+const getExternalAuthLink = `-- name: GetExternalAuthLink :one
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM external_auth_links WHERE provider_id = $1 AND user_id = $2
+`
+
+type GetExternalAuthLinkParams struct {
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+func (q *sqlQuerier) GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, getExternalAuthLink, arg.ProviderID, arg.UserID)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+	)
+	return i, err
+}
+
+const getExternalAuthLinksByUserID = `-- name: GetExternalAuthLinksByUserID :many
+SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM external_auth_links WHERE user_id = $1
+`
+
+func (q *sqlQuerier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error) {
+	rows, err := q.db.QueryContext(ctx, getExternalAuthLinksByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ExternalAuthLink
+	for rows.Next() {
+		var i ExternalAuthLink
+		if err := rows.Scan(
+			&i.ProviderID,
+			&i.UserID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OAuthAccessToken,
+			&i.OAuthRefreshToken,
+			&i.OAuthExpiry,
+			&i.OAuthAccessTokenKeyID,
+			&i.OAuthRefreshTokenKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertExternalAuthLink = `-- name: InsertExternalAuthLink :one
+INSERT INTO external_auth_links (
+    provider_id,
+    user_id,
+    created_at,
+    updated_at,
+    oauth_access_token,
+    oauth_access_token_key_id,
+    oauth_refresh_token,
+    oauth_refresh_token_key_id,
+    oauth_expiry
+) VALUES (
+    $1,
+    $2,
+    $3,
+    $4,
+    $5,
+    $6,
+    $7,
+    $8,
+    $9
+) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+`
+
+type InsertExternalAuthLinkParams struct {
+	ProviderID             string         `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
+func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExternalAuthLinkParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, insertExternalAuthLink,
+		arg.ProviderID,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.OAuthExpiry,
+	)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+	)
+	return i, err
+}
+
+const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
+UPDATE external_auth_links SET
+    updated_at = $3,
+    oauth_access_token = $4,
+    oauth_access_token_key_id = $5,
+    oauth_refresh_token = $6,
+    oauth_refresh_token_key_id = $7,
+    oauth_expiry = $8
+WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
+`
+
+type UpdateExternalAuthLinkParams struct {
+	ProviderID             string         `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+}
+
+func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error) {
+	row := q.db.QueryRowContext(ctx, updateExternalAuthLink,
+		arg.ProviderID,
+		arg.UserID,
+		arg.UpdatedAt,
+		arg.OAuthAccessToken,
+		arg.OAuthAccessTokenKeyID,
+		arg.OAuthRefreshToken,
+		arg.OAuthRefreshTokenKeyID,
+		arg.OAuthExpiry,
+	)
+	var i ExternalAuthLink
+	err := row.Scan(
+		&i.ProviderID,
+		&i.UserID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.OAuthAccessToken,
+		&i.OAuthRefreshToken,
+		&i.OAuthExpiry,
+		&i.OAuthAccessTokenKeyID,
+		&i.OAuthRefreshTokenKeyID,
+	)
+	return i, err
+}
+
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
 SELECT
 	hash, created_at, created_by, mimetype, data, id
@@ -909,180 +1083,6 @@ func (q *sqlQuerier) InsertFile(ctx context.Context, arg InsertFileParams) (File
 		&i.Mimetype,
 		&i.Data,
 		&i.ID,
-	)
-	return i, err
-}
-
-const getGitAuthLink = `-- name: GetGitAuthLink :one
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM git_auth_links WHERE provider_id = $1 AND user_id = $2
-`
-
-type GetGitAuthLinkParams struct {
-	ProviderID string    `db:"provider_id" json:"provider_id"`
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-func (q *sqlQuerier) GetGitAuthLink(ctx context.Context, arg GetGitAuthLinkParams) (GitAuthLink, error) {
-	row := q.db.QueryRowContext(ctx, getGitAuthLink, arg.ProviderID, arg.UserID)
-	var i GitAuthLink
-	err := row.Scan(
-		&i.ProviderID,
-		&i.UserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OAuthAccessToken,
-		&i.OAuthRefreshToken,
-		&i.OAuthExpiry,
-		&i.OAuthAccessTokenKeyID,
-		&i.OAuthRefreshTokenKeyID,
-	)
-	return i, err
-}
-
-const getGitAuthLinksByUserID = `-- name: GetGitAuthLinksByUserID :many
-SELECT provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id FROM git_auth_links WHERE user_id = $1
-`
-
-func (q *sqlQuerier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]GitAuthLink, error) {
-	rows, err := q.db.QueryContext(ctx, getGitAuthLinksByUserID, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GitAuthLink
-	for rows.Next() {
-		var i GitAuthLink
-		if err := rows.Scan(
-			&i.ProviderID,
-			&i.UserID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OAuthAccessToken,
-			&i.OAuthRefreshToken,
-			&i.OAuthExpiry,
-			&i.OAuthAccessTokenKeyID,
-			&i.OAuthRefreshTokenKeyID,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertGitAuthLink = `-- name: InsertGitAuthLink :one
-INSERT INTO git_auth_links (
-    provider_id,
-    user_id,
-    created_at,
-    updated_at,
-    oauth_access_token,
-    oauth_access_token_key_id,
-    oauth_refresh_token,
-    oauth_refresh_token_key_id,
-    oauth_expiry
-) VALUES (
-    $1,
-    $2,
-    $3,
-    $4,
-    $5,
-    $6,
-    $7,
-    $8,
-    $9
-) RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
-`
-
-type InsertGitAuthLinkParams struct {
-	ProviderID             string         `db:"provider_id" json:"provider_id"`
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	CreatedAt              time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
-}
-
-func (q *sqlQuerier) InsertGitAuthLink(ctx context.Context, arg InsertGitAuthLinkParams) (GitAuthLink, error) {
-	row := q.db.QueryRowContext(ctx, insertGitAuthLink,
-		arg.ProviderID,
-		arg.UserID,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.OAuthAccessToken,
-		arg.OAuthAccessTokenKeyID,
-		arg.OAuthRefreshToken,
-		arg.OAuthRefreshTokenKeyID,
-		arg.OAuthExpiry,
-	)
-	var i GitAuthLink
-	err := row.Scan(
-		&i.ProviderID,
-		&i.UserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OAuthAccessToken,
-		&i.OAuthRefreshToken,
-		&i.OAuthExpiry,
-		&i.OAuthAccessTokenKeyID,
-		&i.OAuthRefreshTokenKeyID,
-	)
-	return i, err
-}
-
-const updateGitAuthLink = `-- name: UpdateGitAuthLink :one
-UPDATE git_auth_links SET
-    updated_at = $3,
-    oauth_access_token = $4,
-    oauth_access_token_key_id = $5,
-    oauth_refresh_token = $6,
-    oauth_refresh_token_key_id = $7,
-    oauth_expiry = $8
-WHERE provider_id = $1 AND user_id = $2 RETURNING provider_id, user_id, created_at, updated_at, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id
-`
-
-type UpdateGitAuthLinkParams struct {
-	ProviderID             string         `db:"provider_id" json:"provider_id"`
-	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
-	UpdatedAt              time.Time      `db:"updated_at" json:"updated_at"`
-	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
-}
-
-func (q *sqlQuerier) UpdateGitAuthLink(ctx context.Context, arg UpdateGitAuthLinkParams) (GitAuthLink, error) {
-	row := q.db.QueryRowContext(ctx, updateGitAuthLink,
-		arg.ProviderID,
-		arg.UserID,
-		arg.UpdatedAt,
-		arg.OAuthAccessToken,
-		arg.OAuthAccessTokenKeyID,
-		arg.OAuthRefreshToken,
-		arg.OAuthRefreshTokenKeyID,
-		arg.OAuthExpiry,
-	)
-	var i GitAuthLink
-	err := row.Scan(
-		&i.ProviderID,
-		&i.UserID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.OAuthAccessToken,
-		&i.OAuthRefreshToken,
-		&i.OAuthExpiry,
-		&i.OAuthAccessTokenKeyID,
-		&i.OAuthRefreshTokenKeyID,
 	)
 	return i, err
 }
@@ -5303,7 +5303,7 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5337,7 +5337,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5347,7 +5347,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5367,7 +5367,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5377,7 +5377,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5397,7 +5397,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5407,7 +5407,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5433,7 +5433,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.Readme,
 		&i.JobID,
 		&i.CreatedBy,
-		pq.Array(&i.GitAuthProviders),
+		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
@@ -5443,7 +5443,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5469,7 +5469,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
@@ -5489,7 +5489,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5553,7 +5553,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
@@ -5572,7 +5572,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, git_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -5594,7 +5594,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.Readme,
 			&i.JobID,
 			&i.CreatedBy,
-			pq.Array(&i.GitAuthProviders),
+			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
@@ -5711,24 +5711,24 @@ func (q *sqlQuerier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context
 	return err
 }
 
-const updateTemplateVersionGitAuthProvidersByJobID = `-- name: UpdateTemplateVersionGitAuthProvidersByJobID :exec
+const updateTemplateVersionExternalAuthProvidersByJobID = `-- name: UpdateTemplateVersionExternalAuthProvidersByJobID :exec
 UPDATE
 	template_versions
 SET
-	git_auth_providers = $2,
+	external_auth_providers = $2,
 	updated_at = $3
 WHERE
 	job_id = $1
 `
 
-type UpdateTemplateVersionGitAuthProvidersByJobIDParams struct {
-	JobID            uuid.UUID `db:"job_id" json:"job_id"`
-	GitAuthProviders []string  `db:"git_auth_providers" json:"git_auth_providers"`
-	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
+type UpdateTemplateVersionExternalAuthProvidersByJobIDParams struct {
+	JobID                 uuid.UUID `db:"job_id" json:"job_id"`
+	ExternalAuthProviders []string  `db:"external_auth_providers" json:"external_auth_providers"`
+	UpdatedAt             time.Time `db:"updated_at" json:"updated_at"`
 }
 
-func (q *sqlQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
-	_, err := q.db.ExecContext(ctx, updateTemplateVersionGitAuthProvidersByJobID, arg.JobID, pq.Array(arg.GitAuthProviders), arg.UpdatedAt)
+func (q *sqlQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTemplateVersionExternalAuthProvidersByJobID, arg.JobID, pq.Array(arg.ExternalAuthProviders), arg.UpdatedAt)
 	return err
 }
 

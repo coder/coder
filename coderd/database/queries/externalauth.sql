@@ -1,11 +1,11 @@
--- name: GetGitAuthLink :one
-SELECT * FROM git_auth_links WHERE provider_id = $1 AND user_id = $2;
+-- name: GetExternalAuthLink :one
+SELECT * FROM external_auth_links WHERE provider_id = $1 AND user_id = $2;
 
--- name: GetGitAuthLinksByUserID :many
-SELECT * FROM git_auth_links WHERE user_id = $1;
+-- name: GetExternalAuthLinksByUserID :many
+SELECT * FROM external_auth_links WHERE user_id = $1;
 
--- name: InsertGitAuthLink :one
-INSERT INTO git_auth_links (
+-- name: InsertExternalAuthLink :one
+INSERT INTO external_auth_links (
     provider_id,
     user_id,
     created_at,
@@ -27,8 +27,8 @@ INSERT INTO git_auth_links (
     $9
 ) RETURNING *;
 
--- name: UpdateGitAuthLink :one
-UPDATE git_auth_links SET
+-- name: UpdateExternalAuthLink :one
+UPDATE external_auth_links SET
     updated_at = $3,
     oauth_access_token = $4,
     oauth_access_token_key_id = $5,

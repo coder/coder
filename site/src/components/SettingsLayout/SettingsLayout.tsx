@@ -3,7 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { FC, Suspense } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "../../utils/page";
+import { pageTitle } from "utils/page";
 import { Margins } from "../Margins/Margins";
 import { useMe } from "hooks/useMe";
 import { Loader } from "components/Loader/Loader";

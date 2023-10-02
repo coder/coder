@@ -65,7 +65,7 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20230621095435-
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
 require (
-	cdr.dev/slog v1.6.2-0.20230901043036-3e17d6de9749
+	cdr.dev/slog v1.6.2-0.20230929193652-f0c466fabe10
 	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/AlecAivazis/survey/v2 v2.3.5
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
@@ -82,7 +82,7 @@ require (
 	github.com/charmbracelet/glamour v0.6.0
 	// In later at least v0.7.1, lipgloss changes its terminal detection
 	// which breaks most of our CLI golden files tests.
-	github.com/charmbracelet/lipgloss v0.8.0
+	github.com/charmbracelet/lipgloss v0.8.0 // indirect
 	github.com/cli/safeexec v1.0.1
 	github.com/codeclysm/extract/v3 v3.1.1
 	github.com/coder/flog v1.1.0

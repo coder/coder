@@ -114,9 +114,9 @@ type resourceMetadataItem struct {
 }
 
 type State struct {
-	Resources        []*proto.Resource
-	Parameters       []*proto.RichParameter
-	GitAuthProviders []string
+	Resources             []*proto.Resource
+	Parameters            []*proto.RichParameter
+	ExternalAuthProviders []string
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
@@ -680,9 +680,9 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	return &State{
-		Resources:        resources,
-		Parameters:       parameters,
-		GitAuthProviders: gitAuthProviders,
+		Resources:             resources,
+		Parameters:            parameters,
+		ExternalAuthProviders: gitAuthProviders,
 	}, nil
 }
 

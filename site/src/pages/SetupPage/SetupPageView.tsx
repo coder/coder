@@ -14,7 +14,7 @@ import {
   onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import * as TypesGen from "../../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 
 export const Language = {
   emailLabel: "Email",

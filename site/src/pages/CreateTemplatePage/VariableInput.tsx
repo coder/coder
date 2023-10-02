@@ -5,7 +5,7 @@ import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
 import { FC } from "react";
-import { TemplateVersionVariable } from "../../api/typesGenerated";
+import { TemplateVersionVariable } from "api/typesGenerated";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
   return variable.type === "bool";

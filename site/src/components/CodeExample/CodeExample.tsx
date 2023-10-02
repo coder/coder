@@ -1,7 +1,7 @@
 import { makeStyles } from "@mui/styles";
 import { FC } from "react";
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants";
-import { combineClasses } from "../../utils/combineClasses";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { combineClasses } from "utils/combineClasses";
 import { CopyButton } from "../CopyButton/CopyButton";
 import { Theme } from "@mui/material/styles";
 

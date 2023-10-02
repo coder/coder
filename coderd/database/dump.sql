@@ -333,16 +333,7 @@ COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revo
 
 COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
 
-CREATE TABLE files (
-    hash character varying(64) NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    created_by uuid NOT NULL,
-    mimetype character varying(64) NOT NULL,
-    data bytea NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
-);
-
-CREATE TABLE git_auth_links (
+CREATE TABLE external_auth_links (
     provider_id text NOT NULL,
     user_id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -354,9 +345,18 @@ CREATE TABLE git_auth_links (
     oauth_refresh_token_key_id text
 );
 
-COMMENT ON COLUMN git_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
-COMMENT ON COLUMN git_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+CREATE TABLE files (
+    hash character varying(64) NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    created_by uuid NOT NULL,
+    mimetype character varying(64) NOT NULL,
+    data bytea NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
+);
 
 CREATE TABLE gitsshkeys (
     user_id uuid NOT NULL,
@@ -639,11 +639,11 @@ CREATE TABLE template_versions (
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
-    git_auth_providers text[],
+    external_auth_providers text[],
     message character varying(1048576) DEFAULT ''::character varying NOT NULL
 );
 
-COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
+COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of Git auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
 
@@ -683,7 +683,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.readme,
     template_versions.job_id,
     template_versions.created_by,
-    template_versions.git_auth_providers,
+    template_versions.external_auth_providers,
     template_versions.message,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
@@ -1136,7 +1136,7 @@ ALTER TABLE ONLY files
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY git_auth_links
+ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
 ALTER TABLE ONLY gitsshkeys
@@ -1348,10 +1348,10 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY git_auth_links
+ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
-ALTER TABLE ONLY git_auth_links
+ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY gitsshkeys

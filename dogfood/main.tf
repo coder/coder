@@ -30,14 +30,6 @@ data "coder_parameter" "repo_dir" {
   mutable     = true
 }
 
-data "coder_parameter" "dotfiles_url" {
-  type        = "string"
-  name        = "Dotfiles URL"
-  description = "A path to your dotfiles. See: https://dotfiles.github.io"
-  default     = " "
-  mutable     = true
-}
-
 data "coder_parameter" "region" {
   type    = "string"
   name    = "Region"
@@ -63,42 +55,6 @@ data "coder_parameter" "region" {
     name  = "São Paulo"
     value = "sa-saopaulo"
   }
-  # option {
-  #   icon = "/emojis/1f1eb-1f1f7.png"
-  #   name = "Phorcys' Server in Paris"
-  #   value = "eu-paris"
-  # }
-}
-
-data "coder_parameter" "jetbrains_ide" {
-  type         = "list(string)"
-  name         = "jetbrains_ide"
-  display_name = "JetBrains IDE"
-  icon         = "/icon/gateway.svg"
-  mutable      = true
-  default = jsonencode([
-    "GO",
-    "232.9559.64",
-    "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
-  ])
-  option {
-    icon = "/icon/goland.svg"
-    name = "GoLand"
-    value = jsonencode([
-      "GO",
-      "232.9559.64",
-      "https://download.jetbrains.com/go/goland-2023.2.1.tar.gz"
-    ])
-  }
-  option {
-    icon = "/icon/webstorm.svg"
-    name = "WebStorm"
-    value = jsonencode([
-      "WS",
-      "232.9559.54",
-      "https://download.jetbrains.com/webstorm/WebStorm-2023.2.1.tar.gz"
-    ])
-  }
 }
 
 provider "docker" {
@@ -113,6 +69,53 @@ data "coder_git_auth" "github" {
 
 data "coder_workspace" "me" {}
 
+module "dotfiles" {
+  source   = "https://registry.coder.com/modules/dotfiles"
+  agent_id = coder_agent.dev.id
+}
+
+module "git-clone" {
+  source   = "https://registry.coder.com/modules/git-clone"
+  agent_id = coder_agent.dev.id
+  url      = "https://github.com/coder/coder"
+  path     = data.coder_parameter.repo_dir.value
+}
+
+module "personalize" {
+  source   = "https://registry.coder.com/modules/personalize"
+  agent_id = coder_agent.dev.id
+}
+
+module "code-server" {
+  source   = "https://registry.coder.com/modules/code-server"
+  agent_id = coder_agent.dev.id
+  folder   = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+}
+
+module "jetbrains_gateway" {
+  source            = "https://registry.coder.com/modules/jetbrains-gateway"
+  agent_id          = coder_agent.dev.id
+  agent_name        = "dev"
+  project_directory = replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")
+  jetbrains_ides    = ["GO", "WS"]
+  default           = "GO"
+}
+
+module "vscode-desktop" {
+  source   = "https://registry.coder.com/modules/vscode-desktop"
+  agent_id = coder_agent.dev.id
+}
+
+module "filebrowser" {
+  source   = "https://registry.coder.com/modules/filebrowser"
+  agent_id = coder_agent.dev.id
+}
+
+module "coder-login" {
+  source   = "https://registry.coder.com/modules/coder-login"
+  agent_id = coder_agent.dev.id
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -120,10 +123,12 @@ resource "coder_agent" "dev" {
   env = {
     GITHUB_TOKEN : data.coder_git_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
-    CODER_USER_TOKEN : data.coder_workspace.me.owner_session_token,
-    CODER_DEPLOYMENT_URL : data.coder_workspace.me.access_url
   }
   startup_script_behavior = "blocking"
+
+  display_apps {
+    vscode = false
+  }
 
   # The following metadata blocks are optional. They are used to display
   # information about your workspace in the dashboard. You can remove them
@@ -201,77 +206,9 @@ resource "coder_agent" "dev" {
 
   startup_script_timeout = 60
   startup_script         = <<-EOT
-    # Install and launch filebrowser
-    curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
-    filebrowser --noauth --root /home/coder --port 13338 >/tmp/filebrowser.log 2>&1 &
-
+    set -eux -o pipefail
     sudo service docker start
-    DOTFILES_URI="${data.coder_parameter.dotfiles_url.value}"
-    rm -f ~/.personalize.log
-    if [ -n "$${DOTFILES_URI// }" ]; then
-      coder dotfiles "$DOTFILES_URI" -y 2>&1 | tee -a ~/.personalize.log
-    fi
-
-    # Automatically authenticate the user if they are not
-    # logged in to another deployment
-    if ! coder list >/dev/null 2>&1; then
-      set +x; coder login --token=$CODER_USER_TOKEN --url=$CODER_DEPLOYMENT_URL
-    else
-      echo "You are already authenticated with coder"
-    fi
   EOT
-}
-
-module "code-server" {
-  source   = "https://registry.coder.com/modules/code-server"
-  agent_id = coder_agent.dev.id
-}
-
-module "personalize" {
-  source   = "https://registry.coder.com/modules/personalize"
-  agent_id = coder_agent.dev.id
-}
-
-module "git-clone" {
-  source   = "https://registry.coder.com/modules/git-clone"
-  agent_id = coder_agent.dev.id
-  repo     = "https://github.com/coder/coder"
-  path     = data.coder_parameter.repo_dir.value
-}
-
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.dev.id
-  slug         = "code-server"
-  display_name = "code-server"
-  url          = "http://localhost:13337/?folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
-
-resource "coder_app" "filebrowser" {
-  agent_id     = coder_agent.dev.id
-  display_name = "File Browser"
-  slug         = "filebrowser"
-  url          = "http://localhost:13338"
-  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
-  subdomain    = true
-  share        = "owner"
-}
-
-resource "coder_app" "gateway" {
-  agent_id     = coder_agent.dev.id
-  display_name = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].name
-  slug         = "gateway"
-  url          = "jetbrains-gateway://connect#type=coder&workspace=${data.coder_workspace.me.name}&agent=dev&folder=${replace(data.coder_parameter.repo_dir.value, "/^~\\//", "/home/coder/")}&url=${data.coder_workspace.me.access_url}&token=${data.coder_workspace.me.owner_session_token}&ide_product_code=${jsondecode(data.coder_parameter.jetbrains_ide.value)[0]}&ide_build_number=${jsondecode(data.coder_parameter.jetbrains_ide.value)[1]}&ide_download_link=${jsondecode(data.coder_parameter.jetbrains_ide.value)[2]}"
-  icon         = data.coder_parameter.jetbrains_ide.option[index(data.coder_parameter.jetbrains_ide.option.*.value, data.coder_parameter.jetbrains_ide.value)].icon
-  external     = true
 }
 
 resource "docker_volume" "home_volume" {
