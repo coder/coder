@@ -906,7 +906,7 @@ func RequestExternalAuthCallback(t *testing.T, providerID string, client *coders
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/externalauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)

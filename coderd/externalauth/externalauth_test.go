@@ -343,7 +343,7 @@ func TestConvertYAML(t *testing.T) {
 			Scopes:       []string{"read"},
 		}}, &url.URL{})
 		require.NoError(t, err)
-		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternalauth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
+		require.Equal(t, "https://auth.com?client_id=id&redirect_uri=%2Fexternal-auth%2Fgitlab%2Fcallback&response_type=code&scope=read", config[0].AuthCodeURL(""))
 	})
 }
 
