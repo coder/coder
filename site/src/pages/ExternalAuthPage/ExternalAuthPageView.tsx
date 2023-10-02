@@ -50,9 +50,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   const hasInstallations = externalAuth.installations.length > 0;
 
   // We only want to wrap this with a link if an install URL is available!
-  let installTheApp: JSX.Element = (
-    <>{`install the ${externalAuth.display_name} App`}</>
-  );
+  let installTheApp: React.ReactNode = `install the ${externalAuth.display_name} App`;
   if (externalAuth.app_install_url) {
     installTheApp = (
       <Link

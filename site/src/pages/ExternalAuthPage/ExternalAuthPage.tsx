@@ -6,7 +6,7 @@ import {
 } from "api/api";
 import { usePermissions } from "hooks";
 import { type FC } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 import { ApiErrorResponse } from "api/errors";
 import { isAxiosError } from "axios";
@@ -16,6 +16,7 @@ const ExternalAuthPage: FC = () => {
   if (!provider) {
     throw new Error("provider must exist");
   }
+  const navigate = useNavigate();
   const permissions = usePermissions();
   const queryClient = useQueryClient();
   const getExternalAuthProviderQuery = useQuery({
@@ -72,8 +73,7 @@ const ExternalAuthPage: FC = () => {
     !getExternalAuthProviderQuery.data.authenticated &&
     !getExternalAuthProviderQuery.data.device
   ) {
-    window.location.href = `/external-auth/${provider}/callback`;
-
+    navigate(`/external-auth/${provider}/callback`);
     return null;
   }
 
