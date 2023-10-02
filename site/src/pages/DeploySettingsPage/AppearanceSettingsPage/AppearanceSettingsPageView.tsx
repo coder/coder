@@ -126,13 +126,6 @@ export const AppearanceSettingsPageView = ({
         button={!isEntitled && <Button disabled>Submit</Button>}
       >
         <TextField
-          {...logoFieldHelpers("application_name")}
-          defaultValue={appearance.application_name}
-          fullWidth
-          placeholder='Leave empty to display "Coder".'
-          disabled={!isEntitled}
-        />
-        <TextField
           {...logoFieldHelpers("logo_url")}
           defaultValue={appearance.logo_url}
           fullWidth

@@ -85,7 +85,7 @@ metadata:
     {}
 spec:
   type: LoadBalancer
-  sessionAffinity: ClientIP
+  sessionAffinity: None
   ports:
     - name: "http"
       port: 80

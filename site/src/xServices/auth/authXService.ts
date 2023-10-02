@@ -18,7 +18,7 @@ export const checks = {
   viewDeploymentValues: "viewDeploymentValues",
   createGroup: "createGroup",
   viewUpdateCheck: "viewUpdateCheck",
-  viewGitAuthConfig: "viewGitAuthConfig",
+  viewExternalAuthConfig: "viewExternalAuthConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
 } as const;
@@ -84,7 +84,7 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.viewGitAuthConfig]: {
+  [checks.viewExternalAuthConfig]: {
     object: {
       resource_type: "deployment_config",
     },

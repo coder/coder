@@ -35,7 +35,9 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
       <p>Deleting this {entity} is irreversible!</p>
       {Boolean(info) && <p className={styles.warning}>{info}</p>}
       <p>Are you sure you want to proceed?</p>
-      <p>Type {name} below to confirm.</p>
+      <p>
+        Type &ldquo;<strong>{name}</strong>&rdquo; below to confirm.
+      </p>
 
       <form
         onSubmit={(e) => {

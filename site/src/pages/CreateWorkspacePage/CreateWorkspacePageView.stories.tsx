@@ -18,7 +18,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     defaultBuildParameters: [],
     template: MockTemplate,
     parameters: [],
-    gitAuth: [],
+    externalAuth: [],
     permissions: {
       createWorkspaceForUser: true,
     },
@@ -86,9 +86,9 @@ export const Parameters: Story = {
   },
 };
 
-export const GitAuth: Story = {
+export const ExternalAuth: Story = {
   args: {
-    gitAuth: [
+    externalAuth: [
       {
         id: "github",
         type: "github",

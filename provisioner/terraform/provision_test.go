@@ -549,7 +549,7 @@ func TestProvision(t *testing.T) {
 				`,
 			},
 			Request: &proto.PlanRequest{
-				GitAuthProviders: []*proto.GitAuthProvider{{
+				ExternalAuthProviders: []*proto.ExternalAuthProvider{{
 					Id:          "github",
 					AccessToken: "some-value",
 				}},

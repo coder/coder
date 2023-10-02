@@ -59,7 +59,7 @@ func Test_Middleware(t *testing.T) {
 			{"/%40hi/hi/apps/hi", true},
 			{"/%40hi/hi/apps/hi/hi", true},
 			{"/%40hi/hi/apps/hi/hi", true},
-			{"/gitauth/hi/callback", true},
+			{"/externalauth/hi/callback", true},
 
 			// Other routes that should not be collected.
 			{"/index.html", false},

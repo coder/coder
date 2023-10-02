@@ -1,4 +1,4 @@
-import { DeploymentOption } from "api/api";
+import { ClibaseOption } from "api/typesGenerated";
 import {
   Badges,
   DisabledBadge,
@@ -14,7 +14,7 @@ import {
 import { docs } from "utils/docs";
 
 export type UserAuthSettingsPageViewProps = {
-  options: DeploymentOption[];
+  options: ClibaseOption[];
 };
 
 export const UserAuthSettingsPageView = ({

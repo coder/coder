@@ -422,6 +422,46 @@ export interface Entitlements {
 // From codersdk/deployment.go
 export type Experiments = Experiment[];
 
+// From codersdk/externalauth.go
+export interface ExternalAuth {
+  readonly authenticated: boolean;
+  readonly device: boolean;
+  readonly type: string;
+  readonly user?: ExternalAuthUser;
+  readonly app_installable: boolean;
+  readonly installations: ExternalAuthAppInstallation[];
+  readonly app_install_url: string;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthAppInstallation {
+  readonly id: number;
+  readonly account: ExternalAuthUser;
+  readonly configure_url: string;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthDevice {
+  readonly device_code: string;
+  readonly user_code: string;
+  readonly verification_uri: string;
+  readonly expires_in: number;
+  readonly interval: number;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthDeviceExchange {
+  readonly device_code: string;
+}
+
+// From codersdk/externalauth.go
+export interface ExternalAuthUser {
+  readonly login: string;
+  readonly avatar_url: string;
+  readonly profile_url: string;
+  readonly name: string;
+}
+
 // From codersdk/deployment.go
 export interface Feature {
   readonly entitlement: Entitlement;
@@ -441,24 +481,6 @@ export interface GetUsersResponse {
   readonly count: number;
 }
 
-// From codersdk/gitauth.go
-export interface GitAuth {
-  readonly authenticated: boolean;
-  readonly device: boolean;
-  readonly type: string;
-  readonly user?: GitAuthUser;
-  readonly app_installable: boolean;
-  readonly installations: GitAuthAppInstallation[];
-  readonly app_install_url: string;
-}
-
-// From codersdk/gitauth.go
-export interface GitAuthAppInstallation {
-  readonly id: number;
-  readonly account: GitAuthUser;
-  readonly configure_url: string;
-}
-
 // From codersdk/deployment.go
 export interface GitAuthConfig {
   readonly id: string;
@@ -474,28 +496,6 @@ export interface GitAuthConfig {
   readonly scopes: string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
-}
-
-// From codersdk/gitauth.go
-export interface GitAuthDevice {
-  readonly device_code: string;
-  readonly user_code: string;
-  readonly verification_uri: string;
-  readonly expires_in: number;
-  readonly interval: number;
-}
-
-// From codersdk/gitauth.go
-export interface GitAuthDeviceExchange {
-  readonly device_code: string;
-}
-
-// From codersdk/gitauth.go
-export interface GitAuthUser {
-  readonly login: string;
-  readonly avatar_url: string;
-  readonly profile_url: string;
-  readonly name: string;
 }
 
 // From codersdk/gitsshkey.go
@@ -1010,9 +1010,9 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
-export interface TemplateVersionGitAuth {
+export interface TemplateVersionExternalAuth {
   readonly id: string;
-  readonly type: GitProvider;
+  readonly type: ExternalAuthProvider;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
 }
@@ -1655,6 +1655,21 @@ export const Experiments: Experiment[] = [
   "workspace_actions",
 ];
 
+// From codersdk/workspaceagents.go
+export type ExternalAuthProvider =
+  | "azure-devops"
+  | "bitbucket"
+  | "github"
+  | "gitlab"
+  | "openid-connect";
+export const ExternalAuthProviders: ExternalAuthProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+  "openid-connect",
+];
+
 // From codersdk/deployment.go
 export type FeatureName =
   | "advanced_template_scheduling"
@@ -1688,15 +1703,6 @@ export const FeatureNames: FeatureName[] = [
   "user_role_management",
   "workspace_batch_actions",
   "workspace_proxy",
-];
-
-// From codersdk/workspaceagents.go
-export type GitProvider = "azure-devops" | "bitbucket" | "github" | "gitlab";
-export const GitProviders: GitProvider[] = [
-  "azure-devops",
-  "bitbucket",
-  "github",
-  "gitlab",
 ];
 
 // From codersdk/groups.go
@@ -2106,8 +2112,8 @@ export interface ClibaseOption {
   readonly env?: string;
   readonly yaml?: string;
   readonly default?: string;
-  // actual value is an interface that implements 'String()'
-  readonly value?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Golang interface, unable to resolve type.
+  readonly value?: any;
   readonly annotations?: ClibaseAnnotations;
   readonly group?: ClibaseGroup;
   readonly use_instead?: ClibaseOption[];

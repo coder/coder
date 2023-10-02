@@ -18,7 +18,7 @@ message AcquiredJob {
         string workspace_name = 2;
         repeated provisioner.RichParameterValue rich_parameter_values = 4;
         repeated provisioner.VariableValue variable_values = 5;
-        repeated provisioner.GitAuthProvider git_auth_providers = 6;
+        repeated provisioner.ExternalAuthProvider external_auth_providers = 6;
         provisioner.Metadata metadata = 7;
         bytes state = 8;
         string log_level = 9;
@@ -77,7 +77,7 @@ message CompletedJob {
         repeated provisioner.Resource start_resources = 1;
         repeated provisioner.Resource stop_resources = 2;
         repeated provisioner.RichParameter rich_parameters = 3;
-        repeated string git_auth_providers = 4;
+        repeated string external_auth_providers = 4;
     }
     message TemplateDryRun {
         repeated provisioner.Resource resources = 1;

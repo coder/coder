@@ -46,7 +46,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
-			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, uid)
+			gitAuthLinks, err := tx.GetExternalAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
@@ -55,7 +55,7 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
-				if _, err := tx.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+				if _, err := tx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 					ProviderID:        gitAuthLink.ProviderID,
 					UserID:            uid,
 					UpdatedAt:         gitAuthLink.UpdatedAt,
@@ -130,7 +130,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				}
 			}
 
-			gitAuthLinks, err := tx.GetGitAuthLinksByUserID(ctx, uid)
+			gitAuthLinks, err := tx.GetExternalAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
@@ -139,7 +139,7 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
-				if _, err := tx.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+				if _, err := tx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 					ProviderID:        gitAuthLink.ProviderID,
 					UserID:            uid,
 					UpdatedAt:         gitAuthLink.UpdatedAt,
@@ -177,7 +177,7 @@ BEGIN;
 DELETE FROM user_links
   WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
-DELETE FROM git_auth_links
+DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
 COMMIT;

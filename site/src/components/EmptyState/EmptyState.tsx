@@ -1,8 +1,7 @@
 import Box from "@mui/material/Box";
-import { makeStyles } from "@mui/styles";
 import Typography from "@mui/material/Typography";
-import { FC, ReactNode } from "react";
-import { combineClasses } from "utils/combineClasses";
+import type { FC, ReactNode } from "react";
+import { useTheme } from "@emotion/react";
 
 export interface EmptyStateProps {
   /** Text Message to display, placed inside Typography component */
@@ -25,54 +24,56 @@ export interface EmptyStateProps {
 export const EmptyState: FC<React.PropsWithChildren<EmptyStateProps>> = (
   props,
 ) => {
-  const { message, description, cta, className, image, ...boxProps } = props;
-  const styles = useStyles();
+  const { message, description, cta, image, ...boxProps } = props;
+  const theme = useTheme();
 
   return (
-    <Box className={combineClasses([styles.root, className])} {...boxProps}>
-      <Typography variant="h5" className={styles.title}>
+    <Box
+      css={{
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
+        minHeight: 360,
+        padding: theme.spacing(10, 5),
+        position: "relative",
+      }}
+      {...boxProps}
+    >
+      <Typography
+        variant="h5"
+        css={{
+          fontSize: theme.spacing(3),
+        }}
+      >
         {message}
       </Typography>
       {description && (
         <Typography
           variant="body2"
           color="textSecondary"
-          className={styles.description}
+          css={{
+            marginTop: theme.spacing(1.5),
+            fontSize: theme.spacing(2),
+            lineHeight: "140%",
+            maxWidth: theme.spacing(60),
+          }}
         >
           {description}
         </Typography>
       )}
-      {cta && <div className={styles.cta}>{cta}</div>}
+      {cta && (
+        <div
+          css={{
+            marginTop: theme.spacing(4),
+          }}
+        >
+          {cta}
+        </div>
+      )}
       {image}
     </Box>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  root: {
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    alignItems: "center",
-    textAlign: "center",
-    minHeight: 360,
-    padding: theme.spacing(10, 5),
-    position: "relative",
-  },
-
-  title: {
-    fontSize: theme.spacing(3),
-  },
-
-  description: {
-    marginTop: theme.spacing(1.5),
-    fontSize: theme.spacing(2),
-    lineHeight: "140%",
-    maxWidth: theme.spacing(60),
-  },
-
-  cta: {
-    marginTop: theme.spacing(4),
-  },
-}));

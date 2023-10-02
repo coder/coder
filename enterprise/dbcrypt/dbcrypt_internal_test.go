@@ -220,21 +220,21 @@ func TestUserLinks(t *testing.T) {
 	})
 }
 
-func TestGitAuthLinks(t *testing.T) {
+func TestExternalAuthLinks(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	t.Run("InsertGitAuthLink", func(t *testing.T) {
+	t.Run("InsertExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
-		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 		})
 		require.Equal(t, "access", link.OAuthAccessToken)
 		require.Equal(t, "refresh", link.OAuthRefreshToken)
 
-		link, err := db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		link, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		})
@@ -243,11 +243,11 @@ func TestGitAuthLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
 	})
 
-	t.Run("UpdateGitAuthLink", func(t *testing.T) {
+	t.Run("UpdateExternalAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)
-		link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{})
-		updated, err := crypt.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{})
+		updated, err := crypt.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			OAuthAccessToken:  "access",
@@ -257,7 +257,7 @@ func TestGitAuthLinks(t *testing.T) {
 		require.Equal(t, "access", updated.OAuthAccessToken)
 		require.Equal(t, "refresh", updated.OAuthRefreshToken)
 
-		link, err = db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		link, err = db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		})
@@ -266,15 +266,15 @@ func TestGitAuthLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], link.OAuthRefreshToken, "refresh")
 	})
 
-	t.Run("GetGitAuthLink", func(t *testing.T) {
+	t.Run("GetExternalAuthLink", func(t *testing.T) {
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
-			link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 				OAuthAccessToken:  "access",
 				OAuthRefreshToken: "refresh",
 			})
-			link, err := db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			link, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				UserID:     link.UserID,
 				ProviderID: link.ProviderID,
 			})
@@ -285,14 +285,14 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Run("DecryptErr", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
-			link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				OAuthAccessToken:       fakeBase64RandomData(t, 32),
 				OAuthRefreshToken:      fakeBase64RandomData(t, 32),
 				OAuthAccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
 				OAuthRefreshTokenKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
 			})
 
-			_, err := crypt.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+			_, err := crypt.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 				UserID:     link.UserID,
 				ProviderID: link.ProviderID,
 			})
@@ -302,19 +302,19 @@ func TestGitAuthLinks(t *testing.T) {
 		})
 	})
 
-	t.Run("GetGitAuthLinksByUserID", func(t *testing.T) {
+	t.Run("GetExternalAuthLinksByUserID", func(t *testing.T) {
 		t.Parallel()
 
 		t.Run("OK", func(t *testing.T) {
 			t.Parallel()
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, crypt, database.User{})
-			link := dbgen.GitAuthLink(t, crypt, database.GitAuthLink{
+			link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
 				UserID:            user.ID,
 				OAuthAccessToken:  "access",
 				OAuthRefreshToken: "refresh",
 			})
-			links, err := crypt.GetGitAuthLinksByUserID(ctx, link.UserID)
+			links, err := crypt.GetExternalAuthLinksByUserID(ctx, link.UserID)
 			require.NoError(t, err)
 			require.Len(t, links, 1)
 			require.Equal(t, "access", links[0].OAuthAccessToken)
@@ -322,7 +322,7 @@ func TestGitAuthLinks(t *testing.T) {
 			require.Equal(t, ciphers[0].HexDigest(), links[0].OAuthAccessTokenKeyID.String)
 			require.Equal(t, ciphers[0].HexDigest(), links[0].OAuthRefreshTokenKeyID.String)
 
-			rawLinks, err := db.GetGitAuthLinksByUserID(ctx, link.UserID)
+			rawLinks, err := db.GetExternalAuthLinksByUserID(ctx, link.UserID)
 			require.NoError(t, err)
 			require.Len(t, rawLinks, 1)
 			requireEncryptedEquals(t, ciphers[0], rawLinks[0].OAuthAccessToken, "access")
@@ -332,14 +332,14 @@ func TestGitAuthLinks(t *testing.T) {
 		t.Run("DecryptErr", func(t *testing.T) {
 			db, crypt, ciphers := setup(t)
 			user := dbgen.User(t, db, database.User{})
-			link := dbgen.GitAuthLink(t, db, database.GitAuthLink{
+			link := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{
 				UserID:                 user.ID,
 				OAuthAccessToken:       fakeBase64RandomData(t, 32),
 				OAuthRefreshToken:      fakeBase64RandomData(t, 32),
 				OAuthAccessTokenKeyID:  sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
 				OAuthRefreshTokenKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
 			})
-			_, err := crypt.GetGitAuthLinksByUserID(ctx, link.UserID)
+			_, err := crypt.GetExternalAuthLinksByUserID(ctx, link.UserID)
 			require.Error(t, err, "expected an error")
 			var derr *DecryptFailedError
 			require.ErrorAs(t, err, &derr, "expected a decrypt error")

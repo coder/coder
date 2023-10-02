@@ -244,7 +244,7 @@ coder:
     # AWS ELB does not support session stickiness based on ClientIP, so you must set this to None.
     # The error message you might see: "Unsupported load balancer affinity: ClientIP"
     # https://kubernetes.io/docs/reference/networking/virtual-ips/#session-affinity
-    sessionAffinity: ClientIP
+    sessionAffinity: None
     # coder.service.externalTrafficPolicy -- The external traffic policy to use.
     # You may need to change this to "Local" to preserve the source IP address
     # in some situations.
