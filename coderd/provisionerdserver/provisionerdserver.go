@@ -656,11 +656,11 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	if len(request.Logs) > 0 {
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID:     parsedID,
-			CreatedAt: []time.Time{},
-			Source:    []database.LogSource{},
-			Level:     []database.LogLevel{},
-			Stage:     []string{},
-			Output:    []string{},
+			CreatedAt: nil,
+			Source:    nil,
+			Level:     nil,
+			Stage:     nil,
+			Output:    nil,
 		}
 		for _, log := range request.Logs {
 			logLevel, err := convertLogLevel(log.Level)
