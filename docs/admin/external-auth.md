@@ -33,7 +33,7 @@ Set the following environment variables to
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="primary-github"
-CODER_EXTERNAL_AUTH_0_TYPE=github|gitlab|azure-devops|bitbucket|oidc
+CODER_EXTERNAL_AUTH_0_TYPE=github|gitlab|azure-devops|bitbucket|<name of service e.g. jfrog>
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 

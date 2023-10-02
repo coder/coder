@@ -749,11 +749,10 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 type ExternalAuthProvider string
 
 const (
-	ExternalAuthProviderAzureDevops   ExternalAuthProvider = "azure-devops"
-	ExternalAuthProviderGitHub        ExternalAuthProvider = "github"
-	ExternalAuthProviderGitLab        ExternalAuthProvider = "gitlab"
-	ExternalAuthProviderBitBucket     ExternalAuthProvider = "bitbucket"
-	ExternalAuthProviderOpenIDConnect ExternalAuthProvider = "oidc"
+	ExternalAuthProviderAzureDevops ExternalAuthProvider = "azure-devops"
+	ExternalAuthProviderGitHub      ExternalAuthProvider = "github"
+	ExternalAuthProviderGitLab      ExternalAuthProvider = "gitlab"
+	ExternalAuthProviderBitBucket   ExternalAuthProvider = "bitbucket"
 )
 
 type WorkspaceAgentLog struct {

@@ -370,8 +370,6 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 
 		var typ codersdk.ExternalAuthProvider
 		switch codersdk.ExternalAuthProvider(entry.Type) {
-		case codersdk.ExternalAuthProviderOpenIDConnect:
-			typ = codersdk.ExternalAuthProviderOpenIDConnect
 		case codersdk.ExternalAuthProviderAzureDevops:
 			typ = codersdk.ExternalAuthProviderAzureDevops
 		case codersdk.ExternalAuthProviderBitBucket:
@@ -381,7 +379,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		case codersdk.ExternalAuthProviderGitLab:
 			typ = codersdk.ExternalAuthProviderGitLab
 		default:
-			return nil, xerrors.Errorf("unknown external auth provider type: %q", entry.Type)
+			typ = codersdk.ExternalAuthProvider(entry.Type)
 		}
 
 		// Applies defaults to the config entry.
@@ -507,6 +505,13 @@ func applyDefaultsToConfig(typ codersdk.ExternalAuthProvider, config *codersdk.E
 	if config.ID == "" {
 		config.ID = string(typ)
 	}
+	if config.DisplayName == "" {
+		config.DisplayName = string(typ)
+	}
+	if config.DisplayIcon == "" {
+		// This is a key emoji.
+		config.DisplayIcon = "/emojis/1f511.png"
+	}
 }
 
 var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
@@ -547,11 +552,6 @@ var defaults = map[codersdk.ExternalAuthProvider]codersdk.ExternalAuthConfig{
 		Scopes:              []string{"repo", "workflow"},
 		DeviceCodeURL:       "https://github.com/login/device/code",
 		AppInstallationsURL: "https://api.github.com/user/installations",
-	},
-	codersdk.ExternalAuthProviderOpenIDConnect: {
-		DisplayName: "OpenID Connect",
-		// This is a key emoji.
-		DisplayIcon: "/emojis/1f511.png",
 	},
 }
 
