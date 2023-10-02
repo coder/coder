@@ -259,8 +259,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		api.AGPL.UserQuietHoursScheduleStore,
 		api.DeploymentValues,
 		provisionerdserver.Options{
-			GitAuthConfigs: api.GitAuthConfigs,
-			OIDCConfig:     api.OIDCConfig,
+			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			OIDCConfig:          api.OIDCConfig,
 		},
 	)
 	if err != nil {

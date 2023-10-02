@@ -51,12 +51,12 @@ func deepMapNode(n *yaml.Node, path []string, headComment string) *yaml.Node {
 // the stack.
 //
 // It is isomorphic with FromYAML.
-func (s *OptionSet) MarshalYAML() (any, error) {
+func (optSet *OptionSet) MarshalYAML() (any, error) {
 	root := yaml.Node{
 		Kind: yaml.MappingNode,
 	}
 
-	for _, opt := range *s {
+	for _, opt := range *optSet {
 		if opt.YAML == "" {
 			continue
 		}
@@ -222,7 +222,7 @@ func (o *Option) setFromYAMLNode(n *yaml.Node) error {
 
 // UnmarshalYAML converts the given YAML node into the option set.
 // It is isomorphic with ToYAML.
-func (s *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
+func (optSet *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
 	// The rootNode will be a DocumentNode if it's read from a file. We do
 	// not support multiple documents in a single file.
 	if rootNode.Kind == yaml.DocumentNode {
@@ -240,8 +240,8 @@ func (s *OptionSet) UnmarshalYAML(rootNode *yaml.Node) error {
 	matchedNodes := make(map[string]*yaml.Node, len(yamlNodes))
 
 	var merr error
-	for i := range *s {
-		opt := &(*s)[i]
+	for i := range *optSet {
+		opt := &(*optSet)[i]
 		if opt.YAML == "" {
 			continue
 		}

@@ -1,4 +1,4 @@
-package gitauth
+package externalauth
 
 import (
 	"context"
@@ -33,10 +33,11 @@ type Config struct {
 	OAuth2Config
 	// ID is a unique identifier for the authenticator.
 	ID string
-	// Regex is a regexp that URLs will match against.
-	Regex *regexp.Regexp
 	// Type is the type of provider.
-	Type codersdk.GitProvider
+	Type codersdk.ExternalAuthProvider
+	// DeviceAuth is set if the provider uses the device flow.
+	DeviceAuth *DeviceAuth
+
 	// NoRefresh stops Coder from using the refresh token
 	// to renew the access token.
 	//
@@ -47,49 +48,52 @@ type Config struct {
 	// returning it to the user. If omitted, tokens will
 	// not be validated before being returned.
 	ValidateURL string
+
+	// Regex is a Regexp matched against URLs for
+	// a Git clone. e.g. "Username for 'https://github.com':"
+	// The regex would be `github\.com`..
+	Regex *regexp.Regexp
 	// AppInstallURL is for GitHub App's (and hopefully others eventually)
 	// to provide a link to install the app. There's installation
 	// of the application, and user authentication. It's possible
 	// for the user to authenticate but the application to not.
 	AppInstallURL string
-	// InstallationsURL is an API endpoint that returns a list of
+	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
-	// DeviceAuth is set if the provider uses the device flow.
-	DeviceAuth *DeviceAuth
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
 // It returns the token and a bool indicating if the token is valid.
-func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLink database.GitAuthLink) (database.GitAuthLink, bool, error) {
+func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, bool, error) {
 	// If the token is expired and refresh is disabled, we prompt
 	// the user to authenticate again.
 	if c.NoRefresh &&
 		// If the time is set to 0, then it should never expire.
 		// This is true for github, which has no expiry.
-		!gitAuthLink.OAuthExpiry.IsZero() &&
-		gitAuthLink.OAuthExpiry.Before(dbtime.Now()) {
-		return gitAuthLink, false, nil
+		!externalAuthLink.OAuthExpiry.IsZero() &&
+		externalAuthLink.OAuthExpiry.Before(dbtime.Now()) {
+		return externalAuthLink, false, nil
 	}
 
 	// This is additional defensive programming. Because TokenSource is an interface,
 	// we cannot be sure that the implementation will treat an 'IsZero' time
 	// as "not-expired". The default implementation does, but a custom implementation
 	// might not. Removing the refreshToken will guarantee a refresh will fail.
-	refreshToken := gitAuthLink.OAuthRefreshToken
+	refreshToken := externalAuthLink.OAuthRefreshToken
 	if c.NoRefresh {
 		refreshToken = ""
 	}
 
 	token, err := c.TokenSource(ctx, &oauth2.Token{
-		AccessToken:  gitAuthLink.OAuthAccessToken,
+		AccessToken:  externalAuthLink.OAuthAccessToken,
 		RefreshToken: refreshToken,
-		Expiry:       gitAuthLink.OAuthExpiry,
+		Expiry:       externalAuthLink.OAuthExpiry,
 	}).Token()
 	if err != nil {
 		// Even if the token fails to be obtained, we still return false because
 		// we aren't trying to surface an error, we're just trying to obtain a valid token.
-		return gitAuthLink, false, nil
+		return externalAuthLink, false, nil
 	}
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
 	// See the comment below why the retry and cancel is required.
@@ -98,7 +102,7 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, gitAuthLin
 validate:
 	valid, _, err := c.ValidateToken(ctx, token.AccessToken)
 	if err != nil {
-		return gitAuthLink, false, xerrors.Errorf("validate git auth token: %w", err)
+		return externalAuthLink, false, xerrors.Errorf("validate external auth token: %w", err)
 	}
 	if !valid {
 		// A customer using GitHub in Australia reported that validating immediately
@@ -108,33 +112,33 @@ validate:
 		// to the read replica in time.
 		//
 		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == codersdk.GitProviderGitHub && r.Wait(retryCtx) {
+		if c.Type == codersdk.ExternalAuthProviderGitHub && r.Wait(retryCtx) {
 			goto validate
 		}
 		// The token is no longer valid!
-		return gitAuthLink, false, nil
+		return externalAuthLink, false, nil
 	}
 
-	if token.AccessToken != gitAuthLink.OAuthAccessToken {
+	if token.AccessToken != externalAuthLink.OAuthAccessToken {
 		// Update it
-		gitAuthLink, err = db.UpdateGitAuthLink(ctx, database.UpdateGitAuthLinkParams{
+		externalAuthLink, err = db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
 			ProviderID:        c.ID,
-			UserID:            gitAuthLink.UserID,
+			UserID:            externalAuthLink.UserID,
 			UpdatedAt:         dbtime.Now(),
 			OAuthAccessToken:  token.AccessToken,
 			OAuthRefreshToken: token.RefreshToken,
 			OAuthExpiry:       token.Expiry,
 		})
 		if err != nil {
-			return gitAuthLink, false, xerrors.Errorf("update git auth link: %w", err)
+			return externalAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
 		}
 	}
-	return gitAuthLink, true, nil
+	return externalAuthLink, true, nil
 }
 
 // ValidateToken ensures the Git token provided is valid!
 // The user is optionally returned if the provider supports it.
-func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *codersdk.GitAuthUser, error) {
+func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *codersdk.ExternalAuthUser, error) {
 	if c.ValidateURL == "" {
 		// Default that the token is valid if no validation URL is provided.
 		return true, nil, nil
@@ -163,12 +167,12 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 		return false, nil, xerrors.Errorf("status %d: body: %s", res.StatusCode, data)
 	}
 
-	var user *codersdk.GitAuthUser
-	if c.Type == codersdk.GitProviderGitHub {
+	var user *codersdk.ExternalAuthUser
+	if c.Type == codersdk.ExternalAuthProviderGitHub {
 		var ghUser github.User
 		err = json.NewDecoder(res.Body).Decode(&ghUser)
 		if err == nil {
-			user = &codersdk.GitAuthUser{
+			user = &codersdk.ExternalAuthUser{
 				Login:      ghUser.GetLogin(),
 				AvatarURL:  ghUser.GetAvatarURL(),
 				ProfileURL: ghUser.GetHTMLURL(),
@@ -190,7 +194,7 @@ type AppInstallation struct {
 
 // AppInstallations returns a list of app installations for the given token.
 // If the provider does not support app installations, it returns nil.
-func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.GitAuthAppInstallation, bool, error) {
+func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk.ExternalAuthAppInstallation, bool, error) {
 	if c.AppInstallationsURL == "" {
 		return nil, false, nil
 	}
@@ -209,8 +213,8 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 	if res.StatusCode != http.StatusOK {
 		return nil, false, nil
 	}
-	installs := []codersdk.GitAuthAppInstallation{}
-	if c.Type == codersdk.GitProviderGitHub {
+	installs := []codersdk.ExternalAuthAppInstallation{}
+	if c.Type == codersdk.ExternalAuthProviderGitHub {
 		var ghInstalls struct {
 			Installations []*github.Installation `json:"installations"`
 		}
@@ -223,10 +227,10 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 			if account == nil {
 				continue
 			}
-			installs = append(installs, codersdk.GitAuthAppInstallation{
+			installs = append(installs, codersdk.ExternalAuthAppInstallation{
 				ID:           int(installation.GetID()),
 				ConfigureURL: installation.GetHTMLURL(),
-				Account: codersdk.GitAuthUser{
+				Account: codersdk.ExternalAuthUser{
 					Login:      account.GetLogin(),
 					AvatarURL:  account.GetAvatarURL(),
 					ProfileURL: account.GetHTMLURL(),
@@ -244,16 +248,16 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
-		var typ codersdk.GitProvider
-		switch codersdk.GitProvider(entry.Type) {
-		case codersdk.GitProviderAzureDevops:
-			typ = codersdk.GitProviderAzureDevops
-		case codersdk.GitProviderBitBucket:
-			typ = codersdk.GitProviderBitBucket
-		case codersdk.GitProviderGitHub:
-			typ = codersdk.GitProviderGitHub
-		case codersdk.GitProviderGitLab:
-			typ = codersdk.GitProviderGitLab
+		var typ codersdk.ExternalAuthProvider
+		switch codersdk.ExternalAuthProvider(entry.Type) {
+		case codersdk.ExternalAuthProviderAzureDevops:
+			typ = codersdk.ExternalAuthProviderAzureDevops
+		case codersdk.ExternalAuthProviderBitBucket:
+			typ = codersdk.ExternalAuthProviderBitBucket
+		case codersdk.ExternalAuthProviderGitHub:
+			typ = codersdk.ExternalAuthProviderGitHub
+		case codersdk.ExternalAuthProviderGitLab:
+			typ = codersdk.ExternalAuthProviderGitLab
 		default:
 			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)
 		}
@@ -262,30 +266,30 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			entry.ID = string(typ)
 		}
 		if valid := httpapi.NameValid(entry.ID); valid != nil {
-			return nil, xerrors.Errorf("git auth provider %q doesn't have a valid id: %w", entry.ID, valid)
+			return nil, xerrors.Errorf("external auth provider %q doesn't have a valid id: %w", entry.ID, valid)
 		}
 
 		_, exists := ids[entry.ID]
 		if exists {
 			if entry.ID == string(typ) {
-				return nil, xerrors.Errorf("multiple %s git auth providers provided. you must specify a unique id for each", typ)
+				return nil, xerrors.Errorf("multiple %s external auth providers provided. you must specify a unique id for each", typ)
 			}
 			return nil, xerrors.Errorf("multiple git providers exist with the id %q. specify a unique id for each", entry.ID)
 		}
 		ids[entry.ID] = struct{}{}
 
 		if entry.ClientID == "" {
-			return nil, xerrors.Errorf("%q git auth provider: client_id must be provided", entry.ID)
+			return nil, xerrors.Errorf("%q external auth provider: client_id must be provided", entry.ID)
 		}
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/gitauth/%s/callback", entry.ID))
+		authRedirect, err := accessURL.Parse(fmt.Sprintf("/externalauth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse gitauth callback url: %w", err)
+			return nil, xerrors.Errorf("parse externalauth callback url: %w", err)
 		}
 		regex := regex[typ]
 		if entry.Regex != "" {
 			regex, err = regexp.Compile(entry.Regex)
 			if err != nil {
-				return nil, xerrors.Errorf("compile regex for git auth provider %q: %w", entry.ID, entry.Regex)
+				return nil, xerrors.Errorf("compile regex for external auth provider %q: %w", entry.ID, entry.Regex)
 			}
 		}
 
@@ -315,7 +319,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 
 		var oauthConfig OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
-		if typ == codersdk.GitProviderAzureDevops {
+		if typ == codersdk.ExternalAuthProviderAzureDevops {
 			oauthConfig = &jwtConfig{oc}
 		}
 
@@ -335,7 +339,7 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 				entry.DeviceCodeURL = deviceAuthURL[typ]
 			}
 			if entry.DeviceCodeURL == "" {
-				return nil, xerrors.Errorf("git auth provider %q: device auth url must be provided", entry.ID)
+				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
 			cfg.DeviceAuth = &DeviceAuth{
 				ClientID: entry.ClientID,

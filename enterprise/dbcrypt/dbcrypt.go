@@ -191,42 +191,42 @@ func (db *dbCrypt) UpdateUserLink(ctx context.Context, params database.UpdateUse
 	return link, nil
 }
 
-func (db *dbCrypt) InsertGitAuthLink(ctx context.Context, params database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
+func (db *dbCrypt) InsertExternalAuthLink(ctx context.Context, params database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.encryptField(&params.OAuthRefreshToken, &params.OAuthRefreshTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
-	link, err := db.Store.InsertGitAuthLink(ctx, params)
+	link, err := db.Store.InsertExternalAuthLink(ctx, params)
 	if err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
 }
 
-func (db *dbCrypt) GetGitAuthLink(ctx context.Context, params database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	link, err := db.Store.GetGitAuthLink(ctx, params)
+func (db *dbCrypt) GetExternalAuthLink(ctx context.Context, params database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	link, err := db.Store.GetExternalAuthLink(ctx, params)
 	if err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
 }
 
-func (db *dbCrypt) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
-	links, err := db.Store.GetGitAuthLinksByUserID(ctx, userID)
+func (db *dbCrypt) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
+	links, err := db.Store.GetExternalAuthLinksByUserID(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -241,22 +241,22 @@ func (db *dbCrypt) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID
 	return links, nil
 }
 
-func (db *dbCrypt) UpdateGitAuthLink(ctx context.Context, params database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := db.encryptField(&params.OAuthAccessToken, &params.OAuthAccessTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.encryptField(&params.OAuthRefreshToken, &params.OAuthRefreshTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
-	link, err := db.Store.UpdateGitAuthLink(ctx, params)
+	link, err := db.Store.UpdateExternalAuthLink(ctx, params)
 	if err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthAccessToken, link.OAuthAccessTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	if err := db.decryptField(&link.OAuthRefreshToken, link.OAuthRefreshTokenKeyID); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 	return link, nil
 }

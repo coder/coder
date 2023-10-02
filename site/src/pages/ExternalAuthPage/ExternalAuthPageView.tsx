@@ -5,7 +5,7 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { makeStyles } from "@mui/styles";
 import { ApiErrorResponse } from "api/errors";
-import { GitAuth, GitAuthDevice } from "api/typesGenerated";
+import { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
@@ -13,47 +13,53 @@ import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import { type FC } from "react";
 
-export interface GitAuthPageViewProps {
-  gitAuth: GitAuth;
-  viewGitAuthConfig: boolean;
+export interface ExternalAuthPageViewProps {
+  externalAuth: ExternalAuth;
+  viewExternalAuthConfig: boolean;
 
-  gitAuthDevice?: GitAuthDevice;
+  externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
 
   onReauthenticate: () => void;
 }
 
-const GitAuthPageView: FC<GitAuthPageViewProps> = ({
+const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   deviceExchangeError,
-  gitAuth,
-  gitAuthDevice,
+  externalAuth,
+  externalAuthDevice,
   onReauthenticate,
-  viewGitAuthConfig,
+  viewExternalAuthConfig,
 }) => {
   const styles = useStyles();
 
-  if (!gitAuth.authenticated) {
+  if (!externalAuth.authenticated) {
     return (
       <SignInLayout>
-        <Welcome message={`Authenticate with ${gitAuth.type}`} />
+        <Welcome message={`Authenticate with ${externalAuth.type}`} />
 
-        {gitAuth.device && (
+        {externalAuth.device && (
           <GitDeviceAuth
             deviceExchangeError={deviceExchangeError}
-            gitAuthDevice={gitAuthDevice}
+            externalAuthDevice={externalAuthDevice}
           />
         )}
       </SignInLayout>
     );
   }
 
-  const hasInstallations = gitAuth.installations.length > 0;
+  const hasInstallations = externalAuth.installations.length > 0;
 
   // We only want to wrap this with a link if an install URL is available!
-  let installTheApp: JSX.Element = <>{`install the ${gitAuth.type} App`}</>;
-  if (gitAuth.app_install_url) {
+  let installTheApp: JSX.Element = (
+    <>{`install the ${externalAuth.type} App`}</>
+  );
+  if (externalAuth.app_install_url) {
     installTheApp = (
-      <Link href={gitAuth.app_install_url} target="_blank" rel="noreferrer">
+      <Link
+        href={externalAuth.app_install_url}
+        target="_blank"
+        rel="noreferrer"
+      >
         {installTheApp}
       </Link>
     );
@@ -61,16 +67,17 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <Welcome message={`You've authenticated with ${gitAuth.type}!`} />
+      <Welcome message={`You've authenticated with ${externalAuth.type}!`} />
       <p className={styles.text}>
-        Hey @{gitAuth.user?.login}! 👋{" "}
-        {(!gitAuth.app_installable || gitAuth.installations.length > 0) &&
+        Hey @{externalAuth.user?.login}! 👋{" "}
+        {(!externalAuth.app_installable ||
+          externalAuth.installations.length > 0) &&
           "You are now authenticated with Git. Feel free to close this window!"}
       </p>
 
-      {gitAuth.installations.length > 0 && (
+      {externalAuth.installations.length > 0 && (
         <div className={styles.authorizedInstalls}>
-          {gitAuth.installations.map((install) => {
+          {externalAuth.installations.map((install) => {
             if (!install.account) {
               return;
             }
@@ -93,32 +100,33 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
             );
           })}
           &nbsp;
-          {gitAuth.installations.length} organization
-          {gitAuth.installations.length !== 1 && "s are"} authorized
+          {externalAuth.installations.length} organization
+          {externalAuth.installations.length !== 1 && "s are"} authorized
         </div>
       )}
 
       <div className={styles.links}>
-        {!hasInstallations && gitAuth.app_installable && (
+        {!hasInstallations && externalAuth.app_installable && (
           <Alert severity="warning" className={styles.installAlert}>
             You must {installTheApp} to clone private repositories. Accounts
             will appear here once authorized.
           </Alert>
         )}
 
-        {viewGitAuthConfig &&
-          gitAuth.app_install_url &&
-          gitAuth.app_installable && (
+        {viewExternalAuthConfig &&
+          externalAuth.app_install_url &&
+          externalAuth.app_installable && (
             <Link
-              href={gitAuth.app_install_url}
+              href={externalAuth.app_install_url}
               target="_blank"
               rel="noreferrer"
               className={styles.link}
             >
               <OpenInNewIcon fontSize="small" />
-              {gitAuth.installations.length > 0
+              {externalAuth.installations.length > 0
                 ? "Configure"
-                : "Install"} the {gitAuth.type} App
+                : "Install"}{" "}
+              the {externalAuth.type} App
             </Link>
           )}
         <Link
@@ -136,9 +144,9 @@ const GitAuthPageView: FC<GitAuthPageViewProps> = ({
 };
 
 const GitDeviceAuth: FC<{
-  gitAuthDevice?: GitAuthDevice;
+  externalAuthDevice?: ExternalAuthDevice;
   deviceExchangeError?: ApiErrorResponse;
-}> = ({ gitAuthDevice, deviceExchangeError }) => {
+}> = ({ externalAuthDevice, deviceExchangeError }) => {
   const styles = useStyles();
 
   let status = (
@@ -175,7 +183,7 @@ const GitDeviceAuth: FC<{
     }
   }
 
-  if (!gitAuthDevice) {
+  if (!externalAuthDevice) {
     return <CircularProgress />;
   }
 
@@ -184,8 +192,8 @@ const GitDeviceAuth: FC<{
       <p className={styles.text}>
         Copy your one-time code:&nbsp;
         <div className={styles.copyCode}>
-          <span className={styles.code}>{gitAuthDevice.user_code}</span>&nbsp;{" "}
-          <CopyButton text={gitAuthDevice.user_code} />
+          <span className={styles.code}>{externalAuthDevice.user_code}</span>
+          &nbsp; <CopyButton text={externalAuthDevice.user_code} />
         </div>
         <br />
         Then open the link below and paste it:
@@ -193,7 +201,7 @@ const GitDeviceAuth: FC<{
       <div className={styles.links}>
         <Link
           className={styles.link}
-          href={gitAuthDevice.verification_uri}
+          href={externalAuthDevice.verification_uri}
           target="_blank"
           rel="noreferrer"
         >
@@ -207,7 +215,7 @@ const GitDeviceAuth: FC<{
   );
 };
 
-export default GitAuthPageView;
+export default ExternalAuthPageView;
 
 const useStyles = makeStyles((theme) => ({
   text: {

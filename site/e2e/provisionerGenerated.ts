@@ -94,7 +94,7 @@ export interface InstanceIdentityAuth {
   instanceId: string;
 }
 
-export interface GitAuthProvider {
+export interface ExternalAuthProvider {
   id: string;
   accessToken: string;
 }
@@ -241,7 +241,7 @@ export interface PlanRequest {
   metadata: Metadata | undefined;
   richParameterValues: RichParameterValue[];
   variableValues: VariableValue[];
-  gitAuthProviders: GitAuthProvider[];
+  externalAuthProviders: ExternalAuthProvider[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -249,7 +249,7 @@ export interface PlanComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  gitAuthProviders: string[];
+  externalAuthProviders: string[];
 }
 
 /**
@@ -266,7 +266,7 @@ export interface ApplyComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  gitAuthProviders: string[];
+  externalAuthProviders: string[];
 }
 
 /** CancelRequest requests that the previous request be canceled gracefully. */
@@ -455,9 +455,9 @@ export const InstanceIdentityAuth = {
   },
 };
 
-export const GitAuthProvider = {
+export const ExternalAuthProvider = {
   encode(
-    message: GitAuthProvider,
+    message: ExternalAuthProvider,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.id !== "") {
@@ -838,8 +838,8 @@ export const PlanRequest = {
     for (const v of message.variableValues) {
       VariableValue.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
-      GitAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
+    for (const v of message.externalAuthProviders) {
+      ExternalAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -859,7 +859,7 @@ export const PlanComplete = {
     for (const v of message.parameters) {
       RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
+    for (const v of message.externalAuthProviders) {
       writer.uint32(34).string(v!);
     }
     return writer;
@@ -895,7 +895,7 @@ export const ApplyComplete = {
     for (const v of message.parameters) {
       RichParameter.encode(v!, writer.uint32(34).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
+    for (const v of message.externalAuthProviders) {
       writer.uint32(42).string(v!);
     }
     return writer;

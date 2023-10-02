@@ -51,7 +51,7 @@ func New() database.Store {
 			organizations:             make([]database.Organization, 0),
 			users:                     make([]database.User, 0),
 			dbcryptKeys:               make([]database.DBCryptKey, 0),
-			gitAuthLinks:              make([]database.GitAuthLink, 0),
+			externalAuthLinks:         make([]database.ExternalAuthLink, 0),
 			groups:                    make([]database.Group, 0),
 			groupMembers:              make([]database.GroupMember, 0),
 			auditLogs:                 make([]database.AuditLog, 0),
@@ -125,7 +125,7 @@ type data struct {
 	auditLogs                     []database.AuditLog
 	dbcryptKeys                   []database.DBCryptKey
 	files                         []database.File
-	gitAuthLinks                  []database.GitAuthLink
+	externalAuthLinks             []database.ExternalAuthLink
 	gitSSHKey                     []database.GitSSHKey
 	groupMembers                  []database.GroupMember
 	groups                        []database.Group
@@ -1438,6 +1438,37 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	for _, gitAuthLink := range q.externalAuthLinks {
+		if arg.UserID != gitAuthLink.UserID {
+			continue
+		}
+		if arg.ProviderID != gitAuthLink.ProviderID {
+			continue
+		}
+		return gitAuthLink, nil
+	}
+	return database.ExternalAuthLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetExternalAuthLinksByUserID(_ context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	gals := make([]database.ExternalAuthLink, 0)
+	for _, gal := range q.externalAuthLinks {
+		if gal.UserID == userID {
+			gals = append(gals, gal)
+		}
+	}
+	return gals, nil
+}
+
 func (q *FakeQuerier) GetFileByHashAndCreator(_ context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
@@ -1505,37 +1536,6 @@ func (q *FakeQuerier) GetFileTemplates(_ context.Context, id uuid.UUID) ([]datab
 	}
 
 	return rows, nil
-}
-
-func (q *FakeQuerier) GetGitAuthLink(_ context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.GitAuthLink{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	for _, gitAuthLink := range q.gitAuthLinks {
-		if arg.UserID != gitAuthLink.UserID {
-			continue
-		}
-		if arg.ProviderID != gitAuthLink.ProviderID {
-			continue
-		}
-		return gitAuthLink, nil
-	}
-	return database.GitAuthLink{}, sql.ErrNoRows
-}
-
-func (q *FakeQuerier) GetGitAuthLinksByUserID(_ context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	gals := make([]database.GitAuthLink, 0)
-	for _, gal := range q.gitAuthLinks {
-		if gal.UserID == userID {
-			gals = append(gals, gal)
-		}
-	}
-	return gals, nil
 }
 
 func (q *FakeQuerier) GetGitSSHKey(_ context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -4205,6 +4205,29 @@ func (q *FakeQuerier) InsertDeploymentID(_ context.Context, id string) error {
 	return nil
 }
 
+func (q *FakeQuerier) InsertExternalAuthLink(_ context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return database.ExternalAuthLink{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	// nolint:gosimple
+	gitAuthLink := database.ExternalAuthLink{
+		ProviderID:             arg.ProviderID,
+		UserID:                 arg.UserID,
+		CreatedAt:              arg.CreatedAt,
+		UpdatedAt:              arg.UpdatedAt,
+		OAuthAccessToken:       arg.OAuthAccessToken,
+		OAuthAccessTokenKeyID:  arg.OAuthAccessTokenKeyID,
+		OAuthRefreshToken:      arg.OAuthRefreshToken,
+		OAuthRefreshTokenKeyID: arg.OAuthRefreshTokenKeyID,
+		OAuthExpiry:            arg.OAuthExpiry,
+	}
+	q.externalAuthLinks = append(q.externalAuthLinks, gitAuthLink)
+	return gitAuthLink, nil
+}
+
 func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParams) (database.File, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.File{}, err
@@ -4224,29 +4247,6 @@ func (q *FakeQuerier) InsertFile(_ context.Context, arg database.InsertFileParam
 	}
 	q.files = append(q.files, file)
 	return file, nil
-}
-
-func (q *FakeQuerier) InsertGitAuthLink(_ context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	if err := validateDatabaseType(arg); err != nil {
-		return database.GitAuthLink{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	// nolint:gosimple
-	gitAuthLink := database.GitAuthLink{
-		ProviderID:             arg.ProviderID,
-		UserID:                 arg.UserID,
-		CreatedAt:              arg.CreatedAt,
-		UpdatedAt:              arg.UpdatedAt,
-		OAuthAccessToken:       arg.OAuthAccessToken,
-		OAuthAccessTokenKeyID:  arg.OAuthAccessTokenKeyID,
-		OAuthRefreshToken:      arg.OAuthRefreshToken,
-		OAuthRefreshTokenKeyID: arg.OAuthRefreshTokenKeyID,
-		OAuthExpiry:            arg.OAuthExpiry,
-	}
-	q.gitAuthLinks = append(q.gitAuthLinks, gitAuthLink)
-	return gitAuthLink, nil
 }
 
 func (q *FakeQuerier) InsertGitSSHKey(_ context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -5214,7 +5214,7 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 				return errForeignKeyConstraint
 			}
 		}
-		for _, gal := range q.gitAuthLinks {
+		for _, gal := range q.externalAuthLinks {
 			if (gal.OAuthAccessTokenKeyID.Valid && gal.OAuthAccessTokenKeyID.String == activeKeyDigest) ||
 				(gal.OAuthRefreshTokenKeyID.Valid && gal.OAuthRefreshTokenKeyID.String == activeKeyDigest) {
 				return errForeignKeyConstraint
@@ -5256,14 +5256,14 @@ func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPI
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
+func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
-		return database.GitAuthLink{}, err
+		return database.ExternalAuthLink{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	for index, gitAuthLink := range q.gitAuthLinks {
+	for index, gitAuthLink := range q.externalAuthLinks {
 		if gitAuthLink.ProviderID != arg.ProviderID {
 			continue
 		}
@@ -5276,11 +5276,11 @@ func (q *FakeQuerier) UpdateGitAuthLink(_ context.Context, arg database.UpdateGi
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthRefreshTokenKeyID = arg.OAuthRefreshTokenKeyID
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
-		q.gitAuthLinks[index] = gitAuthLink
+		q.externalAuthLinks[index] = gitAuthLink
 
 		return gitAuthLink, nil
 	}
-	return database.GitAuthLink{}, sql.ErrNoRows
+	return database.ExternalAuthLink{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -5623,7 +5623,7 @@ func (q *FakeQuerier) UpdateTemplateVersionDescriptionByJobID(_ context.Context,
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
+func (q *FakeQuerier) UpdateTemplateVersionExternalAuthProvidersByJobID(_ context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
@@ -5635,7 +5635,7 @@ func (q *FakeQuerier) UpdateTemplateVersionGitAuthProvidersByJobID(_ context.Con
 		if templateVersion.JobID != arg.JobID {
 			continue
 		}
-		templateVersion.GitAuthProviders = arg.GitAuthProviders
+		templateVersion.ExternalAuthProviders = arg.ExternalAuthProviders
 		templateVersion.UpdatedAt = arg.UpdatedAt
 		q.templateVersions[index] = templateVersion
 		return nil

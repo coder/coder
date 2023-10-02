@@ -9,7 +9,6 @@ import {
   WorkspaceParametersForm,
 } from "./WorkspaceParametersForm";
 import { useNavigate } from "react-router-dom";
-import { makeStyles } from "@mui/styles";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { FC } from "react";
 import { isApiValidationError } from "api/errors";
@@ -74,11 +73,13 @@ export type WorkspaceParametersPageViewProps = {
 export const WorkspaceParametersPageView: FC<
   WorkspaceParametersPageViewProps
 > = ({ data, submitError, isSubmitting, onSubmit, onCancel }) => {
-  const styles = useStyles();
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader
+        css={{
+          paddingTop: 0,
+        }}
+      >
         <PageHeaderTitle>Workspace parameters</PageHeaderTitle>
       </PageHeader>
 
@@ -101,11 +102,5 @@ export const WorkspaceParametersPageView: FC<
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));
 
 export default WorkspaceParametersPage;

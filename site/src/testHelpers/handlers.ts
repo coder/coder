@@ -112,7 +112,7 @@ export const handlers = [
     },
   ),
   rest.get(
-    "/api/v2/templateversions/:templateVersionId/gitauth",
+    "/api/v2/templateversions/:templateVersionId/externalauth",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([]));
     },

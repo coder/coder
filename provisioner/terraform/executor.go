@@ -264,9 +264,9 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		return nil, err
 	}
 	return &proto.PlanComplete{
-		Parameters:       state.Parameters,
-		Resources:        state.Resources,
-		GitAuthProviders: state.GitAuthProviders,
+		Parameters:            state.Parameters,
+		Resources:             state.Resources,
+		ExternalAuthProviders: state.ExternalAuthProviders,
 	}, nil
 }
 
@@ -404,10 +404,10 @@ func (e *executor) apply(
 		return nil, xerrors.Errorf("read statefile %q: %w", statefilePath, err)
 	}
 	return &proto.ApplyComplete{
-		Parameters:       state.Parameters,
-		Resources:        state.Resources,
-		GitAuthProviders: state.GitAuthProviders,
-		State:            stateContent,
+		Parameters:            state.Parameters,
+		Resources:             state.Resources,
+		ExternalAuthProviders: state.ExternalAuthProviders,
+		State:                 stateContent,
 	}, nil
 }
 

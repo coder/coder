@@ -266,8 +266,8 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 	}
 
 	err = cliui.GitAuth(ctx, inv.Stdout, cliui.GitAuthOptions{
-		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
-			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
+		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+			return client.TemplateVersionExternalAuth(ctx, templateVersion.ID)
 		},
 	})
 	if err != nil {

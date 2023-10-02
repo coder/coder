@@ -1,18 +1,20 @@
 import { Meta, StoryFn } from "@storybook/react";
-import GitAuthPageView, { GitAuthPageViewProps } from "./GitAuthPageView";
+import ExternalAuthPageView, {
+  ExternalAuthPageViewProps,
+} from "./ExternalAuthPageView";
 
 export default {
-  title: "pages/GitAuthPageView",
-  component: GitAuthPageView,
-} as Meta<typeof GitAuthPageView>;
+  title: "pages/ExternalAuthPageView",
+  component: ExternalAuthPageView,
+} as Meta<typeof ExternalAuthPageView>;
 
-const Template: StoryFn<GitAuthPageViewProps> = (args) => (
-  <GitAuthPageView {...args} />
+const Template: StoryFn<ExternalAuthPageViewProps> = (args) => (
+  <ExternalAuthPageView {...args} />
 );
 
 export const WebAuthenticated = Template.bind({});
 WebAuthenticated.args = {
-  gitAuth: {
+  externalAuth: {
     type: "BitBucket",
     authenticated: true,
     device: false,
@@ -30,7 +32,7 @@ WebAuthenticated.args = {
 
 export const DeviceUnauthenticated = Template.bind({});
 DeviceUnauthenticated.args = {
-  gitAuth: {
+  externalAuth: {
     type: "GitHub",
     authenticated: false,
     device: true,
@@ -38,7 +40,7 @@ DeviceUnauthenticated.args = {
     app_install_url: "",
     app_installable: false,
   },
-  gitAuthDevice: {
+  externalAuthDevice: {
     device_code: "1234-5678",
     expires_in: 900,
     interval: 5,
@@ -49,7 +51,7 @@ DeviceUnauthenticated.args = {
 
 export const DeviceUnauthenticatedError = Template.bind({});
 DeviceUnauthenticatedError.args = {
-  gitAuth: {
+  externalAuth: {
     type: "GitHub",
     authenticated: false,
     device: true,
@@ -57,7 +59,7 @@ DeviceUnauthenticatedError.args = {
     app_install_url: "",
     app_installable: false,
   },
-  gitAuthDevice: {
+  externalAuthDevice: {
     device_code: "1234-5678",
     expires_in: 900,
     interval: 5,
@@ -72,8 +74,8 @@ DeviceUnauthenticatedError.args = {
 
 export const DeviceAuthenticatedNotInstalled = Template.bind({});
 DeviceAuthenticatedNotInstalled.args = {
-  viewGitAuthConfig: true,
-  gitAuth: {
+  viewExternalAuthConfig: true,
+  externalAuth: {
     type: "GitHub",
     authenticated: true,
     device: true,
@@ -91,7 +93,7 @@ DeviceAuthenticatedNotInstalled.args = {
 
 export const DeviceAuthenticatedInstalled = Template.bind({});
 DeviceAuthenticatedInstalled.args = {
-  gitAuth: {
+  externalAuth: {
     type: "GitHub",
     authenticated: true,
     device: true,
