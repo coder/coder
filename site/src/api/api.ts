@@ -873,7 +873,10 @@ export const exchangeExternalAuthDevice = async (
   provider: string,
   req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/api/v2/external-auth/${provider}/device`, req);
+  const resp = await axios.post(
+    `/api/v2/external-auth/${provider}/device`,
+    req,
+  );
   return resp.data;
 };
 

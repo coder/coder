@@ -2167,22 +2167,22 @@ func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 // ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with
 // the viper CLI.
 func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuthConfig, error) {
-	providers, err := readExternalAuthProvidersFromEnv("CODER_EXTERNAL_AUTH_", environ)
+	providers, err := parseExternalAuthProvidersFromEnv("CODER_EXTERNAL_AUTH_", environ)
 	if err != nil {
 		return nil, err
 	}
 	// Deprecated: To support legacy git auth!
-	gitProviders, err := readExternalAuthProvidersFromEnv("CODER_GITAUTH_", environ)
+	gitProviders, err := parseExternalAuthProvidersFromEnv("CODER_GITAUTH_", environ)
 	if err != nil {
 		return nil, err
 	}
 	return append(providers, gitProviders...), nil
 }
 
-// readExternalAuthProvidersFromEnv consumes environment variables to parse
+// parseExternalAuthProvidersFromEnv consumes environment variables to parse
 // external auth providers. A prefix is provided to support the legacy
 // parsing of `GITAUTH` environment variables.
-func readExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
+func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
 	// The index numbers must be in-order.
 	sort.Strings(environ)
 

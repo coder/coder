@@ -366,6 +366,8 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
+		entry := entry
+
 		var typ codersdk.ExternalAuthProvider
 		switch codersdk.ExternalAuthProvider(entry.Type) {
 		case codersdk.ExternalAuthProviderOpenIDConnect:
