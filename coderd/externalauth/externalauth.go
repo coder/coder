@@ -383,9 +383,6 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		if entry.ClientID == "" {
 			return nil, xerrors.Errorf("%q external auth provider: client_id must be provided", entry.ID)
 		}
-		if entry.ClientSecret == "" {
-			return nil, xerrors.Errorf("%q external auth provider: client_secret must be provided", entry.ID)
-		}
 
 		_, exists := ids[entry.ID]
 		if exists {
