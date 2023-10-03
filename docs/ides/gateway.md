@@ -223,7 +223,8 @@ To install both backends and clients, you will need to run two commands.
 **Backends**
 
 ```shell
-./jetbrains-clients-downloader-linux-x86_64-1867/bin4/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
+mkdir ~/backends
+./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
 ```
 
 **Clients**
@@ -231,7 +232,8 @@ To install both backends and clients, you will need to run two commands.
 This is the same command as above, with the `--download-backends` flag removed.
 
 ```shell
-./jetbrains-clients-downloader-linux-x86_64-1867/bin4/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
+mkdir ~/clients
+./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 ~/clients
 ```
 
 We now have both clients and backends installed.
