@@ -5,20 +5,23 @@ import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { useState, useRef } from "react";
+import { DateRangeValue } from "./DateRange";
+import { differenceInWeeks } from "date-fns";
+import { lastWeeks } from "./utils";
 
-export const weeklyPresets = [4, 12, 24, 48] as const;
+export const numberOfWeeksOptions = [4, 12, 24, 48] as const;
 
-export type WeeklyPreset = (typeof weeklyPresets)[number];
-
-export const WeeklyPresetsMenu = ({
+export const WeekPicker = ({
   value,
   onChange,
 }: {
-  value: WeeklyPreset;
-  onChange: (value: WeeklyPreset) => void;
+  value: DateRangeValue;
+  onChange: (value: DateRangeValue) => void;
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
+  // Why +1? If you get the week 1 and week 2 the diff is 1, but there are 2 weeks
+  const numberOfWeeks = differenceInWeeks(value.endDate, value.startDate) + 1;
 
   const handleClose = () => {
     setOpen(false);
@@ -35,7 +38,7 @@ export const WeeklyPresetsMenu = ({
         onClick={() => setOpen(true)}
         endIcon={<ExpandMoreOutlined />}
       >
-        Last {value} weeks
+        Last {numberOfWeeks} weeks
       </Button>
       <Menu
         id="interval-menu"
@@ -54,23 +57,27 @@ export const WeeklyPresetsMenu = ({
           horizontal: "left",
         }}
       >
-        {weeklyPresets.map((numberOfWeeks) => (
-          <MenuItem
-            css={{ fontSize: 14, justifyContent: "space-between" }}
-            key={numberOfWeeks}
-            onClick={() => {
-              onChange(numberOfWeeks);
-              handleClose();
-            }}
-          >
-            Last {numberOfWeeks} weeks
-            <Box css={{ width: 16, height: 16 }}>
-              {value === numberOfWeeks && (
-                <CheckOutlined css={{ width: 16, height: 16 }} />
-              )}
-            </Box>
-          </MenuItem>
-        ))}
+        {numberOfWeeksOptions.map((option) => {
+          const optionRange = lastWeeks(option);
+
+          return (
+            <MenuItem
+              css={{ fontSize: 14, justifyContent: "space-between" }}
+              key={option}
+              onClick={() => {
+                onChange(optionRange);
+                handleClose();
+              }}
+            >
+              Last {option} weeks
+              <Box css={{ width: 16, height: 16 }}>
+                {numberOfWeeks === option && (
+                  <CheckOutlined css={{ width: 16, height: 16 }} />
+                )}
+              </Box>
+            </MenuItem>
+          );
+        })}
       </Menu>
     </div>
   );

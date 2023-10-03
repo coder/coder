@@ -5,6 +5,11 @@ import {
   startOfDay,
   startOfHour,
   isToday as isTodayDefault,
+  startOfWeek,
+  endOfDay,
+  endOfWeek,
+  isSunday,
+  subWeeks,
 } from "date-fns";
 
 type GetDateRangeFilterOptions = {
@@ -36,3 +41,10 @@ export function getDateRangeFilter(props: GetDateRangeFilterOptions) {
 function toISOLocal(d: Date) {
   return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
 }
+
+export const lastWeeks = (numberOfWeeks: number) => {
+  const now = new Date();
+  const startDate = startOfWeek(subWeeks(now, numberOfWeeks));
+  const endDate = isSunday(now) ? endOfDay(now) : endOfWeek(subWeeks(now, 1));
+  return { startDate, endDate };
+};

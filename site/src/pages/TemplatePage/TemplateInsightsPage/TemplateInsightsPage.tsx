@@ -29,67 +29,38 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
 import { ComponentProps, ReactNode } from "react";
-import {
-  subDays,
-  subWeeks,
-  startOfWeek,
-  endOfWeek,
-  isSunday,
-  endOfDay,
-  addWeeks,
-} from "date-fns";
+import { subDays, addWeeks } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { DateRange, DateRangeValue } from "./DateRange";
+import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
 import Link from "@mui/material/Link";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import { getDateRangeFilter } from "./utils";
+import { getDateRangeFilter, lastWeeks } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { WeeklyPreset, WeeklyPresetsMenu } from "./WeeklyPresetsMenu";
+import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
 import { insightsTemplate, insightsUserLatency } from "api/queries/insights";
 import { useSearchParams } from "react-router-dom";
 
+const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
+
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext();
-  const now = new Date();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const defaultWeeklyPreset = 4;
-  const defaultDailyRange = {
-    startDate: subDays(now, 6),
-    endDate: now,
-  };
   const defaultInterval = getDefaultInterval(template);
-
   const interval =
     (searchParams.get("interval") as InsightsInterval) || defaultInterval;
 
-  const weeklyPreset =
-    (Number(searchParams.get("weeklyPreset")) as WeeklyPreset) ||
-    defaultWeeklyPreset;
-  const setWeeklyPreset = (newWeeklyPreset: WeeklyPreset) => {
-    searchParams.set("weeklyPreset", newWeeklyPreset.toString());
+  const dateRange = getDateRange(searchParams, interval);
+  const setDateRange = (newDateRange: DateRangeValue) => {
+    searchParams.set("startDate", newDateRange.startDate.toISOString());
+    searchParams.set("endDate", newDateRange.endDate.toISOString());
     setSearchParams(searchParams);
   };
 
-  const dailyRange =
-    searchParams.has("startDate") && searchParams.has("endDate")
-      ? {
-          startDate: new Date(searchParams.get("startDate")!),
-          endDate: new Date(searchParams.get("endDate")!),
-        }
-      : defaultDailyRange;
-  const setDailyRange = (newDailyRange: DateRangeValue) => {
-    searchParams.set("startDate", newDailyRange.startDate.toISOString());
-    searchParams.set("endDate", newDailyRange.endDate.toISOString());
-    setSearchParams(searchParams);
-  };
-
-  const dateRange =
-    interval === "day" ? dailyRange : getWeeklyRange(weeklyPreset);
   const commonFilters = {
     template_ids: template.id,
     ...getDateRangeFilter(dateRange),
@@ -109,23 +80,18 @@ export default function TemplateInsightsPage() {
             <IntervalMenu
               value={interval}
               onChange={(interval) => {
+                // When going from daily to week we need to set a safe week range
                 if (interval === "week") {
-                  setWeeklyPreset(defaultWeeklyPreset);
-                } else {
-                  setDailyRange(defaultDailyRange);
+                  setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
                 }
-
                 searchParams.set("interval", interval);
                 setSearchParams(searchParams);
               }}
             />
             {interval === "day" ? (
-              <DateRange value={dailyRange} onChange={setDailyRange} />
+              <DailyPicker value={dateRange} onChange={setDateRange} />
             ) : (
-              <WeeklyPresetsMenu
-                value={weeklyPreset}
-                onChange={setWeeklyPreset}
-              />
+              <WeekPicker value={dateRange} onChange={setDateRange} />
             )}
           </>
         }
@@ -142,6 +108,30 @@ const getDefaultInterval = (template: Template) => {
   const templateCreateDate = new Date(template.created_at);
   const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
   return hasFiveWeeksOrMore ? "week" : "day";
+};
+
+const getDateRange = (
+  searchParams: URLSearchParams,
+  interval: InsightsInterval,
+) => {
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+
+  if (startDate && endDate) {
+    return {
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+    };
+  }
+
+  if (interval === "day") {
+    return {
+      startDate: subDays(new Date(), 6),
+      endDate: new Date(),
+    };
+  }
+
+  return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
 };
 
 export const TemplateInsightsPageView = ({
@@ -669,13 +659,6 @@ const TextValue = ({ children }: { children: ReactNode }) => {
       </Box>
     </Box>
   );
-};
-
-const getWeeklyRange = (numberOfWeeks: WeeklyPreset) => {
-  const now = new Date();
-  const startDate = startOfWeek(subWeeks(now, numberOfWeeks));
-  const endDate = isSunday(now) ? endOfDay(now) : endOfWeek(subWeeks(now, 1));
-  return { startDate, endDate };
 };
 
 function formatTime(seconds: number): string {
