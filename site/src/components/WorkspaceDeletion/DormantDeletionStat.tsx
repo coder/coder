@@ -14,7 +14,7 @@ interface DormantDeletionStatProps {
 export const DormantDeletionStat: FC<DormantDeletionStatProps> = ({
   workspace,
 }) => {
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
 
