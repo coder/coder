@@ -24,7 +24,12 @@ SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
 mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
-	maybedryrun "${DRY_RUN}" command coder "${@}"
+	if [[ -z "${SCALETEST_CODER_BINARY}" ]]; then
+		echo "Fetching full coder binary..."
+		fetch_coder_full
+		echo "SCALETEST_CODER_BINARY=${SCALETEST_CODER_BINARY}"
+	fi
+	maybedryrun "${DRY_RUN}" "${SCALETEST_CODER_BINARY}" "${@}"
 }
 
 show_json() {
@@ -239,4 +244,37 @@ set_appearance() {
 		-H "Coder-Session-Token: ${session_token}" \
 		--data "${newjson}" \
 		"${CODER_URL}/api/v2/appearance"
+}
+
+# fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
+# running in the same namespace as the current pod.
+fetch_coder_full() {
+	local mkdir_dry_run_arg=""
+	if [[ "${DRY_RUN}" == "1" ]]; then
+		mkdir_dry_run_arg="--dry-run"
+	fi
+	target_dir=$(mktemp ${mkdir_dry_run_arg} --directory -t scaletest-coder-full-XXXXXX)
+	target_path="${target_dir}/coder"
+	local pod
+	local namespace
+	namespace=<(/var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	if [[ -z ${namespace} ]]; then
+		log "Could not determine namespace!"
+		exit 1
+	fi
+	pod=$(kubectl get pods \
+		--namespace "${namespace}" \
+		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+		--output jsonpath='{.items[0].metadata.name}')
+	if [[ -z ${pod} ]]; then
+		log "Could not find coder pod!"
+		exit 1
+	fi
+	maybedryrun "${DRY_RUN}" kubectl \
+		--namespace "${namespace}" \
+		cp \
+		--container coder \
+		"${pod}:/opt/coder" "${target_path}"
+	maybedryrun chmod +x "${target_path}"
+	export SCALETEST_CODER_BINARY="${target_path}"
 }
