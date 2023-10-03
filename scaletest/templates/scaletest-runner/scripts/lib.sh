@@ -250,6 +250,10 @@ set_appearance() {
 # running in the same namespace as the current pod.
 fetch_coder_full() {
 	local mkdir_dry_run_arg=""
+	if [[ -n "${SCALETEST_CODER_BINARY:-}" ]]; then
+		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
+		return
+	fi
 	if [[ "${DRY_RUN}" == "1" ]]; then
 		mkdir_dry_run_arg="--dry-run"
 	fi
