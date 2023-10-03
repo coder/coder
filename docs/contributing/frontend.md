@@ -50,7 +50,8 @@ conventions to help people to navigate through it.
 - **e2e** - End-to-end (E2E) tests
 - **src** - Source code
   - **mocks** - [Manual mocks](https://jestjs.io/docs/manual-mocks) used by Jest
-  - **@types** - Custom types for dependencies that don't have defined types (largely code that has no server-side equivalent)
+  - **@types** - Custom types for dependencies that don't have defined types
+    (largely code that has no server-side equivalent)
   - **api** - API code as function calls and types
   - **components** - UI components
   - **hooks** - Hooks that can be used across the application
@@ -117,8 +118,8 @@ We are using [axios](https://github.com/axios/axios) as our fetching library and
 writing the API functions in the `site/src/api/api.ts` files. We also have
 auto-generated types from our Go server on `site/src/api/typesGenerated.ts`.
 Usually, every endpoint has its own ` Request` and `Response` types, but
-sometimes you need to pass extra parameters to make the call, like in the example
-below:
+sometimes you need to pass extra parameters to make the call, like in the
+example below:
 
 ```ts
 export const getAgentListeningPorts = async (
@@ -166,7 +167,9 @@ We strive to keep our UI accessible.
 
 In general, colors should come from the app theme, but if there is a need to add
 a custom color, please ensure that the foreground and background have a minimum
-contrast ratio of 4.5:1 to meet WCAG level AA compliance. WebAIM has [a great tool for checking your colors directly](https://webaim.org/resources/contrastchecker/), but tools like
+contrast ratio of 4.5:1 to meet WCAG level AA compliance. WebAIM has
+[a great tool for checking your colors directly](https://webaim.org/resources/contrastchecker/),
+but tools like
 [Dequeue's axe DevTools](https://chrome.google.com/webstore/detail/axe-devtools-web-accessib/lhdoppojpmngadmnindnejefpokejbdd)
 can also do automated checks in certain situations.
 
@@ -185,8 +188,10 @@ import { visuallyHidden } from "@mui/utils";
 
 <Button>
   <GearIcon />
-  <Box component="span" sx={visuallyHidden}>Settings</Box>
-</Button>
+  <Box component="span" sx={visuallyHidden}>
+    Settings
+  </Box>
+</Button>;
 ```
 
 ### Should I create a new component?
@@ -199,15 +204,15 @@ creating a custom primitive component like dialogs, popovers, buttons, etc.
 
 ## Testing
 
-We use three types of testing in our app: **End-to-end (E2E)**, **Integration** and **Visual
-Testing**.
+We use three types of testing in our app: **End-to-end (E2E)**, **Integration**
+and **Visual Testing**.
 
 ### End-to-End (E2E)
 
-These are useful for testing complete flows like "Create a user",
-"Import template", etc. We use [Playwright](https://playwright.dev/). If you
-only need to test if the page is being rendered correctly, you should consider
-using the **Visual Testing** approach.
+These are useful for testing complete flows like "Create a user", "Import
+template", etc. We use [Playwright](https://playwright.dev/). If you only need
+to test if the page is being rendered correctly, you should consider using the
+**Visual Testing** approach.
 
 > ℹ️ For scenarios where you need to be authenticated, you can use
 > `test.use({ storageState: getStatePath("authState") })`.
