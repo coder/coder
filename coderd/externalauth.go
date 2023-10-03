@@ -123,13 +123,15 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 		}
 
 		_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
-			ProviderID:        config.ID,
-			UserID:            apiKey.UserID,
-			CreatedAt:         dbtime.Now(),
-			UpdatedAt:         dbtime.Now(),
-			OAuthAccessToken:  token.AccessToken,
-			OAuthRefreshToken: token.RefreshToken,
-			OAuthExpiry:       token.Expiry,
+			ProviderID:             config.ID,
+			UserID:                 apiKey.UserID,
+			CreatedAt:              dbtime.Now(),
+			UpdatedAt:              dbtime.Now(),
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will set as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
+			OAuthExpiry:            token.Expiry,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -140,12 +142,14 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 		}
 	} else {
 		_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:        config.ID,
-			UserID:            apiKey.UserID,
-			UpdatedAt:         dbtime.Now(),
-			OAuthAccessToken:  token.AccessToken,
-			OAuthRefreshToken: token.RefreshToken,
-			OAuthExpiry:       token.Expiry,
+			ProviderID:             config.ID,
+			UserID:                 apiKey.UserID,
+			UpdatedAt:              dbtime.Now(),
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:            token.Expiry,
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -211,13 +215,15 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			}
 
 			_, err = api.Database.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
-				ProviderID:        externalAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				CreatedAt:         dbtime.Now(),
-				UpdatedAt:         dbtime.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
+				ProviderID:             externalAuthConfig.ID,
+				UserID:                 apiKey.UserID,
+				CreatedAt:              dbtime.Now(),
+				UpdatedAt:              dbtime.Now(),
+				OAuthAccessToken:       state.Token.AccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will set as required
+				OAuthRefreshToken:      state.Token.RefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
+				OAuthExpiry:            state.Token.Expiry,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -228,12 +234,14 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			}
 		} else {
 			_, err = api.Database.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-				ProviderID:        externalAuthConfig.ID,
-				UserID:            apiKey.UserID,
-				UpdatedAt:         dbtime.Now(),
-				OAuthAccessToken:  state.Token.AccessToken,
-				OAuthRefreshToken: state.Token.RefreshToken,
-				OAuthExpiry:       state.Token.Expiry,
+				ProviderID:             externalAuthConfig.ID,
+				UserID:                 apiKey.UserID,
+				UpdatedAt:              dbtime.Now(),
+				OAuthAccessToken:       state.Token.AccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+				OAuthRefreshToken:      state.Token.RefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+				OAuthExpiry:            state.Token.Expiry,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

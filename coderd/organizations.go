@@ -68,10 +68,11 @@ func (api *API) postOrganizations(rw http.ResponseWriter, r *http.Request) {
 	var organization database.Organization
 	err = api.Database.InTx(func(tx database.Store) error {
 		organization, err = tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-			ID:        uuid.New(),
-			Name:      req.Name,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:          uuid.New(),
+			Name:        req.Name,
+			CreatedAt:   dbtime.Now(),
+			UpdatedAt:   dbtime.Now(),
+			Description: "",
 		})
 		if err != nil {
 			return xerrors.Errorf("create organization: %w", err)

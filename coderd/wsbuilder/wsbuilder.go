@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
@@ -350,6 +351,8 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 			Transition:        b.trans,
 			JobID:             provisionerJob.ID,
 			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
