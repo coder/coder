@@ -964,12 +964,13 @@ export interface TemplateInsightsRequest {
   readonly end_time: string;
   readonly template_ids: string[];
   readonly interval: InsightsReportInterval;
+  readonly sections: TemplateInsightsSection[];
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsResponse {
-  readonly report: TemplateInsightsReport;
-  readonly interval_reports: TemplateInsightsIntervalReport[];
+  readonly report?: TemplateInsightsReport;
+  readonly interval_reports?: TemplateInsightsIntervalReport[];
 }
 
 // From codersdk/insights.go
@@ -1876,6 +1877,13 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 // From codersdk/insights.go
 export type TemplateAppsType = "app" | "builtin";
 export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
+
+// From codersdk/insights.go
+export type TemplateInsightsSection = "interval_reports" | "report";
+export const TemplateInsightsSections: TemplateInsightsSection[] = [
+  "interval_reports",
+  "report",
+];
 
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use";
