@@ -523,6 +523,7 @@ CASE
     END
     ELSE
     CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
         WHEN (canceled_at IS NOT NULL) THEN 'canceling'::provisioner_job_status
         WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
         ELSE 'running'::provisioner_job_status

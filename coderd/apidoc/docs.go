@@ -9124,7 +9124,8 @@ const docTemplate = `{
                 "succeeded",
                 "canceling",
                 "canceled",
-                "failed"
+                "failed",
+                "unknown"
             ],
             "x-enum-varnames": [
                 "ProvisionerJobPending",
@@ -9132,7 +9133,8 @@ const docTemplate = `{
                 "ProvisionerJobSucceeded",
                 "ProvisionerJobCanceling",
                 "ProvisionerJobCanceled",
-                "ProvisionerJobFailed"
+                "ProvisionerJobFailed",
+                "ProvisionerJobUnknown"
             ]
         },
         "codersdk.ProvisionerLogLevel": {

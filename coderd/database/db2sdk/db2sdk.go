@@ -71,7 +71,6 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
-
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ID:              user.ID,
