@@ -23,11 +23,11 @@ func TestTemplateList(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		firstVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, firstVersion.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
 		firstTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, firstVersion.ID)
 
 		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, secondVersion.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
 		secondTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
 
 		inv, root := clitest.New(t, "templates", "list")
@@ -58,11 +58,11 @@ func TestTemplateList(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		firstVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, firstVersion.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, firstVersion.ID)
 
 		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, secondVersion.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
 		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
 
 		inv, root := clitest.New(t, "templates", "list", "--output=json")

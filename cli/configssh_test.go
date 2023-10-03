@@ -95,10 +95,10 @@ func TestConfigSSH(t *testing.T) {
 		}},
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	agentConn, err := client.DialWorkspaceAgent(context.Background(), resources[0].Agents[0].ID, nil)
@@ -594,10 +594,10 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 				client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 				user      = coderdtest.CreateFirstUser(t, client)
 				version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, tt.echoResponse)
-				_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+				_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 				project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 				workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID)
-				_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 			)
 
 			// Prepare ssh config files.
@@ -714,10 +714,10 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			// authToken := uuid.NewString()
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID,
 				echo.WithResources(resources))
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 			sshConfigFile := sshConfigFileName(t)
 

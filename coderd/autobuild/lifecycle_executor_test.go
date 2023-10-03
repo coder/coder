@@ -89,7 +89,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 	require.Len(t, orgs, 1)
 
 	newVersion := coderdtest.UpdateTemplateVersion(t, client, orgs[0].ID, nil, workspace.TemplateID)
-	coderdtest.AwaitTemplateVersionJob(t, client, newVersion.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
 	require.NoError(t, client.UpdateActiveTemplateVersion(ctx, workspace.TemplateID, codersdk.UpdateActiveTemplateVersion{
 		ID: newVersion.ID,
 	}))
@@ -467,7 +467,7 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 
 	// Wait for stop to complete
 	updated = coderdtest.MustWorkspace(t, client, workspace.ID)
-	_ = coderdtest.AwaitWorkspaceBuildJob(t, client, updated.LatestBuild.ID)
+	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, updated.LatestBuild.ID)
 
 	// Start the workspace again
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
@@ -690,9 +690,9 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
 		ticker <- build.Job.CompletedAt.Add(failureTTL * 2)
 		stats := <-statCh
@@ -740,9 +740,9 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.TimeTilDormantMillis = ptr.Ref[int64](inactiveTTL.Milliseconds())
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 		ticker <- ws.LastUsedAt.Add(inactiveTTL * 2)
 		stats := <-statCh
@@ -756,9 +756,9 @@ func mustProvisionWorkspace(t *testing.T, client *codersdk.Client, mut ...func(*
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 
@@ -779,9 +779,9 @@ func mustProvisionWorkspaceWithParameters(t *testing.T, client *codersdk.Client,
 		ProvisionApply: echo.ApplyComplete,
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, mut...)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, ws.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 	return coderdtest.MustWorkspace(t, client, ws.ID)
 }
 

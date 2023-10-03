@@ -230,7 +230,7 @@ func TestAuditLogging(t *testing.T) {
 		connected := conn.AwaitReachable(ctx)
 		require.True(t, connected)
 		build := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, build.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 	})
 }
 

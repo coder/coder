@@ -31,7 +31,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -77,7 +77,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -116,7 +116,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -161,7 +161,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -204,7 +204,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -241,7 +241,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -288,7 +288,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -336,7 +336,7 @@ func TestTemplatePush(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		source, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -392,7 +392,7 @@ func TestTemplatePush(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 
 			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
@@ -455,7 +455,7 @@ func TestTemplatePush(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 
 			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
@@ -501,7 +501,7 @@ func TestTemplatePush(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 
 			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
@@ -562,7 +562,7 @@ func TestTemplatePush(t *testing.T) {
 			user := coderdtest.CreateFirstUser(t, client)
 
 			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, templateVersion.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.

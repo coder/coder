@@ -33,7 +33,7 @@ func TestTemplateEdit(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Test the cli command.
@@ -78,7 +78,7 @@ func TestTemplateEdit(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Test the cli command.
@@ -114,7 +114,7 @@ func TestTemplateEdit(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Test the cli command.
@@ -146,7 +146,7 @@ func TestTemplateEdit(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
@@ -198,7 +198,7 @@ func TestTemplateEdit(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		initialDisplayName := "This is a template"
 		initialDescription := "This is description"
@@ -249,7 +249,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
@@ -323,7 +323,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
@@ -436,7 +436,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
@@ -537,7 +537,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.MaxTTLMillis = nil
@@ -574,7 +574,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.MaxTTLMillis = nil
@@ -650,7 +650,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.MaxTTLMillis = nil
@@ -747,7 +747,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 				ctr.DefaultTTLMillis = nil
 				ctr.AutostopRequirement = nil
@@ -806,7 +806,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 			// Make a proxy server that will return a valid entitlements
@@ -899,7 +899,7 @@ func TestTemplateEdit(t *testing.T) {
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user := coderdtest.CreateFirstUser(t, client)
 			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 			// Make a proxy server that will return a valid entitlements

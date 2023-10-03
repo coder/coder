@@ -54,9 +54,9 @@ func TestDeploymentInsights(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	_ = agenttest.New(t, client.URL, authToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
@@ -131,9 +131,9 @@ func TestUserActivityInsights_SanityCheck(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
 	_ = agenttest.New(t, client.URL, authToken)
@@ -219,9 +219,9 @@ func TestUserLatencyInsights(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	require.Empty(t, template.BuildTimeStats[codersdk.WorkspaceTransitionStart])
 
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 	// Start an agent so that we can generate stats.
 	_ = agenttest.New(t, client.URL, authToken)
@@ -585,7 +585,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						})
 						workspace.id = createdWorkspace.ID
 						waitWorkspaces = append(waitWorkspaces, func() {
-							coderdtest.AwaitWorkspaceBuildJob(t, user.client, createdWorkspace.LatestBuild.ID)
+							coderdtest.AwaitWorkspaceBuildJobCompleted(t, user.client, createdWorkspace.LatestBuild.ID)
 							ctx := testutil.Context(t, testutil.WaitShort)
 							ws, err := user.client.Workspace(ctx, workspace.id)
 							require.NoError(t, err, "want no error getting workspace")
@@ -616,7 +616,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				}},
 			})
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 			// Create template, essentially a modified version of CreateTemplate
 			// where we can control the template ID.
@@ -1480,7 +1480,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 						createdWorkspace := coderdtest.CreateWorkspace(t, user.client, firstUser.OrganizationID, templateID)
 						workspace.id = createdWorkspace.ID
 						waitWorkspaces = append(waitWorkspaces, func() {
-							coderdtest.AwaitWorkspaceBuildJob(t, user.client, createdWorkspace.LatestBuild.ID)
+							coderdtest.AwaitWorkspaceBuildJobCompleted(t, user.client, createdWorkspace.LatestBuild.ID)
 							ctx := testutil.Context(t, testutil.WaitShort)
 							ws, err := user.client.Workspace(ctx, workspace.id)
 							require.NoError(t, err, "want no error getting workspace")
@@ -1503,7 +1503,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 					},
 				}},
 			})
-			coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 			// Create template, essentially a modified version of CreateTemplate
 			// where we can control the template ID.
