@@ -35,7 +35,7 @@ export const WeeklyPresetsMenu = ({
         onClick={() => setOpen(true)}
         endIcon={<ExpandMoreOutlined />}
       >
-        {value} weeks ago
+        Last {value} weeks
       </Button>
       <Menu
         id="interval-menu"
@@ -64,7 +64,7 @@ export const WeeklyPresetsMenu = ({
                 handleClose();
               }}
             >
-              {numberOfWeeks} weeks ago
+              Last {numberOfWeeks} weeks
               <Box css={{ width: 16, height: 16 }}>
                 {value === numberOfWeeks && (
                   <CheckOutlined css={{ width: 16, height: 16 }} />
