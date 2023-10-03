@@ -257,8 +257,8 @@ fetch_coder_full() {
 	target_path="${target_dir}/coder"
 	local pod
 	local namespace
-	namespace=<(/var/run/secrets/kubernetes.io/serviceaccount/namespace)
-	if [[ -z ${namespace} ]]; then
+	namespace=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	if [[ -z "${namespace}" ]]; then
 		log "Could not determine namespace!"
 		exit 1
 	fi
