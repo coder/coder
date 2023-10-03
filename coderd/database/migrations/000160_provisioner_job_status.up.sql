@@ -18,10 +18,14 @@ ALTER TABLE provisioner_jobs ADD COLUMN
             -- Not completed means it is in some "-ing" state
         	ELSE
 				CASE
+					-- This should never happen because all errors set
+					-- should also set a completed_at timestamp.
+					-- But if there is an error, we should always return
+					-- a failed state.
+					WHEN error != '' THEN 'failed'::provisioner_job_status
 					WHEN canceled_at IS NOT NULL THEN 'canceling'::provisioner_job_status
 				    -- Not done and not started means it is pending
 				    WHEN started_at IS NULL THEN 'pending'::provisioner_job_status
-				    -- Job is still running
 				    ELSE 'running'::provisioner_job_status
 				END
 		END
