@@ -257,6 +257,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		endTimeString   = p.String(vals, "", "end_time")
 		intervalString  = p.String(vals, "", "interval")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
+		sections        = codersdk.StringsAsTemplateInsightsSections(
+			p.Strings(vals,
+				codersdk.TemplateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport),
+				"sections")...)
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -289,7 +293,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	// overhead from a transaction is not worth it.
 	eg.Go(func() error {
 		var err error
-		if interval != "" {
+		if interval != "" && slices.Contains(sections, codersdk.TemplateInsightsSectionIntervalReports) {
 			dailyUsage, err = api.Database.GetTemplateInsightsByInterval(egCtx, database.GetTemplateInsightsByIntervalParams{
 				StartTime:    startTime,
 				EndTime:      endTime,
@@ -303,6 +307,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		usage, err = api.Database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
 			StartTime:   startTime,
@@ -315,6 +323,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		appUsage, err = api.Database.GetTemplateAppInsights(egCtx, database.GetTemplateAppInsightsParams{
 			StartTime:   startTime,
@@ -330,6 +342,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	// Template parameter insights have no risk of inconsistency with the other
 	// insights.
 	eg.Go(func() error {
+		if !slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+			return nil
+		}
+
 		var err error
 		parameterRows, err = api.Database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
 			StartTime:   startTime,

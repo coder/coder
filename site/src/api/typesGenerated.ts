@@ -1877,6 +1877,13 @@ export const ServerSentEventTypes: ServerSentEventType[] = [
 export type TemplateAppsType = "app" | "builtin";
 export const TemplateAppsTypes: TemplateAppsType[] = ["app", "builtin"];
 
+// From codersdk/insights.go
+export type TemplateInsightsSection = "interval_reports" | "report";
+export const TemplateInsightsSections: TemplateInsightsSection[] = [
+  "interval_reports",
+  "report",
+];
+
 // From codersdk/templates.go
 export type TemplateRole = "" | "admin" | "use";
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"];
