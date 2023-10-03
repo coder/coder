@@ -257,10 +257,7 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		endTimeString   = p.String(vals, "", "end_time")
 		intervalString  = p.String(vals, "", "interval")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
-		sections        = stringsAsTemplateInsightsSections(
-			p.Strings(vals,
-				templateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport),
-				"sections")...)
+		sectionStrings  = p.Strings(vals, templateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport), "sections")
 	)
 	p.ErrorExcessParams(vals)
 	if len(p.Errors) > 0 {
@@ -276,6 +273,10 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	interval, ok := parseInsightsInterval(ctx, rw, intervalString, startTime, endTime)
+	if !ok {
+		return
+	}
+	sections, ok := parseTemplateInsightsSections(ctx, rw, sectionStrings)
 	if !ok {
 		return
 	}
@@ -683,10 +684,24 @@ func templateInsightsSectionAsStrings(sections ...codersdk.TemplateInsightsSecti
 	return t
 }
 
-func stringsAsTemplateInsightsSections(sections ...string) []codersdk.TemplateInsightsSection {
+func parseTemplateInsightsSections(ctx context.Context, rw http.ResponseWriter, sections []string) ([]codersdk.TemplateInsightsSection, bool) {
 	t := make([]codersdk.TemplateInsightsSection, len(sections))
 	for i, s := range sections {
-		t[i] = codersdk.TemplateInsightsSection(s)
+		switch v := codersdk.TemplateInsightsSection(s); v {
+		case codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport:
+			t[i] = v
+		default:
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Query parameter has invalid value.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "sections",
+						Detail: fmt.Sprintf("must be one of %v", []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport}),
+					},
+				},
+			})
+			return nil, false
+		}
 	}
-	return t
+	return t, true
 }

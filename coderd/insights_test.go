@@ -2073,6 +2073,14 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		Interval:  codersdk.InsightsReportIntervalWeek,
 	})
 	assert.Error(t, err, "last report interval must have at least 6 days")
+
+	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today.AddDate(0, 0, -1),
+		EndTime:   today,
+		Interval:  codersdk.InsightsReportIntervalWeek,
+		Sections:  []codersdk.TemplateInsightsSection{"invalid"},
+	})
+	assert.Error(t, err, "want error for bad section")
 }
 
 func TestTemplateInsights_RBAC(t *testing.T) {
