@@ -18,12 +18,11 @@ const TemplateSchedulePage: FC = () => {
   const queryClient = useQueryClient();
   const orgId = useOrganizationId();
   const { template } = useTemplateSettings();
-  const { entitlements, experiments } = useDashboard();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
     entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions");
   const allowAutostopRequirement =
     entitlements.features["template_autostop_requirement"].enabled;
   const { clearLocal } = useLocalStorage();
@@ -54,7 +53,6 @@ const TemplateSchedulePage: FC = () => {
       </Helmet>
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
-        allowWorkspaceActions={allowWorkspaceActions}
         allowAutostopRequirement={allowAutostopRequirement}
         isSubmitting={isSubmitting}
         template={template}
