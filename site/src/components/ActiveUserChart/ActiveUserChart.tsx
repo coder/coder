@@ -48,13 +48,8 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 }) => {
   const theme: Theme = useTheme();
 
-  const labels = data.map((val) => {
-    return dayjs(val.date).format("YYYY-MM-DD");
-  });
-
-  const chartData = data.map((val) => {
-    return val.amount;
-  });
+  const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
+  const chartData = data.map((val) => val.amount);
 
   defaults.font.family = theme.typography.fontFamily as string;
   defaults.color = theme.palette.text.secondary;
