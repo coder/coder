@@ -589,12 +589,14 @@ function mapToDAUsResponse(
 ): DAUsResponse {
   return {
     tz_hour_offset: 0,
-    entries: data ? data.map((d) => {
-      return {
-        amount: d.active_users,
-        date: d.start_time,
-      };
-    }) : [],
+    entries: data
+      ? data.map((d) => {
+          return {
+            amount: d.active_users,
+            date: d.start_time,
+          };
+        })
+      : [],
   };
 }
 
