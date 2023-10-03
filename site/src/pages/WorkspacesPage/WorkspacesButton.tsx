@@ -4,18 +4,20 @@ import { useOrganizationId, usePermissions } from "hooks";
 import { useQuery } from "@tanstack/react-query";
 import { type Template } from "api/typesGenerated";
 import { templates } from "api/queries/templates";
+
 import { Link as RouterLink } from "react-router-dom";
 import Box from "@mui/system/Box";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
+
 import { Loader } from "components/Loader/Loader";
-import { PopoverContainer } from "./PopoverContainer";
-import { OverflowY } from "./OverflowY";
-import { SearchBox } from "./SearchBox";
+import { PopoverContainer } from "components/PopoverContainer/PopoverContainer";
+import { OverflowY } from "components/OverflowY/OverflowY";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
+import { SearchBox } from "./WorkspacesSearchBox";
 
 const ICON_SIZE = 18;
 const COLUMN_GAP = 1.5;

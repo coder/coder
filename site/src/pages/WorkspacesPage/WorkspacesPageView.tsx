@@ -18,7 +18,7 @@ import {
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import { WorkspacesButton } from "components/WorkspacesButton/WorkspacesButton";
+import { WorkspacesButton } from "./WorkspacesButton";
 
 export const Language = {
   pageTitle: "Workspaces",

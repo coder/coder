@@ -1,3 +1,6 @@
+/**
+ * @file Provides reusable vertical overflow behavior.
+ */
 import { type ReactNode } from "react";
 import { type SystemStyleObject } from "@mui/system";
 import Box from "@mui/system/Box";

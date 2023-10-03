@@ -1,3 +1,9 @@
+/**
+ * @file Defines a controlled searchbox component for processing form state.
+ *
+ * Not defined as a top-level component just yet, because it's not clear how
+ * reusable this is outside of workspace dropdowns.
+ */
 import {
   type ForwardedRef,
   type KeyboardEvent,

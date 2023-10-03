@@ -1,3 +1,10 @@
+/**
+ * @file Abstracts over MUI's Popover component to simplify using it (and hide)
+ * some of the wonkier parts of the API.
+ *
+ * Just place a button and some content in the component, and things just work.
+ * No setup needed with hooks or refs.
+ */
 import {
   type KeyboardEvent,
   type ReactElement,
