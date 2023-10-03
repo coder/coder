@@ -259,6 +259,7 @@ const UsersLatencyPanel = ({
                 sx={{
                   display: "flex",
                   justifyContent: "space-between",
+                  alignItems: "center",
                   fontSize: 14,
                   py: 1,
                 }}
@@ -319,6 +320,7 @@ const UsersActivityPanel = ({
                 sx={{
                   display: "flex",
                   justifyContent: "space-between",
+                  alignItems: "center",
                   fontSize: 14,
                   py: 1,
                 }}
@@ -368,7 +370,7 @@ const TemplateUsagePanel = ({
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
-        {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
+        {data && !hasDataAvailable && <NoDataAvailable />}
         {data && hasDataAvailable && (
           <Box
             sx={{
