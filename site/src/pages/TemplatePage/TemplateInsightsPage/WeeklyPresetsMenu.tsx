@@ -54,25 +54,23 @@ export const WeeklyPresetsMenu = ({
           horizontal: "left",
         }}
       >
-        {weeklyPresets.map((numberOfWeeks) => {
-          return (
-            <MenuItem
-              css={{ fontSize: 14, justifyContent: "space-between" }}
-              key={numberOfWeeks}
-              onClick={() => {
-                onChange(numberOfWeeks);
-                handleClose();
-              }}
-            >
-              Last {numberOfWeeks} weeks
-              <Box css={{ width: 16, height: 16 }}>
-                {value === numberOfWeeks && (
-                  <CheckOutlined css={{ width: 16, height: 16 }} />
-                )}
-              </Box>
-            </MenuItem>
-          );
-        })}
+        {weeklyPresets.map((numberOfWeeks) => (
+          <MenuItem
+            css={{ fontSize: 14, justifyContent: "space-between" }}
+            key={numberOfWeeks}
+            onClick={() => {
+              onChange(numberOfWeeks);
+              handleClose();
+            }}
+          >
+            Last {numberOfWeeks} weeks
+            <Box css={{ width: 16, height: 16 }}>
+              {value === numberOfWeeks && (
+                <CheckOutlined css={{ width: 16, height: 16 }} />
+              )}
+            </Box>
+          </MenuItem>
+        ))}
       </Menu>
     </div>
   );
