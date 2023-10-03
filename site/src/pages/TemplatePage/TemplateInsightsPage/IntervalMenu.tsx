@@ -61,8 +61,7 @@ export const IntervalMenu = ({
           horizontal: "left",
         }}
       >
-        {Object.keys(insightsIntervals).map((interval) => {
-          const { label } = insightsIntervals[interval as InsightsInterval];
+        {Object.entries(insightsIntervals).map(([interval, { label }]) => {
           return (
             <MenuItem
               css={{ fontSize: 14, justifyContent: "space-between" }}
