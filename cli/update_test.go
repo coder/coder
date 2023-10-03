@@ -38,7 +38,7 @@ func TestUpdate(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 
-		coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 		inv, root := clitest.New(t, "create",
@@ -60,7 +60,7 @@ func TestUpdate(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 			ProvisionPlan:  echo.PlanComplete,
 		}, template.ID)
-		_ = coderdtest.AwaitTemplateVersionJob(t, client, version2.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
 
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version2.ID,
@@ -114,7 +114,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -164,7 +164,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -228,7 +228,7 @@ func TestUpdateWithRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -304,7 +304,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(stringRichParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		tempDir := t.TempDir()
@@ -348,7 +348,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(numberRichParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -396,7 +396,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(boolRichParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
@@ -443,7 +443,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Upload the initial template
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(stringRichParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		tempDir := t.TempDir()
@@ -470,7 +470,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			Required: true,
 		})
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(modifiedParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version.ID,
 		})
@@ -511,7 +511,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 
 		// Upload the initial template
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(stringRichParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		tempDir := t.TempDir()
@@ -539,7 +539,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			Required:     false,
 		})
 		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(modifiedParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version.ID,
 		})
@@ -575,7 +575,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Create new workspace
@@ -595,7 +595,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 
 		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: updatedVersion.ID,
 		})
@@ -644,7 +644,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		// Create new workspace
@@ -665,7 +665,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 
 		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: updatedVersion.ID,
 		})
@@ -714,7 +714,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
@@ -730,7 +730,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 
 		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: updatedVersion.ID,
 		})
@@ -779,7 +779,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}},
 		}
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(templateParameters))
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		inv, root := clitest.New(t, "create", "my-workspace", "--yes", "--template", template.Name, "--parameter", fmt.Sprintf("%s=%s", stringParameterName, "2nd"))
@@ -799,7 +799,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}
 
 		updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, prepareEchoResponses(updatedTemplateParameters), template.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 		err = client.UpdateActiveTemplateVersion(context.Background(), template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: updatedVersion.ID,
 		})

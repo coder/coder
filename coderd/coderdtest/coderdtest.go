@@ -760,8 +760,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJob awaits for an import job to reach completed status.
-func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+// AwaitTemplateVersionJobCompleted awaits for an import job to reach completed status.
+func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -778,8 +778,8 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJobCompleted(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -880,7 +880,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 	})
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
