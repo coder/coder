@@ -14,10 +14,11 @@ const meta: Meta<typeof OverflowY> = {
     children: numbers.map((num, i) => (
       <p
         key={num}
-        style={{
+        css={{
           height: "50px",
           padding: 0,
           margin: 0,
+          color: "black",
           backgroundColor: i % 2 === 0 ? "white" : "gray",
         }}
       >
