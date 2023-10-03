@@ -23,7 +23,7 @@ func Entitlements(
 	db database.Store,
 	logger slog.Logger,
 	replicaCount int,
-	gitAuthCount int,
+	externalAuthCount int,
 	keys map[string]ed25519.PublicKey,
 	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
@@ -200,7 +200,7 @@ func Entitlements(
 		}
 	}
 
-	if gitAuthCount > 1 {
+	if externalAuthCount > 1 {
 		feature := entitlements.Features[codersdk.FeatureMultipleExternalAuth]
 
 		switch feature.Entitlement {
