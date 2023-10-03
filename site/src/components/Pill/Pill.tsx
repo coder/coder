@@ -88,7 +88,8 @@ export const Pill: FC<PillProps> = (props) => {
             align-items: center;
             justify-content: center;
 
-            & > * {
+            & > img,
+            & > svg {
               width: ${theme.spacing(1.75)};
               height: ${theme.spacing(1.75)};
             }
