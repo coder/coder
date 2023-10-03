@@ -760,7 +760,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJobCompleted awaits for an import job to reach completed status.
+// AwaitTemplateVersionJobCompleted awaits for an import job to reach completed status.
 func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
