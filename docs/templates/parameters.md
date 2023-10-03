@@ -172,7 +172,7 @@ data "coder_parameter" "region" {
 }
 ```
 
-You can modift a parameter's `mutable` attribute state anytime. In
+You can modify a parameter's `mutable` attribute state anytime. In
 case of emergency, you can temporarily allow for changing immutable
 parameters to fix an operational issue, but it is not advised to
 overuse this opportunity.
