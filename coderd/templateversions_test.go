@@ -555,9 +555,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 
 	t.Run("CanceledBuild", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-		})
+		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
@@ -575,6 +573,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Contains(t, "canceled", apiErr.Detail)
 	})
 
 	t.Run("PendingBuild", func(t *testing.T) {
