@@ -82,9 +82,10 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
     metadataLength += 1;
     visibleMetadata.pop();
   }
+  const gridWidth = metadataLength === 1 ? 1 : 4;
 
   return (
-    <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
+    <div key={resource.id} css={styles.resourceCard} className="resource-card">
       <Stack
         direction="row"
         alignItems="flex-start"
@@ -109,9 +110,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
           css={(theme) => ({
             flexGrow: 2,
             display: "grid",
-            gridTemplateColumns: `repeat(${
-              metadataLength === 1 ? 1 : 4
-            }, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
             gap: theme.spacing(5),
             rowGap: theme.spacing(3),
           })}

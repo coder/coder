@@ -170,7 +170,6 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
   }, [templateVersion]);
 
   const hasIcon = template.icon && template.icon !== "";
-  const templateVersionSucceeded = templateVersion.job.status === "succeeded";
   const showBuildLogs = Boolean(buildLogs);
   const editorValue = getFileContent(activePath ?? "", fileTree) as string;
 
@@ -358,9 +357,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
             <div css={styles.panelWrapper}>
               <div css={styles.tabs}>
                 <button
-                  css={`
-                    ${styles.tab} ${selectedTab === 0 ? "active" : ""}
-                  `}
+                  css={styles.tab}
+                  className={selectedTab === 0 ? "active" : ""}
                   onClick={() => {
                     setSelectedTab(0);
                   }}
@@ -375,9 +373,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 
                 {!disableUpdate && (
                   <button
-                    css={`
-                      ${styles.tab} ${selectedTab === 1 ? "active" : ""}
-                    `}
+                    css={styles.tab}
+                    className={selectedTab === 0 ? "active" : ""}
                     onClick={() => {
                       setSelectedTab(1);
                     }}
