@@ -6,7 +6,7 @@ import {
   HorizontalForm,
 } from "components/Form/Form";
 import { useFormik } from "formik";
-import { type FC, useState } from "react";
+import { type FC } from "react";
 import * as Yup from "yup";
 import {
   nameValidator,
@@ -41,10 +41,6 @@ export const WorkspaceSettingsForm: FC<{
     error,
   );
 
-  // We can't use `form.touched` unfortunately, because it only gets updated
-  // when a field loses focus, not when it gets changed.
-  const [nameModified, setNameModified] = useState(false);
-
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       <FormSection title="General" description="The name of your workspace.">
@@ -52,14 +48,12 @@ export const WorkspaceSettingsForm: FC<{
           <TextField
             {...getFieldHelpers("name")}
             disabled={form.isSubmitting}
-            onChange={onChangeTrimmed(form, (value) =>
-              setNameModified(value !== form.initialValues.name),
-            )}
+            onChange={onChangeTrimmed(form)}
             autoFocus
             fullWidth
             label="Name"
           />
-          {nameModified && (
+          {form.values.name !== form.initialValues.name && (
             <Alert severity="warning">
               Depending on the template, renaming your workspace may be
               destructive
