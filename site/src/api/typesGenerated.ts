@@ -396,7 +396,7 @@ export interface DeploymentValues {
   readonly disable_session_expiry_refresh?: boolean;
   readonly disable_password_auth?: boolean;
   readonly support?: SupportConfig;
-  readonly git_auth?: GitAuthConfig[];
+  readonly external_auth?: ExternalAuthConfig[];
   readonly config_ssh?: SSHConfig;
   readonly wgtunnel_host?: string;
   readonly disable_owner_workspace_exec?: boolean;
@@ -426,7 +426,7 @@ export type Experiments = Experiment[];
 export interface ExternalAuth {
   readonly authenticated: boolean;
   readonly device: boolean;
-  readonly type: string;
+  readonly display_name: string;
   readonly user?: ExternalAuthUser;
   readonly app_installable: boolean;
   readonly installations: ExternalAuthAppInstallation[];
@@ -438,6 +438,25 @@ export interface ExternalAuthAppInstallation {
   readonly id: number;
   readonly account: ExternalAuthUser;
   readonly configure_url: string;
+}
+
+// From codersdk/deployment.go
+export interface ExternalAuthConfig {
+  readonly type: string;
+  readonly client_id: string;
+  readonly id: string;
+  readonly auth_url: string;
+  readonly token_url: string;
+  readonly validate_url: string;
+  readonly app_install_url: string;
+  readonly app_installations_url: string;
+  readonly no_refresh: boolean;
+  readonly scopes: string[];
+  readonly device_flow: boolean;
+  readonly device_code_url: string;
+  readonly regex: string;
+  readonly display_name: string;
+  readonly display_icon: string;
 }
 
 // From codersdk/externalauth.go
@@ -479,23 +498,6 @@ export interface GenerateAPIKeyResponse {
 export interface GetUsersResponse {
   readonly users: User[];
   readonly count: number;
-}
-
-// From codersdk/deployment.go
-export interface GitAuthConfig {
-  readonly id: string;
-  readonly type: string;
-  readonly client_id: string;
-  readonly auth_url: string;
-  readonly token_url: string;
-  readonly validate_url: string;
-  readonly app_install_url: string;
-  readonly app_installations_url: string;
-  readonly regex: string;
-  readonly no_refresh: boolean;
-  readonly scopes: string[];
-  readonly device_flow: boolean;
-  readonly device_code_url: string;
 }
 
 // From codersdk/gitsshkey.go
@@ -1013,7 +1015,9 @@ export interface TemplateVersion {
 // From codersdk/templateversions.go
 export interface TemplateVersionExternalAuth {
   readonly id: string;
-  readonly type: ExternalAuthProvider;
+  readonly type: string;
+  readonly display_name: string;
+  readonly display_icon: string;
   readonly authenticate_url: string;
   readonly authenticated: boolean;
 }
@@ -1631,6 +1635,19 @@ export const DisplayApps: DisplayApp[] = [
   "web_terminal",
 ];
 
+// From codersdk/externalauth.go
+export type EnhancedExternalAuthProvider =
+  | "azure-devops"
+  | "bitbucket"
+  | "github"
+  | "gitlab";
+export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
+  "azure-devops",
+  "bitbucket",
+  "github",
+  "gitlab",
+];
+
 // From codersdk/deployment.go
 export type Entitlement = "entitled" | "grace_period" | "not_entitled";
 export const Entitlements: Entitlement[] = [
@@ -1654,21 +1671,6 @@ export const Experiments: Experiment[] = [
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
   "workspace_actions",
-];
-
-// From codersdk/workspaceagents.go
-export type ExternalAuthProvider =
-  | "azure-devops"
-  | "bitbucket"
-  | "github"
-  | "gitlab"
-  | "openid-connect";
-export const ExternalAuthProviders: ExternalAuthProvider[] = [
-  "azure-devops",
-  "bitbucket",
-  "github",
-  "gitlab",
-  "openid-connect",
 ];
 
 // From codersdk/deployment.go

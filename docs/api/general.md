@@ -212,8 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
-    "external_token_encryption_keys": ["string"],
-    "git_auth": {
+    "external_auth": {
       "value": [
         {
           "app_install_url": "string",
@@ -222,6 +221,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "client_id": "string",
           "device_code_url": "string",
           "device_flow": true,
+          "display_icon": "string",
+          "display_name": "string",
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -232,6 +233,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "external_token_encryption_keys": ["string"],
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,

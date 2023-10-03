@@ -11,56 +11,64 @@ type Story = StoryObj<typeof ExternalAuth>;
 
 export const GithubNotAuthenticated: Story = {
   args: {
-    type: "github",
+    displayIcon: "/icon/github.svg",
+    displayName: "GitHub",
     authenticated: false,
   },
 };
 
 export const GithubAuthenticated: Story = {
   args: {
-    type: "github",
+    displayIcon: "/icon/github.svg",
+    displayName: "GitHub",
     authenticated: true,
   },
 };
 
 export const GitlabNotAuthenticated: Story = {
   args: {
-    type: "gitlab",
+    displayIcon: "/icon/gitlab.svg",
+    displayName: "GitLab",
     authenticated: false,
   },
 };
 
 export const GitlabAuthenticated: Story = {
   args: {
-    type: "gitlab",
+    displayIcon: "/icon/gitlab.svg",
+    displayName: "GitLab",
     authenticated: true,
   },
 };
 
 export const AzureDevOpsNotAuthenticated: Story = {
   args: {
-    type: "azure-devops",
+    displayIcon: "/icon/azure-devops.svg",
+    displayName: "Azure DevOps",
     authenticated: false,
   },
 };
 
 export const AzureDevOpsAuthenticated: Story = {
   args: {
-    type: "azure-devops",
+    displayIcon: "/icon/azure-devops.svg",
+    displayName: "Azure DevOps",
     authenticated: true,
   },
 };
 
 export const BitbucketNotAuthenticated: Story = {
   args: {
-    type: "bitbucket",
+    displayIcon: "/icon/bitbucket.svg",
+    displayName: "Bitbucket",
     authenticated: false,
   },
 };
 
 export const BitbucketAuthenticated: Story = {
   args: {
-    type: "bitbucket",
+    displayIcon: "/icon/bitbucket.svg",
+    displayName: "Bitbucket",
     authenticated: true,
   },
 };

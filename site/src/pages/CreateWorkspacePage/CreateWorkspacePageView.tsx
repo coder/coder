@@ -163,8 +163,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
         {externalAuth && externalAuth.length > 0 && (
           <FormSection
-            title="Git Authentication"
-            description="This template requires authentication to automatically perform Git operations on create."
+            title="External Authentication"
+            description="This template requires authentication to external services."
           >
             <FormFields>
               {externalAuth.map((auth) => (
@@ -174,7 +174,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   authenticated={auth.authenticated}
                   externalAuthPollingState={externalAuthPollingState}
                   startPollingExternalAuth={startPollingExternalAuth}
-                  type={auth.type}
+                  displayName={auth.display_name}
+                  displayIcon={auth.display_icon}
                   error={externalAuthErrors[auth.id]}
                 />
               ))}

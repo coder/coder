@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/google/go-github/v43/github"
+	xgithub "golang.org/x/oauth2/github"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -35,9 +36,13 @@ type Config struct {
 	// ID is a unique identifier for the authenticator.
 	ID string
 	// Type is the type of provider.
-	Type codersdk.ExternalAuthProvider
+	Type string
 	// DeviceAuth is set if the provider uses the device flow.
 	DeviceAuth *DeviceAuth
+	// DisplayName is the name of the provider to display to the user.
+	DisplayName string
+	// DisplayIcon is the path to an image that will be displayed to the user.
+	DisplayIcon string
 
 	// NoRefresh stops Coder from using the refresh token
 	// to renew the access token.
@@ -113,7 +118,7 @@ validate:
 		// to the read replica in time.
 		//
 		// We do an exponential backoff here to give the write time to propagate.
-		if c.Type == codersdk.ExternalAuthProviderGitHub && r.Wait(retryCtx) {
+		if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) && r.Wait(retryCtx) {
 			goto validate
 		}
 		// The token is no longer valid!
@@ -171,7 +176,7 @@ func (c *Config) ValidateToken(ctx context.Context, token string) (bool, *coders
 	}
 
 	var user *codersdk.ExternalAuthUser
-	if c.Type == codersdk.ExternalAuthProviderGitHub {
+	if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
 		var ghUser github.User
 		err = json.NewDecoder(res.Body).Decode(&ghUser)
 		if err == nil {
@@ -217,7 +222,7 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 		return nil, false, nil
 	}
 	installs := []codersdk.ExternalAuthAppInstallation{}
-	if c.Type == codersdk.ExternalAuthProviderGitHub {
+	if c.Type == string(codersdk.EnhancedExternalAuthProviderGitHub) {
 		var ghInstalls struct {
 			Installations []*github.Installation `json:"installations"`
 		}
@@ -245,50 +250,158 @@ func (c *Config) AppInstallations(ctx context.Context, token string) ([]codersdk
 	return installs, true, nil
 }
 
+type DeviceAuth struct {
+	ClientID string
+	TokenURL string
+	Scopes   []string
+	CodeURL  string
+}
+
+// AuthorizeDevice begins the device authorization flow.
+// See: https://tools.ietf.org/html/rfc8628#section-3.1
+func (c *DeviceAuth) AuthorizeDevice(ctx context.Context) (*codersdk.ExternalAuthDevice, error) {
+	if c.CodeURL == "" {
+		return nil, xerrors.New("oauth2: device code URL not set")
+	}
+	codeURL, err := c.formatDeviceCodeURL()
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, codeURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var r struct {
+		codersdk.ExternalAuthDevice
+		ErrorDescription string `json:"error_description"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&r)
+	if err != nil {
+		return nil, err
+	}
+	if r.ErrorDescription != "" {
+		return nil, xerrors.New(r.ErrorDescription)
+	}
+	return &r.ExternalAuthDevice, nil
+}
+
+type ExchangeDeviceCodeResponse struct {
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	ExpiresIn        int    `json:"expires_in"`
+	Error            string `json:"error"`
+	ErrorDescription string `json:"error_description"`
+}
+
+// ExchangeDeviceCode exchanges a device code for an access token.
+// The boolean returned indicates whether the device code is still pending
+// and the caller should try again.
+func (c *DeviceAuth) ExchangeDeviceCode(ctx context.Context, deviceCode string) (*oauth2.Token, error) {
+	if c.TokenURL == "" {
+		return nil, xerrors.New("oauth2: token URL not set")
+	}
+	tokenURL, err := c.formatDeviceTokenURL(deviceCode)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(resp)
+	}
+	var body ExchangeDeviceCodeResponse
+	err = json.NewDecoder(resp.Body).Decode(&body)
+	if err != nil {
+		return nil, err
+	}
+	if body.Error != "" {
+		return nil, xerrors.New(body.Error)
+	}
+	return &oauth2.Token{
+		AccessToken:  body.AccessToken,
+		RefreshToken: body.RefreshToken,
+		Expiry:       dbtime.Now().Add(time.Duration(body.ExpiresIn) * time.Second),
+	}, nil
+}
+
+func (c *DeviceAuth) formatDeviceTokenURL(deviceCode string) (string, error) {
+	tok, err := url.Parse(c.TokenURL)
+	if err != nil {
+		return "", err
+	}
+	tok.RawQuery = url.Values{
+		"client_id":   {c.ClientID},
+		"device_code": {deviceCode},
+		"grant_type":  {"urn:ietf:params:oauth:grant-type:device_code"},
+	}.Encode()
+	return tok.String(), nil
+}
+
+func (c *DeviceAuth) formatDeviceCodeURL() (string, error) {
+	cod, err := url.Parse(c.CodeURL)
+	if err != nil {
+		return "", err
+	}
+	cod.RawQuery = url.Values{
+		"client_id": {c.ClientID},
+		"scope":     c.Scopes,
+	}.Encode()
+	return cod.String(), nil
+}
+
 // ConvertConfig converts the SDK configuration entry format
 // to the parsed and ready-to-consume in coderd provider type.
-func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Config, error) {
+func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([]*Config, error) {
 	ids := map[string]struct{}{}
 	configs := []*Config{}
 	for _, entry := range entries {
-		var typ codersdk.ExternalAuthProvider
-		switch codersdk.ExternalAuthProvider(entry.Type) {
-		case codersdk.ExternalAuthProviderAzureDevops:
-			typ = codersdk.ExternalAuthProviderAzureDevops
-		case codersdk.ExternalAuthProviderBitBucket:
-			typ = codersdk.ExternalAuthProviderBitBucket
-		case codersdk.ExternalAuthProviderGitHub:
-			typ = codersdk.ExternalAuthProviderGitHub
-		case codersdk.ExternalAuthProviderGitLab:
-			typ = codersdk.ExternalAuthProviderGitLab
-		default:
-			return nil, xerrors.Errorf("unknown git provider type: %q", entry.Type)
-		}
-		if entry.ID == "" {
-			// Default to the type.
-			entry.ID = string(typ)
-		}
-		if valid := httpapi.NameValid(entry.ID); valid != nil {
+		entry := entry
+
+		// Applies defaults to the config entry.
+		// This allows users to very simply state that they type is "GitHub",
+		// apply their client secret and ID, and have the UI appear nicely.
+		applyDefaultsToConfig(&entry)
+
+		valid := httpapi.NameValid(entry.ID)
+		if valid != nil {
 			return nil, xerrors.Errorf("external auth provider %q doesn't have a valid id: %w", entry.ID, valid)
+		}
+		if entry.ClientID == "" {
+			return nil, xerrors.Errorf("%q external auth provider: client_id must be provided", entry.ID)
+		}
+		if entry.ClientSecret == "" {
+			return nil, xerrors.Errorf("%q external auth provider: client_secret must be provided", entry.ID)
 		}
 
 		_, exists := ids[entry.ID]
 		if exists {
-			if entry.ID == string(typ) {
-				return nil, xerrors.Errorf("multiple %s external auth providers provided. you must specify a unique id for each", typ)
+			if entry.ID == entry.Type {
+				return nil, xerrors.Errorf("multiple %s external auth providers provided. you must specify a unique id for each", entry.Type)
 			}
-			return nil, xerrors.Errorf("multiple git providers exist with the id %q. specify a unique id for each", entry.ID)
+			return nil, xerrors.Errorf("multiple external auth providers exist with the id %q. specify a unique id for each", entry.ID)
 		}
 		ids[entry.ID] = struct{}{}
 
-		if entry.ClientID == "" {
-			return nil, xerrors.Errorf("%q external auth provider: client_id must be provided", entry.ID)
-		}
-		authRedirect, err := accessURL.Parse(fmt.Sprintf("/externalauth/%s/callback", entry.ID))
+		authRedirect, err := accessURL.Parse(fmt.Sprintf("/external-auth/%s/callback", entry.ID))
 		if err != nil {
-			return nil, xerrors.Errorf("parse externalauth callback url: %w", err)
+			return nil, xerrors.Errorf("parse external auth callback url: %w", err)
 		}
-		regex := regex[typ]
+
+		var regex *regexp.Regexp
 		if entry.Regex != "" {
 			regex, err = regexp.Compile(entry.Regex)
 			if err != nil {
@@ -299,30 +412,17 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		oc := &oauth2.Config{
 			ClientID:     entry.ClientID,
 			ClientSecret: entry.ClientSecret,
-			Endpoint:     endpoint[typ],
-			RedirectURL:  authRedirect.String(),
-			Scopes:       scope[typ],
-		}
-
-		if entry.AuthURL != "" {
-			oc.Endpoint.AuthURL = entry.AuthURL
-		}
-		if entry.TokenURL != "" {
-			oc.Endpoint.TokenURL = entry.TokenURL
-		}
-		if entry.Scopes != nil && len(entry.Scopes) > 0 {
-			oc.Scopes = entry.Scopes
-		}
-		if entry.ValidateURL == "" {
-			entry.ValidateURL = validateURL[typ]
-		}
-		if entry.AppInstallationsURL == "" {
-			entry.AppInstallationsURL = appInstallationsURL[typ]
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  entry.AuthURL,
+				TokenURL: entry.TokenURL,
+			},
+			RedirectURL: authRedirect.String(),
+			Scopes:      entry.Scopes,
 		}
 
 		var oauthConfig OAuth2Config = oc
 		// Azure DevOps uses JWT token authentication!
-		if typ == codersdk.ExternalAuthProviderAzureDevops {
+		if entry.Type == string(codersdk.EnhancedExternalAuthProviderAzureDevops) {
 			oauthConfig = &jwtConfig{oc}
 		}
 
@@ -330,17 +430,16 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 			OAuth2Config:        oauthConfig,
 			ID:                  entry.ID,
 			Regex:               regex,
-			Type:                typ,
+			Type:                entry.Type,
 			NoRefresh:           entry.NoRefresh,
 			ValidateURL:         entry.ValidateURL,
 			AppInstallationsURL: entry.AppInstallationsURL,
 			AppInstallURL:       entry.AppInstallURL,
+			DisplayName:         entry.DisplayName,
+			DisplayIcon:         entry.DisplayIcon,
 		}
 
 		if entry.DeviceFlow {
-			if entry.DeviceCodeURL == "" {
-				entry.DeviceCodeURL = deviceAuthURL[typ]
-			}
 			if entry.DeviceCodeURL == "" {
 				return nil, xerrors.Errorf("external auth provider %q: device auth url must be provided", entry.ID)
 			}
@@ -355,4 +454,124 @@ func ConvertConfig(entries []codersdk.GitAuthConfig, accessURL *url.URL) ([]*Con
 		configs = append(configs, cfg)
 	}
 	return configs, nil
+}
+
+// applyDefaultsToConfig applies defaults to the config entry.
+func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
+	defaults := defaults[codersdk.EnhancedExternalAuthProvider(config.Type)]
+	if config.AuthURL == "" {
+		config.AuthURL = defaults.AuthURL
+	}
+	if config.TokenURL == "" {
+		config.TokenURL = defaults.TokenURL
+	}
+	if config.ValidateURL == "" {
+		config.ValidateURL = defaults.ValidateURL
+	}
+	if config.AppInstallURL == "" {
+		config.AppInstallURL = defaults.AppInstallURL
+	}
+	if config.AppInstallationsURL == "" {
+		config.AppInstallationsURL = defaults.AppInstallationsURL
+	}
+	if config.Regex == "" {
+		config.Regex = defaults.Regex
+	}
+	if config.Scopes == nil || len(config.Scopes) == 0 {
+		config.Scopes = defaults.Scopes
+	}
+	if config.DeviceCodeURL == "" {
+		config.DeviceCodeURL = defaults.DeviceCodeURL
+	}
+	if config.DisplayName == "" {
+		config.DisplayName = defaults.DisplayName
+	}
+	if config.DisplayIcon == "" {
+		config.DisplayIcon = defaults.DisplayIcon
+	}
+
+	// Apply defaults if it's still empty...
+	if config.ID == "" {
+		config.ID = config.Type
+	}
+	if config.DisplayName == "" {
+		config.DisplayName = config.Type
+	}
+	if config.DisplayIcon == "" {
+		// This is a key emoji.
+		config.DisplayIcon = "/emojis/1f511.png"
+	}
+}
+
+var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthConfig{
+	codersdk.EnhancedExternalAuthProviderAzureDevops: {
+		AuthURL:     "https://app.vssps.visualstudio.com/oauth2/authorize",
+		TokenURL:    "https://app.vssps.visualstudio.com/oauth2/token",
+		DisplayName: "Azure DevOps",
+		DisplayIcon: "/icon/azure-devops.svg",
+		Regex:       `^(https?://)?dev\.azure\.com(/.*)?$`,
+		Scopes:      []string{"vso.code_write"},
+	},
+	codersdk.EnhancedExternalAuthProviderBitBucket: {
+		AuthURL:     "https://bitbucket.org/site/oauth2/authorize",
+		TokenURL:    "https://bitbucket.org/site/oauth2/access_token",
+		ValidateURL: "https://api.bitbucket.org/2.0/user",
+		DisplayName: "BitBucket",
+		DisplayIcon: "/icon/bitbucket.svg",
+		Regex:       `^(https?://)?bitbucket\.org(/.*)?$`,
+		Scopes:      []string{"account", "repository:write"},
+	},
+	codersdk.EnhancedExternalAuthProviderGitLab: {
+		AuthURL:     "https://gitlab.com/oauth/authorize",
+		TokenURL:    "https://gitlab.com/oauth/token",
+		ValidateURL: "https://gitlab.com/oauth/token/info",
+		DisplayName: "GitLab",
+		DisplayIcon: "/icon/gitlab.svg",
+		Regex:       `^(https?://)?gitlab\.com(/.*)?$`,
+		Scopes:      []string{"write_repository"},
+	},
+	codersdk.EnhancedExternalAuthProviderGitHub: {
+		AuthURL:     xgithub.Endpoint.AuthURL,
+		TokenURL:    xgithub.Endpoint.TokenURL,
+		ValidateURL: "https://api.github.com/user",
+		DisplayName: "GitHub",
+		DisplayIcon: "/icon/github.svg",
+		Regex:       `^(https?://)?github\.com(/.*)?$`,
+		// "workflow" is required for managing GitHub Actions in a repository.
+		Scopes:              []string{"repo", "workflow"},
+		DeviceCodeURL:       "https://github.com/login/device/code",
+		AppInstallationsURL: "https://api.github.com/user/installations",
+	},
+}
+
+// jwtConfig is a new OAuth2 config that uses a custom
+// assertion method that works with Azure Devops. See:
+// https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops
+type jwtConfig struct {
+	*oauth2.Config
+}
+
+func (c *jwtConfig) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
+	return c.Config.AuthCodeURL(state, append(opts, oauth2.SetAuthURLParam("response_type", "Assertion"))...)
+}
+
+func (c *jwtConfig) Exchange(ctx context.Context, code string, opts ...oauth2.AuthCodeOption) (*oauth2.Token, error) {
+	v := url.Values{
+		"client_assertion_type": {},
+		"client_assertion":      {c.ClientSecret},
+		"assertion":             {code},
+		"grant_type":            {},
+	}
+	if c.RedirectURL != "" {
+		v.Set("redirect_uri", c.RedirectURL)
+	}
+	return c.Config.Exchange(ctx, code,
+		append(opts,
+			oauth2.SetAuthURLParam("client_assertion_type", "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"),
+			oauth2.SetAuthURLParam("client_assertion", c.ClientSecret),
+			oauth2.SetAuthURLParam("assertion", code),
+			oauth2.SetAuthURLParam("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
+			oauth2.SetAuthURLParam("code", ""),
+		)...,
+	)
 }

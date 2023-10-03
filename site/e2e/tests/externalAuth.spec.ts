@@ -46,7 +46,7 @@ test("external auth device", async ({ page }) => {
     sentPending.done();
   });
 
-  await page.goto(`/externalauth/${gitAuth.deviceProvider}`, {
+  await page.goto(`/external-auth/${gitAuth.deviceProvider}`, {
     waitUntil: "domcontentloaded",
   });
   await page.getByText(device.user_code).isVisible();
@@ -70,11 +70,11 @@ test("external auth web", async ({ baseURL, page }) => {
   });
   srv.use(gitAuth.authPath, (req, res) => {
     res.redirect(
-      `${baseURL}/externalauth/${gitAuth.webProvider}/callback?code=1234&state=` +
+      `${baseURL}/external-auth/${gitAuth.webProvider}/callback?code=1234&state=` +
         req.query.state,
     );
   });
-  await page.goto(`/externalauth/${gitAuth.webProvider}`, {
+  await page.goto(`/external-auth/${gitAuth.webProvider}`, {
     waitUntil: "domcontentloaded",
   });
   // This endpoint doesn't have the installations URL set intentionally!
