@@ -1079,10 +1079,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			}
 
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:        uuid.New(),
-				Name:      req.Username,
-				CreatedAt: dbtime.Now(),
-				UpdatedAt: dbtime.Now(),
+				ID:          uuid.New(),
+				Name:        req.Username,
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+				Description: "",
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization: %w", err)
@@ -1101,11 +1102,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 
 		params := database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     req.Email,
-			Username:  req.Username,
-			CreatedAt: dbtime.Now(),
-			UpdatedAt: dbtime.Now(),
+			ID:             uuid.New(),
+			Email:          req.Email,
+			Username:       req.Username,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			HashedPassword: []byte{},
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,

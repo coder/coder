@@ -420,11 +420,13 @@ func (m *Manager) Close() error {
 			Time:  dbtime.Now(),
 			Valid: true,
 		},
-		RelayAddress: m.self.RelayAddress,
-		RegionID:     m.self.RegionID,
-		Hostname:     m.self.Hostname,
-		Version:      m.self.Version,
-		Error:        m.self.Error,
+		RelayAddress:    m.self.RelayAddress,
+		RegionID:        m.self.RegionID,
+		Hostname:        m.self.Hostname,
+		Version:         m.self.Version,
+		Error:           m.self.Error,
+		DatabaseLatency: 0,     // A stopped replica has no latency.
+		Primary:         false, // A stopped replica cannot be primary.
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)
