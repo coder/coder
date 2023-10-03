@@ -760,6 +760,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
+// AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
 func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
@@ -789,7 +790,8 @@ func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, versi
 	return templateVersion
 }
 
-// AwaitTemplateImportJobCompleted awaits for an import job to reach completed status.
+// AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
+// from cancelation, an error, or from completing successfully.
 func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
@@ -936,7 +938,7 @@ func RequestExternalAuthCallback(t *testing.T, providerID string, client *coders
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/externalauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)

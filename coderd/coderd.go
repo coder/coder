@@ -547,7 +547,7 @@ func New(options *Options) *API {
 
 	// Register callback handlers for each OAuth2 provider.
 	// We must support gitauth and externalauth for backwards compatibility.
-	for _, route := range []string{"gitauth", "externalauth"} {
+	for _, route := range []string{"gitauth", "external-auth"} {
 		r.Route("/"+route, func(r chi.Router) {
 			for _, externalAuthConfig := range options.ExternalAuthConfigs {
 				// We don't need to register a callback handler for device auth.
@@ -616,7 +616,7 @@ func New(options *Options) *API {
 			r.Get("/{fileID}", api.fileByID)
 			r.Post("/", api.postFile)
 		})
-		r.Route("/externalauth/{externalauth}", func(r chi.Router) {
+		r.Route("/external-auth/{externalauth}", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractExternalAuthParam(options.ExternalAuthConfigs),
@@ -689,7 +689,7 @@ func New(options *Options) *API {
 			r.Get("/schema", templateVersionSchemaDeprecated)
 			r.Get("/parameters", templateVersionParametersDeprecated)
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
-			r.Get("/externalauth", api.templateVersionExternalAuth)
+			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)

@@ -4142,6 +4142,8 @@ func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) 
 		Name:           database.EveryoneGroup,
 		DisplayName:    "",
 		OrganizationID: orgID,
+		AvatarURL:      "",
+		QuotaAllowance: 0,
 	})
 }
 

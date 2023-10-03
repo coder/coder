@@ -20,11 +20,17 @@ SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
+# https://github.com/kubernetes/kubernetes/issues/72501 :-(
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID//:/-}"
 
 mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
-	maybedryrun "${DRY_RUN}" command coder "${@}"
+	if [[ ! -x "${SCALETEST_CODER_BINARY}" ]]; then
+		log "Fetching full coder binary..."
+		fetch_coder_full
+	fi
+	maybedryrun "${DRY_RUN}" "${SCALETEST_CODER_BINARY}" "${@}"
 }
 
 show_json() {
@@ -239,4 +245,37 @@ set_appearance() {
 		-H "Coder-Session-Token: ${session_token}" \
 		--data "${newjson}" \
 		"${CODER_URL}/api/v2/appearance"
+}
+
+# fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
+# running in the same namespace as the current pod.
+fetch_coder_full() {
+	if [[ -x "${SCALETEST_CODER_BINARY}" ]]; then
+		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
+		return
+	fi
+	local pod
+	local namespace
+	namespace=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	if [[ -z "${namespace}" ]]; then
+		log "Could not determine namespace!"
+		exit 1
+	fi
+	log "Namespace from serviceaccount token is ${namespace}"
+	pod=$(kubectl get pods \
+		--namespace "${namespace}" \
+		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+		--output jsonpath='{.items[0].metadata.name}')
+	if [[ -z ${pod} ]]; then
+		log "Could not find coder pod!"
+		exit 1
+	fi
+	log "Fetching full Coder binary from ${pod}"
+	maybedryrun "${DRY_RUN}" kubectl \
+		--namespace "${namespace}" \
+		cp \
+		--container coder \
+		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
+	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
+	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
 }

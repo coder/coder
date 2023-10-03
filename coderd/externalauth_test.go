@@ -34,7 +34,7 @@ func TestExternalAuthByID(t *testing.T) {
 			ExternalAuthConfigs: []*externalauth.Config{{
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
@@ -51,7 +51,7 @@ func TestExternalAuthByID(t *testing.T) {
 				ID:           "test",
 				OAuth2Config: &testutil.OAuth2Config{},
 				// AzureDevops doesn't have a user endpoint!
-				Type: codersdk.ExternalAuthProviderAzureDevops,
+				Type: codersdk.EnhancedExternalAuthProviderAzureDevops.String(),
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
@@ -75,7 +75,7 @@ func TestExternalAuthByID(t *testing.T) {
 				ID:           "test",
 				ValidateURL:  validateSrv.URL,
 				OAuth2Config: &testutil.OAuth2Config{},
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
@@ -116,7 +116,7 @@ func TestExternalAuthByID(t *testing.T) {
 				ValidateURL:         srv.URL + "/user",
 				AppInstallationsURL: srv.URL + "/installs",
 				OAuth2Config:        &testutil.OAuth2Config{},
-				Type:                codersdk.ExternalAuthProviderGitHub,
+				Type:                codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		coderdtest.CreateFirstUser(t, client)
@@ -249,7 +249,7 @@ func TestGitAuthCallback(t *testing.T) {
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -268,7 +268,7 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient.SetSessionToken(authToken)
 		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
 		require.NoError(t, err)
-		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/externalauth/%s", "github")))
+		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/external-auth/%s", "github")), token.URL)
 	})
 	t.Run("UnauthorizedCallback", func(t *testing.T) {
 		t.Parallel()
@@ -278,7 +278,7 @@ func TestGitAuthCallback(t *testing.T) {
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
@@ -292,7 +292,7 @@ func TestGitAuthCallback(t *testing.T) {
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		_ = coderdtest.CreateFirstUser(t, client)
@@ -300,7 +300,7 @@ func TestGitAuthCallback(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 		location, err := resp.Location()
 		require.NoError(t, err)
-		require.Equal(t, "/externalauth/github", location.Path)
+		require.Equal(t, "/external-auth/github", location.Path)
 
 		// Callback again to simulate updating the token.
 		resp = coderdtest.RequestExternalAuthCallback(t, "github", client)
@@ -319,7 +319,7 @@ func TestGitAuthCallback(t *testing.T) {
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -376,7 +376,7 @@ func TestGitAuthCallback(t *testing.T) {
 				},
 				ID:        "github",
 				Regex:     regexp.MustCompile(`github\.com`),
-				Type:      codersdk.ExternalAuthProviderGitHub,
+				Type:      codersdk.EnhancedExternalAuthProviderGitHub.String(),
 				NoRefresh: true,
 			}},
 		})
@@ -420,7 +420,7 @@ func TestGitAuthCallback(t *testing.T) {
 				OAuth2Config: &testutil.OAuth2Config{},
 				ID:           "github",
 				Regex:        regexp.MustCompile(`github\.com`),
-				Type:         codersdk.ExternalAuthProviderGitHub,
+				Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
 			}},
 		})
 		user := coderdtest.CreateFirstUser(t, client)
