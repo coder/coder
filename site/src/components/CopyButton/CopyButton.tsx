@@ -1,9 +1,8 @@
 import IconButton from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
 import Tooltip from "@mui/material/Tooltip";
 import Check from "@mui/icons-material/Check";
 import { useClipboard } from "hooks/useClipboard";
-import { combineClasses } from "utils/combineClasses";
+import { css } from "@emotion/react";
 import { FileCopyIcon } from "../Icons/FileCopyIcon";
 
 interface CopyButtonProps {
@@ -29,51 +28,53 @@ export const CopyButton: React.FC<React.PropsWithChildren<CopyButtonProps>> = ({
   buttonClassName = "",
   tooltipTitle = Language.tooltipTitle,
 }) => {
-  const styles = useStyles();
   const { isCopied, copy: copyToClipboard } = useClipboard(text);
+
+  const fileCopyIconStyles = css`
+    width: 20px;
+    height: 20px;
+  `;
 
   return (
     <Tooltip title={tooltipTitle} placement="top">
       <div
-        className={combineClasses([styles.copyButtonWrapper, wrapperClassName])}
+        className={wrapperClassName}
+        css={{
+          display: "flex",
+        }}
       >
         <IconButton
-          className={combineClasses([styles.copyButton, buttonClassName])}
+          className={buttonClassName}
+          css={(theme) => css`
+            border-radius: ${theme.shape.borderRadius}px;
+            padding: ${theme.spacing(0.85)};
+            min-width: 32px;
+
+            &:hover {
+              background: ${theme.palette.background.paper};
+            }
+          `}
           onClick={copyToClipboard}
           size="small"
           aria-label={Language.ariaLabel}
           variant="text"
         >
           {isCopied ? (
-            <Check className={styles.fileCopyIcon} />
+            <Check css={fileCopyIconStyles} />
           ) : (
-            <FileCopyIcon className={styles.fileCopyIcon} />
+            <FileCopyIcon css={fileCopyIconStyles} />
           )}
-          {ctaCopy && <div className={styles.buttonCopy}>{ctaCopy}</div>}
+          {ctaCopy && (
+            <div
+              css={(theme) => ({
+                marginLeft: theme.spacing(1),
+              })}
+            >
+              {ctaCopy}
+            </div>
+          )}
         </IconButton>
       </div>
     </Tooltip>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  copyButtonWrapper: {
-    display: "flex",
-  },
-  copyButton: {
-    borderRadius: theme.shape.borderRadius,
-    padding: theme.spacing(0.85),
-    minWidth: 32,
-
-    "&:hover": {
-      background: theme.palette.background.paper,
-    },
-  },
-  fileCopyIcon: {
-    width: 20,
-    height: 20,
-  },
-  buttonCopy: {
-    marginLeft: theme.spacing(1),
-  },
-}));

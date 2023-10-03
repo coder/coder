@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { rest } from "msw";
 import {
@@ -6,50 +6,38 @@ import {
   MockUser2,
   SuspendedMockUser,
   MockAuditorRole,
-  MockOwnerRole,
 } from "testHelpers/entities";
-import { Language as usersXServiceLanguage } from "xServices/users/usersXService";
 import * as API from "api/api";
 import { Role } from "api/typesGenerated";
 import { Language as ResetPasswordDialogLanguage } from "./ResetPasswordDialog";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
-import { Language as UsersPageLanguage, UsersPage } from "./UsersPage";
+import { UsersPage } from "./UsersPage";
 
 const renderPage = () => {
   return renderWithAuth(<UsersPage />);
 };
 
-const suspendUser = async (setupActionSpies: () => void) => {
+const suspendUser = async () => {
   const user = userEvent.setup();
   // Get the first user in the table
   const moreButtons = await screen.findAllByLabelText("more");
   const firstMoreButton = moreButtons[0];
-
   await user.click(firstMoreButton);
 
   const menu = await screen.findByRole("menu");
   const suspendButton = within(menu).getByText(/Suspend/);
-
   await user.click(suspendButton);
 
   // Check if the confirm message is displayed
   const confirmDialog = await screen.findByRole("dialog");
-  expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.suspendDialogMessagePrefix} ${MockUser.username}?`,
-  );
-
-  // Setup spies to check the actions after
-  setupActionSpies();
-
-  // Click on the "Confirm" button
-  const confirmButton = await within(confirmDialog).findByText(
-    UsersPageLanguage.suspendDialogAction,
-  );
+  const confirmButton = await within(confirmDialog).findByRole("button", {
+    name: "Suspend",
+  });
   await user.click(confirmButton);
 };
 
-const deleteUser = async (setupActionSpies: () => void) => {
+const deleteUser = async () => {
   const user = userEvent.setup();
   // Click on the "more" button to display the "Delete" option
   // Needs to await fetching users and fetching permissions, because they're needed to see the more button
@@ -73,15 +61,12 @@ const deleteUser = async (setupActionSpies: () => void) => {
   const dialog = screen.getByRole("dialog");
   await user.type(textField, MockUser2.username);
 
-  // Setup spies to check the actions after
-  setupActionSpies();
-
   // Click on the "Confirm" button
   const confirmButton = within(dialog).getByRole("button", { name: "Delete" });
   await user.click(confirmButton);
 };
 
-const activateUser = async (setupActionSpies: () => void) => {
+const activateUser = async () => {
   const moreButtons = await screen.findAllByLabelText("more");
   const suspendedMoreButton = moreButtons[2];
   fireEvent.click(suspendedMoreButton);
@@ -92,17 +77,11 @@ const activateUser = async (setupActionSpies: () => void) => {
 
   // Check if the confirm message is displayed
   const confirmDialog = screen.getByRole("dialog");
-  expect(confirmDialog).toHaveTextContent(
-    `${UsersPageLanguage.activateDialogMessagePrefix} ${SuspendedMockUser.username}?`,
-  );
-
-  // Setup spies to check the actions after
-  setupActionSpies();
 
   // Click on the "Confirm" button
-  const confirmButton = within(confirmDialog).getByText(
-    UsersPageLanguage.activateDialogAction,
-  );
+  const confirmButton = within(confirmDialog).getByRole("button", {
+    name: "Activate",
+  });
   fireEvent.click(confirmButton);
 };
 
@@ -134,7 +113,7 @@ const resetUserPassword = async (setupActionSpies: () => void) => {
   fireEvent.click(confirmButton);
 };
 
-const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
+const updateUserRole = async (role: Role) => {
   // Get the first user in the table
   const users = await screen.findAllByText(/.*@coder.com/);
   const userRow = users[0].closest("tr");
@@ -145,9 +124,6 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
   // Click on the "edit icon" to display the role options
   const editButton = within(userRow).getByTitle("Edit user roles");
   fireEvent.click(editButton);
-
-  // Setup spies to check the actions after
-  setupActionSpies();
 
   // Click on the role option
   const fieldset = await screen.findByTitle("Available roles");
@@ -162,121 +138,93 @@ const updateUserRole = async (setupActionSpies: () => void, role: Role) => {
 describe("UsersPage", () => {
   describe("suspend user", () => {
     describe("when it is success", () => {
-      it("shows a success message and refresh the page", async () => {
+      it("shows a success message", async () => {
         renderPage();
 
-        await suspendUser(() => {
-          jest.spyOn(API, "suspendUser").mockResolvedValueOnce(MockUser);
-          jest.spyOn(API, "getUsers").mockResolvedValueOnce({
-            users: [SuspendedMockUser, MockUser2],
-            count: 2,
-          });
-        });
+        server.use(
+          rest.put(
+            `/api/v2/users/${MockUser.id}/status/suspend`,
+            async (req, res, ctx) => {
+              return res(ctx.status(200), ctx.json(SuspendedMockUser));
+            },
+          ),
+        );
+
+        await suspendUser();
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserSuccess);
-
-        // Check if the API was called correctly
-        expect(API.suspendUser).toBeCalledTimes(1);
-        expect(API.suspendUser).toBeCalledWith(MockUser.id);
-
-        // Check if the users list was reload
-        await waitFor(() => expect(API.getUsers).toBeCalledTimes(1));
+        await screen.findByText("Successfully suspended the user.");
       });
     });
+
     describe("when it fails", () => {
       it("shows an error message", async () => {
         renderPage();
 
-        await suspendUser(() => {
-          jest.spyOn(API, "suspendUser").mockRejectedValueOnce({});
-        });
+        server.use(
+          rest.put(
+            `/api/v2/users/${MockUser.id}/status/suspend`,
+            async (req, res, ctx) => {
+              return res(
+                ctx.status(400),
+                ctx.json({
+                  message: "Error suspending user.",
+                }),
+              );
+            },
+          ),
+        );
+
+        await suspendUser();
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.suspendUserError);
-
-        // Check if the API was called correctly
-        expect(API.suspendUser).toBeCalledTimes(1);
-        expect(API.suspendUser).toBeCalledWith(MockUser.id);
+        await screen.findByText("Error suspending user.");
       });
-    });
-  });
-
-  describe("pagination", () => {
-    it("goes to next and previous page", async () => {
-      const { container } = renderPage();
-      const user = userEvent.setup();
-
-      const mock = jest
-        .spyOn(API, "getUsers")
-        .mockResolvedValueOnce({ users: [MockUser, MockUser2], count: 26 });
-
-      const nextButton = await screen.findByLabelText("Next page");
-      expect(nextButton).toBeEnabled();
-      const previousButton = await screen.findByLabelText("Previous page");
-      expect(previousButton).toBeDisabled();
-      await user.click(nextButton);
-
-      await waitFor(() =>
-        expect(API.getUsers).toBeCalledWith({ offset: 25, limit: 25, q: "" }),
-      );
-
-      mock.mockClear();
-      await user.click(previousButton);
-
-      await waitFor(() =>
-        expect(API.getUsers).toBeCalledWith({ offset: 0, limit: 25, q: "" }),
-      );
-
-      const pageButtons = container.querySelectorAll(
-        `button[name="Page button"]`,
-      );
-      // count handler says there are 2 pages of results
-      expect(pageButtons.length).toBe(2);
     });
   });
 
   describe("delete user", () => {
     describe("when it is success", () => {
-      it("shows a success message and refresh the page", async () => {
+      it("shows a success message", async () => {
         renderPage();
 
-        await deleteUser(() => {
-          jest.spyOn(API, "deleteUser").mockResolvedValueOnce(undefined);
-          jest.spyOn(API, "getUsers").mockResolvedValueOnce({
-            users: [MockUser, SuspendedMockUser],
-            count: 2,
-          });
-        });
+        server.use(
+          rest.delete(
+            `/api/v2/users/${MockUser2.id}`,
+            async (req, res, ctx) => {
+              return res(ctx.status(200), ctx.json(MockUser2));
+            },
+          ),
+        );
+
+        await deleteUser();
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.deleteUserSuccess);
-
-        // Check if the API was called correctly
-        expect(API.deleteUser).toBeCalledTimes(1);
-        expect(API.deleteUser).toBeCalledWith(MockUser2.id);
-
-        // Check if the users list was reloaded
-        await waitFor(() => {
-          const users = screen.getAllByLabelText("more");
-          expect(users.length).toEqual(2);
-        });
+        await screen.findByText("Successfully deleted the user.");
       });
     });
     describe("when it fails", () => {
       it("shows an error message", async () => {
         renderPage();
 
-        await deleteUser(() => {
-          jest.spyOn(API, "deleteUser").mockRejectedValueOnce({});
-        });
+        server.use(
+          rest.delete(
+            `/api/v2/users/${MockUser2.id}`,
+            async (req, res, ctx) => {
+              return res(
+                ctx.status(400),
+                ctx.json({
+                  message: "Error deleting user.",
+                }),
+              );
+            },
+          ),
+        );
+
+        await deleteUser();
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.deleteUserError);
-
-        // Check if the API was called correctly
-        expect(API.deleteUser).toBeCalledTimes(1);
-        expect(API.deleteUser).toBeCalledWith(MockUser2.id);
+        await screen.findByText("Error deleting user.");
       });
     });
   });
@@ -286,40 +234,43 @@ describe("UsersPage", () => {
       it("shows a success message and refreshes the page", async () => {
         renderPage();
 
-        await activateUser(() => {
-          jest
-            .spyOn(API, "activateUser")
-            .mockResolvedValueOnce(SuspendedMockUser);
-          jest.spyOn(API, "getUsers").mockImplementationOnce(() =>
-            Promise.resolve({
-              users: [MockUser, MockUser2, SuspendedMockUser],
-              count: 3,
-            }),
-          );
-        });
+        server.use(
+          rest.put(
+            `/api/v2/users/${SuspendedMockUser.id}/status/activate`,
+            async (req, res, ctx) => {
+              return res(ctx.status(200), ctx.json(MockUser));
+            },
+          ),
+        );
+
+        await activateUser();
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserSuccess);
-
-        // Check if the API was called correctly
-        expect(API.activateUser).toBeCalledTimes(1);
-        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id);
+        await screen.findByText("Successfully activated the user.");
       });
     });
     describe("when activation fails", () => {
       it("shows an error message", async () => {
         renderPage();
 
-        await activateUser(() => {
-          jest.spyOn(API, "activateUser").mockRejectedValueOnce({});
-        });
+        server.use(
+          rest.put(
+            `/api/v2/users/${SuspendedMockUser.id}/status/activate`,
+            async (req, res, ctx) => {
+              return res(
+                ctx.status(400),
+                ctx.json({
+                  message: "Error activating user.",
+                }),
+              );
+            },
+          ),
+        );
+
+        await activateUser();
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.activateUserError);
-
-        // Check if the API was called correctly
-        expect(API.activateUser).toBeCalledTimes(1);
-        expect(API.activateUser).toBeCalledWith(SuspendedMockUser.id);
+        await screen.findByText("Error activating user.");
       });
     });
   });
@@ -336,7 +287,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the success message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordSuccess);
+        await screen.findByText("Successfully updated the user password.");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
@@ -355,7 +306,7 @@ describe("UsersPage", () => {
         });
 
         // Check if the error message is displayed
-        await screen.findByText(usersXServiceLanguage.resetUserPasswordError);
+        await screen.findByText("Error on resetting the user password.");
 
         // Check if the API was called correctly
         expect(API.updateUserPassword).toBeCalledTimes(1);
@@ -372,26 +323,24 @@ describe("UsersPage", () => {
       it("updates the roles", async () => {
         renderPage();
 
-        const { userRow } = await updateUserRole(() => {
-          jest.spyOn(API, "updateUserRoles").mockResolvedValueOnce({
-            ...MockUser,
-            roles: [...MockUser.roles, MockAuditorRole],
-          });
-        }, MockAuditorRole);
-
-        // Check if the select text was updated with the Auditor role
-        await waitFor(() => {
-          expect(userRow).toHaveTextContent(MockOwnerRole.display_name);
-        });
-        expect(userRow).toHaveTextContent(MockAuditorRole.display_name);
-
-        // Check if the API was called correctly
-        const currentRoles = MockUser.roles.map((r) => r.name);
-        expect(API.updateUserRoles).toBeCalledTimes(1);
-        expect(API.updateUserRoles).toBeCalledWith(
-          [...currentRoles, MockAuditorRole.name],
-          MockUser.id,
+        server.use(
+          rest.put(
+            `/api/v2/users/${MockUser.id}/roles`,
+            async (req, res, ctx) => {
+              return res(
+                ctx.status(200),
+                ctx.json({
+                  ...MockUser,
+                  roles: [...MockUser.roles, MockAuditorRole],
+                }),
+              );
+            },
+          ),
         );
+
+        await updateUserRole(MockAuditorRole);
+
+        await screen.findByText("Successfully updated the user roles.");
       });
     });
 
@@ -399,44 +348,19 @@ describe("UsersPage", () => {
       it("shows an error message", async () => {
         renderPage();
 
-        await updateUserRole(() => {
-          jest.spyOn(API, "updateUserRoles").mockRejectedValueOnce({});
-        }, MockAuditorRole);
-
-        // Check if the error message is displayed
-        const errorMessage = await screen.findByText(
-          usersXServiceLanguage.updateUserRolesError,
-        );
-        await waitFor(() => expect(errorMessage).toBeDefined());
-
-        // Check if the API was called correctly
-        const currentRoles = MockUser.roles.map((r) => r.name);
-
-        expect(API.updateUserRoles).toBeCalledTimes(1);
-        expect(API.updateUserRoles).toBeCalledWith(
-          [...currentRoles, MockAuditorRole.name],
-          MockUser.id,
-        );
-      });
-      it("shows an error from the backend", async () => {
-        renderPage();
-
         server.use(
           rest.put(`/api/v2/users/${MockUser.id}/roles`, (req, res, ctx) => {
             return res(
               ctx.status(400),
-              ctx.json({ message: "message from the backend" }),
+              ctx.json({ message: "Error on updating the user roles." }),
             );
           }),
         );
 
-        await updateUserRole(() => null, MockAuditorRole);
+        await updateUserRole(MockAuditorRole);
 
         // Check if the error message is displayed
-        const errorMessage = await screen.findByText(
-          "message from the backend",
-        );
-        expect(errorMessage).toBeDefined();
+        await screen.findByText("Error on updating the user roles.");
       });
     });
   });

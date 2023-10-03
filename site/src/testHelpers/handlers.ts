@@ -341,6 +341,10 @@ export const handlers = [
     return res(ctx.status(200), ctx.json(M.MockDeploymentStats));
   }),
 
+  rest.get("/api/v2/deployment/config", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentConfig));
+  }),
+
   rest.get(
     "/api/v2/workspacebuilds/:workspaceBuildId/parameters",
     (_, res, ctx) => {

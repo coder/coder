@@ -3,7 +3,6 @@ import { makeStyles, useTheme } from "@mui/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { PageButton } from "./PageButton";
 import { buildPagedList } from "./utils";
 
@@ -45,35 +44,32 @@ export const PaginationWidgetBase = ({
       >
         <KeyboardArrowLeft />
       </Button>
-      <ChooseOne>
-        <Cond condition={isMobile}>
-          <PageButton activePage={page} page={page} numPages={numPages} />
-        </Cond>
-        <Cond>
-          {buildPagedList(numPages, page).map((pageItem) => {
-            if (pageItem === "left" || pageItem === "right") {
-              return (
-                <PageButton
-                  key={pageItem}
-                  activePage={page}
-                  placeholder="..."
-                  disabled
-                />
-              );
-            }
-
+      {isMobile ? (
+        <PageButton activePage={page} page={page} numPages={numPages} />
+      ) : (
+        buildPagedList(numPages, page).map((pageItem) => {
+          if (pageItem === "left" || pageItem === "right") {
             return (
               <PageButton
                 key={pageItem}
-                page={pageItem}
                 activePage={page}
-                numPages={numPages}
-                onPageClick={() => onChange(pageItem)}
+                placeholder="..."
+                disabled
               />
             );
-          })}
-        </Cond>
-      </ChooseOne>
+          }
+
+          return (
+            <PageButton
+              key={pageItem}
+              page={pageItem}
+              activePage={page}
+              numPages={numPages}
+              onPageClick={() => onChange(pageItem)}
+            />
+          );
+        })
+      )}
       <Button
         aria-label="Next page"
         disabled={isLastPage}

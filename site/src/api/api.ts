@@ -194,9 +194,12 @@ export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
 
 export const getUsers = async (
   options: TypesGen.UsersRequest,
+  signal?: AbortSignal,
 ): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options);
-  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString());
+  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString(), {
+    signal,
+  });
   return response.data;
 };
 

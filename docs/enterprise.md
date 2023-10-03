@@ -6,19 +6,19 @@ paid license. [Contact Sales](https://coder.com/contact) for pricing or
 
 | Category        | Feature                                                                              | Open Source | Enterprise |
 | --------------- | ------------------------------------------------------------------------------------ | :---------: | :--------: |
+| Support         | Email, Phone, Prioritization                                                         |     ❌      |     ✅     |
+| Scale           | [High Availability](./admin/high-availability.md)                                    |     ❌      |     ✅     |
+| Scale           | [Multiple Git Providers](./admin/git-providers.md#multiple-git-providers-enterprise) |     ❌      |     ✅     |
+| Scale           | [Isolated Terraform Runners](./admin/provisioners.md)                                |     ❌      |     ✅     |
+| Scale           | [Workspace Proxies](./admin/workspace-proxies.md)                                    |     ❌      |     ✅     |
+| Governance      | [Audit Logging](./admin/audit-logs.md)                                               |     ❌      |     ✅     |
+| Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)        |     ❌      |     ✅     |
+| Governance      | [Groups & Template RBAC](./admin/rbac.md)                                            |     ❌      |     ✅     |
+| Cost Control    | [Quotas](./admin/quotas.md)                                                          |     ❌      |     ✅     |
+| Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)              |     ❌      |     ✅     |
 | User Management | [Groups](./admin/groups.md)                                                          |     ❌      |     ✅     |
 | User Management | [Group & role sync](./admin/auth.md#group-sync-enterprise)                           |     ❌      |     ✅     |
 | User Management | [SCIM](./admin/auth.md#scim)                                                         |     ❌      |     ✅     |
-| Governance      | [Audit Logging](./admin/audit-logs.md)                                               |     ❌      |     ✅     |
-| Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)        |     ❌      |     ✅     |
-| Governance      | [Template Access Control](./admin/rbac.md)                                           |     ❌      |     ✅     |
-| Cost Control    | [Quotas](./admin/quotas.md)                                                          |     ❌      |     ✅     |
-| Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)              |     ❌      |     ✅     |
-| Deployment      | [High Availability](./admin/high-availability.md)                                    |     ❌      |     ✅     |
-| Deployment      | [Multiple Git Providers](./admin/git-providers.md#multiple-git-providers-enterprise) |     ❌      |     ✅     |
-| Deployment      | [Appearance](./admin/appearance.md)                                                  |     ❌      |     ✅     |
-| Deployment      | [Isolated Terraform Runners](./admin/provisioners.md)                                |     ❌      |     ✅     |
-| Deployment      | [Workspace Proxies](./admin/workspace-proxies.md)                                    |     ❌      |     ✅     |
 
 ## Adding your license key
 

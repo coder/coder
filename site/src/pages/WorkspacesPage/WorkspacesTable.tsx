@@ -13,7 +13,6 @@ import {
 } from "components/TableLoader/TableLoader";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
@@ -94,12 +93,10 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             <TableLoader canCheckWorkspaces={canCheckWorkspaces} />
           )}
           {workspaces && workspaces.length === 0 && (
-            <ChooseOne>
-              <Cond condition={isUsingFilter}>
+            <>
+              {isUsingFilter ? (
                 <TableEmpty message="No results matched your search" />
-              </Cond>
-
-              <Cond>
+              ) : (
                 <TableEmpty
                   css={{
                     paddingBottom: 0,
@@ -135,8 +132,8 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                     </div>
                   }
                 />
-              </Cond>
-            </ChooseOne>
+              )}
+            </>
           )}
           {workspaces &&
             workspaces.map((workspace) => {

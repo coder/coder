@@ -10,7 +10,6 @@ import PersonAdd from "@mui/icons-material/PersonAdd";
 import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
 import { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
@@ -60,129 +59,127 @@ export const GroupPage: FC = () => {
   const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
   const styles = useStyles();
 
+  const helmet = (
+    <Helmet>
+      <title>
+        {pageTitle(
+          (groupData?.display_name || groupData?.name) ?? "Loading...",
+        )}
+      </title>
+    </Helmet>
+  );
+
+  if (isLoading) {
+    return (
+      <>
+        {helmet}
+        <Loader />
+      </>
+    );
+  }
+
   return (
     <>
-      <Helmet>
-        <title>
-          {pageTitle(
-            (groupData?.display_name || groupData?.name) ?? "Loading...",
-          )}
-        </title>
-      </Helmet>
-      <ChooseOne>
-        <Cond condition={isLoading}>
-          <Loader />
-        </Cond>
+      {helmet}
 
-        <Cond>
-          <Margins>
-            <PageHeader
-              actions={
-                canUpdateGroup && (
-                  <>
-                    <Button
-                      startIcon={<SettingsOutlined />}
-                      to="settings"
-                      component={RouterLink}
-                    >
-                      Settings
-                    </Button>
-                    <Button
-                      disabled={groupData?.id === groupData?.organization_id}
-                      onClick={() => {
-                        setIsDeletingGroup(true);
-                      }}
-                      startIcon={<DeleteOutline />}
-                      className={styles.removeButton}
-                    >
-                      Delete&hellip;
-                    </Button>
-                  </>
-                )
-              }
-            >
-              <PageHeaderTitle>
-                {groupData?.display_name || groupData?.name}
-              </PageHeaderTitle>
-              <PageHeaderSubtitle>
-                {/* Show the name if it differs from the display name. */}
-                {groupData?.display_name &&
-                groupData?.display_name !== groupData?.name
-                  ? groupData?.name
-                  : ""}{" "}
-              </PageHeaderSubtitle>
-            </PageHeader>
-
-            <Stack spacing={1}>
-              {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-                <AddGroupMember
-                  isLoading={addMemberMutation.isLoading}
-                  onSubmit={async (user, reset) => {
-                    try {
-                      await addMemberMutation.mutateAsync({
-                        groupId,
-                        userId: user.id,
-                      });
-                      reset();
-                    } catch (error) {
-                      displayError(
-                        getErrorMessage(error, "Failed to add member."),
-                      );
-                    }
+      <Margins>
+        <PageHeader
+          actions={
+            canUpdateGroup && (
+              <>
+                <Button
+                  startIcon={<SettingsOutlined />}
+                  to="settings"
+                  component={RouterLink}
+                >
+                  Settings
+                </Button>
+                <Button
+                  disabled={groupData?.id === groupData?.organization_id}
+                  onClick={() => {
+                    setIsDeletingGroup(true);
                   }}
-                />
-              )}
-              <TableToolbar>
-                <PaginationStatus
-                  isLoading={Boolean(isLoading)}
-                  showing={groupData?.members.length ?? 0}
-                  total={groupData?.members.length ?? 0}
-                  label="members"
-                />
-              </TableToolbar>
+                  startIcon={<DeleteOutline />}
+                  className={styles.removeButton}
+                >
+                  Delete&hellip;
+                </Button>
+              </>
+            )
+          }
+        >
+          <PageHeaderTitle>
+            {groupData?.display_name || groupData?.name}
+          </PageHeaderTitle>
+          <PageHeaderSubtitle>
+            {/* Show the name if it differs from the display name. */}
+            {groupData?.display_name &&
+            groupData?.display_name !== groupData?.name
+              ? groupData?.name
+              : ""}{" "}
+          </PageHeaderSubtitle>
+        </PageHeader>
 
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell width="99%">User</TableCell>
-                      <TableCell width="1%"></TableCell>
-                    </TableRow>
-                  </TableHead>
+        <Stack spacing={1}>
+          {canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
+            <AddGroupMember
+              isLoading={addMemberMutation.isLoading}
+              onSubmit={async (user, reset) => {
+                try {
+                  await addMemberMutation.mutateAsync({
+                    groupId,
+                    userId: user.id,
+                  });
+                  reset();
+                } catch (error) {
+                  displayError(getErrorMessage(error, "Failed to add member."));
+                }
+              }}
+            />
+          )}
+          <TableToolbar>
+            <PaginationStatus
+              isLoading={Boolean(isLoading)}
+              showing={groupData?.members.length ?? 0}
+              total={groupData?.members.length ?? 0}
+              label="members"
+            />
+          </TableToolbar>
 
-                  <TableBody>
-                    <ChooseOne>
-                      <Cond
-                        condition={Boolean(groupData?.members.length === 0)}
-                      >
-                        <TableRow>
-                          <TableCell colSpan={999}>
-                            <EmptyState
-                              message="No members yet"
-                              description="Add a member using the controls above"
-                            />
-                          </TableCell>
-                        </TableRow>
-                      </Cond>
+          <TableContainer>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell width="99%">User</TableCell>
+                  <TableCell width="1%"></TableCell>
+                </TableRow>
+              </TableHead>
 
-                      <Cond>
-                        {groupData?.members.map((member) => (
-                          <GroupMemberRow
-                            member={member}
-                            group={groupData}
-                            key={member.id}
-                            canUpdate={canUpdateGroup}
-                          />
-                        ))}
-                      </Cond>
-                    </ChooseOne>
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Stack>
-          </Margins>
-        </Cond>
-      </ChooseOne>
+              <TableBody>
+                {groupData?.members.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={999}>
+                      <EmptyState
+                        message="No members yet"
+                        description="Add a member using the controls above"
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  groupData?.members.map((member) => (
+                    <GroupMemberRow
+                      member={member}
+                      group={groupData}
+                      key={member.id}
+                      canUpdate={canUpdateGroup}
+                    />
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Stack>
+      </Margins>
 
       {groupQuery.data && (
         <DeleteDialog

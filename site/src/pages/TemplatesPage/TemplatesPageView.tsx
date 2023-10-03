@@ -7,7 +7,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { FC } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -151,7 +150,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   canCreateTemplates,
 }) => {
   const isLoading = !templates;
-  const isEmpty = Boolean(templates && templates.length === 0);
+  const isEmpty = templates && templates.length === 0;
 
   return (
     <Margins>
@@ -187,45 +186,37 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
         )}
       </PageHeader>
 
-      <ChooseOne>
-        <Cond condition={Boolean(error)}>
-          <ErrorAlert error={error} />
-        </Cond>
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="35%">{Language.nameLabel}</TableCell>
+                <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+                <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+                <TableCell width="1%"></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading && <TableLoader />}
 
-        <Cond>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="35%">{Language.nameLabel}</TableCell>
-                  <TableCell width="15%">{Language.usedByLabel}</TableCell>
-                  <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-                  <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-                  <TableCell width="1%"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {isLoading && <TableLoader />}
-
-                <ChooseOne>
-                  <Cond condition={isEmpty}>
-                    <EmptyTemplates
-                      canCreateTemplates={canCreateTemplates}
-                      examples={examples ?? []}
-                    />
-                  </Cond>
-
-                  <Cond>
-                    {templates?.map((template) => (
-                      <TemplateRow key={template.id} template={template} />
-                    ))}
-                  </Cond>
-                </ChooseOne>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Cond>
-      </ChooseOne>
+              {isEmpty ? (
+                <EmptyTemplates
+                  canCreateTemplates={canCreateTemplates}
+                  examples={examples ?? []}
+                />
+              ) : (
+                templates?.map((template) => (
+                  <TemplateRow key={template.id} template={template} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Margins>
   );
 };

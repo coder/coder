@@ -2,7 +2,7 @@
 // eslint-disable-next-line no-restricted-imports -- Read above
 import MuiAvatar, { AvatarProps as MuiAvatarProps } from "@mui/material/Avatar";
 import { FC } from "react";
-import { css, type Theme } from "@emotion/react";
+import { css, type Interpolation, type Theme } from "@emotion/react";
 
 export type AvatarProps = MuiAvatarProps & {
   size?: "sm" | "md" | "xl";
@@ -11,26 +11,26 @@ export type AvatarProps = MuiAvatarProps & {
 };
 
 const sizeStyles = {
-  sm: (theme: Theme) => ({
+  sm: (theme) => ({
     width: theme.spacing(3),
     height: theme.spacing(3),
     fontSize: theme.spacing(1.5),
   }),
   md: {},
-  xl: (theme: Theme) => ({
+  xl: (theme) => ({
     width: theme.spacing(6),
     height: theme.spacing(6),
     fontSize: theme.spacing(3),
   }),
-};
+} satisfies Record<string, Interpolation<Theme>>;
 
 const colorStyles = {
   light: {},
-  darken: (theme: Theme) => ({
+  darken: (theme) => ({
     background: theme.palette.divider,
     color: theme.palette.text.primary,
   }),
-};
+} satisfies Record<string, Interpolation<Theme>>;
 
 const fitImageStyles = css`
   & .MuiAvatar-img {

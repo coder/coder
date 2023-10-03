@@ -428,6 +428,54 @@ func TestSSH(t *testing.T) {
 		<-cmdDone
 	})
 
+	t.Run("RemoteForwardUnixSocket", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Test not supported on windows")
+		}
+
+		t.Parallel()
+
+		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		tmpdir := tempDirUnixSocket(t)
+		agentSock := filepath.Join(tmpdir, "agent.sock")
+		l, err := net.Listen("unix", agentSock)
+		require.NoError(t, err)
+		defer l.Close()
+
+		inv, root := clitest.New(t,
+			"ssh",
+			workspace.Name,
+			"--remote-forward",
+			"/tmp/test.sock:"+agentSock,
+		)
+		clitest.SetupConfig(t, client, root)
+		pty := ptytest.New(t).Attach(inv)
+		inv.Stderr = pty.Output()
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err, "ssh command failed")
+		})
+
+		// Wait for the prompt or any output really to indicate the command has
+		// started and accepting input on stdin.
+		_ = pty.Peek(ctx, 1)
+
+		// Download the test page
+		pty.WriteLine("ss -xl state listening src /tmp/test.sock | wc -l")
+		pty.ExpectMatch("2")
+
+		// And we're done.
+		pty.WriteLine("exit")
+		<-cmdDone
+	})
+
 	t.Run("FileLogging", func(t *testing.T) {
 		t.Parallel()
 

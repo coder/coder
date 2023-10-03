@@ -2,6 +2,7 @@ package externalauth
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -120,18 +121,20 @@ validate:
 	}
 
 	if token.AccessToken != externalAuthLink.OAuthAccessToken {
-		// Update it
-		externalAuthLink, err = db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-			ProviderID:        c.ID,
-			UserID:            externalAuthLink.UserID,
-			UpdatedAt:         dbtime.Now(),
-			OAuthAccessToken:  token.AccessToken,
-			OAuthRefreshToken: token.RefreshToken,
-			OAuthExpiry:       token.Expiry,
+		updatedAuthLink, err := db.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
+			ProviderID:             c.ID,
+			UserID:                 externalAuthLink.UserID,
+			UpdatedAt:              dbtime.Now(),
+			OAuthAccessToken:       token.AccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
+			OAuthRefreshToken:      token.RefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
+			OAuthExpiry:            token.Expiry,
 		})
 		if err != nil {
-			return externalAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
+			return updatedAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
 		}
+		externalAuthLink = updatedAuthLink
 	}
 	return externalAuthLink, true, nil
 }
