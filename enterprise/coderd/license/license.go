@@ -161,8 +161,8 @@ func Entitlements(
 			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
-			// Multiple Git auth has it's own warnings based on the number configured!
-			if featureName == codersdk.FeatureMultipleGitAuth {
+			// External Auth Providers auth has it's own warnings based on the number configured!
+			if featureName == codersdk.FeatureMultipleExternalAuth {
 				continue
 			}
 			feature := entitlements.Features[featureName]
@@ -201,22 +201,22 @@ func Entitlements(
 	}
 
 	if gitAuthCount > 1 {
-		feature := entitlements.Features[codersdk.FeatureMultipleGitAuth]
+		feature := entitlements.Features[codersdk.FeatureMultipleExternalAuth]
 
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
 				entitlements.Errors = append(entitlements.Errors,
-					"You have multiple Git authorizations configured but your license is limited at one.",
+					"You have multiple External Auth Providers configured but your license is limited at one.",
 				)
 			} else {
 				entitlements.Errors = append(entitlements.Errors,
-					"You have multiple Git authorizations configured but this is an Enterprise feature. Reduce to one.",
+					"You have multiple External Auth Providers configured but this is an Enterprise feature. Reduce to one.",
 				)
 			}
 		case codersdk.EntitlementGracePeriod:
 			entitlements.Warnings = append(entitlements.Warnings,
-				"You have multiple Git authorizations configured but your license is expired. Reduce to one.",
+				"You have multiple External Auth Providers configured but your license is expired. Reduce to one.",
 			)
 		}
 	}

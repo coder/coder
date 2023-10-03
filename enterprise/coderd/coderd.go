@@ -465,7 +465,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-			codersdk.FeatureMultipleGitAuth:            len(api.ExternalAuthConfigs) > 1,
+			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,

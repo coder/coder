@@ -42,7 +42,7 @@ const (
 	FeatureTemplateRBAC                FeatureName = "template_rbac"
 	FeatureUserRoleManagement          FeatureName = "user_role_management"
 	FeatureHighAvailability            FeatureName = "high_availability"
-	FeatureMultipleGitAuth             FeatureName = "multiple_git_auth"
+	FeatureMultipleExternalAuth        FeatureName = "multiple_external_auth"
 	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
 	FeatureAppearance                  FeatureName = "appearance"
 	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
@@ -60,7 +60,7 @@ var FeatureNames = []FeatureName{
 	FeatureSCIM,
 	FeatureTemplateRBAC,
 	FeatureHighAvailability,
-	FeatureMultipleGitAuth,
+	FeatureMultipleExternalAuth,
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
@@ -89,7 +89,7 @@ func (n FeatureName) Humanize() string {
 // This method may disappear at any time.
 func (n FeatureName) AlwaysEnable() bool {
 	return map[FeatureName]bool{
-		FeatureMultipleGitAuth:            true,
+		FeatureMultipleExternalAuth:       true,
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
 		FeatureWorkspaceBatchActions:      true,

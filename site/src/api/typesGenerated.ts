@@ -1682,7 +1682,7 @@ export type FeatureName =
   | "external_provisioner_daemons"
   | "external_token_encryption"
   | "high_availability"
-  | "multiple_git_auth"
+  | "multiple_external_auth"
   | "scim"
   | "template_autostop_requirement"
   | "template_rbac"
@@ -1698,7 +1698,7 @@ export const FeatureNames: FeatureName[] = [
   "external_provisioner_daemons",
   "external_token_encryption",
   "high_availability",
-  "multiple_git_auth",
+  "multiple_external_auth",
   "scim",
   "template_autostop_requirement",
   "template_rbac",
