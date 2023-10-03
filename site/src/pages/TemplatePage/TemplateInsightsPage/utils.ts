@@ -7,17 +7,22 @@ import {
   isToday as isTodayDefault,
 } from "date-fns";
 
-export function getDateRangeFilter({
-  startDate,
-  endDate,
-  now = new Date(),
-  isToday = isTodayDefault,
-}: {
+type GetDateRangeFilterOptions = {
   startDate: Date;
   endDate: Date;
+  // Testing purposes
   now?: Date;
   isToday?: (date: Date) => boolean;
-}) {
+};
+
+export function getDateRangeFilter(props: GetDateRangeFilterOptions) {
+  const {
+    startDate,
+    endDate,
+    now = new Date(),
+    isToday = isTodayDefault,
+  } = props;
+
   return {
     start_time: toISOLocal(startOfDay(startDate)),
     end_time: toISOLocal(
