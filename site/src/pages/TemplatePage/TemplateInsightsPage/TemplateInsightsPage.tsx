@@ -21,6 +21,7 @@ import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
+  Template,
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
@@ -48,24 +49,31 @@ import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeeklyPreset, WeeklyPresetsMenu } from "./WeeklyPresetsMenu";
 import { insightsTemplate, insightsUserLatency } from "api/queries/insights";
+import { useSearchParams } from "react-router-dom";
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext();
   const now = new Date();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const defaultWeeklyPreset = 4;
   const defaultDateRangeValue = {
     startDate: subDays(now, 6),
     endDate: now,
   };
+  const defaultInterval = getDefaultInterval(template);
 
-  const [interval, setInterval] = useState<InsightsInterval>(() => {
-    const templateCreateDate = new Date(template.created_at);
-    const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
-    return hasFiveWeeksOrMore ? "week" : "day";
-  });
-  const [weeklyPreset, setWeeklyPreset] =
-    useState<WeeklyPreset>(defaultWeeklyPreset);
+  const interval =
+    (searchParams.get("interval") as InsightsInterval) || defaultInterval;
+
+  const weeklyPreset =
+    (Number(searchParams.get("weeklyPreset")) as WeeklyPreset) ||
+    defaultWeeklyPreset;
+  const setWeeklyPreset = (newWeeklyPreset: WeeklyPreset) => {
+    searchParams.set("weeklyPreset", newWeeklyPreset.toString());
+    setSearchParams(searchParams);
+  };
+
   const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(
     defaultDateRangeValue,
   );
@@ -91,12 +99,14 @@ export default function TemplateInsightsPage() {
             <IntervalMenu
               value={interval}
               onChange={(interval) => {
-                setInterval(interval);
                 if (interval === "week") {
                   setWeeklyPreset(defaultWeeklyPreset);
                 } else {
                   setDateRangeValue(defaultDateRangeValue);
                 }
+
+                searchParams.set("interval", interval);
+                setSearchParams(searchParams);
               }}
             />
             {interval === "day" ? (
@@ -116,6 +126,13 @@ export default function TemplateInsightsPage() {
     </>
   );
 }
+
+const getDefaultInterval = (template: Template) => {
+  const now = new Date();
+  const templateCreateDate = new Date(template.created_at);
+  const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+  return hasFiveWeeksOrMore ? "week" : "day";
+};
 
 export const TemplateInsightsPageView = ({
   templateInsights,
