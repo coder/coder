@@ -20,14 +20,14 @@ SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID}"
 
 mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
-	if [[ -z "${SCALETEST_CODER_BINARY:-}" ]]; then
+	if [[ ! -x "${SCALETEST_CODER_BINARY}" ]]; then
 		log "Fetching full coder binary..."
 		fetch_coder_full
-		log "SCALETEST_CODER_BINARY=${SCALETEST_CODER_BINARY}"
 	fi
 	maybedryrun "${DRY_RUN}" "${SCALETEST_CODER_BINARY}" "${@}"
 }
@@ -249,16 +249,10 @@ set_appearance() {
 # fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
 # running in the same namespace as the current pod.
 fetch_coder_full() {
-	local mkdir_dry_run_arg=""
-	if [[ -n "${SCALETEST_CODER_BINARY:-}" ]]; then
+	if [[ -x "${SCALETEST_CODER_BINARY}" ]]; then
 		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
 		return
 	fi
-	if [[ "${DRY_RUN}" == "1" ]]; then
-		mkdir_dry_run_arg="--dry-run"
-	fi
-	target_dir=$(mktemp ${mkdir_dry_run_arg} --directory -t scaletest-coder-full-XXXXXX)
-	target_path="${target_dir}/coder"
 	local pod
 	local namespace
 	namespace=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
@@ -280,8 +274,7 @@ fetch_coder_full() {
 		--namespace "${namespace}" \
 		cp \
 		--container coder \
-		"${pod}:/opt/coder" "${target_path}"
-	maybedryrun "${DRY_RUN}" chmod +x "${target_path}"
-	export SCALETEST_CODER_BINARY="${target_path}"
-	log "Full Coder binary is at ${SCALETEST_CODER_BINARY}"
+		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
+	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
+	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
 }
