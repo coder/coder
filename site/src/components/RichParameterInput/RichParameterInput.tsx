@@ -1,27 +1,111 @@
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { makeStyles } from "@mui/styles";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { Stack } from "components/Stack/Stack";
+import Box from "@mui/material/Box";
 import { FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
-import { colors } from "theme/colors";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
+import { Stack } from "components/Stack/Stack";
+import { colors } from "theme/colors";
 import { MultiTextField } from "./MultiTextField";
-import Box from "@mui/material/Box";
-import { Theme } from "@mui/material/styles";
+import { Interpolation, Theme } from "@emotion/react";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
 };
+
+const styles = {
+  label: (theme) => ({
+    marginBottom: theme.spacing(0.5),
+  }),
+  labelCaption: (theme) => ({
+    fontSize: 14,
+    color: theme.palette.text.secondary,
+
+    ".small &": {
+      fontSize: 13,
+      lineHeight: "140%",
+    },
+  }),
+  labelPrimary: (theme) => ({
+    fontSize: 16,
+    color: theme.palette.text.primary,
+    fontWeight: 600,
+
+    "& p": {
+      margin: 0,
+      lineHeight: "24px", // Keep the same as ParameterInput
+    },
+
+    ".small &": {
+      fontSize: 14,
+    },
+  }),
+  labelImmutable: (theme) => ({
+    marginTop: theme.spacing(0.5),
+    marginBottom: theme.spacing(0.5),
+    color: colors.yellow[7],
+  }),
+  textField: {
+    ".small & .MuiInputBase-root": {
+      height: 36,
+      fontSize: 14,
+      borderRadius: 6,
+    },
+  },
+  radioGroup: (theme) => ({
+    ".small & .MuiFormControlLabel-label": {
+      fontSize: 14,
+    },
+    ".small & .MuiRadio-root": {
+      padding: theme.spacing(0.75, "9px"), // 8px + 1px border
+    },
+    ".small & .MuiRadio-root svg": {
+      width: 16,
+      height: 16,
+    },
+  }),
+  checkbox: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
+  }),
+  labelIconWrapper: (theme) => ({
+    width: theme.spacing(2.5),
+    height: theme.spacing(2.5),
+    display: "block",
+
+    ".small &": {
+      display: "none",
+    },
+  }),
+  labelIcon: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  radioOption: (theme) => ({
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+  }),
+  optionIcon: {
+    maxHeight: 20,
+    width: 20,
+
+    ".small &": {
+      maxHeight: 16,
+      width: 16,
+    },
+  },
+} satisfies Record<string, Interpolation<Theme>>;
 
 export interface ParameterLabelProps {
   parameter: TemplateVersionParameter;
 }
 
 const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
-  const styles = useStyles();
   const hasDescription = parameter.description && parameter.description !== "";
   const displayName = parameter.display_name
     ? parameter.display_name
@@ -31,9 +115,9 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
     <label htmlFor={parameter.name}>
       <Stack direction="row" alignItems="center">
         {parameter.icon && (
-          <span className={styles.labelIconWrapper}>
+          <span css={styles.labelIconWrapper}>
             <img
-              className={styles.labelIcon}
+              css={styles.labelIcon}
               alt="Parameter icon"
               src={parameter.icon}
             />
@@ -42,13 +126,13 @@ const ParameterLabel: FC<ParameterLabelProps> = ({ parameter }) => {
 
         {hasDescription ? (
           <Stack spacing={0}>
-            <span className={styles.labelPrimary}>{displayName}</span>
-            <MemoizedMarkdown className={styles.labelCaption}>
+            <span css={styles.labelPrimary}>{displayName}</span>
+            <MemoizedMarkdown css={styles.labelCaption}>
               {parameter.description}
             </MemoizedMarkdown>
           </Stack>
         ) : (
-          <span className={styles.labelPrimary}>{displayName}</span>
+          <span css={styles.labelPrimary}>{displayName}</span>
         )}
       </Stack>
     </label>
@@ -94,14 +178,12 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   size,
   ...props
 }) => {
-  const styles = useStyles();
-
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
         id={parameter.name}
         data-testid="parameter-field-bool"
-        className={styles.radioGroup}
+        css={styles.radioGroup}
         value={value}
         onChange={(_, value) => onChange(value)}
       >
@@ -126,7 +208,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       <RadioGroup
         id={parameter.name}
         data-testid="parameter-field-options"
-        className={styles.radioGroup}
+        css={styles.radioGroup}
         value={value}
         onChange={(_, value) => onChange(value)}
       >
@@ -137,10 +219,10 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             value={option.value}
             control={<Radio size="small" />}
             label={
-              <span className={styles.radioOption}>
+              <span css={styles.radioOption}>
                 {option.icon && (
                   <img
-                    className={styles.optionIcon}
+                    css={styles.optionIcon}
                     alt="Parameter icon"
                     src={option.icon}
                     style={{
@@ -198,7 +280,7 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
       {...props}
       id={parameter.name}
       data-testid="parameter-field-text"
-      className={styles.textField}
+      css={styles.textField}
       type={parameter.type}
       disabled={disabled}
       required={parameter.required}
@@ -210,89 +292,3 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
     />
   );
 };
-
-const useStyles = makeStyles<Theme>((theme) => ({
-  label: {
-    marginBottom: theme.spacing(0.5),
-  },
-  labelCaption: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-
-    ".small &": {
-      fontSize: 13,
-      lineHeight: "140%",
-    },
-  },
-  labelPrimary: {
-    fontSize: 16,
-    color: theme.palette.text.primary,
-    fontWeight: 600,
-
-    "& p": {
-      margin: 0,
-      lineHeight: "24px", // Keep the same as ParameterInput
-    },
-
-    ".small &": {
-      fontSize: 14,
-    },
-  },
-  labelImmutable: {
-    marginTop: theme.spacing(0.5),
-    marginBottom: theme.spacing(0.5),
-    color: colors.yellow[7],
-  },
-  textField: {
-    ".small & .MuiInputBase-root": {
-      height: 36,
-      fontSize: 14,
-      borderRadius: 6,
-    },
-  },
-  radioGroup: {
-    ".small & .MuiFormControlLabel-label": {
-      fontSize: 14,
-    },
-    ".small & .MuiRadio-root": {
-      padding: theme.spacing(0.75, "9px"), // 8px + 1px border
-    },
-    ".small & .MuiRadio-root svg": {
-      width: 16,
-      height: 16,
-    },
-  },
-  checkbox: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
-  labelIconWrapper: {
-    width: theme.spacing(2.5),
-    height: theme.spacing(2.5),
-    display: "block",
-
-    ".small &": {
-      display: "none",
-    },
-  },
-  labelIcon: {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain",
-  },
-  radioOption: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-  },
-  optionIcon: {
-    maxHeight: 20,
-    width: 20,
-
-    ".small &": {
-      maxHeight: 16,
-      width: 16,
-    },
-  },
-}));
