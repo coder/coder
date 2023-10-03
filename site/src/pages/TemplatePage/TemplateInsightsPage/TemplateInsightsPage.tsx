@@ -3,7 +3,6 @@ import Box from "@mui/material/Box";
 import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
 import { useQuery } from "@tanstack/react-query";
-import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
 import {
   ActiveUsersTitle,
   ActiveUserChart,
@@ -48,6 +47,7 @@ import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeeklyPreset, WeeklyPresetsMenu } from "./WeeklyPresetsMenu";
+import { insightsTemplate, insightsUserLatency } from "api/queries/insights";
 
 export default function TemplateInsightsPage() {
   const { template } = useTemplateLayoutContext();
@@ -77,14 +77,8 @@ export default function TemplateInsightsPage() {
     ...getDateRangeFilter(dateRange),
   };
   const insightsFilter = { ...commonFilters, interval };
-  const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage", insightsFilter],
-    queryFn: () => getInsightsTemplate(insightsFilter),
-  });
-  const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency", commonFilters],
-    queryFn: () => getInsightsUserLatency(commonFilters),
-  });
+  const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
+  const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
 
   return (
     <>
