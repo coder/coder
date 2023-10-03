@@ -110,8 +110,8 @@ export const AlphaBadge: FC = () => {
       css={[
         styles.badge,
         (theme) => ({
-          border: `1px solid ${theme.palette.error.light}`,
-          backgroundColor: theme.palette.error.dark,
+          border: `1px solid ${theme.palette.info.light}`,
+          backgroundColor: theme.palette.info.dark,
         }),
       ]}
     >
