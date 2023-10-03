@@ -2180,6 +2180,9 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 
 	var externalAuthConfig *externalauth.Config
 	for _, gitAuth := range api.ExternalAuthConfigs {
+		if gitAuth.Regex == nil {
+			continue
+		}
 		matches := gitAuth.Regex.MatchString(gitURL)
 		if !matches {
 			continue
@@ -2191,6 +2194,9 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		if len(api.ExternalAuthConfigs) > 0 {
 			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
 			for _, extAuth := range api.ExternalAuthConfigs {
+				if extAuth.Regex == nil {
+					continue
+				}
 				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
 			}
 			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
