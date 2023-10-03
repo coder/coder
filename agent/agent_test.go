@@ -1079,7 +1079,7 @@ func TestAgent_Metadata(t *testing.T) {
 			opts.ReportMetadataInterval = 100 * time.Millisecond
 		})
 
-		var gotMd map[string]agentsdk.PostMetadataRequest
+		var gotMd map[string]agentsdk.PostMetadataRequestDeprecated
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
@@ -1112,7 +1112,7 @@ func TestAgent_Metadata(t *testing.T) {
 			opts.ReportMetadataInterval = testutil.IntervalFast
 		})
 
-		var gotMd map[string]agentsdk.PostMetadataRequest
+		var gotMd map[string]agentsdk.PostMetadataRequestDeprecated
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1

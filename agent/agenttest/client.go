@@ -45,7 +45,7 @@ type Client struct {
 	logger               slog.Logger
 	agentID              uuid.UUID
 	manifest             agentsdk.Manifest
-	metadata             map[string]agentsdk.PostMetadataRequest
+	metadata             map[string]agentsdk.PostMetadataRequestDeprecated
 	statsChan            chan *agentsdk.Stats
 	coordinator          tailnet.Coordinator
 	LastWorkspaceAgent   func()
@@ -136,17 +136,17 @@ func (c *Client) GetStartup() agentsdk.PostStartupRequest {
 	return c.startup
 }
 
-func (c *Client) GetMetadata() map[string]agentsdk.PostMetadataRequest {
+func (c *Client) GetMetadata() map[string]agentsdk.PostMetadataRequestDeprecated {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return maps.Clone(c.metadata)
 }
 
-func (c *Client) PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error {
+func (c *Client) PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequestDeprecated) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.metadata == nil {
-		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
+		c.metadata = make(map[string]agentsdk.PostMetadataRequestDeprecated)
 	}
 	c.metadata[key] = req
 	c.logger.Debug(ctx, "post metadata", slog.F("key", key), slog.F("req", req))

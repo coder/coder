@@ -4867,7 +4867,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/metadata/{key}": {
+        "/workspaceagents/me/metadata": {
             "post": {
                 "security": [
                     {
@@ -4889,7 +4889,46 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/agentsdk.PostMetadataRequest"
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Success"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceagents/me/metadata/{key}": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Removed: Submit workspace agent metadata",
+                "operationId": "removed-submit-workspace-agent-metadata",
+                "parameters": [
+                    {
+                        "description": "Workspace agent metadata request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.PostMetadataRequestDeprecated"
                         }
                     },
                     {
@@ -6708,6 +6747,28 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.Metadata": {
+            "type": "object",
+            "properties": {
+                "age": {
+                    "description": "Age is the number of seconds since the metadata was collected.\nIt is provided in addition to CollectedAt to protect against clock skew.",
+                    "type": "integer"
+                },
+                "collected_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "agentsdk.PatchLogs": {
             "type": "object",
             "properties": {
@@ -6746,6 +6807,17 @@ const docTemplate = `{
             }
         },
         "agentsdk.PostMetadataRequest": {
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/agentsdk.Metadata"
+                    }
+                }
+            }
+        },
+        "agentsdk.PostMetadataRequestDeprecated": {
             "type": "object",
             "properties": {
                 "age": {

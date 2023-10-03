@@ -317,6 +317,28 @@
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
 
+## agentsdk.Metadata
+
+```json
+{
+  "age": 0,
+  "collected_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "key": "string",
+  "value": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                                             |
+| -------------- | ------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `age`          | integer | false    |              | Age is the number of seconds since the metadata was collected. It is provided in addition to CollectedAt to protect against clock skew. |
+| `collected_at` | string  | false    |              |                                                                                                                                         |
+| `error`        | string  | false    |              |                                                                                                                                         |
+| `key`          | string  | false    |              |                                                                                                                                         |
+| `value`        | string  | false    |              |                                                                                                                                         |
+
 ## agentsdk.PatchLogs
 
 ```json
@@ -374,6 +396,28 @@
 | `state`      | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
 
 ## agentsdk.PostMetadataRequest
+
+```json
+{
+  "metadata": [
+    {
+      "age": 0,
+      "collected_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "key": "string",
+      "value": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name       | Type                                            | Required | Restrictions | Description |
+| ---------- | ----------------------------------------------- | -------- | ------------ | ----------- |
+| `metadata` | array of [agentsdk.Metadata](#agentsdkmetadata) | false    |              |             |
+
+## agentsdk.PostMetadataRequestDeprecated
 
 ```json
 {

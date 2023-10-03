@@ -90,7 +90,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
+	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequestDeprecated) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
