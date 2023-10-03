@@ -25,9 +25,9 @@ mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_
 
 coder() {
 	if [[ -z "${SCALETEST_CODER_BINARY:-}" ]]; then
-		echo "Fetching full coder binary..."
+		log "Fetching full coder binary..."
 		fetch_coder_full
-		echo "SCALETEST_CODER_BINARY=${SCALETEST_CODER_BINARY}"
+		log "SCALETEST_CODER_BINARY=${SCALETEST_CODER_BINARY}"
 	fi
 	maybedryrun "${DRY_RUN}" "${SCALETEST_CODER_BINARY}" "${@}"
 }
@@ -262,6 +262,7 @@ fetch_coder_full() {
 		log "Could not determine namespace!"
 		exit 1
 	fi
+	log "Namespace from serviceaccount token is ${namespace}"
 	pod=$(kubectl get pods \
 		--namespace "${namespace}" \
 		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
@@ -270,11 +271,13 @@ fetch_coder_full() {
 		log "Could not find coder pod!"
 		exit 1
 	fi
+	log "Fetching full Coder binary from ${pod}"
 	maybedryrun "${DRY_RUN}" kubectl \
 		--namespace "${namespace}" \
 		cp \
 		--container coder \
 		"${pod}:/opt/coder" "${target_path}"
-	maybedryrun chmod +x "${target_path}"
+	maybedryrun "${DRY_RUN}" chmod +x "${target_path}"
 	export SCALETEST_CODER_BINARY="${target_path}"
+	log "Full Coder binary is at ${SCALETEST_CODER_BINARY}"
 }
