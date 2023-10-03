@@ -57,6 +57,13 @@ export const getDisplayWorkspaceBuildStatus = (
         color: theme.palette.text.secondary,
         status: DisplayWorkspaceBuildStatusLanguage.failed,
       } as const;
+    // Just handle unknown as failed
+    case "unknown":
+      return {
+        type: "error",
+        color: theme.palette.text.secondary,
+        status: DisplayWorkspaceBuildStatusLanguage.failed,
+      } as const;
     case "canceling":
       return {
         type: "warning",
