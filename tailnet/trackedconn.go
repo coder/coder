@@ -46,9 +46,9 @@ func NewTrackedConn(ctx context.Context, cancel func(),
 ) *TrackedConn {
 	// buffer updates so they don't block, since we hold the
 	// coordinator mutex while queuing.  Node updates don't
-	// come quickly, so 512 should be plenty for all but
+	// come quickly, so 64 should be plenty for all but
 	// the most pathological cases.
-	updates := make(chan []*Node, 512)
+	updates := make(chan []*Node, 64)
 	now := time.Now().Unix()
 	return &TrackedConn{
 		ctx:        ctx,
