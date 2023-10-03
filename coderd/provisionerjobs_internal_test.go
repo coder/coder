@@ -248,7 +248,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 				Time:  now.Add(-time.Millisecond),
 				Valid: true,
 			},
-			JobStatus: database.ProvisionerJobStatusRunning,
+			JobStatus: database.ProvisionerJobStatusSucceeded,
 		},
 		nil,
 	)

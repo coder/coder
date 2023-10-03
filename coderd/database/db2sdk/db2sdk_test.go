@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -117,8 +118,9 @@ func TestProvisionerJobStatus(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 
-	for _, tc := range cases {
+	for i, tc := range cases {
 		tc := tc
+		i := i
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			// Populate standard fields
@@ -130,6 +132,8 @@ func TestProvisionerJobStatus(t *testing.T) {
 			tc.job.OrganizationID = org.ID
 			tc.job.Input = []byte("{}")
 			tc.job.Provisioner = database.ProvisionerTypeEcho
+			// Unique tags for each job.
+			tc.job.Tags = map[string]string{fmt.Sprintf("%d", i): "true"}
 
 			inserted := dbgen.ProvisionerJob(t, db, nil, tc.job)
 			// Make sure the inserted job has the right values.

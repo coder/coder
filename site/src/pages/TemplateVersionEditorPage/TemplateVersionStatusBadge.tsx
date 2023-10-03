@@ -56,6 +56,7 @@ export const getStatus = (
         text: "Canceled",
         icon: <ErrorIcon />,
       };
+    case "unknown":
     case "failed":
       return {
         type: "error",
