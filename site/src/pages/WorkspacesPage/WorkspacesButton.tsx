@@ -130,30 +130,18 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
 export function WorkspacesButton() {
   const organizationId = useOrganizationId();
   const permissions = usePermissions();
-
-  const templatesQuery = useQuery({
-    ...templates(organizationId),
-
-    // Creating icons via the selector to guarantee icons array stays as stable
-    // as possible, and only changes when the query produces new data
-    select: (templates) => {
-      return {
-        list: templates,
-        icons: templates.map((t) => t.icon),
-      };
-    },
-  });
+  const templatesQuery = useQuery(templates(organizationId));
 
   // Dataset should always be small enough that client-side filtering should be
   // good enough. Can swap out down the line if it becomes an issue
   const [searchTerm, setSearchTerm] = useState("");
   const processed = sortTemplatesByUsersDesc(
-    templatesQuery.data?.list ?? [],
+    templatesQuery.data ?? [],
     searchTerm,
   );
 
   let emptyState: ReactNode = undefined;
-  if (templatesQuery.data?.list.length === 0) {
+  if (templatesQuery.data?.length === 0) {
     emptyState = (
       <EmptyState
         message="No templates yet"
