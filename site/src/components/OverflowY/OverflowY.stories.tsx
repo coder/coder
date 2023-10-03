@@ -7,7 +7,7 @@ for (let i = 0; i < 20; i++) {
 }
 
 const meta: Meta<typeof OverflowY> = {
-  title: `components/${OverflowY.name}`,
+  title: "components/OverflowY",
   component: OverflowY,
   args: {
     maxHeight: 400,
