@@ -45,8 +45,8 @@ export const TemplateVersionEditorPage: FC = () => {
       {isSuccess && (
         <TemplateVersionEditor
           template={data.template}
-          deploymentBannerVisible={permissions.viewDeploymentStats}
           templateVersion={editorState.context.version || data.version}
+          isBuildingNewVersion={Boolean(editorState.context.version)}
           defaultFileTree={data.fileTree}
           onPreview={(fileTree) => {
             sendEvent({

@@ -78,6 +78,7 @@ export const templateVersionEditorMachine = createMachine(
     },
     tsTypes: {} as import("./templateVersionEditorXService.typegen").Typegen0,
     initial: "initializing",
+
     states: {
       initializing: {
         on: {
