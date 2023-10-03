@@ -263,15 +263,16 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
+		now := dbtime.Now()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
 			context.Background(),
 			database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID: je.job.ID,
 				CompletedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  now,
 					Valid: true,
 				},
-				UpdatedAt: dbtime.Now(),
+				UpdatedAt: now,
 				Error: sql.NullString{
 					String: "connection to provisioner daemon broken",
 					Valid:  true,
@@ -654,13 +655,9 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 
 	if len(request.Logs) > 0 {
+		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
-			JobID:     parsedID,
-			CreatedAt: nil,
-			Source:    nil,
-			Level:     nil,
-			Stage:     nil,
-			Output:    nil,
+			JobID: parsedID,
 		}
 		for _, log := range request.Logs {
 			logLevel, err := convertLogLevel(log.Level)
