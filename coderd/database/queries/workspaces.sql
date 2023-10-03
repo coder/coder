@@ -127,17 +127,17 @@ WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
 	AND CASE
-		WHEN @status :: text != '' THEN
+		WHEN @statu :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
 			    -- search strings are supported.
 			    -- 'running' states
 				WHEN @status = 'starting' THEN
-				    latest_build.job_status = 'running' AND
+				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 				WHEN @status = 'stopping' THEN
-					latest_build.job_status = 'running' AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
 				WHEN @status = 'deleting' THEN
 					latest_build.job_status = 'running' AND
@@ -145,18 +145,18 @@ WHERE
 
 			    -- 'succeeded' states
 			    WHEN @status = 'deleted' THEN
-			    	latest_build.job_status = 'succeeded' AND
+			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
 			    	latest_build.transition = 'delete'::workspace_transition
 				WHEN @status = 'stopped' THEN
-					latest_build.job_status = 'succeeded' AND
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
 				WHEN @status = 'started' THEN
-					latest_build.job_status = 'succeeded' AND
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
 				WHEN @status != '' THEN
 				    -- By default just match the job status exactly
-			    	latest_build.job_status = @status
+			    	latest_build.job_status = @status::provisioner_job_status
 				ELSE
 					true
 			END
