@@ -111,7 +111,7 @@ Optionally, you can request custom scopes:
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
-### Multiple git providers (enterprise)
+### Multiple External Providers (enterprise)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
 
