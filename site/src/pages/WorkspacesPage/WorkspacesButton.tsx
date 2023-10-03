@@ -47,12 +47,12 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
       // reasons; avoids extra clicks on the user's part
       to={`/templates/${template.name}/workspace`}
       sx={{
-        textDecoration: "none",
         outline: "none",
         "&:focus": {
           backgroundColor: (theme) => theme.palette.action.focus,
         },
         "&:hover": {
+          textDecoration: "none",
           backgroundColor: (theme) => theme.palette.action.hover,
         },
       }}
