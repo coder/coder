@@ -24,7 +24,7 @@ SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
 mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
-	if [[ -z "${SCALETEST_CODER_BINARY}" ]]; then
+	if [[ -z "${SCALETEST_CODER_BINARY:-}" ]]; then
 		echo "Fetching full coder binary..."
 		fetch_coder_full
 		echo "SCALETEST_CODER_BINARY=${SCALETEST_CODER_BINARY}"
