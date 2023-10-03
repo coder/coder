@@ -33,9 +33,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   });
 
   const jobStatus = version.job.status;
-  if (jobStatus === "canceled") {
-    return null;
-  }
 
   return (
     <TimelineEntry
@@ -89,8 +86,8 @@ export const VersionRow: React.FC<VersionRowProps> = ({
             {jobStatus === "running" && (
               <Pill text={<>Building&hellip;</>} type="warning" lightBorder />
             )}
-            {jobStatus === "canceling" && (
-              <Pill text={<>Canceling&hellip;</>} type="neutral" lightBorder />
+            {(jobStatus === "canceling" || jobStatus === "canceled") && (
+              <Pill text="Canceled" type="neutral" lightBorder />
             )}
             {jobStatus === "failed" && <Pill text="Failed" type="error" />}
             {onPromoteClick && (
