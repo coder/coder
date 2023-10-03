@@ -4,10 +4,7 @@ import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-import {
-  OpenDropdown,
-  CloseDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
@@ -95,11 +92,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
               }}
               size="large"
             >
-              {shouldDisplayAllMetadata ? (
-                <CloseDropdown margin={false} />
-              ) : (
-                <OpenDropdown margin={false} />
-              )}
+              <DropdownArrow margin={false} close={shouldDisplayAllMetadata} />
             </IconButton>
           </Tooltip>
         )}
