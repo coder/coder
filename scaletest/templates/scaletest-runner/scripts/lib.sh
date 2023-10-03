@@ -20,7 +20,8 @@ SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
 SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
-SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID}"
+# https://github.com/kubernetes/kubernetes/issues/72501 :-(
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID//:/-}"
 
 mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
 
