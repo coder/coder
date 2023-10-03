@@ -970,7 +970,7 @@ export interface TemplateInsightsRequest {
 // From codersdk/insights.go
 export interface TemplateInsightsResponse {
   readonly report?: TemplateInsightsReport;
-  readonly interval_reports: TemplateInsightsIntervalReport[];
+  readonly interval_reports?: TemplateInsightsIntervalReport[];
 }
 
 // From codersdk/insights.go

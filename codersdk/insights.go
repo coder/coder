@@ -186,7 +186,7 @@ func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsig
 // TemplateInsightsResponse is the response from the template insights endpoint.
 type TemplateInsightsResponse struct {
 	Report          *TemplateInsightsReport          `json:"report,omitempty"`
-	IntervalReports []TemplateInsightsIntervalReport `json:"interval_reports"`
+	IntervalReports []TemplateInsightsIntervalReport `json:"interval_reports,omitempty"`
 }
 
 // TemplateInsightsReport is the report from the template insights endpoint.
