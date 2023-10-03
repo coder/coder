@@ -13,7 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
@@ -303,7 +302,7 @@ func getNextTransition(
 // isEligibleForAutostart returns true if the workspace should be autostarted.
 func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// Don't attempt to autostart failed workspaces.
-	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+	if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
 		return false
 	}
 
@@ -337,7 +336,7 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
 func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
-	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+	if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
 		return false
 	}
 
@@ -379,7 +378,7 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 	// If the template has specified a failure TLL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
-		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
+		codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed &&
 		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&

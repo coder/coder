@@ -10,13 +10,14 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/coder/coder/v2/codersdk"
+
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/tailnet"
@@ -119,7 +120,7 @@ func Workspaces(ctx context.Context, registerer prometheus.Registerer, db databa
 
 		gauge.Reset()
 		for _, job := range jobs {
-			status := db2sdk.ProvisionerJobStatus(job)
+			status := codersdk.ProvisionerJobStatus(job.JobStatus)
 			gauge.WithLabelValues(string(status)).Add(1)
 		}
 	}
