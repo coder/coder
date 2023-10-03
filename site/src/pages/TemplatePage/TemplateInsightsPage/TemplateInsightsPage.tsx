@@ -27,7 +27,7 @@ import {
   TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { ComponentProps, ReactNode, useState } from "react";
+import { ComponentProps, ReactNode } from "react";
 import {
   subDays,
   subWeeks,
@@ -57,7 +57,7 @@ export default function TemplateInsightsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const defaultWeeklyPreset = 4;
-  const defaultDateRangeValue = {
+  const defaultDailyRange = {
     startDate: subDays(now, 6),
     endDate: now,
   };
@@ -74,12 +74,21 @@ export default function TemplateInsightsPage() {
     setSearchParams(searchParams);
   };
 
-  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>(
-    defaultDateRangeValue,
-  );
+  const dailyRange =
+    searchParams.has("startDate") && searchParams.has("endDate")
+      ? {
+          startDate: new Date(searchParams.get("startDate")!),
+          endDate: new Date(searchParams.get("endDate")!),
+        }
+      : defaultDailyRange;
+  const setDailyRange = (newDailyRange: DateRangeValue) => {
+    searchParams.set("startDate", newDailyRange.startDate.toISOString());
+    searchParams.set("endDate", newDailyRange.endDate.toISOString());
+    setSearchParams(searchParams);
+  };
 
   const dateRange =
-    interval === "day" ? dateRangeValue : getWeeklyRange(weeklyPreset);
+    interval === "day" ? dailyRange : getWeeklyRange(weeklyPreset);
   const commonFilters = {
     template_ids: template.id,
     ...getDateRangeFilter(dateRange),
@@ -102,7 +111,7 @@ export default function TemplateInsightsPage() {
                 if (interval === "week") {
                   setWeeklyPreset(defaultWeeklyPreset);
                 } else {
-                  setDateRangeValue(defaultDateRangeValue);
+                  setDailyRange(defaultDailyRange);
                 }
 
                 searchParams.set("interval", interval);
@@ -110,7 +119,7 @@ export default function TemplateInsightsPage() {
               }}
             />
             {interval === "day" ? (
-              <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+              <DateRange value={dailyRange} onChange={setDailyRange} />
             ) : (
               <WeeklyPresetsMenu
                 value={weeklyPreset}
