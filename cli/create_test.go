@@ -613,7 +613,8 @@ func TestCreateWithGitAuth(t *testing.T) {
 			OAuth2Config: &testutil.OAuth2Config{},
 			ID:           "github",
 			Regex:        regexp.MustCompile(`github\.com`),
-			Type:         codersdk.ExternalAuthProviderGitHub,
+			Type:         codersdk.EnhancedExternalAuthProviderGitHub.String(),
+			DisplayName:  "GitHub",
 		}},
 		IncludeProvisionerDaemon: true,
 	})

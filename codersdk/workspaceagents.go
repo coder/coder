@@ -744,35 +744,6 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}), nil
 }
 
-// ExternalAuthProvider is a constant that represents the
-// type of providers that are supported within Coder.
-type ExternalAuthProvider string
-
-func (g ExternalAuthProvider) Pretty() string {
-	switch g {
-	case ExternalAuthProviderAzureDevops:
-		return "Azure DevOps"
-	case ExternalAuthProviderGitHub:
-		return "GitHub"
-	case ExternalAuthProviderGitLab:
-		return "GitLab"
-	case ExternalAuthProviderBitBucket:
-		return "Bitbucket"
-	case ExternalAuthProviderOpenIDConnect:
-		return "OpenID Connect"
-	default:
-		return string(g)
-	}
-}
-
-const (
-	ExternalAuthProviderAzureDevops   ExternalAuthProvider = "azure-devops"
-	ExternalAuthProviderGitHub        ExternalAuthProvider = "github"
-	ExternalAuthProviderGitLab        ExternalAuthProvider = "gitlab"
-	ExternalAuthProviderBitBucket     ExternalAuthProvider = "bitbucket"
-	ExternalAuthProviderOpenIDConnect ExternalAuthProvider = "openid-connect"
-)
-
 type WorkspaceAgentLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`

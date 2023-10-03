@@ -308,9 +308,9 @@
           "icon_path": "./images/icons/toggle_on.svg"
         },
         {
-          "title": "Git Providers",
-          "description": "Learn how connect Coder with external git providers",
-          "path": "./admin/git-providers.md",
+          "title": "External Auth",
+          "description": "Learn how connect Coder with external auth providers",
+          "path": "./admin/external-auth.md",
           "icon_path": "./images/icons/git.svg"
         },
         {

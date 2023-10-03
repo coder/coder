@@ -602,7 +602,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/externalauth/{externalauth}": {
+        "/external-auth/{externalauth}": {
             "get": {
                 "security": [
                     {
@@ -637,7 +637,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/externalauth/{externalauth}/device": {
+        "/external-auth/{externalauth}/device": {
             "get": {
                 "security": [
                     {
@@ -2768,7 +2768,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/templateversions/{templateversion}/externalauth": {
+        "/templateversions/{templateversion}/external-auth": {
             "get": {
                 "security": [
                     {
@@ -6725,13 +6725,13 @@ const docTemplate = `{
         "clibase.Regexp": {
             "type": "object"
         },
-        "clibase.Struct-array_codersdk_GitAuthConfig": {
+        "clibase.Struct-array_codersdk_ExternalAuthConfig": {
             "type": "object",
             "properties": {
                 "value": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.GitAuthConfig"
+                        "$ref": "#/definitions/codersdk.ExternalAuthConfig"
                     }
                 }
             }
@@ -7978,14 +7978,14 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "external_auth": {
+                    "$ref": "#/definitions/clibase.Struct-array_codersdk_ExternalAuthConfig"
+                },
                 "external_token_encryption_keys": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
-                },
-                "git_auth": {
-                    "$ref": "#/definitions/clibase.Struct-array_codersdk_GitAuthConfig"
                 },
                 "http_address": {
                     "description": "HTTPAddress is a string because it may be set to zero to disable.",
@@ -8203,15 +8203,15 @@ const docTemplate = `{
                 "device": {
                     "type": "boolean"
                 },
+                "display_name": {
+                    "type": "string"
+                },
                 "installations": {
                     "description": "AppInstallations are the installations that the user has access to.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ExternalAuthAppInstallation"
                     }
-                },
-                "type": {
-                    "type": "string"
                 },
                 "user": {
                     "description": "User is the user that authenticated with the provider.",
@@ -8237,6 +8237,64 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ExternalAuthConfig": {
+            "type": "object",
+            "properties": {
+                "app_install_url": {
+                    "type": "string"
+                },
+                "app_installations_url": {
+                    "type": "string"
+                },
+                "auth_url": {
+                    "type": "string"
+                },
+                "client_id": {
+                    "type": "string"
+                },
+                "device_code_url": {
+                    "type": "string"
+                },
+                "device_flow": {
+                    "type": "boolean"
+                },
+                "display_icon": {
+                    "description": "DisplayIcon is a URL to an icon to display in the UI.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is shown in the UI to identify the auth config.",
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
+                    "type": "string"
+                },
+                "no_refresh": {
+                    "type": "boolean"
+                },
+                "regex": {
+                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+                    "type": "string"
+                },
+                "scopes": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "token_url": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "Type is the type of external auth config.",
+                    "type": "string"
+                },
+                "validate_url": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ExternalAuthDevice": {
             "type": "object",
             "properties": {
@@ -8256,23 +8314,6 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
-        },
-        "codersdk.ExternalAuthProvider": {
-            "type": "string",
-            "enum": [
-                "azure-devops",
-                "github",
-                "gitlab",
-                "bitbucket",
-                "openid-connect"
-            ],
-            "x-enum-varnames": [
-                "ExternalAuthProviderAzureDevops",
-                "ExternalAuthProviderGitHub",
-                "ExternalAuthProviderGitLab",
-                "ExternalAuthProviderBitBucket",
-                "ExternalAuthProviderOpenIDConnect"
-            ]
         },
         "codersdk.ExternalAuthUser": {
             "type": "object",
@@ -8327,53 +8368,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.User"
                     }
-                }
-            }
-        },
-        "codersdk.GitAuthConfig": {
-            "type": "object",
-            "properties": {
-                "app_install_url": {
-                    "type": "string"
-                },
-                "app_installations_url": {
-                    "type": "string"
-                },
-                "auth_url": {
-                    "type": "string"
-                },
-                "client_id": {
-                    "type": "string"
-                },
-                "device_code_url": {
-                    "type": "string"
-                },
-                "device_flow": {
-                    "type": "boolean"
-                },
-                "id": {
-                    "type": "string"
-                },
-                "no_refresh": {
-                    "type": "boolean"
-                },
-                "regex": {
-                    "type": "string"
-                },
-                "scopes": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "token_url": {
-                    "type": "string"
-                },
-                "type": {
-                    "type": "string"
-                },
-                "validate_url": {
-                    "type": "string"
                 }
             }
         },
@@ -10018,11 +10012,17 @@ const docTemplate = `{
                 "authenticated": {
                     "type": "boolean"
                 },
+                "display_icon": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
                 "id": {
                     "type": "string"
                 },
                 "type": {
-                    "$ref": "#/definitions/codersdk.ExternalAuthProvider"
+                    "type": "string"
                 }
             }
         },

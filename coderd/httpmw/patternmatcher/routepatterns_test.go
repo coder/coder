@@ -65,9 +65,9 @@ func Test_RoutePatterns(t *testing.T) {
 				"/api/**",
 				"/@*/*/apps/**",
 				"/%40*/*/apps/**",
-				"/externalauth/*/callback",
+				"/external-auth/*/callback",
 			},
-			output: "^(/api/?|/api/.+/?|/@[^/]+/[^/]+/apps/.+/?|/%40[^/]+/[^/]+/apps/.+/?|/externalauth/[^/]+/callback/?)$",
+			output: "^(/api/?|/api/.+/?|/@[^/]+/[^/]+/apps/.+/?|/%40[^/]+/[^/]+/apps/.+/?|/external-auth/[^/]+/callback/?)$",
 		},
 		{
 			name: "Slash",

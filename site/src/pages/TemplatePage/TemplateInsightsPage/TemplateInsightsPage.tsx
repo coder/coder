@@ -22,6 +22,7 @@ import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
   Template,
+  TemplateAppUsage,
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
@@ -182,11 +183,11 @@ export const TemplateInsightsPageView = ({
         <UserLatencyPanel data={userLatency} />
         <TemplateUsagePanel
           sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.apps_usage}
+          data={templateInsights?.report?.apps_usage}
         />
         <TemplateParametersUsagePanel
           sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.parameters_usage}
+          data={templateInsights?.report?.parameters_usage}
         />
       </Box>
     </>
@@ -291,7 +292,7 @@ const TemplateUsagePanel = ({
   data,
   ...panelProps
 }: PanelProps & {
-  data: TemplateInsightsResponse["report"]["apps_usage"] | undefined;
+  data: TemplateAppUsage[] | undefined;
 }) => {
   const validUsage = data?.filter((u) => u.seconds > 0);
   const totalInSeconds =
@@ -382,7 +383,7 @@ const TemplateParametersUsagePanel = ({
   data,
   ...panelProps
 }: PanelProps & {
-  data: TemplateInsightsResponse["report"]["parameters_usage"] | undefined;
+  data: TemplateParameterUsage[] | undefined;
 }) => {
   return (
     <Panel {...panelProps}>

@@ -72,8 +72,7 @@ const ExternalAuthPage: FC = () => {
     !getExternalAuthProviderQuery.data.authenticated &&
     !getExternalAuthProviderQuery.data.device
   ) {
-    window.location.href = `/externalauth/${provider}/callback`;
-
+    window.location.href = `/external-auth/${provider}/callback`;
     return null;
   }
 

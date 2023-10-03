@@ -15,12 +15,12 @@ const Template: StoryFn<ExternalAuthPageViewProps> = (args) => (
 export const WebAuthenticated = Template.bind({});
 WebAuthenticated.args = {
   externalAuth: {
-    type: "BitBucket",
     authenticated: true,
     device: false,
     installations: [],
     app_install_url: "",
     app_installable: false,
+    display_name: "BitBucket",
     user: {
       avatar_url: "",
       login: "kylecarbs",
@@ -33,7 +33,7 @@ WebAuthenticated.args = {
 export const DeviceUnauthenticated = Template.bind({});
 DeviceUnauthenticated.args = {
   externalAuth: {
-    type: "GitHub",
+    display_name: "GitHub",
     authenticated: false,
     device: true,
     installations: [],
@@ -52,7 +52,7 @@ DeviceUnauthenticated.args = {
 export const DeviceUnauthenticatedError = Template.bind({});
 DeviceUnauthenticatedError.args = {
   externalAuth: {
-    type: "GitHub",
+    display_name: "GitHub",
     authenticated: false,
     device: true,
     installations: [],
@@ -76,7 +76,7 @@ export const DeviceAuthenticatedNotInstalled = Template.bind({});
 DeviceAuthenticatedNotInstalled.args = {
   viewExternalAuthConfig: true,
   externalAuth: {
-    type: "GitHub",
+    display_name: "GitHub",
     authenticated: true,
     device: true,
     installations: [],
@@ -94,7 +94,7 @@ DeviceAuthenticatedNotInstalled.args = {
 export const DeviceAuthenticatedInstalled = Template.bind({});
 DeviceAuthenticatedInstalled.args = {
   externalAuth: {
-    type: "GitHub",
+    display_name: "GitHub",
     authenticated: true,
     device: true,
     installations: [

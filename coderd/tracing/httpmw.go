@@ -26,7 +26,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 		"/api/**",
 		"/@*/*/apps/**",
 		"/%40*/*/apps/**",
-		"/externalauth/*/callback",
+		"/external-auth/*/callback",
 	}.MustCompile()
 
 	var tracer trace.Tracer

@@ -35,7 +35,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   if (!externalAuth.authenticated) {
     return (
       <SignInLayout>
-        <Welcome message={`Authenticate with ${externalAuth.type}`} />
+        <Welcome message={`Authenticate with ${externalAuth.display_name}`} />
 
         {externalAuth.device && (
           <GitDeviceAuth
@@ -50,9 +50,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
   const hasInstallations = externalAuth.installations.length > 0;
 
   // We only want to wrap this with a link if an install URL is available!
-  let installTheApp: JSX.Element = (
-    <>{`install the ${externalAuth.type} App`}</>
-  );
+  let installTheApp: React.ReactNode = `install the ${externalAuth.display_name} App`;
   if (externalAuth.app_install_url) {
     installTheApp = (
       <Link
@@ -67,12 +65,14 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 
   return (
     <SignInLayout>
-      <Welcome message={`You've authenticated with ${externalAuth.type}!`} />
+      <Welcome
+        message={`You've authenticated with ${externalAuth.display_name}!`}
+      />
       <p className={styles.text}>
-        Hey @{externalAuth.user?.login}! 👋{" "}
+        {externalAuth.user?.login && `Hey @${externalAuth.user?.login}! 👋 `}
         {(!externalAuth.app_installable ||
           externalAuth.installations.length > 0) &&
-          "You are now authenticated with Git. Feel free to close this window!"}
+          "You are now authenticated. Feel free to close this window!"}
       </p>
 
       {externalAuth.installations.length > 0 && (
@@ -126,7 +126,7 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
               {externalAuth.installations.length > 0
                 ? "Configure"
                 : "Install"}{" "}
-              the {externalAuth.type} App
+              the {externalAuth.display_name} App
             </Link>
           )}
         <Link

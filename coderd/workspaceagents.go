@@ -2201,6 +2201,13 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
+	enhancedType := codersdk.EnhancedExternalAuthProvider(externalAuthConfig.Type)
+	if !enhancedType.Git() {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "External auth provider does not support git.",
+		})
+		return
+	}
 	workspaceAgent := httpmw.WorkspaceAgent(r)
 	// We must get the workspace to get the owner ID!
 	resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
@@ -2272,13 +2279,13 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if !valid {
 				continue
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(enhancedType, externalAuthLink.OAuthAccessToken))
 			return
 		}
 	}
 
 	// This is the URL that will redirect the user with a state token.
-	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/externalauth/%s", externalAuthConfig.ID))
+	redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to parse access URL.",
@@ -2320,20 +2327,20 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(enhancedType, externalAuthLink.OAuthAccessToken))
 }
 
 // Provider types have different username/password formats.
-func formatGitAuthAccessToken(typ codersdk.ExternalAuthProvider, token string) agentsdk.GitAuthResponse {
+func formatGitAuthAccessToken(typ codersdk.EnhancedExternalAuthProvider, token string) agentsdk.GitAuthResponse {
 	var resp agentsdk.GitAuthResponse
 	switch typ {
-	case codersdk.ExternalAuthProviderGitLab:
+	case codersdk.EnhancedExternalAuthProviderGitLab:
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication
 		resp = agentsdk.GitAuthResponse{
 			Username: "oauth2",
 			Password: token,
 		}
-	case codersdk.ExternalAuthProviderBitBucket:
+	case codersdk.EnhancedExternalAuthProviderBitBucket:
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
 		resp = agentsdk.GitAuthResponse{
 			Username: "x-token-auth",
