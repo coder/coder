@@ -1,14 +1,8 @@
-import Link from "@mui/material/Link";
 import { Workspace } from "api/typesGenerated";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { ComponentProps, FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
@@ -24,6 +18,7 @@ import {
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import { WorkspacesButton } from "components/WorkspacesButton/WorkspacesButton";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -78,21 +73,13 @@ export const WorkspacesPageView: FC<
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader actions={canCheckWorkspaces && <WorkspacesButton />}>
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.pageTitle}</span>
             <WorkspaceHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-
-        <PageHeaderSubtitle>
-          {Language.createANewWorkspace}
-          <Link component={RouterLink} to="/templates">
-            {Language.template}
-          </Link>
-          .
-        </PageHeaderSubtitle>
       </PageHeader>
 
       <Stack>
