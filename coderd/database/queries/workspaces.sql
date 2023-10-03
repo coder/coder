@@ -135,21 +135,12 @@ WHERE
 			    -- 'running' states
 				WHEN @status = 'starting' THEN
 				    latest_build.job_status = 'running' AND
-					-- TODO: Should we drop the interval? Hung workspaces
-					-- should still be their last state?
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'start'::workspace_transition
 				WHEN @status = 'stopping' THEN
 					latest_build.job_status = 'running' AND
-					-- TODO: Should we drop the interval? Hung workspaces
-					-- should still be their last state?
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'stop'::workspace_transition
 				WHEN @status = 'deleting' THEN
 					latest_build.job_status = 'running' AND
-					-- TODO: Should we drop the interval? Hung workspaces
-					-- should still be their last state?
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
 					latest_build.transition = 'delete'::workspace_transition
 
 			    -- 'succeeded' states
