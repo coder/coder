@@ -127,7 +127,7 @@ WHERE
 	-- Optionally include deleted workspaces
 	workspaces.deleted = @deleted
 	AND CASE
-		WHEN @statu :: text != '' THEN
+		WHEN @status :: text != '' THEN
 			CASE
 			    -- Some workspace specific status refer to the transition
 			    -- type. By default, the standard provisioner job status
