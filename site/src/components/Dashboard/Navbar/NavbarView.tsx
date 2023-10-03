@@ -1,7 +1,5 @@
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
 import MenuIcon from "@mui/icons-material/Menu";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { type FC, type ReactNode, useRef, useState } from "react";
@@ -108,12 +106,17 @@ const styles = {
     text-decoration: none;
     transition: background-color 0.15s ease-in-out;
 
+    &.active {
+      color: ${theme.palette.text.primary};
+      font-weight: 500;
+    }
+
     &:hover {
-      background-color: theme.palette.action.hover;
+      background-color: ${theme.palette.action.hover};
     }
 
     ${theme.breakpoints.up("md")} {
-      height: ${navHeight};
+      height: ${navHeight}px;
       padding: 0 ${theme.spacing(3)};
     }
   `,
@@ -134,48 +137,38 @@ const NavItems: React.FC<NavItemsProps> = (props) => {
   const theme = useTheme();
 
   return (
-    <List css={{ padding: 0 }} className={className}>
-      <ListItem button css={styles.item}>
-        <NavLink
-          css={[
-            styles.link,
-            location.pathname.startsWith("/@") && {
-              color: theme.palette.text.primary,
-              fontWeight: 500,
-            },
-          ]}
-          to="/workspaces"
-        >
-          {Language.workspaces}
-        </NavLink>
-      </ListItem>
-      <ListItem button css={styles.item}>
-        <NavLink css={styles.link} to="/templates">
-          {Language.templates}
-        </NavLink>
-      </ListItem>
+    <nav className={className}>
+      <NavLink
+        css={[
+          styles.link,
+          location.pathname.startsWith("/@") && {
+            color: theme.palette.text.primary,
+            fontWeight: 500,
+          },
+        ]}
+        to="/workspaces"
+      >
+        {Language.workspaces}
+      </NavLink>
+      <NavLink css={styles.link} to="/templates">
+        {Language.templates}
+      </NavLink>
       {canViewAllUsers && (
-        <ListItem button css={styles.item}>
-          <NavLink css={styles.link} to={USERS_LINK}>
-            {Language.users}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to={USERS_LINK}>
+          {Language.users}
+        </NavLink>
       )}
       {canViewAuditLog && (
-        <ListItem button css={styles.item}>
-          <NavLink css={styles.link} to="/audit">
-            {Language.audit}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to="/audit">
+          {Language.audit}
+        </NavLink>
       )}
       {canViewDeployment && (
-        <ListItem button css={styles.item}>
-          <NavLink css={styles.link} to="/deployment/general">
-            {Language.deployment}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to="/deployment/general">
+          {Language.deployment}
+        </NavLink>
       )}
-    </List>
+    </nav>
   );
 };
 export const NavbarView: FC<NavbarViewProps> = ({
