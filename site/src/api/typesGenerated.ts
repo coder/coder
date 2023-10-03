@@ -964,11 +964,12 @@ export interface TemplateInsightsRequest {
   readonly end_time: string;
   readonly template_ids: string[];
   readonly interval: InsightsReportInterval;
+  readonly sections: TemplateInsightsSection[];
 }
 
 // From codersdk/insights.go
 export interface TemplateInsightsResponse {
-  readonly report: TemplateInsightsReport;
+  readonly report?: TemplateInsightsReport;
   readonly interval_reports: TemplateInsightsIntervalReport[];
 }
 

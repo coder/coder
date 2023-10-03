@@ -381,16 +381,20 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := codersdk.TemplateInsightsResponse{
-		Report: codersdk.TemplateInsightsReport{
+		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
+	}
+
+	if slices.Contains(sections, codersdk.TemplateInsightsSectionReport) {
+		resp.Report = &codersdk.TemplateInsightsReport{
 			StartTime:       startTime,
 			EndTime:         endTime,
 			TemplateIDs:     convertTemplateInsightsTemplateIDs(usage, appUsage),
 			ActiveUsers:     convertTemplateInsightsActiveUsers(usage, appUsage),
 			AppsUsage:       convertTemplateInsightsApps(usage, appUsage),
 			ParametersUsage: parametersUsage,
-		},
-		IntervalReports: []codersdk.TemplateInsightsIntervalReport{},
+		}
 	}
+
 	for _, row := range dailyUsage {
 		resp.IntervalReports = append(resp.IntervalReports, codersdk.TemplateInsightsIntervalReport{
 			// NOTE(mafredri): This might not be accurate over DST since the

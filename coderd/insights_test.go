@@ -1135,6 +1135,30 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						}
 					},
 				},
+				{
+					name: "three weeks second template only report",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
+							Sections:    []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionReport},
+						}
+					},
+				},
+				{
+					name: "three weeks second template only interval reports",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
+							Sections:    []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionIntervalReports},
+						}
+					},
+				},
 			},
 		},
 		{

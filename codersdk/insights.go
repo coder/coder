@@ -185,7 +185,7 @@ func (c *Client) UserActivityInsights(ctx context.Context, req UserActivityInsig
 
 // TemplateInsightsResponse is the response from the template insights endpoint.
 type TemplateInsightsResponse struct {
-	Report          TemplateInsightsReport           `json:"report"`
+	Report          *TemplateInsightsReport          `json:"report,omitempty"`
 	IntervalReports []TemplateInsightsIntervalReport `json:"interval_reports"`
 }
 
@@ -248,10 +248,11 @@ type TemplateParameterValue struct {
 }
 
 type TemplateInsightsRequest struct {
-	StartTime   time.Time              `json:"start_time" format:"date-time"`
-	EndTime     time.Time              `json:"end_time" format:"date-time"`
-	TemplateIDs []uuid.UUID            `json:"template_ids" format:"uuid"`
-	Interval    InsightsReportInterval `json:"interval" example:"day"`
+	StartTime   time.Time                 `json:"start_time" format:"date-time"`
+	EndTime     time.Time                 `json:"end_time" format:"date-time"`
+	TemplateIDs []uuid.UUID               `json:"template_ids" format:"uuid"`
+	Interval    InsightsReportInterval    `json:"interval" example:"day"`
+	Sections    []TemplateInsightsSection `json:"sections" example:"report"`
 }
 
 func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsRequest) (TemplateInsightsResponse, error) {
@@ -267,6 +268,13 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 	}
 	if req.Interval != "" {
 		qp.Add("interval", string(req.Interval))
+	}
+	if len(req.Sections) > 0 {
+		var sections []string
+		for _, sec := range req.Sections {
+			sections = append(sections, string(sec))
+		}
+		qp.Add("sections", strings.Join(sections, ","))
 	}
 
 	reqURL := fmt.Sprintf("/api/v2/insights/templates?%s", qp.Encode())
