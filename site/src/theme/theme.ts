@@ -1,5 +1,5 @@
 import { colors } from "./colors";
-import { ThemeOptions, createTheme, Theme } from "@mui/material/styles";
+import { createTheme, type ThemeOptions } from "@mui/material/styles";
 import { BODY_FONT_FAMILY, borderRadius } from "./constants";
 
 // MUI does not have aligned heights for buttons and inputs so we have to "hack" it a little bit

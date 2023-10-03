@@ -1,4 +1,3 @@
-import { type PaletteColor } from "@mui/material/styles";
 import { type FC, type ReactNode, useMemo } from "react";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { colors } from "theme/colors";
@@ -38,7 +37,7 @@ const themeOverrides = {
 
 const themeStyles =
   (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
-    const palette = theme.palette[type] as PaletteColor;
+    const palette = theme.palette[type];
     return {
       backgroundColor: palette.dark,
       borderColor: lightBorder ? palette.light : palette.main,
