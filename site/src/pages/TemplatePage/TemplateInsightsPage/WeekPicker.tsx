@@ -9,7 +9,9 @@ import { DateRangeValue } from "./DateRange";
 import { differenceInWeeks } from "date-fns";
 import { lastWeeks } from "./utils";
 
-export const numberOfWeeksOptions = [4, 12, 24, 48] as const;
+// There is no point in showing the period > 6 months. We prune stats older than
+// 6 months.
+export const numberOfWeeksOptions = [4, 12, 24] as const;
 
 export const WeekPicker = ({
   value,
