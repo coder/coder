@@ -215,12 +215,10 @@ const ActiveUsersPanel = ({
         {data && data.length > 0 && (
           <ActiveUserChart
             interval={interval}
-            data={data.map((d) => {
-              return {
-                amount: d.active_users,
-                date: d.start_time,
-              };
-            })}
+            data={data.map((d) => ({
+              amount: d.active_users,
+              date: d.start_time,
+            }))}
           />
         )}
       </PanelContent>
