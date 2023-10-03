@@ -6,7 +6,7 @@ import {
   CloseDropdown,
   OpenDropdown,
 } from "components/DropdownArrows/DropdownArrows";
-import { Pill } from "components/Pill/Pill";
+import { Pill, type PillType } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
@@ -14,10 +14,9 @@ import { useState } from "react";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
-import { PaletteIndex } from "theme/theme";
 import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
 
-const httpStatusColor = (httpStatus: number): PaletteIndex => {
+const httpStatusColor = (httpStatus: number): PillType => {
   // redirects are successful
   if (httpStatus === 307) {
     return "success";
