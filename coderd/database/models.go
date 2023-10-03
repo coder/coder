@@ -1857,7 +1857,7 @@ type TemplateVersionTable struct {
 	Readme         string        `db:"readme" json:"readme"`
 	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
 	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
-	// IDs of Git auth providers for a specific template version
+	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
 	Message string `db:"message" json:"message"`

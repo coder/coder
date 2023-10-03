@@ -620,7 +620,7 @@
 
 _None_
 
-## clibase.Struct-array_codersdk_GitAuthConfig
+## clibase.Struct-array_codersdk_ExternalAuthConfig
 
 ```json
 {
@@ -632,6 +632,8 @@ _None_
       "client_id": "string",
       "device_code_url": "string",
       "device_flow": true,
+      "display_icon": "string",
+      "display_name": "string",
       "id": "string",
       "no_refresh": true,
       "regex": "string",
@@ -646,9 +648,9 @@ _None_
 
 ### Properties
 
-| Name    | Type                                                      | Required | Restrictions | Description |
-| ------- | --------------------------------------------------------- | -------- | ------------ | ----------- |
-| `value` | array of [codersdk.GitAuthConfig](#codersdkgitauthconfig) | false    |              |             |
+| Name    | Type                                                                | Required | Restrictions | Description |
+| ------- | ------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `value` | array of [codersdk.ExternalAuthConfig](#codersdkexternalauthconfig) | false    |              |             |
 
 ## clibase.Struct-array_codersdk_LinkConfig
 
@@ -2043,8 +2045,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
-    "external_token_encryption_keys": ["string"],
-    "git_auth": {
+    "external_auth": {
       "value": [
         {
           "app_install_url": "string",
@@ -2053,6 +2054,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "client_id": "string",
           "device_code_url": "string",
           "device_flow": true,
+          "display_icon": "string",
+          "display_name": "string",
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -2063,6 +2066,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         }
       ]
     },
+    "external_token_encryption_keys": ["string"],
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -2408,8 +2412,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "enable_terraform_debug_mode": true,
   "experiments": ["string"],
-  "external_token_encryption_keys": ["string"],
-  "git_auth": {
+  "external_auth": {
     "value": [
       {
         "app_install_url": "string",
@@ -2418,6 +2421,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "client_id": "string",
         "device_code_url": "string",
         "device_flow": true,
+        "display_icon": "string",
+        "display_name": "string",
         "id": "string",
         "no_refresh": true,
         "regex": "string",
@@ -2428,6 +2433,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       }
     ]
   },
+  "external_token_encryption_keys": ["string"],
   "http_address": "string",
   "in_memory_database": true,
   "job_hang_detector_interval": 0,
@@ -2602,62 +2608,62 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                                 | Type                                                                                       | Required | Restrictions | Description                                                        |
-| ------------------------------------ | ------------------------------------------------------------------------------------------ | -------- | ------------ | ------------------------------------------------------------------ |
-| `access_url`                         | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
-| `address`                            | [clibase.HostPort](#clibasehostport)                                                       | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
-| `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
-| `agent_stat_refresh_interval`        | integer                                                                                    | false    |              |                                                                    |
-| `autobuild_poll_interval`            | integer                                                                                    | false    |              |                                                                    |
-| `browser_only`                       | boolean                                                                                    | false    |              |                                                                    |
-| `cache_directory`                    | string                                                                                     | false    |              |                                                                    |
-| `config`                             | string                                                                                     | false    |              |                                                                    |
-| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                   | false    |              |                                                                    |
-| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                       | false    |              |                                                                    |
-| `derp`                               | [codersdk.DERP](#codersdkderp)                                                             | false    |              |                                                                    |
-| `disable_owner_workspace_exec`       | boolean                                                                                    | false    |              |                                                                    |
-| `disable_password_auth`              | boolean                                                                                    | false    |              |                                                                    |
-| `disable_path_apps`                  | boolean                                                                                    | false    |              |                                                                    |
-| `disable_session_expiry_refresh`     | boolean                                                                                    | false    |              |                                                                    |
-| `docs_url`                           | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
-| `enable_terraform_debug_mode`        | boolean                                                                                    | false    |              |                                                                    |
-| `experiments`                        | array of string                                                                            | false    |              |                                                                    |
-| `external_token_encryption_keys`     | array of string                                                                            | false    |              |                                                                    |
-| `git_auth`                           | [clibase.Struct-array_codersdk_GitAuthConfig](#clibasestruct-array_codersdk_gitauthconfig) | false    |              |                                                                    |
-| `http_address`                       | string                                                                                     | false    |              | Http address is a string because it may be set to zero to disable. |
-| `in_memory_database`                 | boolean                                                                                    | false    |              |                                                                    |
-| `job_hang_detector_interval`         | integer                                                                                    | false    |              |                                                                    |
-| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                           | false    |              |                                                                    |
-| `max_session_expiry`                 | integer                                                                                    | false    |              |                                                                    |
-| `max_token_lifetime`                 | integer                                                                                    | false    |              |                                                                    |
-| `metrics_cache_refresh_interval`     | integer                                                                                    | false    |              |                                                                    |
-| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                             | false    |              |                                                                    |
-| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                 | false    |              |                                                                    |
-| `pg_connection_url`                  | string                                                                                     | false    |              |                                                                    |
-| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                               | false    |              |                                                                    |
-| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                     | false    |              |                                                                    |
-| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                   | false    |              |                                                                    |
-| `proxy_health_status_interval`       | integer                                                                                    | false    |              |                                                                    |
-| `proxy_trusted_headers`              | array of string                                                                            | false    |              |                                                                    |
-| `proxy_trusted_origins`              | array of string                                                                            | false    |              |                                                                    |
-| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                       | false    |              |                                                                    |
-| `redirect_to_access_url`             | boolean                                                                                    | false    |              |                                                                    |
-| `scim_api_key`                       | string                                                                                     | false    |              |                                                                    |
-| `secure_auth_cookie`                 | boolean                                                                                    | false    |              |                                                                    |
-| `ssh_keygen_algorithm`               | string                                                                                     | false    |              |                                                                    |
-| `strict_transport_security`          | integer                                                                                    | false    |              |                                                                    |
-| `strict_transport_security_options`  | array of string                                                                            | false    |              |                                                                    |
-| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                           | false    |              |                                                                    |
-| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                           | false    |              |                                                                    |
-| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                       | false    |              |                                                                    |
-| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                   | false    |              |                                                                    |
-| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                               | false    |              |                                                                    |
-| `update_check`                       | boolean                                                                                    | false    |              |                                                                    |
-| `user_quiet_hours_schedule`          | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)             | false    |              |                                                                    |
-| `verbose`                            | boolean                                                                                    | false    |              |                                                                    |
-| `wgtunnel_host`                      | string                                                                                     | false    |              |                                                                    |
-| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                 | false    |              |                                                                    |
-| `write_config`                       | boolean                                                                                    | false    |              |                                                                    |
+| Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
+| `access_url`                         | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `address`                            | [clibase.HostPort](#clibasehostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
+| `agent_fallback_troubleshooting_url` | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
+| `autobuild_poll_interval`            | integer                                                                                              | false    |              |                                                                    |
+| `browser_only`                       | boolean                                                                                              | false    |              |                                                                    |
+| `cache_directory`                    | string                                                                                               | false    |              |                                                                    |
+| `config`                             | string                                                                                               | false    |              |                                                                    |
+| `config_ssh`                         | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
+| `dangerous`                          | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
+| `derp`                               | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
+| `disable_owner_workspace_exec`       | boolean                                                                                              | false    |              |                                                                    |
+| `disable_password_auth`              | boolean                                                                                              | false    |              |                                                                    |
+| `disable_path_apps`                  | boolean                                                                                              | false    |              |                                                                    |
+| `disable_session_expiry_refresh`     | boolean                                                                                              | false    |              |                                                                    |
+| `docs_url`                           | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `enable_terraform_debug_mode`        | boolean                                                                                              | false    |              |                                                                    |
+| `experiments`                        | array of string                                                                                      | false    |              |                                                                    |
+| `external_auth`                      | [clibase.Struct-array_codersdk_ExternalAuthConfig](#clibasestruct-array_codersdk_externalauthconfig) | false    |              |                                                                    |
+| `external_token_encryption_keys`     | array of string                                                                                      | false    |              |                                                                    |
+| `http_address`                       | string                                                                                               | false    |              | Http address is a string because it may be set to zero to disable. |
+| `in_memory_database`                 | boolean                                                                                              | false    |              |                                                                    |
+| `job_hang_detector_interval`         | integer                                                                                              | false    |              |                                                                    |
+| `logging`                            | [codersdk.LoggingConfig](#codersdkloggingconfig)                                                     | false    |              |                                                                    |
+| `max_session_expiry`                 | integer                                                                                              | false    |              |                                                                    |
+| `max_token_lifetime`                 | integer                                                                                              | false    |              |                                                                    |
+| `metrics_cache_refresh_interval`     | integer                                                                                              | false    |              |                                                                    |
+| `oauth2`                             | [codersdk.OAuth2Config](#codersdkoauth2config)                                                       | false    |              |                                                                    |
+| `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
+| `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
+| `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
+| `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
+| `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |
+| `proxy_health_status_interval`       | integer                                                                                              | false    |              |                                                                    |
+| `proxy_trusted_headers`              | array of string                                                                                      | false    |              |                                                                    |
+| `proxy_trusted_origins`              | array of string                                                                                      | false    |              |                                                                    |
+| `rate_limit`                         | [codersdk.RateLimitConfig](#codersdkratelimitconfig)                                                 | false    |              |                                                                    |
+| `redirect_to_access_url`             | boolean                                                                                              | false    |              |                                                                    |
+| `scim_api_key`                       | string                                                                                               | false    |              |                                                                    |
+| `secure_auth_cookie`                 | boolean                                                                                              | false    |              |                                                                    |
+| `ssh_keygen_algorithm`               | string                                                                                               | false    |              |                                                                    |
+| `strict_transport_security`          | integer                                                                                              | false    |              |                                                                    |
+| `strict_transport_security_options`  | array of string                                                                                      | false    |              |                                                                    |
+| `support`                            | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
+| `swagger`                            | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
+| `telemetry`                          | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
+| `tls`                                | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
+| `trace`                              | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
+| `update_check`                       | boolean                                                                                              | false    |              |                                                                    |
+| `user_quiet_hours_schedule`          | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)                       | false    |              |                                                                    |
+| `verbose`                            | boolean                                                                                              | false    |              |                                                                    |
+| `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
+| `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
+| `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
 
 ## codersdk.DisplayApp
 
@@ -2760,6 +2766,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "app_installable": true,
   "authenticated": true,
   "device": true,
+  "display_name": "string",
   "installations": [
     {
       "account": {
@@ -2772,7 +2779,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "id": 0
     }
   ],
-  "type": "string",
   "user": {
     "avatar_url": "string",
     "login": "string",
@@ -2790,8 +2796,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `app_installable` | boolean                                                                               | false    |              | App installable is true if the request for app installs was successful. |
 | `authenticated`   | boolean                                                                               | false    |              |                                                                         |
 | `device`          | boolean                                                                               | false    |              |                                                                         |
+| `display_name`    | string                                                                                | false    |              |                                                                         |
 | `installations`   | array of [codersdk.ExternalAuthAppInstallation](#codersdkexternalauthappinstallation) | false    |              | Installations are the installations that the user has access to.        |
-| `type`            | string                                                                                | false    |              |                                                                         |
 | `user`            | [codersdk.ExternalAuthUser](#codersdkexternalauthuser)                                | false    |              | User is the user that authenticated with the provider.                  |
 
 ## codersdk.ExternalAuthAppInstallation
@@ -2817,6 +2823,49 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `configure_url` | string                                                 | false    |              |             |
 | `id`            | integer                                                | false    |              |             |
 
+## codersdk.ExternalAuthConfig
+
+```json
+{
+  "app_install_url": "string",
+  "app_installations_url": "string",
+  "auth_url": "string",
+  "client_id": "string",
+  "device_code_url": "string",
+  "device_flow": true,
+  "display_icon": "string",
+  "display_name": "string",
+  "id": "string",
+  "no_refresh": true,
+  "regex": "string",
+  "scopes": ["string"],
+  "token_url": "string",
+  "type": "string",
+  "validate_url": "string"
+}
+```
+
+### Properties
+
+| Name                                                                                                                                                     | Type            | Required | Restrictions | Description                                                                                               |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------- |
+| `app_install_url`                                                                                                                                        | string          | false    |              |                                                                                                           |
+| `app_installations_url`                                                                                                                                  | string          | false    |              |                                                                                                           |
+| `auth_url`                                                                                                                                               | string          | false    |              |                                                                                                           |
+| `client_id`                                                                                                                                              | string          | false    |              |                                                                                                           |
+| `device_code_url`                                                                                                                                        | string          | false    |              |                                                                                                           |
+| `device_flow`                                                                                                                                            | boolean         | false    |              |                                                                                                           |
+| `display_icon`                                                                                                                                           | string          | false    |              | Display icon is a URL to an icon to display in the UI.                                                    |
+| `display_name`                                                                                                                                           | string          | false    |              | Display name is shown in the UI to identify the auth config.                                              |
+| `id`                                                                                                                                                     | string          | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided.                   |
+| `no_refresh`                                                                                                                                             | boolean         | false    |              |                                                                                                           |
+| `regex`                                                                                                                                                  | string          | false    |              | Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type. |
+| Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex. |
+| `scopes`                                                                                                                                                 | array of string | false    |              |                                                                                                           |
+| `token_url`                                                                                                                                              | string          | false    |              |                                                                                                           |
+| `type`                                                                                                                                                   | string          | false    |              | Type is the type of external auth config.                                                                 |
+| `validate_url`                                                                                                                                           | string          | false    |              |                                                                                                           |
+
 ## codersdk.ExternalAuthDevice
 
 ```json
@@ -2838,24 +2887,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `interval`         | integer | false    |              |             |
 | `user_code`        | string  | false    |              |             |
 | `verification_uri` | string  | false    |              |             |
-
-## codersdk.ExternalAuthProvider
-
-```json
-"azure-devops"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value            |
-| ---------------- |
-| `azure-devops`   |
-| `github`         |
-| `gitlab`         |
-| `bitbucket`      |
-| `openid-connect` |
 
 ## codersdk.ExternalAuthUser
 
@@ -2944,44 +2975,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | ------- | --------------------------------------- | -------- | ------------ | ----------- |
 | `count` | integer                                 | false    |              |             |
 | `users` | array of [codersdk.User](#codersdkuser) | false    |              |             |
-
-## codersdk.GitAuthConfig
-
-```json
-{
-  "app_install_url": "string",
-  "app_installations_url": "string",
-  "auth_url": "string",
-  "client_id": "string",
-  "device_code_url": "string",
-  "device_flow": true,
-  "id": "string",
-  "no_refresh": true,
-  "regex": "string",
-  "scopes": ["string"],
-  "token_url": "string",
-  "type": "string",
-  "validate_url": "string"
-}
-```
-
-### Properties
-
-| Name                    | Type            | Required | Restrictions | Description |
-| ----------------------- | --------------- | -------- | ------------ | ----------- |
-| `app_install_url`       | string          | false    |              |             |
-| `app_installations_url` | string          | false    |              |             |
-| `auth_url`              | string          | false    |              |             |
-| `client_id`             | string          | false    |              |             |
-| `device_code_url`       | string          | false    |              |             |
-| `device_flow`           | boolean         | false    |              |             |
-| `id`                    | string          | false    |              |             |
-| `no_refresh`            | boolean         | false    |              |             |
-| `regex`                 | string          | false    |              |             |
-| `scopes`                | array of string | false    |              |             |
-| `token_url`             | string          | false    |              |             |
-| `type`                  | string          | false    |              |             |
-| `validate_url`          | string          | false    |              |             |
 
 ## codersdk.GitSSHKey
 
@@ -4741,19 +4734,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "authenticate_url": "string",
   "authenticated": true,
+  "display_icon": "string",
+  "display_name": "string",
   "id": "string",
-  "type": "azure-devops"
+  "type": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `authenticate_url` | string                                                         | false    |              |             |
-| `authenticated`    | boolean                                                        | false    |              |             |
-| `id`               | string                                                         | false    |              |             |
-| `type`             | [codersdk.ExternalAuthProvider](#codersdkexternalauthprovider) | false    |              |             |
+| Name               | Type    | Required | Restrictions | Description |
+| ------------------ | ------- | -------- | ------------ | ----------- |
+| `authenticate_url` | string  | false    |              |             |
+| `authenticated`    | boolean | false    |              |             |
+| `display_icon`     | string  | false    |              |             |
+| `display_name`     | string  | false    |              |             |
+| `id`               | string  | false    |              |             |
+| `type`             | string  | false    |              |             |
 
 ## codersdk.TemplateVersionParameter
 

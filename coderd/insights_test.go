@@ -1135,6 +1135,30 @@ func TestTemplateInsights_Golden(t *testing.T) {
 						}
 					},
 				},
+				{
+					name: "three weeks second template only report",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
+							Sections:    []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionReport},
+						}
+					},
+				},
+				{
+					name: "three weeks second template only interval reports",
+					makeRequest: func(templates []*testTemplate) codersdk.TemplateInsightsRequest {
+						return codersdk.TemplateInsightsRequest{
+							TemplateIDs: []uuid.UUID{templates[1].id},
+							StartTime:   frozenWeekAgo.AddDate(0, 0, -14),
+							EndTime:     frozenWeekAgo.AddDate(0, 0, 7),
+							Interval:    codersdk.InsightsReportIntervalWeek,
+							Sections:    []codersdk.TemplateInsightsSection{codersdk.TemplateInsightsSectionIntervalReports},
+						}
+					},
+				},
 			},
 		},
 		{
@@ -2049,6 +2073,14 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		Interval:  codersdk.InsightsReportIntervalWeek,
 	})
 	assert.Error(t, err, "last report interval must have at least 6 days")
+
+	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
+		StartTime: today.AddDate(0, 0, -1),
+		EndTime:   today,
+		Interval:  codersdk.InsightsReportIntervalWeek,
+		Sections:  []codersdk.TemplateInsightsSection{"invalid"},
+	})
+	assert.Error(t, err, "want error for bad section")
 }
 
 func TestTemplateInsights_RBAC(t *testing.T) {

@@ -20,7 +20,6 @@ ARCH="$(arch)"
 if [[ "$ARCH" == "x86_64" ]]; then
 	ARCH="amd64"
 fi
-PLATFORM="$(uname | tr '[:upper:]' '[:lower:]')"
 
 if [[ -f "${CONFIG_DIR}/coder.env" ]]; then
 	echo "Found existing coder.env in ${CONFIG_DIR}!"
@@ -29,8 +28,20 @@ if [[ -f "${CONFIG_DIR}/coder.env" ]]; then
 fi
 
 maybedryrun "$DRY_RUN" mkdir -p "${CONFIG_DIR}"
-echo "Fetching Coder CLI for first-time setup!"
-maybedryrun "$DRY_RUN" curl -fsSLk "${CODER_URL}/bin/coder-${PLATFORM}-${ARCH}" -o "${CONFIG_DIR}/coder"
+echo "Fetching Coder for first-time setup!"
+pod=$(kubectl get pods \
+	--namespace="${NAMESPACE}" \
+	--selector="app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+	--output="jsonpath='{.items[0].metadata.name}'")
+if [[ -z ${pod} ]]; then
+	log "Could not find coder pod!"
+	exit 1
+fi
+maybedryrun "$DRY_RUN" kubectl \
+	--namespace="${NAMESPACE}" \
+	cp \
+	--container=coder \
+	"${pod}:/opt/coder" "${CONFIG_DIR}/coder"
 maybedryrun "$DRY_RUN" chmod +x "${CONFIG_DIR}/coder"
 
 set +o pipefail

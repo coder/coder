@@ -1806,12 +1806,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/externalauth \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/external-auth \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/externalauth`
+`GET /templateversions/{templateversion}/external-auth`
 
 ### Parameters
 
@@ -1828,8 +1828,10 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
   {
     "authenticate_url": "string",
     "authenticated": true,
+    "display_icon": "string",
+    "display_name": "string",
     "id": "string",
-    "type": "azure-devops"
+    "type": "string"
   }
 ]
 ```
@@ -1844,23 +1846,15 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/e
 
 Status Code **200**
 
-| Name                 | Type                                                                     | Required | Restrictions | Description |
-| -------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`       | array                                                                    | false    |              |             |
-| `» authenticate_url` | string                                                                   | false    |              |             |
-| `» authenticated`    | boolean                                                                  | false    |              |             |
-| `» id`               | string                                                                   | false    |              |             |
-| `» type`             | [codersdk.ExternalAuthProvider](schemas.md#codersdkexternalauthprovider) | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value            |
-| -------- | ---------------- |
-| `type`   | `azure-devops`   |
-| `type`   | `github`         |
-| `type`   | `gitlab`         |
-| `type`   | `bitbucket`      |
-| `type`   | `openid-connect` |
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]`       | array   | false    |              |             |
+| `» authenticate_url` | string  | false    |              |             |
+| `» authenticated`    | boolean | false    |              |             |
+| `» display_icon`     | string  | false    |              |             |
+| `» display_name`     | string  | false    |              |             |
+| `» id`               | string  | false    |              |             |
+| `» type`             | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -154,6 +154,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Diff:             diff,
 		StatusCode:       http.StatusOK,
 		AdditionalFields: params.AdditionalFields,
+		RequestID:        uuid.Nil, // no request ID to attach this to
+		ResourceIcon:     "",
+		OrganizationID:   uuid.New(),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

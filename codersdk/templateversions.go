@@ -34,10 +34,12 @@ type TemplateVersion struct {
 }
 
 type TemplateVersionExternalAuth struct {
-	ID              string               `json:"id"`
-	Type            ExternalAuthProvider `json:"type"`
-	AuthenticateURL string               `json:"authenticate_url"`
-	Authenticated   bool                 `json:"authenticated"`
+	ID              string `json:"id"`
+	Type            string `json:"type"`
+	DisplayName     string `json:"display_name"`
+	DisplayIcon     string `json:"display_icon"`
+	AuthenticateURL string `json:"authenticate_url"`
+	Authenticated   bool   `json:"authenticated"`
 }
 
 type ValidationMonotonicOrder string
@@ -134,7 +136,7 @@ func (c *Client) TemplateVersionRichParameters(ctx context.Context, version uuid
 
 // TemplateVersionExternalAuth returns authentication providers for the requested template version.
 func (c *Client) TemplateVersionExternalAuth(ctx context.Context, version uuid.UUID) ([]TemplateVersionExternalAuth, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/externalauth", version), nil)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/external-auth", version), nil)
 	if err != nil {
 		return nil, err
 	}

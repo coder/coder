@@ -112,7 +112,7 @@ export const handlers = [
     },
   ),
   rest.get(
-    "/api/v2/templateversions/:templateVersionId/externalauth",
+    "/api/v2/templateversions/:templateVersionId/external-auth",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([]));
     },

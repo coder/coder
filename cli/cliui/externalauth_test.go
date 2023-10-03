@@ -15,7 +15,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestGitAuth(t *testing.T) {
+func TestExternalAuth(t *testing.T) {
 	t.Parallel()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -25,12 +25,13 @@ func TestGitAuth(t *testing.T) {
 	cmd := &clibase.Cmd{
 		Handler: func(inv *clibase.Invocation) error {
 			var fetched atomic.Bool
-			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
+			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
 				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					defer fetched.Store(true)
 					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
-						Type:            codersdk.ExternalAuthProviderGitHub,
+						DisplayName:     "GitHub",
+						Type:            codersdk.EnhancedExternalAuthProviderGitHub.String(),
 						Authenticated:   fetched.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github",
 					}}, nil

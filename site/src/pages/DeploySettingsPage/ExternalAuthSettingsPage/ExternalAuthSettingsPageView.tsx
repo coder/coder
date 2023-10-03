@@ -5,27 +5,27 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { DeploymentValues, GitAuthConfig } from "api/typesGenerated";
+import { DeploymentValues, ExternalAuthConfig } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
 import { Header } from "components/DeploySettingsLayout/Header";
 import { docs } from "utils/docs";
 
-export type GitAuthSettingsPageViewProps = {
+export type ExternalAuthSettingsPageViewProps = {
   config: DeploymentValues;
 };
 
-export const GitAuthSettingsPageView = ({
+export const ExternalAuthSettingsPageView = ({
   config,
-}: GitAuthSettingsPageViewProps): JSX.Element => {
+}: ExternalAuthSettingsPageViewProps): JSX.Element => {
   const styles = useStyles();
 
   return (
     <>
       <Header
-        title="Git Authentication"
-        description="Coder integrates with GitHub, GitLab, BitBucket, and Azure Repos to authenticate developers with your Git provider."
-        docsHref={docs("/admin/git-providers")}
+        title="External Authentication"
+        description="Coder integrates with GitHub, GitLab, BitBucket, Azure Repos, and OpenID Connect to authenticate developers with external services."
+        docsHref={docs("/admin/external-auth")}
       />
 
       <video
@@ -33,7 +33,7 @@ export const GitAuthSettingsPageView = ({
         muted
         loop
         playsInline
-        src="/gitauth.mp4"
+        src="/external-auth.mp4"
         style={{
           maxWidth: "100%",
           borderRadius: 4,
@@ -42,7 +42,8 @@ export const GitAuthSettingsPageView = ({
 
       <div className={styles.description}>
         <Alert severity="info" actions={<EnterpriseBadge key="enterprise" />}>
-          Integrating with multiple Git providers is an Enterprise feature.
+          Integrating with multiple External authentication providers is an
+          Enterprise feature.
         </Alert>
       </div>
 
@@ -56,7 +57,8 @@ export const GitAuthSettingsPageView = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {((config.git_auth === null || config.git_auth?.length === 0) && (
+            {((config.external_auth === null ||
+              config.external_auth?.length === 0) && (
               <TableRow>
                 <TableCell colSpan={999}>
                   <div className={styles.empty}>
@@ -65,7 +67,7 @@ export const GitAuthSettingsPageView = ({
                 </TableCell>
               </TableRow>
             )) ||
-              config.git_auth?.map((git: GitAuthConfig) => {
+              config.external_auth?.map((git: ExternalAuthConfig) => {
                 const name = git.id || git.type;
                 return (
                   <TableRow key={name}>

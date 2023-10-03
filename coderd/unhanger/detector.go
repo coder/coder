@@ -273,7 +273,12 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 
 		// Insert the messages into the build log.
 		insertParams := database.InsertProvisionerJobLogsParams{
-			JobID: job.ID,
+			JobID:     job.ID,
+			CreatedAt: nil,
+			Source:    nil,
+			Level:     nil,
+			Stage:     nil,
+			Output:    nil,
 		}
 		now := dbtime.Now()
 		for i, msg := range HungJobLogMessages {

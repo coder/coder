@@ -125,7 +125,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 }
 
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
-	workspace, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -154,9 +154,10 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
 		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
+		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 	})
 	require.NoError(t, err, "insert workspace agent")
-	return workspace
+	return agt
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
@@ -204,6 +205,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			JobID:             takeFirst(orig.JobID, uuid.New()),
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
+			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 		})
 		if err != nil {
@@ -348,6 +350,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           orig.Tags,
+		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -359,6 +362,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 			StartedAt: orig.StartedAt,
 			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
 			Tags:      must(json.Marshal(orig.Tags)),
+			WorkerID:  uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 	}
@@ -460,6 +464,8 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		TokenHashedSecret: hashedSecret[:],
 		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DerpEnabled:       takeFirst(orig.DerpEnabled, false),
+		DerpOnly:          takeFirst(orig.DerpEnabled, false),
 	})
 	require.NoError(t, err, "insert proxy")
 

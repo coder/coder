@@ -263,18 +263,21 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
+		now := dbtime.Now()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
 			context.Background(),
 			database.UpdateProvisionerJobWithCompleteByIDParams{
 				ID: je.job.ID,
 				CompletedAt: sql.NullTime{
-					Time:  dbtime.Now(),
+					Time:  now,
 					Valid: true,
 				},
+				UpdatedAt: now,
 				Error: sql.NullString{
 					String: "connection to provisioner daemon broken",
 					Valid:  true,
 				},
+				ErrorCode: sql.NullString{},
 			})
 		if err != nil {
 			logger.Error(streamCtx, "error updating failed job", slog.Error(err))
@@ -308,6 +311,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				Valid:  true,
 			},
 			ErrorCode: job.ErrorCode,
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
@@ -651,6 +655,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 
 	if len(request.Logs) > 0 {
+		//nolint:exhaustruct // We append to the additional fields below.
 		insertParams := database.InsertProvisionerJobLogsParams{
 			JobID: parsedID,
 		}
@@ -1061,7 +1066,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
-			Error: completedError,
+			Error:     completedError,
+			ErrorCode: sql.NullString{},
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
@@ -1118,6 +1124,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					Time:  dbtime.Now(),
 					Valid: true,
 				},
+				Error:     sql.NullString{},
+				ErrorCode: sql.NullString{},
 			})
 			if err != nil {
 				return xerrors.Errorf("update provisioner job: %w", err)
@@ -1275,6 +1283,8 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				Time:  dbtime.Now(),
 				Valid: true,
 			},
+			Error:     sql.NullString{},
+			ErrorCode: sql.NullString{},
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update provisioner job: %w", err)
@@ -1386,6 +1396,8 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			TroubleshootingURL:       prAgent.GetTroubleshootingUrl(),
 			MOTDFile:                 prAgent.GetMotdFile(),
 			DisplayApps:              convertDisplayApps(prAgent.GetDisplayApps()),
+			InstanceMetadata:         pqtype.NullRawMessage{},
+			ResourceMetadata:         pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent: %w", err)
@@ -1628,11 +1640,13 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig ht
 		link.OAuthExpiry = token.Expiry
 
 		link, err = db.UpdateUserLink(ctx, database.UpdateUserLinkParams{
-			UserID:            userID,
-			LoginType:         database.LoginTypeOIDC,
-			OAuthAccessToken:  link.OAuthAccessToken,
-			OAuthRefreshToken: link.OAuthRefreshToken,
-			OAuthExpiry:       link.OAuthExpiry,
+			UserID:                 userID,
+			LoginType:              database.LoginTypeOIDC,
+			OAuthAccessToken:       link.OAuthAccessToken,
+			OAuthAccessTokenKeyID:  sql.NullString{}, // set by dbcrypt if required
+			OAuthRefreshToken:      link.OAuthRefreshToken,
+			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
+			OAuthExpiry:            link.OAuthExpiry,
 		})
 		if err != nil {
 			return "", xerrors.Errorf("update user link: %w", err)
