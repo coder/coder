@@ -365,9 +365,6 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 			WorkerID:  uuid.NullUUID{},
 		})
 		require.NoError(t, err)
-		if job.ID != jobID {
-			fmt.Println("wtf")
-		}
 		// There is no easy way to make sure we acquire the correct job.
 		require.Equal(t, jobID, job.ID, "acquired incorrect job")
 	}
