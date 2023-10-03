@@ -47,24 +47,6 @@ const (
 	TemplateInsightsSectionReport          TemplateInsightsSection = "report"
 )
 
-// TemplateInsightsSectionAsStrings converts section enums into a slice of strings.
-func TemplateInsightsSectionAsStrings(sections ...TemplateInsightsSection) []string {
-	t := make([]string, len(sections))
-	for i, s := range sections {
-		t[i] = string(s)
-	}
-	return t
-}
-
-// StringsAsTemplateInsightsSections converts a slice of strings into section enums.
-func StringsAsTemplateInsightsSections(sections ...string) []TemplateInsightsSection {
-	t := make([]TemplateInsightsSection, len(sections))
-	for i, s := range sections {
-		t[i] = TemplateInsightsSection(s)
-	}
-	return t
-}
-
 // UserLatencyInsightsResponse is the response from the user latency insights
 // endpoint.
 type UserLatencyInsightsResponse struct {

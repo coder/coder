@@ -257,9 +257,9 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 		endTimeString   = p.String(vals, "", "end_time")
 		intervalString  = p.String(vals, "", "interval")
 		templateIDs     = p.UUIDs(vals, []uuid.UUID{}, "template_ids")
-		sections        = codersdk.StringsAsTemplateInsightsSections(
+		sections        = stringsAsTemplateInsightsSections(
 			p.Strings(vals,
-				codersdk.TemplateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport),
+				templateInsightsSectionAsStrings(codersdk.TemplateInsightsSectionIntervalReports, codersdk.TemplateInsightsSectionReport),
 				"sections")...)
 	)
 	p.ErrorExcessParams(vals)
@@ -673,4 +673,20 @@ func lastReportIntervalHasAtLeastSixDays(startTime, endTime time.Time) bool {
 	// Ensure that the last interval has at least 6 days, or check the special case, forward DST change,
 	// when the duration can be shorter than 6 days: 5 days 23 hours.
 	return lastReportIntervalDays >= 6*24*time.Hour || startTime.AddDate(0, 0, 6).Equal(endTime)
+}
+
+func templateInsightsSectionAsStrings(sections ...codersdk.TemplateInsightsSection) []string {
+	t := make([]string, len(sections))
+	for i, s := range sections {
+		t[i] = string(s)
+	}
+	return t
+}
+
+func stringsAsTemplateInsightsSections(sections ...string) []codersdk.TemplateInsightsSection {
+	t := make([]codersdk.TemplateInsightsSection, len(sections))
+	for i, s := range sections {
+		t[i] = codersdk.TemplateInsightsSection(s)
+	}
+	return t
 }
