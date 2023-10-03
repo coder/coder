@@ -3,8 +3,10 @@ import Box from "@mui/material/Box";
 import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
 import { useQuery } from "@tanstack/react-query";
-import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
-import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
+import {
+  ActiveUsersTitle,
+  ActiveUserChart,
+} from "components/ActiveUserChart/ActiveUserChart";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
@@ -19,49 +21,53 @@ import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
-  DAUsResponse,
+  Template,
   TemplateAppUsage,
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { ComponentProps, ReactNode, useState } from "react";
-import { subDays, isToday } from "date-fns";
+import { ComponentProps, ReactNode } from "react";
+import { subDays, addWeeks } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { DateRange, DateRangeValue } from "./DateRange";
+import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
 import Link from "@mui/material/Link";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import { getDateRangeFilter } from "./utils";
+import { getDateRangeFilter, lastWeeks } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
+import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
+import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
+import { insightsTemplate, insightsUserLatency } from "api/queries/insights";
+import { useSearchParams } from "react-router-dom";
+
+const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
 export default function TemplateInsightsPage() {
-  const now = new Date();
-  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
-    startDate: subDays(now, 6),
-    endDate: now,
-  });
   const { template } = useTemplateLayoutContext();
-  const insightsFilter = {
-    template_ids: template.id,
-    ...getDateRangeFilter({
-      startDate: dateRangeValue.startDate,
-      endDate: dateRangeValue.endDate,
-      now,
-      isToday,
-    }),
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const defaultInterval = getDefaultInterval(template);
+  const interval =
+    (searchParams.get("interval") as InsightsInterval) || defaultInterval;
+
+  const dateRange = getDateRange(searchParams, interval);
+  const setDateRange = (newDateRange: DateRangeValue) => {
+    searchParams.set("startDate", newDateRange.startDate.toISOString());
+    searchParams.set("endDate", newDateRange.endDate.toISOString());
+    setSearchParams(searchParams);
   };
-  const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage", insightsFilter],
-    queryFn: () => getInsightsTemplate(insightsFilter),
-  });
-  const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency", insightsFilter],
-    queryFn: () => getInsightsUserLatency(insightsFilter),
-  });
+
+  const commonFilters = {
+    template_ids: template.id,
+    ...getDateRangeFilter(dateRange),
+  };
+  const insightsFilter = { ...commonFilters, interval };
+  const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
+  const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
 
   return (
     <>
@@ -69,28 +75,88 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
-        dateRange={
-          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        controls={
+          <>
+            <IntervalMenu
+              value={interval}
+              onChange={(interval) => {
+                // When going from daily to week we need to set a safe week range
+                if (interval === "week") {
+                  setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
+                }
+                searchParams.set("interval", interval);
+                setSearchParams(searchParams);
+              }}
+            />
+            {interval === "day" ? (
+              <DailyPicker value={dateRange} onChange={setDateRange} />
+            ) : (
+              <WeekPicker value={dateRange} onChange={setDateRange} />
+            )}
+          </>
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
+        interval={interval}
       />
     </>
   );
 }
 
+const getDefaultInterval = (template: Template) => {
+  const now = new Date();
+  const templateCreateDate = new Date(template.created_at);
+  const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+  return hasFiveWeeksOrMore ? "week" : "day";
+};
+
+const getDateRange = (
+  searchParams: URLSearchParams,
+  interval: InsightsInterval,
+) => {
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+
+  if (startDate && endDate) {
+    return {
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+    };
+  }
+
+  if (interval === "day") {
+    return {
+      startDate: subDays(new Date(), 6),
+      endDate: new Date(),
+    };
+  }
+
+  return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
+};
+
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
-  dateRange,
+  controls,
+  interval,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
-  dateRange: ReactNode;
+  controls: ReactNode;
+  interval: InsightsInterval;
 }) => {
   return (
     <>
-      <Box sx={{ mb: 4 }}>{dateRange}</Box>
+      <Box
+        css={(theme) => ({
+          marginBottom: theme.spacing(4),
+          display: "flex",
+          alignItems: "center",
+          gap: theme.spacing(1),
+        })}
+      >
+        {controls}
+      </Box>
       <Box
         sx={{
           display: "grid",
@@ -99,8 +165,9 @@ export const TemplateInsightsPageView = ({
           gap: (theme) => theme.spacing(3),
         }}
       >
-        <DailyUsersPanel
+        <ActiveUsersPanel
           sx={{ gridColumn: "span 2" }}
+          interval={interval}
           data={templateInsights?.interval_reports}
         />
         <UserLatencyPanel data={userLatency} />
@@ -117,23 +184,33 @@ export const TemplateInsightsPageView = ({
   );
 };
 
-const DailyUsersPanel = ({
+const ActiveUsersPanel = ({
   data,
+  interval,
   ...panelProps
 }: PanelProps & {
   data: TemplateInsightsResponse["interval_reports"] | undefined;
+  interval: InsightsInterval;
 }) => {
   return (
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>
-          <DAUTitle />
+          <ActiveUsersTitle />
         </PanelTitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
         {data && data.length === 0 && <NoDataAvailable />}
-        {data && data.length > 0 && <DAUChart daus={mapToDAUsResponse(data)} />}
+        {data && data.length > 0 && (
+          <ActiveUserChart
+            interval={interval}
+            data={data.map((d) => ({
+              amount: d.active_users,
+              date: d.start_time,
+            }))}
+          />
+        )}
       </PanelContent>
     </Panel>
   );
@@ -583,22 +660,6 @@ const TextValue = ({ children }: { children: ReactNode }) => {
     </Box>
   );
 };
-
-function mapToDAUsResponse(
-  data: TemplateInsightsResponse["interval_reports"],
-): DAUsResponse {
-  return {
-    tz_hour_offset: 0,
-    entries: data
-      ? data.map((d) => {
-          return {
-            amount: d.active_users,
-            date: d.start_time,
-          };
-        })
-      : [],
-  };
-}
 
 function formatTime(seconds: number): string {
   if (seconds < 60) {

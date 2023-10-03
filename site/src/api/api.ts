@@ -1474,28 +1474,31 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
   };
 };
 
-type InsightsFilter = {
+export type InsightsParams = {
   start_time: string;
   end_time: string;
   template_ids: string;
 };
 
 export const getInsightsUserLatency = async (
-  filters: InsightsFilter,
+  filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/user-latency?${params}`);
   return response.data;
 };
 
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
 export const getInsightsTemplate = async (
-  filters: InsightsFilter,
+  params: InsightsTemplateParams,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams({
-    ...filters,
-    interval: "day",
-  });
-  const response = await axios.get(`/api/v2/insights/templates?${params}`);
+  const searchParams = new URLSearchParams(params);
+  const response = await axios.get(
+    `/api/v2/insights/templates?${searchParams}`,
+  );
   return response.data;
 };
 
