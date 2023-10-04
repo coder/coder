@@ -206,6 +206,26 @@ func TestOptionSet_ParseEnv(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, expected, actual.Value)
 	})
+
+	t.Run("Homebrew", func(t *testing.T) {
+		t.Parallel()
+
+		var agentToken clibase.String
+
+		os := clibase.OptionSet{
+			clibase.Option{
+				Name:  "Agent Token",
+				Value: &agentToken,
+				Env:   "AGENT_TOKEN",
+			},
+		}
+
+		err := os.ParseEnv([]clibase.EnvVar{
+			{Name: "HOMEBREW_AGENT_TOKEN", Value: "foo"},
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, "foo", agentToken)
+	})
 }
 
 func TestOptionSet_JsonMarshal(t *testing.T) {
