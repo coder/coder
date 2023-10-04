@@ -159,6 +159,9 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			},
 		),
 		Handler: func(i *clibase.Invocation) error {
+			if r.versionFlag {
+				return r.version(defaultVersionInfo).Handler(i)
+			}
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
 			// cross-platform scripts to invoke the Coder binary
@@ -407,6 +410,15 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Value:       clibase.StringOf(&r.globalConfig),
 			Group:       globalGroup,
 		},
+		{
+			Flag: "version",
+			// This was requested by a customer to assist with their migration.
+			// They have two Coder CLIs, and want to tell the difference by running
+			// the same base command.
+			Description: "Run the version command. Useful for v1 customers migrating to v2.",
+			Value:       clibase.BoolOf(&r.versionFlag),
+			Hidden:      true,
+		},
 	}
 
 	err := cmd.PrepareAll()
@@ -444,6 +456,7 @@ type RootCmd struct {
 	forceTTY      bool
 	noOpen        bool
 	verbose       bool
+	versionFlag   bool
 	disableDirect bool
 	debugHTTP     bool
 
