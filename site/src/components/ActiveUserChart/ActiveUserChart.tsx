@@ -1,7 +1,6 @@
 import Box from "@mui/material/Box";
 import { Theme } from "@mui/material/styles";
 import useTheme from "@mui/styles/useTheme";
-import * as TypesGen from "api/typesGenerated";
 import {
   CategoryScale,
   Chart as ChartJS,
@@ -38,20 +37,19 @@ ChartJS.register(
   Legend,
 );
 
-export interface DAUChartProps {
-  daus: TypesGen.DAUsResponse;
+export interface ActiveUserChartProps {
+  data: { date: string; amount: number }[];
+  interval: "day" | "week";
 }
 
-export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
+export const ActiveUserChart: FC<ActiveUserChartProps> = ({
+  data,
+  interval,
+}) => {
   const theme: Theme = useTheme();
 
-  const labels = daus.entries.map((val) => {
-    return dayjs(val.date).format("YYYY-MM-DD");
-  });
-
-  const data = daus.entries.map((val) => {
-    return val.amount;
-  });
+  const labels = data.map((val) => dayjs(val.date).format("YYYY-MM-DD"));
+  const chartData = data.map((val) => val.amount);
 
   defaults.font.family = theme.typography.fontFamily as string;
   defaults.color = theme.palette.text.secondary;
@@ -82,11 +80,11 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
 
       x: {
         ticks: {
-          stepSize: daus.entries.length > 10 ? 2 : undefined,
+          stepSize: data.length > 10 ? 2 : undefined,
         },
         type: "time",
         time: {
-          unit: "day",
+          unit: interval,
         },
       },
     },
@@ -101,7 +99,7 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
         datasets: [
           {
             label: "Daily Active Users",
-            data: data,
+            data: chartData,
             pointBackgroundColor: theme.palette.info.light,
             pointBorderColor: theme.palette.info.light,
             borderColor: theme.palette.info.light,
@@ -115,17 +113,15 @@ export const DAUChart: FC<DAUChartProps> = ({ daus }) => {
   );
 };
 
-export const DAUTitle = () => {
+export const ActiveUsersTitle = () => {
   return (
     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-      Daily Active Users
+      Active Users
       <HelpTooltip size="small">
-        <HelpTooltipTitle>
-          How do we calculate daily active users?
-        </HelpTooltipTitle>
+        <HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
         <HelpTooltipText>
           When a connection is initiated to a user&apos;s workspace they are
-          considered a daily active user. e.g. apps, web terminal, SSH
+          considered an active user. e.g. apps, web terminal, SSH
         </HelpTooltipText>
       </HelpTooltip>
     </Box>

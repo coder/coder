@@ -1,7 +1,10 @@
 import Box from "@mui/material/Box";
 import { ClibaseOption, DAUsResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
+import {
+  ActiveUserChart,
+  ActiveUsersTitle,
+} from "components/ActiveUserChart/ActiveUserChart";
 import { Header } from "components/DeploySettingsLayout/Header";
 import OptionsTable from "components/DeploySettingsLayout/OptionsTable";
 import { Stack } from "components/Stack/Stack";
@@ -32,8 +35,8 @@ export const GeneralSettingsPageView = ({
         )}
         {deploymentDAUs && (
           <Box height={200} sx={{ mb: 3 }}>
-            <ChartSection title={<DAUTitle />}>
-              <DAUChart daus={deploymentDAUs} />
+            <ChartSection title={<ActiveUsersTitle />}>
+              <ActiveUserChart data={deploymentDAUs.entries} interval="day" />
             </ChartSection>
           </Box>
         )}
