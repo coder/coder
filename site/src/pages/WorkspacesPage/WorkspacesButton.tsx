@@ -41,7 +41,6 @@ function sortTemplatesByUsersDesc(
 function WorkspaceResultsRow({ template }: { template: Template }) {
   return (
     <Link
-      key={template.id}
       component={RouterLink}
       // Sending user directly to workspace creation page for UX
       // reasons; avoids extra clicks on the user's part
