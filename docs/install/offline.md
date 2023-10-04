@@ -104,7 +104,7 @@ WORKDIR /home/coder
 #  Be sure uncomment line 60 and edit network-mirror-example.tfrc to
 #  specify the HTTPS base URL of your mirror.
 
-# ADD network-mirror-example.tfrc /opt/terraform/config.tfrc
+# ADD network-mirror-example.tfrc /home/coder/.terraformrc
 
 USER coder
 
