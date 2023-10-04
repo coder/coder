@@ -374,7 +374,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
                 {!disableUpdate && (
                   <button
                     css={styles.tab}
-                    className={selectedTab === 0 ? "active" : ""}
+                    className={selectedTab === 1 ? "active" : ""}
                     onClick={() => {
                       setSelectedTab(1);
                     }}
