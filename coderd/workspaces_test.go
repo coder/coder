@@ -2877,10 +2877,10 @@ func TestWorkspaceDormant(t *testing.T) {
 			client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user      = coderdtest.CreateFirstUser(t, client)
 			version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-			_         = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+			_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 			template  = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 			workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-			_         = coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
