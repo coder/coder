@@ -1220,6 +1220,52 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.Len(t, res.Workspaces, 1)
 		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
 	})
+	t.Run("Status", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+
+		// wait for workspaces to be "running"
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace1.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace2.LatestBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// filter finds both running workspaces
+		ws1, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+		require.NoError(t, err)
+		require.Len(t, ws1.Workspaces, 2)
+
+		// stop workspace1
+		build1 := coderdtest.CreateWorkspaceBuild(t, client, workspace1, database.WorkspaceTransitionStop)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build1.ID)
+
+		// filter finds one running workspace
+		ws2, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Status: "running",
+		})
+		require.NoError(t, err)
+		require.Len(t, ws2.Workspaces, 1)
+		require.Equal(t, workspace2.ID, ws2.Workspaces[0].ID)
+
+		// stop workspace2
+		build2 := coderdtest.CreateWorkspaceBuild(t, client, workspace2, database.WorkspaceTransitionStop)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build2.ID)
+
+		// filter finds no running workspaces
+		ws3, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			Status: "running",
+		})
+		require.NoError(t, err)
+		require.Len(t, ws3.Workspaces, 0)
+	})
 	t.Run("FilterQuery", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})

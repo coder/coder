@@ -6647,6 +6647,8 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			case database.WorkspaceStatusStopped:
 				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
 					build.Transition == database.WorkspaceTransitionStop
+			case database.WorkspaceStatusRunning:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded
 			default:
 				statusMatch = job.JobStatus == database.ProvisionerJobStatus(arg.Status)
 				if !statusMatch {
