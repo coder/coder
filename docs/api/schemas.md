@@ -109,11 +109,13 @@
 | `encoding`  | string | true     |              |             |
 | `signature` | string | true     |              |             |
 
-## agentsdk.GitAuthResponse
+## agentsdk.ExternalAuthResponse
 
 ```json
 {
+  "access_token": "string",
   "password": "string",
+  "type": "string",
   "url": "string",
   "username": "string"
 }
@@ -121,11 +123,13 @@
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description |
-| ---------- | ------ | -------- | ------------ | ----------- |
-| `password` | string | false    |              |             |
-| `url`      | string | false    |              |             |
-| `username` | string | false    |              |             |
+| Name           | Type   | Required | Restrictions | Description                                                                              |
+| -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------- |
+| `access_token` | string | false    |              |                                                                                          |
+| `password`     | string | false    |              |                                                                                          |
+| `type`         | string | false    |              |                                                                                          |
+| `url`          | string | false    |              |                                                                                          |
+| `username`     | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility. |
 
 ## agentsdk.GitSSHKey
 
