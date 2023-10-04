@@ -243,9 +243,8 @@ func TestScheduleOverride(t *testing.T) {
 		require.NoError(t, err)
 		expectedDeadline := time.Now().Add(10 * time.Hour)
 
-		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
+		// Assert test invariant: workspace build has a deadline set
+		require.False(t, workspace.LatestBuild.Deadline.IsZero())
 
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)
@@ -282,10 +281,6 @@ func TestScheduleOverride(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		workspace, err = client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
-
-		// Assert test invariant: workspace build has a deadline set equal to now plus ttl
-		initDeadline := time.Now().Add(time.Duration(*workspace.TTLMillis) * time.Millisecond)
-		require.WithinDuration(t, initDeadline, workspace.LatestBuild.Deadline.Time, time.Minute)
 
 		inv, root := clitest.New(t, cmdArgs...)
 		clitest.SetupConfig(t, client, root)

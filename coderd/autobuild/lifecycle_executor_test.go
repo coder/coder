@@ -16,12 +16,15 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -699,6 +702,131 @@ func TestExecutorFailedWorkspace(t *testing.T) {
 		// Expect no transitions since we're using AGPL.
 		require.Len(t, stats.Transitions, 0)
 	})
+}
+
+func TestExecutorBumpWorkspace(t *testing.T) {
+	t.Parallel()
+
+	midnight := time.Date(2023, 10, 4, 0, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name              string
+		autostartSchedule string
+		now               time.Time // defaults to 1h before the deadline
+		deadline          time.Time
+		maxDeadline       time.Time
+		ttl               time.Duration
+		expected          time.Time
+	}{
+		{
+			name:              "not eligible",
+			autostartSchedule: "CRON_TZ=UTC 0 0 * * *",
+			deadline:          midnight.Add(time.Hour * -2),
+			ttl:               time.Hour * 10,
+			// not eligible because the deadline is over an hour before the next
+			// autostart time
+			expected: time.Time{},
+		},
+		{
+			name:              "autostart before deadline by 1h",
+			autostartSchedule: "CRON_TZ=UTC 0 0 * * *",
+			deadline:          midnight.Add(time.Hour),
+			ttl:               time.Hour * 10,
+			expected:          midnight.Add(time.Hour * 10),
+		},
+		{
+			name:              "autostart before deadline by 9h",
+			autostartSchedule: "CRON_TZ=UTC 0 0 * * *",
+			deadline:          midnight.Add(time.Hour * 9),
+			ttl:               time.Hour * 10,
+			// should still be bumped
+			expected: midnight.Add(time.Hour * 10),
+		},
+		{
+			name:              "eligible but exceeds next next autostart",
+			autostartSchedule: "CRON_TZ=UTC 0 0 * * *",
+			deadline:          midnight.Add(time.Hour * 1),
+			// ttl causes next autostart + 25h to exceed the next next autostart
+			ttl: time.Hour * 25,
+			// should not be bumped to avoid infinite bumping every day
+			expected: time.Time{},
+		},
+		{
+			name:              "deadline is 1h before autostart",
+			autostartSchedule: "CRON_TZ=UTC 0 0 * * *",
+			deadline:          midnight.Add(time.Hour * -1).Add(time.Minute),
+			ttl:               time.Hour * 10,
+			// should still be bumped
+			expected: midnight.Add(time.Hour * 10),
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				tickCh     = make(chan time.Time)
+				statsCh    = make(chan autobuild.Stats)
+				db, pubsub = dbtestutil.NewDB(t)
+
+				client = coderdtest.New(t, &coderdtest.Options{
+					AutobuildTicker:          tickCh,
+					AutobuildStats:           statsCh,
+					Database:                 db,
+					Pubsub:                   pubsub,
+					IncludeProvisionerDaemon: true,
+					TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+						GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+							return schedule.TemplateScheduleOptions{
+								UserAutostartEnabled: true,
+								UserAutostopEnabled:  true,
+								DefaultTTL:           0,
+								AutostopRequirement:  schedule.TemplateAutostopRequirement{},
+							}, nil
+						},
+					},
+				})
+				workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+					cwr.AutostartSchedule = ptr.Ref(c.autostartSchedule)
+					cwr.TTLMillis = ptr.Ref(c.ttl.Milliseconds())
+				})
+			)
+
+			// Set the deadline and max deadline to what the test expects.
+			ctx := testutil.Context(t, testutil.WaitLong)
+			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          workspace.LatestBuild.ID,
+				UpdatedAt:   dbtime.Now(),
+				Deadline:    c.deadline,
+				MaxDeadline: c.maxDeadline,
+			})
+			require.NoError(t, err)
+
+			if c.now.IsZero() {
+				c.now = c.deadline.Add(-time.Hour)
+			}
+
+			go func() {
+				tickCh <- c.now
+				close(tickCh)
+			}()
+			stats := <-statsCh
+			require.NoError(t, stats.Error)
+			require.Len(t, stats.Transitions, 0)
+
+			// Get the latest workspace build.
+			build, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
+			require.NoError(t, err)
+
+			// Should be bumped to the expected time.
+			if c.expected.IsZero() {
+				c.expected = c.deadline
+			}
+			require.WithinDuration(t, c.expected, build.Deadline.Time, time.Minute)
+		})
+	}
 }
 
 // TestExecutorInactiveWorkspace test AGPL functionality which mainly

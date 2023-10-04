@@ -1117,9 +1117,9 @@ func (m metricsStore) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaces, err
 }
 
-func (m metricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (m metricsStore) GetWorkspacesEligibleForTransition(ctx context.Context) ([]database.Workspace, error) {
 	start := time.Now()
-	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
+	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx)
 	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForAutoStartStop").Observe(time.Since(start).Seconds())
 	return workspaces, err
 }

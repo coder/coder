@@ -28,6 +28,7 @@ type sqlcQuerier interface {
 	// as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
 	// work at midnight, come back at 10am, I would want another full day
 	// of uptime.
+	// We only bump if the raw interval is positive and non-zero.
 	// We only bump if workspace shutdown is manual.
 	// We only bump when 5% of the deadline has elapsed.
 	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error
@@ -224,7 +225,7 @@ type sqlcQuerier interface {
 	GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceResource, error)
 	GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error)
 	GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error)
-	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error)
+	GetWorkspacesEligibleForTransition(ctx context.Context) ([]Workspace, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is

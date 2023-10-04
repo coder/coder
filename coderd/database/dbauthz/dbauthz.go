@@ -1915,8 +1915,8 @@ func (q *querier) GetWorkspaces(ctx context.Context, arg database.GetWorkspacesP
 	return q.db.GetAuthorizedWorkspaces(ctx, arg, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
-	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
+func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context) ([]database.Workspace, error) {
+	return q.db.GetWorkspacesEligibleForTransition(ctx)
 }
 
 func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyParams) (database.APIKey, error) {

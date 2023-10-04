@@ -1234,8 +1234,8 @@ func TestCompleteJob(t *testing.T) {
 		now := time.Now()
 
 		// NOTE: if you're looking for more in-depth deadline/max_deadline
-		// calculation testing, see the schedule package. The provsiionerdserver
-		// package calls `schedule.CalculateAutostop()` to generate the deadline
+		// calculation testing, see the schedule package. The provisionerdserver
+		// package calls `autostop.CalculateAutostop()` to generate the deadline
 		// and max_deadline.
 
 		// Wednesday the 8th of February 2023 at midnight. This date was

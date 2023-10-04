@@ -451,14 +451,16 @@ WHERE
 
 	(
 		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
+		-- potentially eligible for:
+		-- - an autostop if it's past the deadline
+		-- - a deadline bump if it's currently running and has a deadline
+		-- The deadline is computed at build time upon success and is bumped
+		-- based on activity (up the max deadline if set). We don't need to
+		-- check license here since that's done when the values are written to
+		-- the build.
 		(
 			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < @now :: timestamptz
+			workspace_builds.deadline IS NOT NULL
 		) OR
 
 		-- If the workspace build was a stop transition, the workspace is

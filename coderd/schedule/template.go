@@ -187,10 +187,14 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
 			AllowUserAutostart:            tpl.AllowUserAutostart,
-			AllowUserAutostop:             tpl.AllowUserAutostop,
-			FailureTTL:                    tpl.FailureTTL,
-			TimeTilDormant:                tpl.TimeTilDormant,
-			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
+			// This value always gets set back to true because it's used in the
+			// ActivityBumpWorkspace query. If we didn't set this back to true
+			// then the template could be permanently stuck in the false state
+			// and activity bumps would evaluate as such.
+			AllowUserAutostop:        true,
+			FailureTTL:               tpl.FailureTTL,
+			TimeTilDormant:           tpl.TimeTilDormant,
+			TimeTilDormantAutoDelete: tpl.TimeTilDormantAutoDelete,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

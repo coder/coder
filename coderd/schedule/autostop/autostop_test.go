@@ -1,4 +1,4 @@
-package schedule_test
+package autostop_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/autostop"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -70,15 +71,17 @@ func TestCalculateAutoStop(t *testing.T) {
 	t.Log("saturdayMidnightAfterDstOut", saturdayMidnightAfterDstOut)
 
 	cases := []struct {
-		name                  string
-		now                   time.Time
-		templateAllowAutostop bool
-		templateDefaultTTL    time.Duration
+		name                   string
+		now                    time.Time
+		templateAllowAutostart bool
+		templateAllowAutostop  bool
+		templateDefaultTTL     time.Duration
 		// TODO(@dean): remove max_ttl tests
 		useMaxTTL                   bool
 		templateMaxTTL              time.Duration
 		templateAutostopRequirement schedule.TemplateAutostopRequirement
 		userQuietHoursSchedule      string
+		workspaceAutostartSchedule  string
 		// workspaceTTL is usually copied from the template's TTL when the
 		// workspace is made, so it takes precedence unless
 		// templateAllowAutostop is false.
@@ -401,6 +404,42 @@ func TestCalculateAutoStop(t *testing.T) {
 			// expectedDeadline is copied from expectedMaxDeadline.
 			expectedMaxDeadline: fridayEveningSydney.Add(time.Hour).In(time.UTC),
 		},
+		{
+			// Avoid changing the deadline to `next_autostart + ttl` if the
+			// next autostart is after the current deadline.
+			name: "AutostartNoWrap",
+			now:  saturdayMidnightSydney,
+			// The next autostart is 2 hour after the current deadline of 10am.
+			workspaceAutostartSchedule: "CRON_TZ=Australia/Sydney 0 12 * * *",
+			templateAllowAutostart:     true,
+			templateAllowAutostop:      true,
+			workspaceTTL:               10 * time.Hour,
+			expectedDeadline:           saturdayMidnightSydney.Add(10 * time.Hour),
+		},
+		{
+			// The calculated deadline is past an autostart time, so the
+			// deadline should be changed to `next_autostart + ttl`.
+			name: "AutostartWrap",
+			now:  saturdayMidnightSydney,
+			// The next autostart is 59 minutes after the current deadline of 10am.
+			workspaceAutostartSchedule: "CRON_TZ=Australia/Sydney 59 10 * * *",
+			templateAllowAutostart:     true,
+			templateAllowAutostop:      true,
+			workspaceTTL:               10 * time.Hour,
+			expectedDeadline:           saturdayMidnightSydney.Add(20*time.Hour + 59*time.Minute),
+		},
+		{
+			// The calculated deadline is past an autostart time AND the
+			// following autostart time, so we should not change the deadline.
+			name:                       "AutostartAvoidDoubleWrap",
+			now:                        saturdayMidnightSydney,
+			workspaceAutostartSchedule: "CRON_TZ=Australia/Sydney 0 10 * * *",
+			templateAllowAutostart:     true,
+			templateAllowAutostop:      true,
+			workspaceTTL:               35 * time.Hour,
+			// Not 45 hours!
+			expectedDeadline: saturdayMidnightSydney.Add(35 * time.Hour),
+		},
 	}
 
 	for _, c := range cases {
@@ -415,7 +454,7 @@ func TestCalculateAutoStop(t *testing.T) {
 			templateScheduleStore := schedule.MockTemplateScheduleStore{
 				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 					return schedule.TemplateScheduleOptions{
-						UserAutostartEnabled:   false,
+						UserAutostartEnabled:   c.templateAllowAutostart,
 						UserAutostopEnabled:    c.templateAllowAutostop,
 						DefaultTTL:             c.templateDefaultTTL,
 						MaxTTL:                 c.templateMaxTTL,
@@ -477,9 +516,13 @@ func TestCalculateAutoStop(t *testing.T) {
 				OrganizationID: org.ID,
 				OwnerID:        user.ID,
 				Ttl:            workspaceTTL,
+				AutostartSchedule: sql.NullString{
+					String: c.workspaceAutostartSchedule,
+					Valid:  c.workspaceAutostartSchedule != "",
+				},
 			})
 
-			autostop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
+			autostop, err := autostop.CalculateAutostop(ctx, autostop.CalculateAutostopParams{
 				Database:                    db,
 				TemplateScheduleStore:       templateScheduleStore,
 				UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
@@ -539,7 +582,7 @@ func TestFindWeek(t *testing.T) {
 			require.NoError(t, err)
 
 			now := time.Now().In(loc)
-			currentWeek, err := schedule.WeeksSinceEpoch(now)
+			currentWeek, err := autostop.WeeksSinceEpoch(now)
 			require.NoError(t, err)
 
 			diffMonday := now.Weekday() - time.Monday
@@ -554,7 +597,7 @@ func TestFindWeek(t *testing.T) {
 			// Change to midnight.
 			currentWeekMondayExpected = time.Date(y, m, d, 0, 0, 0, 0, loc)
 
-			currentWeekMonday, err := schedule.GetMondayOfWeek(now.Location(), currentWeek)
+			currentWeekMonday, err := autostop.GetMondayOfWeek(now.Location(), currentWeek)
 			require.NoError(t, err)
 			require.Equal(t, time.Monday, currentWeekMonday.Weekday())
 			require.Equal(t, currentWeekMondayExpected, currentWeekMonday)
@@ -574,11 +617,11 @@ func TestFindWeek(t *testing.T) {
 				require.Equal(t, monday.Weekday(), time.Monday, msg)
 				t.Log(msg, "monday", monday)
 
-				week, err := schedule.WeeksSinceEpoch(monday)
+				week, err := autostop.WeeksSinceEpoch(monday)
 				require.NoError(t, err, msg)
 				require.Equal(t, currentWeek+i, week, msg)
 
-				gotMonday, err := schedule.GetMondayOfWeek(monday.Location(), week)
+				gotMonday, err := autostop.GetMondayOfWeek(monday.Location(), week)
 				require.NoError(t, err, msg)
 				require.Equal(t, monday, gotMonday, msg)
 
@@ -587,7 +630,7 @@ func TestFindWeek(t *testing.T) {
 				require.Equal(t, sunday.Weekday(), time.Sunday, msg)
 				t.Log(msg, "sunday", sunday)
 
-				week, err = schedule.WeeksSinceEpoch(sunday)
+				week, err = autostop.WeeksSinceEpoch(sunday)
 				require.NoError(t, err, msg)
 				require.Equal(t, currentWeek+i, week, msg)
 			}

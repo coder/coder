@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/autostop"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -1106,7 +1107,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return getWorkspaceError
 			}
 
-			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
+			autoStop, err := autostop.CalculateAutostop(ctx, autostop.CalculateAutostopParams{
 				Database:                    db,
 				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),

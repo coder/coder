@@ -793,8 +793,25 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		if q.workspaceBuilds[i].Deadline.IsZero() {
 			return nil
 		}
+
+		template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+		if err != nil {
+			return err
+		}
+
+		var ttlDur time.Duration
+		if workspace.Ttl.Valid {
+			ttlDur = time.Duration(workspace.Ttl.Int64)
+		}
+		if !template.AllowUserAutostop {
+			ttlDur = time.Duration(template.DefaultTTL)
+		}
+		if ttlDur <= 0 {
+			// There's no TTL set anymore, so we don't know the bump duration.
+			return nil
+		}
+
 		// Only bump if 5% of the deadline has passed.
-		ttlDur := time.Duration(workspace.Ttl.Int64)
 		ttlDur95 := ttlDur - (ttlDur / 20)
 		minBumpDeadline := q.workspaceBuilds[i].Deadline.Add(-ttlDur95)
 		if now.Before(minBumpDeadline) {
@@ -4047,7 +4064,7 @@ func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
-func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.Workspace, error) {
+func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context) ([]database.Workspace, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -4058,26 +4075,26 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, err
 		}
 
-		if build.Transition == database.WorkspaceTransitionStart &&
-			!build.Deadline.IsZero() &&
-			build.Deadline.Before(now) &&
-			!workspace.DormantAt.Valid {
+		// Refer to the SQL version of this query for comments.
+
+		// Case 1:
+		if build.Transition == database.WorkspaceTransitionStart && !build.Deadline.IsZero() {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
-		if build.Transition == database.WorkspaceTransitionStop &&
-			workspace.AutostartSchedule.Valid &&
-			!workspace.DormantAt.Valid {
+		// Case 2:
+		if build.Transition == database.WorkspaceTransitionStop && workspace.AutostartSchedule.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
 
+		// Case 3:
 		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
 		if err != nil {
 			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
 		}
-		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed && build.Transition == database.WorkspaceTransitionStart {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -4086,11 +4103,15 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if err != nil {
 			return nil, xerrors.Errorf("get template by ID: %w", err)
 		}
-		if !workspace.DormantAt.Valid && template.TimeTilDormant > 0 {
+
+		// Case 4:
+		if template.TimeTilDormant > 0 && !workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
-		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
+
+		// Case 5:
+		if template.TimeTilDormantAutoDelete > 0 && workspace.DormantAt.Valid {
 			workspaces = append(workspaces, workspace)
 			continue
 		}

@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/autostop"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -253,7 +254,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 		return nil
 	}
 
-	autostop, err := agpl.CalculateAutostop(ctx, agpl.CalculateAutostopParams{
+	autostop, err := autostop.CalculateAutostop(ctx, autostop.CalculateAutostopParams{
 		Database:                    db,
 		TemplateScheduleStore:       s,
 		UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),

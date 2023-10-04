@@ -2334,18 +2334,18 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 interface{}) *gomock.C
 }
 
 // GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context) ([]database.Workspace, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
+	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0)
 	ret0, _ := ret[0].([]database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // GetWorkspacesEligibleForTransition indicates an expected call of GetWorkspacesEligibleForTransition.
-func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 interface{}) *gomock.Call {
+func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), arg0)
 }
 
 // InTx mocks base method.

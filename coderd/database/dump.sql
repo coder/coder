@@ -28,7 +28,8 @@ CREATE TYPE build_reason AS ENUM (
     'autostop',
     'autolock',
     'failedstop',
-    'autodelete'
+    'autodelete',
+    'bump'
 );
 
 CREATE TYPE display_app AS ENUM (

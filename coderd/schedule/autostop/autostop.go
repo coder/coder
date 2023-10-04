@@ -1,4 +1,4 @@
-package schedule
+package autostop
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -42,13 +43,14 @@ const (
 
 type CalculateAutostopParams struct {
 	Database                    database.Store
-	TemplateScheduleStore       TemplateScheduleStore
-	UserQuietHoursScheduleStore UserQuietHoursScheduleStore
+	TemplateScheduleStore       schedule.TemplateScheduleStore
+	UserQuietHoursScheduleStore schedule.UserQuietHoursScheduleStore
 
 	Now       time.Time
 	Workspace database.Workspace
 }
 
+//nolint:revive
 type AutostopTime struct {
 	// Deadline is the time when the workspace will be stopped. The value can be
 	// bumped by user activity or manually by the user via the UI.
@@ -90,23 +92,25 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 		autostop AutostopTime
 	)
 
-	if workspace.Ttl.Valid {
-		// When the workspace is made it copies the template's TTL, and the user
-		// can unset it to disable it (unless the template has
-		// UserAutoStopEnabled set to false, see below).
-		autostop.Deadline = now.Add(time.Duration(workspace.Ttl.Int64))
-	}
-
 	templateSchedule, err := params.TemplateScheduleStore.Get(ctx, db, workspace.TemplateID)
 	if err != nil {
 		return autostop, xerrors.Errorf("get template schedule options: %w", err)
 	}
-	if !templateSchedule.UserAutostopEnabled {
-		// The user is not permitted to set their own TTL, so use the template
-		// default.
-		autostop.Deadline = time.Time{}
-		if templateSchedule.DefaultTTL > 0 {
-			autostop.Deadline = now.Add(templateSchedule.DefaultTTL)
+
+	// Apply the TTL to calculate the deadline.
+	ttl := schedule.WorkspaceTTL(templateSchedule, workspace)
+	if ttl > 0 {
+		autostop.Deadline = now.Add(ttl)
+
+		// If the workspace has a deadline, and a configured autostart time, and
+		// the deadline is past the next autostart time, then bump the deadline
+		// to be the next autostart time + the TTL.
+		autostartSched, err := schedule.GetWorkspaceAutostartSchedule(templateSchedule, workspace)
+		if err == nil && autostartSched != nil {
+			newDeadline := schedule.MaybeBumpDeadline(autostartSched, autostop.Deadline, ttl)
+			if !newDeadline.IsZero() {
+				autostop.Deadline = newDeadline
+			}
 		}
 	}
 
@@ -165,8 +169,8 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// Iterate from 0 to 7, check if the current startOfDay is in the
 			// autostop requirement. If it isn't then add a day and try again.
 			requirementDays := templateSchedule.AutostopRequirement.DaysMap()
-			for i := 0; i < len(DaysOfWeek)+1; i++ {
-				if i == len(DaysOfWeek) {
+			for i := 0; i < len(schedule.DaysOfWeek)+1; i++ {
+				if i == len(schedule.DaysOfWeek) {
 					// We've wrapped, so somehow we couldn't find a day in the
 					// autostop requirement in the next week.
 					//
@@ -244,7 +248,7 @@ func nextDayMidnight(t time.Time) time.Time {
 //
 // The timezone embedded in the time object is used to determine the epoch.
 func WeeksSinceEpoch(now time.Time) (int64, error) {
-	epoch := TemplateAutostopRequirementEpoch(now.Location())
+	epoch := schedule.TemplateAutostopRequirementEpoch(now.Location())
 	if now.Before(epoch) {
 		return 0, xerrors.New("coder server system clock is incorrect, cannot calculate template autostop requirement")
 	}
@@ -290,7 +294,7 @@ func GetMondayOfWeek(loc *time.Location, n int64) (time.Time, error) {
 	if n < 0 {
 		return time.Time{}, xerrors.New("weeks since epoch must be positive")
 	}
-	epoch := TemplateAutostopRequirementEpoch(loc)
+	epoch := schedule.TemplateAutostopRequirementEpoch(loc)
 	monday := epoch.AddDate(0, 0, int(n*7))
 
 	y, m, d := monday.Date()

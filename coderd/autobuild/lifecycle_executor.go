@@ -19,7 +19,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/schedule"
-	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -116,7 +115,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -183,7 +182,26 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 
-				//  Transition the workspace to dormant if it has breached the template's
+				if reason == database.BuildReasonBump {
+					newDeadline := shouldBump(ws, latestBuild, latestJob, templateSchedule, currentTick)
+					if !newDeadline.IsZero() {
+						err := tx.UpdateWorkspaceBuildDeadlineByID(e.ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+							ID:          latestBuild.ID,
+							UpdatedAt:   dbtime.Now(),
+							Deadline:    newDeadline,
+							MaxDeadline: latestBuild.MaxDeadline,
+						})
+						if err != nil {
+							log.Error(e.ctx, "unable to bump workspace deadline",
+								slog.F("new_deadline", newDeadline),
+								slog.Error(err),
+							)
+							return nil
+						}
+					}
+				}
+
+				// Transition the workspace to dormant if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
 					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
@@ -295,6 +313,8 @@ func getNextTransition(
 
 	case isEligibleForDelete(ws, templateSchedule, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
+	case !shouldBump(ws, latestBuild, latestJob, templateSchedule, currentTick).IsZero():
+		return "", database.BuildReasonBump, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
 	}
@@ -320,14 +340,11 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 
 	// If autostart isn't enabled, or the schedule isn't valid/populated we can't
 	// autostart the workspace.
-	if !templateSchedule.UserAutostartEnabled || !ws.AutostartSchedule.Valid || ws.AutostartSchedule.String == "" {
+	sched, err := schedule.GetWorkspaceAutostartSchedule(templateSchedule, ws)
+	if err != nil || sched == nil {
 		return false
 	}
 
-	sched, err := cron.Weekly(ws.AutostartSchedule.String)
-	if err != nil {
-		return false
-	}
 	// Round down to the nearest minute, as this is the finest granularity cron supports.
 	// Truncate is probably not necessary here, but doing it anyway to be sure.
 	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
@@ -384,4 +401,50 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
 		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
+}
+
+// shouldBump returns a non-zero time if the workspace deadline should
+// should be bumped.
+func shouldBump(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) time.Time {
+	if build.Transition != database.WorkspaceTransitionStart {
+		return time.Time{}
+	}
+	if db2sdk.ProvisionerJobStatus(job) != codersdk.ProvisionerJobSucceeded {
+		return time.Time{}
+	}
+	if build.Deadline.IsZero() {
+		return time.Time{}
+	}
+	if currentTick.After(build.Deadline.Add(time.Hour)) {
+		// If the workspace has already breached its deadline + 1h, we should
+		// not bump it, because we don't want to race autostop code.
+		return time.Time{}
+	}
+
+	ttl := schedule.WorkspaceTTL(templateSchedule, ws)
+	if ttl <= 0 {
+		return time.Time{}
+	}
+
+	// If autostart isn't enabled, or the schedule isn't valid/populated we
+	// don't care about bumping it.
+	sched, err := schedule.GetWorkspaceAutostartSchedule(templateSchedule, ws)
+	if err != nil || sched == nil {
+		return time.Time{}
+	}
+
+	newDeadline := schedule.MaybeBumpDeadline(sched, build.Deadline, ttl)
+	if newDeadline.IsZero() {
+		return time.Time{}
+	}
+	if newDeadline.Before(build.Deadline) {
+		// Don't reduce the deadline.
+		return time.Time{}
+	}
+	if !build.MaxDeadline.IsZero() && newDeadline.After(build.MaxDeadline) {
+		// Don't exceed the max deadline.
+		return time.Time{}
+	}
+
+	return newDeadline
 }

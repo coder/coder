@@ -23,12 +23,21 @@ WITH latest AS (
 		workspace_builds.max_deadline::timestamp with time zone AS build_max_deadline,
 		workspace_builds.transition AS build_transition,
 		provisioner_jobs.completed_at::timestamp with time zone AS job_completed_at,
-		(workspaces.ttl / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval
+		(
+			CASE
+				WHEN templates.allow_user_autostop
+				THEN workspaces.ttl
+				ELSE templates.default_ttl
+			END
+		) AS raw_ttl_interval,
+		(raw_ttl_interval / 1000 / 1000 / 1000 || ' seconds')::interval AS ttl_interval
 	FROM workspace_builds
 	JOIN provisioner_jobs
 		ON provisioner_jobs.id = workspace_builds.job_id
 	JOIN workspaces
 		ON workspaces.id = workspace_builds.workspace_id
+	JOIN templates
+		ON templates.id = workspaces.template_id
 	WHERE workspace_builds.workspace_id = $1::uuid
 	ORDER BY workspace_builds.build_number DESC
 	LIMIT 1
@@ -46,6 +55,7 @@ FROM latest l
 WHERE wb.id = l.build_id
 AND l.job_completed_at IS NOT NULL
 AND l.build_transition = 'start'
+AND l.raw_ttl_interval > 0
 AND l.build_deadline != '0001-01-01 00:00:00+00'
 AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 `
@@ -54,6 +64,7 @@ AND l.build_deadline - (l.ttl_interval * 0.95) < NOW()
 // as the TTL wraps. For example, if I set the TTL to 12 hours, sign off
 // work at midnight, come back at 10am, I would want another full day
 // of uptime.
+// We only bump if the raw interval is positive and non-zero.
 // We only bump if workspace shutdown is manual.
 // We only bump when 5% of the deadline has elapsed.
 func (q *sqlQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error {
@@ -9554,6 +9565,119 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
+SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
+INSERT INTO
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
+SELECT
+	$1 :: uuid AS workspace_agent_id,
+	$2 :: timestamptz AS created_at,
+	unnest($3 :: uuid [ ]) AS log_source_id,
+	unnest($4 :: text [ ]) AS log_path,
+	unnest($5 :: text [ ]) AS script,
+	unnest($6 :: text [ ]) AS cron,
+	unnest($7 :: boolean [ ]) AS start_blocks_login,
+	unnest($8 :: boolean [ ]) AS run_on_start,
+	unnest($9 :: boolean [ ]) AS run_on_stop,
+	unnest($10 :: integer [ ]) AS timeout_seconds
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
+`
+
+type InsertWorkspaceAgentScriptsParams struct {
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogPath          []string    `db:"log_path" json:"log_path"`
+	Script           []string    `db:"script" json:"script"`
+	Cron             []string    `db:"cron" json:"cron"`
+	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
+		arg.WorkspaceAgentID,
+		arg.CreatedAt,
+		pq.Array(arg.LogSourceID),
+		pq.Array(arg.LogPath),
+		pq.Array(arg.Script),
+		pq.Array(arg.Cron),
+		pq.Array(arg.StartBlocksLogin),
+		pq.Array(arg.RunOnStart),
+		pq.Array(arg.RunOnStop),
+		pq.Array(arg.TimeoutSeconds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
@@ -10157,14 +10281,16 @@ WHERE
 
 	(
 		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
+		-- potentially eligible for:
+		-- - an autostop if it's past the deadline
+		-- - a deadline bump if it's currently running and has a deadline
+		-- The deadline is computed at build time upon success and is bumped
+		-- based on activity (up the max deadline if set). We don't need to
+		-- check license here since that's done when the values are written to
+		-- the build.
 		(
 			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < $1 :: timestamptz
+			workspace_builds.deadline IS NOT NULL
 		) OR
 
 		-- If the workspace build was a stop transition, the workspace is
@@ -10200,8 +10326,8 @@ WHERE
 	) AND workspaces.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]Workspace, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context) ([]Workspace, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition)
 	if err != nil {
 		return nil, err
 	}
@@ -10501,117 +10627,4 @@ type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
 func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspacesDormantDeletingAtByTemplateID, arg.TimeTilDormantAutodeleteMs, arg.DormantAt, arg.TemplateID)
 	return err
-}
-
-const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
-INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
-SELECT
-	$1 :: uuid AS workspace_agent_id,
-	$2 :: timestamptz AS created_at,
-	unnest($3 :: uuid [ ]) AS log_source_id,
-	unnest($4 :: text [ ]) AS log_path,
-	unnest($5 :: text [ ]) AS script,
-	unnest($6 :: text [ ]) AS cron,
-	unnest($7 :: boolean [ ]) AS start_blocks_login,
-	unnest($8 :: boolean [ ]) AS run_on_start,
-	unnest($9 :: boolean [ ]) AS run_on_stop,
-	unnest($10 :: integer [ ]) AS timeout_seconds
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
-`
-
-type InsertWorkspaceAgentScriptsParams struct {
-	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          []string    `db:"log_path" json:"log_path"`
-	Script           []string    `db:"script" json:"script"`
-	Cron             []string    `db:"cron" json:"cron"`
-	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
-		arg.WorkspaceAgentID,
-		arg.CreatedAt,
-		pq.Array(arg.LogSourceID),
-		pq.Array(arg.LogPath),
-		pq.Array(arg.Script),
-		pq.Array(arg.Cron),
-		pq.Array(arg.StartBlocksLogin),
-		pq.Array(arg.RunOnStart),
-		pq.Array(arg.RunOnStop),
-		pq.Array(arg.TimeoutSeconds),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
