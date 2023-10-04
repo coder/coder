@@ -13,3 +13,10 @@ export const insightsUserLatency = (params: API.InsightsParams) => {
     queryFn: () => API.getInsightsUserLatency(params),
   };
 };
+
+export const insightsUserActivity = (params: API.InsightsParams) => {
+  return {
+    queryKey: ["insights", "userActivity", params.template_ids, params],
+    queryFn: () => API.getInsightsUserActivity(params),
+  };
+};
