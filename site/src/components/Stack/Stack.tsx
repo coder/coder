@@ -7,7 +7,6 @@ export type StackProps = {
   spacing?: number;
   alignItems?: CSSObject["alignItems"];
   justifyContent?: CSSObject["justifyContent"];
-  maxWidth?: CSSObject["maxWidth"];
   wrap?: CSSObject["flexWrap"];
 } & React.HTMLProps<HTMLDivElement>;
 
@@ -18,7 +17,6 @@ export const Stack: FC<StackProps> = (props) => {
     spacing = 2,
     alignItems,
     justifyContent,
-    maxWidth,
     wrap,
     ...divProps
   } = props;
@@ -33,7 +31,7 @@ export const Stack: FC<StackProps> = (props) => {
         alignItems: alignItems,
         justifyContent: justifyContent,
         flexWrap: wrap,
-        maxWidth: maxWidth,
+        maxWidth: "100%",
       })}
     >
       {children}
