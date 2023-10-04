@@ -1,22 +1,18 @@
-/**
- * Work in progress. Mainly because I need to figure out how best to deal with
- * a global constructor that implicitly makes HTTP requests in the background.
- */
 import { useImagePreloading, useThrottledImageLoader } from "./images";
 
 /**
- * Probably not on the right track with this one. Probably need to redo.
+ * This is weird and clunky, and the mocking seems to have more edge cases than
+ * the code I'm trying to test.
+ *
+ * HTMLImageElement doesn't go through fetch, but still it might be worth trying
+ * to integrate this with MSW
  */
-class MockImage {
-  #unusedWidth = 0;
-  #unusedHeight = 0;
-  #src = "";
-  completed = false;
+let mode: "alwaysSucceed" | "alwaysFail" = "alwaysSucceed";
 
-  constructor(width?: number, height?: number) {
-    this.#unusedWidth = width ?? 0;
-    this.#unusedHeight = height ?? 0;
-  }
+class MockImage {
+  #src = "";
+  onload: (() => void) | undefined = undefined;
+  onerror: (() => void) | undefined = undefined;
 
   get src() {
     return this.#src;
@@ -24,12 +20,41 @@ class MockImage {
 
   set src(newSrc: string) {
     this.#src = newSrc;
+    this.#simulateHttpRequest(newSrc);
+  }
+
+  #simulateHttpRequest(src: string) {
+    const promise = new Promise<void>((resolve, reject) => {
+      if (src === "") {
+        reject();
+      }
+
+      const settlePromise = mode === "alwaysSucceed" ? resolve : reject;
+      setTimeout(settlePromise, 100);
+    });
+
+    // Need arrow functions because onload/onerror are allowed to mutate in the
+    // original HTMLImageElement
+    void promise.then(() => this.onload?.());
+    void promise.catch(() => this.onerror?.());
   }
 }
 
 beforeAll(() => {
   jest.useFakeTimers();
-  jest.spyOn(global, "Image").mockImplementation(MockImage);
+
+  jest.spyOn(global, "Image").mockImplementation(() => {
+    return new MockImage() as unknown as HTMLImageElement;
+  });
+});
+
+beforeEach(() => {
+  mode = "alwaysSucceed";
+});
+
+afterAll(() => {
+  jest.useRealTimers();
+  jest.clearAllMocks();
 });
 
 test(`${useImagePreloading.name}`, () => {
