@@ -99,11 +99,15 @@ function preloadImages(imageUrls?: readonly string[]): () => void {
  * from making requests.
  */
 export function useThrottledImageLoader(throttleTimeMs = 500) {
+  /**
+   * It's possible to reduce the amount of state by only having the cleanup ref;
+   * tried it, but it made the code a lot harder to read and reason about
+   */
   const throttledRef = useRef(false);
-  const loadedCleanupRef = useRef<(() => void) | null>(null);
+  const componentCleanupRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    loadedCleanupRef.current?.();
+    componentCleanupRef.current?.();
   }, [throttleTimeMs]);
 
   return useCallback(
@@ -114,20 +118,22 @@ export function useThrottledImageLoader(throttleTimeMs = 500) {
       }
 
       throttledRef.current = true;
-      const cleanup = preloadImages(imgUrls);
-      loadedCleanupRef.current = cleanup;
+      const imagesCleanup = preloadImages(imgUrls);
 
       const timeoutId = window.setTimeout(() => {
         throttledRef.current = false;
       }, throttleTimeMs);
 
-      return () => {
-        cleanup();
-        loadedCleanupRef.current = null;
-
+      const componentCleanup = () => {
+        imagesCleanup();
         window.clearTimeout(timeoutId);
+
         throttledRef.current = false;
+        componentCleanupRef.current = null;
       };
+
+      componentCleanupRef.current = componentCleanup;
+      return componentCleanup;
     },
     [throttleTimeMs],
   );
