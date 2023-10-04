@@ -368,6 +368,10 @@ func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
 
+func (p ProvisionerJob) Finished() bool {
+	return p.CanceledAt.Valid || p.CompletedAt.Valid
+}
+
 func (p ProvisionerJob) FinishedAt() time.Time {
 	if p.CompletedAt.Valid {
 		return p.CompletedAt.Time

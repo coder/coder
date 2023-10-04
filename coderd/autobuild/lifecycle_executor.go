@@ -374,7 +374,7 @@ func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.Templa
 	// Builds are resource-intensive so retrying every minute is not productive
 	// and will hold compute hostage.
 	if lastBuild.Transition == database.WorkspaceTransitionDelete && db2sdk.ProvisionerJobStatus(lastJob) == codersdk.ProvisionerJobFailed {
-		return eligible && currentTick.Sub(lastJob.FinishedAt()) > time.Hour*24
+		return eligible && lastJob.Finished() && currentTick.Sub(lastJob.FinishedAt()) > time.Hour*24
 	}
 
 	return eligible
