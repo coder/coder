@@ -1,6 +1,8 @@
 import axios from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
+// This needs to include the `../`, otherwise it breaks when importing into
+// vscode-coder.
 import { delay } from "../utils/delay";
 import userAgentParser from "ua-parser-js";
 
