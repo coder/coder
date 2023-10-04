@@ -83,6 +83,8 @@ export const WorkspaceSchedulePage: FC = () => {
         (scheduleState.matches("presentForm") ||
           scheduleState.matches("submittingSchedule")) && (
           <WorkspaceScheduleForm
+            enableAutoStart={template.allow_user_autostart}
+            enableAutoStop={template.allow_user_autostop}
             submitScheduleError={submitScheduleError}
             initialValues={{
               ...getAutostart(workspace),
