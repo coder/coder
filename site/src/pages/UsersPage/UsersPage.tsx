@@ -49,7 +49,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     }),
   );
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
-  const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
+  const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
     enabled: viewDeploymentValues,
