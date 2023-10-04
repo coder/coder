@@ -1226,7 +1226,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		workspace2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
