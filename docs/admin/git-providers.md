@@ -1,45 +1,41 @@
-# External Authentication
+# Git Providers
 
-Coder integrates with Git and OpenID Connect to automate away the need for
-developers to authenticate with external services within their workspace.
+Coder integrates with git providers to automate away the need for developers to
+authenticate with repositories within their workspace.
 
-## Git Providers
+## How it works
 
 When developers use `git` inside their workspace, they are prompted to
 authenticate. After that, Coder will store and refresh tokens for future
 operations.
 
 <video autoplay playsinline loop>
-  <source src="https://github.com/coder/coder/blob/main/site/static/external-auth.mp4?raw=true" type="video/mp4">
+  <source src="https://github.com/coder/coder/blob/main/site/static/gitauth.mp4?raw=true" type="video/mp4">
 Your browser does not support the video tag.
 </video>
 
 ## Configuration
 
-To add an external authentication provider, you'll need to create an OAuth
-application. The following providers are supported:
+To add a git provider, you'll need to create an OAuth application. The following
+providers are supported:
 
-- [GitHub](#github)
+- [GitHub](#github-app)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 - [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 
 Example callback URL:
-`https://coder.example.com/external-auth/primary-github/callback`. Use an
-arbitrary ID for your provider (e.g. `primary-github`).
+`https://coder.example.com/gitauth/primary-github/callback`. Use an arbitrary ID
+for your provider (e.g. `primary-github`).
 
 Set the following environment variables to
 [configure the Coder server](./configure.md):
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="primary-github"
-CODER_EXTERNAL_AUTH_0_TYPE=github|gitlab|azure-devops|bitbucket|<name of service e.g. jfrog>
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-
-# Optionally, configure a custom display name and icon
-CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
-CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
+CODER_GITAUTH_0_ID="primary-github"
+CODER_GITAUTH_0_TYPE=github|gitlab|azure-devops|bitbucket
+CODER_GITAUTH_0_CLIENT_ID=xxxxxx
+CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
 ```
 
 ### GitHub
@@ -73,9 +69,9 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 GitHub Enterprise requires the following authentication and token URLs:
 
 ```env
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_GITAUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_GITAUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
 ### Azure DevOps
@@ -83,13 +79,13 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_t
 Azure DevOps requires the following environment variables:
 
 ```env
-CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
-CODER_EXTERNAL_AUTH_0_TYPE=azure-devops
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_GITAUTH_0_ID="primary-azure-devops"
+CODER_GITAUTH_0_TYPE=azure-devops
+CODER_GITAUTH_0_CLIENT_ID=xxxxxx
 # Ensure this value is your "Client Secret", not "App Secret"
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
+CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_GITAUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
 ```
 
 ### Self-managed git providers
@@ -98,9 +94,9 @@ Custom authentication and token URLs should be used for self-managed Git
 provider deployments.
 
 ```env
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
+CODER_GITAUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
+CODER_GITAUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
+CODER_GITAUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 ```
 
 ### Custom scopes
@@ -108,10 +104,10 @@ CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
 Optionally, you can request custom scopes:
 
 ```env
-CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
+CODER_GITAUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
-### Multiple External Providers (enterprise)
+### Multiple git providers (enterprise)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
 
@@ -120,21 +116,21 @@ limit auth scope. Here's a sample config:
 
 ```env
 # Provider 1) github.com
-CODER_EXTERNAL_AUTH_0_ID=primary-github
-CODER_EXTERNAL_AUTH_0_TYPE=github
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_REGEX=github.com/orgname
+CODER_GITAUTH_0_ID=primary-github
+CODER_GITAUTH_0_TYPE=github
+CODER_GITAUTH_0_CLIENT_ID=xxxxxx
+CODER_GITAUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_GITAUTH_0_REGEX=github.com/orgname
 
 # Provider 2) github.example.com
-CODER_EXTERNAL_AUTH_1_ID=secondary-github
-CODER_EXTERNAL_AUTH_1_TYPE=github
-CODER_EXTERNAL_AUTH_1_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_1_REGEX=github.example.com
-CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
-CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
-CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_GITAUTH_1_ID=secondary-github
+CODER_GITAUTH_1_TYPE=github
+CODER_GITAUTH_1_CLIENT_ID=xxxxxx
+CODER_GITAUTH_1_CLIENT_SECRET=xxxxxxx
+CODER_GITAUTH_1_REGEX=github.example.com
+CODER_GITAUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
+CODER_GITAUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
+CODER_GITAUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
 ```
 
 To support regex matching for paths (e.g. github.com/orgname), you'll need to
