@@ -249,7 +249,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -384,7 +384,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -1051,7 +1051,7 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	}
 	jobStatus := db2sdk.ProvisionerJobStatus(job)
 	if jobStatus != codersdk.ProvisionerJobSucceeded {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only versions that have been built successfully can be promoted.",
 			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", jobStatus),
 		})

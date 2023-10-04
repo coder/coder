@@ -572,7 +572,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Contains(t, apiErr.Detail, "canceled")
 	})
 
@@ -592,7 +592,7 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusPreconditionFailed, apiErr.StatusCode())
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
 		require.Contains(t, apiErr.Detail, "pending")
 	})
 
