@@ -1488,6 +1488,14 @@ export const getInsightsUserLatency = async (
   return response.data;
 };
 
+export const getInsightsUserActivity = async (
+  filters: InsightsParams,
+): Promise<TypesGen.UserActivityInsightsResponse> => {
+  const params = new URLSearchParams(filters);
+  const response = await axios.get(`/api/v2/insights/user-activity?${params}`);
+  return response.data;
+};
+
 export type InsightsTemplateParams = InsightsParams & {
   interval: "day" | "week";
 };

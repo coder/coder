@@ -26,6 +26,7 @@ import {
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
+  UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
 import { ComponentProps, ReactNode } from "react";
@@ -41,7 +42,11 @@ import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
 import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
-import { insightsTemplate, insightsUserLatency } from "api/queries/insights";
+import {
+  insightsTemplate,
+  insightsUserActivity,
+  insightsUserLatency,
+} from "api/queries/insights";
 import { useSearchParams } from "react-router-dom";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
@@ -65,9 +70,11 @@ export default function TemplateInsightsPage() {
     template_ids: template.id,
     ...getDateRangeFilter(dateRange),
   };
+
   const insightsFilter = { ...commonFilters, interval };
   const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
   const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
+  const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
 
   return (
     <>
@@ -97,6 +104,7 @@ export default function TemplateInsightsPage() {
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
+        userActivity={userActivity}
         interval={interval}
       />
     </>
@@ -137,11 +145,13 @@ const getDateRange = (
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
+  userActivity,
   controls,
   interval,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
+  userActivity: UserActivityInsightsResponse | undefined;
   controls: ReactNode;
   interval: InsightsInterval;
 }) => {
@@ -161,7 +171,7 @@ export const TemplateInsightsPageView = ({
         sx={{
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          gridTemplateRows: "440px auto",
+          gridTemplateRows: "440px 440px auto",
           gap: (theme) => theme.spacing(3),
         }}
       >
@@ -170,11 +180,12 @@ export const TemplateInsightsPageView = ({
           interval={interval}
           data={templateInsights?.interval_reports}
         />
-        <UserLatencyPanel data={userLatency} />
+        <UsersLatencyPanel data={userLatency} />
         <TemplateUsagePanel
-          sx={{ gridColumn: "span 3" }}
+          sx={{ gridColumn: "span 2" }}
           data={templateInsights?.report?.apps_usage}
         />
+        <UsersActivityPanel data={userActivity} />
         <TemplateParametersUsagePanel
           sx={{ gridColumn: "span 3" }}
           data={templateInsights?.report?.parameters_usage}
@@ -216,7 +227,7 @@ const ActiveUsersPanel = ({
   );
 };
 
-const UserLatencyPanel = ({
+const UsersLatencyPanel = ({
   data,
   ...panelProps
 }: PanelProps & { data: UserLatencyInsightsResponse | undefined }) => {
@@ -248,6 +259,7 @@ const UserLatencyPanel = ({
                 sx={{
                   display: "flex",
                   justifyContent: "space-between",
+                  alignItems: "center",
                   fontSize: 14,
                   py: 1,
                 }}
@@ -276,6 +288,66 @@ const UserLatencyPanel = ({
   );
 };
 
+const UsersActivityPanel = ({
+  data,
+  ...panelProps
+}: PanelProps & { data: UserActivityInsightsResponse | undefined }) => {
+  const users = data?.report.users;
+
+  return (
+    <Panel {...panelProps} sx={{ overflowY: "auto", ...panelProps.sx }}>
+      <PanelHeader>
+        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          Activity by user
+          <HelpTooltip size="small">
+            <HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
+            <HelpTooltipText>
+              When a connection is initiated to a user&apos;s workspace they are
+              considered an active user. e.g. apps, web terminal, SSH
+            </HelpTooltipText>
+          </HelpTooltip>
+        </PanelTitle>
+      </PanelHeader>
+      <PanelContent>
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {users && users.length === 0 && <NoDataAvailable />}
+        {users &&
+          users
+            .sort((a, b) => b.seconds - a.seconds)
+            .map((row) => (
+              <Box
+                key={row.user_id}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: 14,
+                  py: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <UserAvatar
+                    username={row.username}
+                    avatarURL={row.avatar_url}
+                  />
+                  <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
+                </Box>
+                <Box
+                  css={(theme) => ({
+                    color: theme.palette.text.secondary,
+                    fontSize: 13,
+                    textAlign: "right",
+                  })}
+                >
+                  {formatTime(row.seconds)}
+                </Box>
+              </Box>
+            ))}
+      </PanelContent>
+    </Panel>
+  );
+};
+
 const TemplateUsagePanel = ({
   data,
   ...panelProps
@@ -292,15 +364,21 @@ const TemplateUsagePanel = ({
   // The API returns a row for each app, even if the user didn't use it.
   const hasDataAvailable = validUsage && validUsage.length > 0;
   return (
-    <Panel {...panelProps}>
+    <Panel {...panelProps} css={{ overflowY: "auto" }}>
       <PanelHeader>
         <PanelTitle>App & IDE Usage</PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: 200 }} />}
-        {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {data && !hasDataAvailable && <NoDataAvailable />}
         {data && hasDataAvailable && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
             {validUsage
               .sort((a, b) => b.seconds - a.seconds)
               .map((usage, i) => {
