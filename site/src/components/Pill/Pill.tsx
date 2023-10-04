@@ -1,75 +1,104 @@
-import { PaletteColor, Theme } from "@mui/material/styles";
-import { makeStyles } from "@mui/styles";
-import { FC } from "react";
-import { PaletteIndex } from "theme/theme";
-import { combineClasses } from "utils/combineClasses";
+import { type FC, type ReactNode, useMemo } from "react";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { colors } from "theme/colors";
+
+export type PillType =
+  | "primary"
+  | "secondary"
+  | "error"
+  | "warning"
+  | "info"
+  | "success"
+  | "neutral";
 
 export interface PillProps {
   className?: string;
-  icon?: React.ReactNode;
-  text: string;
-  type?: PaletteIndex;
+  icon?: ReactNode;
+  text: ReactNode;
+  type?: PillType;
   lightBorder?: boolean;
   title?: string;
 }
 
+const themeOverrides = {
+  primary: (lightBorder) => ({
+    backgroundColor: colors.blue[13],
+    borderColor: lightBorder ? colors.blue[5] : colors.blue[7],
+  }),
+  secondary: (lightBorder) => ({
+    backgroundColor: colors.indigo[13],
+    borderColor: lightBorder ? colors.indigo[6] : colors.indigo[8],
+  }),
+  neutral: (lightBorder) => ({
+    backgroundColor: colors.gray[13],
+    borderColor: lightBorder ? colors.gray[6] : colors.gray[8],
+  }),
+} satisfies Record<string, (lightBorder?: boolean) => Interpolation<Theme>>;
+
+const themeStyles =
+  (type: PillType, lightBorder?: boolean) => (theme: Theme) => {
+    const palette = theme.palette[type];
+    return {
+      backgroundColor: palette.dark,
+      borderColor: lightBorder ? palette.light : palette.main,
+    };
+  };
+
 export const Pill: FC<PillProps> = (props) => {
-  const { className, icon, text = false, title } = props;
-  const styles = useStyles(props);
+  const { lightBorder, icon, text = null, type = "neutral", ...attrs } = props;
+  const theme = useTheme();
+
+  const typeStyles = useMemo(() => {
+    if (type in themeOverrides) {
+      return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
+    }
+    return themeStyles(type, lightBorder);
+  }, [type, lightBorder]);
+
   return (
     <div
-      className={combineClasses([styles.wrapper, styles.pillColor, className])}
+      css={[
+        {
+          display: "inline-flex",
+          alignItems: "center",
+          borderWidth: 1,
+          borderStyle: "solid",
+          borderRadius: 99999,
+          fontSize: 12,
+          color: "#FFF",
+          height: theme.spacing(3),
+          paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
+          paddingRight: theme.spacing(1.5),
+          whiteSpace: "nowrap",
+          fontWeight: 400,
+        },
+        typeStyles,
+      ]}
       role="status"
-      title={title}
+      {...attrs}
     >
-      {icon && <div className={styles.iconWrapper}>{icon}</div>}
+      {icon && (
+        <div
+          css={css`
+            margin-right: ${theme.spacing(0.5)};
+            width: ${theme.spacing(1.75)};
+            height: ${theme.spacing(1.75)};
+            line-height: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+
+            & > img,
+            & > svg {
+              width: ${theme.spacing(1.75)};
+              height: ${theme.spacing(1.75)};
+            }
+          `}
+        >
+          {icon}
+        </div>
+      )}
       {text}
     </div>
   );
 };
-
-const useStyles = makeStyles<Theme, PillProps>((theme) => ({
-  wrapper: {
-    display: "inline-flex",
-    alignItems: "center",
-    borderWidth: 1,
-    borderStyle: "solid",
-    borderRadius: 99999,
-    fontSize: 12,
-    color: "#FFF",
-    height: theme.spacing(3),
-    paddingLeft: ({ icon }) =>
-      icon ? theme.spacing(0.75) : theme.spacing(1.5),
-    paddingRight: theme.spacing(1.5),
-    whiteSpace: "nowrap",
-    fontWeight: 400,
-  },
-
-  pillColor: {
-    backgroundColor: ({ type }) =>
-      type
-        ? (theme.palette[type] as PaletteColor).dark
-        : theme.palette.text.secondary,
-    borderColor: ({ type, lightBorder }) =>
-      type
-        ? lightBorder
-          ? (theme.palette[type] as PaletteColor).light
-          : (theme.palette[type] as PaletteColor).main
-        : theme.palette.text.secondary,
-  },
-
-  iconWrapper: {
-    marginRight: theme.spacing(0.5),
-    width: theme.spacing(1.75),
-    height: theme.spacing(1.75),
-    lineHeight: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-
-    "& > svg": {
-      width: theme.spacing(1.75),
-      height: theme.spacing(1.75),
-    },
-  },
-}));

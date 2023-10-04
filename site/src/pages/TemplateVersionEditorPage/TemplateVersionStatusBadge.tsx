@@ -1,10 +1,9 @@
-import { TemplateVersion } from "api/typesGenerated";
-import { FC, ReactNode } from "react";
+import { type TemplateVersion } from "api/typesGenerated";
+import { type FC, type ReactNode } from "react";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import CheckIcon from "@mui/icons-material/CheckOutlined";
-import { Pill } from "components/Pill/Pill";
-import { PaletteIndex } from "theme/theme";
+import { Pill, type PillType } from "components/Pill/Pill";
 
 export const TemplateVersionStatusBadge: FC<{
   version: TemplateVersion;
@@ -27,7 +26,7 @@ const LoadingIcon: FC = () => {
 export const getStatus = (
   version: TemplateVersion,
 ): {
-  type?: PaletteIndex;
+  type?: PillType;
   text: string;
   icon: ReactNode;
 } => {

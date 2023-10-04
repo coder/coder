@@ -45,7 +45,7 @@ func TestTemplates(t *testing.T) {
 			ctr.DefaultTTLMillis = &exp
 			ctr.MaxTTLMillis = &exp
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -105,7 +105,7 @@ func TestTemplates(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
 			ctr.MaxTTLMillis = &exp
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -155,7 +155,7 @@ func TestTemplates(t *testing.T) {
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Empty(t, 0, template.AutostopRequirement.DaysOfWeek)
 		require.EqualValues(t, 1, template.AutostopRequirement.Weeks)
@@ -200,7 +200,7 @@ func TestTemplates(t *testing.T) {
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.EqualValues(t, 0, template.TimeTilDormantMillis)
 		require.EqualValues(t, 0, template.FailureTTLMillis)
@@ -251,7 +251,7 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		activeWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -259,8 +259,8 @@ func TestTemplates(t *testing.T) {
 		require.Nil(t, activeWS.DeletingAt)
 		require.Nil(t, dormantWS.DeletingAt)
 
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWS.LatestBuild.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, activeWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWS.LatestBuild.ID)
 
 		err := client.UpdateWorkspaceDormancy(ctx, dormantWS.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
@@ -324,7 +324,7 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		activeWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -332,8 +332,8 @@ func TestTemplates(t *testing.T) {
 		require.Nil(t, activeWS.DeletingAt)
 		require.Nil(t, dormantWS.DeletingAt)
 
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWS.LatestBuild.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, activeWS.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWS.LatestBuild.ID)
 
 		err := client.UpdateWorkspaceDormancy(ctx, dormantWS.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
@@ -380,7 +380,7 @@ func TestTemplates(t *testing.T) {
 			},
 		})
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		activeWorkspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
@@ -388,8 +388,8 @@ func TestTemplates(t *testing.T) {
 		require.Nil(t, activeWorkspace.DeletingAt)
 		require.Nil(t, dormantWorkspace.DeletingAt)
 
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, activeWorkspace.LatestBuild.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJob(t, client, dormantWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, activeWorkspace.LatestBuild.ID)
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWorkspace.LatestBuild.ID)
 
 		err := client.UpdateWorkspaceDormancy(ctx, dormantWorkspace.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
