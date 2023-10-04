@@ -180,7 +180,6 @@ export function WorkspacesButton() {
       <OverflowY
         maxHeight={380}
         sx={{
-          flexShrink: 1,
           display: "flex",
           flexFlow: "column nowrap",
           paddingY: 1,

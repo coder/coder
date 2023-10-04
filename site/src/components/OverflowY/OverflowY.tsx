@@ -29,6 +29,7 @@ export function OverflowY({ children, height, maxHeight, sx }: Props) {
         height: computedHeight,
         maxHeight: computedMaxHeight,
         overflowY: "auto",
+        flexShrink: 1,
         ...sx,
       }}
     >
