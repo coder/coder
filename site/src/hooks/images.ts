@@ -144,16 +144,37 @@ export function useImagePreloading(imgUrls?: readonly string[]) {
   // even if consuming component doesn't stabilize value of imgUrls
   const [cachedUrls, setCachedUrls] = useState(imgUrls);
 
-  // Very uncommon pattern, but it's based on something from the official React
-  // docs, and the comparison should have no perceivable effect on performance
-  if (cachedUrls !== imgUrls) {
-    const changedByValue =
-      imgUrls?.length !== cachedUrls?.length ||
-      !cachedUrls?.every((url, index) => url === imgUrls?.[index]);
+  // For performance reasons, this array comparison only goes one level deep
+  const changedByValue =
+    cachedUrls !== imgUrls &&
+    (imgUrls?.length !== cachedUrls?.length ||
+      !cachedUrls?.every((url, index) => url === imgUrls?.[index]));
 
-    if (changedByValue) {
-      setCachedUrls(imgUrls);
-    }
+  /**
+   * If this state dispatch were called inside useEffect, that would mean that
+   * the component and all of its children would render in full and get painted
+   * to the screen, the effect would fire, and then the component and all of its
+   * children would need to re-render and re-paint.
+   *
+   * Not a big deal for small components; possible concern when this hook is
+   * designed to be used anywhere and could be used at the top of the app.
+   *
+   * Calling the state dispatch inline means that the React invalidates the
+   * current component's output immediately. So the current render finishes,
+   * React flushes the state changes, throws away the render result, and
+   * immediately redoes the render with the new state. This happens before any
+   * painting happens, and before React even tries to touch the children.
+   *
+   * Basically, this pattern is weird and ugly, but it guarantees that no matter
+   * how complicated a component is, the cost of updating the state is always
+   * limited to one component total, and never any of its descendants. And the
+   * cost is limited to redoing an internal React render, not a render plus a
+   * set of DOM updates.
+   *
+   * @see {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
+   */
+  if (changedByValue) {
+    setCachedUrls(imgUrls);
   }
 
   useEffect(() => {
