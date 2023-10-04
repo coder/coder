@@ -69,7 +69,39 @@ export const BooleanType: Story = {
   },
 };
 
-export const OptionsType: Story = {
+export const Options: Story = {
+  args: {
+    value: "first_option",
+    id: "options_parameter",
+    parameter: createTemplateVersionParameter({
+      name: "options_parameter",
+      type: "string",
+      description: "Parameter with options",
+      options: [
+        {
+          name: "First option",
+          value: "first_option",
+          description: "",
+          icon: "/icon/fedora.svg",
+        },
+        {
+          name: "Second option",
+          value: "second_option",
+          description: "",
+          icon: "/icon/database.svg",
+        },
+        {
+          name: "Third option",
+          value: "third_option",
+          description: "",
+          icon: "/icon/aws.png",
+        },
+      ],
+    }),
+  },
+};
+
+export const OptionsWithDescriptions: Story = {
   args: {
     value: "first_option",
     id: "options_parameter",
@@ -82,7 +114,7 @@ export const OptionsType: Story = {
           name: "First option",
           value: "first_option",
           description: "This is option 1",
-          icon: "",
+          icon: "/icon/fedora.svg",
         },
         {
           name: "Second option",
@@ -217,9 +249,16 @@ export const SmallBooleanType: Story = {
   },
 };
 
-export const SmallOptionsType: Story = {
+export const SmallOptions: Story = {
   args: {
-    ...OptionsType.args,
+    ...Options.args,
+    size: "small",
+  },
+};
+
+export const SmallOptionsWithDescriptions: Story = {
+  args: {
+    ...OptionsWithDescriptions.args,
     size: "small",
   },
 };

@@ -11,6 +11,8 @@ import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { MultiTextField } from "./MultiTextField";
 import Box from "@mui/material/Box";
 import { Theme } from "@mui/material/styles";
+import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { useTheme } from "@emotion/react";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -95,6 +97,11 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   ...props
 }) => {
   const styles = useStyles();
+  const theme = useTheme();
+
+  const small = size === "small";
+
+  console.log(size);
 
   if (isBoolean(parameter)) {
     return (
@@ -137,19 +144,33 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             value={option.value}
             control={<Radio size="small" />}
             label={
-              <span className={styles.radioOption}>
+              <Stack direction="row" alignItems="center">
                 {option.icon && (
                   <img
                     className={styles.optionIcon}
                     alt="Parameter icon"
                     src={option.icon}
-                    style={{
+                    css={{
                       pointerEvents: "none",
                     }}
                   />
                 )}
-                {option.name}
-              </span>
+                {option.description ? (
+                  <Stack
+                    spacing={small ? 1 : 0}
+                    alignItems={small ? "center" : undefined}
+                    css={{ padding: `${theme.spacing(0.5)} 0` }}
+                    direction={small ? "row" : "column"}
+                  >
+                    <span>{option.name}</span>
+                    <MemoizedMarkdown className={styles.labelCaption}>
+                      {option.description}
+                    </MemoizedMarkdown>
+                  </Stack>
+                ) : (
+                  option.name
+                )}
+              </Stack>
             }
           />
         ))}
@@ -280,11 +301,6 @@ const useStyles = makeStyles<Theme>((theme) => ({
     width: "100%",
     height: "100%",
     objectFit: "contain",
-  },
-  radioOption: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
   },
   optionIcon: {
     maxHeight: 20,
