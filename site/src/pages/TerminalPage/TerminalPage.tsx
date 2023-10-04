@@ -1,6 +1,5 @@
 import { makeStyles, useTheme } from "@mui/styles";
 import { useMachine } from "@xstate/react";
-import { Stack } from "components/Stack/Stack";
 import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -18,43 +17,23 @@ import { terminalMachine } from "xServices/terminal/terminalXService";
 import { useProxy } from "contexts/ProxyContext";
 import Box from "@mui/material/Box";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { Region, WorkspaceAgent } from "api/typesGenerated";
+import { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import Popover from "@mui/material/Popover";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert";
 import { portForwardURL } from "utils/portForward";
+import Button from "@mui/material/Button";
+import {
+  DisconnectedAlert,
+  ErrorScriptAlert,
+  LoadedScriptsAlert,
+  LoadingScriptsAlert,
+} from "./TerminalAlerts";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
   workspaceAgentErrorMessagePrefix: "Unable to fetch workspace agent: ",
   websocketErrorMessagePrefix: "WebSocket failed: ",
-};
-
-const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
-  const lifecycleState = agent?.lifecycle_state;
-  const [startupWarning, setStartupWarning] = useState<
-    TerminalPageAlertType | undefined
-  >(undefined);
-
-  useEffect(() => {
-    if (lifecycleState === "start_error") {
-      setStartupWarning("error");
-    } else if (lifecycleState === "starting") {
-      setStartupWarning("starting");
-    } else {
-      setStartupWarning((prev) => {
-        if (prev === "starting") {
-          return "success";
-        }
-        return undefined;
-      });
-    }
-  }, [lifecycleState]);
-
-  return {
-    startupWarning,
-  };
 };
 
 type TerminalPageProps = React.PropsWithChildren<{
@@ -110,16 +89,19 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     workspaceAgent,
     websocketError,
   } = terminalState.context;
-  const reloading = useReloading(isDisconnected);
+  const reloadTerminal = useReloadTerminal();
   const dashboard = useDashboard();
   const proxyContext = useProxy();
   const selectedProxy = proxyContext.proxy.proxy;
   const latency = selectedProxy
     ? proxyContext.proxyLatencies[selectedProxy.id]
     : undefined;
-  const { startupWarning } = useTerminalWarning({
-    agent: workspaceAgent,
-  });
+
+  const lifecycleState = workspaceAgent?.lifecycle_state;
+  const prevLifecycleState = useRef(lifecycleState);
+  useEffect(() => {
+    prevLifecycleState.current = lifecycleState;
+  }, [lifecycleState]);
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -326,27 +308,27 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
             : ""}
         </title>
       </Helmet>
-      {/* This overlay makes it more obvious that the terminal is disconnected. */}
-      {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
-      <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
-        {reloading.status === "reloading" ? (
-          <span className={styles.overlayText}>Reloading...</span>
-        ) : (
-          <Stack spacing={0.5} alignItems="center">
-            <span className={styles.overlayText}>Disconnected</span>
-            <span className={styles.overlaySubtext}>
-              Press any key to retry
-            </span>
-          </Stack>
-        )}
-      </div>
       <Box display="flex" flexDirection="column" height="100vh">
-        {startupWarning && (
-          <TerminalPageAlert
-            alertType={startupWarning}
-            onDismiss={() => {
-              fitAddon?.fit();
-            }}
+        {lifecycleState === "start_error" && <ErrorScriptAlert />}
+        {lifecycleState === "starting" && <LoadingScriptsAlert />}
+        {lifecycleState === "ready" &&
+          prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
+        {isDisconnected && (
+          <DisconnectedAlert
+            actions={
+              <Button
+                disabled={reloadTerminal.status === "reloading"}
+                size="small"
+                variant="text"
+                onClick={() => {
+                  reloadTerminal.reload();
+                }}
+              >
+                {reloadTerminal.status === "reloading"
+                  ? "Reloading..."
+                  : "Reload"}
+              </Button>
+            }
           />
         )}
         <div
@@ -463,58 +445,23 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
   );
 };
 
-const useReloading = (isDisconnected: boolean) => {
+const useReloadTerminal = () => {
   const [status, setStatus] = useState<"reloading" | "notReloading">(
     "notReloading",
   );
 
-  // Retry connection on key press when it is disconnected
-  useEffect(() => {
-    if (!isDisconnected || status === "reloading") {
+  const reload = () => {
+    if (status === "reloading") {
       return;
     }
 
-    // Modifier keys should not trigger a reload.
-    const ignoredKeys = [
-      "Alt",
-      "AltGraph",
-      "CapsLock",
-      "Control",
-      "Fn",
-      "FnLock",
-      "Meta",
-      "NumLock",
-      "ScrollLock",
-      "Shift",
-      "Symbol",
-      "SymbolLock",
-    ];
-
-    const keyDownHandler = (event: KeyboardEvent) => {
-      // In addition to ignored keys, avoid reloading while modifiers are held
-      // to cover cases where the terminal unexpectedly tries to reconnect like
-      // when pressing ctrl+w, ctrl+r, and so on.
-      if (
-        !ignoredKeys.includes(event.key) &&
-        !event.altKey &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.shiftKey
-      ) {
-        setStatus("reloading");
-        window.location.reload();
-      }
-    };
-
-    document.addEventListener("keydown", keyDownHandler, true);
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler, true);
-    };
-  }, [status, isDisconnected]);
+    setStatus("reloading");
+    window.location.reload();
+  };
 
   return {
     status,
+    reload,
   };
 };
 
