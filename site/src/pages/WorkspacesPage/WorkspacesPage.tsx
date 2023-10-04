@@ -1,9 +1,6 @@
 import { usePagination } from "hooks/usePagination";
 import { Workspace } from "api/typesGenerated";
-import {
-  useDashboard,
-  useIsWorkspaceActionsEnabled,
-} from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
@@ -54,13 +51,16 @@ const WorkspacesPage: FC = () => {
     query: filterProps.filter.query,
   });
 
-  const experimentEnabled = useIsWorkspaceActionsEnabled();
+  const { entitlements } = useDashboard();
+  const schedulingEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled;
+
   // If workspace actions are enabled we need to fetch the dormant
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
   useEffect(() => {
-    if (experimentEnabled) {
+    if (schedulingEnabled) {
       const includesDormant = filterProps.filter.query.includes("dormant_at");
       const dormantQuery = includesDormant
         ? filterProps.filter.query
@@ -82,12 +82,11 @@ const WorkspacesPage: FC = () => {
       // like dormant workspaces don't exist.
       setDormantWorkspaces([]);
     }
-  }, [experimentEnabled, data, filterProps.filter.query]);
+  }, [schedulingEnabled, data, filterProps.filter.query]);
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [urlSearchParams] = searchParamsResult;
-  const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
 
