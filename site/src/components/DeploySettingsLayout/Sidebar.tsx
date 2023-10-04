@@ -111,10 +111,10 @@ export const Sidebar: React.FC = () => {
         User Authentication
       </SidebarNavItem>
       <SidebarNavItem
-        href="gitauth"
+        href="external-auth"
         icon={<SidebarNavItemIcon icon={GitIcon} />}
       >
-        Git Authentication
+        External Authentication
       </SidebarNavItem>
       <SidebarNavItem href="network" icon={<SidebarNavItemIcon icon={Globe} />}>
         Network

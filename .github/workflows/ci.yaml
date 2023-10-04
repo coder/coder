@@ -282,6 +282,11 @@ jobs:
           # is a fine default.
           PARALLEL_FLAG=""
 
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
           export TS_DEBUG_DISCO=true
           gotestsum --junitfile="gotests.xml" --jsonfile="gotests.json" \
             --packages="./..." -- $PARALLEL_FLAG -short -failfast $COVERAGE_FLAGS
