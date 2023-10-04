@@ -1,4 +1,6 @@
 import {
+  MockFailedProvisionerJob,
+  MockRunningProvisionerJob,
   MockTemplate,
   MockTemplateVersion,
   MockTemplateVersionFileTree,
@@ -15,7 +17,7 @@ import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-  title: "components/TemplateVersionEditor",
+  title: "pages/TemplateVersionEditor",
   component: TemplateVersionEditor,
   args: {
     template: MockTemplate,
@@ -36,6 +38,10 @@ export const Logs = {
   args: {
     isBuildingNewVersion: true,
     buildLogs: MockWorkspaceBuildLogs,
+    templateVersion: {
+      ...MockTemplateVersion,
+      job: MockRunningProvisionerJob,
+    },
   },
 };
 
@@ -60,7 +66,7 @@ export const ManyLogs = {
     templateVersion: {
       ...MockTemplateVersion,
       job: {
-        ...MockTemplateVersion.job,
+        ...MockFailedProvisionerJob,
         error:
           "template import provision for start: terraform plan: exit status 1",
       },
