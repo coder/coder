@@ -436,6 +436,7 @@ const TemplateParametersUsagePanel = ({
                   </ParameterUsageRow>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
+                    .filter((usage) => filterOrphanValues(usage, parameter))
                     .map((usage, usageIndex) => (
                       <ParameterUsageRow
                         key={`${parameterIndex}-${usageIndex}`}
@@ -454,6 +455,16 @@ const TemplateParametersUsagePanel = ({
       </PanelContent>
     </Panel>
   );
+};
+
+const filterOrphanValues = (
+  usage: TemplateParameterValue,
+  parameter: TemplateParameterUsage,
+) => {
+  if (parameter.options) {
+    return parameter.options.some((o) => o.value === usage.value);
+  }
+  return true;
 };
 
 const ParameterUsageRow = styled(Box)(({ theme }) => ({
