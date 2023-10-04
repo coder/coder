@@ -9906,10 +9906,13 @@ WHERE
 					latest_build.job_status = 'succeeded'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
 
-			    -- Special case. A workspace status of "running" is a job status
-			    -- of "succeeded". This is annoying...
+			    -- Special case where the provisioner status and workspace status
+			    -- differ. A workspace is "running" if the job is "succeeded" and
+			    -- the transition is "start". This is because a workspace starts
+			    -- running when a job is complete.
 			    WHEN $2 = 'running' THEN
-			    	latest_build.job_status = 'succeeded'::provisioner_job_status
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition
 
 				WHEN $2 != '' THEN
 				    -- By default just match the job status exactly
