@@ -49,7 +49,7 @@ export const WorkspaceBuildPage: FC = () => {
       <WorkspaceBuildPageView
         logs={logs}
         build={build}
-        builds={buildsQuery.data?.builds}
+        builds={buildsQuery.data}
         activeBuildNumber={buildNumber}
       />
     </>

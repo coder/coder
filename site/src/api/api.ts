@@ -777,7 +777,7 @@ export const getWorkspaceBuilds = async (
   workspaceId: string,
   req?: TypesGen.WorkspaceBuildsRequest,
 ) => {
-  const response = await axios.get<TypesGen.WorkspaceBuildsResponse>(
+  const response = await axios.get<TypesGen.WorkspaceBuild[]>(
     getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;

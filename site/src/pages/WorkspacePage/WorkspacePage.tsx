@@ -63,7 +63,7 @@ export const WorkspacePage: FC = () => {
         workspaceState={workspaceState}
         quota={quotaQuery.data}
         workspaceSend={workspaceSend}
-        builds={buildsQuery.data?.builds}
+        builds={buildsQuery.data}
         buildsError={buildsQuery.error}
       />
     </RequirePermission>

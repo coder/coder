@@ -1482,12 +1482,6 @@ export interface WorkspaceBuildsRequest extends Pagination {
   readonly since?: string;
 }
 
-// From codersdk/workspaces.go
-export interface WorkspaceBuildsResponse {
-  readonly builds: WorkspaceBuild[];
-  readonly count: number;
-}
-
 // From codersdk/deployment.go
 export interface WorkspaceConnectionLatencyMS {
   readonly P50: number;
