@@ -13,7 +13,7 @@ const MAX_RETRIES = 3;
  */
 type ImageTrackerEntry = {
   image: HTMLImageElement;
-  status: "loading" | "error" | "success";
+  status: "loading" | "aborted" | "error" | "success";
   retries: number;
 };
 
@@ -46,8 +46,10 @@ function preloadImages(imageUrls?: readonly string[]): () => void {
       dummyImage.src = imgUrl;
 
       const entry: ImageTrackerEntry = {
+        // Actual HTMLImageElement treats empty strings as an error, but that's
+        // not a concern for the tracker
+        status: imgUrl === "" ? "aborted" : "loading",
         image: dummyImage,
-        status: "loading",
         retries: 0,
       };
 
@@ -56,7 +58,7 @@ function preloadImages(imageUrls?: readonly string[]): () => void {
       };
 
       dummyImage.onerror = () => {
-        if (imgUrl !== "") {
+        if (imgUrl !== "aborted") {
           entry.status = "error";
         }
       };
@@ -66,19 +68,31 @@ function preloadImages(imageUrls?: readonly string[]): () => void {
     }
 
     const skipRetry =
-      prevEntry.status === "loading" ||
-      prevEntry.status === "success" ||
-      prevEntry.retries === MAX_RETRIES;
+      prevEntry.status !== "error" || prevEntry.retries === MAX_RETRIES;
 
     if (skipRetry) {
       continue;
     }
 
+    // Have to disconnect error handler while resetting the src, or else an
+    // error will be processed
+    const prevErrorHandler = prevEntry.image.onerror;
+    prevEntry.image.onerror = null;
     prevEntry.image.src = "";
-    const retryId = window.setTimeout(() => {
-      prevEntry.image.src = imgUrl;
-      prevEntry.retries++;
-    }, 0);
+
+    const retryId = window.setTimeout(
+      () => {
+        prevEntry.image.src = imgUrl;
+        prevEntry.image.onerror = prevErrorHandler;
+
+        prevEntry.status = "loading";
+        prevEntry.retries++;
+      },
+      // Zero is intentional; only purpose of the timeout call is to make the
+      // update logic take a brief trip through the task queue while making it
+      // easy to cancel the operation
+      0,
+    );
 
     retryTimeoutIds.push(retryId);
   }
