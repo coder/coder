@@ -292,7 +292,7 @@ func getNextTransition(
 		// make it dormant.
 		return "", database.BuildReasonAutolock, nil
 
-	case isEligibleForDelete(ws, templateSchedule, currentTick):
+	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
@@ -363,13 +363,21 @@ func isEligibleForDormantStop(ws database.Workspace, templateSchedule schedule.T
 		currentTick.Sub(ws.LastUsedAt) > templateSchedule.TimeTilDormant
 }
 
-func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// Only attempt to delete dormant workspaces.
-	return ws.DormantAt.Valid && ws.DeletingAt.Valid &&
+func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, lastBuild database.WorkspaceBuild, lastJob database.ProvisionerJob, currentTick time.Time) bool {
+	eligible := ws.DormantAt.Valid && ws.DeletingAt.Valid &&
 		// Dormant workspaces should only be deleted if a time_til_dormant_autodelete value is specified.
 		templateSchedule.TimeTilDormantAutoDelete > 0 &&
 		// The workspace must breach the time_til_dormant_autodelete value.
 		currentTick.After(ws.DeletingAt.Time)
+
+	// If the last delete job failed we should wait 24 hours before trying again.
+	// Builds are resource-intensive so retrying every minute is not productive
+	// and will hold compute hostage.
+	if lastBuild.Transition == database.WorkspaceTransitionDelete && db2sdk.ProvisionerJobStatus(lastJob) == codersdk.ProvisionerJobFailed {
+		return eligible && currentTick.Sub(lastJob.FinishedAt()) > time.Hour*24
+	}
+
+	return eligible
 }
 
 // isEligibleForFailedStop returns true if the workspace is eligible to be stopped
