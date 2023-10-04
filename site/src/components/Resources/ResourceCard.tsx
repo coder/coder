@@ -39,6 +39,11 @@ const styles = {
     "&:last-child": {
       borderBottom: 0,
     },
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+      overflow: "scroll",
+    },
   }),
 
   metadata: (theme) => ({

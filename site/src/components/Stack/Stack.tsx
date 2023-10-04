@@ -34,10 +34,6 @@ export const Stack: FC<StackProps> = (props) => {
         justifyContent: justifyContent,
         flexWrap: wrap,
         maxWidth: maxWidth,
-
-        [theme.breakpoints.down("md")]: {
-          width: "100%",
-        },
       })}
     >
       {children}
