@@ -436,6 +436,7 @@ const TemplateParametersUsagePanel = ({
                   </ParameterUsageRow>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
+                    .filter((usage) => filterOrphanValues(usage, parameter))
                     .map((usage, usageIndex) => (
                       <ParameterUsageRow
                         key={`${parameterIndex}-${usageIndex}`}
@@ -456,6 +457,16 @@ const TemplateParametersUsagePanel = ({
   );
 };
 
+const filterOrphanValues = (
+  usage: TemplateParameterValue,
+  parameter: TemplateParameterUsage,
+) => {
+  if (parameter.options) {
+    return parameter.options.some((o) => o.value === usage.value);
+  }
+  return true;
+};
+
 const ParameterUsageRow = styled(Box)(({ theme }) => ({
   display: "flex",
   alignItems: "baseline",
@@ -472,14 +483,7 @@ const ParameterUsageLabel = ({
   parameter: TemplateParameterUsage;
 }) => {
   if (parameter.options) {
-    const option = parameter.options.find((o) => o.value === usage.value);
-
-    // Sometimes can happen to have orphan values where the value was computed
-    // but the option was deleted
-    if (!option) {
-      return null;
-    }
-
+    const option = parameter.options.find((o) => o.value === usage.value)!;
     const icon = option.icon;
     const label = option.name;
 
