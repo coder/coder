@@ -472,7 +472,14 @@ const ParameterUsageLabel = ({
   parameter: TemplateParameterUsage;
 }) => {
   if (parameter.options) {
-    const option = parameter.options.find((o) => o.value === usage.value)!;
+    const option = parameter.options.find((o) => o.value === usage.value);
+
+    // Sometimes can happen to have orphan values where the value was computed
+    // but the option was deleted
+    if (!option) {
+      return null;
+    }
+
     const icon = option.icon;
     const label = option.name;
 

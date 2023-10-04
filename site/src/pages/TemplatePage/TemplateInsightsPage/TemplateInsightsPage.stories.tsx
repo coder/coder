@@ -162,6 +162,11 @@ export const Loaded: Story = {
                 value: "us-west2-a",
                 count: 1,
               },
+              // Test orphan values
+              {
+                value: "us-west-orphan",
+                count: 1,
+              },
             ],
           },
           {
