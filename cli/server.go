@@ -938,7 +938,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
+				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())

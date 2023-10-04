@@ -72,6 +72,7 @@ const (
 	AuditActionLogin    AuditAction = "login"
 	AuditActionLogout   AuditAction = "logout"
 	AuditActionRegister AuditAction = "register"
+	AuditActionDormant  AuditAction = "dormant"
 )
 
 func (a AuditAction) Friendly() string {
@@ -92,6 +93,8 @@ func (a AuditAction) Friendly() string {
 		return "logged out"
 	case AuditActionRegister:
 		return "registered"
+	case AuditActionDormant:
+		return "has gone dormant"
 	default:
 		return "unknown"
 	}
