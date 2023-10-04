@@ -11,6 +11,7 @@ import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import { useQuery } from "@tanstack/react-query";
+import { workspaceBuilds } from "api/queries/workspaceBuilds";
 
 export const WorkspacePage: FC = () => {
   const params = useParams() as {
@@ -26,10 +27,19 @@ export const WorkspacePage: FC = () => {
       workspaceName,
       username,
     },
+    actions: {
+      refreshBuilds: () => {
+        console.log("REFETCH!");
+      },
+    },
   });
   const { workspace, error } = workspaceState.context;
   const quotaQuery = useQuery(workspaceQuota(username));
   const pageError = error ?? quotaQuery.error;
+  const buildsQuery = useQuery({
+    ...workspaceBuilds(workspace?.id ?? ""),
+    enabled: Boolean(workspace),
+  });
 
   if (pageError) {
     return (
@@ -53,6 +63,8 @@ export const WorkspacePage: FC = () => {
         workspaceState={workspaceState}
         quota={quotaQuery.data}
         workspaceSend={workspaceSend}
+        builds={buildsQuery.data?.builds}
+        buildsError={buildsQuery.error}
       />
     </RequirePermission>
   );

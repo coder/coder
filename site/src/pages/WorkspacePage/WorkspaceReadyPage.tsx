@@ -39,12 +39,16 @@ interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
   workspaceSend: (event: WorkspaceEvent) => void;
   quota?: TypesGen.WorkspaceQuota;
+  builds: TypesGen.WorkspaceBuild[] | undefined;
+  buildsError: unknown;
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   workspaceSend,
   quota,
+  builds,
+  buildsError,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -56,8 +60,6 @@ export const WorkspaceReadyPage = ({
     template,
     templateVersion: currentVersion,
     deploymentValues,
-    builds,
-    getBuildsError,
     buildError,
     cancellationError,
     sshPrefix,
@@ -175,7 +177,7 @@ export const WorkspaceReadyPage = ({
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
+          [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
           [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}

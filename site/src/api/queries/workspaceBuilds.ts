@@ -1,4 +1,5 @@
 import * as API from "api/api";
+import { WorkspaceBuildsRequest } from "api/typesGenerated";
 
 export const workspaceBuildByNumber = (
   username: string,
@@ -6,8 +7,20 @@ export const workspaceBuildByNumber = (
   buildNumber: number,
 ) => {
   return {
-    queryKey: [username, workspaceName, "workspaceBuild", buildNumber],
+    queryKey: ["workspaceBuild", username, workspaceName, buildNumber],
     queryFn: () =>
       API.getWorkspaceBuildByNumber(username, workspaceName, buildNumber),
+  };
+};
+
+export const workspaceBuilds = (
+  workspaceId: string,
+  req?: WorkspaceBuildsRequest,
+) => {
+  return {
+    queryKey: ["workspaceBuilds", workspaceId, req],
+    queryFn: () => {
+      return API.getWorkspaceBuilds(workspaceId, req);
+    },
   };
 };
