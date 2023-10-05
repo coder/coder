@@ -201,30 +201,13 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						},
 					})
 
-					fields := audit.AdditionalFields{
-						WorkspaceName: ws.Name,
-						BuildReason:   reason,
-					}
-					if build != nil {
-						fields.BuildNumber = strconv.FormatInt(int64(latestBuild.BuildNumber), 10)
-					}
-
-					raw, err := json.Marshal(fields)
-					if err != nil {
-						e.log.Error(e.ctx, "marshal resource info for successful job", slog.Error(err))
-					}
-
-					audit.WorkspaceBuildAudit(e.ctx, &audit.BuildAuditParams[database.Workspace]{
-						Audit:            *e.auditor.Load(),
-						Log:              e.log,
-						UserID:           job.InitiatorID,
-						OrganizationID:   ws.OrganizationID,
-						JobID:            job.ID,
-						Action:           database.AuditActionWrite,
-						Old:              wsOld,
-						New:              ws,
-						Status:           http.StatusOK,
-						AdditionalFields: raw,
+					auditBuild(e.ctx, e.log, *e.auditor.Load(), auditParams{
+						Build:   build,
+						Job:     latestJob,
+						Reason:  reason,
+						Old:     wsOld,
+						New:     ws,
+						Success: err == nil,
 					})
 
 					if err != nil {
@@ -418,4 +401,47 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
 		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
+}
+
+type auditParams struct {
+	Build   *database.WorkspaceBuild
+	Job     database.ProvisionerJob
+	Reason  database.BuildReason
+	Old     database.Workspace
+	New     database.Workspace
+	Success bool
+}
+
+func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, params auditParams) {
+	fields := audit.AdditionalFields{
+		WorkspaceName: params.New.Name,
+		BuildReason:   params.Reason,
+	}
+
+	if params.Build != nil {
+		fields.BuildNumber = strconv.FormatInt(int64(params.Build.BuildNumber), 10)
+	}
+
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		log.Error(ctx, "marshal resource info for successful job", slog.Error(err))
+	}
+
+	status := http.StatusInternalServerError
+	if params.Success {
+		status = http.StatusOK
+	}
+
+	audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.Workspace]{
+		Audit:            auditor,
+		Log:              log,
+		UserID:           params.Job.InitiatorID,
+		OrganizationID:   params.New.OrganizationID,
+		JobID:            params.Job.ID,
+		Action:           database.AuditActionWrite,
+		Old:              params.Old,
+		New:              params.New,
+		Status:           status,
+		AdditionalFields: raw,
+	})
 }

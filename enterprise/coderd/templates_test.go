@@ -208,9 +208,9 @@ func TestTemplates(t *testing.T) {
 			require.EqualValues(t, 0, template.TimeTilDormantAutoDeleteMillis)
 
 			var (
-				failureTTL    time.Duration = 1 * time.Minute
-				inactivityTTL time.Duration = 2 * time.Minute
-				dormantTTL    time.Duration = 3 * time.Minute
+				failureTTL    = 1 * time.Minute
+				inactivityTTL = 2 * time.Minute
+				dormantTTL    = 3 * time.Minute
 			)
 
 			updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
