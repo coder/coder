@@ -1,5 +1,6 @@
+import { UseInfiniteQueryOptions } from "@tanstack/react-query";
 import * as API from "api/api";
-import { WorkspaceBuildsRequest } from "api/typesGenerated";
+import { WorkspaceBuild, WorkspaceBuildsRequest } from "api/typesGenerated";
 
 export const workspaceBuildByNumber = (
   username: string,
@@ -13,14 +14,22 @@ export const workspaceBuildByNumber = (
   };
 };
 
-export const workspaceBuilds = (
+export const infiniteWorkspaceBuilds = (
   workspaceId: string,
   req?: WorkspaceBuildsRequest,
-) => {
+): UseInfiniteQueryOptions<WorkspaceBuild[]> => {
+  const limit = req?.limit ?? 25;
+
   return {
     queryKey: ["workspaceBuilds", workspaceId, req],
-    queryFn: () => {
-      return API.getWorkspaceBuilds(workspaceId, req);
+    getNextPageParam: (lastPage, pages) => {
+      return pages.length + 1;
+    },
+    queryFn: ({ pageParam = 0 }) => {
+      return API.getWorkspaceBuilds(workspaceId, {
+        limit,
+        offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
+      });
     },
   };
 };

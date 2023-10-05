@@ -10,8 +10,8 @@ import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
 import { workspaceQuota } from "api/queries/workspaceQuota";
-import { useQuery } from "@tanstack/react-query";
-import { workspaceBuilds } from "api/queries/workspaceBuilds";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 
 export const WorkspacePage: FC = () => {
   const params = useParams() as {
@@ -36,8 +36,8 @@ export const WorkspacePage: FC = () => {
   const { workspace, error } = workspaceState.context;
   const quotaQuery = useQuery(workspaceQuota(username));
   const pageError = error ?? quotaQuery.error;
-  const buildsQuery = useQuery({
-    ...workspaceBuilds(workspace?.id ?? ""),
+  const buildsQuery = useInfiniteQuery({
+    ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
     enabled: Boolean(workspace),
   });
 
@@ -63,8 +63,13 @@ export const WorkspacePage: FC = () => {
         workspaceState={workspaceState}
         quota={quotaQuery.data}
         workspaceSend={workspaceSend}
-        builds={buildsQuery.data}
+        builds={buildsQuery.data?.pages.flat()}
         buildsError={buildsQuery.error}
+        isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
+        onLoadMoreBuilds={async () => {
+          await buildsQuery.fetchNextPage();
+        }}
+        hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
       />
     </RequirePermission>
   );

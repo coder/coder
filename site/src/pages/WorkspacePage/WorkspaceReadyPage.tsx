@@ -41,6 +41,9 @@ interface WorkspaceReadyPageProps {
   quota?: TypesGen.WorkspaceQuota;
   builds: TypesGen.WorkspaceBuild[] | undefined;
   buildsError: unknown;
+  onLoadMoreBuilds: () => void;
+  isLoadingMoreBuilds: boolean;
+  hasMoreBuilds: boolean;
 }
 
 export const WorkspaceReadyPage = ({
@@ -49,6 +52,9 @@ export const WorkspaceReadyPage = ({
   quota,
   builds,
   buildsError,
+  onLoadMoreBuilds,
+  isLoadingMoreBuilds,
+  hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -170,6 +176,9 @@ export const WorkspaceReadyPage = ({
         handleDormantActivate={() => workspaceSend({ type: "ACTIVATE" })}
         resources={workspace.latest_build.resources}
         builds={builds}
+        onLoadMoreBuilds={onLoadMoreBuilds}
+        isLoadingMoreBuilds={isLoadingMoreBuilds}
+        hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
         canRetryDebugMode={canRetryDebugMode}

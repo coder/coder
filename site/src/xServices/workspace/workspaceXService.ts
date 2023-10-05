@@ -641,10 +641,21 @@ export const workspaceMachine = createMachine(
         }
 
         context.eventSource.addEventListener("data", (event) => {
+          const newWorkspaceData = JSON.parse(event.data) as TypesGen.Workspace;
           // refresh our workspace with each SSE
-          send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) });
-          // refresh our timeline
-          send({ type: "REFRESH_TIMELINE" });
+          send({ type: "REFRESH_WORKSPACE", data: newWorkspaceData });
+
+          const currentWorkspace = context.workspace!;
+          const hasNewBuild =
+            newWorkspaceData.latest_build.id !==
+            currentWorkspace.latest_build.id;
+          const lastBuildHasChanged =
+            newWorkspaceData.latest_build.status !==
+            currentWorkspace.latest_build.status;
+
+          if (hasNewBuild || lastBuildHasChanged) {
+            send({ type: "REFRESH_TIMELINE" });
+          }
         });
 
         // handle any error events returned by our sse
