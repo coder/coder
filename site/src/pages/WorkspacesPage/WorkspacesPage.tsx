@@ -19,6 +19,8 @@ import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useQuery } from "@tanstack/react-query";
+import { templates } from "api/queries/templates";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -41,8 +43,13 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
+
+  const organizationId = useOrganizationId();
+  const templatesQuery = useQuery(templates(organizationId));
+
   const filterProps = useWorkspacesFilter({
     searchParamsResult,
+    organizationId,
     onFilterChange: () => pagination.goToPage(1),
   });
 
@@ -106,6 +113,8 @@ const WorkspacesPage: FC = () => {
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         canCheckWorkspaces={canCheckWorkspaces}
+        templates={templatesQuery.data}
+        templatesFetchStatus={templatesQuery.status}
         workspaces={data?.workspaces}
         dormantWorkspaces={dormantWorkspaces}
         error={error}
@@ -142,11 +151,13 @@ export default WorkspacesPage;
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onFilterChange: () => void;
+  organizationId: string;
 };
 
 const useWorkspacesFilter = ({
   searchParamsResult,
   onFilterChange,
+  organizationId,
 }: UseWorkspacesFilterOptions) => {
   const filter = useFilter({
     fallbackFilter: "owner:me",
@@ -163,9 +174,8 @@ const useWorkspacesFilter = ({
     enabled: canFilterByUser,
   });
 
-  const orgId = useOrganizationId();
   const templateMenu = useTemplateFilterMenu({
-    orgId,
+    orgId: organizationId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),
