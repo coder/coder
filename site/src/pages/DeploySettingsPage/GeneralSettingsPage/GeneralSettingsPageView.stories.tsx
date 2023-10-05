@@ -30,13 +30,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
         description:
           "Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.",
         flag: "experiments",
-        value: [
-          "*",
-          "moons",
-          "workspace_actions",
-          "single_tailnet",
-          "deployment_health_page",
-        ],
+        value: ["*", "moons", "single_tailnet", "deployment_health_page"],
         flag_shorthand: "",
         hidden: false,
       },

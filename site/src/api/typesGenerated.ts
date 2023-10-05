@@ -1662,15 +1662,13 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
-  | "workspace_actions";
+  | "template_autostop_requirement";
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
-  "workspace_actions",
 ];
 
 // From codersdk/deployment.go
