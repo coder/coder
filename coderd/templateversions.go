@@ -20,7 +20,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -1049,11 +1048,10 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	jobStatus := db2sdk.ProvisionerJobStatus(job)
-	if jobStatus != codersdk.ProvisionerJobSucceeded {
+	if job.JobStatus != database.ProvisionerJobStatusSucceeded {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Only versions that have been built successfully can be promoted.",
-			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", jobStatus),
+			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", job.JobStatus),
 		})
 		return
 	}
