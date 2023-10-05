@@ -1,15 +1,16 @@
+import Box from "@mui/material/Box";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
-import Box from "@mui/material/Box";
-import { FC } from "react";
+import Tooltip from "@mui/material/Tooltip";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
 import { MultiTextField } from "./MultiTextField";
-import { Interpolation, Theme } from "@emotion/react";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -85,12 +86,8 @@ const styles = {
     height: "100%",
     objectFit: "contain",
   },
-  radioOption: (theme) => ({
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-  }),
   optionIcon: {
+    pointerEvents: "none",
     maxHeight: 20,
     width: 20,
 
@@ -178,6 +175,9 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
   size,
   ...props
 }) => {
+  const theme = useTheme();
+  const small = size === "small";
+
   if (isBoolean(parameter)) {
     return (
       <RadioGroup
@@ -219,19 +219,46 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
             value={option.value}
             control={<Radio size="small" />}
             label={
-              <span css={styles.radioOption}>
+              <Stack direction="row" alignItems="center">
                 {option.icon && (
                   <img
                     css={styles.optionIcon}
-                    alt="Parameter icon"
                     src={option.icon}
-                    style={{
-                      pointerEvents: "none",
-                    }}
+                    alt="Parameter icon"
                   />
                 )}
-                {option.name}
-              </span>
+                {option.description ? (
+                  <Stack
+                    spacing={small ? 1 : 0}
+                    alignItems={small ? "center" : undefined}
+                    direction={small ? "row" : "column"}
+                    css={{
+                      padding: small ? undefined : `${theme.spacing(0.5)} 0`,
+                    }}
+                  >
+                    {small ? (
+                      <Tooltip
+                        title={
+                          <MemoizedMarkdown>
+                            {option.description}
+                          </MemoizedMarkdown>
+                        }
+                      >
+                        <Box>{option.name}</Box>
+                      </Tooltip>
+                    ) : (
+                      <>
+                        <span>{option.name}</span>
+                        <MemoizedMarkdown css={styles.labelCaption}>
+                          {option.description}
+                        </MemoizedMarkdown>
+                      </>
+                    )}
+                  </Stack>
+                ) : (
+                  option.name
+                )}
+              </Stack>
             }
           />
         ))}
