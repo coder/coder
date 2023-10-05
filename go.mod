@@ -35,6 +35,10 @@ replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20230921183700-c821c9c9966d
 
+// Fixes a race-condition in coder/wgtunnel.
+// Upstream PR: https://github.com/WireGuard/wireguard-go/pull/85
+replace golang.zx2c4.com/wireguard => github.com/coder/wireguard-go v0.0.0-20230920225835-b7d43c468619
+
 // This is replaced to include a fix that causes a deadlock when closing the
 // wireguard network.
 // The branch used is from https://github.com/coder/wireguard-go/tree/colin/tailscale
