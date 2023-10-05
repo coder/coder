@@ -32,31 +32,6 @@ export const NoIcon: Story = {
   },
 };
 
-export const SmallViewport: Story = {
-  args: {
-    template: MockTemplate,
-    activeVersion: {
-      ...MockTemplateVersion,
-      readme: `---
-    name:Template test
-    ---
-    ## Instructions
-    You can add instructions here
-
-    [Some link info](https://coder.com)
-    \`\`\`
-    # This is a really long sentence to test that the code block wraps into a new line properly.
-    \`\`\`
-    `,
-    },
-    resources: [MockWorkspaceResource, MockWorkspaceVolumeResource],
-  },
-};
-
-SmallViewport.parameters = {
-  chromatic: { viewports: [600] },
-};
-
 export const WithDeprecatedParameters: Story = {
   args: {
     template: MockTemplate,

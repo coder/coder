@@ -241,7 +241,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	})
 	t.Run("AlreadyCanceled", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -255,15 +257,7 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		require.Eventually(t, func() bool {
-			var err error
-			version, err = client.TemplateVersion(ctx, version.ID)
-			if !assert.NoError(t, err) {
-				return false
-			}
-			t.Logf("Status: %s", version.Job.Status)
-			return version.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalFast)
+		coderdtest.AwaitTemplateVersionJobRunning(t, client, version.ID)
 		err := client.CancelTemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
 		err = client.CancelTemplateVersion(ctx, version.ID)
@@ -280,7 +274,9 @@ func TestPatchCancelTemplateVersion(t *testing.T) {
 	// Running -> Canceling is the best we can do for now.
 	t.Run("Canceling", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -557,13 +553,60 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
 	})
 
-	t.Run("DoesNotBelong", func(t *testing.T) {
+	t.Run("CanceledBuild", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.CancelTemplateVersion(ctx, version.ID)
+		require.NoError(t, err)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Detail, "canceled")
+	})
+
+	t.Run("PendingBuild", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Detail, "pending")
+	})
+
+	t.Run("DoesNotBelong", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -576,13 +619,18 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
-	t.Run("Found", func(t *testing.T) {
+	t.Run("SuccessfulBuild", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Auditor:                  auditor,
+		})
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		version = coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, nil, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -592,8 +640,8 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Len(t, auditor.AuditLogs(), 5)
-		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+		require.Len(t, auditor.AuditLogs(), 6)
+		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[5].Action)
 	})
 }
 

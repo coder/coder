@@ -2,10 +2,14 @@ package harness
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
 )
@@ -31,6 +35,18 @@ type RunResult struct {
 	StartedAt  time.Time        `json:"started_at"`
 	Duration   httpapi.Duration `json:"duration"`
 	DurationMS int64            `json:"duration_ms"`
+}
+
+// MarshalJSON implements json.Marhshaler for RunResult.
+func (r RunResult) MarshalJSON() ([]byte, error) {
+	type alias RunResult
+	return json.Marshal(&struct {
+		alias
+		Error string `json:"error"`
+	}{
+		alias: alias(r),
+		Error: fmt.Sprintf("%+v", r.Error),
+	})
 }
 
 // Results returns the results of the test run. Panics if the test run is not
@@ -88,7 +104,10 @@ func (h *TestHarness) Results() Results {
 // PrintText prints the results as human-readable text to the given writer.
 func (r *Results) PrintText(w io.Writer) {
 	var totalDuration time.Duration
-	for _, run := range r.Runs {
+	keys := maps.Keys(r.Runs)
+	sort.Strings(keys)
+	for _, key := range keys {
+		run := r.Runs[key]
 		totalDuration += time.Duration(run.Duration)
 		if run.Error == nil {
 			continue
