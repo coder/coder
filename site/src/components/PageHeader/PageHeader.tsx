@@ -36,7 +36,6 @@ export const PageHeader: FC<PropsWithChildren<PageHeaderProps>> = ({
             marginLeft: "auto",
 
             [theme.breakpoints.down("md")]: {
-              marginTop: theme.spacing(3),
               marginLeft: "initial",
               width: "100%",
             },

@@ -73,7 +73,7 @@ export const WorkspacesPageView: FC<
 
   return (
     <Margins>
-      <PageHeader actions={canCheckWorkspaces && <WorkspacesButton />}>
+      <PageHeader actions={<WorkspacesButton />}>
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.pageTitle}</span>
