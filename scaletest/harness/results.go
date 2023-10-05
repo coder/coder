@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"golang.org/x/exp/maps"
 )
 
 // Results is the full compiled results for a set of test runs.
@@ -101,7 +103,10 @@ func (h *TestHarness) Results() Results {
 // PrintText prints the results as human-readable text to the given writer.
 func (r *Results) PrintText(w io.Writer) {
 	var totalDuration time.Duration
-	for _, run := range r.Runs {
+	keys := maps.Keys(r.Runs)
+	sort.Strings(keys)
+	for _, key := range keys {
+		run := r.Runs[key]
 		totalDuration += time.Duration(run.Duration)
 		if run.Error == nil {
 			continue

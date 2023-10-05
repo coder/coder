@@ -3,6 +3,9 @@ package harness_test
 import (
 	"bytes"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -106,7 +109,7 @@ Test results:
 			"started_at": "2023-10-05T12:03:56.395813665Z",
 			"duration": "1s",
 			"duration_ms": 1000,
-			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        /home/coder/src/coder/coder/scaletest/harness/results_test.go:40"
+			"error": "test-0/0 error:\n    github.com/coder/coder/v2/scaletest/harness_test.Test_Results\n        [working_directory]results_test.go:43"
 		},
 		"test-0/1": {
 			"full_id": "test-0/1",
@@ -131,6 +134,9 @@ Test results:
 	}
 }
 `
+	wd, err := os.Getwd()
+	require.NoError(t, err)
+	wantJSON = strings.Replace(wantJSON, "[working_directory]", wd+string(filepath.Separator), 1)
 
 	out := bytes.NewBuffer(nil)
 	results.PrintText(out)
@@ -140,7 +146,7 @@ Test results:
 	out.Reset()
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "\t")
-	err := enc.Encode(results)
+	err = enc.Encode(results)
 	require.NoError(t, err)
 
 	assert.Empty(t, cmp.Diff(wantJSON, out.String()), "JSON result does not match (-want +got)")
