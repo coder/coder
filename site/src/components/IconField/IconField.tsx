@@ -2,7 +2,7 @@ import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { OpenDropdown } from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { useRef, FC, useState } from "react";
 import Picker from "@emoji-mart/react";
 import { makeStyles } from "@mui/styles";
@@ -52,7 +52,7 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
       <Button
         fullWidth
         ref={emojiButtonRef}
-        endIcon={<OpenDropdown />}
+        endIcon={<DropdownArrow />}
         onClick={() => {
           setIsEmojiPickerOpen((v) => !v);
         }}

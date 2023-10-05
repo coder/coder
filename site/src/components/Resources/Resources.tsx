@@ -1,9 +1,6 @@
 import Button from "@mui/material/Button";
 import { makeStyles } from "@mui/styles";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { FC, useState } from "react";
 import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { Stack } from "../Stack/Stack";
@@ -49,15 +46,8 @@ export const Resources: FC<React.PropsWithChildren<ResourcesProps>> = ({
             size="small"
             onClick={() => setShouldDisplayHideResources((v) => !v)}
           >
-            {shouldDisplayHideResources ? (
-              <>
-                Hide resources <CloseDropdown />
-              </>
-            ) : (
-              <>
-                Show hidden resources <OpenDropdown />
-              </>
-            )}
+            {shouldDisplayHideResources ? "Hide" : "Show hidden"} resources
+            <DropdownArrow close={shouldDisplayHideResources} />
           </Button>
         </div>
       )}
