@@ -14,7 +14,6 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -240,7 +239,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		if job.CompletedAt.Valid {
 			return jobInelligibleError{
-				Err: xerrors.Errorf("job is completed (status %s)", db2sdk.ProvisionerJobStatus(job)),
+				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
 		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {

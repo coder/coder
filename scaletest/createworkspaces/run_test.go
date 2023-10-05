@@ -83,7 +83,7 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
@@ -182,7 +182,7 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
 			request.AllowUserCancelWorkspaceJobs = ptr.Ref(true)
 		})
@@ -324,7 +324,7 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
@@ -426,7 +426,7 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		version = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
 		runner := createworkspaces.NewRunner(client, createworkspaces.Config{
@@ -477,7 +477,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(agentToken)

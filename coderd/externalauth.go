@@ -23,7 +23,7 @@ import (
 // @Tags Git
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.ExternalAuth
-// @Router /externalauth/{externalauth} [get]
+// @Router /external-auth/{externalauth} [get]
 func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	apiKey := httpmw.APIKey(r)
@@ -33,7 +33,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 		Authenticated:    false,
 		Device:           config.DeviceAuth != nil,
 		AppInstallURL:    config.AppInstallURL,
-		Type:             config.Type.Pretty(),
+		DisplayName:      config.DisplayName,
 		AppInstallations: []codersdk.ExternalAuthAppInstallation{},
 	}
 
@@ -82,7 +82,7 @@ func (api *API) externalAuthByID(w http.ResponseWriter, r *http.Request) {
 // @Tags Git
 // @Param externalauth path string true "External Provider ID" format(string)
 // @Success 204
-// @Router /externalauth/{externalauth}/device [post]
+// @Router /external-auth/{externalauth}/device [post]
 func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -169,7 +169,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 // @Tags Git
 // @Param externalauth path string true "Git Provider ID" format(string)
 // @Success 200 {object} codersdk.ExternalAuthDevice
-// @Router /externalauth/{externalauth}/device [get]
+// @Router /external-auth/{externalauth}/device [get]
 func (*API) externalAuthDeviceByID(rw http.ResponseWriter, r *http.Request) {
 	config := httpmw.ExternalAuthParam(r)
 	ctx := r.Context()
@@ -255,7 +255,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 		redirect := state.Redirect
 		if redirect == "" {
 			// This is a nicely rendered screen on the frontend
-			redirect = fmt.Sprintf("/externalauth/%s", externalAuthConfig.ID)
+			redirect = fmt.Sprintf("/external-auth/%s", externalAuthConfig.ID)
 		}
 		http.Redirect(rw, r, redirect, http.StatusTemporaryRedirect)
 	}

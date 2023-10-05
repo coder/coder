@@ -11,12 +11,12 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-type GitAuthOptions struct {
+type ExternalAuthOptions struct {
 	Fetch         func(context.Context) ([]codersdk.TemplateVersionExternalAuth, error)
 	FetchInterval time.Duration
 }
 
-func GitAuth(ctx context.Context, writer io.Writer, opts GitAuthOptions) error {
+func ExternalAuth(ctx context.Context, writer io.Writer, opts ExternalAuthOptions) error {
 	if opts.FetchInterval == 0 {
 		opts.FetchInterval = 500 * time.Millisecond
 	}
@@ -38,7 +38,7 @@ func GitAuth(ctx context.Context, writer io.Writer, opts GitAuthOptions) error {
 			return nil
 		}
 
-		_, _ = fmt.Fprintf(writer, "You must authenticate with %s to create a workspace with this template. Visit:\n\n\t%s\n\n", auth.Type.Pretty(), auth.AuthenticateURL)
+		_, _ = fmt.Fprintf(writer, "You must authenticate with %s to create a workspace with this template. Visit:\n\n\t%s\n\n", auth.DisplayName, auth.AuthenticateURL)
 
 		ticker.Reset(opts.FetchInterval)
 		spin.Start()
@@ -66,7 +66,7 @@ func GitAuth(ctx context.Context, writer io.Writer, opts GitAuthOptions) error {
 			}
 		}
 		spin.Stop()
-		_, _ = fmt.Fprintf(writer, "Successfully authenticated with %s!\n\n", auth.Type.Pretty())
+		_, _ = fmt.Fprintf(writer, "Successfully authenticated with %s!\n\n", auth.DisplayName)
 	}
 	return nil
 }

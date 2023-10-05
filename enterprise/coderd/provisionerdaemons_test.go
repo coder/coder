@@ -162,7 +162,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		another, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 		_ = closer.Close()
@@ -171,7 +171,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		})
 		defer closer.Close()
 		workspace := coderdtest.CreateWorkspace(t, another, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	})
 
 	t.Run("PSK", func(t *testing.T) {
@@ -285,10 +285,10 @@ func TestProvisionerDaemonServe(t *testing.T) {
 				},
 			}},
 		})
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
 
 		err = pd.Shutdown(ctx)

@@ -49,11 +49,50 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
+	t.Parallel()
+	t.Run("Valid", func(t *testing.T) {
+		t.Parallel()
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
+			"CODER_EXTERNAL_AUTH_0_ID=1",
+			"CODER_EXTERNAL_AUTH_0_TYPE=gitlab",
+			"CODER_EXTERNAL_AUTH_1_ID=2",
+			"CODER_EXTERNAL_AUTH_1_CLIENT_ID=sid",
+			"CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=hunter12",
+			"CODER_EXTERNAL_AUTH_1_TOKEN_URL=google.com",
+			"CODER_EXTERNAL_AUTH_1_VALIDATE_URL=bing.com",
+			"CODER_EXTERNAL_AUTH_1_SCOPES=repo:read repo:write",
+			"CODER_EXTERNAL_AUTH_1_NO_REFRESH=true",
+			"CODER_EXTERNAL_AUTH_1_DISPLAY_NAME=Google",
+			"CODER_EXTERNAL_AUTH_1_DISPLAY_ICON=/icon/google.svg",
+		})
+		require.NoError(t, err)
+		require.Len(t, providers, 2)
+
+		// Validate the first provider.
+		assert.Equal(t, "1", providers[0].ID)
+		assert.Equal(t, "gitlab", providers[0].Type)
+
+		// Validate the second provider.
+		assert.Equal(t, "2", providers[1].ID)
+		assert.Equal(t, "sid", providers[1].ClientID)
+		assert.Equal(t, "hunter12", providers[1].ClientSecret)
+		assert.Equal(t, "google.com", providers[1].TokenURL)
+		assert.Equal(t, "bing.com", providers[1].ValidateURL)
+		assert.Equal(t, []string{"repo:read", "repo:write"}, providers[1].Scopes)
+		assert.Equal(t, true, providers[1].NoRefresh)
+		assert.Equal(t, "Google", providers[1].DisplayName)
+		assert.Equal(t, "/icon/google.svg", providers[1].DisplayIcon)
+	})
+}
+
+// TestReadGitAuthProvidersFromEnv ensures that the deprecated `CODER_GITAUTH_`
+// environment variables are still supported.
 func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"HOME=/home/frodo",
 		})
 		require.NoError(t, err)
@@ -61,7 +100,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("InvalidKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_XXX=invalid",
 		})
 		require.Error(t, err, "providers: %+v", providers)
@@ -69,7 +108,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("SkipKey", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_0_ID=invalid",
 			"CODER_GITAUTH_2_ID=invalid",
 		})
@@ -78,7 +117,7 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 	})
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
-		providers, err := cli.ReadGitAuthProvidersFromEnv([]string{
+		providers, err := cli.ReadExternalAuthProvidersFromEnv([]string{
 			"CODER_GITAUTH_0_ID=1",
 			"CODER_GITAUTH_0_TYPE=gitlab",
 			"CODER_GITAUTH_1_ID=2",

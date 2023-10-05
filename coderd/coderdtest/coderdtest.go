@@ -513,7 +513,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -553,7 +553,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -760,8 +760,8 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJob awaits for an import job to reach completed status.
-func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+// AwaitTemplateVersionJobCompleted awaits for an import job to reach completed status.
+func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -778,8 +778,8 @@ func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJobCompleted(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -880,7 +880,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 	})
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
@@ -906,7 +906,7 @@ func RequestExternalAuthCallback(t *testing.T, providerID string, client *coders
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/externalauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)

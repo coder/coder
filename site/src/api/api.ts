@@ -1,7 +1,9 @@
 import axios from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
-import { delay } from "utils/delay";
+// This needs to include the `../`, otherwise it breaks when importing into
+// vscode-coder.
+import { delay } from "../utils/delay";
 import userAgentParser from "ua-parser-js";
 
 // Adds 304 for the default axios validateStatus function
@@ -338,7 +340,7 @@ export const getTemplateVersionExternalAuth = async (
   versionId: string,
 ): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/externalauth`,
+    `/api/v2/templateversions/${versionId}/external-auth`,
   );
   return response.data;
 };
@@ -861,14 +863,14 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
 export const getExternalAuthProvider = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuth> => {
-  const resp = await axios.get(`/api/v2/externalauth/${provider}`);
+  const resp = await axios.get(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
 export const getExternalAuthDevice = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuthDevice> => {
-  const resp = await axios.get(`/api/v2/externalauth/${provider}/device`);
+  const resp = await axios.get(`/api/v2/external-auth/${provider}/device`);
   return resp.data;
 };
 
@@ -876,7 +878,10 @@ export const exchangeExternalAuthDevice = async (
   provider: string,
   req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/api/v2/externalauth/${provider}/device`, req);
+  const resp = await axios.post(
+    `/api/v2/external-auth/${provider}/device`,
+    req,
+  );
   return resp.data;
 };
 
@@ -1471,28 +1476,39 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
   };
 };
 
-type InsightsFilter = {
+export type InsightsParams = {
   start_time: string;
   end_time: string;
   template_ids: string;
 };
 
 export const getInsightsUserLatency = async (
-  filters: InsightsFilter,
+  filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/user-latency?${params}`);
   return response.data;
 };
 
+export const getInsightsUserActivity = async (
+  filters: InsightsParams,
+): Promise<TypesGen.UserActivityInsightsResponse> => {
+  const params = new URLSearchParams(filters);
+  const response = await axios.get(`/api/v2/insights/user-activity?${params}`);
+  return response.data;
+};
+
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
 export const getInsightsTemplate = async (
-  filters: InsightsFilter,
+  params: InsightsTemplateParams,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams({
-    ...filters,
-    interval: "day",
-  });
-  const response = await axios.get(`/api/v2/insights/templates?${params}`);
+  const searchParams = new URLSearchParams(params);
+  const response = await axios.get(
+    `/api/v2/insights/templates?${searchParams}`,
+  );
   return response.data;
 };
 

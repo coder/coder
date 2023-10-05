@@ -1,21 +1,16 @@
+import ReplayIcon from "@mui/icons-material/Replay";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
-import { SvgIconProps } from "@mui/material/SvgIcon";
 import Tooltip from "@mui/material/Tooltip";
-import GitHub from "@mui/icons-material/GitHub";
-import * as TypesGen from "api/typesGenerated";
-import { AzureDevOpsIcon } from "components/Icons/AzureDevOpsIcon";
-import { BitbucketIcon } from "components/Icons/BitbucketIcon";
-import { GitlabIcon } from "components/Icons/GitlabIcon";
-import { FC } from "react";
 import { makeStyles } from "@mui/styles";
-import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
-import { Stack } from "components/Stack/Stack";
-import ReplayIcon from "@mui/icons-material/Replay";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
+import { Stack } from "components/Stack/Stack";
+import { FC } from "react";
+import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 
 export interface ExternalAuthProps {
-  type: TypesGen.ExternalAuthProvider;
+  displayName: string;
+  displayIcon: string;
   authenticated: boolean;
   authenticateURL: string;
   externalAuthPollingState: ExternalAuthPollingState;
@@ -25,7 +20,8 @@ export interface ExternalAuthProps {
 
 export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
   const {
-    type,
+    displayName,
+    displayIcon,
     authenticated,
     authenticateURL,
     externalAuthPollingState,
@@ -37,32 +33,9 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
     error: typeof error !== "undefined",
   });
 
-  let prettyName: string;
-  let Icon: (props: SvgIconProps) => JSX.Element;
-  switch (type) {
-    case "azure-devops":
-      prettyName = "Azure DevOps";
-      Icon = AzureDevOpsIcon;
-      break;
-    case "bitbucket":
-      prettyName = "Bitbucket";
-      Icon = BitbucketIcon;
-      break;
-    case "github":
-      prettyName = "GitHub";
-      Icon = GitHub as (props: SvgIconProps) => JSX.Element;
-      break;
-    case "gitlab":
-      prettyName = "GitLab";
-      Icon = GitlabIcon;
-      break;
-    default:
-      throw new Error("invalid git provider: " + type);
-  }
-
   return (
     <Tooltip
-      title={authenticated && `${prettyName} has already been connected.`}
+      title={authenticated && `${displayName} has already been connected.`}
     >
       <Stack alignItems="center" spacing={1}>
         <LoadingButton
@@ -70,7 +43,14 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
           href={authenticateURL}
           variant="contained"
           size="large"
-          startIcon={<Icon />}
+          startIcon={
+            <img
+              src={displayIcon}
+              alt={`${displayName} Icon`}
+              width={24}
+              height={24}
+            />
+          }
           disabled={authenticated}
           className={styles.button}
           color={error ? "error" : undefined}
@@ -86,8 +66,8 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
           }}
         >
           {authenticated
-            ? `Authenticated with ${prettyName}`
-            : `Login with ${prettyName}`}
+            ? `Authenticated with ${displayName}`
+            : `Login with ${displayName}`}
         </LoadingButton>
 
         {externalAuthPollingState === "abandoned" && (
