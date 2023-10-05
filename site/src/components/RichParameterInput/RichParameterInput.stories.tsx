@@ -113,19 +113,29 @@ export const OptionsWithDescriptions: Story = {
         {
           name: "First option",
           value: "first_option",
-          description: "This is option 1",
+          description: "This is a short description.",
           icon: "/icon/fedora.svg",
         },
         {
           name: "Second option",
           value: "second_option",
-          description: "This is option 2",
+          description:
+            "This description is a little bit longer, but still not very long.",
           icon: "/icon/database.svg",
         },
         {
           name: "Third option",
           value: "third_option",
-          description: "This is option 3",
+          description: `
+In this description, we will explore the various ways in which this description
+is a big long boy. We'll discuss such things as, lots of words wow it's long, and
+boy howdy that's a number of sentences that this description contains. By the conclusion
+of this essay, I hope to reveal to you, the reader, that this description is just an
+absolute chonker. Just way longer than it actually needs to be. Absolutely massive.
+Very big.
+
+> Wow, that description is straight up large. –Some guy, probably
+`,
           icon: "/icon/aws.png",
         },
       ],

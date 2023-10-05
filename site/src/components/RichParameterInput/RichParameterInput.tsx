@@ -4,15 +4,16 @@ import RadioGroup from "@mui/material/RadioGroup";
 import { makeStyles } from "@mui/styles";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
+import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
 import { colors } from "theme/colors";
 import { MemoizedMarkdown } from "components/Markdown/Markdown";
 import { MultiTextField } from "./MultiTextField";
 import Box from "@mui/material/Box";
 import { Theme } from "@mui/material/styles";
-import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { useTheme } from "@emotion/react";
+import Tooltip from "@mui/material/Tooltip";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
 
 const isBoolean = (parameter: TemplateVersionParameter) => {
   return parameter.type === "bool";
@@ -162,10 +163,24 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                     css={{ padding: `${theme.spacing(0.5)} 0` }}
                     direction={small ? "row" : "column"}
                   >
-                    <span>{option.name}</span>
-                    <MemoizedMarkdown className={styles.labelCaption}>
-                      {option.description}
-                    </MemoizedMarkdown>
+                    {small ? (
+                      <Tooltip
+                        title={
+                          <MemoizedMarkdown>
+                            {option.description}
+                          </MemoizedMarkdown>
+                        }
+                      >
+                        <Box>{option.name}</Box>
+                      </Tooltip>
+                    ) : (
+                      <>
+                        <span>{option.name}</span>
+                        <MemoizedMarkdown className={styles.labelCaption}>
+                          {option.description}
+                        </MemoizedMarkdown>
+                      </>
+                    )}
                   </Stack>
                 ) : (
                   option.name
