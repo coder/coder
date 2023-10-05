@@ -1875,45 +1875,49 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 	}, nil
 }
 
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (sqlDB *sql.DB, err error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	var (
-		sqlDB *sql.DB
-		err   error
-		ok    = false
-		tries int
-	)
+	defer func() {
+		if err == nil {
+			return
+		}
+		if sqlDB != nil {
+			_ = sqlDB.Close()
+			sqlDB = nil
+		}
+		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
+	}()
+
+	var tries int
 	for r := retry.New(time.Second, 3*time.Second); r.Wait(ctx); {
 		tries++
 
 		sqlDB, err = sql.Open(driver, dbURL)
 		if err != nil {
-			logger.Warn(ctx, "connect to postgres; retrying", slog.Error(err), slog.F("try", tries))
+			logger.Warn(ctx, "connect to postgres: retrying", slog.Error(err), slog.F("try", tries))
 			continue
 		}
 
 		err = pingPostgres(ctx, sqlDB)
 		if err != nil {
-			logger.Warn(ctx, "ping postgres; retrying", slog.Error(err), slog.F("try", tries))
+			logger.Warn(ctx, "ping postgres: retrying", slog.Error(err), slog.F("try", tries))
+			_ = sqlDB.Close()
+			sqlDB = nil
 			continue
 		}
 
 		break
 	}
-	// Make sure we close the DB in case it opened but the ping failed for some
-	// reason.
-	defer func() {
-		if !ok && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-	}()
+	if err == nil {
+		err = ctx.Err()
+	}
 	if err != nil {
-		return nil, xerrors.Errorf("connect to postgres; tries %d; last error: %w", tries, err)
+		return nil, xerrors.Errorf("unable to connect after %d tries; last error: %w", tries, err)
 	}
 
 	// Ensure the PostgreSQL version is >=13.0.0!
@@ -1958,7 +1962,6 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
-	ok = true
 	return sqlDB, nil
 }
 
