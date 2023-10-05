@@ -551,6 +551,7 @@ site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisio
 
 site/src/theme/icons.json: $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons $@
+	pnpm run format:write:only $@
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
