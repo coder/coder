@@ -160,8 +160,10 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                   <Stack
                     spacing={small ? 1 : 0}
                     alignItems={small ? "center" : undefined}
-                    css={{ padding: `${theme.spacing(0.5)} 0` }}
                     direction={small ? "row" : "column"}
+                    css={{
+                      padding: small ? undefined : `${theme.spacing(0.5)} 0`,
+                    }}
                   >
                     {small ? (
                       <Tooltip
