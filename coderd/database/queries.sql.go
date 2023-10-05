@@ -2988,7 +2988,7 @@ WHERE
 		SKIP LOCKED
 		LIMIT
 			1
-	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+	) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 `
 
 type AcquireProvisionerJobParams struct {
@@ -3031,13 +3031,14 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		&i.Tags,
 		&i.ErrorCode,
 		&i.TraceMetadata,
+		&i.JobStatus,
 	)
 	return i, err
 }
 
 const getHungProvisionerJobs = `-- name: GetHungProvisionerJobs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 FROM
 	provisioner_jobs
 WHERE
@@ -3074,6 +3075,7 @@ func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.
 			&i.Tags,
 			&i.ErrorCode,
 			&i.TraceMetadata,
+			&i.JobStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -3090,7 +3092,7 @@ func (q *sqlQuerier) GetHungProvisionerJobs(ctx context.Context, updatedAt time.
 
 const getProvisionerJobByID = `-- name: GetProvisionerJobByID :one
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 FROM
 	provisioner_jobs
 WHERE
@@ -3119,13 +3121,14 @@ func (q *sqlQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (P
 		&i.Tags,
 		&i.ErrorCode,
 		&i.TraceMetadata,
+		&i.JobStatus,
 	)
 	return i, err
 }
 
 const getProvisionerJobsByIDs = `-- name: GetProvisionerJobsByIDs :many
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 FROM
 	provisioner_jobs
 WHERE
@@ -3160,6 +3163,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 			&i.Tags,
 			&i.ErrorCode,
 			&i.TraceMetadata,
+			&i.JobStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -3194,7 +3198,7 @@ queue_size AS (
 	SELECT COUNT(*) as count FROM unstarted_jobs
 )
 SELECT
-	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata,
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
     COALESCE(qp.queue_position, 0) AS queue_position,
     COALESCE(qs.count, 0) AS queue_size
 FROM
@@ -3241,6 +3245,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.Tags,
 			&i.ProvisionerJob.ErrorCode,
 			&i.ProvisionerJob.TraceMetadata,
+			&i.ProvisionerJob.JobStatus,
 			&i.QueuePosition,
 			&i.QueueSize,
 		); err != nil {
@@ -3258,7 +3263,7 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 }
 
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
-SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata FROM provisioner_jobs WHERE created_at > $1
+SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status FROM provisioner_jobs WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]ProvisionerJob, error) {
@@ -3289,6 +3294,7 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 			&i.Tags,
 			&i.ErrorCode,
 			&i.TraceMetadata,
+			&i.JobStatus,
 		); err != nil {
 			return nil, err
 		}
@@ -3320,7 +3326,7 @@ INSERT INTO
 		trace_metadata
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status
 `
 
 type InsertProvisionerJobParams struct {
@@ -3373,6 +3379,7 @@ func (q *sqlQuerier) InsertProvisionerJob(ctx context.Context, arg InsertProvisi
 		&i.Tags,
 		&i.ErrorCode,
 		&i.TraceMetadata,
+		&i.JobStatus,
 	)
 	return i, err
 }
@@ -9841,7 +9848,8 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
-		provisioner_jobs.error
+		provisioner_jobs.error,
+		provisioner_jobs.job_status
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -9873,63 +9881,42 @@ WHERE
 	AND CASE
 		WHEN $2 :: text != '' THEN
 			CASE
-				WHEN $2 = 'pending' THEN
-					latest_build.started_at IS NULL
+			    -- Some workspace specific status refer to the transition
+			    -- type. By default, the standard provisioner job status
+			    -- search strings are supported.
+			    -- 'running' states
 				WHEN $2 = 'starting' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-
-				WHEN $2 = 'running' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'start'::workspace_transition
-
 				WHEN $2 = 'stopping' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN $2 = 'stopped' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN $2 = 'failed' THEN
-					(latest_build.canceled_at IS NOT NULL AND
-						latest_build.error IS NOT NULL) OR
-					(latest_build.completed_at IS NOT NULL AND
-						latest_build.error IS NOT NULL)
-
-				WHEN $2 = 'canceling' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NULL
-
-				WHEN $2 = 'canceled' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NOT NULL
-
-				WHEN $2 = 'deleted' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition AND
-					-- If the error field is not null, the status is 'failed'
-					latest_build.error IS NULL
-
 				WHEN $2 = 'deleting' THEN
-					latest_build.completed_at IS NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
+					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
+			    -- 'succeeded' states
+			    WHEN $2 = 'deleted' THEN
+			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
+			    	latest_build.transition = 'delete'::workspace_transition
+				WHEN $2 = 'stopped' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'stop'::workspace_transition
+				WHEN $2 = 'started' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition
+
+			    -- Special case where the provisioner status and workspace status
+			    -- differ. A workspace is "running" if the job is "succeeded" and
+			    -- the transition is "start". This is because a workspace starts
+			    -- running when a job is complete.
+			    WHEN $2 = 'running' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN $2 != '' THEN
+				    -- By default just match the job status exactly
+			    	latest_build.job_status = $2::provisioner_job_status
 				ELSE
 					true
 			END

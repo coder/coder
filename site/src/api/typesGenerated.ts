@@ -1755,7 +1755,8 @@ export type ProvisionerJobStatus =
   | "failed"
   | "pending"
   | "running"
-  | "succeeded";
+  | "succeeded"
+  | "unknown";
 export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "canceled",
   "canceling",
@@ -1763,6 +1764,7 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "pending",
   "running",
   "succeeded",
+  "unknown",
 ];
 
 // From codersdk/workspaces.go

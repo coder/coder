@@ -89,6 +89,18 @@ CREATE TYPE parameter_type_system AS ENUM (
     'hcl'
 );
 
+CREATE TYPE provisioner_job_status AS ENUM (
+    'pending',
+    'running',
+    'succeeded',
+    'canceling',
+    'canceled',
+    'failed',
+    'unknown'
+);
+
+COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
+
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
@@ -500,8 +512,26 @@ CREATE TABLE provisioner_jobs (
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
     error_code text,
-    trace_metadata jsonb
+    trace_metadata jsonb,
+    job_status provisioner_job_status GENERATED ALWAYS AS (
+CASE
+    WHEN (completed_at IS NOT NULL) THEN
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceled'::provisioner_job_status
+        ELSE 'succeeded'::provisioner_job_status
+    END
+    ELSE
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceling'::provisioner_job_status
+        WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
+        ELSE 'running'::provisioner_job_status
+    END
+END) STORED NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
 
 CREATE TABLE replicas (
     id uuid NOT NULL,

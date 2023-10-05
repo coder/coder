@@ -3758,6 +3758,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `canceling` |
 | `canceled`  |
 | `failed`    |
+| `unknown`   |
 
 ## codersdk.ProvisionerLogLevel
 

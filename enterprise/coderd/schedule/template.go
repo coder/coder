@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
@@ -242,7 +241,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	if err != nil {
 		return xerrors.Errorf("get provisioner job %q: %w", build.JobID, err)
 	}
-	if db2sdk.ProvisionerJobStatus(job) != codersdk.ProvisionerJobSucceeded {
+	if codersdk.ProvisionerJobStatus(job.JobStatus) != codersdk.ProvisionerJobSucceeded {
 		// Only touch builds that are completed.
 		return nil
 	}
