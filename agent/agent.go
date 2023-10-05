@@ -90,7 +90,7 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequestDeprecated) error
+	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
 	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
@@ -380,7 +380,14 @@ func (a *agent) reportMetadataLoop(ctx context.Context) {
 	flight := trySingleflight{m: map[string]struct{}{}}
 
 	postMetadata := func(mr metadataResultAndKey) {
-		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
+		err := a.client.PostMetadata(ctx, agentsdk.PostMetadataRequest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key:                          mr.key,
+					WorkspaceAgentMetadataResult: *mr.result,
+				},
+			},
+		})
 		if err != nil {
 			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
 		}

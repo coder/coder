@@ -82,8 +82,8 @@ type PostMetadataRequest struct {
 // performance.
 type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
-func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequestDeprecated) error {
-	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
+func (c *Client) PostMetadata(ctx context.Context, req PostMetadataRequest) error {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata", req)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)
 	}
