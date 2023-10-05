@@ -1,10 +1,8 @@
 import { type PropsWithChildren, type ReactNode, useState } from "react";
-import { useOrganizationId } from "hooks";
 import { Language } from "./WorkspacesPageView";
 
-import { useQuery } from "@tanstack/react-query";
+import { UseQueryResult } from "@tanstack/react-query";
 import { type Template } from "api/typesGenerated";
-import { templates } from "api/queries/templates";
 
 import { Link as RouterLink } from "react-router-dom";
 import Box from "@mui/system/Box";
@@ -114,9 +112,14 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
   );
 }
 
-export function WorkspacesButton({ children }: PropsWithChildren) {
-  const organizationId = useOrganizationId();
-  const templatesQuery = useQuery(templates(organizationId));
+type WorkspacesButtonProps = PropsWithChildren<{
+  templatesQuery: UseQueryResult<Template[]>;
+}>;
+
+export function WorkspacesButton({
+  children,
+  templatesQuery,
+}: WorkspacesButtonProps) {
   const theme = useTheme();
 
   // Dataset should always be small enough that client-side filtering should be
@@ -172,7 +175,7 @@ export function WorkspacesButton({ children }: PropsWithChildren) {
           paddingY: 1,
         }}
       >
-        {templatesQuery.isLoading ? (
+        {status === "loading" ? (
           <Loader size={14} />
         ) : (
           <>

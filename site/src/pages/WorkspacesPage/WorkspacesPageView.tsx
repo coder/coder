@@ -1,4 +1,4 @@
-import { Workspace } from "api/typesGenerated";
+import { Template, Workspace } from "api/typesGenerated";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { ComponentProps, FC } from "react";
 import { Margins } from "components/Margins/Margins";
@@ -19,6 +19,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
+import { UseQueryResult } from "@tanstack/react-query";
 
 export const Language = {
   pageTitle: "Workspaces",
@@ -44,6 +45,7 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   onDeleteAll: () => void;
   canCheckWorkspaces: boolean;
+  templatesQuery: UseQueryResult<Template[]>;
 }
 
 export const WorkspacesPageView: FC<
@@ -62,6 +64,7 @@ export const WorkspacesPageView: FC<
   onCheckChange,
   onDeleteAll,
   canCheckWorkspaces,
+  templatesQuery,
 }) => {
   const { saveLocal } = useLocalStorage();
 
@@ -76,7 +79,9 @@ export const WorkspacesPageView: FC<
     <Margins>
       <PageHeader
         actions={
-          <WorkspacesButton>{Language.createWorkspace}</WorkspacesButton>
+          <WorkspacesButton templatesQuery={templatesQuery}>
+            {Language.createWorkspace}
+          </WorkspacesButton>
         }
       >
         <PageHeaderTitle>
