@@ -1,4 +1,4 @@
-import { type ReactNode, useState, ReactElement } from "react";
+import { type PropsWithChildren, type ReactNode, useState } from "react";
 import { useOrganizationId } from "hooks";
 import { Language } from "./WorkspacesPageView";
 
@@ -114,11 +114,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
   );
 }
 
-type WorkspacesButtonProps = {
-  children: string | ReactElement;
-};
-
-export function WorkspacesButton({ children }: WorkspacesButtonProps) {
+export function WorkspacesButton({ children }: PropsWithChildren) {
   const organizationId = useOrganizationId();
   const templatesQuery = useQuery(templates(organizationId));
   const theme = useTheme();
