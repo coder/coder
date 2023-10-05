@@ -98,6 +98,14 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
+  const systemTheme = useState(() => {
+    if (typeof window.matchMedia === "undefined") {
+      // Default to dark mode!
+      return "dark";
+    }
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
+    return isDark ? "dark" : "light";
+  });
 
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
@@ -124,12 +132,12 @@ export const WorkspaceReadyPage = ({
         <link
           rel="alternate icon"
           type="image/png"
-          href={`/favicons/${favicon}.png`}
+          href={`/favicons/${favicon}-${systemTheme}.png`}
         />
         <link
           rel="icon"
           type="image/svg+xml"
-          href={`/favicons/${favicon}.svg`}
+          href={`/favicons/${favicon}-${systemTheme}.svg`}
         />
       </Helmet>
 
