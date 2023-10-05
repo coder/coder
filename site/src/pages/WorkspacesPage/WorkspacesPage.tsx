@@ -114,7 +114,8 @@ const WorkspacesPage: FC = () => {
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         canCheckWorkspaces={canCheckWorkspaces}
-        templatesQuery={templatesQuery}
+        templates={templatesQuery.data}
+        templatesFetchStatus={templatesQuery.status}
         workspaces={data?.workspaces}
         dormantWorkspaces={dormantWorkspaces}
         error={error}

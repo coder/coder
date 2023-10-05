@@ -31,6 +31,8 @@ export const Language = {
   template: "Template",
 };
 
+type TemplateQuery = UseQueryResult<Template[]>;
+
 export interface WorkspacesPageViewProps {
   error: unknown;
   workspaces?: Workspace[];
@@ -45,7 +47,9 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   onDeleteAll: () => void;
   canCheckWorkspaces: boolean;
-  templatesQuery: UseQueryResult<Template[]>;
+
+  templatesFetchStatus: TemplateQuery["status"];
+  templates: TemplateQuery["data"];
 }
 
 export const WorkspacesPageView: FC<
@@ -64,7 +68,8 @@ export const WorkspacesPageView: FC<
   onCheckChange,
   onDeleteAll,
   canCheckWorkspaces,
-  templatesQuery,
+  templates,
+  templatesFetchStatus,
 }) => {
   const { saveLocal } = useLocalStorage();
 
@@ -80,8 +85,8 @@ export const WorkspacesPageView: FC<
       <PageHeader
         actions={
           <WorkspacesButton
-            templates={templatesQuery.data ?? []}
-            isLoadingTemplates={templatesQuery.isLoading}
+            templates={templates}
+            templatesFetchStatus={templatesFetchStatus}
           >
             {Language.createWorkspace}
           </WorkspacesButton>
