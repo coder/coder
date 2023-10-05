@@ -123,9 +123,6 @@ describe("TemplateSchedulePage", () => {
     jest
       .spyOn(API, "getEntitlements")
       .mockResolvedValue(MockEntitlementsWithScheduling);
-
-    // remove when https://github.com/coder/coder/milestone/19 is completed.
-    jest.spyOn(API, "getExperiments").mockResolvedValue(["workspace_actions"]);
   });
 
   it("Calls the API when user fills in and submits a form", async () => {

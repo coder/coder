@@ -31,7 +31,6 @@ type Story = StoryObj<typeof TemplateSchedulePageView>;
 
 const defaultArgs = {
   allowAdvancedScheduling: true,
-  allowWorkspaceActions: true,
   template: MockTemplate,
   onSubmit: action("onSubmit"),
   onCancel: action("cancel"),

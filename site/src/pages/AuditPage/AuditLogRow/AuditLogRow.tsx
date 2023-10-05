@@ -2,10 +2,7 @@ import Collapse from "@mui/material/Collapse";
 import { makeStyles } from "@mui/styles";
 import TableCell from "@mui/material/TableCell";
 import { AuditLog } from "api/typesGenerated";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill, type PillType } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
@@ -154,7 +151,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
           </Stack>
 
           {shouldDisplayDiff ? (
-            <div> {isDiffOpen ? <CloseDropdown /> : <OpenDropdown />}</div>
+            <div> {<DropdownArrow close={isDiffOpen} />}</div>
           ) : (
             <div className={styles.columnWithoutDiff}></div>
           )}

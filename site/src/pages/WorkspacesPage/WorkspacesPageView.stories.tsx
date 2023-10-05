@@ -16,6 +16,7 @@ import {
   mockApiError,
   MockUser,
   MockPendingProvisionerJob,
+  MockTemplate,
 } from "testHelpers/entities";
 import { WorkspacesPageView } from "./WorkspacesPageView";
 import { DashboardProviderContext } from "components/Dashboard/DashboardProvider";
@@ -92,6 +93,19 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
   },
 });
 
+const mockTemplates = [
+  MockTemplate,
+  ...[1, 2, 3, 4].map((num) => {
+    return {
+      ...MockTemplate,
+      active_user_count: Math.floor(Math.random() * 10) * num,
+      display_name: `Extra Template ${num}`,
+      description: "Auto-Generated template",
+      icon: num % 2 === 0 ? "" : "/icon/goland.svg",
+    };
+  }),
+];
+
 const meta: Meta<typeof WorkspacesPageView> = {
   title: "pages/WorkspacesPageView",
   component: WorkspacesPageView,
@@ -100,6 +114,8 @@ const meta: Meta<typeof WorkspacesPageView> = {
     filterProps: defaultFilterProps,
     checkedWorkspaces: [],
     canCheckWorkspaces: true,
+    templates: mockTemplates,
+    templatesFetchStatus: "success",
   },
   decorators: [
     (Story) => (

@@ -837,6 +837,80 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	}
 }
 
+// Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
+type ProvisionerJobStatus string
+
+const (
+	ProvisionerJobStatusPending   ProvisionerJobStatus = "pending"
+	ProvisionerJobStatusRunning   ProvisionerJobStatus = "running"
+	ProvisionerJobStatusSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobStatusCanceling ProvisionerJobStatus = "canceling"
+	ProvisionerJobStatusCanceled  ProvisionerJobStatus = "canceled"
+	ProvisionerJobStatusFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobStatusUnknown   ProvisionerJobStatus = "unknown"
+)
+
+func (e *ProvisionerJobStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerJobStatus(s)
+	case string:
+		*e = ProvisionerJobStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerJobStatus: %T", src)
+	}
+	return nil
+}
+
+type NullProvisionerJobStatus struct {
+	ProvisionerJobStatus ProvisionerJobStatus `json:"provisioner_job_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if ProvisionerJobStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProvisionerJobStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProvisionerJobStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProvisionerJobStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProvisionerJobStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProvisionerJobStatus), nil
+}
+
+func (e ProvisionerJobStatus) Valid() bool {
+	switch e {
+	case ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown:
+		return true
+	}
+	return false
+}
+
+func AllProvisionerJobStatusValues() []ProvisionerJobStatus {
+	return []ProvisionerJobStatus{
+		ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown,
+	}
+}
+
 type ProvisionerJobType string
 
 const (
@@ -1671,6 +1745,8 @@ type ProvisionerJob struct {
 	Tags           StringMap                `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	// Computed column to track the status of the job.
+	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 type ProvisionerJobLog struct {

@@ -98,7 +98,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
         labels: labels,
         datasets: [
           {
-            label: "Daily Active Users",
+            label: `${interval === "day" ? "Daily" : "Weekly"} Active Users`,
             data: chartData,
             pointBackgroundColor: theme.palette.info.light,
             pointBorderColor: theme.palette.info.light,

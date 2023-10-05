@@ -718,7 +718,7 @@ func (b *Builder) checkTemplateJobStatus() error {
 		}
 	}
 
-	templateVersionJobStatus := db2sdk.ProvisionerJobStatus(*templateVersionJob)
+	templateVersionJobStatus := codersdk.ProvisionerJobStatus(templateVersionJob.JobStatus)
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		msg := fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus)
@@ -755,7 +755,7 @@ func (b *Builder) checkRunningBuild() error {
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
 	}
-	if db2sdk.ProvisionerJobStatus(*job).Active() {
+	if codersdk.ProvisionerJobStatus(job.JobStatus).Active() {
 		msg := "A workspace build is already active."
 		return BuildError{
 			http.StatusConflict,

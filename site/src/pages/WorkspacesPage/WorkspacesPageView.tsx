@@ -1,14 +1,8 @@
-import Link from "@mui/material/Link";
-import { Workspace } from "api/typesGenerated";
+import { Template, Workspace } from "api/typesGenerated";
 import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 import { ComponentProps, FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import {
-  PageHeader,
-  PageHeaderSubtitle,
-  PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { WorkspaceHelpTooltip } from "./WorkspaceHelpTooltip";
 import { WorkspacesTable } from "pages/WorkspacesPage/WorkspacesTable";
@@ -24,15 +18,20 @@ import {
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import { WorkspacesButton } from "./WorkspacesButton";
+import { UseQueryResult } from "@tanstack/react-query";
 
 export const Language = {
   pageTitle: "Workspaces",
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
   runningWorkspacesButton: "Running workspaces",
-  createANewWorkspace: `Create a new workspace from a `,
+  createWorkspace: <>Create Workspace&hellip;</>,
+  seeAllTemplates: "See all templates",
   template: "Template",
 };
+
+type TemplateQuery = UseQueryResult<Template[]>;
 
 export interface WorkspacesPageViewProps {
   error: unknown;
@@ -48,6 +47,9 @@ export interface WorkspacesPageViewProps {
   onCheckChange: (checkedWorkspaces: Workspace[]) => void;
   onDeleteAll: () => void;
   canCheckWorkspaces: boolean;
+
+  templatesFetchStatus: TemplateQuery["status"];
+  templates: TemplateQuery["data"];
 }
 
 export const WorkspacesPageView: FC<
@@ -66,6 +68,8 @@ export const WorkspacesPageView: FC<
   onCheckChange,
   onDeleteAll,
   canCheckWorkspaces,
+  templates,
+  templatesFetchStatus,
 }) => {
   const { saveLocal } = useLocalStorage();
 
@@ -78,21 +82,22 @@ export const WorkspacesPageView: FC<
 
   return (
     <Margins>
-      <PageHeader>
+      <PageHeader
+        actions={
+          <WorkspacesButton
+            templates={templates}
+            templatesFetchStatus={templatesFetchStatus}
+          >
+            {Language.createWorkspace}
+          </WorkspacesButton>
+        }
+      >
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.pageTitle}</span>
             <WorkspaceHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-
-        <PageHeaderSubtitle>
-          {Language.createANewWorkspace}
-          <Link component={RouterLink} to="/templates">
-            {Language.template}
-          </Link>
-          .
-        </PageHeaderSubtitle>
       </PageHeader>
 
       <Stack>

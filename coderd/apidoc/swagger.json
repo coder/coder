@@ -7319,7 +7319,6 @@
       "type": "string",
       "enum": [
         "moons",
-        "workspace_actions",
         "tailnet_pg_coordinator",
         "single_tailnet",
         "template_autostop_requirement",
@@ -7327,7 +7326,6 @@
       ],
       "x-enum-varnames": [
         "ExperimentMoons",
-        "ExperimentWorkspaceActions",
         "ExperimentTailnetPGCoordinator",
         "ExperimentSingleTailnet",
         "ExperimentTemplateAutostopRequirement",
@@ -8211,7 +8209,8 @@
         "succeeded",
         "canceling",
         "canceled",
-        "failed"
+        "failed",
+        "unknown"
       ],
       "x-enum-varnames": [
         "ProvisionerJobPending",
@@ -8219,7 +8218,8 @@
         "ProvisionerJobSucceeded",
         "ProvisionerJobCanceling",
         "ProvisionerJobCanceled",
-        "ProvisionerJobFailed"
+        "ProvisionerJobFailed",
+        "ProvisionerJobUnknown"
       ]
     },
     "codersdk.ProvisionerLogLevel": {
