@@ -11,6 +11,7 @@ import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
+import Typography from "@mui/material/Typography";
 
 import { Loader } from "components/Loader/Loader";
 import { OverflowY } from "components/OverflowY/OverflowY";
@@ -21,6 +22,7 @@ import {
   PopoverContainer,
   PopoverLink,
 } from "components/PopoverContainer/PopoverContainer";
+import { useTheme } from "@emotion/react";
 
 const ICON_SIZE = 18;
 const COLUMN_GAP = 1.5;
@@ -42,6 +44,8 @@ function sortTemplatesByUsersDesc(
 }
 
 function WorkspaceResultsRow({ template }: { template: Template }) {
+  const theme = useTheme();
+
   return (
     <PopoverLink to={`/templates/${template.name}/workspace`}>
       <Box
@@ -76,25 +80,20 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
             color: "white",
           }}
         >
-          <Box
+          <Typography
             component="p"
-            sx={{
-              marginY: 0,
-              paddingBottom: 0.5,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
+            sx={{ marginY: 0, paddingBottom: 0.5, lineHeight: 1 }}
+            noWrap
           >
             {template.display_name || "[Unnamed]"}
-          </Box>
+          </Typography>
 
           <Box
             component="p"
             sx={{
               marginY: 0,
               fontSize: 14,
-              color: (theme) => theme.palette.text.secondary,
+              color: theme.palette.text.secondary,
             }}
           >
             {/*
@@ -118,6 +117,7 @@ export function WorkspacesButton() {
   const organizationId = useOrganizationId();
   const permissions = usePermissions();
   const templatesQuery = useQuery(templates(organizationId));
+  const theme = useTheme();
 
   // Dataset should always be small enough that client-side filtering should be
   // good enough. Can swap out down the line if it becomes an issue
@@ -192,7 +192,7 @@ export function WorkspacesButton() {
           sx={{
             outline: "none",
             "&:focus": {
-              backgroundColor: (theme) => theme.palette.action.focus,
+              backgroundColor: theme.palette.action.focus,
             },
           }}
         >
@@ -203,7 +203,7 @@ export function WorkspacesButton() {
               flexFlow: "row nowrap",
               alignItems: "center",
               columnGap: COLUMN_GAP,
-              borderTop: (theme) => `1px solid ${theme.palette.divider}`,
+              borderTop: `1px solid ${theme.palette.divider}`,
             }}
           >
             <Box component="span" sx={{ width: `${ICON_SIZE}px` }}>
