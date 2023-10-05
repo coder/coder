@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, ReactElement } from "react";
 import { useOrganizationId, usePermissions } from "hooks";
 
 import { useQuery } from "@tanstack/react-query";
@@ -113,7 +113,15 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
   );
 }
 
-export function WorkspacesButton() {
+type WorkspacesButtonProps = {
+  children: string | ReactElement;
+  seeMoreTemplatesText: string | ReactElement;
+};
+
+export function WorkspacesButton({
+  children,
+  seeMoreTemplatesText,
+}: WorkspacesButtonProps) {
   const organizationId = useOrganizationId();
   const permissions = usePermissions();
   const templatesQuery = useQuery(templates(organizationId));
@@ -152,7 +160,7 @@ export function WorkspacesButton() {
       sx={{ display: "flex", flexFlow: "column nowrap" }}
       anchorButton={
         <Button startIcon={<AddIcon />} variant="contained">
-          Create Workspace&hellip;
+          {children}
         </Button>
       }
     >
@@ -211,7 +219,7 @@ export function WorkspacesButton() {
                 sx={{ fontSize: "16px", marginX: "auto", display: "block" }}
               />
             </Box>
-            <span>See all templates</span>
+            <span>{seeMoreTemplatesText}</span>
           </Box>
         </Link>
       )}

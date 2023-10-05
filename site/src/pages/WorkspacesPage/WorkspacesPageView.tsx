@@ -25,7 +25,8 @@ export const Language = {
   yourWorkspacesButton: "Your workspaces",
   allWorkspacesButton: "All workspaces",
   runningWorkspacesButton: "Running workspaces",
-  createANewWorkspace: `Create a new workspace from a `,
+  createWorkspace: <>Create Workspace&hellip;</>,
+  moreTemplates: "See all templates",
   template: "Template",
 };
 
@@ -73,7 +74,13 @@ export const WorkspacesPageView: FC<
 
   return (
     <Margins>
-      <PageHeader actions={<WorkspacesButton />}>
+      <PageHeader
+        actions={
+          <WorkspacesButton seeMoreTemplatesText={Language.moreTemplates}>
+            {Language.createWorkspace}
+          </WorkspacesButton>
+        }
+      >
         <PageHeaderTitle>
           <Stack direction="row" spacing={1} alignItems="center">
             <span>{Language.pageTitle}</span>
