@@ -58,22 +58,23 @@ export const BuildsTable: FC<React.PropsWithChildren<BuildsTableProps>> = ({
           </TableBody>
         </Table>
       </TableContainer>
-      <LoadingButton
-        disabled={!hasMoreBuilds}
-        onClick={onLoadMoreBuilds}
-        loading={isLoadingMoreBuilds}
-        loadingPosition="start"
-        variant="outlined"
-        color="neutral"
-        startIcon={<ArrowDownwardOutlined />}
-        css={{
-          display: "inline-flex",
-          margin: "auto",
-          borderRadius: "9999px",
-        }}
-      >
-        Load previous builds
-      </LoadingButton>
+      {hasMoreBuilds && (
+        <LoadingButton
+          onClick={onLoadMoreBuilds}
+          loading={isLoadingMoreBuilds}
+          loadingPosition="start"
+          variant="outlined"
+          color="neutral"
+          startIcon={<ArrowDownwardOutlined />}
+          css={{
+            display: "inline-flex",
+            margin: "auto",
+            borderRadius: "9999px",
+          }}
+        >
+          Load previous builds
+        </LoadingButton>
+      )}
     </Stack>
   );
 };
