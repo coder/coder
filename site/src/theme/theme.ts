@@ -150,6 +150,9 @@ dark = createTheme(dark, {
           ":focus-visible": {
             outline: `2px solid ${theme.palette.primary.main}`,
           },
+          ":hover": {
+            border: `1px solid ${colors.gray[10]}`,
+          },
 
           "& .MuiLoadingButton-loadingIndicator": {
             width: 14,
@@ -376,7 +379,7 @@ dark = createTheme(dark, {
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[7],
+              borderColor: colors.gray[10],
             },
         },
       },
