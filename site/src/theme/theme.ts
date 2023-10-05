@@ -45,8 +45,8 @@ export let dark = createTheme({
     },
     divider: colors.gray[14],
     warning: {
-      light: colors.orange[7],
-      main: colors.orange[9],
+      light: colors.orange[9],
+      main: colors.orange[11],
       dark: colors.orange[15],
     },
     success: {
