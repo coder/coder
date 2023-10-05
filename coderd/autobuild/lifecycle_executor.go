@@ -20,7 +20,6 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 // Executor automatically starts or stops workspaces.
@@ -302,7 +301,7 @@ func getNextTransition(
 // isEligibleForAutostart returns true if the workspace should be autostarted.
 func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// Don't attempt to autostart failed workspaces.
-	if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
+	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
 
@@ -336,7 +335,7 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
 func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
-	if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
+	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
 
@@ -373,7 +372,7 @@ func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.Templa
 	// If the last delete job failed we should wait 24 hours before trying again.
 	// Builds are resource-intensive so retrying every minute is not productive
 	// and will hold compute hostage.
-	if lastBuild.Transition == database.WorkspaceTransitionDelete && db2sdk.ProvisionerJobStatus(lastJob) == codersdk.ProvisionerJobFailed {
+	if lastBuild.Transition == database.WorkspaceTransitionDelete && lastJob.JobStatus == database.ProvisionerJobStatusFailed {
 		return eligible && lastJob.Finished() && currentTick.Sub(lastJob.FinishedAt()) > time.Hour*24
 	}
 
@@ -386,7 +385,7 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 	// If the template has specified a failure TLL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
-		codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed &&
+		job.JobStatus == database.ProvisionerJobStatusFailed &&
 		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
