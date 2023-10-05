@@ -7,9 +7,9 @@ FROM
 WHERE
 	template_id = @template_id :: uuid
 	AND CASE
-	    -- If no filter is provided, default to returning ALL template versions.
-	    -- The called should always provide a filter if they want to omit
-	    -- deleted versions.
+		-- If no filter is provided, default to returning ALL template versions.
+		-- The called should always provide a filter if they want to omit
+		-- deleted versions.
 		WHEN @deleted :: boolean IS NULL THEN true
 		ELSE template_versions.deleted = @deleted :: boolean
 	END
@@ -33,8 +33,8 @@ WHERE
 		ELSE true
 	END
 ORDER BY
-    -- Deterministic and consistent ordering of all rows, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
+	-- Deterministic and consistent ordering of all rows, even if they share
+	-- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
@@ -149,20 +149,20 @@ UPDATE
 	template_versions
 SET
 	deleted = true,
-	updated_at = @updated_at
+	updated_at = sqlc.arg('updated_at')
 FROM
-    -- Delete all versions that are returned from this query.
-    (
-        SELECT
-            id
-        FROM
+	-- Delete all versions that are returned from this query.
+	(
+		SELECT
+			scoped_template_versions.id
+		FROM
 			-- Scope a prune to a single template and ignore already deleted template versions
-            (SELECT * FROM template_versions WHERE template_id = @template_id AND deleted = false) AS template_versions
-        LEFT JOIN
-        	provisioner_jobs ON template_versions.job_id = provisioner_jobs.id
-        LEFT JOIN
-        	templates ON template_versions.template_id = templates.id
-        WHERE
+			(SELECT * FROM template_versions WHERE template_versions.template_id = sqlc.arg('template_id') :: uuid AND deleted = false) AS scoped_template_versions
+		LEFT JOIN
+			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
+		LEFT JOIN
+			templates ON scoped_template_versions.template_id = templates.id
+		WHERE
 			-- Actively used template versions (meaning the latest build is using
 			-- the version) are never pruned. A "restart" command on the workspace,
 			-- even if failed, would use the version. So it cannot be pruned until
@@ -170,24 +170,24 @@ FROM
 			-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
 			-- 	has a build with the transition "delete". This will prevent that template
 			-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-			template_versions.id != ANY(
+				scoped_template_versions.id != ANY(
 				SELECT DISTINCT ON(workspace_id)
-					template_version_id
+					scoped_template_versions
 				FROM
 					workspace_builds
 				ORDER BY build_number DESC
 			)
 		  -- Also never delete the active template version
-		  AND active_version_id != template_versions.id
-    	  AND CASE
-    	    -- Optionally, only prune versions that match a given
-    	    -- job status like 'failed'.
-    	  	WHEN @job_status != '' THEN
-		  		provisioner_jobs.job_status = @job_status
-		  	ELSE
-		  		true
-    	  END
-
+		AND active_version_id != scoped_template_versions.id
+		AND CASE
+			-- Optionally, only prune versions that match a given
+			-- job status like 'failed'.
+			WHEN sqlc.narg('job_status') :: provisioner_job_status IS NOT NULL THEN
+				provisioner_jobs.job_status = sqlc.narg('job_status') :: provisioner_job_status
+			ELSE
+				true
+		END
 	) AS deleted_versions
 WHERE
-    id = ANY(deleted_versions);
+	template_versions.id = ANY(deleted_versions)
+RETURNING template_versions.id;

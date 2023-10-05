@@ -5196,7 +5196,7 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *FakeQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+func (q *FakeQuerier) PruneUnusedTemplateVersions(_ context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err

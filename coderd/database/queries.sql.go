@@ -5689,34 +5689,53 @@ SET
 	deleted = true,
 	updated_at = $1
 FROM
-    (SELECT active_version_id FROM templates WHERE id = $2) AS active_version
+    -- Delete all versions that are returned from this query.
+    (
+        SELECT
+			scoped_template_versions.id
+        FROM
+			-- Scope a prune to a single template and ignore already deleted template versions
+            (SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND deleted = false) AS scoped_template_versions
+        LEFT JOIN
+        	provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
+        LEFT JOIN
+        	templates ON scoped_template_versions.template_id = templates.id
+        WHERE
+			-- Actively used template versions (meaning the latest build is using
+			-- the version) are never pruned. A "restart" command on the workspace,
+			-- even if failed, would use the version. So it cannot be pruned until
+			-- the build is outdated.
+			-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+			-- 	has a build with the transition "delete". This will prevent that template
+			-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+				scoped_template_versions.id != ANY(
+				SELECT DISTINCT ON(workspace_id)
+					scoped_template_versions
+				FROM
+					workspace_builds
+				ORDER BY build_number DESC
+			)
+		  -- Also never delete the active template version
+		  AND active_version_id != scoped_template_versions.id
+    	  AND CASE
+    	    -- Optionally, only prune versions that match a given
+    	    -- job status like 'failed'.
+    	  	WHEN $3 :: provisioner_job_status IS NOT NULL THEN
+		  		provisioner_jobs.job_status = $3 :: provisioner_job_status
+		  	ELSE
+		  		true
+    	  END
+
+	) AS deleted_versions
 WHERE
-	-- Actively used template versions (meaning the latest build is using
-	-- the version) are never pruned. A "restart" command on the workspace,
-	-- even if failed, would use the version. So it cannot be pruned until
-	-- the build is outdated.
-	-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-	-- 	has a build with the transition "delete". This will prevent that template
-	-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-	template_versions.id != ANY(
-		SELECT DISTINCT ON(workspace_id)
-			template_version_id
-		FROM
-			workspace_builds
-		ORDER BY build_number DESC
-	)
-  	-- Also never delete the active template version
-	AND template_versions.id != ANY(active_version)
-    -- Ignore already deleted versions.
-	AND template_versions.deleted = false
-	-- Scope a prune to a single template.
-	AND template_id = $2 :: uuid
-RETURNING id
+	template_versions.id = ANY(deleted_versions)
+RETURNING template_versions.id
 `
 
 type PruneUnusedTemplateVersionsParams struct {
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
+	UpdatedAt  time.Time                `db:"updated_at" json:"updated_at"`
+	TemplateID uuid.UUID                `db:"template_id" json:"template_id"`
+	JobStatus  NullProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 // Pruning templates is a soft delete action, so is technically reversible.
@@ -5725,7 +5744,7 @@ type PruneUnusedTemplateVersionsParams struct {
 // Only unused template versions will be pruned, which are any versions not
 // referenced by the latest build of a workspace.
 func (q *sqlQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID)
+	rows, err := q.db.QueryContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID, arg.JobStatus)
 	if err != nil {
 		return nil, err
 	}
