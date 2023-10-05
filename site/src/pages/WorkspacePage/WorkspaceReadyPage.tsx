@@ -98,15 +98,14 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
-  const [systemTheme] = useState(() => {
-    if (typeof window.matchMedia === "undefined") {
-      // Default to dark mode!
-      return "dark";
+  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
     }
     const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-    return isDark ? "dark" : "light";
-  });
-
+    setFaviconTheme(isDark ? "dark" : "light");
+  }, []);
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
@@ -132,12 +131,12 @@ export const WorkspaceReadyPage = ({
         <link
           rel="alternate icon"
           type="image/png"
-          href={`/favicons/${favicon}-${systemTheme}.png`}
+          href={`/favicons/${favicon}-${faviconTheme}.png`}
         />
         <link
           rel="icon"
           type="image/svg+xml"
-          href={`/favicons/${favicon}-${systemTheme}.svg`}
+          href={`/favicons/${favicon}-${faviconTheme}.svg`}
         />
       </Helmet>
 
