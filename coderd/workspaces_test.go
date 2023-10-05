@@ -2825,8 +2825,9 @@ func TestWorkspaceDormant(t *testing.T) {
 		t.Parallel()
 		var (
 			auditRecorder = audit.NewMock()
-			client        = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true,
-				Auditor: auditRecorder,
+			client        = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditRecorder,
 			})
 			user                     = coderdtest.CreateFirstUser(t, client)
 			version                  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
