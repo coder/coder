@@ -98,7 +98,7 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
-  const systemTheme = useState(() => {
+  const [systemTheme] = useState(() => {
     if (typeof window.matchMedia === "undefined") {
       // Default to dark mode!
       return "dark";
