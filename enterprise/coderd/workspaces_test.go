@@ -649,6 +649,93 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		stats = <-statsCh
 		require.Len(t, stats.Transitions, 0)
 	})
+
+	// Test that failing to auto-delete a workspace will only retry
+	// once a day.
+	t.Run("FailedDeleteRetryDaily", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker        = make(chan time.Time)
+			statCh        = make(chan autobuild.Stats)
+			transitionTTL = time.Minute
+			ctx           = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// Create a template version that passes to get a functioning workspace.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		// Create a new version that will fail when we try to delete a workspace.
+		version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyFailed,
+		}, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		// Try to delete the workspace. This simulates a "failed" autodelete.
+		build, err := client.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:        codersdk.WorkspaceTransitionDelete,
+			TemplateVersionID: version.ID,
+		})
+		require.NoError(t, err)
+
+		build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+		require.NotEmpty(t, build.Job.Error)
+
+		// Update our workspace to be dormant so that it qualifies for auto-deletion.
+		err = client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{
+			Dormant: true,
+		})
+		require.NoError(t, err)
+
+		// Enable auto-deletion for the template.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			TimeTilDormantAutoDeleteMillis: transitionTTL.Milliseconds(),
+		})
+		require.NoError(t, err)
+
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.NotNil(t, ws.DeletingAt)
+
+		// Simulate ticking an hour after the workspace is expected to be deleted.
+		// Under normal circumstances this should result in a transition but
+		// since our last build resulted in failure it should be skipped.
+		ticker <- build.Job.CompletedAt.Add(time.Hour)
+		stats := <-statCh
+		require.Len(t, stats.Transitions, 0)
+
+		// Simulate ticking a day after the workspace was last attempted to
+		// be deleted. This should result in an attempt.
+		ticker <- build.Job.CompletedAt.Add(time.Hour * 25)
+		stats = <-statCh
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
+	})
 }
 
 func TestWorkspacesFiltering(t *testing.T) {
