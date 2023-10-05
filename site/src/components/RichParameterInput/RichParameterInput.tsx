@@ -88,6 +88,7 @@ const styles = {
     objectFit: "contain",
   },
   optionIcon: {
+    pointerEvents: "none",
     maxHeight: 20,
     width: 20,
 
@@ -223,11 +224,8 @@ const RichParameterField: React.FC<RichParameterInputProps> = ({
                 {option.icon && (
                   <img
                     css={styles.optionIcon}
-                    alt="Parameter icon"
                     src={option.icon}
-                    css={{
-                      pointerEvents: "none",
-                    }}
+                    alt="Parameter icon"
                   />
                 )}
                 {option.description ? (
