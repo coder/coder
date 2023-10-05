@@ -640,7 +640,8 @@ CREATE TABLE template_versions (
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
     external_auth_providers text[],
-    message character varying(1048576) DEFAULT ''::character varying NOT NULL
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL,
+    deleted boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -685,6 +686,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.created_by,
     template_versions.external_auth_providers,
     template_versions.message,
+    template_versions.deleted,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.template_versions

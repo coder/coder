@@ -2242,6 +2242,17 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
+func (q *querier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) error {
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return err
+	}
+	return q.db.PruneUnusedTemplateVersions(ctx, arg)
+}
+
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	fetch := func(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)

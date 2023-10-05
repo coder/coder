@@ -1411,6 +1411,13 @@ func (m metricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg d
 	return metadata, err
 }
 
+func (m metricsStore) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) error {
+	start := time.Now()
+	r0 := m.s.PruneUnusedTemplateVersions(ctx, arg)
+	m.queryLatencies.WithLabelValues("PruneUnusedTemplateVersions").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)

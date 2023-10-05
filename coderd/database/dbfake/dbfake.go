@@ -5175,6 +5175,15 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
+func (q *FakeQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

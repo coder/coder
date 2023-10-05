@@ -2980,6 +2980,20 @@ func (mr *MockStoreMockRecorder) Ping(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Ping", reflect.TypeOf((*MockStore)(nil).Ping), arg0)
 }
 
+// PruneUnusedTemplateVersions mocks base method.
+func (m *MockStore) PruneUnusedTemplateVersions(arg0 context.Context, arg1 database.PruneUnusedTemplateVersionsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PruneUnusedTemplateVersions", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PruneUnusedTemplateVersions indicates an expected call of PruneUnusedTemplateVersions.
+func (mr *MockStoreMockRecorder) PruneUnusedTemplateVersions(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PruneUnusedTemplateVersions", reflect.TypeOf((*MockStore)(nil).PruneUnusedTemplateVersions), arg0, arg1)
+}
+
 // RegisterWorkspaceProxy mocks base method.
 func (m *MockStore) RegisterWorkspaceProxy(arg0 context.Context, arg1 database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()

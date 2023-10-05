@@ -1,10 +1,18 @@
 -- name: GetTemplateVersionsByTemplateID :many
+-- name: GetTemplateVersionsByTemplateID :many
 SELECT
 	*
 FROM
 	template_version_with_user AS template_versions
 WHERE
 	template_id = @template_id :: uuid
+	AND CASE
+	    -- If no filter is provided, default to returning ALL template versions.
+	    -- The called should always provide a filter if they want to omit
+	    -- deleted versions.
+		WHEN @deleted :: boolean IS NULL THEN true
+		ELSE template_versions.deleted = @deleted :: boolean
+	END
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
@@ -129,3 +137,33 @@ WHERE
 	AND template_id = $3
 ORDER BY created_at DESC
 LIMIT 1;
+
+
+-- name: PruneUnusedTemplateVersions :exec
+-- Pruning templates is a soft delete action, so is technically reversible.
+-- Soft deleting prevents the version from being used and discovered
+-- by listing.
+-- Only unused template versions will be pruned, which are any versions not
+-- referenced by the latest build of a workspace.
+UPDATE
+	template_versions
+SET
+	deleted = true,
+	updated_at = @updated_at
+WHERE
+	-- Actively used template versions (meaning the latest build is using
+	-- the version) are never pruned. A "restart" command on the workspace,
+	-- even if failed, would use the version. So it cannot be pruned until
+	-- the build is outdated.
+	-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+	-- 	has a build with the transition "delete". This will prevent that template
+	-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+	template_versions.id != ANY(
+		SELECT DISTINCT ON(workspace_id)
+			template_version_id
+		FROM
+			workspace_builds
+		ORDER BY build_number DESC
+	)
+	-- Scope a prune to a single template.
+	AND template_id = @template_id :: uuid;

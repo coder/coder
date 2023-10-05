@@ -274,6 +274,12 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
+	// Pruning templates is a soft delete action, so is technically reversible.
+	// Soft deleting prevents the version from being used and discovered
+	// by listing.
+	// Only unused template versions will be pruned, which are any versions not
+	// referenced by the latest build of a workspace.
+	PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.

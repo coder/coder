@@ -18,7 +18,7 @@ import (
 var AuditActionMap = map[string][]codersdk.AuditAction{
 	"GitSSHKey":       {codersdk.AuditActionCreate},
 	"Template":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite},
+	"TemplateVersion": {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"User":            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Workspace":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"WorkspaceBuild":  {codersdk.AuditActionStart, codersdk.AuditActionStop},
@@ -99,6 +99,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
+		"deleted":                 ActionTrack,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,
