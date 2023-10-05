@@ -180,6 +180,8 @@ FROM
 		  -- Also never delete the active template version
 		  AND active_version_id != template_versions.id
     	  AND CASE
+    	    -- Optionally, only prune versions that match a given
+    	    -- job status like 'failed'.
     	  	WHEN @job_status != '' THEN
 		  		provisioner_jobs.job_status = @job_status
 		  	ELSE
