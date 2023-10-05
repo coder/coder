@@ -206,6 +206,16 @@ dark = createTheme(dark, {
         },
       },
     },
+    MuiButtonGroup: {
+      styleOverrides: {
+        root: {
+          ">button:hover+button": {
+            // The !important is unfortunate, but necessary for the border.
+            borderLeftColor: `${colors.gray[10]} !important`,
+          },
+        },
+      },
+    },
     MuiTableContainer: {
       styleOverrides: {
         root: {
