@@ -6,10 +6,14 @@ import (
 	"os"
 )
 
-func generateIconList() int {
-	files, err := os.ReadDir("site/static/icon")
+func generateIconList(path string) int {
+	if path == "" {
+		return 0 // skip
+	}
+
+	files, err := os.ReadDir("site/static/icon/")
 	if err != nil {
-		_, _ = fmt.Println("failed to read icon/ directory")
+		_, _ = fmt.Println("failed to read site/static/icon/ directory")
 		_, _ = fmt.Println("err:", err.Error())
 		return 71 // OSERR
 	}
@@ -26,7 +30,7 @@ func generateIconList() int {
 	}
 	icons = icons[:i]
 
-	outputFile, err := os.Create("./site/static/icons.json")
+	outputFile, err := os.Create(path)
 	if err != nil {
 		_, _ = fmt.Println("failed to create file")
 		_, _ = fmt.Println("err:", err.Error())
@@ -49,6 +53,8 @@ func generateIconList() int {
 		}
 		return 74 // IOERR
 	}
+
+	_, _ = fmt.Println(green.Sprintf("==>"), path)
 
 	return 0
 }

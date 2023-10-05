@@ -472,7 +472,7 @@ gen: \
 	site/.prettierignore \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
-	site/static/icons.json \
+	site/src/theme/icons.json \
 	examples/examples.gen.json
 .PHONY: gen
 
@@ -496,7 +496,7 @@ gen/mark-fresh:
 		site/.prettierignore \
 		site/.eslintignore \
 		site/e2e/provisionerGenerated.ts \
-		site/static/icons.json \
+		site/src/theme/icons.json \
 		examples/examples.gen.json \
 	"
 	for file in $$files; do
@@ -549,8 +549,8 @@ site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisio
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
-site/static/icons.json: $(wildcard site/static/icon/*)
-	go run ./scripts/sitestatic/
+site/src/theme/icons.json: $(wildcard site/static/icon/*)
+	go run ./scripts/gensite/ -icons $@
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
