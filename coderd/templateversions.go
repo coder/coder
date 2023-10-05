@@ -20,6 +20,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -248,7 +249,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -383,7 +384,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -1037,6 +1038,22 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	if version.TemplateID.UUID.String() != template.ID.String() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provided template version doesn't belong to the specified template.",
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, version.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version job status.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	jobStatus := db2sdk.ProvisionerJobStatus(job)
+	if jobStatus != codersdk.ProvisionerJobSucceeded {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only versions that have been built successfully can be promoted.",
+			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", jobStatus),
 		})
 		return
 	}
