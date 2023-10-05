@@ -32,6 +32,7 @@ e2e/test-results/*
 e2e/states/*.json
 e2e/.auth.json
 playwright-report/*
+static/icons.json
 .swc
 
 # Make target for updating golden files (any dir).
