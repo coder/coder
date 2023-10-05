@@ -2,6 +2,7 @@ package harness
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -31,6 +32,18 @@ type RunResult struct {
 	StartedAt  time.Time        `json:"started_at"`
 	Duration   httpapi.Duration `json:"duration"`
 	DurationMS int64            `json:"duration_ms"`
+}
+
+// MarshalJSON implements json.Marhshaler for RunResult.
+func (r RunResult) MarshalJSON() ([]byte, error) {
+	type alias RunResult
+	return json.Marshal(&struct {
+		alias
+		Error string `json:"error"`
+	}{
+		alias: alias(r),
+		Error: fmt.Sprintf("%+v", r.Error),
+	})
 }
 
 // Results returns the results of the test run. Panics if the test run is not
