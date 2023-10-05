@@ -23,13 +23,12 @@ export const WorkspaceBuildPage: FC = () => {
     keepPreviousData: true,
   });
   const build = wsBuildQuery.data;
-  const { data: builds } = useQuery({
+  const buildsQuery = useQuery({
     queryKey: ["builds", username, build?.workspace_id],
     queryFn: () => {
-      return getWorkspaceBuilds(
-        build?.workspace_id ?? "",
-        dayjs().add(-30, "day").toDate(),
-      );
+      return getWorkspaceBuilds(build?.workspace_id ?? "", {
+        since: dayjs().add(-30, "day").toISOString(),
+      });
     },
     enabled: Boolean(build),
   });
@@ -50,7 +49,7 @@ export const WorkspaceBuildPage: FC = () => {
       <WorkspaceBuildPageView
         logs={logs}
         build={build}
-        builds={builds}
+        builds={buildsQuery.data}
         activeBuildNumber={buildNumber}
       />
     </>

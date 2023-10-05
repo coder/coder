@@ -13,11 +13,19 @@ type Story = StoryObj<typeof BuildsTable>;
 export const Example: Story = {
   args: {
     builds: MockBuilds,
+    hasMoreBuilds: true,
   },
 };
 
 export const Empty: Story = {
   args: {
     builds: [],
+  },
+};
+
+export const NoMoreBuilds: Story = {
+  args: {
+    builds: MockBuilds,
+    hasMoreBuilds: false,
   },
 };

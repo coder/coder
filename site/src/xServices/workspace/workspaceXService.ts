@@ -1,42 +1,9 @@
 import { getErrorMessage } from "api/errors";
-import dayjs from "dayjs";
 import { workspaceScheduleBannerMachine } from "xServices/workspaceSchedule/workspaceScheduleBannerXService";
-import { assign, createMachine, send } from "xstate";
+import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-
-const latestBuild = (builds: TypesGen.WorkspaceBuild[]) => {
-  // Cloning builds to not change the origin object with the sort()
-  return [...builds].sort((a, b) => {
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-  })[0];
-};
-
-const moreBuildsAvailable = (
-  context: WorkspaceContext,
-  event: {
-    type: "REFRESH_TIMELINE";
-    checkRefresh?: boolean;
-    data?: TypesGen.ServerSentEvent["data"];
-  },
-) => {
-  // No need to refresh the timeline if it is not loaded
-  if (!context.builds) {
-    return false;
-  }
-
-  if (!event.checkRefresh) {
-    return true;
-  }
-
-  // After we refresh a workspace, we want to check if the latest
-  // build was updated before refreshing the timeline so as to not over fetch the builds
-  const latestBuildInTimeline = latestBuild(context.builds);
-  return (
-    event.data.latest_build.updated_at !== latestBuildInTimeline.updated_at
-  );
-};
 
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>;
 
@@ -87,8 +54,6 @@ export type WorkspaceEvent =
   | { type: "CANCEL" }
   | {
       type: "REFRESH_TIMELINE";
-      checkRefresh?: boolean;
-      data?: TypesGen.ServerSentEvent["data"];
     }
   | { type: "EVENT_SOURCE_ERROR"; error: unknown }
   | { type: "INCREASE_DEADLINE"; hours: number }
@@ -201,6 +166,11 @@ export const workspaceMachine = createMachine(
       },
       ready: {
         type: "parallel",
+        on: {
+          REFRESH_TIMELINE: {
+            actions: ["refreshBuilds"],
+          },
+        },
         states: {
           listening: {
             initial: "gettingEvents",
@@ -422,36 +392,6 @@ export const workspaceMachine = createMachine(
               },
             },
           },
-          timeline: {
-            initial: "gettingBuilds",
-            states: {
-              gettingBuilds: {
-                invoke: {
-                  src: "getBuilds",
-                  onDone: [
-                    {
-                      actions: ["assignBuilds", "clearGetBuildsError"],
-                      target: "loadedBuilds",
-                    },
-                  ],
-                  onError: [
-                    {
-                      actions: "assignGetBuildsError",
-                      target: "loadedBuilds",
-                    },
-                  ],
-                },
-              },
-              loadedBuilds: {
-                on: {
-                  REFRESH_TIMELINE: {
-                    target: "#workspaceState.ready.timeline.gettingBuilds",
-                    cond: "moreBuildsAvailable",
-                  },
-                },
-              },
-            },
-          },
           sshConfig: {
             initial: "gettingSshConfig",
             states: {
@@ -553,16 +493,6 @@ export const workspaceMachine = createMachine(
       logWatchWorkspaceWarning: (_, event) => {
         console.error("Watch workspace error:", event);
       },
-      // Timeline
-      assignBuilds: assign({
-        builds: (_, event) => event.data,
-      }),
-      assignGetBuildsError: assign({
-        getBuildsError: (_, event) => event.data,
-      }),
-      clearGetBuildsError: assign({
-        getBuildsError: (_) => undefined,
-      }),
       // SSH
       assignSSHPrefix: assign({
         sshPrefix: (_, { data }) => data.hostname_prefix,
@@ -599,7 +529,6 @@ export const workspaceMachine = createMachine(
       }),
     },
     guards: {
-      moreBuildsAvailable,
       isMissingBuildParameterError: (_, { data }) => {
         return data instanceof API.MissingBuildParameters;
       },
@@ -670,7 +599,7 @@ export const workspaceMachine = createMachine(
           throw Error("Cannot stop workspace without workspace id");
         }
       },
-      deleteWorkspace: async (context) => {
+      deleteWorkspace: (context) => async (send) => {
         if (context.workspace) {
           const deleteWorkspacePromise = await API.deleteWorkspace(
             context.workspace.id,
@@ -712,15 +641,21 @@ export const workspaceMachine = createMachine(
         }
 
         context.eventSource.addEventListener("data", (event) => {
+          const newWorkspaceData = JSON.parse(event.data) as TypesGen.Workspace;
           // refresh our workspace with each SSE
-          send({ type: "REFRESH_WORKSPACE", data: JSON.parse(event.data) });
-          // refresh our timeline
-          send({
-            type: "REFRESH_TIMELINE",
-            checkRefresh: true,
-            data: JSON.parse(event.data),
-          });
-          // refresh
+          send({ type: "REFRESH_WORKSPACE", data: newWorkspaceData });
+
+          const currentWorkspace = context.workspace!;
+          const hasNewBuild =
+            newWorkspaceData.latest_build.id !==
+            currentWorkspace.latest_build.id;
+          const lastBuildHasChanged =
+            newWorkspaceData.latest_build.status !==
+            currentWorkspace.latest_build.status;
+
+          if (hasNewBuild || lastBuildHasChanged) {
+            send({ type: "REFRESH_TIMELINE" });
+          }
         });
 
         // handle any error events returned by our sse
@@ -736,18 +671,6 @@ export const workspaceMachine = createMachine(
         return () => {
           context.eventSource?.close();
         };
-      },
-      getBuilds: async (context) => {
-        if (context.workspace) {
-          // For now, we only retrieve the last month of builds to minimize
-          // page bloat. We should add pagination in the future.
-          return await API.getWorkspaceBuilds(
-            context.workspace.id,
-            dayjs().add(-30, "day").toDate(),
-          );
-        } else {
-          throw Error("Cannot get builds without id");
-        }
       },
       scheduleBannerMachine: workspaceScheduleBannerMachine,
       getSSHPrefix: async () => {

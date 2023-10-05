@@ -1479,8 +1479,7 @@ export interface WorkspaceBuildParameter {
 
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
-  readonly WorkspaceID: string;
-  readonly Since: string;
+  readonly since?: string;
 }
 
 // From codersdk/deployment.go
