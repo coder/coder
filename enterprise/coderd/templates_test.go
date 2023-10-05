@@ -185,55 +185,123 @@ func TestTemplates(t *testing.T) {
 	})
 
 	t.Run("CleanupTTLs", func(t *testing.T) {
-		t.Parallel()
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				IncludeProvisionerDaemon: true,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			client, user := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
 				},
-			},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureAdvancedTemplateScheduling: 1,
+					},
+				},
+			})
+
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			require.EqualValues(t, 0, template.TimeTilDormantMillis)
+			require.EqualValues(t, 0, template.FailureTTLMillis)
+			require.EqualValues(t, 0, template.TimeTilDormantAutoDeleteMillis)
+
+			var (
+				failureTTL    = 1 * time.Minute
+				inactivityTTL = 2 * time.Minute
+				dormantTTL    = 3 * time.Minute
+			)
+
+			updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+				Name:                           template.Name,
+				DisplayName:                    template.DisplayName,
+				Description:                    template.Description,
+				Icon:                           template.Icon,
+				AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+				TimeTilDormantMillis:           inactivityTTL.Milliseconds(),
+				FailureTTLMillis:               failureTTL.Milliseconds(),
+				TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, failureTTL.Milliseconds(), updated.FailureTTLMillis)
+			require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
+			require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
+
+			// Validate fetching the template returns the same values as updating
+			// the template.
+			template, err = client.Template(ctx, template.ID)
+			require.NoError(t, err)
+			require.Equal(t, failureTTL.Milliseconds(), updated.FailureTTLMillis)
+			require.Equal(t, inactivityTTL.Milliseconds(), updated.TimeTilDormantMillis)
+			require.Equal(t, dormantTTL.Milliseconds(), updated.TimeTilDormantAutoDeleteMillis)
 		})
 
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		require.EqualValues(t, 0, template.TimeTilDormantMillis)
-		require.EqualValues(t, 0, template.FailureTTLMillis)
-		require.EqualValues(t, 0, template.TimeTilDormantAutoDeleteMillis)
+		t.Run("BadRequest", func(t *testing.T) {
+			t.Parallel()
 
-		var (
-			failureTTL    int64 = 1
-			inactivityTTL int64 = 2
-			dormantTTL    int64 = 3
-		)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			client, user := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureAdvancedTemplateScheduling: 1,
+					},
+				},
+			})
 
-		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			Name:                           template.Name,
-			DisplayName:                    template.DisplayName,
-			Description:                    template.Description,
-			Icon:                           template.Icon,
-			AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
-			TimeTilDormantMillis:           inactivityTTL,
-			FailureTTLMillis:               failureTTL,
-			TimeTilDormantAutoDeleteMillis: dormantTTL,
+			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+			type testcase struct {
+				Name                string
+				TimeTilDormantMS    int64
+				FailureTTLMS        int64
+				DormantAutoDeleteMS int64
+			}
+
+			cases := []testcase{
+				{
+					Name:                "NegativeValue",
+					TimeTilDormantMS:    -1,
+					FailureTTLMS:        -2,
+					DormantAutoDeleteMS: -3,
+				},
+				{
+					Name:                "ValueTooSmall",
+					TimeTilDormantMS:    1,
+					FailureTTLMS:        999,
+					DormantAutoDeleteMS: 500,
+				},
+			}
+
+			for _, c := range cases {
+				c := c
+
+				t.Run(c.Name, func(t *testing.T) {
+					t.Parallel()
+
+					_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+						Name:                           template.Name,
+						DisplayName:                    template.DisplayName,
+						Description:                    template.Description,
+						Icon:                           template.Icon,
+						AllowUserCancelWorkspaceJobs:   template.AllowUserCancelWorkspaceJobs,
+						TimeTilDormantMillis:           c.TimeTilDormantMS,
+						FailureTTLMillis:               c.FailureTTLMS,
+						TimeTilDormantAutoDeleteMillis: c.DormantAutoDeleteMS,
+					})
+					require.Error(t, err)
+					cerr, ok := codersdk.AsError(err)
+					require.True(t, ok)
+					require.Len(t, cerr.Validations, 3)
+					require.Equal(t, "Value must be at least one minute.", cerr.Validations[0].Detail)
+				})
+			}
 		})
-		require.NoError(t, err)
-		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
-		require.Equal(t, dormantTTL, updated.TimeTilDormantAutoDeleteMillis)
-
-		// Validate fetching the template returns the same values as updating
-		// the template.
-		template, err = client.Template(ctx, template.ID)
-		require.NoError(t, err)
-		require.Equal(t, failureTTL, updated.FailureTTLMillis)
-		require.Equal(t, inactivityTTL, updated.TimeTilDormantMillis)
-		require.Equal(t, dormantTTL, updated.TimeTilDormantAutoDeleteMillis)
 	})
 
 	t.Run("UpdateTimeTilDormantAutoDelete", func(t *testing.T) {

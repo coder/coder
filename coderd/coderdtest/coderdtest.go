@@ -262,12 +262,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
+	var auditor atomic.Pointer[audit.Auditor]
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
+	}
+	auditor.Store(&options.Auditor)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		options.Pubsub,
 		&templateScheduleStore,
+		&auditor,
 		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -12,6 +13,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -237,10 +239,11 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
-			ctx         = testutil.Context(t, testutil.WaitMedium)
-			ticker      = make(chan time.Time)
-			statCh      = make(chan autobuild.Stats)
-			inactiveTTL = time.Minute
+			ctx           = testutil.Context(t, testutil.WaitMedium)
+			ticker        = make(chan time.Time)
+			statCh        = make(chan autobuild.Stats)
+			inactiveTTL   = time.Minute
+			auditRecorder = audit.NewMock()
 		)
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -249,6 +252,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				AutobuildStats:           statCh,
 				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+				Auditor:                  auditRecorder,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -268,6 +272,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		require.Equal(t, codersdk.WorkspaceStatusRunning, build.Status)
+
+		// Reset the audit log so we can verify a log is generated.
+		auditRecorder.ResetLogs()
 		// Simulate being inactive.
 		ticker <- ws.LastUsedAt.Add(inactiveTTL * 2)
 		stats := <-statCh
@@ -276,13 +283,23 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// failure TTL.
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+		require.Len(t, auditRecorder.AuditLogs(), 1)
+
+		auditLog := auditRecorder.AuditLogs()[0]
+		require.Equal(t, auditLog.Action, database.AuditActionWrite)
+
+		var fields audit.AdditionalFields
+		err := json.Unmarshal(auditLog.AdditionalFields, &fields)
+		require.NoError(t, err)
+		require.Equal(t, ws.Name, fields.WorkspaceName)
+		require.Equal(t, database.BuildReasonAutolock, fields.BuildReason)
 
 		// The workspace should be dormant.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.NotNil(t, ws.DormantAt)
 		lastUsedAt := ws.LastUsedAt
 
-		err := client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
+		err = client.UpdateWorkspaceDormancy(ctx, ws.ID, codersdk.UpdateWorkspaceDormancy{Dormant: false})
 		require.NoError(t, err)
 
 		// Assert that we updated our last_used_at so that we don't immediately
