@@ -135,7 +135,7 @@ func (c *Client) getWorkspace(ctx context.Context, id uuid.UUID, opts ...Request
 }
 
 type WorkspaceBuildsRequest struct {
-	WorkspaceID uuid.UUID `json:"workspace_id" typescript:"-"`
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid" typescript:"-"`
 	Pagination
 	Since time.Time `json:"since,omitempty"`
 }
