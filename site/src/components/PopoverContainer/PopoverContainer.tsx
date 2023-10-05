@@ -85,7 +85,7 @@ export function PopoverLink({
     <Box
       component="a"
       // Href still needed for accessibility reasons and semantic markup
-      href="javascript:void(0)"
+      href=""
       onClick={onClick}
       sx={{
         outline: "none",
