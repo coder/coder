@@ -22,7 +22,6 @@ import { getLatencyColor } from "utils/latency";
 import Popover from "@mui/material/Popover";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { portForwardURL } from "utils/portForward";
-import Button from "@mui/material/Button";
 import {
   DisconnectedAlert,
   ErrorScriptAlert,
@@ -89,7 +88,6 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     workspaceAgent,
     websocketError,
   } = terminalState.context;
-  const reloadTerminal = useReloadTerminal();
   const dashboard = useDashboard();
   const proxyContext = useProxy();
   const selectedProxy = proxyContext.proxy.proxy;
@@ -313,24 +311,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         {lifecycleState === "starting" && <LoadingScriptsAlert />}
         {lifecycleState === "ready" &&
           prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
-        {isDisconnected && (
-          <DisconnectedAlert
-            actions={
-              <Button
-                disabled={reloadTerminal.status === "reloading"}
-                size="small"
-                variant="text"
-                onClick={() => {
-                  reloadTerminal.reload();
-                }}
-              >
-                {reloadTerminal.status === "reloading"
-                  ? "Reloading..."
-                  : "Reload"}
-              </Button>
-            }
-          />
-        )}
+        {isDisconnected && <DisconnectedAlert />}
         <div
           className={styles.terminal}
           ref={xtermRef}
@@ -443,26 +424,6 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
       </Popover>
     </Box>
   );
-};
-
-const useReloadTerminal = () => {
-  const [status, setStatus] = useState<"reloading" | "notReloading">(
-    "notReloading",
-  );
-
-  const reload = () => {
-    if (status === "reloading") {
-      return;
-    }
-
-    setStatus("reloading");
-    window.location.reload();
-  };
-
-  return {
-    status,
-    reload,
-  };
 };
 
 const useStyles = makeStyles((theme) => ({

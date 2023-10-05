@@ -1,6 +1,7 @@
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { Alert, AlertProps } from "components/Alert/Alert";
+import { useState } from "react";
 import { docs } from "utils/docs";
 
 export const ErrorScriptAlert = () => {
@@ -106,16 +107,30 @@ const TerminalAlert = (props: AlertProps) => {
 
 export const DisconnectedAlert = (props: AlertProps) => {
   return (
-    <TerminalAlert {...props} severity="warning">
+    <TerminalAlert
+      {...props}
+      severity="warning"
+      actions={<RefreshSessionButton />}
+    >
       Disconnected
     </TerminalAlert>
   );
 };
 
 const RefreshSessionButton = () => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   return (
-    <Button size="small" variant="text" onClick={window.location.reload}>
-      Refresh session
+    <Button
+      disabled={isRefreshing}
+      size="small"
+      variant="text"
+      onClick={() => {
+        setIsRefreshing(true);
+        window.location.reload();
+      }}
+    >
+      {isRefreshing ? "Refreshing session..." : "Refresh session"}
     </Button>
   );
 };
