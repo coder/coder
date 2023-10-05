@@ -26,7 +26,7 @@ export const Language = {
   allWorkspacesButton: "All workspaces",
   runningWorkspacesButton: "Running workspaces",
   createWorkspace: <>Create Workspace&hellip;</>,
-  moreTemplates: "See all templates",
+  seeAllTemplates: "See all templates",
   template: "Template",
 };
 
@@ -76,9 +76,7 @@ export const WorkspacesPageView: FC<
     <Margins>
       <PageHeader
         actions={
-          <WorkspacesButton seeMoreTemplatesText={Language.moreTemplates}>
-            {Language.createWorkspace}
-          </WorkspacesButton>
+          <WorkspacesButton>{Language.createWorkspace}</WorkspacesButton>
         }
       >
         <PageHeaderTitle>

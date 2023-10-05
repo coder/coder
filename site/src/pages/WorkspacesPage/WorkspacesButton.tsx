@@ -1,5 +1,6 @@
 import { type ReactNode, useState, ReactElement } from "react";
-import { useOrganizationId, usePermissions } from "hooks";
+import { useOrganizationId } from "hooks";
+import { Language } from "./WorkspacesPageView";
 
 import { useQuery } from "@tanstack/react-query";
 import { type Template } from "api/typesGenerated";
@@ -115,15 +116,10 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
 
 type WorkspacesButtonProps = {
   children: string | ReactElement;
-  seeMoreTemplatesText: string | ReactElement;
 };
 
-export function WorkspacesButton({
-  children,
-  seeMoreTemplatesText,
-}: WorkspacesButtonProps) {
+export function WorkspacesButton({ children }: WorkspacesButtonProps) {
   const organizationId = useOrganizationId();
-  const permissions = usePermissions();
   const templatesQuery = useQuery(templates(organizationId));
   const theme = useTheme();
 
@@ -193,36 +189,34 @@ export function WorkspacesButton({
         )}
       </OverflowY>
 
-      {permissions.createTemplates && (
-        <Link
-          component={RouterLink}
-          to="/templates"
+      <Link
+        component={RouterLink}
+        to="/templates"
+        sx={{
+          outline: "none",
+          "&:focus": {
+            backgroundColor: theme.palette.action.focus,
+          },
+        }}
+      >
+        <Box
           sx={{
-            outline: "none",
-            "&:focus": {
-              backgroundColor: theme.palette.action.focus,
-            },
+            padding: 2,
+            display: "flex",
+            flexFlow: "row nowrap",
+            alignItems: "center",
+            columnGap: COLUMN_GAP,
+            borderTop: `1px solid ${theme.palette.divider}`,
           }}
         >
-          <Box
-            sx={{
-              padding: 2,
-              display: "flex",
-              flexFlow: "row nowrap",
-              alignItems: "center",
-              columnGap: COLUMN_GAP,
-              borderTop: `1px solid ${theme.palette.divider}`,
-            }}
-          >
-            <Box component="span" sx={{ width: `${ICON_SIZE}px` }}>
-              <OpenIcon
-                sx={{ fontSize: "16px", marginX: "auto", display: "block" }}
-              />
-            </Box>
-            <span>{seeMoreTemplatesText}</span>
+          <Box component="span" sx={{ width: `${ICON_SIZE}px` }}>
+            <OpenIcon
+              sx={{ fontSize: "16px", marginX: "auto", display: "block" }}
+            />
           </Box>
-        </Link>
-      )}
+          <span>{Language.seeAllTemplates}</span>
+        </Box>
+      </Link>
     </PopoverContainer>
   );
 }
