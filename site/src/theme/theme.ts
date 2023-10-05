@@ -43,7 +43,7 @@ export let dark = createTheme({
       secondary: colors.gray[5],
       disabled: colors.gray[7],
     },
-    divider: colors.gray[14],
+    divider: colors.gray[13],
     warning: {
       light: colors.orange[9],
       main: colors.orange[11],
@@ -150,9 +150,6 @@ dark = createTheme(dark, {
           ":focus-visible": {
             outline: `2px solid ${theme.palette.primary.main}`,
           },
-          ":hover": {
-            border: `1px solid ${colors.gray[10]}`,
-          },
 
           "& .MuiLoadingButton-loadingIndicator": {
             width: 14,
@@ -169,6 +166,11 @@ dark = createTheme(dark, {
         },
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
+        },
+        outlined: {
+          ":hover": {
+            border: `1px solid ${colors.gray[10]}`,
+          },
         },
         outlinedNeutral: {
           borderColor: colors.gray[12],
