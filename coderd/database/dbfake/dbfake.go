@@ -5199,9 +5199,13 @@ func (q *FakeQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg datab
 			Version: b.TemplateVersionID,
 		}
 	}
+
 	usedVersions := make(map[uuid.UUID]bool)
 	for _, l := range latest {
 		usedVersions[l.Version] = true
+	}
+	for _, tpl := range q.templates {
+		usedVersions[tpl.ActiveVersionID] = true
 	}
 
 	var deleted []uuid.UUID

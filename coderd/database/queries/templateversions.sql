@@ -150,6 +150,8 @@ UPDATE
 SET
 	deleted = true,
 	updated_at = @updated_at
+FROM
+    (SELECT active_version_id FROM templates WHERE id = @template_id) AS active_version
 WHERE
 	-- Actively used template versions (meaning the latest build is using
 	-- the version) are never pruned. A "restart" command on the workspace,
@@ -165,6 +167,8 @@ WHERE
 			workspace_builds
 		ORDER BY build_number DESC
 	)
+  	-- Also never delete the active template version
+	AND template_versions.id != ANY(active_version)
     -- Ignore already deleted versions.
 	AND template_versions.deleted = false
 	-- Scope a prune to a single template.
