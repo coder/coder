@@ -4,7 +4,6 @@ import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { type FC } from "react";
 import { TemplateVersionParameter } from "api/typesGenerated";
