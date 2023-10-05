@@ -79,7 +79,10 @@ export const WorkspacesPageView: FC<
     <Margins>
       <PageHeader
         actions={
-          <WorkspacesButton templatesQuery={templatesQuery}>
+          <WorkspacesButton
+            templates={templatesQuery.data ?? []}
+            isLoadingTemplates={templatesQuery.isLoading}
+          >
             {Language.createWorkspace}
           </WorkspacesButton>
         }

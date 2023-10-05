@@ -1,7 +1,6 @@
 import { type PropsWithChildren, type ReactNode, useState } from "react";
+import { useTheme } from "@emotion/react";
 import { Language } from "./WorkspacesPageView";
-
-import { UseQueryResult } from "@tanstack/react-query";
 import { type Template } from "api/typesGenerated";
 
 import { Link as RouterLink } from "react-router-dom";
@@ -21,7 +20,6 @@ import {
   PopoverContainer,
   PopoverLink,
 } from "components/PopoverContainer/PopoverContainer";
-import { useTheme } from "@emotion/react";
 
 const ICON_SIZE = 18;
 const COLUMN_GAP = 1.5;
@@ -113,25 +111,24 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
 }
 
 type WorkspacesButtonProps = PropsWithChildren<{
-  templatesQuery: UseQueryResult<Template[]>;
+  isLoadingTemplates: boolean;
+  templates: readonly Template[];
 }>;
 
 export function WorkspacesButton({
   children,
-  templatesQuery,
+  isLoadingTemplates,
+  templates,
 }: WorkspacesButtonProps) {
   const theme = useTheme();
 
   // Dataset should always be small enough that client-side filtering should be
   // good enough. Can swap out down the line if it becomes an issue
   const [searchTerm, setSearchTerm] = useState("");
-  const processed = sortTemplatesByUsersDesc(
-    templatesQuery.data ?? [],
-    searchTerm,
-  );
+  const processed = sortTemplatesByUsersDesc(templates, searchTerm);
 
   let emptyState: ReactNode = undefined;
-  if (templatesQuery.data?.length === 0) {
+  if (templates.length === 0) {
     emptyState = (
       <EmptyState
         message="No templates yet"
@@ -175,7 +172,7 @@ export function WorkspacesButton({
           paddingY: 1,
         }}
       >
-        {status === "loading" ? (
+        {isLoadingTemplates ? (
           <Loader size={14} />
         ) : (
           <>
