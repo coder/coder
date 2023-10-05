@@ -28,8 +28,8 @@ export const WorkspacePage: FC = () => {
       username,
     },
     actions: {
-      refreshBuilds: () => {
-        console.log("REFETCH!");
+      refreshBuilds: async () => {
+        await buildsQuery.refetch();
       },
     },
   });
