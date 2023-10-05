@@ -193,6 +193,15 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	if templateVersion.Deleted {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Template version %s is deleted.", createTemplate.VersionID),
+			Validations: []codersdk.ValidationError{
+				{Field: "template_version_id", Detail: "Template version is deleted"},
+			},
+		})
+		return
+	}
 	templateVersionAudit.Old = templateVersion
 	if templateVersion.TemplateID.Valid {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

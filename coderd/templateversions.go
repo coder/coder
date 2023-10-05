@@ -1040,6 +1040,12 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
+	if version.Deleted {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The provided template version is deleted.",
+		})
+		return
+	}
 
 	err = api.Database.InTx(func(store database.Store) error {
 		err = store.UpdateTemplateActiveVersionByID(ctx, database.UpdateTemplateActiveVersionByIDParams{
@@ -1384,6 +1390,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		Message:        version.Message,
 		Job:            job,
 		Readme:         version.Readme,
+		Deleted:        version.Deleted,
 		CreatedBy: codersdk.MinimalUser{
 			ID:        version.CreatedBy,
 			Username:  version.CreatedByUsername,

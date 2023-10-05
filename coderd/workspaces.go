@@ -356,6 +356,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
+		if templateVersion.Deleted {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Template version has been deleted.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "template_version_id",
+						Detail: "template version deleted and unusable",
+					},
+				},
+			})
+			return
+		}
 
 		templateID = templateVersion.TemplateID.UUID
 	}

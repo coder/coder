@@ -151,26 +151,41 @@ SET
 	deleted = true,
 	updated_at = @updated_at
 FROM
-    (SELECT active_version_id FROM templates WHERE id = @template_id) AS active_version
+    -- Delete all versions that are returned from this query.
+    (
+        SELECT
+            id
+        FROM
+			-- Scope a prune to a single template and ignore already deleted template versions
+            (SELECT * FROM template_versions WHERE template_id = @template_id AND deleted = false) AS template_versions
+        LEFT JOIN
+        	provisioner_jobs ON template_versions.job_id = provisioner_jobs.id
+        LEFT JOIN
+        	templates ON template_versions.template_id = templates.id
+        WHERE
+			-- Actively used template versions (meaning the latest build is using
+			-- the version) are never pruned. A "restart" command on the workspace,
+			-- even if failed, would use the version. So it cannot be pruned until
+			-- the build is outdated.
+			-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+			-- 	has a build with the transition "delete". This will prevent that template
+			-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+			template_versions.id != ANY(
+				SELECT DISTINCT ON(workspace_id)
+					template_version_id
+				FROM
+					workspace_builds
+				ORDER BY build_number DESC
+			)
+		  -- Also never delete the active template version
+		  AND active_version_id != template_versions.id
+    	  AND CASE
+    	  	WHEN @job_status != '' THEN
+		  		provisioner_jobs.job_status = @job_status
+		  	ELSE
+		  		true
+    	  END
+
+	) AS deleted_versions
 WHERE
-	-- Actively used template versions (meaning the latest build is using
-	-- the version) are never pruned. A "restart" command on the workspace,
-	-- even if failed, would use the version. So it cannot be pruned until
-	-- the build is outdated.
-	-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-	-- 	has a build with the transition "delete". This will prevent that template
-	-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-	template_versions.id != ANY(
-		SELECT DISTINCT ON(workspace_id)
-			template_version_id
-		FROM
-			workspace_builds
-		ORDER BY build_number DESC
-	)
-  	-- Also never delete the active template version
-	AND template_versions.id != ANY(active_version)
-    -- Ignore already deleted versions.
-	AND template_versions.deleted = false
-	-- Scope a prune to a single template.
-	AND template_id = @template_id :: uuid
-RETURNING id;
+    id = ANY(deleted_versions);
