@@ -1,33 +1,27 @@
 /**
- * @file Abstracts over MUI's Popover component to simplify using it (and hide)
- * some of the wonkier parts of the API.
+ * @file Abstracts over MUI's Popover component to simplify using it (and hide
+ * some of the wonkier parts of the API).
  *
  * Just place a button and some content in the component, and things just work.
  * No setup needed with hooks or refs.
  */
 import {
   type KeyboardEvent,
+  type MouseEvent,
+  type PropsWithChildren,
   type ReactElement,
+  createContext,
+  useCallback,
+  useContext,
   useEffect,
   useRef,
   useState,
-  PropsWithChildren,
 } from "react";
 
-import { type Theme, type SystemStyleObject } from "@mui/system";
+import { type Theme, type SystemStyleObject, Box } from "@mui/system";
 import Popover, { type PopoverOrigin } from "@mui/material/Popover";
-
-type Props = PropsWithChildren<{
-  /**
-   * Does not require any hooks or refs to work. Also does not override any refs
-   * or event handlers attached to the button.
-   */
-  anchorButton: ReactElement;
-  width?: number;
-  originX?: PopoverOrigin["horizontal"];
-  originY?: PopoverOrigin["vertical"];
-  sx?: SystemStyleObject<Theme>;
-}>;
+import { useNavigate, type LinkProps } from "react-router-dom";
+import { useTheme } from "@emotion/react";
 
 function getButton(container: HTMLElement) {
   return (
@@ -36,6 +30,94 @@ function getButton(container: HTMLElement) {
   );
 }
 
+const ClosePopoverContext = createContext<(() => void) | null>(null);
+
+type PopoverLinkProps = LinkProps & {
+  to: string;
+  sx?: SystemStyleObject<Theme>;
+};
+
+/**
+ * A custom version of a React Router Link that makes sure to close the popover
+ * before starting a navigation.
+ *
+ * This is necessary because React Router's navigation logic doesn't work well
+ * with modals (including MUI's base Popover component).
+ *
+ * ---
+ * If the page being navigated to has lazy loading and isn't available yet, the
+ * previous components are supposed to be hidden during the transition, but
+ * because most React modals use React.createPortal to put content outside of
+ * the main DOM tree, React Router has no way of knowing about them. So open
+ * modals have a high risk of not disappearing until the page transition
+ * finishes and the previous components fully unmount.
+ */
+export function PopoverLink({
+  children,
+  to,
+  sx,
+  ...linkProps
+}: PopoverLinkProps) {
+  const closePopover = useContext(ClosePopoverContext);
+  if (closePopover === null) {
+    throw new Error("PopoverLink is not located inside of a PopoverContainer");
+  }
+
+  // Luckily, useNavigate and Link are designed to be imperative/declarative
+  // mirrors of each other, so their inputs should never get out of sync
+  const navigate = useNavigate();
+  const theme = useTheme();
+
+  const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closePopover();
+
+    // Hacky, but by using a promise to push the navigation to resolve via the
+    // micro-task queue, there's guaranteed to be a period for the popover to
+    // close. Tried React DOM's flushSync function, but it was unreliable.
+    void Promise.resolve().then(() => {
+      navigate(to, linkProps);
+    });
+  };
+
+  return (
+    <Box
+      component="a"
+      // Href still needed for accessibility reasons and semantic markup
+      href="javascript:void(0)"
+      onClick={onClick}
+      sx={{
+        outline: "none",
+        textDecoration: "none",
+        "&:focus": {
+          backgroundColor: theme.palette.action.focus,
+        },
+        "&:hover": {
+          textDecoration: "none",
+          backgroundColor: theme.palette.action.hover,
+        },
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
+type PopoverContainerProps = PropsWithChildren<{
+  /**
+   * Does not require any hooks or refs to work. Also does not override any refs
+   * or event handlers attached to the button.
+   */
+  anchorButton: ReactElement;
+
+  width?: number;
+  originX?: PopoverOrigin["horizontal"];
+  originY?: PopoverOrigin["vertical"];
+  sx?: SystemStyleObject<Theme>;
+}>;
+
 export function PopoverContainer({
   children,
   anchorButton,
@@ -43,7 +125,14 @@ export function PopoverContainer({
   originY = 0,
   width = 320,
   sx = {},
-}: Props) {
+}: PopoverContainerProps) {
+  const parentClosePopover = useContext(ClosePopoverContext);
+  if (parentClosePopover !== null) {
+    throw new Error(
+      "Popover detected inside of Popover - this will always be a bad user experience",
+    );
+  }
+
   const buttonContainerRef = useRef<HTMLDivElement>(null);
 
   // Ref value is for effects and event listeners; state value is for React
@@ -107,6 +196,10 @@ export function PopoverContainer({
     }
   };
 
+  const closePopover = useCallback(() => {
+    setLoadedButton(undefined);
+  }, []);
+
   return (
     <>
       {/* Cannot switch with Box component; breaks implementation */}
@@ -124,26 +217,28 @@ export function PopoverContainer({
         {anchorButton}
       </div>
 
-      <Popover
-        open={loadedButton !== undefined}
-        anchorEl={loadedButton}
-        onClose={() => setLoadedButton(undefined)}
-        anchorOrigin={{ horizontal: originX, vertical: originY }}
-        sx={{
-          "& .MuiPaper-root": {
-            overflowY: "hidden",
-            width,
-            paddingY: 0,
-            ...sx,
-          },
-        }}
-        transitionDuration={{
-          enter: 300,
-          exit: 0,
-        }}
-      >
-        {children}
-      </Popover>
+      <ClosePopoverContext.Provider value={closePopover}>
+        <Popover
+          open={loadedButton !== undefined}
+          anchorEl={loadedButton}
+          onClose={closePopover}
+          anchorOrigin={{ horizontal: originX, vertical: originY }}
+          sx={{
+            "& .MuiPaper-root": {
+              overflowY: "hidden",
+              width,
+              paddingY: 0,
+              ...sx,
+            },
+          }}
+          transitionDuration={{
+            enter: 300,
+            exit: 0,
+          }}
+        >
+          {children}
+        </Popover>
+      </ClosePopoverContext.Provider>
     </>
   );
 }

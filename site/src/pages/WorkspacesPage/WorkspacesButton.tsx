@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useOrganizationId, usePermissions } from "hooks";
 
 import { useQuery } from "@tanstack/react-query";
@@ -13,11 +13,14 @@ import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 
 import { Loader } from "components/Loader/Loader";
-import { PopoverContainer } from "components/PopoverContainer/PopoverContainer";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Avatar } from "components/Avatar/Avatar";
 import { SearchBox } from "./WorkspacesSearchBox";
+import {
+  PopoverContainer,
+  PopoverLink,
+} from "components/PopoverContainer/PopoverContainer";
 
 const ICON_SIZE = 18;
 const COLUMN_GAP = 1.5;
@@ -40,22 +43,7 @@ function sortTemplatesByUsersDesc(
 
 function WorkspaceResultsRow({ template }: { template: Template }) {
   return (
-    <Link
-      component={RouterLink}
-      // Sending user directly to workspace creation page for UX
-      // reasons; avoids extra clicks on the user's part
-      to={`/templates/${template.name}/workspace`}
-      sx={{
-        outline: "none",
-        "&:focus": {
-          backgroundColor: (theme) => theme.palette.action.focus,
-        },
-        "&:hover": {
-          textDecoration: "none",
-          backgroundColor: (theme) => theme.palette.action.hover,
-        },
-      }}
-    >
+    <PopoverLink to={`/templates/${template.name}/workspace`}>
       <Box
         sx={{
           display: "flex",
@@ -122,7 +110,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
           </Box>
         </Box>
       </Box>
-    </Link>
+    </PopoverLink>
   );
 }
 
