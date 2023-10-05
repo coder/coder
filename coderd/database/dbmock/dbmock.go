@@ -2981,11 +2981,12 @@ func (mr *MockStoreMockRecorder) Ping(arg0 interface{}) *gomock.Call {
 }
 
 // PruneUnusedTemplateVersions mocks base method.
-func (m *MockStore) PruneUnusedTemplateVersions(arg0 context.Context, arg1 database.PruneUnusedTemplateVersionsParams) error {
+func (m *MockStore) PruneUnusedTemplateVersions(arg0 context.Context, arg1 database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "PruneUnusedTemplateVersions", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // PruneUnusedTemplateVersions indicates an expected call of PruneUnusedTemplateVersions.

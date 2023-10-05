@@ -139,7 +139,7 @@ ORDER BY created_at DESC
 LIMIT 1;
 
 
--- name: PruneUnusedTemplateVersions :exec
+-- name: PruneUnusedTemplateVersions :many
 -- Pruning templates is a soft delete action, so is technically reversible.
 -- Soft deleting prevents the version from being used and discovered
 -- by listing.
@@ -165,5 +165,8 @@ WHERE
 			workspace_builds
 		ORDER BY build_number DESC
 	)
+    -- Ignore already deleted versions.
+	AND template_versions.deleted = false
 	-- Scope a prune to a single template.
-	AND template_id = @template_id :: uuid;
+	AND template_id = @template_id :: uuid
+RETURNING id;

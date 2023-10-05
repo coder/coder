@@ -2242,13 +2242,13 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
 }
 
-func (q *querier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) error {
+func (q *querier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
-		return err
+		return nil, err
 	}
 	return q.db.PruneUnusedTemplateVersions(ctx, arg)
 }

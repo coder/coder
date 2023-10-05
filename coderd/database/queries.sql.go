@@ -5675,7 +5675,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 	return err
 }
 
-const pruneUnusedTemplateVersions = `-- name: PruneUnusedTemplateVersions :exec
+const pruneUnusedTemplateVersions = `-- name: PruneUnusedTemplateVersions :many
 UPDATE
 	template_versions
 SET
@@ -5696,8 +5696,11 @@ WHERE
 			workspace_builds
 		ORDER BY build_number DESC
 	)
+    -- Ignore already deleted versions.
+	AND template_versions.deleted = false
 	-- Scope a prune to a single template.
 	AND template_id = $2 :: uuid
+RETURNING id
 `
 
 type PruneUnusedTemplateVersionsParams struct {
@@ -5710,9 +5713,27 @@ type PruneUnusedTemplateVersionsParams struct {
 // by listing.
 // Only unused template versions will be pruned, which are any versions not
 // referenced by the latest build of a workspace.
-func (q *sqlQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) error {
-	_, err := q.db.ExecContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID)
-	return err
+func (q *sqlQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec

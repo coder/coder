@@ -5175,13 +5175,48 @@ func (q *FakeQuerier) InsertWorkspaceResourceMetadata(_ context.Context, arg dat
 	return metadata, nil
 }
 
-func (q *FakeQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) error {
+func (q *FakeQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
-		return err
+		return nil, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	type latestBuild struct {
+		Number  int32
+		Version uuid.UUID
+	}
+	latest := make(map[uuid.UUID]latestBuild)
+
+	for _, b := range q.workspaceBuilds {
+		v, ok := latest[b.WorkspaceID]
+		if ok || b.BuildNumber < v.Number {
+			// Not the latest
+			continue
+		}
+		latest[b.WorkspaceID] = latestBuild{
+			Number:  b.BuildNumber,
+			Version: b.TemplateVersionID,
+		}
+	}
+	usedVersions := make(map[uuid.UUID]bool)
+	for _, l := range latest {
+		usedVersions[l.Version] = true
 	}
 
-	panic("not implemented")
+	var deleted []uuid.UUID
+	for i, v := range q.templateVersions {
+		if v.Deleted {
+			continue
+		}
+		if _, ok := usedVersions[v.ID]; !ok {
+			v.Deleted = true
+			q.templateVersions[i] = v
+			deleted = append(deleted, v.ID)
+		}
+	}
+
+	return deleted, nil
 }
 
 func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
