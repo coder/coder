@@ -143,6 +143,8 @@ type Options struct {
 	StatsBatcher *batchstats.Batcher
 
 	WorkspaceAppsStatsCollectorOptions workspaceapps.StatsCollectorOptions
+
+	SkipAutoCreateFirstUser bool
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -453,6 +455,9 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		provisionerCloser = NewProvisionerDaemon(t, coderAPI)
 	}
 	client := codersdk.New(serverURL)
+	if !options.SkipAutoCreateFirstUser {
+		createFirstUser(t, client)
+	}
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -572,6 +577,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	return closer
 }
 
+// FirstUserParams is the default set of parameters used to create the first user.
 var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Email:    "testuser@coder.com",
 	Username: "testuser",
@@ -580,29 +586,116 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
+//
+// Deprecated: This user has unrestricted permissions, which can cause missed RBAC bugs.
+// Instead, create additional users as required using CreateOwner, CreateTemplateAdmin, and so on.
+// Alternatively, use AsFirstUser to run a function as the first user.
 func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
-	resp, err := client.CreateFirstUser(context.Background(), FirstUserParams)
+	createFirstUser(t, client)
+	loginAsFirstUser(t, client)
+	user, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
+	return codersdk.CreateFirstUserResponse{
+		UserID:         user.ID,
+		OrganizationID: user.OrganizationIDs[0],
+	}
+}
 
+func createFirstUser(t testing.TB, client *codersdk.Client) {
+	t.Helper()
+	_, err := client.CreateFirstUser(context.Background(), FirstUserParams)
+	if err == nil {
+		return
+	}
+
+	var sdkErr *codersdk.Error
+	if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusConflict {
+		// The user already exists, nothing to do!
+		return
+	}
+	require.NoError(t, err, "create first user")
+}
+
+// loginAsFirstUser authenticates with the passed in codersdk client using the pre-set credentials for the first user.
+func loginAsFirstUser(t testing.TB, client *codersdk.Client) {
+	t.Helper()
 	login, err := client.LoginWithPassword(context.Background(), codersdk.LoginWithPasswordRequest{
 		Email:    FirstUserParams.Email,
 		Password: FirstUserParams.Password,
 	})
-	require.NoError(t, err)
+	if err != nil {
+		var sdkErr *codersdk.Error
+		if errors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusUnauthorized {
+			require.FailNow(t, "first user does not exist, did you forget to create it?")
+		}
+	}
+	require.NoError(t, err, "login as first user")
 	client.SetSessionToken(login.SessionToken)
-	return resp
+}
+
+// AsFirstUser is a helper function to create a client for the first user and
+// run a function as that user.
+func AsFirstUser(t testing.TB, u *url.URL, f func(client *codersdk.Client)) {
+	t.Helper()
+	client := codersdk.New(u)
+	loginAsFirstUser(t, client)
+	f(client)
+}
+
+// firstUserClient is a helper function to create a client for the first user.
+func firstUserClient(t testing.TB, u *url.URL) *codersdk.Client {
+	t.Helper()
+	client := codersdk.New(u)
+	loginAsFirstUser(t, client)
+	return client
+}
+
+// CreateOwner is a helper function to create an owner in the same org as the first user.
+func CreateOwner(t testing.TB, client *codersdk.Client) (*codersdk.Client, codersdk.User) {
+	t.Helper()
+	fc := firstUserClient(t, client.URL)
+	fu, err := fc.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "get first user")
+	return createAnotherUserRetry(t, fc, fu.OrganizationIDs[0], 5, []string{rbac.RoleOwner()})
+}
+
+// CreateTemplateAdmin is a helper function to create a template admin in the same org as the first user.
+func CreateTemplateAdmin(t testing.TB, client *codersdk.Client) (*codersdk.Client, codersdk.User) {
+	t.Helper()
+	fc := firstUserClient(t, client.URL)
+	fu, err := fc.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "get first user")
+	return createAnotherUserRetry(t, fc, fu.OrganizationIDs[0], 5, []string{rbac.RoleTemplateAdmin()})
+}
+
+// CreateUserAdmin is a helper function to create a user admin in the same org as the first user.
+func CreateUserAdmin(t testing.TB, client *codersdk.Client) (*codersdk.Client, codersdk.User) {
+	t.Helper()
+	fc := firstUserClient(t, client.URL)
+	fu, err := fc.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "get first user")
+	return createAnotherUserRetry(t, fc, fu.OrganizationIDs[0], 5, []string{rbac.RoleUserAdmin()})
+}
+
+// CreateMember creates and authenticates a new user with no additional roles in the same org as the first user.
+func CreateMember(t testing.TB, client *codersdk.Client) (*codersdk.Client, codersdk.User) {
+	t.Helper()
+	fc := firstUserClient(t, client.URL)
+	fu, err := fc.User(context.Background(), codersdk.Me)
+	require.NoError(t, err, "get first user")
+	return createAnotherUserRetry(t, fc, fu.OrganizationIDs[0], 5, []string{})
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(t),

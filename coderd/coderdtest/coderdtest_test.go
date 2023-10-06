@@ -17,11 +17,11 @@ func TestNew(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
-	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	client, user := coderdtest.CreateTemplateAdmin(t, client)
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationIDs[0], nil)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationIDs[0], version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationIDs[0], template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false)
