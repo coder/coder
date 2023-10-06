@@ -456,7 +456,7 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	}
 	client := codersdk.New(serverURL)
 	if !options.SkipAutoCreateFirstUser {
-		createFirstUser(t, client)
+		_createFirstUser(t, client)
 	}
 	t.Cleanup(func() {
 		cancelFunc()
@@ -591,7 +591,7 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 // Instead, create additional users as required using CreateOwner, CreateTemplateAdmin, and so on.
 // Alternatively, use AsFirstUser to run a function as the first user.
 func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
-	createFirstUser(t, client)
+	_createFirstUser(t, client)
 	loginAsFirstUser(t, client)
 	user, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err)
@@ -601,7 +601,7 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 	}
 }
 
-func createFirstUser(t testing.TB, client *codersdk.Client) {
+func _createFirstUser(t testing.TB, client *codersdk.Client) {
 	t.Helper()
 	_, err := client.CreateFirstUser(context.Background(), FirstUserParams)
 	if err == nil {

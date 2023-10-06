@@ -294,7 +294,6 @@ func TestPostLogin(t *testing.T) {
 			require.True(t, apiKey.ExpiresAt.Before(time.Now().Add(time.Hour*24*31)), "default tokens lasts less than 31 days")
 			require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
 		})
-
 	})
 }
 
