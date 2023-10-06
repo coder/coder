@@ -2,7 +2,6 @@ import {
   Entitlements,
   ProvisionerType,
   TemplateExample,
-  TemplateVersion,
   VariableValue,
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
@@ -54,26 +53,28 @@ export const getFormPermissions = (entitlements: Entitlements) => {
   };
 };
 
-export const firstVersion = (
-  base: TemplateVersion | TemplateExample,
+export const firstVersionFromFile = (
+  fileId: string,
   variables: VariableValue[] | undefined,
 ) => {
-  const baseReq = {
+  return {
     storage_method: "file" as const,
     provisioner: provisioner,
     user_variable_values: variables,
+    file_id: fileId,
     tags: {},
   };
+};
 
-  if ("job" in base) {
-    return {
-      ...baseReq,
-      file_id: base.job.file_id,
-    };
-  }
-
+export const firstVersionFromExample = (
+  example: TemplateExample,
+  variables: VariableValue[] | undefined,
+) => {
   return {
-    ...baseReq,
-    example_id: base.id,
+    storage_method: "file" as const,
+    provisioner: provisioner,
+    user_variable_values: variables,
+    example_id: example.id,
+    tags: {},
   };
 };

@@ -1,36 +1,22 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { templateVersionLogs } from "api/queries/templateVersions";
-import {
-  JobError,
-  createTemplate,
-  templateExamples,
-} from "api/queries/templates";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { JobError, createTemplate } from "api/queries/templates";
 import { useOrganizationId } from "hooks";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
-import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import {
-  firstVersionFromExample,
-  getFormPermissions,
-  newTemplate,
-} from "./utils";
+import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
+import { uploadFile } from "api/queries/files";
 
-export const ImportStarterTemplateView = () => {
+export const UploadTemplateView = () => {
   const navigate = useNavigate();
   const organizationId = useOrganizationId();
-  const [searchParams] = useSearchParams();
-  const templateExamplesQuery = useQuery(templateExamples(organizationId));
-  const templateExample = templateExamplesQuery.data?.find(
-    (e) => e.id === searchParams.get("exampleId")!,
-  );
-
-  const isLoading = templateExamplesQuery.isLoading;
-  const loadingError = templateExamplesQuery.error;
 
   const dashboard = useDashboard();
   const formPermissions = getFormPermissions(dashboard.entitlements);
+
+  const uploadFileMutation = useMutation(uploadFile());
+  const uploadedFile = uploadFileMutation.data;
 
   const createTemplateMutation = useMutation(createTemplate());
   const createError = createTemplateMutation.error;
@@ -40,28 +26,25 @@ export const ImportStarterTemplateView = () => {
     enabled: isJobError,
   });
 
-  if (isLoading) {
-    return <Loader />;
-  }
-
-  if (loadingError) {
-    return <ErrorAlert error={loadingError} />;
-  }
-
   return (
     <CreateTemplateForm
       {...formPermissions}
-      starterTemplate={templateExample!}
       error={createTemplateMutation.error}
       isSubmitting={createTemplateMutation.isLoading}
       onCancel={() => navigate(-1)}
       jobError={isJobError ? createError.job.error : undefined}
       logs={templateVersionLogsQuery.data}
+      upload={{
+        onUpload: uploadFileMutation.mutateAsync,
+        isUploading: uploadFileMutation.isLoading,
+        onRemove: uploadFileMutation.reset,
+        file: uploadFileMutation.variables,
+      }}
       onSubmit={async (formData) => {
         const template = await createTemplateMutation.mutateAsync({
           organizationId,
-          version: firstVersionFromExample(
-            templateExample!,
+          version: firstVersionFromFile(
+            uploadedFile!.hash,
             formData.user_variable_values,
           ),
           template: newTemplate(formData),

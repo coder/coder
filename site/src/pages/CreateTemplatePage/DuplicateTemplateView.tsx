@@ -13,7 +13,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { firstVersion, getFormPermissions, newTemplate } from "./utils";
+import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
 
 export const DuplicateTemplateView = () => {
   const navigate = useNavigate();
@@ -73,8 +73,8 @@ export const DuplicateTemplateView = () => {
       onSubmit={async (formData) => {
         const template = await createTemplateMutation.mutateAsync({
           organizationId,
-          version: firstVersion(
-            templateVersionQuery.data!,
+          version: firstVersionFromFile(
+            templateVersionQuery.data!.job.file_id,
             formData.user_variable_values,
           ),
           template: newTemplate(formData),

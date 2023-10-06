@@ -3,7 +3,7 @@ import {
   createTemplateVersion,
   getTemplateVersion,
   createTemplate,
-  uploadTemplateFile,
+  uploadFile,
   getTemplateVersionLogs,
   getTemplateVersionVariables,
   getTemplateByName,
@@ -320,7 +320,7 @@ export const createTemplateMachine =
     },
     {
       services: {
-        uploadFile: (_, { file }) => uploadTemplateFile(file),
+        uploadFile: (_, { file }) => uploadFile(file),
         loadStarterTemplate: async ({ organizationId, exampleId }) => {
           if (!exampleId) {
             throw new Error(`Example ID is not defined.`);
