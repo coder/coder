@@ -47,6 +47,8 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
+var ErrConnClosed = xerrors.New("connection closed")
+
 const (
 	WorkspaceAgentSSHPort             = 1
 	WorkspaceAgentReconnectingPTYPort = 2
@@ -496,7 +498,7 @@ func (c *Conn) UpdateNodes(nodes []*Node, replacePeers bool) error {
 	defer c.mutex.Unlock()
 
 	if c.isClosed() {
-		return xerrors.New("connection closed")
+		return ErrConnClosed
 	}
 
 	status := c.Status()
@@ -590,7 +592,7 @@ func (c *Conn) RemovePeer(selector PeerSelector) (deleted bool, err error) {
 	defer c.mutex.Unlock()
 
 	if c.isClosed() {
-		return false, xerrors.New("connection closed")
+		return false, ErrConnClosed
 	}
 
 	deleted = false
@@ -919,7 +921,7 @@ func (c *Conn) Listen(network, addr string) (net.Listener, error) {
 	c.mutex.Lock()
 	if c.isClosed() {
 		c.mutex.Unlock()
-		return nil, xerrors.New("closed")
+		return nil, ErrConnClosed
 	}
 	if c.listeners == nil {
 		c.listeners = map[listenKey]*listener{}
