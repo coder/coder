@@ -886,6 +886,11 @@
           "path": "cli/users_create.md"
         },
         {
+          "title": "users delete",
+          "description": "Delete a user by username or user_id.",
+          "path": "cli/users_delete.md"
+        },
+        {
           "title": "users list",
           "path": "cli/users_list.md"
         },
