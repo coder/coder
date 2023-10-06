@@ -1038,7 +1038,7 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error updating workspace autostart schedule.",
+			Message: "Internal error updating workspace automatic updates setting",
 			Detail:  err.Error(),
 		})
 		return

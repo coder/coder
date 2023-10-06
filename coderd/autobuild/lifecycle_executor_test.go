@@ -122,7 +122,6 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			workspace = coderdtest.MustTransitionWorkspace(
 				t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-			// Given: the workspace template has been updated
 			orgs, err := client.OrganizationsByUser(ctx, workspace.OwnerID.String())
 			require.NoError(t, err)
 			require.Len(t, orgs, 1)
@@ -149,6 +148,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				}
 			}
 
+			// Given: the workspace template has been updated
 			newVersion := coderdtest.UpdateTemplateVersion(t, client, orgs[0].ID, res, workspace.TemplateID)
 			coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
 			require.NoError(t, client.UpdateActiveTemplateVersion(
@@ -166,24 +166,25 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 
 			stats := <-statsCh
 			assert.NoError(t, stats.Error)
-			if tc.expectStart {
-				// Then: the workspace should be started
-				assert.Len(t, stats.Transitions, 1)
-				assert.Contains(t, stats.Transitions, workspace.ID)
-				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
-				ws := coderdtest.MustWorkspace(t, client, workspace.ID)
-				if tc.expectUpdate {
-					// Then: uses the updated version
-					assert.Equal(t, newVersion.ID, ws.LatestBuild.TemplateVersionID,
-						"expected workspace build to be using the updated template version")
-				} else {
-					// Then: uses the previous template version
-					assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID,
-						"expected workspace build to be using the old template version")
-				}
-			} else {
+			if !tc.expectStart {
 				// Then: the workspace should not be started
 				assert.Len(t, stats.Transitions, 0)
+				return
+			}
+
+			// Then: the workspace should be started
+			assert.Len(t, stats.Transitions, 1)
+			assert.Contains(t, stats.Transitions, workspace.ID)
+			assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
+			ws := coderdtest.MustWorkspace(t, client, workspace.ID)
+			if tc.expectUpdate {
+				// Then: uses the updated version
+				assert.Equal(t, newVersion.ID, ws.LatestBuild.TemplateVersionID,
+					"expected workspace build to be using the updated template version")
+			} else {
+				// Then: uses the previous template version
+				assert.Equal(t, workspace.LatestBuild.TemplateVersionID, ws.LatestBuild.TemplateVersionID,
+					"expected workspace build to be using the old template version")
 			}
 		})
 	}

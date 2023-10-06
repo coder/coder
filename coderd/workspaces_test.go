@@ -2178,13 +2178,14 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	t.Parallel()
 
 	var (
-		auditor   = audit.NewMock()
-		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
-		user      = coderdtest.CreateFirstUser(t, client)
-		version   = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		project   = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		auditor      = audit.NewMock()
+		adminClient  = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		admin        = coderdtest.CreateFirstUser(t, adminClient)
+		client, user = coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID)
+		version      = coderdtest.CreateTemplateVersion(t, adminClient, admin.OrganizationID, nil)
+		_            = coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
+		project      = coderdtest.CreateTemplate(t, adminClient, admin.OrganizationID, version.ID)
+		workspace    = coderdtest.CreateWorkspace(t, client, admin.OrganizationID, project.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.AutostartSchedule = nil
 			cwr.TTLMillis = nil
 			cwr.AutomaticUpdates = codersdk.AutomaticUpdatesNever
@@ -2210,11 +2211,12 @@ func TestWorkspaceUpdateAutomaticUpdates_OK(t *testing.T) {
 	require.Equal(t, codersdk.AutomaticUpdatesAlways, updated.AutomaticUpdates)
 
 	require.Eventually(t, func() bool {
-		if len(auditor.AuditLogs()) < 7 {
-			return false
-		}
-		return auditor.AuditLogs()[6].Action == database.AuditActionWrite
+		return len(auditor.AuditLogs()) >= 9
 	}, testutil.WaitShort, testutil.IntervalFast)
+	l := auditor.AuditLogs()[8]
+	require.Equal(t, database.AuditActionWrite, l.Action)
+	require.Equal(t, user.ID, l.UserID)
+	require.Equal(t, workspace.ID, l.ResourceID)
 }
 
 func TestUpdateWorkspaceAutomaticUpdates_NotFound(t *testing.T) {
