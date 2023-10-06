@@ -428,7 +428,6 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		first := coderdtest.CreateFirstUser(t, client)
-
 		other, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleMember(), rbac.RoleOwner())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -2890,7 +2889,11 @@ func TestWorkspaceDormant(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		var (
-			client                   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+			auditRecorder = audit.NewMock()
+			client        = coderdtest.New(t, &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+				Auditor:                  auditRecorder,
+			})
 			user                     = coderdtest.CreateFirstUser(t, client)
 			version                  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 			_                        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -2907,10 +2910,12 @@ func TestWorkspaceDormant(t *testing.T) {
 		defer cancel()
 
 		lastUsedAt := workspace.LastUsedAt
+		auditRecorder.ResetLogs()
 		err := client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
 			Dormant: true,
 		})
 		require.NoError(t, err)
+		require.Len(t, auditRecorder.AuditLogs(), 1)
 
 		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 		require.NoError(t, err, "fetch provisioned workspace")

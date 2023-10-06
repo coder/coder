@@ -1,7 +1,10 @@
 import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import Link from "@mui/material/Link";
 import { FormikContextType, useFormik } from "formik";
 import { FC } from "react";
 import * as Yup from "yup";
+import { hasApiFieldErrors, isApiError } from "api/errors";
 import * as TypesGen from "api/typesGenerated";
 import {
   getFormHelpers,
@@ -12,11 +15,6 @@ import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { Stack } from "components/Stack/Stack";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { hasApiFieldErrors, isApiError } from "api/errors";
-import MenuItem from "@mui/material/MenuItem";
-import { makeStyles } from "@mui/styles";
-import { Theme } from "@mui/material/styles";
-import Link from "@mui/material/Link";
 
 export const Language = {
   emailLabel: "Email",
@@ -104,8 +102,6 @@ export const CreateUserForm: FC<
     error,
   );
 
-  const styles = useStyles();
-
   const methods = [
     authMethods?.password.enabled && "password",
     authMethods?.oidc.enabled && "oidc",
@@ -161,9 +157,21 @@ export const CreateUserForm: FC<
               const language = authMethodLanguage[value];
               return (
                 <MenuItem key={value} id={"item-" + value} value={value}>
-                  <Stack spacing={0} maxWidth={400}>
+                  <Stack
+                    spacing={0}
+                    css={{
+                      maxWidth: 400,
+                    }}
+                  >
                     {language.displayName}
-                    <span className={styles.labelDescription}>
+                    <span
+                      css={(theme) => ({
+                        fontSize: 14,
+                        color: theme.palette.text.secondary,
+                        wordWrap: "normal",
+                        whiteSpace: "break-spaces",
+                      })}
+                    >
                       {language.description}
                     </span>
                   </Stack>
@@ -192,12 +200,3 @@ export const CreateUserForm: FC<
     </FullPageForm>
   );
 };
-
-const useStyles = makeStyles<Theme>((theme) => ({
-  labelDescription: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    wordWrap: "normal",
-    whiteSpace: "break-spaces",
-  },
-}));

@@ -255,11 +255,11 @@ func TestWorkspaceAgent(t *testing.T) {
 				req.TemplateID = template.ID
 			})
 
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
 			ID: version.ID,
 		})
 		require.NoError(t, err)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		// Creating another workspace is just easier.
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

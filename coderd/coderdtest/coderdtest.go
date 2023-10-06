@@ -266,12 +266,19 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
+	var auditor atomic.Pointer[audit.Auditor]
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
+	}
+	auditor.Store(&options.Auditor)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		options.Pubsub,
 		&templateScheduleStore,
+		&auditor,
 		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
@@ -760,21 +767,53 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateVersionJobCompleted awaits for an import job to reach completed status.
+// AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
+func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	t.Logf("waiting for template version %s build job to start", version)
+	var templateVersion codersdk.TemplateVersion
+	require.Eventually(t, func() bool {
+		var err error
+		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			return false
+		}
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
+		switch templateVersion.Job.Status {
+		case codersdk.ProvisionerJobPending:
+			return false
+		case codersdk.ProvisionerJobRunning:
+			return true
+		default:
+			t.FailNow()
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has started", version)
+	return templateVersion
+}
+
+// AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
+// from cancelation, an error, or from completing successfully.
 func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	t.Logf("waiting for template version job %s", version)
+	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalMedium)
-	t.Logf("got template version job %s", version)
+	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 

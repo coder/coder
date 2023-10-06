@@ -777,10 +777,10 @@ export const regenerateUserSSHKey = async (
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
-): Promise<TypesGen.WorkspaceBuild[]> => {
+  req?: TypesGen.WorkspaceBuildsRequest,
+) => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
 };

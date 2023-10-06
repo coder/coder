@@ -830,8 +830,20 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Workspace
 // @Router /workspaces/{workspace}/dormant [put]
 func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		oldWorkspace      = workspace
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	aReq.Old = oldWorkspace
+	defer commitAudit()
 
 	var req codersdk.UpdateWorkspaceDormancy
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -879,6 +891,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = workspace
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],

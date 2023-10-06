@@ -1,11 +1,8 @@
+import Collapse from "@mui/material/Collapse";
 import Link from "@mui/material/Link";
 import makeStyles from "@mui/styles/makeStyles";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
-import { PropsWithChildren, FC } from "react";
-import Collapse from "@mui/material/Collapse";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { type FC, type PropsWithChildren } from "react";
 import { combineClasses } from "utils/combineClasses";
 
 export interface ExpanderProps {
@@ -28,7 +25,7 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
         <Link onClick={toggleExpanded} className={styles.expandLink}>
           <span className={styles.text}>
             Click here to learn more
-            <OpenDropdown margin={false} />
+            <DropdownArrow margin={false} />
           </span>
         </Link>
       )}
@@ -42,7 +39,7 @@ export const Expander: FC<PropsWithChildren<ExpanderProps>> = ({
         >
           <span className={styles.text}>
             Click here to hide
-            <CloseDropdown margin={false} />
+            <DropdownArrow margin={false} close />
           </span>
         </Link>
       )}
