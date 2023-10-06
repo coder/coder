@@ -40,11 +40,13 @@ ChartJS.register(
 export interface ActiveUserChartProps {
   data: { date: string; amount: number }[];
   interval: "day" | "week";
+  userLimit: number | undefined;
 }
 
 export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   data,
   interval,
+  userLimit,
 }) => {
   const theme: Theme = useTheme();
 
@@ -106,6 +108,14 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
             backgroundColor: theme.palette.info.dark,
             fill: "origin",
           },
+          {
+            label: "User limit",
+            data: data.map((_) => userLimit),
+            pointBackgroundColor: theme.palette.warning.light,
+            pointBorderColor: theme.palette.warning.light,
+            borderColor: theme.palette.warning.light,
+            fill: false,
+          }
         ],
       }}
       options={options}
