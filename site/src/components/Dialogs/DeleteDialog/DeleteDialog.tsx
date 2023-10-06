@@ -43,7 +43,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
     }
   };
 
-  const confirmationId = `${hookId}-${DeleteDialog.name}-confirm`;
+  const confirmationId = `${hookId}-confirm`;
   const hasError = !deletionConfirmed && confirmationText.length > 0;
   const displayErrorMessage = hasError && !isFocused;
   const inputColor = hasError ? "error" : "primary";
