@@ -4,7 +4,7 @@ import duration from "dayjs/plugin/duration";
 import relativeTime from "dayjs/plugin/relativeTime";
 import timezone from "dayjs/plugin/timezone";
 import utc from "dayjs/plugin/utc";
-import { Workspace } from "api/typesGenerated";
+import { Template, Workspace } from "api/typesGenerated";
 import { isWorkspaceOn } from "./workspace";
 import cronParser from "cron-parser";
 
@@ -198,4 +198,33 @@ export const quietHoursDisplay = (
   display += ` (${day.from(today)})`;
 
   return display;
+};
+
+export type TemplateAutostopRequirementDaysValue =
+  | "off"
+  | "daily"
+  | "saturday"
+  | "sunday";
+
+export const calculateAutostopRequirementDaysValue = (
+  value: TemplateAutostopRequirementDaysValue,
+): Template["autostop_requirement"]["days_of_week"] => {
+  switch (value) {
+    case "daily":
+      return [
+        "monday",
+        "tuesday",
+        "wednesday",
+        "thursday",
+        "friday",
+        "saturday",
+        "sunday",
+      ];
+    case "saturday":
+      return ["saturday"];
+    case "sunday":
+      return ["sunday"];
+  }
+
+  return [];
 };

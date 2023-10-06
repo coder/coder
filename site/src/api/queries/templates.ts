@@ -121,10 +121,16 @@ export const templateVersionExternalAuth = (versionId: string) => {
   };
 };
 
-const createTemplate = async (options: {
+export const createTemplate = () => {
+  return {
+    mutationFn: createTemplateFn,
+  };
+};
+
+const createTemplateFn = async (options: {
   organizationId: string;
   version: CreateTemplateVersionRequest;
-  data: CreateTemplateRequest;
+  data: Omit<CreateTemplateRequest, "template_version_id">;
 }) => {
   const version = await API.createTemplateVersion(
     options.organizationId,

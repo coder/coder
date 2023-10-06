@@ -1,47 +1,57 @@
-import { useMachine } from "@xstate/react";
-import { isApiValidationError } from "api/errors";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import { createTemplateMachine } from "xServices/createTemplate/createTemplateXService";
+import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  createTemplate,
+  templateByName,
+  templateVersion,
+  templateVersionVariables,
+} from "api/queries/templates";
+import { ProvisionerType } from "api/typesGenerated";
+import { calculateAutostopRequirementDaysValue } from "utils/schedule";
+
+const provisioner: ProvisionerType =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
+  typeof (window as any).playwright !== "undefined" ? "echo" : "terraform";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();
-  const organizationId = useOrganizationId();
   const [searchParams] = useSearchParams();
-  const [state, send] = useMachine(createTemplateMachine, {
-    context: {
-      organizationId,
-      exampleId: searchParams.get("exampleId"),
-      templateNameToCopy: searchParams.get("fromTemplate"),
-    },
-    actions: {
-      onCreate: (_, { data }) => {
-        navigate(`/templates/${data.name}`);
-      },
-    },
-  });
+  // const organizationId = useOrganizationId();
+  // const [state, send] = useMachine(createTemplateMachine, {
+  //   context: {
+  //     organizationId,
+  //     exampleId: searchParams.get("exampleId"),
+  //     templateNameToCopy: searchParams.get("fromTemplate"),
+  //   },
+  //   actions: {
+  //     onCreate: (_, { data }) => {
+  //       navigate(`/templates/${data.name}`);
+  //     },
+  //   },
+  // });
 
-  const { starterTemplate, error, file, jobError, jobLogs, variables } =
-    state.context;
-  const shouldDisplayForm = !state.hasTag("loading");
-  const { entitlements } = useDashboard();
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
-  // Requires the template RBAC feature, otherwise disabling everyone access
-  // means no one can access.
-  const allowDisableEveryoneAccess =
-    entitlements.features["template_rbac"].enabled;
-  const allowAutostopRequirement =
-    entitlements.features["template_autostop_requirement"].enabled;
+  // const { starterTemplate, error, file, jobError, jobLogs, variables } =
+  //   state.context;
+  // const shouldDisplayForm = !state.hasTag("loading");
+  // const { entitlements } = useDashboard();
+  // const allowAdvancedScheduling =
+  //   entitlements.features["advanced_template_scheduling"].enabled;
+  // // Requires the template RBAC feature, otherwise disabling everyone access
+  // // means no one can access.
+  // const allowDisableEveryoneAccess =
+  //   entitlements.features["template_rbac"].enabled;
+  // const allowAutostopRequirement =
+  //   entitlements.features["template_autostop_requirement"].enabled;
 
   const onCancel = () => {
     navigate(-1);
@@ -54,7 +64,14 @@ const CreateTemplatePage: FC = () => {
       </Helmet>
 
       <FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
-        {state.hasTag("loading") && <Loader />}
+        {searchParams.has("fromTemplate") ? (
+          <DuplicateTemplateView />
+        ) : searchParams.has("exampleId") ? (
+          <ImportStaterTemplateView />
+        ) : (
+          <UploadTemplateView />
+        )}
+        {/* {state.hasTag("loading") && <Loader />}
 
         <Stack spacing={6}>
           {Boolean(error) && !isApiValidationError(error) && (
@@ -92,10 +109,129 @@ const CreateTemplatePage: FC = () => {
               logs={jobLogs}
             />
           )}
-        </Stack>
+        </Stack> */}
       </FullPageHorizontalForm>
     </>
   );
+};
+
+const DuplicateTemplateView = () => {
+  const navigate = useNavigate();
+  const organizationId = useOrganizationId();
+  const [searchParams] = useSearchParams();
+  const templateByNameQuery = useQuery(
+    templateByName(organizationId, searchParams.get("fromTemplate")!),
+  );
+  const templateVersionQuery = useQuery({
+    ...templateVersion(
+      templateByNameQuery.data?.template.active_version_id ?? "",
+    ),
+    enabled: templateByNameQuery.data !== undefined,
+  });
+  const templateVersionVariablesQuery = useQuery({
+    ...templateVersionVariables(
+      templateByNameQuery.data?.template.active_version_id ?? "",
+    ),
+    enabled: templateByNameQuery.data !== undefined,
+  });
+  const isLoading =
+    templateByNameQuery.isLoading ||
+    templateVersionQuery.isLoading ||
+    templateVersionVariablesQuery.isLoading;
+  const loadingError =
+    templateByNameQuery.error ||
+    templateVersionQuery.error ||
+    templateVersionVariablesQuery.error;
+
+  const formEntitlements = useFormEntitlements();
+
+  const createTemplateMutation = useMutation(createTemplate());
+
+  if (isLoading) {
+    return <Loader />;
+  }
+
+  if (loadingError) {
+    return <ErrorAlert error={loadingError} />;
+  }
+
+  return (
+    <CreateTemplateForm
+      {...formEntitlements}
+      copiedTemplate={templateByNameQuery.data!.template}
+      error={createTemplateMutation.error}
+      isSubmitting={createTemplateMutation.isLoading}
+      variables={templateVersionVariablesQuery.data}
+      onCancel={() => navigate(-1)}
+      onSubmit={async (formData) => {
+        const template = await createTemplateMutation.mutateAsync({
+          organizationId,
+          version: {
+            storage_method: "file",
+            file_id: templateVersionQuery.data!.job.file_id,
+            provisioner: provisioner,
+            tags: {},
+          },
+          data: prepareData(formData),
+        });
+        navigate(`/templates/${template.name}`);
+      }}
+
+      // jobError={jobError}
+      // logs={jobLogs}
+    />
+  );
+};
+
+const useFormEntitlements = () => {
+  const { entitlements } = useDashboard();
+  const allowAdvancedScheduling =
+    entitlements.features["advanced_template_scheduling"].enabled;
+  // Requires the template RBAC feature, otherwise disabling everyone access
+  // means no one can access.
+  const allowDisableEveryoneAccess =
+    entitlements.features["template_rbac"].enabled;
+  const allowAutostopRequirement =
+    entitlements.features["template_autostop_requirement"].enabled;
+
+  return {
+    allowAdvancedScheduling,
+    allowDisableEveryoneAccess,
+    allowAutostopRequirement,
+  };
+};
+
+const ImportStaterTemplateView = () => {
+  return <div>Import</div>;
+};
+
+const UploadTemplateView = () => {
+  return <div>Upload</div>;
+};
+
+const prepareData = (formData: CreateTemplateData) => {
+  const {
+    default_ttl_hours,
+    max_ttl_hours,
+    parameter_values_by_name,
+    allow_everyone_group_access,
+    autostop_requirement_days_of_week,
+    autostop_requirement_weeks,
+    ...safeTemplateData
+  } = formData;
+
+  return {
+    ...safeTemplateData,
+    disable_everyone_group_access: !formData.allow_everyone_group_access,
+    default_ttl_ms: formData.default_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+    max_ttl_ms: formData.max_ttl_hours * 60 * 60 * 1000, // Convert hours to ms
+    autostop_requirement: {
+      days_of_week: calculateAutostopRequirementDaysValue(
+        formData.autostop_requirement_days_of_week,
+      ),
+      weeks: formData.autostop_requirement_weeks,
+    },
+  };
 };
 
 export default CreateTemplatePage;

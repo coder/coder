@@ -20,11 +20,11 @@ import {
   VariableValue,
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { delay } from "utils/delay";
 import {
   TemplateAutostopRequirementDaysValue,
   calculateAutostopRequirementDaysValue,
-} from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
-import { delay } from "utils/delay";
+} from "utils/schedule";
 import { assign, createMachine } from "xstate";
 
 // for creating a new template:

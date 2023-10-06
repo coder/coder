@@ -198,43 +198,47 @@ const getInitialValues = ({
   return initialValues;
 };
 
-export interface CreateTemplateFormProps {
+type CopiedTemplateForm = { copiedTemplate: Template };
+type StarterTemplateForm = { starterTemplate: TemplateExample };
+type UploadTemplateForm = { upload: TemplateUploadProps };
+
+export type CreateTemplateFormProps = (
+  | CopiedTemplateForm
+  | StarterTemplateForm
+  | UploadTemplateForm
+) & {
   onCancel: () => void;
   onSubmit: (data: CreateTemplateData) => void;
   isSubmitting: boolean;
-  upload: TemplateUploadProps;
-  starterTemplate?: TemplateExample;
   variables?: TemplateVersionVariable[];
   error?: unknown;
   jobError?: string;
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
-  copiedTemplate?: Template;
   allowDisableEveryoneAccess: boolean;
   allowAutostopRequirement: boolean;
-}
+};
 
-export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
-  onCancel,
-  onSubmit,
-  starterTemplate,
-  copiedTemplate,
-  variables,
-  isSubmitting,
-  upload,
-  error,
-  jobError,
-  logs,
-  allowAdvancedScheduling,
-  allowDisableEveryoneAccess,
-  allowAutostopRequirement,
-}) => {
+export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const {
+    onCancel,
+    onSubmit,
+    variables,
+    isSubmitting,
+    error,
+    jobError,
+    logs,
+    allowAdvancedScheduling,
+    allowDisableEveryoneAccess,
+    allowAutostopRequirement,
+  } = props;
   const styles = useStyles();
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
-      fromExample: starterTemplate,
-      fromCopy: copiedTemplate,
+      fromExample:
+        "starterTemplate" in props ? props.starterTemplate : undefined,
+      fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
       variables,
     }),
     validationSchema,
@@ -281,16 +285,18 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         description="The name is used to identify the template in URLs and the API."
       >
         <FormFields>
-          {starterTemplate ? (
-            <SelectedTemplate template={starterTemplate} />
-          ) : copiedTemplate ? (
-            <SelectedTemplate template={copiedTemplate} />
-          ) : (
+          {"starterTemplate" in props && (
+            <SelectedTemplate template={props.starterTemplate} />
+          )}
+          {"copiedTemplate" in props && (
+            <SelectedTemplate template={props.copiedTemplate} />
+          )}
+          {"upload" in props && (
             <TemplateUpload
-              {...upload}
+              {...props.upload}
               onUpload={async (file) => {
                 await fillNameAndDisplayWithFilename(file.name, form);
-                upload.onUpload(file);
+                props.upload.onUpload(file);
               }}
             />
           )}
