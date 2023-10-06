@@ -73,7 +73,7 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 GitHub Enterprise requires the following authentication and token URLs:
 
 ```env
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
@@ -134,7 +134,7 @@ CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_1_REGEX=github.example.com
 CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
-CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
 To support regex matching for paths (e.g. github.com/orgname), you'll need to

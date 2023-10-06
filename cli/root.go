@@ -55,6 +55,7 @@ const (
 	varURL              = "url"
 	varToken            = "token"
 	varAgentToken       = "agent-token"
+	varAgentTokenFile   = "agent-token-file"
 	varAgentURL         = "agent-url"
 	varHeader           = "header"
 	varHeaderCommand    = "header-command"
@@ -71,7 +72,9 @@ const (
 	envSessionToken     = "CODER_SESSION_TOKEN"
 	//nolint:gosec
 	envAgentToken = "CODER_AGENT_TOKEN"
-	envURL        = "CODER_URL"
+	//nolint:gosec
+	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
+	envURL            = "CODER_URL"
 )
 
 var errUnauthenticated = xerrors.New(notLoggedInMessage)
@@ -159,6 +162,9 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			},
 		),
 		Handler: func(i *clibase.Invocation) error {
+			if r.versionFlag {
+				return r.version(defaultVersionInfo).Handler(i)
+			}
 			// The GIT_ASKPASS environment variable must point at
 			// a binary with no arguments. To prevent writing
 			// cross-platform scripts to invoke the Coder binary
@@ -326,6 +332,14 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Group:       globalGroup,
 		},
 		{
+			Flag:        varAgentTokenFile,
+			Env:         envAgentTokenFile,
+			Description: "A file containing an agent authentication token.",
+			Value:       clibase.StringOf(&r.agentTokenFile),
+			Hidden:      true,
+			Group:       globalGroup,
+		},
+		{
 			Flag:        varAgentURL,
 			Env:         "CODER_AGENT_URL",
 			Description: "URL for an agent to access your deployment.",
@@ -407,6 +421,15 @@ func (r *RootCmd) Command(subcommands []*clibase.Cmd) (*clibase.Cmd, error) {
 			Value:       clibase.StringOf(&r.globalConfig),
 			Group:       globalGroup,
 		},
+		{
+			Flag: "version",
+			// This was requested by a customer to assist with their migration.
+			// They have two Coder CLIs, and want to tell the difference by running
+			// the same base command.
+			Description: "Run the version command. Useful for v1 customers migrating to v2.",
+			Value:       clibase.BoolOf(&r.versionFlag),
+			Hidden:      true,
+		},
 	}
 
 	err := cmd.PrepareAll()
@@ -434,18 +457,20 @@ func LoggerFromContext(ctx context.Context) (slog.Logger, bool) {
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL     *url.URL
-	token         string
-	globalConfig  string
-	header        []string
-	headerCommand string
-	agentToken    string
-	agentURL      *url.URL
-	forceTTY      bool
-	noOpen        bool
-	verbose       bool
-	disableDirect bool
-	debugHTTP     bool
+	clientURL      *url.URL
+	token          string
+	globalConfig   string
+	header         []string
+	headerCommand  string
+	agentToken     string
+	agentTokenFile string
+	agentURL       *url.URL
+	forceTTY       bool
+	noOpen         bool
+	verbose        bool
+	versionFlag    bool
+	disableDirect  bool
+	debugHTTP      bool
 
 	noVersionCheck   bool
 	noFeatureWarning bool

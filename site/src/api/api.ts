@@ -1,7 +1,9 @@
 import axios from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
-import { delay } from "utils/delay";
+// This needs to include the `../`, otherwise it breaks when importing into
+// vscode-coder.
+import { delay } from "../utils/delay";
 import userAgentParser from "ua-parser-js";
 
 // Adds 304 for the default axios validateStatus function
@@ -775,10 +777,10 @@ export const regenerateUserSSHKey = async (
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
-): Promise<TypesGen.WorkspaceBuild[]> => {
+  req?: TypesGen.WorkspaceBuildsRequest,
+) => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
 };
@@ -1474,28 +1476,39 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
   };
 };
 
-type InsightsFilter = {
+export type InsightsParams = {
   start_time: string;
   end_time: string;
   template_ids: string;
 };
 
 export const getInsightsUserLatency = async (
-  filters: InsightsFilter,
+  filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/user-latency?${params}`);
   return response.data;
 };
 
+export const getInsightsUserActivity = async (
+  filters: InsightsParams,
+): Promise<TypesGen.UserActivityInsightsResponse> => {
+  const params = new URLSearchParams(filters);
+  const response = await axios.get(`/api/v2/insights/user-activity?${params}`);
+  return response.data;
+};
+
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
 export const getInsightsTemplate = async (
-  filters: InsightsFilter,
+  params: InsightsTemplateParams,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams({
-    ...filters,
-    interval: "day",
-  });
-  const response = await axios.get(`/api/v2/insights/templates?${params}`);
+  const searchParams = new URLSearchParams(params);
+  const response = await axios.get(
+    `/api/v2/insights/templates?${searchParams}`,
+  );
   return response.data;
 };
 

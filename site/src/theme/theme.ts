@@ -45,8 +45,8 @@ export let dark = createTheme({
     },
     divider: colors.gray[13],
     warning: {
-      light: colors.orange[7],
-      main: colors.orange[9],
+      light: colors.orange[9],
+      main: colors.orange[11],
       dark: colors.orange[15],
     },
     success: {
@@ -167,6 +167,11 @@ dark = createTheme(dark, {
         sizeLarge: {
           height: BUTTON_LG_HEIGHT,
         },
+        outlined: {
+          ":hover": {
+            border: `1px solid ${colors.gray[10]}`,
+          },
+        },
         outlinedNeutral: {
           borderColor: colors.gray[12],
 
@@ -198,6 +203,16 @@ dark = createTheme(dark, {
         },
         startIcon: {
           marginLeft: "-2px",
+        },
+      },
+    },
+    MuiButtonGroup: {
+      styleOverrides: {
+        root: {
+          ">button:hover+button": {
+            // The !important is unfortunate, but necessary for the border.
+            borderLeftColor: `${colors.gray[10]} !important`,
+          },
         },
       },
     },
@@ -376,7 +391,7 @@ dark = createTheme(dark, {
           // The default outlined input color is white, which seemed jarring.
           "&:hover:not(.Mui-error):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
             {
-              borderColor: colors.gray[7],
+              borderColor: colors.gray[10],
             },
         },
       },

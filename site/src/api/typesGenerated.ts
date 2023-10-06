@@ -279,6 +279,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
   readonly rich_parameter_values?: WorkspaceBuildParameter[];
+  readonly automatic_updates?: AutomaticUpdates;
 }
 
 // From codersdk/deployment.go
@@ -1156,6 +1157,11 @@ export interface UpdateUserQuietHoursScheduleRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceAutomaticUpdatesRequest {
+  readonly automatic_updates: AutomaticUpdates;
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string;
 }
@@ -1323,6 +1329,7 @@ export interface Workspace {
   readonly deleting_at?: string;
   readonly dormant_at?: string;
   readonly health: WorkspaceHealth;
+  readonly automatic_updates: AutomaticUpdates;
 }
 
 // From codersdk/workspaceagents.go
@@ -1479,8 +1486,7 @@ export interface WorkspaceBuildParameter {
 
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
-  readonly WorkspaceID: string;
-  readonly Since: string;
+  readonly since?: string;
 }
 
 // From codersdk/deployment.go
@@ -1612,6 +1618,10 @@ export const AuditActions: AuditAction[] = [
   "write",
 ];
 
+// From codersdk/workspaces.go
+export type AutomaticUpdates = "always" | "never";
+export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
+
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator";
 export const BuildReasons: BuildReason[] = [
@@ -1662,15 +1672,13 @@ export type Experiment =
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
-  | "workspace_actions";
+  | "template_autostop_requirement";
 export const Experiments: Experiment[] = [
   "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
-  "workspace_actions",
 ];
 
 // From codersdk/deployment.go
@@ -1755,7 +1763,8 @@ export type ProvisionerJobStatus =
   | "failed"
   | "pending"
   | "running"
-  | "succeeded";
+  | "succeeded"
+  | "unknown";
 export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "canceled",
   "canceling",
@@ -1763,6 +1772,7 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "pending",
   "running",
   "succeeded",
+  "unknown",
 ];
 
 // From codersdk/workspaces.go

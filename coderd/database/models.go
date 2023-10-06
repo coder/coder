@@ -211,6 +211,64 @@ func AllAuditActionValues() []AuditAction {
 	}
 }
 
+type AutomaticUpdates string
+
+const (
+	AutomaticUpdatesAlways AutomaticUpdates = "always"
+	AutomaticUpdatesNever  AutomaticUpdates = "never"
+)
+
+func (e *AutomaticUpdates) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AutomaticUpdates(s)
+	case string:
+		*e = AutomaticUpdates(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AutomaticUpdates: %T", src)
+	}
+	return nil
+}
+
+type NullAutomaticUpdates struct {
+	AutomaticUpdates AutomaticUpdates `json:"automatic_updates"`
+	Valid            bool             `json:"valid"` // Valid is true if AutomaticUpdates is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAutomaticUpdates) Scan(value interface{}) error {
+	if value == nil {
+		ns.AutomaticUpdates, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AutomaticUpdates.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAutomaticUpdates) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AutomaticUpdates), nil
+}
+
+func (e AutomaticUpdates) Valid() bool {
+	switch e {
+	case AutomaticUpdatesAlways,
+		AutomaticUpdatesNever:
+		return true
+	}
+	return false
+}
+
+func AllAutomaticUpdatesValues() []AutomaticUpdates {
+	return []AutomaticUpdates{
+		AutomaticUpdatesAlways,
+		AutomaticUpdatesNever,
+	}
+}
+
 type BuildReason string
 
 const (
@@ -834,6 +892,80 @@ func AllParameterTypeSystemValues() []ParameterTypeSystem {
 	return []ParameterTypeSystem{
 		ParameterTypeSystemNone,
 		ParameterTypeSystemHCL,
+	}
+}
+
+// Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
+type ProvisionerJobStatus string
+
+const (
+	ProvisionerJobStatusPending   ProvisionerJobStatus = "pending"
+	ProvisionerJobStatusRunning   ProvisionerJobStatus = "running"
+	ProvisionerJobStatusSucceeded ProvisionerJobStatus = "succeeded"
+	ProvisionerJobStatusCanceling ProvisionerJobStatus = "canceling"
+	ProvisionerJobStatusCanceled  ProvisionerJobStatus = "canceled"
+	ProvisionerJobStatusFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobStatusUnknown   ProvisionerJobStatus = "unknown"
+)
+
+func (e *ProvisionerJobStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerJobStatus(s)
+	case string:
+		*e = ProvisionerJobStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerJobStatus: %T", src)
+	}
+	return nil
+}
+
+type NullProvisionerJobStatus struct {
+	ProvisionerJobStatus ProvisionerJobStatus `json:"provisioner_job_status"`
+	Valid                bool                 `json:"valid"` // Valid is true if ProvisionerJobStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProvisionerJobStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProvisionerJobStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProvisionerJobStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProvisionerJobStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProvisionerJobStatus), nil
+}
+
+func (e ProvisionerJobStatus) Valid() bool {
+	switch e {
+	case ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown:
+		return true
+	}
+	return false
+}
+
+func AllProvisionerJobStatusValues() []ProvisionerJobStatus {
+	return []ProvisionerJobStatus{
+		ProvisionerJobStatusPending,
+		ProvisionerJobStatusRunning,
+		ProvisionerJobStatusSucceeded,
+		ProvisionerJobStatusCanceling,
+		ProvisionerJobStatusCanceled,
+		ProvisionerJobStatusFailed,
+		ProvisionerJobStatusUnknown,
 	}
 }
 
@@ -1671,6 +1803,8 @@ type ProvisionerJob struct {
 	Tags           StringMap                `db:"tags" json:"tags"`
 	ErrorCode      sql.NullString           `db:"error_code" json:"error_code"`
 	TraceMetadata  pqtype.NullRawMessage    `db:"trace_metadata" json:"trace_metadata"`
+	// Computed column to track the status of the job.
+	JobStatus ProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 type ProvisionerJobLog struct {
@@ -1919,19 +2053,20 @@ type VisibleUser struct {
 }
 
 type Workspace struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted           bool           `db:"deleted" json:"deleted"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime   `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime   `db:"deleting_at" json:"deleting_at"`
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted           bool             `db:"deleted" json:"deleted"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 }
 
 type WorkspaceAgent struct {

@@ -10,6 +10,10 @@ USAGE:
        $ coder create <username>/<workspace_name>
 
 OPTIONS:
+      --automatic-updates string, $CODER_WORKSPACE_AUTOMATIC_UPDATES (default: never)
+          Specify automatic updates setting for the workspace (accepts 'always'
+          or 'never').
+
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
 

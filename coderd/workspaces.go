@@ -425,6 +425,19 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// back-compatibility: default to "never" if not included.
+	dbAU := database.AutomaticUpdatesNever
+	if createWorkspace.AutomaticUpdates != "" {
+		dbAU, err = validWorkspaceAutomaticUpdates(createWorkspace.AutomaticUpdates)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid Workspace Automatic Updates setting.",
+				Validations: []codersdk.ValidationError{{Field: "automatic_updates", Detail: err.Error()}},
+			})
+			return
+		}
+	}
+
 	// TODO: This should be a system call as the actor might not be able to
 	// read other workspaces. Ideally we check the error on create and look for
 	// a postgres conflict error.
@@ -470,7 +483,8 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
-			LastUsedAt: dbtime.Now(),
+			LastUsedAt:       dbtime.Now(),
+			AutomaticUpdates: dbAU,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert workspace: %w", err)
@@ -816,8 +830,20 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.Workspace
 // @Router /workspaces/{workspace}/dormant [put]
 func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		oldWorkspace      = workspace
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	aReq.Old = oldWorkspace
+	defer commitAudit()
 
 	var req codersdk.UpdateWorkspaceDormancy
 	if !httpapi.Read(ctx, rw, r, &req) {
@@ -865,6 +891,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	aReq.New = workspace
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
@@ -962,6 +989,66 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	api.publishWorkspaceUpdate(ctx, workspace.ID)
 	httpapi.Write(ctx, rw, code, resp)
+}
+
+// @Summary Update workspace automatic updates by ID
+// @ID update-workspace-automatic-updates-by-id
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Workspaces
+// @Param workspace path string true "Workspace ID" format(uuid)
+// @Param request body codersdk.UpdateWorkspaceAutomaticUpdatesRequest true "Automatic updates request"
+// @Success 204
+// @Router /workspaces/{workspace}/autoupdates [put]
+func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		workspace         = httpmw.WorkspaceParam(r)
+		auditor           = api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Workspace](rw, &audit.RequestParams{
+			Audit:   *auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = workspace
+
+	var req codersdk.UpdateWorkspaceAutomaticUpdatesRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if !database.AutomaticUpdates(req.AutomaticUpdates).Valid() {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid request",
+			Validations: []codersdk.ValidationError{{Field: "automatic_updates", Detail: "must be always or never"}},
+		})
+		return
+	}
+
+	err := api.Database.UpdateWorkspaceAutomaticUpdates(ctx, database.UpdateWorkspaceAutomaticUpdatesParams{
+		ID:               workspace.ID,
+		AutomaticUpdates: database.AutomaticUpdates(req.AutomaticUpdates),
+	})
+	if httpapi.Is404Error(err) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error updating workspace automatic updates setting",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	newWorkspace := workspace
+	newWorkspace.AutomaticUpdates = database.AutomaticUpdates(req.AutomaticUpdates)
+	aReq.New = newWorkspace
+
+	rw.WriteHeader(http.StatusNoContent)
 }
 
 // @Summary Watch workspace by ID
@@ -1243,6 +1330,7 @@ func convertWorkspace(
 			Healthy:       len(failingAgents) == 0,
 			FailingAgents: failingAgents,
 		},
+		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 	}
 }
 
@@ -1296,6 +1384,17 @@ func validWorkspaceTTLMillis(millis *int64, templateDefault, templateMax time.Du
 		Valid: true,
 		Int64: int64(truncated),
 	}, nil
+}
+
+func validWorkspaceAutomaticUpdates(updates codersdk.AutomaticUpdates) (database.AutomaticUpdates, error) {
+	if updates == "" {
+		return database.AutomaticUpdatesNever, nil
+	}
+	dbAU := database.AutomaticUpdates(updates)
+	if !dbAU.Valid() {
+		return "", xerrors.New("Automatic updates must be always or never")
+	}
+	return dbAU, nil
 }
 
 func validWorkspaceDeadline(startedAt, newDeadline time.Time) error {

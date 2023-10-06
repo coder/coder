@@ -2,7 +2,10 @@
 set -eu
 
 # Coder's automatic install script.
-# See https://github.com/coder/coder#installing-coder
+# See https://github.com/coder/coder#install
+#
+# To run:
+# curl -L https://coder.com/install.sh | sh
 
 usage() {
 	arg0="$0"
@@ -61,6 +64,11 @@ Usage:
 	  just want it on your base system aswell.
 	  This supports most systems, however if you are unsure yours is supported you can check
 	  the link above.
+  --net-admin
+	  Adds \`CAP_NET_ADMIN\` to the installed binary. This allows Coder to
+	  increase network speeds, but has security implications.
+	  See: https://man7.org/linux/man-pages/man7/capabilities.7.html
+	  This only works on Linux based systems.
 
 
 The detection method works as follows:
@@ -230,7 +238,8 @@ main() {
 		RSH_ARGS \
 		EDGE \
 		RSH \
-		WITH_TERRAFORM
+		WITH_TERRAFORM \
+		CAP_NET_ADMIN
 
 	ALL_FLAGS=""
 
@@ -289,6 +298,9 @@ main() {
 			;;
 		--with-terraform)
 			WITH_TERRAFORM=1
+			;;
+		--net-admin)
+			CAP_NET_ADMIN=1
 			;;
 		--)
 			shift
@@ -362,7 +374,7 @@ main() {
 	fi
 
 	# Start by installing Terraform, if requested
-	if [ "${WITH_TERRAFORM-}" = 1 ]; then
+	if [ "${WITH_TERRAFORM-}" ]; then
 		with_terraform
 	fi
 
@@ -398,6 +410,26 @@ main() {
 		install_standalone
 		;;
 	esac
+
+	if [ "${CAP_NET_ADMIN:-}" ]; then
+		cap_net_admin
+	fi
+}
+
+cap_net_admin() {
+	if ! command_exists setcap && command_exists capsh; then
+		echo "Package 'libcap' not found. See install instructions for your distro: https://command-not-found.com/setcap"
+		return
+	fi
+
+	# Make sure we'e allowed to add CAP_NET_ADMIN.
+	if sudo_sh_c capsh --has-p=CAP_NET_ADMIN; then
+		sudo_sh_c setcap CAP_NET_ADMIN=+ep "$(command -v coder)" || true
+
+	# Unable to escalate perms, notify the user.
+	else
+		echo "Unable to setcap agent binary. Ensure the root user has CAP_NET_ADMIN permissions."
+	fi
 }
 
 parse_arg() {
@@ -697,10 +729,10 @@ sh_c() {
 sudo_sh_c() {
 	if [ "$(id -u)" = 0 ]; then
 		sh_c "$@"
-	elif command_exists doas; then
-		sh_c "doas $*"
 	elif command_exists sudo; then
 		sh_c "sudo $*"
+	elif command_exists doas; then
+		sh_c "doas $*"
 	elif command_exists su; then
 		sh_c "su - -c '$*'"
 	else

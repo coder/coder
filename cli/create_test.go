@@ -38,6 +38,7 @@ func TestCreate(t *testing.T) {
 			"--template", template.Name,
 			"--start-at", "9:30AM Mon-Fri US/Central",
 			"--stop-after", "8h",
+			"--automatic-updates", "always",
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
@@ -73,6 +74,7 @@ func TestCreate(t *testing.T) {
 			if assert.NotNil(t, ws.TTLMillis) {
 				assert.Equal(t, *ws.TTLMillis, 8*time.Hour.Milliseconds())
 			}
+			assert.Equal(t, codersdk.AutomaticUpdatesAlways, ws.AutomaticUpdates)
 		}
 	})
 

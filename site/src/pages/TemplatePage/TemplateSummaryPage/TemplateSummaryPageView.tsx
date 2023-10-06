@@ -1,4 +1,6 @@
-import {
+import { type FC, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import type {
   Template,
   TemplateVersion,
   WorkspaceResource,
@@ -7,8 +9,6 @@ import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { TemplateResourcesTable } from "components/TemplateResourcesTable/TemplateResourcesTable";
 import { TemplateStats } from "./TemplateStats";
-import { FC, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings";
 
 export interface TemplateSummaryPageViewProps {

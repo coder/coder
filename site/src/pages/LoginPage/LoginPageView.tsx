@@ -32,16 +32,17 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
   const applicationName = getApplicationName();
   const logoURL = getLogoURL();
   const applicationLogo = logoURL ? (
-    <div>
-      <img
-        alt={applicationName}
-        src={logoURL}
-        // This prevent browser to display the ugly error icon if the
-        // image path is wrong or user didn't finish typing the url
-        onError={(e) => (e.currentTarget.style.display = "none")}
-        onLoad={(e) => (e.currentTarget.style.display = "inline")}
-      />
-    </div>
+    <img
+      alt={applicationName}
+      src={logoURL}
+      // This prevent browser to display the ugly error icon if the
+      // image path is wrong or user didn't finish typing the url
+      onError={(e) => (e.currentTarget.style.display = "none")}
+      onLoad={(e) => (e.currentTarget.style.display = "inline")}
+      css={{
+        maxWidth: "200px",
+      }}
+    />
   ) : (
     <CoderIcon fill="white" opacity={1} className={styles.icon} />
   );

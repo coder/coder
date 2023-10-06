@@ -1,61 +1,39 @@
-import { makeStyles } from "@mui/styles";
-import { CSSProperties } from "@mui/styles/withStyles";
-import { FC } from "react";
-import { ReactNode } from "react-markdown/lib/react-markdown";
-import { combineClasses } from "utils/combineClasses";
-
-type Direction = "column" | "row";
+import type { FC } from "react";
+import type { CSSObject } from "@emotion/react";
 
 export type StackProps = {
   className?: string;
-  direction?: Direction;
+  direction?: "column" | "row";
   spacing?: number;
-  alignItems?: CSSProperties["alignItems"];
-  justifyContent?: CSSProperties["justifyContent"];
-  maxWidth?: CSSProperties["maxWidth"];
-  wrap?: CSSProperties["flexWrap"];
+  alignItems?: CSSObject["alignItems"];
+  justifyContent?: CSSObject["justifyContent"];
+  wrap?: CSSObject["flexWrap"];
 } & React.HTMLProps<HTMLDivElement>;
 
-type StyleProps = Omit<StackProps, "className">;
-
-const useStyles = makeStyles((theme) => ({
-  stack: {
-    display: "flex",
-    flexDirection: ({ direction }: StyleProps) => direction,
-    gap: ({ spacing }: StyleProps) => spacing && theme.spacing(spacing),
-    alignItems: ({ alignItems }: StyleProps) => alignItems,
-    justifyContent: ({ justifyContent }: StyleProps) => justifyContent,
-    flexWrap: ({ wrap }: StyleProps) => wrap,
-    maxWidth: ({ maxWidth }: StyleProps) => maxWidth,
-
-    [theme.breakpoints.down("md")]: {
-      width: "100%",
-    },
-  },
-}));
-
-export const Stack: FC<StackProps & { children: ReactNode | ReactNode[] }> = ({
-  children,
-  className,
-  direction = "column",
-  spacing = 2,
-  alignItems,
-  justifyContent,
-  maxWidth,
-  wrap,
-  ...divProps
-}) => {
-  const styles = useStyles({
-    spacing,
-    direction,
+export const Stack: FC<StackProps> = (props) => {
+  const {
+    children,
+    direction = "column",
+    spacing = 2,
     alignItems,
     justifyContent,
     wrap,
-    maxWidth,
-  });
+    ...divProps
+  } = props;
 
   return (
-    <div {...divProps} className={combineClasses([styles.stack, className])}>
+    <div
+      {...divProps}
+      css={(theme) => ({
+        display: "flex",
+        flexDirection: direction,
+        gap: spacing && theme.spacing(spacing),
+        alignItems: alignItems,
+        justifyContent: justifyContent,
+        flexWrap: wrap,
+        maxWidth: "100%",
+      })}
+    >
       {children}
     </div>
   );

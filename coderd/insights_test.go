@@ -2110,7 +2110,7 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			t.Run("AsOwner", func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, &coderdtest.Options{})
+				client := coderdtest.New(t, nil)
 				admin := coderdtest.CreateFirstUser(t, client)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2134,7 +2134,7 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			t.Run("AsTemplateAdmin", func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, &coderdtest.Options{})
+				client := coderdtest.New(t, nil)
 				admin := coderdtest.CreateFirstUser(t, client)
 
 				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
@@ -2160,7 +2160,7 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 			t.Run("AsRegularUser", func(t *testing.T) {
 				t.Parallel()
 
-				client := coderdtest.New(t, &coderdtest.Options{})
+				client := coderdtest.New(t, nil)
 				admin := coderdtest.CreateFirstUser(t, client)
 
 				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
@@ -2239,7 +2239,7 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				t.Run("AsOwner", func(t *testing.T) {
 					t.Parallel()
 
-					client := coderdtest.New(t, &coderdtest.Options{})
+					client := coderdtest.New(t, nil)
 					admin := coderdtest.CreateFirstUser(t, client)
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -2261,7 +2261,7 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				t.Run("AsTemplateAdmin", func(t *testing.T) {
 					t.Parallel()
 
-					client := coderdtest.New(t, &coderdtest.Options{})
+					client := coderdtest.New(t, nil)
 					admin := coderdtest.CreateFirstUser(t, client)
 
 					templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
@@ -2285,7 +2285,7 @@ func TestGenericInsights_RBAC(t *testing.T) {
 				t.Run("AsRegularUser", func(t *testing.T) {
 					t.Parallel()
 
-					client := coderdtest.New(t, &coderdtest.Options{})
+					client := coderdtest.New(t, nil)
 					admin := coderdtest.CreateFirstUser(t, client)
 
 					regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)

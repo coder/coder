@@ -272,6 +272,7 @@ resource "docker_container" "workspace" {
   runtime = "sysbox-runc"
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
+    "USE_CAP_NET_ADMIN=true",
   ]
   host {
     host = "host.docker.internal"
@@ -281,6 +282,9 @@ resource "docker_container" "workspace" {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
     read_only      = false
+  }
+  capabilities {
+    add = ["CAP_NET_ADMIN", "CAP_SYS_NICE"]
   }
   # Add labels in Docker to keep track of orphan resources.
   labels {

@@ -182,6 +182,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options == nil {
 		options = &Options{}
 	}
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
+	}
 	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
@@ -214,7 +218,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -262,20 +266,27 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
+	var auditor atomic.Pointer[audit.Auditor]
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
+	}
+	auditor.Store(&options.Auditor)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		options.Pubsub,
 		&templateScheduleStore,
-		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		&auditor,
+		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
 	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
@@ -334,7 +345,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -349,10 +360,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
-	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		options.Logger = &logger
-	}
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -513,7 +520,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -553,7 +560,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -760,21 +767,53 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateVersionJobCompleted awaits for an import job to reach completed status.
+// AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
+func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	t.Logf("waiting for template version %s build job to start", version)
+	var templateVersion codersdk.TemplateVersion
+	require.Eventually(t, func() bool {
+		var err error
+		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			return false
+		}
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
+		switch templateVersion.Job.Status {
+		case codersdk.ProvisionerJobPending:
+			return false
+		case codersdk.ProvisionerJobRunning:
+			return true
+		default:
+			t.FailNow()
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has started", version)
+	return templateVersion
+}
+
+// AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
+// from cancelation, an error, or from completing successfully.
 func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	t.Logf("waiting for template version job %s", version)
+	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalMedium)
-	t.Logf("got template version job %s", version)
+	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
@@ -854,6 +893,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
 		mutator(&req)

@@ -45,6 +45,7 @@
     "@mui/material": "5.14.0",
     "@mui/styles": "5.14.0",
     "@mui/system": "5.14.0",
+    "@mui/utils": "5.14.11",
     "@tanstack/react-query": "4.35.3",
     "@vitejs/plugin-react": "4.1.0",
     "@xstate/inspect": "0.8.0",
