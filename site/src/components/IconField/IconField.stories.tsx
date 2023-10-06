@@ -1,4 +1,4 @@
-import { action, configureActions } from "@storybook/addon-actions";
+import { action } from "@storybook/addon-actions";
 import IconField from "./IconField";
 import type { Meta, StoryObj } from "@storybook/react";
 
