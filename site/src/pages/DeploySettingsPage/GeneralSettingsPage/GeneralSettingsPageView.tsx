@@ -41,7 +41,11 @@ export const GeneralSettingsPageView = ({
               <ActiveUserChart
                 data={deploymentDAUs.entries}
                 interval="day"
-                userLimit={entitlements?.features.user_limit.limit}
+                userLimit={
+                  entitlements?.features.user_limit.enabled
+                    ? entitlements?.features.user_limit.limit
+                    : undefined
+                }
               />
             </ChartSection>
           </Box>
