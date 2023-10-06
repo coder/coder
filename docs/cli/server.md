@@ -1004,9 +1004,9 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
 | YAML        | <code>client.webTerminalRenderer</code>   |
-| Default     | <code>webgl</code>                        |
+| Default     | <code>canvas</code>                       |
 
-The framework to use when rendering the terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
 
 ### --wildcard-access-url
 
