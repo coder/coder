@@ -34,7 +34,7 @@ func TestFirstUser(t *testing.T) {
 	t.Parallel()
 	t.Run("BadRequest", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -50,7 +50,6 @@ func TestFirstUser(t *testing.T) {
 	t.Run("AlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -67,8 +66,13 @@ func TestFirstUser(t *testing.T) {
 
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
+		_, err := client.CreateFirstUser(context.Background(), codersdk.CreateFirstUserRequest{
+			Email:    "some@email.com",
+			Username: "exampleuser",
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
 	})
 
 	t.Run("Trial", func(t *testing.T) {
@@ -79,6 +83,7 @@ func TestFirstUser(t *testing.T) {
 				close(called)
 				return nil
 			},
+			SkipAutoCreateFirstUser: true,
 		})
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -100,7 +105,7 @@ func TestPostLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InvalidUser", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -116,7 +121,7 @@ func TestPostLogin(t *testing.T) {
 	t.Run("BadPassword", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor, SkipAutoCreateFirstUser: true})
 		numLogs := len(auditor.AuditLogs())
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -147,25 +152,24 @@ func TestPostLogin(t *testing.T) {
 		auditor := audit.NewMock()
 		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		numLogs := len(auditor.AuditLogs())
-		first := coderdtest.CreateFirstUser(t, client)
-		numLogs++ // add an audit log for create user
+		numLogs++ // add an audit log for first user
 		numLogs++ // add an audit log for login
 
-		member, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		member, memberUser := coderdtest.CreateMember(t, client)
+		numLogs++ // add an audit log for login as first user
 		numLogs++ // add an audit log for create user
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		memberUser, err := member.User(ctx, codersdk.Me)
-		require.NoError(t, err, "fetch member user")
-
-		_, err = client.UpdateUserStatus(ctx, memberUser.Username, codersdk.UserStatusSuspended)
-		require.NoError(t, err, "suspend member")
-		numLogs++ // add an audit log for update user
+		coderdtest.AsFirstUser(t, client.URL, func(c *codersdk.Client) {
+			_, err := c.UpdateUserStatus(ctx, memberUser.Username, codersdk.UserStatusSuspended)
+			require.NoError(t, err, "suspend member")
+			numLogs++ // add an audit log for update user
+		})
 
 		// Test an existing session
-		_, err = member.User(ctx, codersdk.Me)
+		_, err := member.User(ctx, codersdk.Me)
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
@@ -193,25 +197,29 @@ func TestPostLogin(t *testing.T) {
 			DeploymentValues: dc,
 		})
 
-		first := coderdtest.CreateFirstUser(t, client)
-
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		// With a user account.
+		var user codersdk.User
 		const password = "SomeSecurePassword!"
-		user, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
-			Email:          "test+user-@coder.com",
-			Username:       "user",
-			Password:       password,
-			OrganizationID: first.OrganizationID,
+		coderdtest.AsFirstUser(t, client.URL, func(c *codersdk.Client) {
+			firstUser, err := c.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+
+			user, err = c.CreateUser(ctx, codersdk.CreateUserRequest{
+				Email:          "test+user-@coder.com",
+				Username:       "user",
+				Password:       password,
+				OrganizationID: firstUser.OrganizationIDs[0],
+			})
+			require.NoError(t, err)
 		})
-		require.NoError(t, err)
 
 		dc.DisablePasswordAuth = clibase.Bool(true)
 
 		userClient := codersdk.New(client.URL)
-		_, err = userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+		_, err := userClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    user.Email,
 			Password: password,
 		})
@@ -225,8 +233,9 @@ func TestPostLogin(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor, SkipAutoCreateFirstUser: true})
 		numLogs := len(auditor.AuditLogs())
+		require.Zero(t, numLogs, "no audit logs should exist")
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -262,26 +271,30 @@ func TestPostLogin(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		split := strings.Split(client.SessionToken(), "-")
-		key, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
-		require.NoError(t, err, "fetch login key")
-		require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
+		coderdtest.AsFirstUser(t, client.URL, func(client *codersdk.Client) {
+			admin, err := client.User(ctx, codersdk.Me)
+			require.NoError(t, err)
+			split := strings.Split(client.SessionToken(), "-")
+			key, err := client.APIKeyByID(ctx, admin.ID.String(), split[0])
+			require.NoError(t, err, "fetch login key")
+			require.Equal(t, int64(86400), key.LifetimeSeconds, "default should be 86400")
 
-		// tokens have a longer life
-		token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
-		require.NoError(t, err, "make new token api key")
-		split = strings.Split(token.Key, "-")
-		apiKey, err := client.APIKeyByID(ctx, admin.UserID.String(), split[0])
-		require.NoError(t, err, "fetch api key")
+			// tokens have a longer life
+			token, err := client.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{})
+			require.NoError(t, err, "make new token api key")
+			split = strings.Split(token.Key, "-")
+			apiKey, err := client.APIKeyByID(ctx, admin.ID.String(), split[0])
+			require.NoError(t, err, "fetch api key")
 
-		require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
-		require.True(t, apiKey.ExpiresAt.Before(time.Now().Add(time.Hour*24*31)), "default tokens lasts less than 31 days")
-		require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
+			require.True(t, apiKey.ExpiresAt.After(time.Now().Add(time.Hour*24*29)), "default tokens lasts more than 29 days")
+			require.True(t, apiKey.ExpiresAt.Before(time.Now().Add(time.Hour*24*31)), "default tokens lasts less than 31 days")
+			require.Greater(t, apiKey.LifetimeSeconds, key.LifetimeSeconds, "token should have longer lifetime")
+		})
+
 	})
 }
 

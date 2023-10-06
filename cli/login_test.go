@@ -21,7 +21,7 @@ func TestLogin(t *testing.T) {
 	t.Parallel()
 	t.Run("InitialUserNoTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		root, _ := clitest.New(t, "login", client.URL.String())
 		err := root.Run()
 		require.Error(t, err)
@@ -38,7 +38,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
@@ -71,7 +71,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
@@ -99,7 +99,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserFlags", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
 			"--first-user-username", "testuser", "--first-user-email", "user@coder.com",
@@ -115,7 +115,7 @@ func TestLogin(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
@@ -157,7 +157,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		coderdtest.CreateFirstUser(t, client)
 
 		doneChan := make(chan struct{})
@@ -181,7 +181,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancelFunc := context.WithCancel(context.Background())
@@ -210,7 +210,7 @@ func TestLogin(t *testing.T) {
 	// TokenFlag should generate a new session token and store it in the session file.
 	t.Run("TokenFlag", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client := coderdtest.New(t, &coderdtest.Options{SkipAutoCreateFirstUser: true})
 		coderdtest.CreateFirstUser(t, client)
 		root, cfg := clitest.New(t, "login", client.URL.String(), "--token", client.SessionToken())
 		err := root.Run()
