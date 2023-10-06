@@ -3543,6 +3543,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceAppHealthByID(arg0, arg1 interfa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAppHealthByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAppHealthByID), arg0, arg1)
 }
 
+// UpdateWorkspaceAutomaticUpdates mocks base method.
+func (m *MockStore) UpdateWorkspaceAutomaticUpdates(arg0 context.Context, arg1 database.UpdateWorkspaceAutomaticUpdatesParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceAutomaticUpdates", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceAutomaticUpdates indicates an expected call of UpdateWorkspaceAutomaticUpdates.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceAutomaticUpdates(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceAutomaticUpdates", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceAutomaticUpdates), arg0, arg1)
+}
+
 // UpdateWorkspaceAutostart mocks base method.
 func (m *MockStore) UpdateWorkspaceAutostart(arg0 context.Context, arg1 database.UpdateWorkspaceAutostartParams) error {
 	m.ctrl.T.Helper()

@@ -5998,6 +5998,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaces/{workspace}/autoupdates": {
+            "put": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Update workspace automatic updates by ID",
+                "operationId": "update-workspace-automatic-updates-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Automatic updates request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpdateWorkspaceAutomaticUpdatesRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/workspaces/{workspace}/builds": {
             "get": {
                 "security": [
@@ -7264,6 +7305,17 @@ const docTemplate = `{
                 "type": "boolean"
             }
         },
+        "codersdk.AutomaticUpdates": {
+            "type": "string",
+            "enum": [
+                "always",
+                "never"
+            ],
+            "x-enum-varnames": [
+                "AutomaticUpdatesAlways",
+                "AutomaticUpdatesNever"
+            ]
+        },
         "codersdk.BuildInfoResponse": {
             "type": "object",
             "properties": {
@@ -7740,6 +7792,9 @@ const docTemplate = `{
                 "name"
             ],
             "properties": {
+                "automatic_updates": {
+                    "$ref": "#/definitions/codersdk.AutomaticUpdates"
+                },
                 "autostart_schedule": {
                     "type": "string"
                 },
@@ -10309,6 +10364,14 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpdateWorkspaceAutomaticUpdatesRequest": {
+            "type": "object",
+            "properties": {
+                "automatic_updates": {
+                    "$ref": "#/definitions/codersdk.AutomaticUpdates"
+                }
+            }
+        },
         "codersdk.UpdateWorkspaceAutostartRequest": {
             "type": "object",
             "properties": {
@@ -10626,6 +10689,17 @@ const docTemplate = `{
         "codersdk.Workspace": {
             "type": "object",
             "properties": {
+                "automatic_updates": {
+                    "enum": [
+                        "always",
+                        "never"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AutomaticUpdates"
+                        }
+                    ]
+                },
                 "autostart_schedule": {
                     "type": "string"
                 },

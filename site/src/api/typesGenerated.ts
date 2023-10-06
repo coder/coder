@@ -279,6 +279,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
   readonly rich_parameter_values?: WorkspaceBuildParameter[];
+  readonly automatic_updates?: AutomaticUpdates;
 }
 
 // From codersdk/deployment.go
@@ -1156,6 +1157,11 @@ export interface UpdateUserQuietHoursScheduleRequest {
 }
 
 // From codersdk/workspaces.go
+export interface UpdateWorkspaceAutomaticUpdatesRequest {
+  readonly automatic_updates: AutomaticUpdates;
+}
+
+// From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
   readonly schedule?: string;
 }
@@ -1323,6 +1329,7 @@ export interface Workspace {
   readonly deleting_at?: string;
   readonly dormant_at?: string;
   readonly health: WorkspaceHealth;
+  readonly automatic_updates: AutomaticUpdates;
 }
 
 // From codersdk/workspaceagents.go
@@ -1610,6 +1617,10 @@ export const AuditActions: AuditAction[] = [
   "stop",
   "write",
 ];
+
+// From codersdk/workspaces.go
+export type AutomaticUpdates = "always" | "never";
+export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
 
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator";

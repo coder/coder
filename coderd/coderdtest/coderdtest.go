@@ -182,6 +182,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options == nil {
 		options = &Options{}
 	}
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
+	}
 	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
@@ -214,7 +218,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -275,14 +279,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		options.Pubsub,
 		&templateScheduleStore,
 		&auditor,
-		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
 	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
@@ -341,7 +345,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -356,10 +360,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
-	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		options.Logger = &logger
-	}
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -893,6 +893,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
 		mutator(&req)

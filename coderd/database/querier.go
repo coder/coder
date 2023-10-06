@@ -317,6 +317,7 @@ type sqlcQuerier interface {
 	UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error
 	UpdateWorkspaceAgentStartupByID(ctx context.Context, arg UpdateWorkspaceAgentStartupByIDParams) error
 	UpdateWorkspaceAppHealthByID(ctx context.Context, arg UpdateWorkspaceAppHealthByIDParams) error
+	UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error
 	UpdateWorkspaceAutostart(ctx context.Context, arg UpdateWorkspaceAutostartParams) error
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
 	UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error
