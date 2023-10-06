@@ -38,7 +38,11 @@ export const GeneralSettingsPageView = ({
         {deploymentDAUs && (
           <Box height={200} sx={{ mb: 3 }}>
             <ChartSection title={<ActiveUsersTitle />}>
-              <ActiveUserChart data={deploymentDAUs.entries} interval="day" userLimit={entitlements?.features.user_limit.limit} />
+              <ActiveUserChart
+                data={deploymentDAUs.entries}
+                interval="day"
+                userLimit={entitlements?.features.user_limit.limit}
+              />
             </ChartSection>
           </Box>
         )}

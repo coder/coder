@@ -77,7 +77,7 @@ export default function TemplateInsightsPage() {
   const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
   const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
   const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
-  const { data: entitlementsQuery} = useQuery(entitlements());
+  const { data: entitlementsQuery } = useQuery(entitlements());
 
   return (
     <>

@@ -24,6 +24,7 @@ import {
 import dayjs from "dayjs";
 import { FC } from "react";
 import { Line } from "react-chartjs-2";
+import annotationPlugin from "chartjs-plugin-annotation";
 
 ChartJS.register(
   CategoryScale,
@@ -35,6 +36,7 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
+  annotationPlugin,
 );
 
 export interface ActiveUserChartProps {
@@ -59,6 +61,23 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
+      annotation: {
+        annotations: [
+          {
+            type: "line",
+            scaleID: "y",
+            value: userLimit,
+            borderColor: theme.palette.warning.light,
+            borderWidth: 5,
+            label: {
+              content: "User limit",
+              color: theme.palette.primary.contrastText,
+              display: true,
+              font: { weight: "normal" },
+            },
+          },
+        ],
+      },
       legend: {
         display: false,
       },
@@ -108,14 +127,6 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
             backgroundColor: theme.palette.info.dark,
             fill: "origin",
           },
-          {
-            label: "User limit",
-            data: data.map((_) => userLimit),
-            pointBackgroundColor: theme.palette.warning.light,
-            pointBorderColor: theme.palette.warning.light,
-            borderColor: theme.palette.warning.light,
-            fill: false,
-          }
         ],
       }}
       options={options}
