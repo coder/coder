@@ -176,6 +176,7 @@ const DuplicateTemplateView = () => {
             storage_method: "file",
             file_id: templateVersionQuery.data!.job.file_id,
             provisioner: provisioner,
+            user_variable_values: formData.user_variable_values,
             tags: {},
           },
           data: prepareData(formData),
