@@ -11,6 +11,7 @@ import { CreateTemplateForm } from "./CreateTemplateForm";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  JobError,
   createTemplate,
   templateByName,
   templateVersion,
@@ -18,6 +19,7 @@ import {
 } from "api/queries/templates";
 import { ProvisionerType } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
+import { templateVersionLogs } from "api/queries/templateVersions";
 
 const provisioner: ProvisionerType =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
@@ -122,17 +124,15 @@ const DuplicateTemplateView = () => {
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),
   );
+  const activeVersionId =
+    templateByNameQuery.data?.template.active_version_id ?? "";
   const templateVersionQuery = useQuery({
-    ...templateVersion(
-      templateByNameQuery.data?.template.active_version_id ?? "",
-    ),
-    enabled: templateByNameQuery.data !== undefined,
+    ...templateVersion(activeVersionId),
+    enabled: templateByNameQuery.isSuccess,
   });
   const templateVersionVariablesQuery = useQuery({
-    ...templateVersionVariables(
-      templateByNameQuery.data?.template.active_version_id ?? "",
-    ),
-    enabled: templateByNameQuery.data !== undefined,
+    ...templateVersionVariables(activeVersionId),
+    enabled: templateByNameQuery.isSuccess,
   });
   const isLoading =
     templateByNameQuery.isLoading ||
@@ -146,6 +146,12 @@ const DuplicateTemplateView = () => {
   const formEntitlements = useFormEntitlements();
 
   const createTemplateMutation = useMutation(createTemplate());
+  const createError = createTemplateMutation.error;
+  const isJobError = createError instanceof JobError;
+  const templateVersionLogsQuery = useQuery({
+    ...templateVersionLogs(isJobError ? createError.version.id : ""),
+    enabled: isJobError,
+  });
 
   if (isLoading) {
     return <Loader />;
@@ -176,11 +182,18 @@ const DuplicateTemplateView = () => {
         });
         navigate(`/templates/${template.name}`);
       }}
-
-      // jobError={jobError}
-      // logs={jobLogs}
+      jobError={isJobError ? createError.job.error : undefined}
+      logs={templateVersionLogsQuery.data}
     />
   );
+};
+
+const ImportStaterTemplateView = () => {
+  return <div>Import</div>;
+};
+
+const UploadTemplateView = () => {
+  return <div>Upload</div>;
 };
 
 const useFormEntitlements = () => {
@@ -199,14 +212,6 @@ const useFormEntitlements = () => {
     allowDisableEveryoneAccess,
     allowAutostopRequirement,
   };
-};
-
-const ImportStaterTemplateView = () => {
-  return <div>Import</div>;
-};
-
-const UploadTemplateView = () => {
-  return <div>Upload</div>;
 };
 
 const prepareData = (formData: CreateTemplateData) => {

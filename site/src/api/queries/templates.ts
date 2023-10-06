@@ -157,18 +157,16 @@ const waitBuildToBeFinished = async (version: TemplateVersion) => {
   } while (jobStatus === "pending" || jobStatus === "running");
 
   // No longer pending/running, but didn't succeed
-  throw new JobError(data.job);
+  throw new JobError(data.job, version);
 };
 
-class JobError extends Error {
-  private job: ProvisionerJob;
+export class JobError extends Error {
+  public job: ProvisionerJob;
+  public version: TemplateVersion;
 
-  constructor(job: ProvisionerJob) {
+  constructor(job: ProvisionerJob, version: TemplateVersion) {
     super(job.error);
     this.job = job;
-  }
-
-  get code() {
-    return this.job.error_code;
+    this.version = version;
   }
 }
