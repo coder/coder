@@ -8229,14 +8229,16 @@ const docTemplate = `{
                 "tailnet_pg_coordinator",
                 "single_tailnet",
                 "template_autostop_requirement",
-                "deployment_health_page"
+                "deployment_health_page",
+                "dashboard_theme"
             ],
             "x-enum-varnames": [
                 "ExperimentMoons",
                 "ExperimentTailnetPGCoordinator",
                 "ExperimentSingleTailnet",
                 "ExperimentTemplateAutostopRequirement",
-                "ExperimentDeploymentHealthPage"
+                "ExperimentDeploymentHealthPage",
+                "ExperimentDashboardTheme"
             ]
         },
         "codersdk.ExternalAuth": {
