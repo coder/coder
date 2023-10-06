@@ -31,6 +31,7 @@ import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import { useSearchParams } from "react-router-dom";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
@@ -72,6 +73,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   const [owner, setOwner] = useState(defaultOwner);
   const { verifyExternalAuth, externalAuthErrors } =
     useExternalAuthVerification(externalAuth);
+  const [searchParams] = useSearchParams();
+  const disabledParamsList = searchParams?.get("disable_params")?.split(",");
+
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
@@ -198,7 +202,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     });
                   },
-                  disabled: form.isSubmitting,
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || form.isSubmitting,
                 };
               }}
             />
@@ -216,7 +223,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     });
                   },
-                  disabled: form.isSubmitting,
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || form.isSubmitting,
                 };
               }}
             />
