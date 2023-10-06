@@ -54,9 +54,6 @@ dependencies:
   '@mui/utils':
     specifier: 5.14.11
     version: 5.14.11(@types/react@18.2.6)(react@18.2.0)
-  '@tanstack/react-query':
-    specifier: 4.35.3
-    version: 4.35.3(react-dom@18.2.0)(react@18.2.0)
   '@vitejs/plugin-react':
     specifier: 4.1.0
     version: 4.1.0(vite@4.4.2)
@@ -150,6 +147,9 @@ dependencies:
   react-markdown:
     specifier: 8.0.7
     version: 8.0.7(@types/react@18.2.6)(react@18.2.0)
+  react-query:
+    specifier: npm:@tanstack/react-query@4.35.3
+    version: /@tanstack/react-query@4.35.3(react-dom@18.2.0)(react@18.2.0)
   react-router-dom:
     specifier: 6.16.0
     version: 6.16.0(react-dom@18.2.0)(react@18.2.0)

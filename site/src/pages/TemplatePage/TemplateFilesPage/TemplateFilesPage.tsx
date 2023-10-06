@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getPreviousTemplateVersionByName } from "api/api";
 import { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";

@@ -2,7 +2,7 @@ import { useMe } from "hooks/useMe";
 import { ComponentProps, FC } from "react";
 import { Section } from "components/SettingsLayout/Section";
 import { SecurityForm } from "./SettingsSecurityForm";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { getUserLoginType } from "api/api";
 import {
   SingleSignOnSection,

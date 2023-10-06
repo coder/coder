@@ -7,7 +7,7 @@ import { pageTitle } from "utils/page";
 import { Loader } from "components/Loader/Loader";
 import { Outlet, useParams } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { templateByName } from "api/queries/templates";
 import { type AuthorizationResponse, type Template } from "api/typesGenerated";

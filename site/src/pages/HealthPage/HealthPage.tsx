@@ -1,5 +1,5 @@
 import Box from "@mui/material/Box";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getHealth } from "api/api";
 import { Loader } from "components/Loader/Loader";
 import { useTab } from "hooks";

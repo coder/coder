@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { buildInfo } from "api/queries/buildInfo";
 import { experiments } from "api/queries/experiments";
 import { entitlements } from "api/queries/entitlements";

@@ -23,7 +23,7 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "react-query";
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);

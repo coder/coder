@@ -10,7 +10,7 @@ import {
 import InfoIcon from "@mui/icons-material/InfoOutlined";
 import { makeStyles } from "@mui/styles";
 import { colors } from "theme/colors";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { templateVersion } from "api/queries/templates";
 import Box from "@mui/material/Box";
 import Skeleton from "@mui/material/Skeleton";

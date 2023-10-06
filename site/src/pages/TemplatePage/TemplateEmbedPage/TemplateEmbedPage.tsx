@@ -5,7 +5,7 @@ import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getTemplateVersionRichParameters } from "api/api";
 import { Template, TemplateVersionParameter } from "api/typesGenerated";
 import { FormSection, VerticalForm } from "components/Form/Form";

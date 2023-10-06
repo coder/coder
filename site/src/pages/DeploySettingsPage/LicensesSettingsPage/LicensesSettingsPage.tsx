@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getLicenses, removeLicense } from "api/api";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC, useEffect } from "react";

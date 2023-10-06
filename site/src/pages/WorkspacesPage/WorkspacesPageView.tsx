@@ -19,7 +19,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
 import { WorkspacesButton } from "./WorkspacesButton";
-import { UseQueryResult } from "@tanstack/react-query";
+import { UseQueryResult } from "react-query";
 
 export const Language = {
   pageTitle: "Workspaces",
