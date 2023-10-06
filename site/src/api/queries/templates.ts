@@ -130,7 +130,7 @@ export const createTemplate = () => {
 const createTemplateFn = async (options: {
   organizationId: string;
   version: CreateTemplateVersionRequest;
-  data: Omit<CreateTemplateRequest, "template_version_id">;
+  template: Omit<CreateTemplateRequest, "template_version_id">;
 }) => {
   const version = await API.createTemplateVersion(
     options.organizationId,
@@ -138,7 +138,7 @@ const createTemplateFn = async (options: {
   );
   await waitBuildToBeFinished(version);
   return API.createTemplate(options.organizationId, {
-    ...options.data,
+    ...options.template,
     template_version_id: version.id,
   });
 };
