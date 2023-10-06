@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { DuplicateTemplateView } from "./DuplicateTemplateView";
+import { ImportStarterTemplateView } from "./ImportStarterTemplateView";
 
 const CreateTemplatePage: FC = () => {
   const navigate = useNavigate();
@@ -49,7 +50,7 @@ const CreateTemplatePage: FC = () => {
         {searchParams.has("fromTemplate") ? (
           <DuplicateTemplateView />
         ) : searchParams.has("exampleId") ? (
-          <ImportStaterTemplateView />
+          <ImportStarterTemplateView />
         ) : (
           <UploadTemplateView />
         )}
@@ -95,10 +96,6 @@ const CreateTemplatePage: FC = () => {
       </FullPageHorizontalForm>
     </>
   );
-};
-
-const ImportStaterTemplateView = () => {
-  return <div>Import</div>;
 };
 
 const UploadTemplateView = () => {
