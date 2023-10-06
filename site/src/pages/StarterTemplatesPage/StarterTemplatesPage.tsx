@@ -3,7 +3,7 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { StarterTemplatesPageView } from "./StarterTemplatesPageView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { templateExamples } from "api/queries/templates";
 import { getTemplatesByTag } from "utils/starterTemplates";
 

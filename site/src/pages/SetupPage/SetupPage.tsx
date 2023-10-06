@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { SetupPageView } from "./SetupPageView";
 import { Navigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from "react-query";
 import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {

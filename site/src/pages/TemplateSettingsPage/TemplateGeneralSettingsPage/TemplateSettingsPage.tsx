@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { updateTemplateMeta } from "api/api";
 import { UpdateTemplateMeta } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
