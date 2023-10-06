@@ -94,7 +94,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
               }
               InputProps={{ color: inputColor }}
               inputProps={{
-                ["data-testid"]: "delete-dialog-name-confirmation",
+                "data-testid": "delete-dialog-name-confirmation",
               }}
             />
           </form>
