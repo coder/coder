@@ -32,10 +32,10 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   const hookId = useId();
   const theme = useTheme();
 
-  const [confirmationText, setConfirmationText] = useState("");
+  const [userConfirmationText, setUserConfirmationText] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
-  const deletionConfirmed = name === confirmationText;
+  const deletionConfirmed = name === userConfirmationText;
   const onSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (deletionConfirmed) {
@@ -43,8 +43,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
     }
   };
 
-  const confirmationId = `${hookId}-confirm`;
-  const hasError = !deletionConfirmed && confirmationText.length > 0;
+  const hasError = !deletionConfirmed && userConfirmationText.length > 0;
   const displayErrorMessage = hasError && !isFocused;
   const inputColor = hasError ? "error" : "primary";
 
@@ -79,10 +78,10 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
               sx={{ marginTop: theme.spacing(3) }}
               name="confirmation"
               autoComplete="off"
-              id={confirmationId}
+              id={`${hookId}-confirm`}
               placeholder={name}
-              value={confirmationText}
-              onChange={(event) => setConfirmationText(event.target.value)}
+              value={userConfirmationText}
+              onChange={(event) => setUserConfirmationText(event.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               label={`Name of the ${entity} to delete`}
@@ -90,7 +89,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
               error={displayErrorMessage}
               helperText={
                 displayErrorMessage &&
-                `${confirmationText} does not match the name of this ${entity}`
+                `${userConfirmationText} does not match the name of this ${entity}`
               }
               InputProps={{ color: inputColor }}
               inputProps={{
