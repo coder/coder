@@ -46,7 +46,7 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
   const confirmationId = `${hookId}-${DeleteDialog.name}-confirm`;
   const hasError = !deletionConfirmed && confirmationText.length > 0;
   const displayErrorMessage = hasError && !isFocused;
-  const color = hasError ? "error" : "primary";
+  const inputColor = hasError ? "error" : "primary";
 
   return (
     <ConfirmDialog
@@ -86,13 +86,13 @@ export const DeleteDialog: FC<PropsWithChildren<DeleteDialogProps>> = ({
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
               label={`Name of the ${entity} to delete`}
-              color={color}
+              color={inputColor}
               error={displayErrorMessage}
               helperText={
                 displayErrorMessage &&
                 `${confirmationText} does not match the name of this ${entity}`
               }
-              InputProps={{ color }}
+              InputProps={{ color: inputColor }}
               inputProps={{
                 ["data-testid"]: "delete-dialog-name-confirmation",
               }}
