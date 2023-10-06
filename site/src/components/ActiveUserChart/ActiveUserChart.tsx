@@ -39,6 +39,8 @@ ChartJS.register(
   annotationPlugin,
 );
 
+const USER_LIMIT_DISPLAY_THRESHOLD = 60;
+
 export interface ActiveUserChartProps {
   data: { date: string; amount: number }[];
   interval: "day" | "week";
@@ -66,6 +68,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
           {
             type: "line",
             scaleID: "y",
+            display: shouldDisplayUserLimit(userLimit, chartData),
             value: userLimit,
             borderColor: theme.palette.warning.light,
             borderWidth: 5,
@@ -148,3 +151,15 @@ export const ActiveUsersTitle = () => {
     </Box>
   );
 };
+
+function shouldDisplayUserLimit(
+  userLimit: number | undefined,
+  activeUsers: number[],
+): boolean {
+  if (!userLimit || activeUsers.length === 0) {
+    return false;
+  }
+  return (
+    Math.max(...activeUsers) >= (userLimit * USER_LIMIT_DISPLAY_THRESHOLD) / 100
+  );
+}
