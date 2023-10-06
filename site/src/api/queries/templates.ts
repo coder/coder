@@ -5,6 +5,8 @@ import {
   type CreateTemplateVersionRequest,
   type ProvisionerJobStatus,
   type TemplateVersion,
+  CreateTemplateRequest,
+  ProvisionerJob,
 } from "api/typesGenerated";
 import { type QueryClient, type QueryOptions } from "@tanstack/react-query";
 import { delay } from "utils/delay";
@@ -80,25 +82,10 @@ export const templateVersionVariables = (versionId: string) => {
 
 export const createAndBuildTemplateVersion = (orgId: string) => {
   return {
-    mutationFn: async (
-      request: CreateTemplateVersionRequest,
-    ): Promise<string> => {
+    mutationFn: async (request: CreateTemplateVersionRequest) => {
       const newVersion = await API.createTemplateVersion(orgId, request);
-
-      let data: TemplateVersion;
-      let jobStatus: ProvisionerJobStatus;
-      do {
-        await delay(1000);
-        data = await API.getTemplateVersion(newVersion.id);
-        jobStatus = data.job.status;
-
-        if (jobStatus === "succeeded") {
-          return newVersion.id;
-        }
-      } while (jobStatus === "pending" || jobStatus === "running");
-
-      // No longer pending/running, but didn't succeed
-      throw data.job.error;
+      await waitBuildToBeFinished(newVersion);
+      return newVersion;
     },
   };
 };
@@ -133,3 +120,49 @@ export const templateVersionExternalAuth = (versionId: string) => {
     queryFn: () => API.getTemplateVersionExternalAuth(versionId),
   };
 };
+
+const createTemplate = async (options: {
+  organizationId: string;
+  version: CreateTemplateVersionRequest;
+  data: CreateTemplateRequest;
+}) => {
+  const version = await API.createTemplateVersion(
+    options.organizationId,
+    options.version,
+  );
+  await waitBuildToBeFinished(version);
+  return API.createTemplate(options.organizationId, {
+    ...options.data,
+    template_version_id: version.id,
+  });
+};
+
+const waitBuildToBeFinished = async (version: TemplateVersion) => {
+  let data: TemplateVersion;
+  let jobStatus: ProvisionerJobStatus;
+  do {
+    await delay(1000);
+    data = await API.getTemplateVersion(version.id);
+    jobStatus = data.job.status;
+
+    if (jobStatus === "succeeded") {
+      return version.id;
+    }
+  } while (jobStatus === "pending" || jobStatus === "running");
+
+  // No longer pending/running, but didn't succeed
+  throw new JobError(data.job);
+};
+
+class JobError extends Error {
+  private job: ProvisionerJob;
+
+  constructor(job: ProvisionerJob) {
+    super(job.error);
+    this.job = job;
+  }
+
+  get code() {
+    return this.job.error_code;
+  }
+}
