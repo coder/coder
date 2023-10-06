@@ -5,7 +5,7 @@ import {
   VariableValue,
 } from "api/typesGenerated";
 import { calculateAutostopRequirementDaysValue } from "utils/schedule";
-import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService";
+import { CreateTemplateData } from "./CreateTemplateForm";
 
 const provisioner: ProvisionerType =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Playwright needs to use a different provisioner type!
