@@ -106,6 +106,13 @@ approach for "Open in Coder" flows.
 
    ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
 
+1. Optional: disable specific parameter fields by including their names as
+   specified in your template in the `disable_params` search params list
+
+   ```md
+   [![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
+   ```
+
 ## Example: Kubernetes
 
 For a full example of the Open in Coder flow in Kubernetes, check out
