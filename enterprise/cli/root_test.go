@@ -33,7 +33,10 @@ func TestEnterpriseHandlersOK(t *testing.T) {
 }
 
 func TestCheckWarnings(t *testing.T) {
+	t.Parallel()
+
 	t.Run("LicenseWarningForPrivilegedRoles", func(t *testing.T) {
+		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				ExpiresAt: time.Now().Add(time.Hour * 24),
@@ -53,6 +56,7 @@ func TestCheckWarnings(t *testing.T) {
 	})
 
 	t.Run("NoLicenseWarningForRegularUser", func(t *testing.T) {
+		t.Parallel()
 		adminClient, admin := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				ExpiresAt: time.Now().Add(time.Hour * 24),
