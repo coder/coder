@@ -288,6 +288,8 @@ type sqlcQuerier interface {
 	// This must be called from within a transaction. The lock will be automatically
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
+	// This will always work regardless of the current state of the template version.
+	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)

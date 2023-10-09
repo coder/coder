@@ -1439,6 +1439,13 @@ func (m metricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock 
 	return ok, err
 }
 
+func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	start := time.Now()
+	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnarchiveTemplateVersion").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	start := time.Now()
 	err := m.s.UpdateAPIKeyByID(ctx, arg)

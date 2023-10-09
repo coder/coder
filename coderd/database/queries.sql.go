@@ -5321,7 +5321,24 @@ FROM
 			scoped_template_versions.id
 		FROM
 			-- Scope an archive to a single template and ignore already archived template versions
-			(SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND archived = false) AS scoped_template_versions
+			(
+			SELECT
+			    id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived
+			FROM
+			    template_versions
+			WHERE
+				template_versions.template_id = $2 :: uuid
+				AND
+			    archived = false
+				AND
+			    -- This allows archiving a specfic template version.
+			    CASE
+			        WHEN $3::uuid  != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			            template_versions.id = $3 :: uuid
+			        ELSE
+			            true
+			    END
+			) AS scoped_template_versions
 		LEFT JOIN
 			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
 		LEFT JOIN
@@ -5352,8 +5369,8 @@ FROM
 		AND CASE
 			-- Optionally, only archive versions that match a given
 			-- job status like 'failed'.
-			WHEN $3 :: provisioner_job_status IS NOT NULL THEN
-				provisioner_jobs.job_status = $3 :: provisioner_job_status
+			WHEN $4 :: provisioner_job_status IS NOT NULL THEN
+				provisioner_jobs.job_status = $4 :: provisioner_job_status
 			ELSE
 				true
 		END
@@ -5367,9 +5384,10 @@ RETURNING template_versions.id
 `
 
 type ArchiveUnusedTemplateVersionsParams struct {
-	UpdatedAt  time.Time                `db:"updated_at" json:"updated_at"`
-	TemplateID uuid.UUID                `db:"template_id" json:"template_id"`
-	JobStatus  NullProvisionerJobStatus `db:"job_status" json:"job_status"`
+	UpdatedAt         time.Time                `db:"updated_at" json:"updated_at"`
+	TemplateID        uuid.UUID                `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID                `db:"template_version_id" json:"template_version_id"`
+	JobStatus         NullProvisionerJobStatus `db:"job_status" json:"job_status"`
 }
 
 // Archiving templates is a soft delete action, so is reversible.
@@ -5380,7 +5398,12 @@ type ArchiveUnusedTemplateVersionsParams struct {
 //
 //	used_versions.transition != 'delete',
 func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, archiveUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID, arg.JobStatus)
+	rows, err := q.db.QueryContext(ctx, archiveUnusedTemplateVersions,
+		arg.UpdatedAt,
+		arg.TemplateID,
+		arg.TemplateVersionID,
+		arg.JobStatus,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -5773,6 +5796,27 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.JobID,
 		arg.CreatedBy,
 	)
+	return err
+}
+
+const unarchiveTemplateVersion = `-- name: UnarchiveTemplateVersion :exec
+UPDATE
+    template_versions
+SET
+	archived = false,
+	updated_at = $1
+WHERE
+	id = $2
+`
+
+type UnarchiveTemplateVersionParams struct {
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+}
+
+// This will always work regardless of the current state of the template version.
+func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error {
+	_, err := q.db.ExecContext(ctx, unarchiveTemplateVersion, arg.UpdatedAt, arg.TemplateVersionID)
 	return err
 }
 

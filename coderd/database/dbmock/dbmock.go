@@ -3039,6 +3039,20 @@ func (mr *MockStoreMockRecorder) TryAcquireLock(arg0, arg1 interface{}) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TryAcquireLock", reflect.TypeOf((*MockStore)(nil).TryAcquireLock), arg0, arg1)
 }
 
+// UnarchiveTemplateVersion mocks base method.
+func (m *MockStore) UnarchiveTemplateVersion(arg0 context.Context, arg1 database.UnarchiveTemplateVersionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnarchiveTemplateVersion", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnarchiveTemplateVersion indicates an expected call of UnarchiveTemplateVersion.
+func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveTemplateVersion", reflect.TypeOf((*MockStore)(nil).UnarchiveTemplateVersion), arg0, arg1)
+}
+
 // UpdateAPIKeyByID mocks base method.
 func (m *MockStore) UpdateAPIKeyByID(arg0 context.Context, arg1 database.UpdateAPIKeyByIDParams) error {
 	m.ctrl.T.Helper()

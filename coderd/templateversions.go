@@ -1135,15 +1135,30 @@ func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWri
 			return
 		}
 
-		archived, err := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
-			UpdatedAt:         dbtime.Now(),
-			TemplateID:        templateVersion.TemplateID.UUID,
-			TemplateVersionID: templateVersion.ID,
-			JobStatus:         database.NullProvisionerJobStatus{},
-			Unarchive:         !archive,
-		})
+		var err error
+		if archive {
+			archived, archiveError := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
+				UpdatedAt:         dbtime.Now(),
+				TemplateID:        templateVersion.TemplateID.UUID,
+				TemplateVersionID: templateVersion.ID,
+				JobStatus:         database.NullProvisionerJobStatus{},
+			})
 
-		if httpapi.Is404Error(err) || (len(archived) == 0 && err == nil) {
+			if archiveError != nil {
+				err = archiveError
+			} else {
+				if len(archived) == 0 {
+					err = sql.ErrNoRows
+				}
+			}
+		} else {
+			err = api.Database.UnarchiveTemplateVersion(ctx, database.UnarchiveTemplateVersionParams{
+				UpdatedAt:         dbtime.Now(),
+				TemplateVersionID: templateVersion.ID,
+			})
+		}
+
+		if httpapi.Is404Error(err) {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Template or template versions not found.",
 			})

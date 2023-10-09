@@ -2271,6 +2271,22 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
+func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	v, err := q.db.GetTemplateVersionByID(ctx, arg.TemplateVersionID)
+	if err != nil {
+		return err
+	}
+
+	tpl, err := q.db.GetTemplateByID(ctx, v.TemplateID.UUID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return err
+	}
+	return q.db.UnarchiveTemplateVersion(ctx, arg)
+}
+
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.db.GetAPIKeyByID(ctx, arg.ID)

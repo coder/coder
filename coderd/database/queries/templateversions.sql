@@ -138,6 +138,16 @@ ORDER BY created_at DESC
 LIMIT 1;
 
 
+-- name: UnarchiveTemplateVersion :exec
+-- This will always work regardless of the current state of the template version.
+UPDATE
+    template_versions
+SET
+	archived = false,
+	updated_at = sqlc.arg('updated_at')
+WHERE
+	id = sqlc.arg('template_version_id');
+
 -- name: ArchiveUnusedTemplateVersions :many
 -- Archiving templates is a soft delete action, so is reversible.
 -- Archiving prevents the version from being used and discovered
@@ -156,7 +166,24 @@ FROM
 			scoped_template_versions.id
 		FROM
 			-- Scope an archive to a single template and ignore already archived template versions
-			(SELECT * FROM template_versions WHERE template_versions.template_id = sqlc.arg('template_id') :: uuid AND archived = false) AS scoped_template_versions
+			(
+			SELECT
+			    *
+			FROM
+			    template_versions
+			WHERE
+				template_versions.template_id = sqlc.arg('template_id') :: uuid
+				AND
+			    archived = false
+				AND
+			    -- This allows archiving a specfic template version.
+			    CASE
+			        WHEN sqlc.arg('template_version_id')::uuid  != '00000000-0000-0000-0000-000000000000'::uuid THEN
+			            template_versions.id = sqlc.arg('template_version_id') :: uuid
+			        ELSE
+			            true
+			    END
+			) AS scoped_template_versions
 		LEFT JOIN
 			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
 		LEFT JOIN
