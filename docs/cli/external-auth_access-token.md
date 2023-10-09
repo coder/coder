@@ -18,11 +18,12 @@ Print an access-token for an external auth provider. The access-token will be va
 
      $ #!/usr/bin/env sh
 
-if coder external-auth access-token github ; then
+OUTPUT=$(coder external-auth access-token github)
+if [ $? -eq 0 ]; then
   echo "Authenticated with GitHub"
 else
   echo "Please authenticate with GitHub:"
-  coder external-auth url github
+  echo $OUTPUT
 fi
 
 ```
