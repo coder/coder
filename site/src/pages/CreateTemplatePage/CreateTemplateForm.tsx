@@ -6,6 +6,7 @@ import {
   Template,
   TemplateExample,
   TemplateVersionVariable,
+  VariableValue,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { TemplateUpload, TemplateUploadProps } from "./TemplateUpload";
@@ -18,7 +19,6 @@ import {
   onChangeTrimmed,
   templateDisplayNameValidator,
 } from "utils/formUtils";
-import { CreateTemplateData } from "xServices/createTemplate/createTemplateXService";
 import * as Yup from "yup";
 import { WorkspaceBuildLogs } from "components/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import {
@@ -42,51 +42,27 @@ import {
   AutostopRequirementWeeksHelperText,
 } from "pages/TemplateSettingsPage/TemplateSchedulePage/AutostopRequirementHelperText";
 import MenuItem from "@mui/material/MenuItem";
+import { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_TTL_DAYS = 30;
 
-const hours = (h: number) => (h === 1 ? "hour" : "hours");
-
-const DefaultTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces will run until stopped manually.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces will default to stopping after {ttl} {hours(ttl)} without
-      activity.
-    </span>
-  );
-};
-
-const MaxTTLHelperText = (props: { ttl?: number }) => {
-  const { ttl = 0 } = props;
-
-  // Error will show once field is considered touched
-  if (ttl < 0) {
-    return null;
-  }
-
-  if (ttl === 0) {
-    return <span>Workspaces may run indefinitely.</span>;
-  }
-
-  return (
-    <span>
-      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
-      any active connections.
-    </span>
-  );
-};
+export interface CreateTemplateData {
+  name: string;
+  display_name: string;
+  description: string;
+  icon: string;
+  default_ttl_hours: number;
+  max_ttl_hours: number;
+  autostop_requirement_days_of_week: TemplateAutostopRequirementDaysValue;
+  autostop_requirement_weeks: number;
+  allow_user_autostart: boolean;
+  allow_user_autostop: boolean;
+  allow_user_cancel_workspace_jobs: boolean;
+  parameter_values_by_name?: Record<string, string>;
+  user_variable_values?: VariableValue[];
+  allow_everyone_group_access: boolean;
+}
 
 const validationSchema = Yup.object({
   name: nameValidator("Name"),
@@ -198,43 +174,47 @@ const getInitialValues = ({
   return initialValues;
 };
 
-export interface CreateTemplateFormProps {
+type CopiedTemplateForm = { copiedTemplate: Template };
+type StarterTemplateForm = { starterTemplate: TemplateExample };
+type UploadTemplateForm = { upload: TemplateUploadProps };
+
+export type CreateTemplateFormProps = (
+  | CopiedTemplateForm
+  | StarterTemplateForm
+  | UploadTemplateForm
+) & {
   onCancel: () => void;
   onSubmit: (data: CreateTemplateData) => void;
   isSubmitting: boolean;
-  upload: TemplateUploadProps;
-  starterTemplate?: TemplateExample;
   variables?: TemplateVersionVariable[];
   error?: unknown;
   jobError?: string;
   logs?: ProvisionerJobLog[];
   allowAdvancedScheduling: boolean;
-  copiedTemplate?: Template;
   allowDisableEveryoneAccess: boolean;
   allowAutostopRequirement: boolean;
-}
+};
 
-export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
-  onCancel,
-  onSubmit,
-  starterTemplate,
-  copiedTemplate,
-  variables,
-  isSubmitting,
-  upload,
-  error,
-  jobError,
-  logs,
-  allowAdvancedScheduling,
-  allowDisableEveryoneAccess,
-  allowAutostopRequirement,
-}) => {
+export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
+  const {
+    onCancel,
+    onSubmit,
+    variables,
+    isSubmitting,
+    error,
+    jobError,
+    logs,
+    allowAdvancedScheduling,
+    allowDisableEveryoneAccess,
+    allowAutostopRequirement,
+  } = props;
   const styles = useStyles();
   const form = useFormik<CreateTemplateData>({
     initialValues: getInitialValues({
       allowAdvancedScheduling,
-      fromExample: starterTemplate,
-      fromCopy: copiedTemplate,
+      fromExample:
+        "starterTemplate" in props ? props.starterTemplate : undefined,
+      fromCopy: "copiedTemplate" in props ? props.copiedTemplate : undefined,
       variables,
     }),
     validationSchema,
@@ -281,16 +261,18 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = ({
         description="The name is used to identify the template in URLs and the API."
       >
         <FormFields>
-          {starterTemplate ? (
-            <SelectedTemplate template={starterTemplate} />
-          ) : copiedTemplate ? (
-            <SelectedTemplate template={copiedTemplate} />
-          ) : (
+          {"starterTemplate" in props && (
+            <SelectedTemplate template={props.starterTemplate} />
+          )}
+          {"copiedTemplate" in props && (
+            <SelectedTemplate template={props.copiedTemplate} />
+          )}
+          {"upload" in props && (
             <TemplateUpload
-              {...upload}
+              {...props.upload}
               onUpload={async (file) => {
                 await fillNameAndDisplayWithFilename(file.name, form);
-                upload.onUpload(file);
+                props.upload.onUpload(file);
               }}
             />
           )}
@@ -635,6 +617,48 @@ const fillNameAndDisplayWithFilename = async (
     ),
     form.setFieldValue("display_name", capitalize(name)),
   ]);
+};
+
+const hours = (h: number) => (h === 1 ? "hour" : "hours");
+
+const DefaultTTLHelperText = (props: { ttl?: number }) => {
+  const { ttl = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (ttl < 0) {
+    return null;
+  }
+
+  if (ttl === 0) {
+    return <span>Workspaces will run until stopped manually.</span>;
+  }
+
+  return (
+    <span>
+      Workspaces will default to stopping after {ttl} {hours(ttl)} without
+      activity.
+    </span>
+  );
+};
+
+const MaxTTLHelperText = (props: { ttl?: number }) => {
+  const { ttl = 0 } = props;
+
+  // Error will show once field is considered touched
+  if (ttl < 0) {
+    return null;
+  }
+
+  if (ttl === 0) {
+    return <span>Workspaces may run indefinitely.</span>;
+  }
+
+  return (
+    <span>
+      Workspaces must stop within {ttl} {hours(ttl)} of starting, regardless of
+      any active connections.
+    </span>
+  );
 };
 
 const useStyles = makeStyles((theme) => ({

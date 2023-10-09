@@ -118,6 +118,12 @@ export const handlers = [
     },
   ),
   rest.get(
+    "/api/v2/templateversions/:templateversionId/logs",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs));
+    },
+  ),
+  rest.get(
     "api/v2/organizations/:organizationId/templates/:templateName/versions/:templateVersionName",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json(M.MockTemplateVersion));
