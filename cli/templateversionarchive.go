@@ -17,10 +17,12 @@ import (
 func (r *RootCmd) unarchiveTemplateVersion() *clibase.Cmd {
 	return r.setArchiveTemplateVersion(false)
 }
+
 func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 	return r.setArchiveTemplateVersion(true)
 }
 
+//nolint:revive
 func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 	presentVerb := "archive"
 	pastVerb := "archived"

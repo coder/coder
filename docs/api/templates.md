@@ -1313,6 +1313,37 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Archive template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/archive \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/archive`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Cancel template version by ID
 
 ### Code samples
@@ -2402,6 +2433,37 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
 | Status | Meaning                                                 | Description | Schema |
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Unarchive template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/unarchive \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/unarchive`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

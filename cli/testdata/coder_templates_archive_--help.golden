@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder templates archive [flags] [name...] 
+  coder templates archive [flags] [template-name...] 
 
   Archive unused failed template versions from a given template(s)
 

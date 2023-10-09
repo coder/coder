@@ -256,6 +256,7 @@ func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+//nolint:revive
 func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
 	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
 	if archive {

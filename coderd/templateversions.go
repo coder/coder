@@ -1054,6 +1054,8 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 		UpdatedAt:  dbtime.Now(),
 		TemplateID: template.ID,
 		JobStatus:  status,
+		// Archive all versions that match
+		TemplateVersionID: uuid.Nil,
 	})
 
 	if httpapi.Is404Error(err) {
@@ -1100,6 +1102,7 @@ func (api *API) postUnarchiveTemplateVersion() func(rw http.ResponseWriter, r *h
 	return api.setArchiveTemplateVersion(false)
 }
 
+//nolint:revive
 func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWriter, r *http.Request) {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		var (
