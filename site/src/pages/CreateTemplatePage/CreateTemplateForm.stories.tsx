@@ -11,7 +11,7 @@ import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof CreateTemplateForm> = {
-  title: "components/CreateTemplateForm",
+  title: "pages/CreateTemplatePage",
   component: CreateTemplateForm,
   args: {
     isSubmitting: false,
