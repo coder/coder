@@ -8,7 +8,7 @@ import {
   CreateTemplateRequest,
   ProvisionerJob,
 } from "api/typesGenerated";
-import { type QueryClient, type QueryOptions } from "@tanstack/react-query";
+import { type QueryClient, type QueryOptions } from "react-query";
 import { delay } from "utils/delay";
 
 export const templateByNameKey = (orgId: string, name: string) => [

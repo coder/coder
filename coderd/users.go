@@ -1167,11 +1167,11 @@ func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][
 
 func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]uuid.UUID, error) {
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
-	if errors.Is(err, sql.ErrNoRows) {
-		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
-	}
 	if err != nil {
 		return []uuid.UUID{}, err
+	}
+	if len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
 	}
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil

@@ -24,6 +24,7 @@ import {
 import dayjs from "dayjs";
 import { FC } from "react";
 import { Line } from "react-chartjs-2";
+import annotationPlugin from "chartjs-plugin-annotation";
 
 ChartJS.register(
   CategoryScale,
@@ -35,16 +36,21 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
+  annotationPlugin,
 );
+
+const USER_LIMIT_DISPLAY_THRESHOLD = 60;
 
 export interface ActiveUserChartProps {
   data: { date: string; amount: number }[];
   interval: "day" | "week";
+  userLimit: number | undefined;
 }
 
 export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   data,
   interval,
+  userLimit,
 }) => {
   const theme: Theme = useTheme();
 
@@ -57,6 +63,24 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
   const options: ChartOptions<"line"> = {
     responsive: true,
     plugins: {
+      annotation: {
+        annotations: [
+          {
+            type: "line",
+            scaleID: "y",
+            display: shouldDisplayUserLimit(userLimit, chartData),
+            value: userLimit,
+            borderColor: theme.palette.secondary.contrastText,
+            borderWidth: 5,
+            label: {
+              content: "User limit",
+              color: theme.palette.primary.contrastText,
+              display: true,
+              font: { weight: "normal" },
+            },
+          },
+        ],
+      },
       legend: {
         display: false,
       },
@@ -127,3 +151,15 @@ export const ActiveUsersTitle = () => {
     </Box>
   );
 };
+
+function shouldDisplayUserLimit(
+  userLimit: number | undefined,
+  activeUsers: number[],
+): boolean {
+  if (!userLimit || activeUsers.length === 0) {
+    return false;
+  }
+  return (
+    Math.max(...activeUsers) >= (userLimit * USER_LIMIT_DISPLAY_THRESHOLD) / 100
+  );
+}

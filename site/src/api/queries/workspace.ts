@@ -1,6 +1,6 @@
 import * as API from "api/api";
 import { type Workspace } from "api/typesGenerated";
-import { type QueryOptions } from "@tanstack/react-query";
+import { type QueryOptions } from "react-query";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
   "workspace",

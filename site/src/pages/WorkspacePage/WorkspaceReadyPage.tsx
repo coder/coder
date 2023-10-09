@@ -22,7 +22,7 @@ import {
 } from "xServices/workspace/workspaceXService";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { restartWorkspace } from "api/api";
 import {
   ConfirmDialog,
@@ -104,7 +104,8 @@ export const WorkspaceReadyPage = ({
       return;
     }
     const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-    setFaviconTheme(isDark ? "dark" : "light");
+    // We want the favicon the opposite of the theme.
+    setFaviconTheme(isDark ? "light" : "dark");
   }, []);
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =

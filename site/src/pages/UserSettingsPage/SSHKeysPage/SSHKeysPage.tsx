@@ -4,7 +4,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Section } from "components/SettingsLayout/Section";
 import { SSHKeysPageView } from "./SSHKeysPageView";
 import { regenerateUserSSHKey, userSSHKey } from "api/queries/sshKeys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "api/errors";
 
 export const Language = {

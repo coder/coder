@@ -3,7 +3,7 @@ import { useTheme } from "@emotion/react";
 import { Language } from "./WorkspacesPageView";
 
 import { type Template } from "api/typesGenerated";
-import { type UseQueryResult } from "@tanstack/react-query";
+import { type UseQueryResult } from "react-query";
 
 import { Link as RouterLink } from "react-router-dom";
 import Box from "@mui/system/Box";

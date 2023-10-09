@@ -1,4 +1,4 @@
-import { QueryClient, QueryOptions } from "@tanstack/react-query";
+import { QueryClient, QueryOptions } from "react-query";
 import * as API from "api/api";
 import {
   GetUsersResponse,

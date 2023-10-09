@@ -1,5 +1,5 @@
 import Box from "@mui/material/Box";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getHealth } from "api/api";
 import { Loader } from "components/Loader/Loader";
 import { useTab } from "hooks";
@@ -32,7 +32,7 @@ export default function HealthPage() {
   const { data: healthStatus } = useQuery({
     queryKey: ["health"],
     queryFn: () => getHealth(),
-    refetchInterval: 10_000,
+    refetchInterval: 120_000,
   });
 
   return (

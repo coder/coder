@@ -30,9 +30,9 @@ export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27T00:00:00Z", amount: 10 },
+    { date: "2022-08-29T00:00:00Z", amount: 22 },
+    { date: "2022-08-30T00:00:00Z", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
@@ -1921,6 +1921,22 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
     advanced_template_scheduling: {
       enabled: true,
       entitlement: "entitled",
+    },
+  }),
+};
+
+export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
+  features: withDefaultFeatures({
+    user_limit: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 25,
     },
   }),
 };

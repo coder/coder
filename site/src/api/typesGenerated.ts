@@ -1668,12 +1668,14 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "dashboard_theme"
   | "deployment_health_page"
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
   | "template_autostop_requirement";
 export const Experiments: Experiment[] = [
+  "dashboard_theme",
   "deployment_health_page",
   "moons",
   "single_tailnet",

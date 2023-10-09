@@ -19,7 +19,7 @@ import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { templates } from "api/queries/templates";
 
 function useSafeSearchParams() {

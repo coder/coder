@@ -8,7 +8,7 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChangeEvent, ComponentProps, FC, useState } from "react";
 import Box from "@mui/material/Box";
 import { useDebouncedFunction } from "hooks/debounce";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { users } from "api/queries/users";
 import { prepareQuery } from "utils/filters";
 
