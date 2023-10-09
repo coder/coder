@@ -2391,6 +2391,15 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "Archive request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ArchiveTemplateVersionsRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -7116,6 +7125,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
+                }
+            }
+        },
+        "codersdk.ArchiveTemplateVersionsRequest": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "description": "By default, only failed versions are archived. Set this to true\nto archive all unused versions regardless of job status.",
+                    "type": "boolean"
                 }
             }
         },

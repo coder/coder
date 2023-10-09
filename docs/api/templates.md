@@ -996,17 +996,27 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archive \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `POST /templates/{template}/versions/archive`
 
+> Body parameter
+
+```json
+{
+  "all": true
+}
+```
+
 ### Parameters
 
-| Name       | In   | Type         | Required | Description |
-| ---------- | ---- | ------------ | -------- | ----------- |
-| `template` | path | string(uuid) | true     | Template ID |
+| Name       | In   | Type                                                                                         | Required | Description     |
+| ---------- | ---- | -------------------------------------------------------------------------------------------- | -------- | --------------- |
+| `template` | path | string(uuid)                                                                                 | true     | Template ID     |
+| `body`     | body | [codersdk.ArchiveTemplateVersionsRequest](schemas.md#codersdkarchivetemplateversionsrequest) | true     | Archive request |
 
 ### Example responses
 

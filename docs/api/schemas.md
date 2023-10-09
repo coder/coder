@@ -980,6 +980,20 @@ _None_
 | `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 | `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
+## codersdk.ArchiveTemplateVersionsRequest
+
+```json
+{
+  "all": true
+}
+```
+
+### Properties
+
+| Name  | Type    | Required | Restrictions | Description                                                                                                              |
+| ----- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `all` | boolean | false    |              | By default, only failed versions are archived. Set this to true to archive all unused versions regardless of job status. |
+
 ## codersdk.AssignableRoles
 
 ```json
