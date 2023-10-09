@@ -43,6 +43,8 @@ func TestResetPassword(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--postgres-url", connectionURL,
 		"--cache-dir", t.TempDir(),
+		"--derp-server-enable",
+		"--use-tailscale-derps=false",
 	)
 	go func() {
 		defer close(serverDone)

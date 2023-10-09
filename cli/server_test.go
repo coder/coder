@@ -162,6 +162,8 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 
 		const superDuperLong = testutil.WaitSuperLong * 3
@@ -210,6 +212,8 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		clitest.Start(t, inv)
@@ -232,6 +236,8 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		pty := ptytest.New(t).Attach(inv)
 
@@ -252,6 +258,8 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		clitest.Start(t, inv)
@@ -273,6 +281,8 @@ func TestServer(t *testing.T) {
 			"--http-address", ":0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
@@ -292,6 +302,8 @@ func TestServer(t *testing.T) {
 			"--tls-address", ":0",
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
@@ -310,6 +322,8 @@ func TestServer(t *testing.T) {
 			"--tls-address", ":0",
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
@@ -360,6 +374,8 @@ func TestServer(t *testing.T) {
 					"--http-address", ":0",
 					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
+					"--derp-server-enable",
+					"--use-tailscale-derps=false",
 				}
 				args = append(args, c.args...)
 				root, _ := clitest.New(t, args...)
@@ -386,6 +402,8 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		clitest.Start(t, root.WithContext(ctx))
 
@@ -424,6 +442,8 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", cert2Path,
 			"--tls-key-file", key2Path,
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		pty := ptytest.New(t)
 		root.Stdout = pty.Output()
@@ -503,6 +523,8 @@ func TestServer(t *testing.T) {
 			"--tls-cert-file", certPath,
 			"--tls-key-file", keyPath,
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		pty := ptytest.New(t).Attach(inv)
 		clitest.Start(t, inv)
@@ -624,6 +646,8 @@ func TestServer(t *testing.T) {
 					"server",
 					"--in-memory",
 					"--cache-dir", t.TempDir(),
+					"--derp-server-enable",
+					"--use-tailscale-derps=false",
 					"--http-address", httpListenAddr,
 				}
 				if c.tlsListener {
@@ -728,6 +752,9 @@ func TestServer(t *testing.T) {
 			"--in-memory",
 			"--http-address", "0.0.0.0:0",
 			"--access-url", "http://example.com",
+			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 
 		pty := ptytest.New(t)
@@ -817,6 +844,8 @@ func TestServer(t *testing.T) {
 				"--address", ":0",
 				"--access-url", "http://example.com",
 				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			pty := ptytest.New(t)
 			inv.Stdout = pty.Output()
@@ -847,6 +876,8 @@ func TestServer(t *testing.T) {
 				"--tls-cert-file", certPath,
 				"--tls-key-file", keyPath,
 				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			pty := ptytest.New(t)
 			root.Stdout = pty.Output()
@@ -882,6 +913,8 @@ func TestServer(t *testing.T) {
 			"--access-url", "http://example.com",
 			"--trace=true",
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
@@ -917,6 +950,8 @@ func TestServer(t *testing.T) {
 			"--telemetry",
 			"--telemetry-url", server.URL,
 			"--cache-dir", t.TempDir(),
+			"--derp-server-enable",
+			"--use-tailscale-derps=false",
 		)
 		clitest.Start(t, inv)
 
@@ -952,6 +987,8 @@ func TestServer(t *testing.T) {
 				"--prometheus-address", ":"+strconv.Itoa(randPort),
 				// "--prometheus-collect-db-metrics", // disabled by default
 				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 
 			clitest.Start(t, inv)
@@ -1008,6 +1045,8 @@ func TestServer(t *testing.T) {
 				"--prometheus-address", ":"+strconv.Itoa(randPort),
 				"--prometheus-collect-db-metrics",
 				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 
 			clitest.Start(t, inv)
@@ -1371,6 +1410,9 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--provisioner-daemons-echo",
 				"--log-human", fiName,
+				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			clitest.Start(t, root)
 
@@ -1389,6 +1431,9 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--provisioner-daemons-echo",
 				"--log-human", fi,
+				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			clitest.Start(t, root)
 
@@ -1407,6 +1452,9 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--provisioner-daemons-echo",
 				"--log-json", fi,
+				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			clitest.Start(t, root)
 
@@ -1428,6 +1476,9 @@ func TestServer(t *testing.T) {
 				"--access-url", "http://example.com",
 				"--provisioner-daemons-echo",
 				"--log-stackdriver", fi,
+				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
@@ -1465,6 +1516,9 @@ func TestServer(t *testing.T) {
 				"--log-human", fi1,
 				"--log-json", fi2,
 				"--log-stackdriver", fi3,
+				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			)
 			// Attach pty so we get debug output from the command if this test
 			// fails.
@@ -1500,6 +1554,8 @@ func TestServer(t *testing.T) {
 				// We use ecdsa here because it's the fastest alternative algorithm.
 				"--ssh-keygen-algorithm", "ecdsa",
 				"--cache-dir", t.TempDir(),
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
 			}
 
 			// First, we get the base config as set via flags (like users before
@@ -1581,6 +1637,8 @@ func TestServer_Production(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--postgres-url", connectionURL,
 		"--cache-dir", t.TempDir(),
+		"--derp-server-enable",
+		"--use-tailscale-derps=false",
 	)
 	clitest.Start(t, inv.WithContext(ctx))
 	accessURL := waitAccessURL(t, cfg)
@@ -1608,6 +1666,8 @@ func TestServer_Shutdown(t *testing.T) {
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
 		"--cache-dir", t.TempDir(),
+		"--derp-server-enable",
+		"--use-tailscale-derps=false",
 	)
 	serverErr := make(chan error, 1)
 	go func() {
