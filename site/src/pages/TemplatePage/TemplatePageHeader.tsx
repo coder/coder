@@ -132,6 +132,8 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   });
 
   const hasIcon = template.icon && template.icon !== "";
+  const safeToDeleteTemplate =
+    workspaceCountQuery.status === "success" && workspaceCountQuery.data === 0;
 
   return (
     <Margins>
@@ -180,8 +182,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
         </Stack>
       </PageHeader>
 
-      {workspaceCountQuery.status === "success" &&
-      workspaceCountQuery.data === 0 ? (
+      {safeToDeleteTemplate ? (
         <DeleteDialog
           isOpen={deletionState.isDeleteDialogOpen}
           onConfirm={deletionState.confirmDelete}
@@ -197,6 +198,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
           open={deletionState.isDeleteDialogOpen}
           onClose={deletionState.cancelDeleteConfirmation}
           confirmText="See workspaces"
+          confirmLoading={workspaceCountQuery.status !== "success"}
           onConfirm={() => {
             navigate({
               pathname: "/workspaces",
