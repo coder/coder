@@ -172,6 +172,7 @@ resource "coder_agent" "dev" {
     display_name = "Swap Usage (Host)"
     key          = "4_swap_usage_host"
     script       = <<EOT
+      #!/bin/bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -183,6 +184,7 @@ resource "coder_agent" "dev" {
     key          = "5_load_host"
     # get load avg scaled by number of cores
     script   = <<EOT
+      #!/bin/bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -201,6 +203,7 @@ resource "coder_agent" "dev" {
     display_name = "Word of the Day"
     key          = "7_word"
     script       = <<EOT
+      #!/bin/bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
