@@ -20,7 +20,7 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "archive-version <template-name> [template-version-names...] ",
-		Short: "Archive or unarchive a template version(s)",
+		Short: "Archive or unarchive a template version(s).",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),

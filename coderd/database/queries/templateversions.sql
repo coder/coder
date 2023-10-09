@@ -176,7 +176,7 @@ FROM
 				AND
 			    archived = false
 				AND
-			    -- This allows archiving a specfic template version.
+			    -- This allows archiving a specific template version.
 			    CASE
 			        WHEN sqlc.arg('template_version_id')::uuid  != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			            template_versions.id = sqlc.arg('template_version_id') :: uuid

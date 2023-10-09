@@ -5331,7 +5331,7 @@ FROM
 				AND
 			    archived = false
 				AND
-			    -- This allows archiving a specfic template version.
+			    -- This allows archiving a specific template version.
 			    CASE
 			        WHEN $3::uuid  != '00000000-0000-0000-0000-000000000000'::uuid THEN
 			            template_versions.id = $3 :: uuid
