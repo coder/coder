@@ -21,15 +21,17 @@ export interface TypographyProps extends MuiTypographyProps {
 export const Typography: React.FC<TypographyProps> = ({ short, ...attrs }) => {
   return (
     <MuiTypography
-      css={{
-        "&.MuiTypography-body1": {
-          lineHeight: "21px",
+      css={[
+        short && {
+          "&.MuiTypography-body1": {
+            lineHeight: "21px",
+          },
+          "&.MuiTypography-body2": {
+            lineHeight: "18px",
+            letterSpacing: 0.2,
+          },
         },
-        "&.MuiTypography-body2": {
-          lineHeight: "18px",
-          letterSpacing: 0.2,
-        },
-      }}
+      ]}
       {...attrs}
     />
   );
