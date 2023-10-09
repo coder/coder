@@ -1,4 +1,4 @@
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation } from "react-query";
 import { templateVersionLogs } from "api/queries/templateVersions";
 import {
   templateByName,
