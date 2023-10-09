@@ -71,11 +71,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 }) => {
   const styles = useStyles();
   const [owner, setOwner] = useState(defaultOwner);
-  const { verifyExternalAuth, externalAuthErrors } =
-    useExternalAuthVerification(externalAuth);
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
 
+  const { authErrors, errorCount } = getAuthErrors(externalAuth);
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
@@ -92,7 +91,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (!verifyExternalAuth()) {
+        if (errorCount > 0) {
           form.setSubmitting(false);
           return;
         }
@@ -180,7 +179,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   startPollingExternalAuth={startPollingExternalAuth}
                   displayName={auth.display_name}
                   displayIcon={auth.display_icon}
-                  error={externalAuthErrors[auth.id]}
+                  error={authErrors[auth.id]}
                 />
               ))}
             </FormFields>
@@ -245,40 +244,21 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 type ExternalAuthErrors = Record<string, string>;
 
-const useExternalAuthVerification = (
-  externalAuth: TypesGen.TemplateVersionExternalAuth[],
-) => {
-  const [externalAuthErrors, setExternalAuthErrors] =
-    useState<ExternalAuthErrors>({});
+function getAuthErrors(
+  externalAuth: readonly TypesGen.TemplateVersionExternalAuth[],
+) {
+  const authErrors: ExternalAuthErrors = {};
+  let errorCount = 0;
 
-  // Clear errors when externalAuth is refreshed
-  useEffect(() => {
-    setExternalAuthErrors({});
-  }, [externalAuth]);
-
-  const verifyExternalAuth = () => {
-    const errors: ExternalAuthErrors = {};
-
-    for (let i = 0; i < externalAuth.length; i++) {
-      const auth = externalAuth.at(i);
-      if (!auth) {
-        continue;
-      }
-      if (!auth.authenticated) {
-        errors[auth.id] = "You must authenticate to create a workspace!";
-      }
+  for (const auth of externalAuth) {
+    if (!auth.authenticated) {
+      authErrors[auth.id] = "You must authenticate to create a workspace!";
+      errorCount++;
     }
+  }
 
-    setExternalAuthErrors(errors);
-    const isValid = Object.keys(errors).length === 0;
-    return isValid;
-  };
-
-  return {
-    externalAuthErrors,
-    verifyExternalAuth,
-  };
-};
+  return { authErrors, errorCount } as const;
+}
 
 const useStyles = makeStyles((theme) => ({
   hasDescription: {
