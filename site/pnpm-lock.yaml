@@ -189,6 +189,9 @@ dependencies:
   ua-parser-js:
     specifier: 1.0.33
     version: 1.0.33
+  ufuzzy:
+    specifier: npm:@leeoniya/ufuzzy@1.0.10
+    version: /@leeoniya/ufuzzy@1.0.10
   unique-names-generator:
     specifier: 4.7.1
     version: 4.7.1
@@ -3175,6 +3178,10 @@ packages:
 
   /@kurkle/color@0.3.2:
     resolution: {integrity: sha512-fuscdXJ9G1qb7W8VdHi+IwRqij3lBkosAm4ydQtEmbY58OzHXqQhvlxqEkoz0yssNVn38bcpRWgA9PP+OGoisw==}
+    dev: false
+
+  /@leeoniya/ufuzzy@1.0.10:
+    resolution: {integrity: sha512-OR1yiyN8cKBn5UiHjKHUl0LcrTQt4vZPUpIf96qIIZVLxgd4xyASuRvTZ3tjbWvuyQAMgvKsq61Nwu131YyHnA==}
     dev: false
 
   /@mapbox/node-pre-gyp@1.0.11:

@@ -91,6 +91,7 @@
     "ts-prune": "0.10.3",
     "tzdata": "1.0.30",
     "ua-parser-js": "1.0.33",
+    "ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
     "unique-names-generator": "4.7.1",
     "uuid": "9.0.0",
     "vite": "4.4.2",
