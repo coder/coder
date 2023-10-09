@@ -279,6 +279,7 @@ type sqlcQuerier interface {
 	// by listing.
 	// Only unused template versions will be pruned, which are any versions not
 	// referenced by the latest build of a workspace.
+	// 				used_versions.transition != 'delete',
 	PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error

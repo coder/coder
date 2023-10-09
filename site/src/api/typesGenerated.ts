@@ -753,6 +753,17 @@ export interface ProxyHealthReport {
   readonly warnings: string[];
 }
 
+// From codersdk/templates.go
+export interface PruneTemplateVersionsRequest {
+  readonly all: boolean;
+}
+
+// From codersdk/templates.go
+export interface PruneTemplateVersionsResponse {
+  readonly template_id: string;
+  readonly deleted_ids: string[];
+}
+
 // From codersdk/workspaces.go
 export interface PutExtendWorkspaceRequest {
   readonly deadline: string;
@@ -1009,6 +1020,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob;
   readonly readme: string;
   readonly created_by: MinimalUser;
+  readonly deleted: boolean;
   readonly warnings?: TemplateVersionWarning[];
 }
 

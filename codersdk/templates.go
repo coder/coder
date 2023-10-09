@@ -136,6 +136,17 @@ type (
 	}
 )
 
+type PruneTemplateVersionsRequest struct {
+	// By default, only failed versions are pruned. Set this to true
+	// to prune all unused versions regardless of job status.
+	All bool `json:"all"`
+}
+
+type PruneTemplateVersionsResponse struct {
+	TemplateID uuid.UUID   `json:"template_id" format:"uuid"`
+	DeletedIDs []uuid.UUID `json:"deleted_ids"`
+}
+
 type TemplateRole string
 
 const (
@@ -224,6 +235,24 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 		return Template{}, ReadBodyAsError(res)
 	}
 	var resp Template
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) PruneTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (PruneTemplateVersionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/templates/%s/versions/prune", template),
+		PruneTemplateVersionsRequest{
+			All: all,
+		},
+	)
+	if err != nil {
+		return PruneTemplateVersionsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return PruneTemplateVersionsResponse{}, ReadBodyAsError(res)
+	}
+	var resp PruneTemplateVersionsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

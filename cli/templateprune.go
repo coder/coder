@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -14,16 +15,25 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) templateDelete() *clibase.Cmd {
+func (r *RootCmd) templatePrune() *clibase.Cmd {
+	var (
+		all clibase.Bool
+	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "delete [name...]",
-		Short: "Delete templates",
+		Use:   "prune [name...]",
+		Short: "Prune unused failed template versions from a given template(s)",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),
+			clibase.Option{
+				Name:        "all",
+				Description: "Include all unused template versions. By default, only failed template versions are pruned.",
+				Flag:        "all",
+				Value:       &all,
+			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			var (
@@ -57,9 +67,9 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 				templateNames = append(templateNames, template.Name)
 			}
 
-			// Confirm deletion of the template.
+			// Confirm prune of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
+				Text:      fmt.Sprintf("Prune template versions of these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -68,14 +78,24 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 			}
 
 			for _, template := range templates {
-				err := client.DeleteTemplate(ctx, template.ID)
+				resp, err := client.PruneTemplateVersions(ctx, template.ID, all.Value())
 				if err != nil {
 					return xerrors.Errorf("delete template %q: %w", template.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(
-					inv.Stdout, "Deleted template "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()),
+					inv.Stdout, fmt.Sprintf("Deleted %s versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.DeletedIDs)),
 				)
+
+				if ok, _ := inv.ParsedFlags().GetBool("verbose"); err == nil && ok {
+					data, err := json.Marshal(resp)
+					if err != nil {
+						return xerrors.Errorf("marshal verbose response: %w", err)
+					}
+					_, _ = fmt.Fprintln(
+						inv.Stdout, string(data),
+					)
+				}
 			}
 
 			return nil

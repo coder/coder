@@ -1515,3 +1515,100 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 	require.Equal(t, secondParameterName, templateRichParameters[3].Name)
 	require.Equal(t, thirdParameterName, templateRichParameters[4].Name)
 }
+
+func TestTemplatePruneVersions(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	user := coderdtest.CreateFirstUser(t, client)
+	var _ = api
+
+	var totalVersions int
+	// Create a template to prune
+	initialVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	totalVersions++
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, initialVersion.ID)
+
+	allFailed := make([]uuid.UUID, 0)
+	expDeleted := make([]uuid.UUID, 0)
+	// create some failed versions
+	for i := 0; i < 2; i++ {
+		failed := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanFailed,
+			ProvisionApply: echo.ApplyFailed,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		allFailed = append(allFailed, failed.ID)
+		totalVersions++
+	}
+
+	// Create some unused versions
+	for i := 0; i < 2; i++ {
+		unused := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		expDeleted = append(expDeleted, unused.ID)
+		totalVersions++
+	}
+
+	// Create some used template versions
+	for i := 0; i < 2; i++ {
+		used := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete, //echo.PlanFailed,
+			ProvisionApply: echo.ApplyComplete,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+			request.TemplateVersionID = used.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		totalVersions++
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	versions, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, versions, totalVersions, "total versions")
+
+	// Prune failed versions
+	deleteFailed, err := client.PruneTemplateVersions(ctx, template.ID, false)
+	require.NoError(t, err, "prune failed versions")
+	require.ElementsMatch(t, deleteFailed.DeletedIDs, allFailed, "all failed versions deleted")
+
+	remaining, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all non-failed versions")
+	require.Len(t, remaining, totalVersions-len(allFailed), "remaining non-failed versions")
+
+	// Try pruning "All" unused templates
+	deleted, err := client.PruneTemplateVersions(ctx, template.ID, true)
+	require.NoError(t, err, "prune versions")
+	require.ElementsMatch(t, deleted.DeletedIDs, expDeleted, "all expected versions deleted")
+
+	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, remaining, totalVersions-len(expDeleted)-len(allFailed), "remaining versions")
+}

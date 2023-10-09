@@ -743,6 +743,11 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			AfterID:    paginationParams.AfterID,
 			LimitOpt:   int32(paginationParams.Limit),
 			OffsetOpt:  int32(paginationParams.Offset),
+			// Exclude deleted templates versions
+			Deleted: sql.NullBool{
+				Bool:  false,
+				Valid: true,
+			},
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
@@ -989,6 +994,69 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), nil))
+}
+
+// @Summary Prune template unused versions by template id
+// @ID prune-template-versions-by-template-id
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Templates
+// @Param template path string true "Template ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templates/{template}/versions/prune [delete]
+func (api *API) deletePruneTemplateVersions(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx               = r.Context()
+		template          = httpmw.TemplateParam(r)
+		auditor           = *api.Auditor.Load()
+		aReq, commitAudit = audit.InitRequest[database.Template](rw, &audit.RequestParams{
+			Audit:   auditor,
+			Log:     api.Logger,
+			Request: r,
+			Action:  database.AuditActionWrite,
+		})
+	)
+	defer commitAudit()
+	aReq.Old = template
+
+	var req codersdk.PruneTemplateVersionsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	status := database.NullProvisionerJobStatus{
+		ProvisionerJobStatus: database.ProvisionerJobStatusFailed,
+		Valid:                true,
+	}
+	if req.All {
+		status = database.NullProvisionerJobStatus{}
+	}
+
+	deleted, err := api.Database.PruneUnusedTemplateVersions(ctx, database.PruneUnusedTemplateVersionsParams{
+		UpdatedAt:  dbtime.Now(),
+		TemplateID: template.ID,
+		JobStatus:  status,
+	})
+
+	if httpapi.Is404Error(err) {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Template or template versions not found.",
+		})
+		return
+	}
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PruneTemplateVersionsResponse{
+		TemplateID: template.ID,
+		DeletedIDs: deleted,
+	})
 }
 
 // @Summary Update active template version by template ID

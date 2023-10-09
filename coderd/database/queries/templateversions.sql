@@ -1,5 +1,4 @@
 -- name: GetTemplateVersionsByTemplateID :many
--- name: GetTemplateVersionsByTemplateID :many
 SELECT
 	*
 FROM
@@ -10,8 +9,8 @@ WHERE
 		-- If no filter is provided, default to returning ALL template versions.
 		-- The called should always provide a filter if they want to omit
 		-- deleted versions.
-		WHEN @deleted :: boolean IS NULL THEN true
-		ELSE template_versions.deleted = @deleted :: boolean
+		WHEN sqlc.narg('deleted') :: boolean IS NULL THEN true
+		ELSE template_versions.deleted = sqlc.narg('deleted') :: boolean
 	END
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
@@ -163,20 +162,27 @@ FROM
 		LEFT JOIN
 			templates ON scoped_template_versions.template_id = templates.id
 		WHERE
-			-- Actively used template versions (meaning the latest build is using
-			-- the version) are never pruned. A "restart" command on the workspace,
-			-- even if failed, would use the version. So it cannot be pruned until
-			-- the build is outdated.
-			-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-			-- 	has a build with the transition "delete". This will prevent that template
-			-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-				scoped_template_versions.id != ANY(
-				SELECT DISTINCT ON(workspace_id)
-					scoped_template_versions
+		-- Actively used template versions (meaning the latest build is using
+		-- the version) are never pruned. A "restart" command on the workspace,
+		-- even if failed, would use the version. So it cannot be pruned until
+		-- the build is outdated.
+		NOT EXISTS (
+			-- Return all "used" versions, where "used" is defined as being
+		    -- used by a latest workspace build.
+			SELECT template_version_id FROM (
+				SELECT
+				    DISTINCT ON (workspace_id) template_version_id, transition
 				FROM
-					workspace_builds
-				ORDER BY build_number DESC
-			)
+				    workspace_builds
+				ORDER BY workspace_id, build_number DESC
+			) AS used_versions
+			WHERE
+				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+				-- 	has a build with the transition "delete". This will prevent that template
+				-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+-- 				used_versions.transition != 'delete',
+				scoped_template_versions.id = used_versions.template_version_id
+		)
 		  -- Also never delete the active template version
 		AND active_version_id != scoped_template_versions.id
 		AND CASE
@@ -187,7 +193,10 @@ FROM
 			ELSE
 				true
 		END
+		-- Pending or running jobs should not be pruned, as they are "in progress"
+		AND provisioner_jobs.job_status != 'running'
+		AND provisioner_jobs.job_status != 'pending'
 	) AS deleted_versions
 WHERE
-	template_versions.id = ANY(deleted_versions)
+	template_versions.id IN (deleted_versions.id)
 RETURNING template_versions.id;

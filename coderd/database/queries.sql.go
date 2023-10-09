@@ -5507,9 +5507,9 @@ FROM
 WHERE
 	template_id = $1 :: uuid
 	AND CASE
-	    -- If no filter is provided, default to returning ALL template versions.
-	    -- The called should always provide a filter if they want to omit
-	    -- deleted versions.
+		-- If no filter is provided, default to returning ALL template versions.
+		-- The called should always provide a filter if they want to omit
+		-- deleted versions.
 		WHEN $2 :: boolean IS NULL THEN true
 		ELSE template_versions.deleted = $2 :: boolean
 	END
@@ -5533,8 +5533,8 @@ WHERE
 		ELSE true
 	END
 ORDER BY
-    -- Deterministic and consistent ordering of all rows, even if they share
-    -- a timestamp. This is to ensure consistent pagination.
+	-- Deterministic and consistent ordering of all rows, even if they share
+	-- a timestamp. This is to ensure consistent pagination.
 	(created_at, id) ASC OFFSET $4
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
@@ -5542,11 +5542,11 @@ LIMIT
 `
 
 type GetTemplateVersionsByTemplateIDParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	Deleted    bool      `db:"deleted" json:"deleted"`
-	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
-	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
+	TemplateID uuid.UUID    `db:"template_id" json:"template_id"`
+	Deleted    sql.NullBool `db:"deleted" json:"deleted"`
+	AfterID    uuid.UUID    `db:"after_id" json:"after_id"`
+	OffsetOpt  int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt   int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error) {
@@ -5689,46 +5689,54 @@ SET
 	deleted = true,
 	updated_at = $1
 FROM
-    -- Delete all versions that are returned from this query.
-    (
-        SELECT
+	-- Delete all versions that are returned from this query.
+	(
+		SELECT
 			scoped_template_versions.id
-        FROM
+		FROM
 			-- Scope a prune to a single template and ignore already deleted template versions
-            (SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND deleted = false) AS scoped_template_versions
-        LEFT JOIN
-        	provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
-        LEFT JOIN
-        	templates ON scoped_template_versions.template_id = templates.id
-        WHERE
-			-- Actively used template versions (meaning the latest build is using
-			-- the version) are never pruned. A "restart" command on the workspace,
-			-- even if failed, would use the version. So it cannot be pruned until
-			-- the build is outdated.
-			-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-			-- 	has a build with the transition "delete". This will prevent that template
-			-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-				scoped_template_versions.id != ANY(
-				SELECT DISTINCT ON(workspace_id)
-					scoped_template_versions
+			(SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND deleted = false) AS scoped_template_versions
+		LEFT JOIN
+			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
+		LEFT JOIN
+			templates ON scoped_template_versions.template_id = templates.id
+		WHERE
+		-- Actively used template versions (meaning the latest build is using
+		-- the version) are never pruned. A "restart" command on the workspace,
+		-- even if failed, would use the version. So it cannot be pruned until
+		-- the build is outdated.
+		NOT EXISTS (
+			-- Return all "used" versions, where "used" is defined as being
+		    -- used by a latest workspace build.
+			SELECT template_version_id FROM (
+				SELECT
+				    DISTINCT ON (workspace_id) template_version_id, transition
 				FROM
-					workspace_builds
-				ORDER BY build_number DESC
-			)
+				    workspace_builds
+				ORDER BY workspace_id, build_number DESC
+			) AS used_versions
+			WHERE
+				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+				-- 	has a build with the transition "delete". This will prevent that template
+				-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+				scoped_template_versions.id = used_versions.template_version_id
+		)
 		  -- Also never delete the active template version
-		  AND active_version_id != scoped_template_versions.id
-    	  AND CASE
-    	    -- Optionally, only prune versions that match a given
-    	    -- job status like 'failed'.
-    	  	WHEN $3 :: provisioner_job_status IS NOT NULL THEN
-		  		provisioner_jobs.job_status = $3 :: provisioner_job_status
-		  	ELSE
-		  		true
-    	  END
-
+		AND active_version_id != scoped_template_versions.id
+		AND CASE
+			-- Optionally, only prune versions that match a given
+			-- job status like 'failed'.
+			WHEN $3 :: provisioner_job_status IS NOT NULL THEN
+				provisioner_jobs.job_status = $3 :: provisioner_job_status
+			ELSE
+				true
+		END
+		-- Pending or running jobs should not be pruned, as they are "in progress"
+		AND provisioner_jobs.job_status != 'running'
+		AND provisioner_jobs.job_status != 'pending'
 	) AS deleted_versions
 WHERE
-	template_versions.id = ANY(deleted_versions)
+	template_versions.id IN (deleted_versions.id)
 RETURNING template_versions.id
 `
 
@@ -5743,6 +5751,8 @@ type PruneUnusedTemplateVersionsParams struct {
 // by listing.
 // Only unused template versions will be pruned, which are any versions not
 // referenced by the latest build of a workspace.
+//
+//	used_versions.transition != 'delete',
 func (q *sqlQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID, arg.JobStatus)
 	if err != nil {

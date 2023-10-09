@@ -2758,6 +2758,9 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 		if templateVersion.TemplateID.UUID != arg.TemplateID {
 			continue
 		}
+		if arg.Deleted.Valid && arg.Deleted.Bool != templateVersion.Deleted {
+			continue
+		}
 		version = append(version, q.templateVersionWithUserNoLock(templateVersion))
 	}
 
@@ -5234,7 +5237,26 @@ func (q *FakeQuerier) PruneUnusedTemplateVersions(_ context.Context, arg databas
 		if v.Deleted {
 			continue
 		}
+
 		if _, ok := usedVersions[v.ID]; !ok {
+			var job *database.ProvisionerJob
+			for _, j := range q.provisionerJobs {
+				if v.JobID == j.ID {
+					job = &j
+					break
+				}
+			}
+
+			if arg.JobStatus.Valid {
+				if job.JobStatus != arg.JobStatus.ProvisionerJobStatus {
+					continue
+				}
+			}
+
+			if job.JobStatus == database.ProvisionerJobStatusRunning || job.JobStatus == database.ProvisionerJobStatusPending {
+				continue
+			}
+
 			v.Deleted = true
 			q.templateVersions[i] = v
 			deleted = append(deleted, v.ID)
