@@ -23,7 +23,7 @@ import {
   colors,
   NumberDictionary,
 } from "unique-names-generator";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { templateVersionExternalAuth } from "api/queries/templates";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";

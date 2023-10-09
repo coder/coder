@@ -1985,6 +1985,9 @@ const (
 	// Deployment health page
 	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
 
+	// ExperimentDashboardTheme mutates the dashboard to use a new, dark color scheme.
+	ExperimentDashboardTheme Experiment = "dashboard_theme"
+
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
 )

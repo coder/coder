@@ -22,6 +22,11 @@ CREATE TYPE audit_action AS ENUM (
     'register'
 );
 
+CREATE TYPE automatic_updates AS ENUM (
+    'always',
+    'never'
+);
+
 CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
@@ -1127,7 +1132,8 @@ CREATE TABLE workspaces (
     ttl bigint,
     last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);

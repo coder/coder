@@ -2,7 +2,7 @@ import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Popover from "@mui/material/Popover";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getWorkspaceParameters } from "api/api";
 import {
   TemplateVersionParameter,

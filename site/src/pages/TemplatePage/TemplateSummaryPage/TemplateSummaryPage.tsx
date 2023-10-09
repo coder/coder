@@ -3,7 +3,7 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getTemplateVersionResources } from "api/api";
 
 export const TemplateSummaryPage: FC = () => {

@@ -1,4 +1,4 @@
-import { UseInfiniteQueryOptions } from "@tanstack/react-query";
+import { UseInfiniteQueryOptions } from "react-query";
 import * as API from "api/api";
 import { WorkspaceBuild, WorkspaceBuildsRequest } from "api/typesGenerated";
 

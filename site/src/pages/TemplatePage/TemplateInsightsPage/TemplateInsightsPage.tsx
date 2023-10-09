@@ -2,7 +2,7 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Box from "@mui/material/Box";
 import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import {
   ActiveUsersTitle,
   ActiveUserChart,

@@ -1,4 +1,4 @@
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient } from "react-query";
 import * as API from "api/api";
 import { GitSSHKey } from "api/typesGenerated";
 

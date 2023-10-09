@@ -1684,6 +1684,13 @@ func (m metricsStore) UpdateWorkspaceAppHealthByID(ctx context.Context, arg data
 	return err
 }
 
+func (m metricsStore) UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg database.UpdateWorkspaceAutomaticUpdatesParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceAutomaticUpdates(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceAutomaticUpdates").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m metricsStore) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	start := time.Now()
 	err := m.s.UpdateWorkspaceAutostart(ctx, arg)

@@ -34,7 +34,7 @@ import {
 } from "components/TableToolbar/TableToolbar";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { isEveryoneGroup } from "utils/groups";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   addMember,
   deleteGroup,

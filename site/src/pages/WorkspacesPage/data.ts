@@ -1,9 +1,4 @@
-import {
-  QueryKey,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { QueryKey, useMutation, useQuery, useQueryClient } from "react-query";
 import { getWorkspaces, updateWorkspaceVersion } from "api/api";
 import { getErrorMessage } from "api/errors";
 import {

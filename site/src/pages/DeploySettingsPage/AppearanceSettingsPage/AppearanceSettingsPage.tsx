@@ -4,7 +4,7 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { updateAppearance } from "api/queries/appearance";
 import { getErrorMessage } from "api/errors";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";

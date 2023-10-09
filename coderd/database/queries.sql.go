@@ -9647,7 +9647,7 @@ func (q *sqlQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (GetDeploy
 
 const getWorkspaceByAgentID = `-- name: GetWorkspaceByAgentID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 FROM
 	workspaces
 WHERE
@@ -9692,13 +9692,14 @@ func (q *sqlQuerier) GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUI
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }
 
 const getWorkspaceByID = `-- name: GetWorkspaceByID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 FROM
 	workspaces
 WHERE
@@ -9724,13 +9725,14 @@ func (q *sqlQuerier) GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Worksp
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }
 
 const getWorkspaceByOwnerIDAndName = `-- name: GetWorkspaceByOwnerIDAndName :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 FROM
 	workspaces
 WHERE
@@ -9763,13 +9765,14 @@ func (q *sqlQuerier) GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWo
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }
 
 const getWorkspaceByWorkspaceAppID = `-- name: GetWorkspaceByWorkspaceAppID :one
 SELECT
-	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+	id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 FROM
 	workspaces
 WHERE
@@ -9821,13 +9824,14 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }
 
 const getWorkspaces = `-- name: GetWorkspaces :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at,
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates,
 	COALESCE(template_name.template_name, 'unknown') as template_name,
 	latest_build.template_version_id,
 	latest_build.template_version_name,
@@ -10046,23 +10050,24 @@ type GetWorkspacesParams struct {
 }
 
 type GetWorkspacesRow struct {
-	ID                  uuid.UUID      `db:"id" json:"id"`
-	CreatedAt           time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID             uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID      uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID          uuid.UUID      `db:"template_id" json:"template_id"`
-	Deleted             bool           `db:"deleted" json:"deleted"`
-	Name                string         `db:"name" json:"name"`
-	AutostartSchedule   sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl                 sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt          time.Time      `db:"last_used_at" json:"last_used_at"`
-	DormantAt           sql.NullTime   `db:"dormant_at" json:"dormant_at"`
-	DeletingAt          sql.NullTime   `db:"deleting_at" json:"deleting_at"`
-	TemplateName        string         `db:"template_name" json:"template_name"`
-	TemplateVersionID   uuid.UUID      `db:"template_version_id" json:"template_version_id"`
-	TemplateVersionName sql.NullString `db:"template_version_name" json:"template_version_name"`
-	Count               int64          `db:"count" json:"count"`
+	ID                  uuid.UUID        `db:"id" json:"id"`
+	CreatedAt           time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt           time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID             uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID      uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID          uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted             bool             `db:"deleted" json:"deleted"`
+	Name                string           `db:"name" json:"name"`
+	AutostartSchedule   sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                 sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt          time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt           sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt          sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates    AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	TemplateName        string           `db:"template_name" json:"template_name"`
+	TemplateVersionID   uuid.UUID        `db:"template_version_id" json:"template_version_id"`
+	TemplateVersionName sql.NullString   `db:"template_version_name" json:"template_version_name"`
+	Count               int64            `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams) ([]GetWorkspacesRow, error) {
@@ -10103,6 +10108,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LastUsedAt,
 			&i.DormantAt,
 			&i.DeletingAt,
+			&i.AutomaticUpdates,
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,
@@ -10123,7 +10129,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at
+	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 FROM
 	workspaces
 LEFT JOIN
@@ -10210,6 +10216,7 @@ func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now
 			&i.LastUsedAt,
 			&i.DormantAt,
 			&i.DeletingAt,
+			&i.AutomaticUpdates,
 		); err != nil {
 			return nil, err
 		}
@@ -10236,23 +10243,25 @@ INSERT INTO
 		name,
 		autostart_schedule,
 		ttl,
-		last_used_at
+		last_used_at,
+		automatic_updates
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 `
 
 type InsertWorkspaceParams struct {
-	ID                uuid.UUID      `db:"id" json:"id"`
-	CreatedAt         time.Time      `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time      `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID      `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID      `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID      `db:"template_id" json:"template_id"`
-	Name              string         `db:"name" json:"name"`
-	AutostartSchedule sql.NullString `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64  `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time      `db:"last_used_at" json:"last_used_at"`
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 }
 
 func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (Workspace, error) {
@@ -10267,6 +10276,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		arg.AutostartSchedule,
 		arg.Ttl,
 		arg.LastUsedAt,
+		arg.AutomaticUpdates,
 	)
 	var i Workspace
 	err := row.Scan(
@@ -10283,6 +10293,7 @@ func (q *sqlQuerier) InsertWorkspace(ctx context.Context, arg InsertWorkspacePar
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }
@@ -10313,7 +10324,7 @@ SET
 WHERE
 	id = $1
 	AND deleted = false
-RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at
+RETURNING id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates
 `
 
 type UpdateWorkspaceParams struct {
@@ -10338,8 +10349,28 @@ func (q *sqlQuerier) UpdateWorkspace(ctx context.Context, arg UpdateWorkspacePar
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
+}
+
+const updateWorkspaceAutomaticUpdates = `-- name: UpdateWorkspaceAutomaticUpdates :exec
+UPDATE
+	workspaces
+SET
+	automatic_updates = $2
+WHERE
+		id = $1
+`
+
+type UpdateWorkspaceAutomaticUpdatesParams struct {
+	ID               uuid.UUID        `db:"id" json:"id"`
+	AutomaticUpdates AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg UpdateWorkspaceAutomaticUpdatesParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceAutomaticUpdates, arg.ID, arg.AutomaticUpdates)
+	return err
 }
 
 const updateWorkspaceAutostart = `-- name: UpdateWorkspaceAutostart :exec
@@ -10397,7 +10428,7 @@ WHERE
 	workspaces.template_id = templates.id
 AND
 	workspaces.id = $1
-RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at
+RETURNING workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates
 `
 
 type UpdateWorkspaceDormantDeletingAtParams struct {
@@ -10422,6 +10453,7 @@ func (q *sqlQuerier) UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg U
 		&i.LastUsedAt,
 		&i.DormantAt,
 		&i.DeletingAt,
+		&i.AutomaticUpdates,
 	)
 	return i, err
 }

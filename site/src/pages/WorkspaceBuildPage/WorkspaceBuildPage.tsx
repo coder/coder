@@ -3,7 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { WorkspaceBuildPageView } from "./WorkspaceBuildPageView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getWorkspaceBuilds } from "api/api";
 import dayjs from "dayjs";
 import { workspaceBuildByNumber } from "api/queries/workspaceBuilds";
