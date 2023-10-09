@@ -78,6 +78,25 @@ type Config struct {
 	AppInstallationsURL string
 }
 
+// GenerateTokenExtra generates the extra token data to store in the database.
+func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage, error) {
+	if len(c.ExtraTokenKeys) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+	extraMap := map[string]interface{}{}
+	for _, key := range c.ExtraTokenKeys {
+		extraMap[key] = token.Extra(key)
+	}
+	data, err := json.Marshal(extraMap)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{
+		RawMessage: data,
+		Valid:      true,
+	}, nil
+}
+
 // RefreshToken automatically refreshes the token if expired and permitted.
 // It returns the token and a bool indicating if the token is valid.
 func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAuthLink database.ExternalAuthLink) (database.ExternalAuthLink, bool, error) {
@@ -111,16 +130,9 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		return externalAuthLink, false, nil
 	}
 
-	var extra json.RawMessage
-	if len(c.ExtraTokenKeys) > 0 {
-		extraMap := map[string]interface{}{}
-		for _, key := range c.ExtraTokenKeys {
-			extraMap[key] = token.Extra(key)
-		}
-		extra, err = json.Marshal(extraMap)
-		if err != nil {
-			return externalAuthLink, false, xerrors.Errorf("marshal extra token keys: %w", err)
-		}
+	extra, err := c.GenerateTokenExtra(token)
+	if err != nil {
+		return externalAuthLink, false, xerrors.Errorf("generate token extra: %w", err)
 	}
 
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
@@ -157,10 +169,7 @@ validate:
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
-			OAuthExtra: pqtype.NullRawMessage{
-				Valid:      extra != nil,
-				RawMessage: extra,
-			},
+			OAuthExtra:             extra,
 		})
 		if err != nil {
 			return updatedAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
