@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // @Summary Get external auth by ID
@@ -132,6 +133,8 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 			OAuthExpiry:            token.Expiry,
+			// No extra data from device auth!
+			OAuthExtra: pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -150,6 +153,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
+			OAuthExtra:             pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
