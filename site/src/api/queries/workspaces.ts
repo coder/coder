@@ -1,14 +1,22 @@
 import * as API from "api/api";
-import { type WorkspacesResponse } from "api/typesGenerated";
 import { type QueryOptions } from "react-query";
+import {
+  type WorkspacesResponse,
+  type WorkspacesRequest,
+} from "api/typesGenerated";
 
-export function workspacesByQueryKey(query: string) {
-  return ["workspaces", query] as const;
+export function workspacesKey(config: WorkspacesRequest = {}) {
+  const { q, limit } = config;
+  return ["workspaces", { q, limit }] as const;
 }
 
-export function workspacesByQuery(query: string) {
+export function workspaces(config: WorkspacesRequest = {}) {
+  // Duplicates some of the work from workspacesKey, but that felt better than
+  // letting invisible properties sneak into the query logic
+  const { q, limit } = config;
+
   return {
-    queryKey: workspacesByQueryKey(query),
-    queryFn: () => API.getWorkspaces({ q: query }),
+    queryKey: workspacesKey(config),
+    queryFn: () => API.getWorkspaces({ q, limit }),
   } as const satisfies QueryOptions<WorkspacesResponse>;
 }
