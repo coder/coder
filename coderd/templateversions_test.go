@@ -1519,9 +1519,8 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 func TestTemplateArchiveVersions(t *testing.T) {
 	t.Parallel()
 
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 	user := coderdtest.CreateFirstUser(t, client)
-	var _ = api
 
 	var totalVersions int
 	// Create a template to archive
@@ -1561,7 +1560,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		used := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete, //echo.PlanFailed,
+			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
 		}, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID

@@ -15,9 +15,7 @@ import (
 )
 
 func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
-	var (
-		all clibase.Bool
-	)
+	var all clibase.Bool
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "archive [name...] ",
