@@ -1,8 +1,7 @@
+import { useState } from "react";
 import { deleteTemplate } from "api/api";
 import { getErrorMessage } from "api/errors";
-import { Template } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
-import { useState } from "react";
 
 type DeleteTemplateState =
   | { status: "idle" }
@@ -10,7 +9,7 @@ type DeleteTemplateState =
   | { status: "deleting" };
 
 export const useDeletionDialogState = (
-  template: Template,
+  templateId: string,
   onDelete: () => void,
 ) => {
   const [state, setState] = useState<DeleteTemplateState>({ status: "idle" });
@@ -28,7 +27,7 @@ export const useDeletionDialogState = (
   const confirmDelete = async () => {
     try {
       setState({ status: "deleting" });
-      await deleteTemplate(template.id);
+      await deleteTemplate(templateId);
       onDelete();
     } catch (e) {
       setState({ status: "confirming" });

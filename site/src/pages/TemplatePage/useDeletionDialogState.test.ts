@@ -5,7 +5,7 @@ import * as API from "api/api";
 
 test("delete dialog starts closed", () => {
   const { result } = renderHook(() =>
-    useDeletionDialogState(MockTemplate, jest.fn()),
+    useDeletionDialogState(MockTemplate.id, jest.fn()),
   );
   expect(result.current.isDeleteDialogOpen).toBeFalsy();
 });
@@ -13,7 +13,7 @@ test("delete dialog starts closed", () => {
 test("confirm template deletion", async () => {
   const onDeleteTemplate = jest.fn();
   const { result } = renderHook(() =>
-    useDeletionDialogState(MockTemplate, onDeleteTemplate),
+    useDeletionDialogState(MockTemplate.id, onDeleteTemplate),
   );
 
   //Open delete confirmation
@@ -31,7 +31,7 @@ test("confirm template deletion", async () => {
 
 test("cancel template deletion", () => {
   const { result } = renderHook(() =>
-    useDeletionDialogState(MockTemplate, jest.fn()),
+    useDeletionDialogState(MockTemplate.id, jest.fn()),
   );
 
   //Open delete confirmation

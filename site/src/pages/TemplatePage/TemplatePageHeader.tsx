@@ -35,17 +35,26 @@ import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 type TemplateMenuProps = {
   templateName: string;
   templateVersion: string;
+  templateId: string;
   onDelete: () => void;
 };
 
 const TemplateMenu: FC<TemplateMenuProps> = ({
   templateName,
   templateVersion,
+  templateId,
   onDelete,
 }) => {
+  const dialogState = useDeletionDialogState(templateId, onDelete);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+
+  const queryText = `template:${templateName}`;
+  const workspaceCountQuery = useQuery({
+    ...workspacesByQuery(queryText),
+    select: (res) => res.count,
+  });
 
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
@@ -53,134 +62,65 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
     actionFn();
   };
 
-  return (
-    <div>
-      <IconButton
-        aria-controls="template-options"
-        aria-haspopup="true"
-        onClick={() => setIsMenuOpen(true)}
-        ref={menuTriggerRef}
-        arial-label="More options"
-      >
-        <MoreVertOutlined />
-      </IconButton>
-
-      <Menu
-        id="template-options"
-        anchorEl={menuTriggerRef.current}
-        open={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-      >
-        <MenuItem
-          onClick={onMenuItemClick(() =>
-            navigate(`/templates/${templateName}/settings`),
-          )}
-        >
-          <SettingsIcon />
-          Settings
-        </MenuItem>
-
-        <MenuItem
-          onClick={onMenuItemClick(() =>
-            navigate(
-              `/templates/${templateName}/versions/${templateVersion}/edit`,
-            ),
-          )}
-        >
-          <EditIcon />
-          Edit files
-        </MenuItem>
-
-        <MenuItem
-          onClick={onMenuItemClick(() =>
-            navigate(`/templates/new?fromTemplate=${templateName}`),
-          )}
-        >
-          <CopyIcon />
-          Duplicate&hellip;
-        </MenuItem>
-
-        <MenuItem onClick={onMenuItemClick(onDelete)}>
-          <DeleteIcon />
-          Delete&hellip;
-        </MenuItem>
-      </Menu>
-    </div>
-  );
-};
-
-export type TemplatePageHeaderProps = {
-  template: Template;
-  activeVersion: TemplateVersion;
-  permissions: AuthorizationResponse;
-  onDeleteTemplate: () => void;
-};
-
-export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
-  template,
-  activeVersion,
-  permissions,
-  onDeleteTemplate,
-}) => {
-  const navigate = useNavigate();
-  const dialogState = useDeletionDialogState(template, onDeleteTemplate);
-
-  const queryText = `template:${template.name}`;
-  const workspaceCountQuery = useQuery({
-    ...workspacesByQuery(queryText),
-    select: (res) => res.count,
-  });
-
-  const hasIcon = template.icon && template.icon !== "";
   const safeToDeleteTemplate =
     workspaceCountQuery.status === "success" && workspaceCountQuery.data === 0;
 
   return (
-    <Margins>
-      <PageHeader
-        actions={
-          <>
-            <Button
-              variant="contained"
-              startIcon={<AddIcon />}
-              component={RouterLink}
-              to={`/templates/${template.name}/workspace`}
-            >
-              Create Workspace
-            </Button>
+    <>
+      <div>
+        <IconButton
+          aria-controls="template-options"
+          aria-haspopup="true"
+          onClick={() => setIsMenuOpen(true)}
+          ref={menuTriggerRef}
+          arial-label="More options"
+        >
+          <MoreVertOutlined />
+        </IconButton>
 
-            {permissions.canUpdateTemplate && (
-              <TemplateMenu
-                templateVersion={activeVersion.name}
-                templateName={template.name}
-                onDelete={dialogState.openDeleteConfirmation}
-              />
+        <Menu
+          id="template-options"
+          anchorEl={menuTriggerRef.current}
+          open={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+        >
+          <MenuItem
+            onClick={onMenuItemClick(() =>
+              navigate(`/templates/${templateName}/settings`),
             )}
-          </>
-        }
-      >
-        <Stack direction="row" spacing={3} alignItems="center">
-          {hasIcon ? (
-            <Avatar size="xl" src={template.icon} variant="square" fitImage />
-          ) : (
-            <Avatar size="xl">{template.name}</Avatar>
-          )}
+          >
+            <SettingsIcon />
+            Settings
+          </MenuItem>
 
-          <div>
-            <PageHeaderTitle>
-              {template.display_name.length > 0
-                ? template.display_name
-                : template.name}
-            </PageHeaderTitle>
-
-            {template.description !== "" && (
-              <PageHeaderSubtitle condensed>
-                {template.description}
-              </PageHeaderSubtitle>
+          <MenuItem
+            onClick={onMenuItemClick(() =>
+              navigate(
+                `/templates/${templateName}/versions/${templateVersion}/edit`,
+              ),
             )}
-          </div>
-        </Stack>
-      </PageHeader>
+          >
+            <EditIcon />
+            Edit files
+          </MenuItem>
+
+          <MenuItem
+            onClick={onMenuItemClick(() =>
+              navigate(`/templates/new?fromTemplate=${templateName}`),
+            )}
+          >
+            <CopyIcon />
+            Duplicate&hellip;
+          </MenuItem>
+
+          <MenuItem
+            onClick={onMenuItemClick(dialogState.openDeleteConfirmation)}
+          >
+            <DeleteIcon />
+            Delete&hellip;
+          </MenuItem>
+        </Menu>
+      </div>
 
       {safeToDeleteTemplate ? (
         <DeleteDialog
@@ -188,7 +128,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
           onConfirm={dialogState.confirmDelete}
           onCancel={dialogState.cancelDeleteConfirmation}
           entity="template"
-          name={template.name}
+          name={templateName}
         />
       ) : (
         <ConfirmDialog
@@ -230,6 +170,72 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
           }
         />
       )}
+    </>
+  );
+};
+
+export type TemplatePageHeaderProps = {
+  template: Template;
+  activeVersion: TemplateVersion;
+  permissions: AuthorizationResponse;
+  onDeleteTemplate: () => void;
+};
+
+export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
+  template,
+  activeVersion,
+  permissions,
+  onDeleteTemplate,
+}) => {
+  const hasIcon = template.icon && template.icon !== "";
+
+  return (
+    <Margins>
+      <PageHeader
+        actions={
+          <>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              component={RouterLink}
+              to={`/templates/${template.name}/workspace`}
+            >
+              Create Workspace
+            </Button>
+
+            {permissions.canUpdateTemplate && (
+              <TemplateMenu
+                templateVersion={activeVersion.name}
+                templateName={template.name}
+                templateId={template.id}
+                onDelete={onDeleteTemplate}
+              />
+            )}
+          </>
+        }
+      >
+        <Stack direction="row" spacing={3} alignItems="center">
+          {hasIcon ? (
+            <Avatar size="xl" src={template.icon} variant="square" fitImage />
+          ) : (
+            <Avatar size="xl">{template.name}</Avatar>
+          )}
+
+          <div>
+            <PageHeaderTitle>
+              {template.display_name.length > 0
+                ? template.display_name
+                : template.name}
+            </PageHeaderTitle>
+
+            {template.description !== "" && (
+              <PageHeaderSubtitle condensed>
+                {template.description}
+              </PageHeaderSubtitle>
+            )}
+          </div>
+        </Stack>
+      </PageHeader>
     </Margins>
   );
 };
