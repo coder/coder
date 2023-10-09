@@ -1,6 +1,6 @@
 import { type FC, useRef, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { useDeleteTemplate } from "./deleteTemplate";
+import { useDeletionPopoverState } from "./useDeletionPopoverState";
 
 import { useQuery } from "react-query";
 import { workspacesByQuery } from "api/queries/workspaces";
@@ -123,7 +123,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   onDeleteTemplate,
 }) => {
   const navigate = useNavigate();
-  const deletionState = useDeleteTemplate(template, onDeleteTemplate);
+  const popoverState = useDeletionPopoverState(template, onDeleteTemplate);
 
   const queryText = `template:${template.name}`;
   const workspaceCountQuery = useQuery({
@@ -153,7 +153,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
               <TemplateMenu
                 templateVersion={activeVersion.name}
                 templateName={template.name}
-                onDelete={deletionState.openDeleteConfirmation}
+                onDelete={popoverState.openDeleteConfirmation}
               />
             )}
           </>
@@ -184,9 +184,9 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 
       {safeToDeleteTemplate ? (
         <DeleteDialog
-          isOpen={deletionState.isDeleteDialogOpen}
-          onConfirm={deletionState.confirmDelete}
-          onCancel={deletionState.cancelDeleteConfirmation}
+          isOpen={popoverState.isDeleteDialogOpen}
+          onConfirm={popoverState.confirmDelete}
+          onCancel={popoverState.cancelDeleteConfirmation}
           entity="template"
           name={template.name}
         />
@@ -195,8 +195,8 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
           type="info"
           title="Unable to delete"
           hideCancel={false}
-          open={deletionState.isDeleteDialogOpen}
-          onClose={deletionState.cancelDeleteConfirmation}
+          open={popoverState.isDeleteDialogOpen}
+          onClose={popoverState.cancelDeleteConfirmation}
           confirmText="See workspaces"
           confirmLoading={workspaceCountQuery.status !== "success"}
           onConfirm={() => {

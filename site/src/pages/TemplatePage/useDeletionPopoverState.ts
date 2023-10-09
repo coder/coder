@@ -9,7 +9,10 @@ type DeleteTemplateState =
   | { status: "confirming" }
   | { status: "deleting" };
 
-export const useDeleteTemplate = (template: Template, onDelete: () => void) => {
+export const useDeletionPopoverState = (
+  template: Template,
+  onDelete: () => void,
+) => {
   const [state, setState] = useState<DeleteTemplateState>({ status: "idle" });
   const isDeleteDialogOpen =
     state.status === "confirming" || state.status === "deleting";

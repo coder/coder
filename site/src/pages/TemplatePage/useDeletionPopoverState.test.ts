@@ -1,11 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { MockTemplate } from "testHelpers/entities";
-import { useDeleteTemplate } from "./deleteTemplate";
+import { useDeletionPopoverState } from "./useDeletionPopoverState";
 import * as API from "api/api";
 
 test("delete dialog starts closed", () => {
   const { result } = renderHook(() =>
-    useDeleteTemplate(MockTemplate, jest.fn()),
+    useDeletionPopoverState(MockTemplate, jest.fn()),
   );
   expect(result.current.isDeleteDialogOpen).toBeFalsy();
 });
@@ -13,7 +13,7 @@ test("delete dialog starts closed", () => {
 test("confirm template deletion", async () => {
   const onDeleteTemplate = jest.fn();
   const { result } = renderHook(() =>
-    useDeleteTemplate(MockTemplate, onDeleteTemplate),
+    useDeletionPopoverState(MockTemplate, onDeleteTemplate),
   );
 
   //Open delete confirmation
@@ -31,7 +31,7 @@ test("confirm template deletion", async () => {
 
 test("cancel template deletion", () => {
   const { result } = renderHook(() =>
-    useDeleteTemplate(MockTemplate, jest.fn()),
+    useDeletionPopoverState(MockTemplate, jest.fn()),
   );
 
   //Open delete confirmation
