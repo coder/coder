@@ -107,6 +107,12 @@ test("Create template with variables", async () => {
 });
 
 test("Create template from another template", async () => {
+  jest.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+  jest
+    .spyOn(API, "getTemplateVersionVariables")
+    .mockResolvedValue([MockTemplateVersionVariable1]);
+
   const searchParams = new URLSearchParams({
     fromTemplate: MockTemplate.name,
   });
@@ -128,11 +134,14 @@ test("Create template from another template", async () => {
   jest
     .spyOn(API, "createTemplateVersion")
     .mockResolvedValue(MockTemplateVersion);
+  jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
   jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
   await userEvent.click(
     screen.getByRole("button", { name: /create template/i }),
   );
-  expect(router.state.location.pathname).toEqual(
-    `/templates/${MockTemplate.name}`,
-  );
+  await waitFor(() => {
+    expect(router.state.location.pathname).toEqual(
+      `/templates/${MockTemplate.name}`,
+    );
+  });
 });
