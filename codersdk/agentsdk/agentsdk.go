@@ -710,30 +710,51 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 	return cfg.ServiceBanner, json.NewDecoder(res.Body).Decode(&cfg)
 }
 
-type GitAuthResponse struct {
+type ExternalAuthResponse struct {
+	AccessToken string `json:"access_token"`
+	URL         string `json:"url"`
+	Type        string `json:"type"`
+
+	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
+	// for backwards compatibility.
 	Username string `json:"username"`
 	Password string `json:"password"`
-	URL      string `json:"url"`
 }
 
-// GitAuth submits a URL to fetch a GIT_ASKPASS username and password for.
+// ExternalAuthRequest is used to request an access token for a provider.
+// Either ID or Match must be specified, but not both.
+type ExternalAuthRequest struct {
+	// ID is the ID of a provider to request authentication for.
+	ID string
+	// Match is an arbitrary string matched against the regex of the provider.
+	Match string
+	// Listen indicates that the request should be long-lived and listen for
+	// a new token to be requested.
+	Listen bool
+}
+
+// ExternalAuth submits a URL or provider ID to fetch an access token for.
 // nolint:revive
-func (c *Client) GitAuth(ctx context.Context, gitURL string, listen bool) (GitAuthResponse, error) {
-	reqURL := "/api/v2/workspaceagents/me/gitauth?url=" + url.QueryEscape(gitURL)
-	if listen {
-		reqURL += "&listen"
+func (c *Client) ExternalAuth(ctx context.Context, req ExternalAuthRequest) (ExternalAuthResponse, error) {
+	q := url.Values{
+		"id":    []string{req.ID},
+		"match": []string{req.Match},
 	}
+	if req.Listen {
+		q.Set("listen", "true")
+	}
+	reqURL := "/api/v2/workspaceagents/me/external-auth?" + q.Encode()
 	res, err := c.SDK.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GitAuthResponse{}, xerrors.Errorf("execute request: %w", err)
+		return ExternalAuthResponse{}, xerrors.Errorf("execute request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return GitAuthResponse{}, codersdk.ReadBodyAsError(res)
+		return ExternalAuthResponse{}, codersdk.ReadBodyAsError(res)
 	}
 
-	var authResp GitAuthResponse
+	var authResp ExternalAuthResponse
 	return authResp, json.NewDecoder(res.Body).Decode(&authResp)
 }
 
