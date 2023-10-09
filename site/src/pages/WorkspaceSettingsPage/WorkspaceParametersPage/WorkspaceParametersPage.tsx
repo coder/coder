@@ -2,7 +2,7 @@ import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { Loader } from "components/Loader/Loader";
 import {
   WorkspaceParametersFormValues,

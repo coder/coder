@@ -1,9 +1,42 @@
 declare module "@emoji-mart/react" {
-  const Picker: React.FC<{
+  interface CustomCategory {
+    id: string;
+    name: string;
+    emojis: CustomEmoji[];
+  }
+
+  interface CustomEmoji {
+    id: string;
+    name: string;
+    keywords: string[];
+    skins: CustomEmojiSkin[];
+  }
+
+  interface CustomEmojiSkin {
+    src: string;
+  }
+
+  type EmojiData = EmojiResource & {
+    id: string;
+    keywords: string[];
+    name: string;
+    native?: string;
+    shortcodes: string;
+  };
+
+  type EmojiResource =
+    | { unified: undefined; src: string }
+    | { unified: string; src: undefined };
+
+  const EmojiPicker: React.FC<{
+    set: "native" | "apple" | "facebook" | "google" | "twitter";
     theme: "dark" | "light";
-    data: Record<string, unknown>;
-    onEmojiSelect: (emojiData: { unified: string }) => void;
+    data: unknown;
+    custom: CustomCategory[];
+    emojiButtonSize?: number;
+    emojiSize?: number;
+    onEmojiSelect: (emoji: EmojiData) => void;
   }>;
 
-  export default Picker;
+  export default EmojiPicker;
 }

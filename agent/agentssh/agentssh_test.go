@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -69,6 +70,42 @@ func TestNewServer_ServeClient(t *testing.T) {
 	err = s.Close()
 	require.NoError(t, err)
 	<-done
+}
+
+func TestNewServer_ExecuteShebang(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("bash doesn't exist on Windows")
+	}
+
+	ctx := context.Background()
+	logger := slogtest.Make(t, nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), 0, "")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+	s.AgentToken = func() string { return "" }
+	s.Manifest = atomic.NewPointer(&agentsdk.Manifest{})
+
+	t.Run("Basic", func(t *testing.T) {
+		t.Parallel()
+		cmd, err := s.CreateCommand(ctx, `#!/bin/bash
+		echo test`, nil)
+		require.NoError(t, err)
+		output, err := cmd.AsExec().CombinedOutput()
+		require.NoError(t, err)
+		require.Equal(t, "test\n", string(output))
+	})
+	t.Run("Args", func(t *testing.T) {
+		t.Parallel()
+		cmd, err := s.CreateCommand(ctx, `#!/usr/bin/env bash
+		echo test`, nil)
+		require.NoError(t, err)
+		output, err := cmd.AsExec().CombinedOutput()
+		require.NoError(t, err)
+		require.Equal(t, "test\n", string(output))
+	})
 }
 
 func TestNewServer_CloseActiveConnections(t *testing.T) {

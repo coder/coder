@@ -28,7 +28,6 @@ func (r *RootCmd) createUserStatusCommand(sdkStatus codersdk.UserStatus) *clibas
 	case codersdk.UserStatusSuspended:
 		verb = "suspend"
 		pastVerb = "suspended"
-		aliases = []string{"rm", "delete"}
 		short = "Update a user's status to 'suspended'. A suspended user cannot log into the platform"
 	default:
 		panic(fmt.Sprintf("%s is not supported", sdkStatus))

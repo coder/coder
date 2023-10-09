@@ -1,5 +1,5 @@
 import CssBaseline from "@mui/material/CssBaseline";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "react-query";
 import { AuthProvider } from "components/AuthProvider/AuthProvider";
 import { FC, PropsWithChildren } from "react";
 import { HelmetProvider } from "react-helmet-async";

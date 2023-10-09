@@ -777,10 +777,10 @@ export const regenerateUserSSHKey = async (
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
-): Promise<TypesGen.WorkspaceBuild[]> => {
+  req?: TypesGen.WorkspaceBuildsRequest,
+) => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
 };
@@ -1104,7 +1104,7 @@ export const getTemplateExamples = async (
   return response.data;
 };
 
-export const uploadTemplateFile = async (
+export const uploadFile = async (
   file: File,
 ): Promise<TypesGen.UploadResponse> => {
   const response = await axios.post("/api/v2/files", file, {

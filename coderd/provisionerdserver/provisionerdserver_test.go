@@ -783,7 +783,8 @@ func TestFailJob(t *testing.T) {
 		srvID := uuid.New()
 		srv, db, ps := setup(t, ignoreLogErrors, &overrides{id: &srvID})
 		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID: uuid.New(),
+			ID:               uuid.New(),
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		})
 		require.NoError(t, err)
 		buildID := uuid.New()

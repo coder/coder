@@ -17,7 +17,7 @@ import {
   templateVersionVariables,
   updateActiveTemplateVersion,
 } from "api/queries/templates";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 
@@ -67,8 +67,8 @@ export const TemplateVariablesPage: FC = () => {
 
   const buildVersion = useCallback(
     async (req: CreateTemplateVersionRequest) => {
-      const newVersionId = await sendCreateAndBuildTemplateVersion(req);
-      await publishVersion(newVersionId);
+      const newVersion = await sendCreateAndBuildTemplateVersion(req);
+      await publishVersion(newVersion.id);
     },
     [sendCreateAndBuildTemplateVersion, publishVersion],
   );
