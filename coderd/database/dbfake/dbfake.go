@@ -865,6 +865,10 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 			// Not the latest
 			continue
 		}
+		// Ignore deleted workspaces.
+		if b.Transition == database.WorkspaceTransitionDelete {
+			continue
+		}
 		latest[b.WorkspaceID] = latestBuild{
 			Number:  b.BuildNumber,
 			Version: b.TemplateVersionID,
@@ -881,6 +885,11 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 
 	var archived []uuid.UUID
 	for i, v := range q.templateVersions {
+		if arg.TemplateVersionID != uuid.Nil {
+			if v.ID != arg.TemplateVersionID {
+				continue
+			}
+		}
 		if v.Archived {
 			continue
 		}
@@ -5336,7 +5345,16 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(ctx context.Context, arg database
 		return err
 	}
 
-	panic("not implemented")
+	for i, v := range q.data.templateVersions {
+		if v.ID == arg.TemplateVersionID {
+			v.Archived = false
+			v.UpdatedAt = arg.UpdatedAt
+			q.data.templateVersions[i] = v
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {

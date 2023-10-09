@@ -70,7 +70,6 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 				versions = append(versions, version)
 			}
 
-			failed := 0
 			for _, version := range versions {
 				if version.Archived == archive {
 					_, _ = fmt.Fprintln(
@@ -87,10 +86,6 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
 				_, _ = fmt.Fprintln(
 					inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+pastVerb+" at "+cliui.Timestamp(time.Now())),
 				)
-			}
-
-			if failed > 0 {
-				return xerrors.Errorf("failed on %d template versions", failed)
 			}
 			return nil
 		},
@@ -159,7 +154,6 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 				return err
 			}
 
-			failed := 0
 			for _, template := range templates {
 				resp, err := client.ArchiveTemplateVersions(ctx, template.ID, all.Value())
 				if err != nil {
@@ -179,10 +173,6 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 						inv.Stdout, string(data),
 					)
 				}
-			}
-
-			if failed > 0 {
-				return xerrors.Errorf("failed on %d templates", failed)
 			}
 			return nil
 		},

@@ -195,7 +195,7 @@ FROM
 		-- the build is outdated.
 		NOT EXISTS (
 			-- Return all "used" versions, where "used" is defined as being
-		    -- used by a latest workspace build.
+			-- used by a latest workspace build.
 			SELECT template_version_id FROM (
 				SELECT
 				    DISTINCT ON (workspace_id) template_version_id, transition
