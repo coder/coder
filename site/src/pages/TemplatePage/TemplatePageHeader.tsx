@@ -3,7 +3,7 @@ import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 import { useQuery } from "react-query";
-import { workspacesByQuery } from "api/queries/workspaces";
+import { workspaces } from "api/queries/workspaces";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
   AuthorizationResponse,
@@ -52,7 +52,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
 
   const queryText = `template:${templateName}`;
   const workspaceCountQuery = useQuery({
-    ...workspacesByQuery(queryText),
+    ...workspaces({ q: queryText }),
     select: (res) => res.count,
   });
 
