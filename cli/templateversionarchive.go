@@ -79,10 +79,7 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 
 				err := client.SetArchiveTemplateVersion(ctx, version.ID, !unarchive.Value())
 				if err != nil {
-					failed++
-					_, _ = fmt.Fprintln(inv.Stderr, fmt.Sprintf("Failed to archive template version %q: %s", version.Name,
-						pretty.Sprint(cliui.DefaultStyles.Error, err.Error())))
-					continue
+					return xerrors.Errorf("set template version %q: %w", version.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(
@@ -164,10 +161,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 			for _, template := range templates {
 				resp, err := client.ArchiveTemplateVersions(ctx, template.ID, all.Value())
 				if err != nil {
-					_, _ = fmt.Fprintln(inv.Stderr, fmt.Sprintf("Failed to archive template versions for %q: %s", template.Name,
-						pretty.Sprint(cliui.DefaultStyles.Error, err.Error())))
-					failed++
-					continue
+					return xerrors.Errorf("archive template %q: %w", template.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(
