@@ -38,7 +38,6 @@ type sqlcQuerier interface {
 	// by listing.
 	// Only unused template versions will be archived, which are any versions not
 	// referenced by the latest build of a workspace.
-	// 				used_versions.transition != 'delete',
 	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error

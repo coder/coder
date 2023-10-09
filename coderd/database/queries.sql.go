@@ -5359,9 +5359,8 @@ FROM
 				ORDER BY workspace_id, build_number DESC
 			) AS used_versions
 			WHERE
-				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-				-- 	has a build with the transition "delete". This will prevent that template
-				-- 	version from ever being archived. We need a method to archive deleted workspaces.
+				used_versions.transition != 'delete'
+				AND
 				scoped_template_versions.id = used_versions.template_version_id
 		)
 		  -- Also never archive the active template version
@@ -5395,8 +5394,6 @@ type ArchiveUnusedTemplateVersionsParams struct {
 // by listing.
 // Only unused template versions will be archived, which are any versions not
 // referenced by the latest build of a workspace.
-//
-//	used_versions.transition != 'delete',
 func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, archiveUnusedTemplateVersions,
 		arg.UpdatedAt,

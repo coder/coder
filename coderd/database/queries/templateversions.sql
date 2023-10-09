@@ -204,10 +204,8 @@ FROM
 				ORDER BY workspace_id, build_number DESC
 			) AS used_versions
 			WHERE
-				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-				-- 	has a build with the transition "delete". This will prevent that template
-				-- 	version from ever being archived. We need a method to archive deleted workspaces.
--- 				used_versions.transition != 'delete',
+				used_versions.transition != 'delete'
+				AND
 				scoped_template_versions.id = used_versions.template_version_id
 		)
 		  -- Also never archive the active template version

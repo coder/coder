@@ -19,7 +19,7 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "archive-version <template-name> [template-version-names...] ",
+		Use:   "archive <template-name> [template-version-names...] ",
 		Short: "Archive or unarchive a template version(s).",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
@@ -68,10 +68,21 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 			if unarchive {
 				verb = "unarchived"
 			}
+			failed := 0
 			for _, version := range versions {
+				if version.Archived == !unarchive.Value() {
+					_, _ = fmt.Fprintln(
+						inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" already "+verb),
+					)
+					continue
+				}
+
 				err := client.SetArchiveTemplateVersion(ctx, version.ID, !unarchive.Value())
 				if err != nil {
-					return xerrors.Errorf("set archive to %t template versions for %q: %w", !unarchive, template.Name, err)
+					failed++
+					_, _ = fmt.Fprintln(inv.Stderr, fmt.Sprintf("Failed to archive template version %q: %s", version.Name,
+						pretty.Sprint(cliui.DefaultStyles.Error, err.Error())))
+					continue
 				}
 
 				_, _ = fmt.Fprintln(
@@ -79,6 +90,9 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 				)
 			}
 
+			if failed > 0 {
+				return xerrors.Errorf("failed on %d template versions", failed)
+			}
 			return nil
 		},
 	}
@@ -90,7 +104,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 	var all clibase.Bool
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "archive-template [template-name...] ",
+		Use:   "archive [template-name...] ",
 		Short: "Archive unused failed template versions from a given template(s)",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
@@ -146,14 +160,18 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 				return err
 			}
 
+			failed := 0
 			for _, template := range templates {
 				resp, err := client.ArchiveTemplateVersions(ctx, template.ID, all.Value())
 				if err != nil {
-					return xerrors.Errorf("archive template versions for %q: %w", template.Name, err)
+					_, _ = fmt.Fprintln(inv.Stderr, fmt.Sprintf("Failed to archive template versions for %q: %s", template.Name,
+						pretty.Sprint(cliui.DefaultStyles.Error, err.Error())))
+					failed++
+					continue
 				}
 
 				_, _ = fmt.Fprintln(
-					inv.Stdout, fmt.Sprintf("Archive %s versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
+					inv.Stdout, fmt.Sprintf("Archived %d versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
 				)
 
 				if ok, _ := inv.ParsedFlags().GetBool("verbose"); err == nil && ok {
@@ -167,6 +185,9 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 				}
 			}
 
+			if failed > 0 {
+				return xerrors.Errorf("failed on %d templates", failed)
+			}
 			return nil
 		},
 	}

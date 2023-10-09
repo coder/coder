@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/pretty"
+
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -29,6 +31,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 		},
 		Children: []*clibase.Cmd{
 			r.templateVersionsList(),
+			r.archiveTemplateVersion(),
 		},
 	}
 
@@ -42,6 +45,8 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 	)
 	client := new(codersdk.Client)
 
+	var includeArchived clibase.Bool
+
 	cmd := &clibase.Cmd{
 		Use: "list <template>",
 		Middleware: clibase.Chain(
@@ -49,6 +54,14 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Short: "List all the versions of the specified template",
+		Options: clibase.OptionSet{
+			{
+				Name:        "include-archived",
+				Description: "Include archived versions in the result list.",
+				Flag:        "include-archived",
+				Value:       &includeArchived,
+			},
+		},
 		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -59,7 +72,8 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
 			req := codersdk.TemplateVersionsByTemplateRequest{
-				TemplateID: template.ID,
+				TemplateID:      template.ID,
+				IncludeArchived: includeArchived.Value(),
 			}
 
 			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
@@ -92,6 +106,7 @@ type templateVersionRow struct {
 	CreatedBy string    `json:"-" table:"created by"`
 	Status    string    `json:"-" table:"status"`
 	Active    string    `json:"-" table:"active"`
+	Archived  string    `json:"-" table:"archived"`
 }
 
 // templateVersionsToRows converts a list of template versions to a list of rows
@@ -104,6 +119,11 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			activeStatus = cliui.Keyword("Active")
 		}
 
+		archivedStatus := ""
+		if templateVersion.Archived {
+			archivedStatus = pretty.Sprint(cliui.DefaultStyles.Warn, "Archived")
+		}
+
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
 			Name:            templateVersion.Name,
@@ -111,6 +131,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			CreatedBy:       templateVersion.CreatedBy.Username,
 			Status:          strings.Title(string(templateVersion.Job.Status)),
 			Active:          activeStatus,
+			Archived:        archivedStatus,
 		}
 	}
 
