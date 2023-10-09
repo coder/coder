@@ -36,11 +36,12 @@ func (r *RootCmd) externalAuthAccessToken() *clibase.Cmd {
 				Description: "Ensure that the user is authenticated with GitHub before cloning.",
 				Command: `#!/usr/bin/env sh
 
-if coder external-auth access-token github ; then
+OUTPUT=$(coder external-auth access-token github)
+if [ $? -eq 0 ]; then
   echo "Authenticated with GitHub"
 else
   echo "Please authenticate with GitHub:"
-  coder external-auth url github
+  echo $OUTPUT
 fi
 `,
 			},
