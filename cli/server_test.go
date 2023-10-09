@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"gopkg.in/yaml.v3"
+	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -1620,6 +1622,352 @@ func TestServer_Shutdown(t *testing.T) {
 	// has already exited, which could cause the test to fail due to interrupt.
 	err = <-serverErr
 	require.NoError(t, err)
+}
+
+func TestServer_DERP(t *testing.T) {
+	t.Parallel()
+
+	const accessURL = "http://example.com:1234"
+	accessURLParsed, err := url.Parse(accessURL)
+	require.NoError(t, err)
+
+	accessURLPort := 0
+	if accessURLParsed.Port() != "" {
+		accessURLPort, err = strconv.Atoi(accessURLParsed.Port())
+		require.NoError(t, err)
+	} else if accessURLParsed.Scheme == "https" {
+		accessURLPort = 443
+	} else {
+		accessURLPort = 80
+	}
+
+	customDERPMap := &tailcfg.DERPMap{
+		Regions: map[int]*tailcfg.DERPRegion{
+			1111: {
+				RegionID: 1111,
+				Nodes: []*tailcfg.DERPNode{
+					{
+						Name:     "1111a",
+						HostName: "derp1.example.com",
+						DERPPort: 443,
+						STUNPort: 444,
+					},
+					{
+						Name:     "1111b",
+						HostName: "derp2.example.com",
+						DERPPort: 443,
+						STUNPort: -1,
+					},
+					{
+						Name:     "1111c",
+						HostName: "stun.example.com",
+						STUNPort: 1234,
+						STUNOnly: true,
+					},
+				},
+			},
+		},
+	}
+
+	// Write to file.
+	customMapPath := filepath.Join(t.TempDir(), "custom-derp-map.json")
+	f, err := os.Create(customMapPath)
+	require.NoError(t, err)
+	err = json.NewEncoder(f).Encode(customDERPMap)
+	_ = f.Close()
+	require.NoError(t, err)
+
+	// Start a fake server responding with a DERP map.
+	customMapServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		err := json.NewEncoder(w).Encode(customDERPMap)
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(customMapServer.Close)
+
+	cases := []struct {
+		name       string
+		flags      []string
+		expectErr  string
+		expectFn   func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo)
+		expectLogs []string // checked using strings.Contains()
+	}{
+		{
+			name:  "Default",
+			flags: []string{},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.False(t, info.DERPForceWebSockets)
+				require.False(t, info.DisableDirectConnections)
+
+				// Should not have a region with ID 999.
+				require.NotContains(t, info.DERPMap.RegionIDs(), 999)
+
+				// Should have a other regions though (the Taiscale regions).
+				require.NotEmpty(t, info.DERPMap.RegionIDs())
+
+				require.True(t, info.DERPMap.HasSTUN())
+			},
+		},
+		{
+			name: "BuiltIn",
+			flags: []string{
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.False(t, info.DERPForceWebSockets)
+				require.False(t, info.DisableDirectConnections)
+
+				// Should have 1 + len(codersdk.DefaultSTUNAddresses) regions.
+				require.Len(t, info.DERPMap.RegionIDs(), 1+len(codersdk.DefaultSTUNAddresses))
+
+				// Should have a region with ID 999.
+				require.Contains(t, info.DERPMap.RegionIDs(), 999)
+				require.Len(t, info.DERPMap.Regions[999].Nodes, 1)
+				require.Equal(t, info.DERPMap.Regions[999].Nodes[0].HostName, accessURLParsed.Hostname())
+				require.Equal(t, info.DERPMap.Regions[999].Nodes[0].DERPPort, accessURLPort)
+				require.Equal(t, info.DERPMap.Regions[999].Nodes[0].STUNPort, -1)
+
+				// Should have other regions
+				// 999 + 1..len(codersdk.DefaultSTUNAddresses).
+				for i := 1; i <= len(codersdk.DefaultSTUNAddresses); i++ {
+					require.Contains(t, info.DERPMap.RegionIDs(), 999+i)
+					require.Len(t, info.DERPMap.Regions[999+i].Nodes, 1)
+					require.True(t, info.DERPMap.Regions[999+i].Nodes[0].STUNOnly)
+				}
+			},
+		},
+		{
+			name: "ConfigURLAndPath",
+			flags: []string{
+				"--derp-server-enable=false",
+				"--use-tailscale-derps=false",
+				"--derp-config-url=https://nothing/derp-config",
+				"--derp-config-path=/tmp/derp-config",
+			},
+			expectErr: "cannot specify both --derp-config-url and --derp-config-path",
+		},
+		{
+			name: "Nothing",
+			flags: []string{
+				"--derp-server-enable=false",
+				"--use-tailscale-derps=false",
+			},
+			expectErr: "must specify a DERP map URL (e.g. via CODER_USE_TAILSCALE_DERPS=true) or enable the built-in DERP server",
+		},
+		{
+			name: "CustomBuiltIn",
+			flags: []string{
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+				"--derp-server-region-id=1234",
+				"--derp-server-region-code=dean",
+				"--derp-server-region-name=Dean's House",
+				"--derp-server-stun-addresses=1.2.3.4:5678,8.7.6.5:4321",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				// Should have 1 + 2 regions.
+				require.Len(t, info.DERPMap.RegionIDs(), 1+2)
+
+				// Should have a region with ID 1234.
+				require.Contains(t, info.DERPMap.RegionIDs(), 1234)
+				require.Equal(t, info.DERPMap.Regions[1234].RegionID, 1234)
+				require.Equal(t, info.DERPMap.Regions[1234].RegionCode, "dean")
+				require.Equal(t, info.DERPMap.Regions[1234].RegionName, "Dean's House")
+				require.Len(t, info.DERPMap.Regions[1234].Nodes, 1)
+
+				// Should have two other regions for STUN.
+				for i := 1; i <= 2; i++ {
+					require.Contains(t, info.DERPMap.RegionIDs(), 1234+i)
+					require.Len(t, info.DERPMap.Regions[1234+i].Nodes, 1)
+					require.True(t, info.DERPMap.Regions[1234+i].Nodes[0].STUNOnly)
+				}
+			},
+		},
+		{
+			name: "ForceWebSockets",
+			flags: []string{
+				"--derp-force-websockets",
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, info.DERPForceWebSockets)
+			},
+		},
+		{
+			name: "DisableDirectConnections/Default",
+			flags: []string{
+				"--block-direct-connections",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, info.DisableDirectConnections)
+
+				// Should not have a region with ID 999.
+				require.NotContains(t, info.DERPMap.RegionIDs(), 999)
+
+				// Should have a other regions though (the Taiscale regions).
+				require.NotEmpty(t, info.DERPMap.RegionIDs())
+
+				// No STUN servers.
+				require.False(t, info.DERPMap.HasSTUN())
+			},
+			expectLogs: []string{
+				"the deployment has CODER_BLOCK_DIRECT set to `false`, and CODER_USE_TAILSCALE_DERPS is set to the default value `true",
+			},
+		},
+		{
+			name: "DisableDirectConnections/BuiltIn",
+			flags: []string{
+				"--block-direct-connections",
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, info.DisableDirectConnections)
+
+				// Single region.
+				require.Equal(t, info.DERPMap.RegionIDs(), []int{999})
+
+				// No STUN servers.
+				require.False(t, info.DERPMap.HasSTUN())
+			},
+		},
+		{
+			name: "ConfigURL/http",
+			flags: []string{
+				"--derp-server-enable=false",
+				"--use-tailscale-derps=false",
+				"--derp-config-url=" + customMapServer.URL,
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, tailnet.CompareDERPMaps(customDERPMap, info.DERPMap))
+			},
+		},
+		{
+			name: "ConfigURL/Path",
+			flags: []string{
+				"--derp-server-enable=false",
+				"--use-tailscale-derps=false",
+				"--derp-config-url=file:" + customMapPath,
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, tailnet.CompareDERPMaps(customDERPMap, info.DERPMap))
+			},
+		},
+		{
+			name: "ConfigPath",
+			flags: []string{
+				"--derp-server-enable=false",
+				"--use-tailscale-derps=false",
+				"--derp-config-path=" + customMapPath,
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				require.True(t, tailnet.CompareDERPMaps(customDERPMap, info.DERPMap))
+			},
+		},
+		{
+			name: "TailscaleWithCustomURL",
+			flags: []string{
+				"--derp-config-url=" + customMapServer.URL,
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				// Should only have a region with ID 1111.
+				require.Equal(t, info.DERPMap.RegionIDs(), []int{1111})
+			},
+			expectLogs: []string{
+				"the deployment has CODER_DERP_CONFIG_URL or CODER_DERP_CONFIG_PATH set, and CODER_USE_TAILSCALE_DERPS is set to the default value `true`",
+			},
+		},
+		{
+			name: "TailscaleAndBuiltIn",
+			flags: []string{
+				"--derp-server-enable",
+			},
+			expectFn: func(t *testing.T, info codersdk.WorkspaceAgentConnectionInfo) {
+				// Should have 1 + len(codersdk.DefaultSTUNAddresses) regions.
+				require.Len(t, info.DERPMap.RegionIDs(), 1+len(codersdk.DefaultSTUNAddresses))
+
+				// Should have a region with ID 999.
+				require.Contains(t, info.DERPMap.RegionIDs(), 999)
+				require.Len(t, info.DERPMap.Regions[999].Nodes, 1)
+
+				// Should have other regions
+				// 999 + 1..len(codersdk.DefaultSTUNAddresses).
+				for i := 1; i <= len(codersdk.DefaultSTUNAddresses); i++ {
+					require.Contains(t, info.DERPMap.RegionIDs(), 999+i)
+					require.Len(t, info.DERPMap.Regions[999+i].Nodes, 1)
+					require.True(t, info.DERPMap.Regions[999+i].Nodes[0].STUNOnly)
+				}
+			},
+			expectLogs: []string{
+				"the deployment has CODER_DERP_SERVER_ENABLE set to `true`, and is using CODER_USE_TAILSCALE_DERPS=true",
+			},
+		},
+		{
+			name: "CustomURLAndBuiltIn",
+			flags: []string{
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+				"--derp-config-url=" + customMapServer.URL,
+			},
+			expectErr: "cannot specify both --derp-config-url or --derp-config-path and --derp-server-enable",
+		},
+		{
+			name: "CustomPathAndBuiltIn",
+			flags: []string{
+				"--derp-server-enable",
+				"--use-tailscale-derps=false",
+				"--derp-config-path=" + customMapPath,
+			},
+			expectErr: "cannot specify both --derp-config-url or --derp-config-path and --derp-server-enable",
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+			defer cancelFunc()
+
+			flags := append([]string{
+				"server",
+				"--in-memory",
+				"--http-address", ":0",
+				"--access-url", accessURL,
+				"--provisioner-daemons", "0",
+				"--cache-dir", t.TempDir(),
+			}, c.flags...)
+			inv, cfg := clitest.New(t, flags...)
+			b := bytes.NewBuffer(nil)
+			inv.Stderr = b
+
+			waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
+
+			if c.expectErr != "" {
+				waiter.RequireContains(c.expectErr)
+				return
+			}
+
+			accessURL := waitAccessURL(t, cfg)
+			client := codersdk.New(accessURL)
+
+			_ = coderdtest.CreateFirstUser(t, client)
+			info, err := client.WorkspaceAgentConnectionInfoGeneric(ctx)
+			require.NoError(t, err)
+
+			cancelFunc()
+			waiter.RequireSuccess()
+			c.expectFn(t, info)
+
+			logs := b.String()
+			for _, log := range c.expectLogs {
+				require.Contains(t, logs, log)
+			}
+		})
+	}
 }
 
 func BenchmarkServerHelp(b *testing.B) {

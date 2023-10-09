@@ -18,27 +18,16 @@ import (
 
 func TestNewDERPMap(t *testing.T) {
 	t.Parallel()
-	t.Run("IndividualSTUNRegions", func(t *testing.T) {
+	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 			RegionID: 1,
 			Nodes:    []*tailcfg.DERPNode{{}},
-		}, []string{"stun.google.com:2345"}, true, false, "")
+		}, []string{"stun.google.com:2345"}, false, "")
 		require.NoError(t, err)
 		require.Len(t, derpMap.Regions, 2)
 		require.Len(t, derpMap.Regions[1].Nodes, 1)
 		require.Len(t, derpMap.Regions[2].Nodes, 1)
-	})
-
-	t.Run("MergedSTUNRegions", func(t *testing.T) {
-		t.Parallel()
-		derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
-			RegionID: 1,
-			Nodes:    []*tailcfg.DERPNode{{}},
-		}, []string{"stun.google.com:2345"}, false, false, "")
-		require.NoError(t, err)
-		require.Len(t, derpMap.Regions, 1)
-		require.Len(t, derpMap.Regions[1].Nodes, 2)
 	})
 
 	t.Run("RemoteURL", func(t *testing.T) {
@@ -57,7 +46,7 @@ func TestNewDERPMap(t *testing.T) {
 			t.Cleanup(server.Close)
 			derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, server.URL)
+			}, []string{}, false, server.URL)
 			require.NoError(t, err)
 			require.Len(t, derpMap.Regions, 2)
 		})
@@ -84,7 +73,7 @@ func TestNewDERPMap(t *testing.T) {
 
 			_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, "http://"+listener.Addr().String())
+			}, []string{}, false, "http://"+listener.Addr().String())
 			require.Error(t, err)
 
 			_ = listener.Close()
@@ -105,7 +94,7 @@ func TestNewDERPMap(t *testing.T) {
 			t.Cleanup(server.Close)
 			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, server.URL)
+			}, []string{}, false, server.URL)
 			require.Error(t, err)
 		})
 
@@ -117,7 +106,7 @@ func TestNewDERPMap(t *testing.T) {
 			t.Cleanup(server.Close)
 			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, server.URL)
+			}, []string{}, false, server.URL)
 			require.Error(t, err)
 		})
 	})
@@ -138,7 +127,7 @@ func TestNewDERPMap(t *testing.T) {
 			require.NoError(t, err)
 			derpMap, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, "file:"+localPath)
+			}, []string{}, false, "file:"+localPath)
 			require.NoError(t, err)
 			require.Len(t, derpMap.Regions, 2)
 		})
@@ -148,7 +137,7 @@ func TestNewDERPMap(t *testing.T) {
 			localPath := filepath.Join(t.TempDir(), "derp.json")
 			_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, "file:"+localPath)
+			}, []string{}, false, "file:"+localPath)
 			require.Error(t, err)
 		})
 
@@ -159,7 +148,7 @@ func TestNewDERPMap(t *testing.T) {
 			require.NoError(t, err)
 			_, err = tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 				RegionID: 2,
-			}, []string{}, false, false, "file:"+localPath)
+			}, []string{}, false, "file:"+localPath)
 			require.Error(t, err)
 		})
 	})
@@ -177,7 +166,7 @@ func TestNewDERPMap(t *testing.T) {
 		t.Cleanup(server.Close)
 		_, err := tailnet.NewDERPMap(context.Background(), &tailcfg.DERPRegion{
 			RegionID: 1,
-		}, []string{}, false, false, server.URL)
+		}, []string{}, false, server.URL)
 		require.Error(t, err)
 	})
 
@@ -216,7 +205,7 @@ func TestNewDERPMap(t *testing.T) {
 				STUNPort: 1234,
 			}},
 		}
-		derpMap, err := tailnet.NewDERPMap(context.Background(), region, []string{"127.0.0.1:54321"}, false, true, "file:"+localPath)
+		derpMap, err := tailnet.NewDERPMap(context.Background(), region, []string{"127.0.0.1:54321"}, true, "file:"+localPath)
 		require.NoError(t, err)
 		require.Len(t, derpMap.Regions, 3)
 

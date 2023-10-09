@@ -100,8 +100,8 @@ networking:
   #  Tailscale and WireGuard.
   derp:
     # Whether to enable or disable the embedded DERP relay server.
-    # (default: true, type: bool)
-    enable: true
+    # (default: false, type: bool)
+    enable: false
     # Region ID to use for the embedded DERP server.
     # (default: 999, type: int)
     regionID: 999
@@ -143,13 +143,18 @@ networking:
     # (default: <unset>, type: bool)
     forceWebSockets: false
     # URL to fetch a DERP mapping on startup. See:
-    # https://tailscale.com/kb/1118/custom-derp-servers/.
+    # https://tailscale.com/kb/1118/custom-derp-servers/. Use
+    # `file:~/path/to/derpmap.json` for local paths.
     # (default: <unset>, type: string)
     url: ""
     # Path to read a DERP mapping from. See:
     # https://tailscale.com/kb/1118/custom-derp-servers/.
     # (default: <unset>, type: string)
     configPath: ""
+    # Use Tailscale's global relay and STUN network for your DERP mapping. This value
+    # will be ignored if you set a `--derp-config-url` or use `--derp-server-enable`.
+    # (default: true, type: bool)
+    useTailscaleDERPs: true
   # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
   # True-Client-Ip, X-Forwarded-For.
   # (default: <unset>, type: string-array)

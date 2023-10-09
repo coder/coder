@@ -109,6 +109,7 @@ type Options struct {
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
+	UseTailscaleDERPs     bool
 
 	HealthcheckFunc    func(ctx context.Context, apiKey string) *healthcheck.Report
 	HealthcheckTimeout time.Duration
@@ -360,6 +361,14 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
+	baseDERPMapURL := ""
+	if !options.UseTailscaleDERPs {
+		options.DeploymentValues.DERP.Server.Enable = true
+		options.DeploymentValues.DERP.Config.UseTailscaleDERPs = false
+	} else {
+		baseDERPMapURL = codersdk.TailscaleDERPMapURL
+	}
+
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -380,7 +389,8 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if !options.DeploymentValues.DERP.Server.Enable.Value() {
 		region = nil
 	}
-	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses, "", "", options.DeploymentValues.DERP.Config.BlockDirect.Value())
+
+	derpMap, err := tailnet.NewDERPMap(ctx, region, stunAddresses, options.DeploymentValues.DERP.Config.BlockDirect.Value(), baseDERPMapURL)
 	require.NoError(t, err)
 
 	return func(h http.Handler) {

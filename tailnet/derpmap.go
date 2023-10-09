@@ -79,7 +79,7 @@ func STUNRegions(baseRegionID int, stunAddrs []string) ([]*tailcfg.DERPRegion, e
 // is fetched via HTTP GET. Optional.
 //
 //nolint:revive
-func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, individualSTUNRegions bool, disableSTUN bool, baseMapURL string) (*tailcfg.DERPMap, error) {
+func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []string, disableSTUN bool, baseMapURL string) (*tailcfg.DERPMap, error) {
 	if disableSTUN {
 		stunAddrs = nil
 	}
@@ -91,21 +91,11 @@ func NewDERPMap(ctx context.Context, region *tailcfg.DERPRegion, stunAddrs []str
 	if region != nil {
 		addRegions = append(addRegions, region)
 
-		if individualSTUNRegions {
-			stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
-			if err != nil {
-				return nil, xerrors.Errorf("create stun regions: %w", err)
-			}
-			addRegions = append(addRegions, stunRegions...)
-		} else {
-			for index, stunAddr := range stunAddrs {
-				node, err := STUNNode(region.RegionID, index, stunAddr)
-				if err != nil {
-					return nil, xerrors.Errorf("create stun node: %w", err)
-				}
-				region.Nodes = append(region.Nodes, node)
-			}
+		stunRegions, err := STUNRegions(region.RegionID, stunAddrs)
+		if err != nil {
+			return nil, xerrors.Errorf("create stun regions: %w", err)
 		}
+		addRegions = append(addRegions, stunRegions...)
 	}
 
 	derpMap := &tailcfg.DERPMap{

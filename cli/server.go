@@ -2165,37 +2165,47 @@ func createDERPMap(ctx context.Context, logger slog.Logger, vals *codersdk.Deplo
 	}
 
 	baseMapURL := vals.DERP.Config.URL.String()
-	if baseMapURL != "" && vals.DERP.Config.Path.String() != "" {
-		return nil, xerrors.Errorf("cannot specify both --derp-config-url and --derp-config-path")
-	} else {
+	if vals.DERP.Config.Path.String() != "" {
+		if baseMapURL != "" {
+			return nil, xerrors.Errorf("cannot specify both --derp-config-url and --derp-config-path")
+		}
 		baseMapURL = "file:" + vals.DERP.Config.Path.String()
 	}
 
 	// If they have a URL or path already set above, it takes precedence over
 	// the Tailscale DERP map value since Tailscale defaults to true.
 	if vals.DERP.Config.UseTailscaleDERPs.Value() {
-		if baseMapURL != "" {
+		if baseMapURL == "" {
 			baseMapURL = codersdk.TailscaleDERPMapURL
+
+			// If STUN is disabled on Tailscale DERPs warn about it. This is
+			// most likely a configuration mistake.
+			if vals.DERP.Config.BlockDirect.Value() {
+				logger.Warn(ctx, "the deployment has CODER_BLOCK_DIRECT set to `false`, and CODER_USE_TAILSCALE_DERPS is set to the default value `true`. Tailscale DERPs will not use STUN and direct connections will be blocked")
+			}
 		} else if baseMapURL != codersdk.TailscaleDERPMapURL {
 			// We add the check to the if statement in case they're manually
 			// setting the URL to the Tailscale DERP URL.
-			logger.Warn(ctx, "The deployment has CODER_DERP_CONFIG_URL or CODER_DERP_CONFIG_PATH set, and CODER_USE_TAILSCALE_DERPS is set to the default value `true`. Tailscale DERPs will not be used.")
+			logger.Warn(ctx, "the deployment has CODER_DERP_CONFIG_URL or CODER_DERP_CONFIG_PATH set, and CODER_USE_TAILSCALE_DERPS is set to the default value `true`. Tailscale DERPs will NOT be used. Please set CODER_USE_TAILSCALE_DERPS to `false`")
 		}
 	}
 
-	// If the admin is using Tailscale's DERP map, then we don't want to
-	// put the configured STUN addresses in their own regions to avoid
-	// doing any funky stuff with the DERP map.
-	//
-	// Each Tailscale DERP map region has STUN servers already so we don't need
-	// to worry about hard NAT probing failing because only one region has STUN
-	// servers.
-	individualSTUNRegions := baseMapURL != codersdk.TailscaleDERPMapURL
+	// If the built-in DERP server is enabled, we disable Tailscale DERPs. If
+	// the custom map URL is not the Tailscale DERP map URL, we fail.
+	if baseMapURL == codersdk.TailscaleDERPMapURL && defaultRegion != nil {
+		logger.Warn(ctx, "the deployment has CODER_DERP_SERVER_ENABLE set to `true`, and is using CODER_USE_TAILSCALE_DERPS=true. Tailscale DERPs will NOT be used. Please set CODER_USE_TAILSCALE_DERPS=false or CODER_DERP_SERVER_ENABLE=false")
+		baseMapURL = ""
+	} else if baseMapURL != "" && defaultRegion != nil {
+		return nil, xerrors.Errorf("cannot specify both --derp-config-url or --derp-config-path and --derp-server-enable")
+	}
+
+	if baseMapURL == "" && defaultRegion == nil {
+		return nil, xerrors.New("must specify a DERP map URL (e.g. via CODER_USE_TAILSCALE_DERPS=true) or enable the built-in DERP server")
+	}
 
 	derpMap, err := tailnet.NewDERPMap(
 		ctx, defaultRegion,
 		vals.DERP.Server.STUNAddresses,
-		individualSTUNRegions,
 		vals.DERP.Config.BlockDirect.Value(),
 		baseMapURL,
 	)

@@ -168,13 +168,10 @@ backed by Tailscale and WireGuard.
           until they are restarted after this change has been made, but new
           connections will still be proxied regardless.
 
-      --derp-config-path string, $CODER_DERP_CONFIG_PATH
-          Path to read a DERP mapping from. See:
-          https://tailscale.com/kb/1118/custom-derp-servers/.
-
       --derp-config-url string, $CODER_DERP_CONFIG_URL
           URL to fetch a DERP mapping on startup. See:
-          https://tailscale.com/kb/1118/custom-derp-servers/.
+          https://tailscale.com/kb/1118/custom-derp-servers/. Use
+          `file:~/path/to/derpmap.json` for local paths.
 
       --derp-force-websockets bool, $CODER_DERP_FORCE_WEBSOCKETS
           Force clients and agents to always use WebSocket to connect to DERP
@@ -183,7 +180,7 @@ backed by Tailscale and WireGuard.
           to WebSocket if they detect an issue with `Upgrade: derp`, but this
           does not work in all situations.
 
-      --derp-server-enable bool, $CODER_DERP_SERVER_ENABLE (default: true)
+      --derp-server-enable bool, $CODER_DERP_SERVER_ENABLE (default: false)
           Whether to enable or disable the embedded DERP relay server.
 
       --derp-server-region-name string, $CODER_DERP_SERVER_REGION_NAME (default: Coder Embedded Relay)
@@ -195,6 +192,11 @@ backed by Tailscale and WireGuard.
           chance of connecting P2P to workspaces. Each STUN server will get it's
           own DERP region, with region IDs starting at `--derp-server-region-id
           + 1`. Use special value 'disable' to turn off STUN completely.
+
+      --use-tailscale-derps bool, $CODER_USE_TAILSCALE_DERPS (default: true)
+          Use Tailscale's global relay and STUN network for your DERP mapping.
+          This value will be ignored if you set a `--derp-config-url` or use
+          `--derp-server-enable`.
 
 NETWORKING / HTTP OPTIONS: 
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
