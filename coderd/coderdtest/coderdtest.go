@@ -857,6 +857,9 @@ func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uui
 		if !assert.NoError(t, err) {
 			return false
 		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
 		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
 			return false
 		}
