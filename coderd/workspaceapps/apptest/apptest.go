@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -550,6 +551,118 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				})
 			}
 		})
+	})
+
+	t.Run("WorkspaceAppsProxySubdomainHostnamePrefix/OK", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, nil)
+
+		// Try to load the owner app with a prefix.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		prefixedOwnerApp := appDetails.Apps.Owner
+		prefixedOwnerApp.Prefix = "some---prefix---"
+
+		u := appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, resp.Header.Get("X-Got-Host"), u.Host)
+
+		// Parse the returned signed token to verify that it contains the
+		// prefix.
+		var appTokenCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.SignedAppTokenCookie {
+				appTokenCookie = c
+				break
+			}
+		}
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+
+		// Parse the JWT without verifying it (since we can't access the key
+		// from this test).
+		object, err := jose.ParseSigned(appTokenCookie.Value)
+		require.NoError(t, err)
+		require.Len(t, object.Signatures, 1)
+
+		// Parse the payload.
+		var tok workspaceapps.SignedToken
+		//nolint:gosec
+		err = json.Unmarshal(object.UnsafePayloadWithoutVerification(), &tok)
+		require.NoError(t, err)
+
+		// Verify the prefix is in the token.
+		require.Equal(t, prefixedOwnerApp.Prefix, tok.Request.Prefix)
+
+		// Ensure the signed app token cookie is valid by making a request with
+		// it with no session token.
+		appTokenClient := appDetails.AppClient(t)
+		appTokenClient.SetSessionToken("")
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
+
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, resp.Header.Get("X-Got-Host"), u.Host)
+	})
+
+	t.Run("WorkspaceAppsProxySubdomainHostnamePrefix/Different", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, nil)
+
+		// Try to load the owner app with a prefix.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		prefixedOwnerApp := appDetails.Apps.Owner
+		t.Log(appDetails.SubdomainAppURL(prefixedOwnerApp))
+		prefixedOwnerApp.Prefix = "some---prefix---"
+		t.Log(appDetails.SubdomainAppURL(prefixedOwnerApp))
+
+		u := appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Find the cookie.
+		var appTokenCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.SignedAppTokenCookie {
+				appTokenCookie = c
+				break
+			}
+		}
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+
+		// Ensure the signed app token cookie is valid only for the given prefix
+		// by making a request with it with no session token.
+		appTokenClient := appDetails.AppClient(t)
+		appTokenClient.SetSessionToken("")
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
+
+		prefixedOwnerApp.Prefix = "different---"
+		u = appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.NotEqual(t, http.StatusOK, resp.StatusCode)
 	})
 
 	// This test ensures that the subdomain handler does nothing if

@@ -52,6 +52,17 @@ func TestApplicationURLString(t *testing.T) {
 			},
 			Expected: "app-90667f72",
 		},
+		{
+			Name: "Prefix",
+			URL: httpapi.ApplicationURL{
+				Prefix:        "yolo---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "yolo---app--agent--workspace--user",
+		},
 	}
 
 	for _, c := range testCases {
@@ -131,6 +142,17 @@ func TestParseSubdomainAppURL(t *testing.T) {
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
+			},
+		},
+		{
+			Name:      "Prefix",
+			Subdomain: "dean---was---here---app--agent--workspace--user",
+			Expected: httpapi.ApplicationURL{
+				Prefix:        "dean---was---here---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
 			},
 		},
 	}
