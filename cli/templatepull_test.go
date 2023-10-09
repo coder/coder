@@ -101,10 +101,7 @@ func TestTemplatePull_ActiveOldStdout(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 
-	// Create an initial template bundle.
 	source1 := genTemplateVersionSource()
-	// Create an updated template bundle. This will be used to ensure
-	// that templates are correctly returned in order from latest to oldest.
 	source2 := genTemplateVersionSource()
 
 	expected, err := echo.Tar(source1)
@@ -115,8 +112,6 @@ func TestTemplatePull_ActiveOldStdout(t *testing.T) {
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
-	// Update the template version so that we can assert that templates
-	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
@@ -157,8 +152,6 @@ func TestTemplatePull_SpecifiedStdout(t *testing.T) {
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
-	// Update the template version so that we can assert that templates
-	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
