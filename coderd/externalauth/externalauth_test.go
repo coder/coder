@@ -261,7 +261,7 @@ func TestRefreshToken(t *testing.T) {
 		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken, "token is updated in the DB")
 	})
 
-	t.Run("SlackUserToken", func(t *testing.T) {
+	t.Run("WithExtra", func(t *testing.T) {
 		t.Parallel()
 
 		db := dbfake.New()
@@ -277,7 +277,7 @@ func TestRefreshToken(t *testing.T) {
 			},
 			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderSlack.String()
-				cfg.SlackAuthedUserToken = true
+				cfg.ExtraTokenKeys = []string{"authed_user"}
 				cfg.ValidateURL = ""
 			},
 			DB: db,
@@ -290,7 +290,7 @@ func TestRefreshToken(t *testing.T) {
 		updated, ok, err := config.RefreshToken(ctx, db, link)
 		require.NoError(t, err)
 		require.True(t, ok)
-		require.Equal(t, "slack-user-token", updated.OAuthAccessToken)
+		require.True(t, updated.OAuthExtra.Valid)
 	})
 }
 

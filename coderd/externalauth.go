@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // @Summary Get external auth by ID
@@ -201,6 +203,24 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			apiKey = httpmw.APIKey(r)
 		)
 
+		extra := pqtype.NullRawMessage{}
+		if len(externalAuthConfig.ExtraTokenKeys) > 0 {
+			extraMap := map[string]interface{}{}
+			for _, key := range externalAuthConfig.ExtraTokenKeys {
+				extraMap[key] = state.Token.Extra(key)
+			}
+			extraData, err := json.Marshal(extraMap)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to marshal extra token keys.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			extra.RawMessage = extraData
+			extra.Valid = true
+		}
+
 		_, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: externalAuthConfig.ID,
 			UserID:     apiKey.UserID,
@@ -224,6 +244,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshToken:      state.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 				OAuthExpiry:            state.Token.Expiry,
+				OAuthExtra:             extra,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -242,6 +263,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshToken:      state.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:            state.Token.Expiry,
+				OAuthExtra:             extra,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

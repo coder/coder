@@ -4246,6 +4246,7 @@ func (q *FakeQuerier) InsertExternalAuthLink(_ context.Context, arg database.Ins
 		OAuthRefreshToken:      arg.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: arg.OAuthRefreshTokenKeyID,
 		OAuthExpiry:            arg.OAuthExpiry,
+		OAuthExtra:             arg.OAuthExtra,
 	}
 	q.externalAuthLinks = append(q.externalAuthLinks, gitAuthLink)
 	return gitAuthLink, nil
@@ -5301,6 +5302,7 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthRefreshTokenKeyID = arg.OAuthRefreshTokenKeyID
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
+		gitAuthLink.OAuthExtra = arg.OAuthExtra
 		q.externalAuthLinks[index] = gitAuthLink
 
 		return gitAuthLink, nil
