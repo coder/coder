@@ -267,11 +267,9 @@ func TestRefreshToken(t *testing.T) {
 		db := dbfake.New()
 		fake, config, link := setupOauth2Test(t, testConfig{
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
-				oidctest.WithExtra(func(email string) map[string]interface{} {
-					return map[string]interface{}{
-						"authed_user": map[string]interface{}{
-							"access_token": "slack-user-token",
-						},
+				oidctest.WithMutateToken(func(token map[string]interface{}) {
+					token["authed_user"] = map[string]interface{}{
+						"access_token": "slack-user-token",
 					}
 				}),
 			},
