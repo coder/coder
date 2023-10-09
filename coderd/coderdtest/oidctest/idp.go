@@ -113,6 +113,8 @@ func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 	}
 }
 
+// WithExtra returns extra fields that be accessed on the returned Oauth Token.
+// These extra fields can override the default fields (id_token, access_token, etc).
 func WithExtra(extra func(email string) map[string]interface{}) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookExtra = extra
