@@ -10,8 +10,8 @@ The user can set parameters in the UI and CLI.
 
 You'll likely want to hardcode certain template properties for
 workspaces, such as security group. But you can let developers specify
-other properties with parameters, like instance size, geographical
-location, repository URL, and so on.
+other properties with parameters like instance size, geographical
+location, repository URL, etc.
 
 This example lets a developer choose a Docker host for the
 workspace:
@@ -62,7 +62,7 @@ A Coder parameter can have one of these types:
 - `list(string)`
 
 To specify a default value for a parameter with the `list(string)`
-type use a JSON array and the Terraform
+type uses a JSON array, and the Terraform
 [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
 function. For example:
 
@@ -241,105 +241,9 @@ data "coder_parameter" "project_id" {
 }
 ```
 
-## Legacy
-
-### Legacy parameters are unsupported now
-
-In Coder, workspaces using legacy parameters can't be deployed
-anymore. To address this, it is necessary to either remove or adjust
-incompatible templates. In some cases, deleting a workspace with a
-hard dependency on a legacy parameter may be challenging. To cleanup
-unsupported workspaces, administrators are advised to take the
-following actions for affected templates:
-
-1. Enable the `feature_use_managed_variables` provider flag.
-2. Ensure that every legacy variable block has defined missing default
-   values, or convert it to `coder_parameter`.
-3. Push the new template version using UI or CLI.
-4. Update unsupported workspaces to the newest template version.
-5. Delete the affected workspaces that have been updated to the newest template version.
-
-### Migration
-
-> ⚠️ Migration is available until v0.24.0 (Jun 2023) release.
-
-Terraform `variable` shouldn't be used for workspace scoped parameters
-anymore, and it's required to convert `variable` to `coder_parameter`
-resources. To make the migration smoother, there is a special property
-introduced - `legacy_variable` and `legacy_variable_name` , which can
-link `coder_parameter` with a legacy variable.
-
-```hcl
-variable "legacy_cpu" {
-  sensitive   = false
-  description = "CPU cores"
-  default     = 2
-}
-
-data "coder_parameter" "cpu" {
-  name        = "CPU cores"
-  type        = "number"
-  description = "Number of CPU cores"
-  mutable     = true
-
-  legacy_variable_name = "legacy_cpu"
-  legacy_variable = var.legacy_cpu
-}
-```
-
-#### Steps
-
-1. Prepare and update a new template version:
-
-   - Add `coder_parameter` resource matching the legacy variable to
-     migrate.
-   - Use `legacy_variable_name` and `legacy_variable` to link the
-     `coder_parameter` to the legacy variable.
-   - Mark the new parameter as `mutable`, so that Coder will not block
-     updating existing workspaces.
-
-2. Update all workspaces to the updated template version. Coder will
-   populate the added `coder_parameter`s with values from legacy
-   variables.
-3. Prepare another template version:
-
-   - Remove the migrated variables.
-   - Remove properties `legacy_variable` and `legacy_variable_name`
-     from `coder_parameter`s.
-
-4. Update all workspaces to the updated template version (2nd).
-5. Prepare a third template version:
-
-   - Enable the `feature_use_managed_variables` provider flag to use
-     managed Terraform variables for template customization. Once the
-     flag is enabled, legacy variables won't be used.
-
-6. Update all workspaces to the updated template version (3rd).
-7. Delete legacy parameters.
-
-As a template improvement, the template author can consider making
-some of the new `coder_parameter` resources `mutable`.
-
 ## Terraform template-wide variables
-
-> ⚠️ Flag `feature_use_managed_variables` is available until v0.25.0
-> (Jul 2023) release. After this release, template-wide Terraform
-> variables will be enabled by default.
 
 As parameters are intended to be used only for workspace customization
 purposes, Terraform variables can be freely managed by the template
 author to build templates. Workspace users are not able to modify
 template variables.
-
-The template author can enable Terraform template-wide variables mode
-by specifying the following flag:
-
-```hcl
-provider "coder" {
-  feature_use_managed_variables = "true"
-}
-```
-
-Once it's defined, Coder will allow for modifying variables by using
-CLI and UI forms, but it will not be possible to use legacy
-parameters.
