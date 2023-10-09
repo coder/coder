@@ -2,6 +2,9 @@ import { type FC, useRef, useState } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useDeleteTemplate } from "./deleteTemplate";
 
+import { useQuery } from "react-query";
+import { workspacesByQuery } from "api/queries/workspaces";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
   AuthorizationResponse,
   Template,
@@ -33,7 +36,6 @@ type TemplateMenuProps = {
   templateName: string;
   templateVersion: string;
   onDelete: () => void;
-  onMenuOpen?: () => void;
 };
 
 const TemplateMenu: FC<TemplateMenuProps> = ({
@@ -120,8 +122,16 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
   permissions,
   onDeleteTemplate,
 }) => {
+  const navigate = useNavigate();
+  const deletionState = useDeleteTemplate(template, onDeleteTemplate);
+
+  const queryText = `template:${template.name}`;
+  const workspaceCountQuery = useQuery({
+    ...workspacesByQuery(queryText),
+    select: (res) => res.count,
+  });
+
   const hasIcon = template.icon && template.icon !== "";
-  const deleteTemplate = useDeleteTemplate(template, onDeleteTemplate);
 
   return (
     <Margins>
@@ -141,7 +151,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
               <TemplateMenu
                 templateVersion={activeVersion.name}
                 templateName={template.name}
-                onDelete={deleteTemplate.openDeleteConfirmation}
+                onDelete={deletionState.openDeleteConfirmation}
               />
             )}
           </>
@@ -170,14 +180,54 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
         </Stack>
       </PageHeader>
 
-      <DeleteDialog
-        isOpen={deleteTemplate.isDeleteDialogOpen}
-        confirmLoading={deleteTemplate.state.status === "deleting"}
-        onConfirm={deleteTemplate.confirmDelete}
-        onCancel={deleteTemplate.cancelDeleteConfirmation}
-        entity="template"
-        name={template.name}
-      />
+      {workspaceCountQuery.status === "success" &&
+      workspaceCountQuery.data === 0 ? (
+        <DeleteDialog
+          isOpen={deletionState.isDeleteDialogOpen}
+          onConfirm={deletionState.confirmDelete}
+          onCancel={deletionState.cancelDeleteConfirmation}
+          entity="template"
+          name={template.name}
+        />
+      ) : (
+        <ConfirmDialog
+          type="info"
+          title="Unable to delete"
+          hideCancel={false}
+          open={deletionState.isDeleteDialogOpen}
+          onClose={deletionState.cancelDeleteConfirmation}
+          confirmText="See workspaces"
+          onConfirm={() => {
+            navigate({
+              pathname: "/workspaces",
+              search: new URLSearchParams({ filter: queryText }).toString(),
+            });
+          }}
+          description={
+            <>
+              {workspaceCountQuery.isSuccess && (
+                <>
+                  This template is used by{" "}
+                  <strong>
+                    {workspaceCountQuery.data} workspace
+                    {workspaceCountQuery.data === 1 ? "" : "s"}
+                  </strong>
+                  . Please delete all related workspaces before deleting this
+                  template.
+                </>
+              )}
+
+              {workspaceCountQuery.isLoading && (
+                <>Loading information about workspaces used by this template.</>
+              )}
+
+              {workspaceCountQuery.isError && (
+                <>Unable to determine workspaces used by this template.</>
+              )}
+            </>
+          }
+        />
+      )}
     </Margins>
   );
 };
