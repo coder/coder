@@ -519,13 +519,16 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	name := shell
 	args := []string{caller, script}
 
+	// A preceding space is generally not idiomatic for a shebang,
+	// but in Terraform it's quite standard to use <<EOF for a multi-line
+	// string which would indent with spaces, so we accept it for user-ease.
 	if strings.HasPrefix(strings.TrimSpace(script), "#!") {
 		// If the script starts with a shebang, we should
 		// execute it directly. This is useful for running
 		// scripts that aren't executable.
-		shebang := strings.SplitN(script, "\n", 2)[0]
-		shebang = strings.TrimPrefix(shebang, "#!")
+		shebang := strings.SplitN(strings.TrimSpace(script), "\n", 2)[0]
 		shebang = strings.TrimSpace(shebang)
+		shebang = strings.TrimPrefix(shebang, "#!")
 		words, err := shellquote.Split(shebang)
 		if err != nil {
 			return nil, xerrors.Errorf("split shebang: %w", err)
