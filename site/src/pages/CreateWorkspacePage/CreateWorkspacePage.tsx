@@ -1,11 +1,8 @@
 import { useMachine } from "@xstate/react";
-import {
-  TemplateVersionParameter,
-  WorkspaceBuildParameter,
-} from "api/typesGenerated";
+import { WorkspaceBuildParameter } from "api/typesGenerated";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { type FC, useCallback, useState, useEffect } from "react";
+import { type FC, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -30,10 +27,11 @@ export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId();
+  const [searchParams] = useSearchParams();
   const { template: templateName } = useParams() as { template: string };
   const me = useMe();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode;
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
@@ -52,18 +50,12 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   });
+
   const { template, parameters, permissions, defaultName, versionId } =
     createWorkspaceState.context;
-  const title = createWorkspaceState.matches("autoCreating")
-    ? "Creating workspace..."
-    : "Create workspace";
 
   const [externalAuthPollingState, setExternalAuthPollingState] =
     useState<ExternalAuthPollingState>("idle");
-
-  const startPollingExternalAuth = useCallback(() => {
-    setExternalAuthPollingState("polling");
-  }, []);
 
   const { data: externalAuth, error } = useQuery(
     versionId
@@ -75,40 +67,47 @@ const CreateWorkspacePage: FC = () => {
       : { enabled: false },
   );
 
-  const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
   useEffect(() => {
-    if (allSignedIn) {
-      setExternalAuthPollingState("idle");
-      return;
-    }
-
     if (externalAuthPollingState !== "polling") {
       return;
     }
 
-    // Poll for a maximum of one minute
-    const quitPolling = setTimeout(
+    const pollingTimeoutId = window.setTimeout(
       () => setExternalAuthPollingState("abandoned"),
       60_000,
     );
-    return () => {
-      clearTimeout(quitPolling);
-    };
-  }, [externalAuthPollingState, allSignedIn]);
+
+    return () => window.clearTimeout(pollingTimeoutId);
+  }, [externalAuthPollingState]);
+
+  if (externalAuthPollingState !== "idle") {
+    const allSignedIn = externalAuth?.every((it) => it.authenticated) ?? false;
+    if (allSignedIn) {
+      setExternalAuthPollingState("idle");
+    }
+  }
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle(title)}</title>
+        <title>
+          {pageTitle(
+            createWorkspaceState.matches("autoCreating")
+              ? "Creating workspace..."
+              : "Create workspace",
+          )}
+        </title>
       </Helmet>
+
       {Boolean(
         createWorkspaceState.matches("loadingFormData") ||
           createWorkspaceState.matches("autoCreating"),
       ) && <Loader />}
+
       {createWorkspaceState.matches("loadError") && (
         <ErrorAlert error={error} />
       )}
+
       {createWorkspaceState.matches("idle") && (
         <CreateWorkspacePageView
           defaultName={defaultName}
@@ -119,13 +118,13 @@ const CreateWorkspacePage: FC = () => {
           versionId={versionId}
           externalAuth={externalAuth ?? []}
           externalAuthPollingState={externalAuthPollingState}
-          startPollingExternalAuth={startPollingExternalAuth}
           permissions={permissions as CreateWSPermissions}
           parameters={parameters!}
           creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
-          onCancel={() => {
-            navigate(-1);
+          startPollingExternalAuth={() => {
+            setExternalAuthPollingState("polling");
           }}
+          onCancel={() => navigate(-1)}
           onSubmit={(request, owner) => {
             send({
               type: "CREATE_WORKSPACE",
@@ -144,29 +143,13 @@ export default CreateWorkspacePage;
 const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
 ): WorkspaceBuildParameter[] => {
-  const buildValues: WorkspaceBuildParameter[] = [];
-  Array.from(urlSearchParams.keys())
+  return Array.from(urlSearchParams.keys())
     .filter((key) => key.startsWith("param."))
-    .forEach((key) => {
+    .map((key) => {
       const name = key.replace("param.", "");
       const value = urlSearchParams.get(key) ?? "";
-      buildValues.push({ name, value });
+      return { name, value };
     });
-  return buildValues;
-};
-
-export const orderedTemplateParameters = (
-  templateParameters?: TemplateVersionParameter[],
-): TemplateVersionParameter[] => {
-  if (!templateParameters) {
-    return [];
-  }
-
-  const immutables = templateParameters.filter(
-    (parameter) => !parameter.mutable,
-  );
-  const mutables = templateParameters.filter((parameter) => parameter.mutable);
-  return [...immutables, ...mutables];
 };
 
 const generateUniqueName = () => {
