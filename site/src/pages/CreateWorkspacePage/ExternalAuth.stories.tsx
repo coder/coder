@@ -2,7 +2,7 @@ import { ExternalAuth } from "./ExternalAuth";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof ExternalAuth> = {
-  title: "components/ExternalAuth",
+  title: "pages/CreateWorkspacePage/ExternalAuth",
   component: ExternalAuth,
 };
 

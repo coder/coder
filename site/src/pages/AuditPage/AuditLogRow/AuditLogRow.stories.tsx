@@ -15,7 +15,7 @@ import { AuditLogRow } from "./AuditLogRow";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AuditLogRow> = {
-  title: "components/AuditLogRow",
+  title: "pages/AuditPage/AuditLogRow",
   component: AuditLogRow,
   decorators: [
     (Story) => (

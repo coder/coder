@@ -3,7 +3,7 @@ import { mockApiError } from "testHelpers/entities";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SetupPageView> = {
-  title: "pages/SetupPageView",
+  title: "pages/SetupPage",
   component: SetupPageView,
 };
 

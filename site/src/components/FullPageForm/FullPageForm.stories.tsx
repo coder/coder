@@ -29,9 +29,11 @@ const meta: Meta<typeof FullPageForm> = {
 export default meta;
 type Story = StoryObj<typeof FullPageForm>;
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     title: "My Form",
     detail: "Lorem ipsum dolor",
   },
 };
+
+export { Example as FullPageForm };

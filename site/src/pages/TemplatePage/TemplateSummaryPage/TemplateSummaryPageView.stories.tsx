@@ -9,7 +9,7 @@ import {
 import { TemplateSummaryPageView } from "./TemplateSummaryPageView";
 
 const meta: Meta<typeof TemplateSummaryPageView> = {
-  title: "pages/TemplateSummaryPageView",
+  title: "pages/TemplatePage/TemplateSummaryPageView",
   component: TemplateSummaryPageView,
 };
 

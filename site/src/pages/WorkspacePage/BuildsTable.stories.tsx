@@ -3,7 +3,7 @@ import { MockBuilds } from "testHelpers/entities";
 import { BuildsTable } from "./BuildsTable";
 
 const meta: Meta<typeof BuildsTable> = {
-  title: "components/BuildsTable",
+  title: "pages/WorkspacePage/BuildsTable",
   component: BuildsTable,
 };
 
