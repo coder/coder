@@ -356,7 +356,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 				Enabled: true,
 				Message: "\n\n\n\n\n\nbanner\n\n\n\n\n\n",
 			},
-			expectedRe: regexp.MustCompile("([^\n\r]|^)banner\r\n\r\n[^\r\n]"),
+			expectedRe: regexp.MustCompile(`([^\n\r]|^)banner\r\n\r\n[^\r\n]`),
 		},
 	}
 
