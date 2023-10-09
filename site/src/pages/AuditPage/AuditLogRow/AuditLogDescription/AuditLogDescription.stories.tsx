@@ -9,7 +9,7 @@ import {
 } from "testHelpers/entities";
 
 const meta: Meta<typeof AuditLogDescription> = {
-  title: "components/AuditLogDescription",
+  title: "pages/AuditPage/AuditLogDescription",
   component: AuditLogDescription,
 };
 

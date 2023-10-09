@@ -8,7 +8,7 @@ import {
 import { WorkspaceBuildProgress } from "./WorkspaceBuildProgress";
 
 const meta: Meta<typeof WorkspaceBuildProgress> = {
-  title: "components/WorkspaceBuildProgress",
+  title: "pages/WorkspacePage/WorkspaceBuildProgress",
   component: WorkspaceBuildProgress,
   args: {
     transitionStats: {

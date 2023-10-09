@@ -7,7 +7,7 @@ import {
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
-  title: "pages/GeneralSettingsPageView",
+  title: "pages/DeploySettingsPage/GeneralSettingsPageView",
   component: GeneralSettingsPageView,
   args: {
     deploymentOptions: [

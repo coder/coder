@@ -31,4 +31,6 @@ const meta: Meta<typeof OverflowY> = {
 export default meta;
 
 type Story = StoryObj<typeof OverflowY>;
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as OverflowY };

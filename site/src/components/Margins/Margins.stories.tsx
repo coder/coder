@@ -9,7 +9,7 @@ const meta: Meta<typeof Margins> = {
 export default meta;
 type Story = StoryObj<typeof Margins>;
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     children: (
       <div style={{ width: "100%", background: "black" }}>
@@ -18,3 +18,5 @@ export const Example: Story = {
     ),
   },
 };
+
+export { Example as Margins };
