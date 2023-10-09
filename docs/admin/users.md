@@ -13,7 +13,8 @@ Coder offers these user roles in the community edition:
 | Manage groups (enterprise)                            |         | ✅         |                | ✅    |
 | Change User roles                                     |         |            |                | ✅    |
 | Manage **ALL** Templates                              |         |            | ✅             | ✅    |
-| View, update and delete **ALL** Workspaces            |         |            | ✅             | ✅    |
+| View **ALL** Workspaces                               |         |            | ✅             | ✅    |
+| Update and delete **ALL** Workspaces                  |         |            |                | ✅    |
 | Run [external provisioners](./provisioners.md)        |         |            | ✅             | ✅    |
 | Execute and use **ALL** Workspaces                    |         |            |                | ✅    |
 | View all user operation [Audit Logs](./audit-logs.md) | ✅      |            |                | ✅    |
