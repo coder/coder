@@ -14,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // @Summary Get external auth by ID
@@ -132,6 +133,8 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 			OAuthExpiry:            token.Expiry,
+			// No extra data from device auth!
+			OAuthExtra: pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -150,6 +153,7 @@ func (api *API) postExternalAuthDeviceByID(rw http.ResponseWriter, r *http.Reque
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
+			OAuthExtra:             pqtype.NullRawMessage{},
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -201,7 +205,15 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 			apiKey = httpmw.APIKey(r)
 		)
 
-		_, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		extra, err := externalAuthConfig.GenerateTokenExtra(state.Token)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to generate token extra.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		_, err = api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: externalAuthConfig.ID,
 			UserID:     apiKey.UserID,
 		})
@@ -224,6 +236,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshToken:      state.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will set as required
 				OAuthExpiry:            state.Token.Expiry,
+				OAuthExtra:             extra,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -242,6 +255,7 @@ func (api *API) externalAuthCallback(externalAuthConfig *externalauth.Config) ht
 				OAuthRefreshToken:      state.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 				OAuthExpiry:            state.Token.Expiry,
+				OAuthExtra:             extra,
 			})
 			if err != nil {
 				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{

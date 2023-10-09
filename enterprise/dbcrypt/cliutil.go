@@ -48,26 +48,27 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
-			gitAuthLinks, err := cryptTx.GetExternalAuthLinksByUserID(ctx, uid)
+			externalAuthLinks, err := cryptTx.GetExternalAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
-			for _, gitAuthLink := range gitAuthLinks {
-				if gitAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && gitAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
-					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+			for _, externalAuthLink := range externalAuthLinks {
+				if externalAuthLink.OAuthAccessTokenKeyID.String == ciphers[0].HexDigest() && externalAuthLink.OAuthRefreshTokenKeyID.String == ciphers[0].HexDigest() {
+					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 					continue
 				}
 				if _, err := cryptTx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-					ProviderID:             gitAuthLink.ProviderID,
+					ProviderID:             externalAuthLink.ProviderID,
 					UserID:                 uid,
-					UpdatedAt:              gitAuthLink.UpdatedAt,
-					OAuthAccessToken:       gitAuthLink.OAuthAccessToken,
+					UpdatedAt:              externalAuthLink.UpdatedAt,
+					OAuthAccessToken:       externalAuthLink.OAuthAccessToken,
 					OAuthAccessTokenKeyID:  sql.NullString{}, // dbcrypt will update as required
-					OAuthRefreshToken:      gitAuthLink.OAuthRefreshToken,
+					OAuthRefreshToken:      externalAuthLink.OAuthRefreshToken,
 					OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
-					OAuthExpiry:            gitAuthLink.OAuthExpiry,
+					OAuthExpiry:            externalAuthLink.OAuthExpiry,
+					OAuthExtra:             externalAuthLink.OAuthExtra,
 				}); err != nil {
-					return xerrors.Errorf("update git auth link user_id=%s provider_id=%s: %w", gitAuthLink.UserID, gitAuthLink.ProviderID, err)
+					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}
 			}
 			return nil
@@ -136,26 +137,27 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				}
 			}
 
-			gitAuthLinks, err := tx.GetExternalAuthLinksByUserID(ctx, uid)
+			externalAuthLinks, err := tx.GetExternalAuthLinksByUserID(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get git auth links for user: %w", err)
 			}
-			for _, gitAuthLink := range gitAuthLinks {
-				if !gitAuthLink.OAuthAccessTokenKeyID.Valid && !gitAuthLink.OAuthRefreshTokenKeyID.Valid {
-					log.Debug(ctx, "skipping git auth link", slog.F("user_id", uid), slog.F("current", idx+1))
+			for _, externalAuthLink := range externalAuthLinks {
+				if !externalAuthLink.OAuthAccessTokenKeyID.Valid && !externalAuthLink.OAuthRefreshTokenKeyID.Valid {
+					log.Debug(ctx, "skipping external auth link", slog.F("user_id", uid), slog.F("current", idx+1))
 					continue
 				}
 				if _, err := tx.UpdateExternalAuthLink(ctx, database.UpdateExternalAuthLinkParams{
-					ProviderID:             gitAuthLink.ProviderID,
+					ProviderID:             externalAuthLink.ProviderID,
 					UserID:                 uid,
-					UpdatedAt:              gitAuthLink.UpdatedAt,
-					OAuthAccessToken:       gitAuthLink.OAuthAccessToken,
+					UpdatedAt:              externalAuthLink.UpdatedAt,
+					OAuthAccessToken:       externalAuthLink.OAuthAccessToken,
 					OAuthAccessTokenKeyID:  sql.NullString{}, // we explicitly want to clear the key id
-					OAuthRefreshToken:      gitAuthLink.OAuthRefreshToken,
+					OAuthRefreshToken:      externalAuthLink.OAuthRefreshToken,
 					OAuthRefreshTokenKeyID: sql.NullString{}, // we explicitly want to clear the key id
-					OAuthExpiry:            gitAuthLink.OAuthExpiry,
+					OAuthExpiry:            externalAuthLink.OAuthExpiry,
+					OAuthExtra:             externalAuthLink.OAuthExtra,
 				}); err != nil {
-					return xerrors.Errorf("update git auth link user_id=%s provider_id=%s: %w", gitAuthLink.UserID, gitAuthLink.ProviderID, err)
+					return xerrors.Errorf("update external auth link user_id=%s provider_id=%s: %w", externalAuthLink.UserID, externalAuthLink.ProviderID, err)
 				}
 			}
 			return nil
