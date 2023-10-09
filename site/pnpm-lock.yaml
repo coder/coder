@@ -13,8 +13,8 @@ dependencies:
     specifier: 1.1.2
     version: 1.1.2
   '@emoji-mart/react':
-    specifier: 1.0.1
-    version: 1.0.1(emoji-mart@5.4.0)(react@18.2.0)
+    specifier: 1.1.1
+    version: 1.1.1(emoji-mart@5.4.0)(react@18.2.0)
   '@emotion/css':
     specifier: 11.11.2
     version: 11.11.2
@@ -2234,8 +2234,8 @@ packages:
     resolution: {integrity: sha512-1HP8BxD2azjqWJvxIaWAMyTySeZY0Osr83ukYjltPVkNXeJvTz7yDrPLBtnrD5uqJ3tg4CcLuuBW09wahqL/fg==}
     dev: false
 
-  /@emoji-mart/react@1.0.1(emoji-mart@5.4.0)(react@18.2.0):
-    resolution: {integrity: sha512-ALhLD96BOL5w+a4NI5NpmfqfF1aVjjj2qJE0dLst/OhjBfVmpteWNgn/h8LZy9ulU6AnbeS+13KnPFzDjCvRRw==}
+  /@emoji-mart/react@1.1.1(emoji-mart@5.4.0)(react@18.2.0):
+    resolution: {integrity: sha512-NMlFNeWgv1//uPsvLxvGQoIerPuVdXwK/EUek8OOkJ6wVOWPUizRBJU0hDqWZCOROVpfBgCemaC3m6jDOXi03g==}
     peerDependencies:
       emoji-mart: ^5.2
       react: ^16.8 || ^17 || ^18
