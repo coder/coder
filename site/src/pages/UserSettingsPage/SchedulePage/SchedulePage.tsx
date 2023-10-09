@@ -4,7 +4,7 @@ import { Section } from "components/SettingsLayout/Section";
 import { ScheduleForm } from "./ScheduleForm";
 import { useMe } from "hooks/useMe";
 import { Loader } from "components/Loader/Loader";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
   updateUserQuietHoursSchedule,
   userQuietHoursSchedule,

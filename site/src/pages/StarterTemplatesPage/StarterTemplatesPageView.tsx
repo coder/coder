@@ -1,6 +1,5 @@
 import { makeStyles } from "@mui/styles";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Maybe } from "components/Conditionals/Maybe";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -59,13 +58,9 @@ export const StarterTemplatesPageView: FC<StarterTemplatesPageViewProps> = ({
         </PageHeaderSubtitle>
       </PageHeader>
 
-      <Maybe condition={Boolean(error)}>
-        <ErrorAlert error={error} />
-      </Maybe>
+      {Boolean(error) && <ErrorAlert error={error} />}
 
-      <Maybe condition={Boolean(!starterTemplatesByTag)}>
-        <Loader />
-      </Maybe>
+      {Boolean(!starterTemplatesByTag) && <Loader />}
 
       <Stack direction="row" spacing={4}>
         {starterTemplatesByTag && tags && (

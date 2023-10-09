@@ -1,6 +1,6 @@
 import { usePermissions } from "hooks/usePermissions";
 import { DeploymentBannerView } from "./DeploymentBannerView";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { deploymentStats } from "api/queries/deployment";
 
 export const DeploymentBanner: React.FC = () => {

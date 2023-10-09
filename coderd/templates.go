@@ -537,17 +537,19 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
-	if req.FailureTTLMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Must be a positive integer."})
+
+	// The minimum valid value for a dormant TTL is 1 minute. This is
+	// to ensure an uninformed user does not send an unintentionally
+	// small number resulting in potentially catastrophic consequences.
+	const minTTL = 1000 * 60
+	if req.FailureTTLMillis < 0 || (req.FailureTTLMillis > 0 && req.FailureTTLMillis < minTTL) {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
+	if req.TimeTilDormantMillis < 0 || (req.TimeTilDormantMillis > 0 && req.TimeTilDormantMillis < minTTL) {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "inactivity_ttl_ms", Detail: "Must be a positive integer."})
-	}
-	if req.TimeTilDormantAutoDeleteMillis < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "locked_ttl_ms", Detail: "Must be a positive integer."})
+	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
 
 	if len(validErrs) > 0 {

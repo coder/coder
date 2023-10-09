@@ -1327,14 +1327,16 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if link.UserID == uuid.Nil {
-			//nolint:gocritic
+			//nolint:gocritic // System needs to insert the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
-				UserID:            user.ID,
-				LoginType:         params.LoginType,
-				LinkedID:          params.LinkedID,
-				OAuthAccessToken:  params.State.Token.AccessToken,
-				OAuthRefreshToken: params.State.Token.RefreshToken,
-				OAuthExpiry:       params.State.Token.Expiry,
+				UserID:                 user.ID,
+				LoginType:              params.LoginType,
+				LinkedID:               params.LinkedID,
+				OAuthAccessToken:       params.State.Token.AccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // set by dbcrypt if required
+				OAuthRefreshToken:      params.State.Token.RefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
+				OAuthExpiry:            params.State.Token.Expiry,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert user link: %w", err)
@@ -1342,13 +1344,15 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		}
 
 		if link.UserID != uuid.Nil {
-			//nolint:gocritic
+			//nolint:gocritic // System needs to update the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.UpdateUserLink(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkParams{
-				UserID:            user.ID,
-				LoginType:         params.LoginType,
-				OAuthAccessToken:  params.State.Token.AccessToken,
-				OAuthRefreshToken: params.State.Token.RefreshToken,
-				OAuthExpiry:       params.State.Token.Expiry,
+				UserID:                 user.ID,
+				LoginType:              params.LoginType,
+				OAuthAccessToken:       params.State.Token.AccessToken,
+				OAuthAccessTokenKeyID:  sql.NullString{}, // set by dbcrypt if required
+				OAuthRefreshToken:      params.State.Token.RefreshToken,
+				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
+				OAuthExpiry:            params.State.Token.Expiry,
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)

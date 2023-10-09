@@ -331,17 +331,17 @@ func main() {
 				// Complete the auth!
 				gitlabAuthed.Store(true)
 			}()
-			return cliui.GitAuth(inv.Context(), inv.Stdout, cliui.GitAuthOptions{
-				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
+			return cliui.ExternalAuth(inv.Context(), inv.Stdout, cliui.ExternalAuthOptions{
+				Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
 					count.Add(1)
-					return []codersdk.TemplateVersionGitAuth{{
+					return []codersdk.TemplateVersionExternalAuth{{
 						ID:              "github",
-						Type:            codersdk.GitProviderGitHub,
+						Type:            codersdk.EnhancedExternalAuthProviderGitHub.String(),
 						Authenticated:   githubAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/github?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}, {
 						ID:              "gitlab",
-						Type:            codersdk.GitProviderGitLab,
+						Type:            codersdk.EnhancedExternalAuthProviderGitLab.String(),
 						Authenticated:   gitlabAuthed.Load(),
 						AuthenticateURL: "https://example.com/gitauth/gitlab?redirect=" + url.QueryEscape("/gitauth?notify"),
 					}}, nil

@@ -1,5 +1,4 @@
 import { useMachine } from "@xstate/react";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Loader } from "components/Loader/Loader";
 import { FC } from "react";
 import { useParams } from "react-router-dom";
@@ -11,7 +10,8 @@ import { useOrganizationId } from "hooks";
 import { isAxiosError } from "axios";
 import { Margins } from "components/Margins/Margins";
 import { workspaceQuota } from "api/queries/workspaceQuota";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "react-query";
+import { infiniteWorkspaceBuilds } from "api/queries/workspaceBuilds";
 
 export const WorkspacePage: FC = () => {
   const params = useParams() as {
@@ -27,10 +27,31 @@ export const WorkspacePage: FC = () => {
       workspaceName,
       username,
     },
+    actions: {
+      refreshBuilds: async () => {
+        await buildsQuery.refetch();
+      },
+    },
   });
   const { workspace, error } = workspaceState.context;
   const quotaQuery = useQuery(workspaceQuota(username));
   const pageError = error ?? quotaQuery.error;
+  const buildsQuery = useInfiniteQuery({
+    ...infiniteWorkspaceBuilds(workspace?.id ?? ""),
+    enabled: Boolean(workspace),
+  });
+
+  if (pageError) {
+    return (
+      <Margins>
+        <ErrorAlert error={pageError} sx={{ my: 2 }} />
+      </Margins>
+    );
+  }
+
+  if (!workspace || !workspaceState.matches("ready") || !quotaQuery.isSuccess) {
+    return <Loader />;
+  }
 
   return (
     <RequirePermission
@@ -38,29 +59,18 @@ export const WorkspacePage: FC = () => {
         !(isAxiosError(pageError) && pageError.response?.status === 404)
       }
     >
-      <ChooseOne>
-        <Cond condition={Boolean(pageError)}>
-          <Margins>
-            <ErrorAlert error={pageError} sx={{ my: 2 }} />
-          </Margins>
-        </Cond>
-        <Cond
-          condition={
-            Boolean(workspace) &&
-            workspaceState.matches("ready") &&
-            quotaQuery.isSuccess
-          }
-        >
-          <WorkspaceReadyPage
-            workspaceState={workspaceState}
-            quota={quotaQuery.data}
-            workspaceSend={workspaceSend}
-          />
-        </Cond>
-        <Cond>
-          <Loader />
-        </Cond>
-      </ChooseOne>
+      <WorkspaceReadyPage
+        workspaceState={workspaceState}
+        quota={quotaQuery.data}
+        workspaceSend={workspaceSend}
+        builds={buildsQuery.data?.pages.flat()}
+        buildsError={buildsQuery.error}
+        isLoadingMoreBuilds={buildsQuery.isFetchingNextPage}
+        onLoadMoreBuilds={async () => {
+          await buildsQuery.fetchNextPage();
+        }}
+        hasMoreBuilds={Boolean(buildsQuery.hasNextPage)}
+      />
     </RequirePermission>
   );
 };

@@ -120,7 +120,7 @@ resource "coder_app" "code-server" {
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
   icon         = "/icon/code.svg"
-  subdomain    = true
+  subdomain    = false
 
   healthcheck {
     url       = "http://localhost:13337/healthz"
@@ -159,21 +159,15 @@ resource "coder_agent" "main" {
 You also need to add a `coder_app` resource for this.
 
 ```hcl
-# VS Code Server
-resource "coder_app" "vscode-server" {
-  agent_id      = coder_agent.coder.id
-  slug          = "vscode-server"
-  display_name  = "VS Code Server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:13338?folder=/home/coder"
-  subdomain = false
-  share     = "owner"
-
-  healthcheck {
-    url       = "http://localhost:13338/healthz"
-    interval  = 3
-    threshold = 10
-  }
+# VS Code Web
+resource "coder_app" "vscode-web" {
+  agent_id     = coder_agent.coder.id
+  slug         = "vscode-web"
+  display_name = "VS Code Web"
+  icon         = "/icon/code.svg"
+  url          = "http://localhost:13338?folder=/home/coder"
+  subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
+  share        = "owner"
 }
 ```
 

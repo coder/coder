@@ -33,14 +33,13 @@ e2e/states/*.json
 e2e/.auth.json
 playwright-report/*
 .swc
-dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
 
 # Build
-../build/
-../dist/
+build/
+dist/
 out/
 
 # Bundle analysis
@@ -70,6 +69,9 @@ result
 
 # Data dumps from unit tests
 **/*.test.sql
+
+# Filebrowser.db
+**/filebrowser.db
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.

@@ -2,10 +2,10 @@ import { useOrganizationId } from "hooks/useOrganizationId";
 import { usePermissions } from "hooks/usePermissions";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "../../utils/page";
+import { pageTitle } from "utils/page";
 import { TemplatesPageView } from "./TemplatesPageView";
 import { templateExamples, templates } from "api/queries/templates";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 
 export const TemplatesPage: FC = () => {
   const organizationId = useOrganizationId();

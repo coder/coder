@@ -1,13 +1,11 @@
 import { useMachine } from "@xstate/react";
 import {
-  Template,
-  TemplateVersionGitAuth,
   TemplateVersionParameter,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { FC } from "react";
+import { type FC, useCallback, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
@@ -25,6 +23,10 @@ import {
   colors,
   NumberDictionary,
 } from "unique-names-generator";
+import { useQuery } from "react-query";
+import { templateVersionExternalAuth } from "api/queries/templates";
+
+export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId();
@@ -50,18 +52,50 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   });
-  const {
-    template,
-    error,
-    parameters,
-    permissions,
-    gitAuth,
-    defaultName,
-    versionId,
-  } = createWorkspaceState.context;
+  const { template, parameters, permissions, defaultName, versionId } =
+    createWorkspaceState.context;
   const title = createWorkspaceState.matches("autoCreating")
     ? "Creating workspace..."
-    : "Create Workspace";
+    : "Create workspace";
+
+  const [externalAuthPollingState, setExternalAuthPollingState] =
+    useState<ExternalAuthPollingState>("idle");
+
+  const startPollingExternalAuth = useCallback(() => {
+    setExternalAuthPollingState("polling");
+  }, []);
+
+  const { data: externalAuth, error } = useQuery(
+    versionId
+      ? {
+          ...templateVersionExternalAuth(versionId),
+          refetchInterval:
+            externalAuthPollingState === "polling" ? 1000 : false,
+        }
+      : { enabled: false },
+  );
+
+  const allSignedIn = externalAuth?.every((it) => it.authenticated);
+
+  useEffect(() => {
+    if (allSignedIn) {
+      setExternalAuthPollingState("idle");
+      return;
+    }
+
+    if (externalAuthPollingState !== "polling") {
+      return;
+    }
+
+    // Poll for a maximum of one minute
+    const quitPolling = setTimeout(
+      () => setExternalAuthPollingState("abandoned"),
+      60_000,
+    );
+    return () => {
+      clearTimeout(quitPolling);
+    };
+  }, [externalAuthPollingState, allSignedIn]);
 
   return (
     <>
@@ -81,11 +115,13 @@ const CreateWorkspacePage: FC = () => {
           defaultOwner={me}
           defaultBuildParameters={defaultBuildParameters}
           error={error}
-          template={template as Template}
+          template={template!}
           versionId={versionId}
-          gitAuth={gitAuth as TemplateVersionGitAuth[]}
+          externalAuth={externalAuth ?? []}
+          externalAuthPollingState={externalAuthPollingState}
+          startPollingExternalAuth={startPollingExternalAuth}
           permissions={permissions as CreateWSPermissions}
-          parameters={parameters as TemplateVersionParameter[]}
+          parameters={parameters!}
           creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
           onCancel={() => {
             navigate(-1);

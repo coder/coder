@@ -53,6 +53,7 @@ type BuildAuditParams[T Auditable] struct {
 	JobID            uuid.UUID
 	Status           int
 	Action           database.AuditAction
+	OrganizationID   uuid.UUID
 	AdditionalFields json.RawMessage
 
 	New T
@@ -244,9 +245,9 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// BuildAudit creates an audit log for a workspace build.
+// WorkspaceBuildAudit creates an audit log for a workspace build.
 // The audit log is committed upon invocation.
-func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	// As the audit request has not been initiated directly by a user, we omit
 	// certain user details.
 	ip := parseIP("")
@@ -267,6 +268,7 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 		ID:               uuid.New(),
 		Time:             dbtime.Now(),
 		UserID:           p.UserID,
+		OrganizationID:   p.OrganizationID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),

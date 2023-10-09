@@ -1,4 +1,4 @@
-import { MockTemplate } from "../../testHelpers/entities";
+import { MockTemplate } from "testHelpers/entities";
 import { SelectedTemplate } from "./SelectedTemplate";
 import type { Meta, StoryObj } from "@storybook/react";
 

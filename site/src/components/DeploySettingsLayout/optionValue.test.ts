@@ -1,7 +1,7 @@
-import { DeploymentOption } from "api/api";
 import { optionValue } from "./optionValue";
+import { ClibaseOption } from "api/typesGenerated";
 
-const defaultOption: DeploymentOption = {
+const defaultOption: ClibaseOption = {
   name: "",
   description: "",
   flag: "",
@@ -12,7 +12,7 @@ const defaultOption: DeploymentOption = {
 
 describe("optionValue", () => {
   it.each<{
-    option: DeploymentOption;
+    option: ClibaseOption;
     expected: unknown;
   }>([
     {

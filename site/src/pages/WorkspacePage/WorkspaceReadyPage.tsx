@@ -1,4 +1,4 @@
-import { useActor, useMachine } from "@xstate/react";
+import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
@@ -22,29 +22,39 @@ import {
 } from "xServices/workspace/workspaceXService";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { restartWorkspace } from "api/api";
 import {
   ConfirmDialog,
   ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import { workspaceBuildMachine } from "xServices/workspaceBuild/workspaceBuildXService";
 import * as TypesGen from "api/typesGenerated";
 import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
+import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
   workspaceSend: (event: WorkspaceEvent) => void;
   quota?: TypesGen.WorkspaceQuota;
+  builds: TypesGen.WorkspaceBuild[] | undefined;
+  buildsError: unknown;
+  onLoadMoreBuilds: () => void;
+  isLoadingMoreBuilds: boolean;
+  hasMoreBuilds: boolean;
 }
 
 export const WorkspaceReadyPage = ({
   workspaceState,
   workspaceSend,
   quota,
+  builds,
+  buildsError,
+  onLoadMoreBuilds,
+  isLoadingMoreBuilds,
+  hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
   const [_, bannerSend] = useActor(
     workspaceState.children["scheduleBannerMachine"],
@@ -56,8 +66,6 @@ export const WorkspaceReadyPage = ({
     template,
     templateVersion: currentVersion,
     deploymentValues,
-    builds,
-    getBuildsError,
     buildError,
     cancellationError,
     sshPrefix,
@@ -90,8 +98,16 @@ export const WorkspaceReadyPage = ({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
-
-  const buildLogs = useBuildLogs(workspace);
+  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
+    // We want the favicon the opposite of the theme.
+    setFaviconTheme(isDark ? "light" : "dark");
+  }, []);
+  const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
   const shouldDisplayBuildLogs =
     hasJobError(workspace) ||
     ["canceling", "deleting", "pending", "starting", "stopping"].includes(
@@ -116,12 +132,12 @@ export const WorkspaceReadyPage = ({
         <link
           rel="alternate icon"
           type="image/png"
-          href={`/favicons/${favicon}.png`}
+          href={`/favicons/${favicon}-${faviconTheme}.png`}
         />
         <link
           rel="icon"
           type="image/svg+xml"
-          href={`/favicons/${favicon}.svg`}
+          href={`/favicons/${favicon}-${faviconTheme}.svg`}
         />
       </Helmet>
 
@@ -168,6 +184,9 @@ export const WorkspaceReadyPage = ({
         handleDormantActivate={() => workspaceSend({ type: "ACTIVATE" })}
         resources={workspace.latest_build.resources}
         builds={builds}
+        onLoadMoreBuilds={onLoadMoreBuilds}
+        isLoadingMoreBuilds={isLoadingMoreBuilds}
+        hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
         updateMessage={latestVersion?.message}
         canRetryDebugMode={canRetryDebugMode}
@@ -175,7 +194,7 @@ export const WorkspaceReadyPage = ({
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_BUILDS_ERROR]: getBuildsError,
+          [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
           [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
           [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
         }}
@@ -284,23 +303,4 @@ const WarningDialog: FC<
   >
 > = (props) => {
   return <ConfirmDialog type="info" hideCancel={false} {...props} />;
-};
-
-const useBuildLogs = (workspace: TypesGen.Workspace) => {
-  const buildNumber = workspace.latest_build.build_number;
-  const [buildState, buildSend] = useMachine(workspaceBuildMachine, {
-    context: {
-      buildNumber,
-      username: workspace.owner_name,
-      workspaceName: workspace.name,
-      timeCursor: new Date(),
-    },
-  });
-  const { logs } = buildState.context;
-
-  useEffect(() => {
-    buildSend({ type: "RESET", buildNumber, timeCursor: new Date() });
-  }, [buildNumber, buildSend]);
-
-  return logs;
 };

@@ -186,7 +186,7 @@ func pgDump(dbURL string) ([]byte, error) {
 	cmd := exec.Command(cmdArgs[0], cmdArgs[1:]...) // nolint:gosec
 	cmd.Env = []string{
 		// "PGTZ=UTC", // This is probably not going to be useful if tz has been changed.
-		"PGCLIENTENCODINDG=UTF8",
+		"PGCLIENTENCODING=UTF8",
 		"PGDATABASE=", // we should always specify the database name in the connection string
 	}
 	var stdout bytes.Buffer

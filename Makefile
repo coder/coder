@@ -107,9 +107,9 @@ endif
 
 
 clean:
-	rm -rf build site/out
-	mkdir -p build site/out/bin
-	git restore site/out
+	rm -rf build/ site/build/ site/out/
+	mkdir -p build/ site/out/bin/
+	git restore site/out/
 .PHONY: clean
 
 build-slim: $(CODER_SLIM_BINARIES)
@@ -472,6 +472,7 @@ gen: \
 	site/.prettierignore \
 	site/.eslintignore \
 	site/e2e/provisionerGenerated.ts \
+	site/src/theme/icons.json \
 	examples/examples.gen.json
 .PHONY: gen
 
@@ -495,6 +496,7 @@ gen/mark-fresh:
 		site/.prettierignore \
 		site/.eslintignore \
 		site/e2e/provisionerGenerated.ts \
+		site/src/theme/icons.json \
 		examples/examples.gen.json \
 	"
 	for file in $$files; do
@@ -538,15 +540,18 @@ provisionerd/proto/provisionerd.pb.go: provisionerd/proto/provisionerd.proto
 		./provisionerd/proto/provisionerd.proto
 
 site/src/api/typesGenerated.ts: scripts/apitypings/main.go $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	go run scripts/apitypings/main.go > site/src/api/typesGenerated.ts
+	go run ./scripts/apitypings/ > site/src/api/typesGenerated.ts
 	cd site
 	pnpm run format:types ./src/api/typesGenerated.ts
 
-site/e2e/provisionerGenerated.ts:
+site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
+site/src/theme/icons.json: $(wildcard site/static/icon/*)
+	go run ./scripts/gensite/ -icons $@
+	pnpm run format:write:only $@
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json

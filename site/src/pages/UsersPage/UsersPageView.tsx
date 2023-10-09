@@ -1,21 +1,15 @@
-import { PaginationWidget } from "components/PaginationWidget/PaginationWidget";
 import { ComponentProps, FC } from "react";
-import { PaginationMachineRef } from "xServices/pagination/paginationXService";
-import * as TypesGen from "../../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import { UsersTable } from "./UsersTable/UsersTable";
 import { UsersFilter } from "./UsersFilter";
 import {
   PaginationStatus,
   TableToolbar,
 } from "components/TableToolbar/TableToolbar";
+import { PaginationWidgetBase } from "components/PaginationWidget/PaginationWidgetBase";
 
-export const Language = {
-  activeUsersFilterName: "Active users",
-  allUsersFilterName: "All users",
-};
 export interface UsersPageViewProps {
   users?: TypesGen.User[];
-  count?: number;
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
   canEditUsers?: boolean;
@@ -34,14 +28,17 @@ export interface UsersPageViewProps {
     roles: TypesGen.Role["name"][],
   ) => void;
   filterProps: ComponentProps<typeof UsersFilter>;
-  paginationRef: PaginationMachineRef;
   isNonInitialPage: boolean;
   actorID: string;
+  // Pagination
+  count?: number;
+  page: number;
+  limit: number;
+  onPageChange: (page: number) => void;
 }
 
 export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   users,
-  count,
   roles,
   onSuspendUser,
   onDeleteUser,
@@ -56,10 +53,13 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
   canViewActivity,
   isLoading,
   filterProps,
-  paginationRef,
   isNonInitialPage,
   actorID,
   authMethods,
+  count,
+  limit,
+  onPageChange,
+  page,
 }) => {
   return (
     <>
@@ -94,7 +94,14 @@ export const UsersPageView: FC<React.PropsWithChildren<UsersPageViewProps>> = ({
         authMethods={authMethods}
       />
 
-      <PaginationWidget numRecords={count} paginationRef={paginationRef} />
+      {count && (
+        <PaginationWidgetBase
+          count={count}
+          limit={limit}
+          onChange={onPageChange}
+          page={page}
+        />
+      )}
     </>
   );
 };

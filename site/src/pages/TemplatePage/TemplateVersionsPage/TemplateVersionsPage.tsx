@@ -1,9 +1,9 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { getTemplateVersions, updateActiveTemplateVersion } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { VersionsTable } from "./VersionsTable";
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";

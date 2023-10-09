@@ -5,7 +5,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableRow from "@mui/material/TableRow";
 import { Timeline } from "components/Timeline/Timeline";
-import { FC } from "react";
+import { type FC } from "react";
 import * as TypesGen from "api/typesGenerated";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -24,13 +24,15 @@ export interface VersionsTableProps {
   versions?: TypesGen.TemplateVersion[];
 }
 
-export const VersionsTable: FC<React.PropsWithChildren<VersionsTableProps>> = ({
-  versions,
-  onPromoteClick,
-  activeVersionId,
-}) => {
+export const VersionsTable: FC<VersionsTableProps> = (props) => {
+  const { versions, onPromoteClick, activeVersionId } = props;
+
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
+      if (against.job.status !== "succeeded") {
+        return latestSoFar;
+      }
+
       if (!latestSoFar) {
         return against;
       }

@@ -50,7 +50,6 @@ import (
 	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/pty"
@@ -1060,84 +1059,6 @@ func TestAgent_SSHConnectionEnvVars(t *testing.T) {
 	}
 }
 
-func TestAgent_StartupScript(t *testing.T) {
-	t.Parallel()
-	output := "something"
-	command := "sh -c 'echo " + output + "'"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe /c echo " + output
-	}
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := agenttest.NewClient(t,
-			logger,
-			uuid.New(),
-			agentsdk.Manifest{
-				StartupScript: command,
-				DERPMap:       &tailcfg.DERPMap{},
-			},
-			make(chan *agentsdk.Stats),
-			tailnet.NewCoordinator(logger),
-		)
-		closer := agent.New(agent.Options{
-			Client:                 client,
-			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 logger.Named("agent"),
-			ReconnectingPTYTimeout: 0,
-		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-		assert.Eventually(t, func() bool {
-			got := client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
-		}, testutil.WaitShort, testutil.IntervalMedium)
-
-		require.Len(t, client.GetStartupLogs(), 1)
-		require.Equal(t, output, client.GetStartupLogs()[0].Output)
-	})
-	// This ensures that even when coderd sends back that the startup
-	// script has written too many lines it will still succeed!
-	t.Run("OverflowsAndSkips", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		client := agenttest.NewClient(t,
-			logger,
-			uuid.New(),
-			agentsdk.Manifest{
-				StartupScript: command,
-				DERPMap:       &tailcfg.DERPMap{},
-			},
-			make(chan *agentsdk.Stats, 50),
-			tailnet.NewCoordinator(logger),
-		)
-		client.PatchWorkspaceLogs = func() error {
-			resp := httptest.NewRecorder()
-			httpapi.Write(context.Background(), resp, http.StatusRequestEntityTooLarge, codersdk.Response{
-				Message: "Too many lines!",
-			})
-			res := resp.Result()
-			defer res.Body.Close()
-			return codersdk.ReadBodyAsError(res)
-		}
-		closer := agent.New(agent.Options{
-			Client:                 client,
-			Filesystem:             afero.NewMemMapFs(),
-			Logger:                 logger.Named("agent"),
-			ReconnectingPTYTimeout: 0,
-		})
-		t.Cleanup(func() {
-			_ = closer.Close()
-		})
-		assert.Eventually(t, func() bool {
-			got := client.GetLifecycleStates()
-			return len(got) > 0 && got[len(got)-1] == codersdk.WorkspaceAgentLifecycleReady
-		}, testutil.WaitShort, testutil.IntervalMedium)
-		require.Len(t, client.GetStartupLogs(), 0)
-	})
-}
-
 func TestAgent_Metadata(t *testing.T) {
 	t.Parallel()
 
@@ -1292,8 +1213,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "sleep 3",
-			StartupScriptTimeout: time.Nanosecond,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "sleep 3",
+				Timeout:    time.Millisecond,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1314,8 +1238,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "false",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "false",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1336,8 +1263,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:     "true",
+				Timeout:    30 * time.Second,
+				RunOnStart: true,
+			}},
 		}, 0)
 
 		want := []codersdk.WorkspaceAgentLifecycle{
@@ -1358,8 +1288,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:       "sleep 3",
-			StartupScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "sleep 3",
+				Timeout:   30 * time.Second,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1396,8 +1329,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "sleep 3",
-			ShutdownScriptTimeout: time.Nanosecond,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "sleep 3",
+				Timeout:   time.Millisecond,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1435,8 +1371,11 @@ func TestAgent_Lifecycle(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, closer := setupAgent(t, agentsdk.Manifest{
-			ShutdownScript:        "false",
-			ShutdownScriptTimeout: 30 * time.Second,
+			Scripts: []codersdk.WorkspaceAgentScript{{
+				Script:    "false",
+				Timeout:   30 * time.Second,
+				RunOnStop: true,
+			}},
 		}, 0)
 
 		assert.Eventually(t, func() bool {
@@ -1480,9 +1419,16 @@ func TestAgent_Lifecycle(t *testing.T) {
 			logger,
 			uuid.New(),
 			agentsdk.Manifest{
-				DERPMap:        derpMap,
-				StartupScript:  "echo 1",
-				ShutdownScript: "echo " + expected,
+				DERPMap: derpMap,
+				Scripts: []codersdk.WorkspaceAgentScript{{
+					LogPath:    "coder-startup-script.log",
+					Script:     "echo 1",
+					RunOnStart: true,
+				}, {
+					LogPath:   "coder-shutdown-script.log",
+					Script:    "echo " + expected,
+					RunOnStop: true,
+				}},
 			},
 			make(chan *agentsdk.Stats, 50),
 			tailnet.NewCoordinator(logger),
@@ -1533,9 +1479,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "",
+			Directory: "",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1547,9 +1491,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "~",
+			Directory: "~",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1563,9 +1505,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "coder/coder",
+			Directory: "coder/coder",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1579,9 +1519,7 @@ func TestAgent_Startup(t *testing.T) {
 		t.Parallel()
 
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
-			StartupScript:        "true",
-			StartupScriptTimeout: 30 * time.Second,
-			Directory:            "$HOME",
+			Directory: "$HOME",
 		}, 0)
 		assert.Eventually(t, func() bool {
 			return client.GetStartup().Version != ""
@@ -1635,26 +1573,21 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			//nolint:dogsled
 			conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{}, 0)
 			id := uuid.New()
-			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			// --norc disables executing .bashrc, which is often used to customize the bash prompt
+			netConn1, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn1.Close()
+			tr1 := testutil.NewTerminalReader(t, netConn1)
 
 			// A second simultaneous connection.
-			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			netConn2, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn2.Close()
+			tr2 := testutil.NewTerminalReader(t, netConn2)
 
-			// Brief pause to reduce the likelihood that we send keystrokes while
-			// the shell is simultaneously sending a prompt.
-			time.Sleep(100 * time.Millisecond)
-
-			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "echo test\r\n",
-			})
-			require.NoError(t, err)
-			_, err = netConn1.Write(data)
-			require.NoError(t, err)
-
+			matchPrompt := func(line string) bool {
+				return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
+			}
 			matchEchoCommand := func(line string) bool {
 				return strings.Contains(line, "echo test")
 			}
@@ -1668,31 +1601,41 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				return strings.Contains(line, "exit") || strings.Contains(line, "logout")
 			}
 
+			// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
+			// will sometimes put the command output on the same line as the command and the test will flake
+			require.NoError(t, tr1.ReadUntil(ctx, matchPrompt), "find prompt")
+			require.NoError(t, tr2.ReadUntil(ctx, matchPrompt), "find prompt")
+
+			data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+				Data: "echo test\r",
+			})
+			require.NoError(t, err)
+			_, err = netConn1.Write(data)
+			require.NoError(t, err)
+
 			// Once for typing the command...
-			tr1 := testutil.NewTerminalReader(t, netConn1)
 			require.NoError(t, tr1.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			// And another time for the actual output.
 			require.NoError(t, tr1.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Same for the other connection.
-			tr2 := testutil.NewTerminalReader(t, netConn2)
 			require.NoError(t, tr2.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			require.NoError(t, tr2.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			_ = netConn1.Close()
 			_ = netConn2.Close()
-			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash")
+			netConn3, err := conn.ReconnectingPTY(ctx, id, 80, 80, "bash --norc")
 			require.NoError(t, err)
 			defer netConn3.Close()
+			tr3 := testutil.NewTerminalReader(t, netConn3)
 
 			// Same output again!
-			tr3 := testutil.NewTerminalReader(t, netConn3)
 			require.NoError(t, tr3.ReadUntil(ctx, matchEchoCommand), "find echo command")
 			require.NoError(t, tr3.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 			// Exit should cause the connection to close.
 			data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-				Data: "exit\r\n",
+				Data: "exit\r",
 			})
 			require.NoError(t, err)
 			_, err = netConn3.Write(data)
@@ -1907,13 +1850,16 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 func TestAgent_Speedtest(t *testing.T) {
 	t.Parallel()
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
-	}, 0)
+	}, 0, func(client *agenttest.Client, options *agent.Options) {
+		options.Logger = logger.Named("agent")
+	})
 	defer conn.Close()
 	res, err := conn.Speedtest(ctx, speedtest.Upload, 250*time.Millisecond)
 	require.NoError(t, err)

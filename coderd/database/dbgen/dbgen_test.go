@@ -47,8 +47,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("GitAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.GitAuthLink(t, db, database.GitAuthLink{})
-		require.Equal(t, exp, must(db.GetGitAuthLink(context.Background(), database.GetGitAuthLinkParams{
+		exp := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{})
+		require.Equal(t, exp, must(db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
 			ProviderID: exp.ProviderID,
 			UserID:     exp.UserID,
 		})))

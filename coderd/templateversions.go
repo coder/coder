@@ -22,7 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/parameter"
@@ -248,7 +248,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -273,26 +273,26 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 	httpapi.Write(ctx, rw, http.StatusOK, templateVersionParameters)
 }
 
-// @Summary Get git auth by template version
-// @ID get-git-auth-by-template-version
+// @Summary Get external auth by template version
+// @ID get-external-auth-by-template-version
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
-// @Success 200 {array} codersdk.TemplateVersionGitAuth
-// @Router /templateversions/{templateversion}/gitauth [get]
-func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {array} codersdk.TemplateVersionExternalAuth
+// @Router /templateversions/{templateversion}/external-auth [get]
+func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var (
 		apiKey          = httpmw.APIKey(r)
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
 
-	rawProviders := templateVersion.GitAuthProviders
-	providers := make([]codersdk.TemplateVersionGitAuth, 0)
+	rawProviders := templateVersion.ExternalAuthProviders
+	providers := make([]codersdk.TemplateVersionExternalAuth, 0)
 	for _, rawProvider := range rawProviders {
-		var config *gitauth.Config
-		for _, provider := range api.GitAuthConfigs {
+		var config *externalauth.Config
+		for _, provider := range api.ExternalAuthConfigs {
 			if provider.ID == rawProvider {
 				config = provider
 				break
@@ -307,7 +307,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 
 		// This is the URL that will redirect the user with a state token.
-		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/gitauth/%s", config.ID))
+		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", config.ID))
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Failed to parse access URL.",
@@ -316,13 +316,15 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		provider := codersdk.TemplateVersionGitAuth{
+		provider := codersdk.TemplateVersionExternalAuth{
 			ID:              config.ID,
 			Type:            config.Type,
 			AuthenticateURL: redirectURL.String(),
+			DisplayName:     config.DisplayName,
+			DisplayIcon:     config.DisplayIcon,
 		}
 
-		authLink, err := api.Database.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{
+		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
 			ProviderID: config.ID,
 			UserID:     apiKey.UserID,
 		})
@@ -333,7 +335,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		}
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching git auth link.",
+				Message: "Internal error fetching external auth link.",
 				Detail:  err.Error(),
 			})
 			return
@@ -342,7 +344,7 @@ func (api *API) templateVersionGitAuth(rw http.ResponseWriter, r *http.Request) 
 		_, updated, err := config.RefreshToken(ctx, api.Database, authLink)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to refresh git auth token.",
+				Message: "Failed to refresh external auth token.",
 				Detail:  err.Error(),
 			})
 			return
@@ -381,7 +383,7 @@ func (api *API) templateVersionVariables(rw http.ResponseWriter, r *http.Request
 		return
 	}
 	if !job.CompletedAt.Valid {
-		httpapi.Write(ctx, rw, http.StatusPreconditionFailed, codersdk.Response{
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "Job hasn't completed!",
 		})
 		return
@@ -1035,6 +1037,21 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 	if version.TemplateID.UUID.String() != template.ID.String() {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "The provided template version doesn't belong to the specified template.",
+		})
+		return
+	}
+	job, err := api.Database.GetProvisionerJobByID(ctx, version.JobID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version job status.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if job.JobStatus != database.ProvisionerJobStatusSucceeded {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only versions that have been built successfully can be promoted.",
+			Detail:  fmt.Sprintf("Attempted to promote a version with a %s build", job.JobStatus),
 		})
 		return
 	}

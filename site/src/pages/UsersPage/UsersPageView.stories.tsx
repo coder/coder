@@ -1,5 +1,4 @@
 import { Meta, StoryObj } from "@storybook/react";
-import { createPaginationRef } from "components/PaginationWidget/utils";
 import {
   MockUser,
   MockUser2,
@@ -30,7 +29,8 @@ const meta: Meta<typeof UsersPageView> = {
   title: "pages/UsersPageView",
   component: UsersPageView,
   args: {
-    paginationRef: createPaginationRef({ page: 1, limit: 25 }),
+    page: 1,
+    limit: 25,
     isNonInitialPage: false,
     users: [MockUser, MockUser2],
     roles: MockAssignableSiteRoles,

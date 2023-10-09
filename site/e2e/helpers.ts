@@ -426,7 +426,7 @@ const createTemplateVersionTar = async (
           error: response.apply?.error ?? "",
           resources: response.apply?.resources ?? [],
           parameters: response.apply?.parameters ?? [],
-          gitAuthProviders: response.apply?.gitAuthProviders ?? [],
+          externalAuthProviders: response.apply?.externalAuthProviders ?? [],
         },
       };
     });
@@ -473,6 +473,7 @@ const createTemplateVersionTar = async (
             env: {},
             id: randomUUID(),
             metadata: [],
+            scripts: [],
             motdFile: "",
             name: "dev",
             operatingSystem: "linux",
@@ -507,7 +508,7 @@ const createTemplateVersionTar = async (
       state: new Uint8Array(),
       resources: [],
       parameters: [],
-      gitAuthProviders: [],
+      externalAuthProviders: [],
       ...response.apply,
     } as ApplyComplete;
     response.apply.resources = response.apply.resources?.map(fillResource);
@@ -522,7 +523,7 @@ const createTemplateVersionTar = async (
       error: "",
       resources: [],
       parameters: [],
-      gitAuthProviders: [],
+      externalAuthProviders: [],
       ...response.plan,
     } as PlanComplete;
     response.plan.resources = response.plan.resources?.map(fillResource);
@@ -569,7 +570,10 @@ export const createServer = async (
   port: number,
 ): Promise<ReturnType<typeof express>> => {
   const e = express();
-  await new Promise<void>((r) => e.listen(port, r));
+  // We need to specify the local IP address as the web server
+  // tends to fail with IPv6 related error:
+  // listen EADDRINUSE: address already in use :::50516
+  await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
   return e;
 };
 

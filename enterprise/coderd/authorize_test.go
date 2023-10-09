@@ -40,7 +40,7 @@ func TestCheckACLPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	version := coderdtest.CreateTemplateVersion(t, adminClient, adminUser.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
 	template := coderdtest.CreateTemplate(t, adminClient, adminUser.OrganizationID, version.ID)
 
 	err = adminClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{

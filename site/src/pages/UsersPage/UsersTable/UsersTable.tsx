@@ -5,8 +5,8 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { FC } from "react";
-import * as TypesGen from "../../../api/typesGenerated";
-import { Stack } from "../../../components/Stack/Stack";
+import * as TypesGen from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
 import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 

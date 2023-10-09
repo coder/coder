@@ -4,16 +4,16 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
-import { FC, ReactNode } from "react";
-import * as TypesGen from "../../../api/typesGenerated";
-import { combineClasses } from "../../../utils/combineClasses";
-import { AvatarData } from "../../../components/AvatarData/AvatarData";
-import { EmptyState } from "../../../components/EmptyState/EmptyState";
+import { type FC } from "react";
+import * as TypesGen from "api/typesGenerated";
+import { combineClasses } from "utils/combineClasses";
+import { AvatarData } from "components/AvatarData/AvatarData";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
-} from "../../../components/TableLoader/TableLoader";
-import { TableRowMenu } from "../../../components/TableRowMenu/TableRowMenu";
+} from "components/TableLoader/TableLoader";
+import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
 import { EditRolesButton } from "./EditRolesButton";
 import { Stack } from "components/Stack/Stack";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
@@ -155,7 +155,7 @@ export const UsersTableBody: FC<
                   : sortRoles(user.roles);
 
               return (
-                <TableRow key={user.id}>
+                <TableRow key={user.id} data-testid={`user-${user.id}`}>
                   <TableCell>
                     <AvatarData
                       title={user.username}
@@ -215,51 +215,45 @@ export const UsersTableBody: FC<
                     <TableCell>
                       <TableRowMenu
                         data={user}
-                        menuItems={
+                        menuItems={[
                           // Return either suspend or activate depending on status
-                          (user.status === "active" || user.status === "dormant"
-                            ? [
-                                {
-                                  label: "Suspend" as ReactNode,
-                                  onClick: onSuspendUser,
-                                  disabled: false,
-                                },
-                              ]
-                            : [
-                                {
-                                  label: "Activate" as ReactNode,
-                                  onClick: onActivateUser,
-                                  disabled: false,
-                                },
-                              ]
-                          ).concat(
-                            {
-                              label: "Delete",
-                              onClick: onDeleteUser,
-                              disabled: user.id === actorID,
-                            },
-                            {
-                              label: "Reset password",
-                              onClick: onResetUserPassword,
-                              disabled: user.login_type !== "password",
-                            },
-                            {
-                              label: "View workspaces",
-                              onClick: onListWorkspaces,
-                              disabled: false,
-                            },
-                            {
-                              label: (
-                                <>
-                                  View activity
-                                  {!canViewActivity && <EnterpriseBadge />}
-                                </>
-                              ),
-                              onClick: onViewActivity,
-                              disabled: !canViewActivity,
-                            },
-                          )
-                        }
+                          user.status === "active" || user.status === "dormant"
+                            ? {
+                                label: <>Suspend&hellip;</>,
+                                onClick: onSuspendUser,
+                                disabled: false,
+                              }
+                            : {
+                                label: <>Activate&hellip;</>,
+                                onClick: onActivateUser,
+                                disabled: false,
+                              },
+                          {
+                            label: <>Delete&hellip;</>,
+                            onClick: onDeleteUser,
+                            disabled: user.id === actorID,
+                          },
+                          {
+                            label: <>Reset password&hellip;</>,
+                            onClick: onResetUserPassword,
+                            disabled: user.login_type !== "password",
+                          },
+                          {
+                            label: "View workspaces",
+                            onClick: onListWorkspaces,
+                            disabled: false,
+                          },
+                          {
+                            label: (
+                              <>
+                                View activity
+                                {!canViewActivity && <EnterpriseBadge />}
+                              </>
+                            ),
+                            onClick: onViewActivity,
+                            disabled: !canViewActivity,
+                          },
+                        ]}
                       />
                     </TableCell>
                   )}

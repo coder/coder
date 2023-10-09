@@ -1,9 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getPreviousTemplateVersionByName } from "api/api";
 import { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
-import { useTemplateLayoutContext } from "components/TemplateLayout/TemplateLayout";
+import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useOrganizationId } from "hooks/useOrganizationId";
 import { useTab } from "hooks/useTab";
 import { FC, useEffect } from "react";

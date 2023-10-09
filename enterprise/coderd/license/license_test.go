@@ -248,7 +248,7 @@ func TestEntitlements(t *testing.T) {
 			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
-			if featureName == codersdk.FeatureMultipleGitAuth {
+			if featureName == codersdk.FeatureMultipleExternalAuth {
 				continue
 			}
 			niceName := featureName.Humanize()
@@ -378,6 +378,53 @@ func TestEntitlements(t *testing.T) {
 		}
 	})
 
+	t.Run("AllFeaturesAlwaysEnable", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: dbtime.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				AllFeatures: true,
+			}),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, empty)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		for _, featureName := range codersdk.FeatureNames {
+			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			feature := entitlements.Features[featureName]
+			require.Equal(t, featureName.AlwaysEnable(), feature.Enabled)
+			require.Equal(t, codersdk.EntitlementEntitled, feature.Entitlement)
+		}
+	})
+
+	t.Run("AllFeaturesGrace", func(t *testing.T) {
+		t.Parallel()
+		db := dbfake.New()
+		db.InsertLicense(context.Background(), database.InsertLicenseParams{
+			Exp: dbtime.Now().Add(time.Hour),
+			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{
+				AllFeatures: true,
+				GraceAt:     dbtime.Now().Add(-time.Hour),
+				ExpiresAt:   dbtime.Now().Add(time.Hour),
+			}),
+		})
+		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 1, coderdenttest.Keys, all)
+		require.NoError(t, err)
+		require.True(t, entitlements.HasLicense)
+		require.False(t, entitlements.Trial)
+		for _, featureName := range codersdk.FeatureNames {
+			if featureName == codersdk.FeatureUserLimit {
+				continue
+			}
+			require.True(t, entitlements.Features[featureName].Enabled)
+			require.Equal(t, codersdk.EntitlementGracePeriod, entitlements.Features[featureName].Entitlement)
+		}
+	})
+
 	t.Run("MultipleReplicasNoLicense", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
@@ -437,7 +484,7 @@ func TestEntitlements(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, entitlements.HasLicense)
 		require.Len(t, entitlements.Errors, 1)
-		require.Equal(t, "You have multiple Git authorizations configured but this is an Enterprise feature. Reduce to one.", entitlements.Errors[0])
+		require.Equal(t, "You have multiple External Auth Providers configured but this is an Enterprise feature. Reduce to one.", entitlements.Errors[0])
 	})
 
 	t.Run("MultipleGitAuthNotEntitled", func(t *testing.T) {
@@ -452,12 +499,12 @@ func TestEntitlements(t *testing.T) {
 			}),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[codersdk.FeatureName]bool{
-			codersdk.FeatureMultipleGitAuth: true,
+			codersdk.FeatureMultipleExternalAuth: true,
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Len(t, entitlements.Errors, 1)
-		require.Equal(t, "You have multiple Git authorizations configured but your license is limited at one.", entitlements.Errors[0])
+		require.Equal(t, "You have multiple External Auth Providers configured but your license is limited at one.", entitlements.Errors[0])
 	})
 
 	t.Run("MultipleGitAuthGrace", func(t *testing.T) {
@@ -468,17 +515,17 @@ func TestEntitlements(t *testing.T) {
 				GraceAt:   time.Now().Add(-time.Hour),
 				ExpiresAt: time.Now().Add(time.Hour),
 				Features: license.Features{
-					codersdk.FeatureMultipleGitAuth: 1,
+					codersdk.FeatureMultipleExternalAuth: 1,
 				},
 			}),
 			Exp: time.Now().Add(time.Hour),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, slog.Logger{}, 1, 2, coderdenttest.Keys, map[codersdk.FeatureName]bool{
-			codersdk.FeatureMultipleGitAuth: true,
+			codersdk.FeatureMultipleExternalAuth: true,
 		})
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 		require.Len(t, entitlements.Warnings, 1)
-		require.Equal(t, "You have multiple Git authorizations configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
+		require.Equal(t, "You have multiple External Auth Providers configured but your license is expired. Reduce to one.", entitlements.Warnings[0])
 	})
 }

@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
-import * as TypesGen from "../api/typesGenerated";
-import * as Mocks from "../testHelpers/entities";
+import * as TypesGen from "api/typesGenerated";
+import * as Mocks from "testHelpers/entities";
 import {
   defaultWorkspaceExtension,
   getDisplayVersionStatus,

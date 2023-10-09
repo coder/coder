@@ -27,9 +27,11 @@ import {
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters";
 import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
-import { GitAuth } from "./GitAuth";
+import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
+import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import { useSearchParams } from "react-router-dom";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
@@ -37,7 +39,9 @@ export interface CreateWorkspacePageViewProps {
   defaultOwner: TypesGen.User;
   template: TypesGen.Template;
   versionId?: string;
-  gitAuth: TypesGen.TemplateVersionGitAuth[];
+  externalAuth: TypesGen.TemplateVersionExternalAuth[];
+  externalAuthPollingState: ExternalAuthPollingState;
+  startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
   permissions: CreateWSPermissions;
@@ -55,7 +59,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   defaultOwner,
   template,
   versionId,
-  gitAuth,
+  externalAuth,
+  externalAuthPollingState,
+  startPollingExternalAuth,
   parameters,
   defaultBuildParameters,
   permissions,
@@ -65,7 +71,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 }) => {
   const styles = useStyles();
   const [owner, setOwner] = useState(defaultOwner);
-  const { verifyGitAuth, gitAuthErrors } = useGitAuthVerification(gitAuth);
+  const { verifyExternalAuth, externalAuthErrors } =
+    useExternalAuthVerification(externalAuth);
+  const [searchParams] = useSearchParams();
+  const disabledParamsList = searchParams?.get("disable_params")?.split(",");
+
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
@@ -82,7 +92,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (!verifyGitAuth()) {
+        if (!verifyExternalAuth()) {
           form.setSubmitting(false);
           return;
         }
@@ -113,7 +123,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
-            {versionId && (
+            {versionId && versionId !== template.active_version_id && (
               <Stack spacing={1} className={styles.hasDescription}>
                 <TextField
                   disabled
@@ -155,19 +165,22 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
           </FormSection>
         )}
 
-        {gitAuth && gitAuth.length > 0 && (
+        {externalAuth && externalAuth.length > 0 && (
           <FormSection
-            title="Git Authentication"
-            description="This template requires authentication to automatically perform Git operations on create."
+            title="External Authentication"
+            description="This template requires authentication to external services."
           >
             <FormFields>
-              {gitAuth.map((auth, index) => (
-                <GitAuth
-                  key={index}
+              {externalAuth.map((auth) => (
+                <ExternalAuth
+                  key={auth.id}
                   authenticateURL={auth.authenticate_url}
                   authenticated={auth.authenticated}
-                  type={auth.type}
-                  error={gitAuthErrors[auth.id]}
+                  externalAuthPollingState={externalAuthPollingState}
+                  startPollingExternalAuth={startPollingExternalAuth}
+                  displayName={auth.display_name}
+                  displayIcon={auth.display_icon}
+                  error={externalAuthErrors[auth.id]}
                 />
               ))}
             </FormFields>
@@ -189,7 +202,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     });
                   },
-                  disabled: form.isSubmitting,
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || form.isSubmitting,
                 };
               }}
             />
@@ -207,7 +223,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                       value: value,
                     });
                   },
-                  disabled: form.isSubmitting,
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || form.isSubmitting,
                 };
               }}
             />
@@ -224,25 +243,24 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   );
 };
 
-type GitAuthErrors = Record<string, string>;
+type ExternalAuthErrors = Record<string, string>;
 
-const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
-  const [gitAuthErrors, setGitAuthErrors] = useState<GitAuthErrors>({});
+const useExternalAuthVerification = (
+  externalAuth: TypesGen.TemplateVersionExternalAuth[],
+) => {
+  const [externalAuthErrors, setExternalAuthErrors] =
+    useState<ExternalAuthErrors>({});
 
+  // Clear errors when externalAuth is refreshed
   useEffect(() => {
-    // templateGitAuth is refreshed automatically using a BroadcastChannel
-    // which may change the `authenticated` property.
-    //
-    // If the provider becomes authenticated, we want the error message
-    // to disappear.
-    setGitAuthErrors({});
-  }, [gitAuth]);
+    setExternalAuthErrors({});
+  }, [externalAuth]);
 
-  const verifyGitAuth = () => {
-    const errors: GitAuthErrors = {};
+  const verifyExternalAuth = () => {
+    const errors: ExternalAuthErrors = {};
 
-    for (let i = 0; i < gitAuth.length; i++) {
-      const auth = gitAuth.at(i);
+    for (let i = 0; i < externalAuth.length; i++) {
+      const auth = externalAuth.at(i);
       if (!auth) {
         continue;
       }
@@ -251,14 +269,14 @@ const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
       }
     }
 
-    setGitAuthErrors(errors);
+    setExternalAuthErrors(errors);
     const isValid = Object.keys(errors).length === 0;
     return isValid;
   };
 
   return {
-    gitAuthErrors,
-    verifyGitAuth,
+    externalAuthErrors,
+    verifyExternalAuth,
   };
 };
 

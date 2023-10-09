@@ -12,7 +12,7 @@ import {
 import { SecondaryAgentButton } from "components/Resources/AgentButton";
 import { docs } from "utils/docs";
 import Box from "@mui/material/Box";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getAgentListeningPorts } from "api/api";
 import {
   WorkspaceAgent,

@@ -244,39 +244,39 @@ const OffLifecycle: React.FC = () => {
 const ConnectedStatus: React.FC<{
   agent: WorkspaceAgent;
 }> = ({ agent }) => {
-  switch (agent.startup_script_behavior) {
-    case "non-blocking":
-      return <ReadyLifecycle />;
-    case "blocking":
-      return (
-        <ChooseOne>
-          <Cond condition={agent.lifecycle_state === "ready"}>
-            <ReadyLifecycle />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "start_timeout"}>
-            <StartTimeoutLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "start_error"}>
-            <StartErrorLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutting_down"}>
-            <ShuttingDownLifecycle />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
-            <ShutdownTimeoutLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "shutdown_error"}>
-            <ShutdownErrorLifecycle agent={agent} />
-          </Cond>
-          <Cond condition={agent.lifecycle_state === "off"}>
-            <OffLifecycle />
-          </Cond>
-          <Cond>
-            <StartingLifecycle />
-          </Cond>
-        </ChooseOne>
-      );
+  // This is to support legacy agents that do not support
+  // reporting the lifecycle_state field.
+  if (agent.scripts.length === 0) {
+    return <ReadyLifecycle />;
   }
+  return (
+    <ChooseOne>
+      <Cond condition={agent.lifecycle_state === "ready"}>
+        <ReadyLifecycle />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "start_timeout"}>
+        <StartTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "start_error"}>
+        <StartErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutting_down"}>
+        <ShuttingDownLifecycle />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_timeout"}>
+        <ShutdownTimeoutLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "shutdown_error"}>
+        <ShutdownErrorLifecycle agent={agent} />
+      </Cond>
+      <Cond condition={agent.lifecycle_state === "off"}>
+        <OffLifecycle />
+      </Cond>
+      <Cond>
+        <StartingLifecycle />
+      </Cond>
+    </ChooseOne>
+  );
 };
 
 const DisconnectedStatus: React.FC = () => {

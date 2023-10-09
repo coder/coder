@@ -3,12 +3,12 @@ import { Sidebar } from "./Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { createContext, FC, Suspense, useContext } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "../../utils/page";
+import { pageTitle } from "utils/page";
 import { Loader } from "components/Loader/Loader";
 import { Outlet, useParams } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
 import { workspaceByOwnerAndName } from "api/queries/workspace";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { type Workspace } from "api/typesGenerated";
 

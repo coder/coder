@@ -9,14 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -66,36 +65,27 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace = coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.TTLMillis = &ttlMillis
 		})
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Update the max deadline.
 		if maxTTL != 0 {
 			dbBuild, err := db.GetWorkspaceBuildByID(ctx, workspace.LatestBuild.ID)
 			require.NoError(t, err)
 
-			err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
-				ID:               workspace.LatestBuild.ID,
-				UpdatedAt:        dbtime.Now(),
-				ProvisionerState: dbBuild.ProvisionerState,
-				Deadline:         dbBuild.Deadline,
-				MaxDeadline:      dbtime.Now().Add(maxTTL),
+			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+				ID:          workspace.LatestBuild.ID,
+				UpdatedAt:   dbtime.Now(),
+				Deadline:    dbBuild.Deadline,
+				MaxDeadline: dbtime.Now().Add(maxTTL),
 			})
 			require.NoError(t, err)
 		}
 
-		agentClient := agentsdk.New(client.URL)
-		agentClient.SetSessionToken(agentToken)
-		agentCloser := agent.New(agent.Options{
-			Client: agentClient,
-			Logger: slogtest.Make(t, nil).Named("agent"),
-		})
-		t.Cleanup(func() {
-			_ = agentCloser.Close()
-		})
+		_ = agenttest.New(t, client.URL, agentToken)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 		// Sanity-check that deadline is near.

@@ -10,6 +10,7 @@ export interface Line {
   time: string;
   output: string;
   level: LogLevel;
+  source_id: string;
 }
 
 export interface LogsProps {
@@ -55,17 +56,36 @@ export const LogLine: FC<{
   hideTimestamp?: boolean;
   number?: number;
   style?: React.CSSProperties;
-}> = ({ line, hideTimestamp, number, style }) => {
+  sourceIcon?: JSX.Element;
+  maxNumber?: number;
+}> = ({ line, hideTimestamp, number, maxNumber, sourceIcon, style }) => {
   const styles = useStyles();
   const output = useMemo(() => {
     return convert.toHtml(line.output.split(/\r/g).pop() as string);
   }, [line.output]);
+  const isUsingLineNumber = number !== undefined;
 
   return (
-    <div className={combineClasses([styles.line, line.level])} style={style}>
+    <div
+      className={combineClasses([
+        styles.line,
+        line.level,
+        isUsingLineNumber && styles.lineNumber,
+      ])}
+      style={style}
+    >
+      {sourceIcon}
       {!hideTimestamp && (
         <>
-          <span className={styles.time}>
+          <span
+            className={combineClasses([
+              styles.time,
+              isUsingLineNumber && styles.number,
+            ])}
+            style={{
+              minWidth: `${maxNumber ? maxNumber.toString().length - 1 : 0}em`,
+            }}
+          >
             {number ? number : dayjs(line.time).format(`HH:mm:ss.SSS`)}
           </span>
           <span className={styles.space} />
@@ -99,6 +119,7 @@ const useStyles = makeStyles((theme) => ({
   line: {
     wordBreak: "break-all",
     display: "flex",
+    alignItems: "center",
     fontSize: 14,
     color: theme.palette.text.primary,
     fontFamily: MONOSPACE_FONT_FAMILY,
@@ -119,6 +140,9 @@ const useStyles = makeStyles((theme) => ({
       backgroundColor: theme.palette.warning.dark,
     },
   },
+  lineNumber: {
+    paddingLeft: theme.spacing(2),
+  },
   space: {
     userSelect: "none",
     width: theme.spacing(3),
@@ -127,9 +151,12 @@ const useStyles = makeStyles((theme) => ({
   },
   time: {
     userSelect: "none",
-    width: theme.spacing(12.5),
     whiteSpace: "pre",
     display: "inline-block",
     color: theme.palette.text.secondary,
+  },
+  number: {
+    width: theme.spacing(4),
+    textAlign: "right",
   },
 }));

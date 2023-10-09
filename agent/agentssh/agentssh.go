@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gliderlabs/ssh"
+	"github.com/kballard/go-shellquote"
 	"github.com/pkg/sftp"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -515,7 +516,28 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	if runtime.GOOS == "windows" {
 		caller = "/c"
 	}
+	name := shell
 	args := []string{caller, script}
+
+	if strings.HasPrefix(strings.TrimSpace(script), "#!") {
+		// If the script starts with a shebang, we should
+		// execute it directly. This is useful for running
+		// scripts that aren't executable.
+		shebang := strings.SplitN(script, "\n", 2)[0]
+		shebang = strings.TrimPrefix(shebang, "#!")
+		shebang = strings.TrimSpace(shebang)
+		words, err := shellquote.Split(shebang)
+		if err != nil {
+			return nil, xerrors.Errorf("split shebang: %w", err)
+		}
+		name = words[0]
+		if len(words) > 1 {
+			args = words[1:]
+		} else {
+			args = []string{}
+		}
+		args = append(args, caller, script)
+	}
 
 	// gliderlabs/ssh returns a command slice of zero
 	// when a shell is requested.
@@ -528,7 +550,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		}
 	}
 
-	cmd := pty.CommandContext(ctx, shell, args...)
+	cmd := pty.CommandContext(ctx, name, args...)
 	cmd.Dir = manifest.Directory
 
 	// If the metadata directory doesn't exist, we run the command

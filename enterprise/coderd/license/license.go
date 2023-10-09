@@ -23,7 +23,7 @@ func Entitlements(
 	db database.Store,
 	logger slog.Logger,
 	replicaCount int,
-	gitAuthCount int,
+	externalAuthCount int,
 	keys map[string]ed25519.PublicKey,
 	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
@@ -61,6 +61,7 @@ func Entitlements(
 	}
 
 	allFeatures := false
+	allFeaturesEntitlement := codersdk.EntitlementNotEntitled
 
 	// Here we loop through licenses to detect enabled features.
 	for _, l := range licenses {
@@ -117,7 +118,7 @@ func Entitlements(
 				}
 			default:
 				entitlements.Features[featureName] = codersdk.Feature{
-					Entitlement: entitlement,
+					Entitlement: maxEntitlement(entitlements.Features[featureName].Entitlement, entitlement),
 					Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
 				}
 			}
@@ -125,6 +126,7 @@ func Entitlements(
 
 		if claims.AllFeatures {
 			allFeatures = true
+			allFeaturesEntitlement = maxEntitlement(allFeaturesEntitlement, entitlement)
 		}
 		entitlements.RequireTelemetry = entitlements.RequireTelemetry || claims.RequireTelemetry
 	}
@@ -136,7 +138,8 @@ func Entitlements(
 				continue
 			}
 			feature := entitlements.Features[featureName]
-			feature.Entitlement = codersdk.EntitlementEntitled
+			feature.Entitlement = maxEntitlement(feature.Entitlement, allFeaturesEntitlement)
+			feature.Enabled = enablements[featureName] || featureName.AlwaysEnable()
 			entitlements.Features[featureName] = feature
 		}
 	}
@@ -158,8 +161,8 @@ func Entitlements(
 			if featureName == codersdk.FeatureHighAvailability {
 				continue
 			}
-			// Multiple Git auth has it's own warnings based on the number configured!
-			if featureName == codersdk.FeatureMultipleGitAuth {
+			// External Auth Providers auth has it's own warnings based on the number configured!
+			if featureName == codersdk.FeatureMultipleExternalAuth {
 				continue
 			}
 			feature := entitlements.Features[featureName]
@@ -197,23 +200,23 @@ func Entitlements(
 		}
 	}
 
-	if gitAuthCount > 1 {
-		feature := entitlements.Features[codersdk.FeatureMultipleGitAuth]
+	if externalAuthCount > 1 {
+		feature := entitlements.Features[codersdk.FeatureMultipleExternalAuth]
 
 		switch feature.Entitlement {
 		case codersdk.EntitlementNotEntitled:
 			if entitlements.HasLicense {
 				entitlements.Errors = append(entitlements.Errors,
-					"You have multiple Git authorizations configured but your license is limited at one.",
+					"You have multiple External Auth Providers configured but your license is limited at one.",
 				)
 			} else {
 				entitlements.Errors = append(entitlements.Errors,
-					"You have multiple Git authorizations configured but this is an Enterprise feature. Reduce to one.",
+					"You have multiple External Auth Providers configured but this is an Enterprise feature. Reduce to one.",
 				)
 			}
 		case codersdk.EntitlementGracePeriod:
 			entitlements.Warnings = append(entitlements.Warnings,
-				"You have multiple Git authorizations configured but your license is expired. Reduce to one.",
+				"You have multiple External Auth Providers configured but your license is expired. Reduce to one.",
 			)
 		}
 	}
@@ -323,4 +326,15 @@ func keyFunc(keys map[string]ed25519.PublicKey) func(*jwt.Token) (interface{}, e
 		}
 		return k, nil
 	}
+}
+
+// maxEntitlement is the "greater" entitlement between the given values
+func maxEntitlement(e1, e2 codersdk.Entitlement) codersdk.Entitlement {
+	if e1 == codersdk.EntitlementEntitled || e2 == codersdk.EntitlementEntitled {
+		return codersdk.EntitlementEntitled
+	}
+	if e1 == codersdk.EntitlementGracePeriod || e2 == codersdk.EntitlementGracePeriod {
+		return codersdk.EntitlementGracePeriod
+	}
+	return codersdk.EntitlementNotEntitled
 }

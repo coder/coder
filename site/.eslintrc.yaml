@@ -156,6 +156,7 @@ rules:
   # https://reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html#eslint
   react/jsx-key: error
   react/jsx-uses-react: "off"
+  react/no-unknown-property: ["error", { ignore: ["css"] }]
   react/react-in-jsx-scope: "off"
   "unicorn/explicit-length-check": "error"
   # https://github.com/jsx-eslint/eslint-plugin-react/issues/2628#issuecomment-984160944

@@ -30,15 +30,14 @@ site/e2e/states/*.json
 site/e2e/.auth.json
 site/playwright-report/*
 site/.swc
-site/dist/
 
 # Make target for updating golden files (any dir).
 .gen-golden
 
 # Build
-/build/
-/dist/
-site/out/
+build/
+dist/
+out/
 
 # Bundle analysis
 site/stats/
@@ -67,3 +66,6 @@ result
 
 # Data dumps from unit tests
 **/*.test.sql
+
+# Filebrowser.db
+**/filebrowser.db

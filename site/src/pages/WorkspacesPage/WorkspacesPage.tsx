@@ -1,10 +1,7 @@
 import { usePagination } from "hooks/usePagination";
 import { Workspace } from "api/typesGenerated";
-import {
-  useDashboard,
-  useIsWorkspaceActionsEnabled,
-} from "components/Dashboard/DashboardProvider";
-import { type FC, useEffect, useState, useSyncExternalStore } from "react";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspacesData, useWorkspaceUpdate } from "./data";
@@ -22,6 +19,8 @@ import TextField from "@mui/material/TextField";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { useQuery } from "react-query";
+import { templates } from "api/queries/templates";
 
 function useSafeSearchParams() {
   // Have to wrap setSearchParams because React Router doesn't make sure that
@@ -44,8 +43,13 @@ const WorkspacesPage: FC = () => {
   // each hook.
   const searchParamsResult = useSafeSearchParams();
   const pagination = usePagination({ searchParamsResult });
+
+  const organizationId = useOrganizationId();
+  const templatesQuery = useQuery(templates(organizationId));
+
   const filterProps = useWorkspacesFilter({
     searchParamsResult,
+    organizationId,
     onFilterChange: () => pagination.goToPage(1),
   });
 
@@ -54,13 +58,16 @@ const WorkspacesPage: FC = () => {
     query: filterProps.filter.query,
   });
 
-  const experimentEnabled = useIsWorkspaceActionsEnabled();
+  const { entitlements } = useDashboard();
+  const schedulingEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled;
+
   // If workspace actions are enabled we need to fetch the dormant
   // workspaces as well. This lets us determine whether we should
   // show a banner to the user indicating that some of their workspaces
   // are at risk of being deleted.
   useEffect(() => {
-    if (experimentEnabled) {
+    if (schedulingEnabled) {
       const includesDormant = filterProps.filter.query.includes("dormant_at");
       const dormantQuery = includesDormant
         ? filterProps.filter.query
@@ -82,12 +89,11 @@ const WorkspacesPage: FC = () => {
       // like dormant workspaces don't exist.
       setDormantWorkspaces([]);
     }
-  }, [experimentEnabled, data, filterProps.filter.query]);
+  }, [schedulingEnabled, data, filterProps.filter.query]);
   const updateWorkspace = useWorkspaceUpdate(queryKey);
   const [checkedWorkspaces, setCheckedWorkspaces] = useState<Workspace[]>([]);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [urlSearchParams] = searchParamsResult;
-  const { entitlements } = useDashboard();
   const canCheckWorkspaces =
     entitlements.features["workspace_batch_actions"].enabled;
 
@@ -107,6 +113,8 @@ const WorkspacesPage: FC = () => {
         checkedWorkspaces={checkedWorkspaces}
         onCheckChange={setCheckedWorkspaces}
         canCheckWorkspaces={canCheckWorkspaces}
+        templates={templatesQuery.data}
+        templatesFetchStatus={templatesQuery.status}
         workspaces={data?.workspaces}
         dormantWorkspaces={dormantWorkspaces}
         error={error}
@@ -140,59 +148,21 @@ const WorkspacesPage: FC = () => {
 
 export default WorkspacesPage;
 
-const workspaceFilterKey = "WorkspacesPage/filter";
-const defaultWorkspaceFilter = "owner:me";
-
-// Function should stay outside components as much as possible; if declared
-// inside the component, React would add/remove event listeners every render
-function subscribeToFilterChanges(notifyReact: () => void) {
-  const onStorageChange = (event: StorageEvent) => {
-    const { key, storageArea, oldValue, newValue } = event;
-
-    const shouldNotify =
-      key === workspaceFilterKey &&
-      storageArea === window.localStorage &&
-      newValue !== oldValue;
-
-    if (shouldNotify) {
-      notifyReact();
-    }
-  };
-
-  window.addEventListener("storage", onStorageChange);
-  return () => window.removeEventListener("storage", onStorageChange);
-}
-
 type UseWorkspacesFilterOptions = {
   searchParamsResult: ReturnType<typeof useSearchParams>;
   onFilterChange: () => void;
+  organizationId: string;
 };
 
 const useWorkspacesFilter = ({
   searchParamsResult,
   onFilterChange,
+  organizationId,
 }: UseWorkspacesFilterOptions) => {
-  // Using useSyncExternalStore store to safely access localStorage from the
-  // first render; both snapshot callbacks return primitives, so no special
-  // trickery needed to prevent hook from immediately blowing up in dev mode
-  const localStorageFilter = useSyncExternalStore(
-    subscribeToFilterChanges,
-    () => {
-      return (
-        window.localStorage.getItem(workspaceFilterKey) ??
-        defaultWorkspaceFilter
-      );
-    },
-    () => defaultWorkspaceFilter,
-  );
-
   const filter = useFilter({
-    fallbackFilter: localStorageFilter,
+    fallbackFilter: "owner:me",
     searchParamsResult,
-    onUpdate: (newValues) => {
-      window.localStorage.setItem(workspaceFilterKey, newValues);
-      onFilterChange();
-    },
+    onUpdate: onFilterChange,
   });
 
   const permissions = usePermissions();
@@ -204,9 +174,8 @@ const useWorkspacesFilter = ({
     enabled: canFilterByUser,
   });
 
-  const orgId = useOrganizationId();
   const templateMenu = useTemplateFilterMenu({
-    orgId,
+    orgId: organizationId,
     value: filter.values.template,
     onChange: (option) =>
       filter.update({ ...filter.values, template: option?.value }),

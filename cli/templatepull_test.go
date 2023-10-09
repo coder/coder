@@ -68,14 +68,14 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	require.NoError(t, err)
 
 	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
 	clitest.SetupConfig(t, client, root)
@@ -109,14 +109,14 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	require.NoError(t, err)
 
 	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 
@@ -159,14 +159,14 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 	require.NoError(t, err)
 
 	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	// create a tempdir and change the working directory to it for the duration of the test (cannot run in parallel)
 	dir := t.TempDir()
@@ -220,14 +220,14 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version1.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
 	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, updatedVersion.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
 

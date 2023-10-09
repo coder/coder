@@ -825,16 +825,16 @@ func (s *MethodTestSuite) TestTemplate() {
 			Readme: "foo",
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateTemplateVersionGitAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
 		jobID := uuid.New()
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
 			JobID:      jobID,
 		})
-		check.Args(database.UpdateTemplateVersionGitAuthProvidersByJobIDParams{
-			JobID:            jobID,
-			GitAuthProviders: []string{},
+		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
+			JobID:                 jobID,
+			ExternalAuthProviders: []string{},
 		}).Asserts(t1, rbac.ActionUpdate).Returns()
 	}))
 }
@@ -953,23 +953,23 @@ func (s *MethodTestSuite) TestUser() {
 			UpdatedAt: key.UpdatedAt,
 		}).Asserts(key, rbac.ActionUpdate).Returns(key)
 	}))
-	s.Run("GetGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
-		check.Args(database.GetGitAuthLinkParams{
+	s.Run("GetExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
+		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.GetExternalAuthLinkParams{
 			ProviderID: link.ProviderID,
 			UserID:     link.UserID,
 		}).Asserts(link, rbac.ActionRead).Returns(link)
 	}))
-	s.Run("InsertGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.InsertGitAuthLinkParams{
+		check.Args(database.InsertExternalAuthLinkParams{
 			ProviderID: uuid.NewString(),
 			UserID:     u.ID,
 		}).Asserts(rbac.ResourceUserData.WithOwner(u.ID.String()).WithID(u.ID), rbac.ActionCreate)
 	}))
-	s.Run("UpdateGitAuthLink", s.Subtest(func(db database.Store, check *expects) {
-		link := dbgen.GitAuthLink(s.T(), db, database.GitAuthLink{})
-		check.Args(database.UpdateGitAuthLinkParams{
+	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
+		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.UpdateExternalAuthLinkParams{
 			ProviderID:        link.ProviderID,
 			UserID:            link.UserID,
 			OAuthAccessToken:  link.OAuthAccessToken,
@@ -1171,9 +1171,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		u := dbgen.User(s.T(), db, database.User{})
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		check.Args(database.InsertWorkspaceParams{
-			ID:             uuid.New(),
-			OwnerID:        u.ID,
-			OrganizationID: o.ID,
+			ID:               uuid.New(),
+			OwnerID:          u.ID,
+			OrganizationID:   o.ID,
+			AutomaticUpdates: database.AutomaticUpdatesNever,
 		}).Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate)
 	}))
 	s.Run("Start/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
@@ -1232,14 +1233,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: ws.ID,
 		}).Asserts(ws, rbac.ActionUpdate).Returns()
 	}))
-	s.Run("UpdateWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateWorkspaceBuildDeadlineByID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
-		check.Args(database.UpdateWorkspaceBuildByIDParams{
-			ID:               build.ID,
-			UpdatedAt:        build.UpdatedAt,
-			Deadline:         build.Deadline,
-			ProvisionerState: []byte{},
+		check.Args(database.UpdateWorkspaceBuildDeadlineByIDParams{
+			ID:        build.ID,
+			UpdatedAt: build.UpdatedAt,
+			Deadline:  build.Deadline,
 		}).Asserts(ws, rbac.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1378,6 +1378,14 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			DailyCost: 10,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspaceBuildProvisionerStateByID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		check.Args(database.UpdateWorkspaceBuildProvisionerStateByIDParams{
+			ID:               build.ID,
+			ProvisionerState: []byte("testing"),
+		}).Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
+	}))
 	s.Run("UpsertLastUpdateCheck", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("value").Asserts(rbac.ResourceSystem, rbac.ActionUpdate)
 	}))
@@ -1487,8 +1495,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertWorkspaceAgentParams{
-			ID:                    uuid.New(),
-			StartupScriptBehavior: database.StartupScriptBehaviorNonBlocking,
+			ID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {

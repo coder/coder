@@ -27,9 +27,12 @@ export const VersionRow: React.FC<VersionRowProps> = ({
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
-  const clickableProps = useClickableTableRow(() => {
-    navigate(version.name);
+
+  const clickableProps = useClickableTableRow({
+    onClick: () => navigate(version.name),
   });
+
+  const jobStatus = version.job.status;
 
   return (
     <TimelineEntry
@@ -77,17 +80,27 @@ export const VersionRow: React.FC<VersionRowProps> = ({
           <Stack direction="row" alignItems="center" spacing={2}>
             {isActive && <Pill text="Active" type="success" />}
             {isLatest && <Pill text="Newest" type="info" />}
+            {jobStatus === "pending" && (
+              <Pill text={<>Pending&hellip;</>} type="warning" lightBorder />
+            )}
+            {jobStatus === "running" && (
+              <Pill text={<>Building&hellip;</>} type="warning" lightBorder />
+            )}
+            {(jobStatus === "canceling" || jobStatus === "canceled") && (
+              <Pill text="Canceled" type="neutral" lightBorder />
+            )}
+            {jobStatus === "failed" && <Pill text="Failed" type="error" />}
             {onPromoteClick && (
               <Button
                 className={styles.promoteButton}
-                disabled={isActive}
+                disabled={isActive || jobStatus !== "succeeded"}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   onPromoteClick(version.id);
                 }}
               >
-                Promote
+                Promote&hellip;
               </Button>
             )}
           </Stack>

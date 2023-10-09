@@ -94,7 +94,7 @@ export interface InstanceIdentityAuth {
   instanceId: string;
 }
 
-export interface GitAuthProvider {
+export interface ExternalAuthProvider {
   id: string;
   accessToken: string;
 }
@@ -104,7 +104,7 @@ export interface Agent {
   id: string;
   name: string;
   env: { [key: string]: string };
-  startupScript: string;
+  /** Field 4 was startup_script, now removed. */
   operatingSystem: string;
   architecture: string;
   directory: string;
@@ -114,13 +114,14 @@ export interface Agent {
   connectionTimeoutSeconds: number;
   troubleshootingUrl: string;
   motdFile: string;
-  /** Field 14 was bool login_before_ready = 14, now removed. */
-  startupScriptTimeoutSeconds: number;
-  shutdownScript: string;
-  shutdownScriptTimeoutSeconds: number;
+  /**
+   * Field 14 was bool login_before_ready = 14, now removed.
+   * Field 15, 16, 17 were related to scripts, which are now removed.
+   */
   metadata: Agent_Metadata[];
-  startupScriptBehavior: string;
+  /** Field 19 was startup_script_behavior, now removed. */
   displayApps: DisplayApps | undefined;
+  scripts: Script[];
 }
 
 export interface Agent_Metadata {
@@ -142,6 +143,19 @@ export interface DisplayApps {
   webTerminal: boolean;
   sshHelper: boolean;
   portForwardingHelper: boolean;
+}
+
+/** Script represents a script to be run on the workspace. */
+export interface Script {
+  displayName: string;
+  icon: string;
+  script: string;
+  cron: string;
+  startBlocksLogin: boolean;
+  runOnStart: boolean;
+  runOnStop: boolean;
+  timeoutSeconds: number;
+  logPath: string;
 }
 
 /** App represents a dev-accessible application on the workspace. */
@@ -227,7 +241,7 @@ export interface PlanRequest {
   metadata: Metadata | undefined;
   richParameterValues: RichParameterValue[];
   variableValues: VariableValue[];
-  gitAuthProviders: GitAuthProvider[];
+  externalAuthProviders: ExternalAuthProvider[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -235,7 +249,7 @@ export interface PlanComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  gitAuthProviders: string[];
+  externalAuthProviders: string[];
 }
 
 /**
@@ -252,7 +266,7 @@ export interface ApplyComplete {
   error: string;
   resources: Resource[];
   parameters: RichParameter[];
-  gitAuthProviders: string[];
+  externalAuthProviders: string[];
 }
 
 /** CancelRequest requests that the previous request be canceled gracefully. */
@@ -441,9 +455,9 @@ export const InstanceIdentityAuth = {
   },
 };
 
-export const GitAuthProvider = {
+export const ExternalAuthProvider = {
   encode(
-    message: GitAuthProvider,
+    message: ExternalAuthProvider,
     writer: _m0.Writer = _m0.Writer.create(),
   ): _m0.Writer {
     if (message.id !== "") {
@@ -470,9 +484,6 @@ export const Agent = {
         writer.uint32(26).fork(),
       ).ldelim();
     });
-    if (message.startupScript !== "") {
-      writer.uint32(34).string(message.startupScript);
-    }
     if (message.operatingSystem !== "") {
       writer.uint32(42).string(message.operatingSystem);
     }
@@ -500,26 +511,17 @@ export const Agent = {
     if (message.motdFile !== "") {
       writer.uint32(106).string(message.motdFile);
     }
-    if (message.startupScriptTimeoutSeconds !== 0) {
-      writer.uint32(120).int32(message.startupScriptTimeoutSeconds);
-    }
-    if (message.shutdownScript !== "") {
-      writer.uint32(130).string(message.shutdownScript);
-    }
-    if (message.shutdownScriptTimeoutSeconds !== 0) {
-      writer.uint32(136).int32(message.shutdownScriptTimeoutSeconds);
-    }
     for (const v of message.metadata) {
       Agent_Metadata.encode(v!, writer.uint32(146).fork()).ldelim();
-    }
-    if (message.startupScriptBehavior !== "") {
-      writer.uint32(154).string(message.startupScriptBehavior);
     }
     if (message.displayApps !== undefined) {
       DisplayApps.encode(
         message.displayApps,
         writer.uint32(162).fork(),
       ).ldelim();
+    }
+    for (const v of message.scripts) {
+      Script.encode(v!, writer.uint32(170).fork()).ldelim();
     }
     return writer;
   },
@@ -583,6 +585,42 @@ export const DisplayApps = {
     }
     if (message.portForwardingHelper === true) {
       writer.uint32(40).bool(message.portForwardingHelper);
+    }
+    return writer;
+  },
+};
+
+export const Script = {
+  encode(
+    message: Script,
+    writer: _m0.Writer = _m0.Writer.create(),
+  ): _m0.Writer {
+    if (message.displayName !== "") {
+      writer.uint32(10).string(message.displayName);
+    }
+    if (message.icon !== "") {
+      writer.uint32(18).string(message.icon);
+    }
+    if (message.script !== "") {
+      writer.uint32(26).string(message.script);
+    }
+    if (message.cron !== "") {
+      writer.uint32(34).string(message.cron);
+    }
+    if (message.startBlocksLogin === true) {
+      writer.uint32(40).bool(message.startBlocksLogin);
+    }
+    if (message.runOnStart === true) {
+      writer.uint32(48).bool(message.runOnStart);
+    }
+    if (message.runOnStop === true) {
+      writer.uint32(56).bool(message.runOnStop);
+    }
+    if (message.timeoutSeconds !== 0) {
+      writer.uint32(64).int32(message.timeoutSeconds);
+    }
+    if (message.logPath !== "") {
+      writer.uint32(74).string(message.logPath);
     }
     return writer;
   },
@@ -800,8 +838,8 @@ export const PlanRequest = {
     for (const v of message.variableValues) {
       VariableValue.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
-      GitAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
+    for (const v of message.externalAuthProviders) {
+      ExternalAuthProvider.encode(v!, writer.uint32(34).fork()).ldelim();
     }
     return writer;
   },
@@ -821,7 +859,7 @@ export const PlanComplete = {
     for (const v of message.parameters) {
       RichParameter.encode(v!, writer.uint32(26).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
+    for (const v of message.externalAuthProviders) {
       writer.uint32(34).string(v!);
     }
     return writer;
@@ -857,7 +895,7 @@ export const ApplyComplete = {
     for (const v of message.parameters) {
       RichParameter.encode(v!, writer.uint32(34).fork()).ldelim();
     }
-    for (const v of message.gitAuthProviders) {
+    for (const v of message.externalAuthProviders) {
       writer.uint32(42).string(v!);
     }
     return writer;

@@ -1,13 +1,12 @@
 import * as TypesGen from "api/typesGenerated";
 import * as Mocks from "testHelpers/entities";
-import { displayImpendingDeletion } from "./utils";
+import { displayDormantDeletion } from "./utils";
 
-describe("displayImpendingDeletion", () => {
+describe("displayDormantDeletion", () => {
   const today = new Date();
-  it.each<[string, boolean, boolean, boolean]>([
+  it.each<[string, boolean, boolean]>([
     [
       new Date(new Date().setDate(today.getDate() + 15)).toISOString(),
-      true,
       true,
       false,
     ], // today + 15 days out
@@ -15,11 +14,9 @@ describe("displayImpendingDeletion", () => {
       new Date(new Date().setDate(today.getDate() + 14)).toISOString(),
       true,
       true,
-      true,
     ], // today + 14
     [
       new Date(new Date().setDate(today.getDate() + 13)).toISOString(),
-      true,
       true,
       true,
     ], // today + 13
@@ -27,30 +24,19 @@ describe("displayImpendingDeletion", () => {
       new Date(new Date().setDate(today.getDate() + 1)).toISOString(),
       true,
       true,
-      true,
     ], // today + 1
-    [new Date().toISOString(), true, true, true], // today + 0
-    [new Date().toISOString(), false, true, false], // Advanced Scheduling off
-    [new Date().toISOString(), true, false, false], // Workspace Actions off
+    [new Date().toISOString(), true, true], // today + 0
+    [new Date().toISOString(), false, false], // Advanced Scheduling off
   ])(
-    `deleting_at=%p, allowAdvancedScheduling=%p, AllowWorkspaceActions=%p, shouldDisplay=%p`,
-    (
-      deleting_at,
-      allowAdvancedScheduling,
-      allowWorkspaceActions,
-      shouldDisplay,
-    ) => {
+    `deleting_at=%p, allowAdvancedScheduling=%p, shouldDisplay=%p`,
+    (deleting_at, allowAdvancedScheduling, shouldDisplay) => {
       const workspace: TypesGen.Workspace = {
         ...Mocks.MockWorkspace,
         deleting_at,
       };
-      expect(
-        displayImpendingDeletion(
-          workspace,
-          allowAdvancedScheduling,
-          allowWorkspaceActions,
-        ),
-      ).toBe(shouldDisplay);
+      expect(displayDormantDeletion(workspace, allowAdvancedScheduling)).toBe(
+        shouldDisplay,
+      );
     },
   );
 });

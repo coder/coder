@@ -6,7 +6,7 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockUser,
-} from "../../testHelpers/entities";
+} from "testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
@@ -18,7 +18,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     defaultBuildParameters: [],
     template: MockTemplate,
     parameters: [],
-    gitAuth: [],
+    externalAuth: [],
     permissions: {
       createWorkspaceForUser: true,
     },
@@ -86,20 +86,24 @@ export const Parameters: Story = {
   },
 };
 
-export const GitAuth: Story = {
+export const ExternalAuth: Story = {
   args: {
-    gitAuth: [
+    externalAuth: [
       {
         id: "github",
         type: "github",
         authenticated: false,
         authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
       },
       {
         id: "gitlab",
         type: "gitlab",
         authenticated: true,
         authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
       },
     ],
   },

@@ -4,7 +4,7 @@ import duration from "dayjs/plugin/duration";
 import minMax from "dayjs/plugin/minMax";
 import utc from "dayjs/plugin/utc";
 import semver from "semver";
-import * as TypesGen from "../api/typesGenerated";
+import * as TypesGen from "api/typesGenerated";
 import CircularProgress from "@mui/material/CircularProgress";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import StopIcon from "@mui/icons-material/StopOutlined";
@@ -51,6 +51,8 @@ export const getDisplayWorkspaceBuildStatus = (
         color: theme.palette.primary.main,
         status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const;
+    // Just handle unknown as failed
+    case "unknown":
     case "failed":
       return {
         type: "error",

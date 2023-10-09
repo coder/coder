@@ -10,6 +10,9 @@ linters-settings:
     include:
       # Gradually extend to cover more of the codebase.
       - 'httpmw\.\w+'
+      # We want to enforce all values are specified when inserting or updating
+      # a database row. Ref: #9936
+      - 'github.com/coder/coder/v2/coderd/database\.[^G][^e][^t]\w+Params'
   gocognit:
     min-complexity: 300
 

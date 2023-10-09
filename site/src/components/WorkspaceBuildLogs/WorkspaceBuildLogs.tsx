@@ -1,8 +1,8 @@
 import { makeStyles } from "@mui/styles";
 import dayjs from "dayjs";
 import { ComponentProps, FC, Fragment } from "react";
-import { ProvisionerJobLog } from "../../api/typesGenerated";
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants";
+import { ProvisionerJobLog } from "api/typesGenerated";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { Logs } from "./Logs";
 import Box from "@mui/material/Box";
 import { combineClasses } from "utils/combineClasses";
@@ -72,6 +72,7 @@ export const WorkspaceBuildLogs: FC<WorkspaceBuildLogsProps> = ({
           time: log.created_at,
           output: log.output,
           level: log.log_level,
+          source_id: log.log_source,
         }));
         const duration = getStageDurationInSeconds(logs);
         const shouldDisplayDuration = duration !== undefined;
