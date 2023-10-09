@@ -1,5 +1,5 @@
-import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { type ComponentProps, type FC } from "react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
 
