@@ -83,6 +83,10 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 			} else if userID, err := uuid.Parse(userQuery); err == nil {
 				//nolint:gocritic // If the userQuery is a valid uuid
 				user, err = db.GetUserByID(ctx, userID)
+				if httpapi.Is404Error(err) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,
@@ -95,6 +99,10 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 				user, err = db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 					Username: userQuery,
 				})
+				if httpapi.Is404Error(err) {
+					httpapi.ResourceNotFound(rw)
+					return
+				}
 				if err != nil {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: userErrorMessage,

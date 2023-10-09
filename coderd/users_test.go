@@ -1204,7 +1204,11 @@ func TestGetUser(t *testing.T) {
 		uClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 
 		_, err := uClient.User(ctx, firstUser.UserID.String())
-		require.NoError(t, err)
+		require.Error(t, err)
+		var sdkError *codersdk.Error
+		require.ErrorAs(t, err, &sdkError, "is codersdk error")
+		require.Equal(t, sdkError.StatusCode(), 404, "expected 404")
+
 	})
 }
 
