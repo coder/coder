@@ -895,6 +895,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				}
 				break
 			}
+			clog := a.logger.Named("speedtest").With(
+				slog.F("remote", conn.RemoteAddr().String()),
+				slog.F("local", conn.LocalAddr().String()))
+			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -907,7 +911,12 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 			}()
 			go func() {
 				defer close(closed)
-				_ = speedtest.ServeConn(conn)
+				sErr := speedtest.ServeConn(conn)
+				if sErr != nil {
+					clog.Error(ctx, "test ended with error", slog.Error(sErr))
+					return
+				}
+				clog.Info(ctx, "test ended")
 			}()
 		}
 		wg.Wait()
