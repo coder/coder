@@ -1610,4 +1610,22 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	})
 	require.NoError(t, err, "fetch all versions")
 	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed), "remaining versions")
+
+	// Unarchive a version
+	err = client.SetArchiveTemplateVersion(ctx, expArchived[0], false)
+	require.NoError(t, err, "unarchive a version")
+
+	tv, err := client.TemplateVersion(ctx, expArchived[0])
+	require.NoError(t, err, "fetch version")
+	require.False(t, tv.Archived, "expect unarchived")
+
+	// Check the remaining again
+	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
+		TemplateID: template.ID,
+		Pagination: codersdk.Pagination{
+			Limit: 100,
+		},
+	})
+	require.NoError(t, err, "fetch all versions")
+	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed)+1, "remaining versions")
 }

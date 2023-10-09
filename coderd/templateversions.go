@@ -1076,6 +1076,91 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 	})
 }
 
+// @Summary Archive template version
+// @ID archive-template-version
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templateversions/{templateversion}/archive [post]
+func (api *API) postArchiveTemplateVersion() func(rw http.ResponseWriter, r *http.Request) {
+	return api.setArchiveTemplateVersion(true)
+}
+
+// @Summary Unarchive template version
+// @ID unarchive-template-version
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Success 200 {object} codersdk.Response
+// @Router /templateversions/{templateversion}/unarchive [post]
+func (api *API) postUnarchiveTemplateVersion() func(rw http.ResponseWriter, r *http.Request) {
+	return api.setArchiveTemplateVersion(false)
+}
+
+func (api *API) setArchiveTemplateVersion(archive bool) func(rw http.ResponseWriter, r *http.Request) {
+	return func(rw http.ResponseWriter, r *http.Request) {
+		var (
+			ctx               = r.Context()
+			templateVersion   = httpmw.TemplateVersionParam(r)
+			auditor           = *api.Auditor.Load()
+			aReq, commitAudit = audit.InitRequest[database.TemplateVersion](rw, &audit.RequestParams{
+				Audit:   auditor,
+				Log:     api.Logger,
+				Request: r,
+				Action:  database.AuditActionWrite,
+			})
+		)
+		defer commitAudit()
+		aReq.Old = templateVersion
+
+		verb := "archived"
+		if !archive {
+			verb = "unarchived"
+		}
+		if templateVersion.Archived == archive {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: fmt.Sprintf("Template version already %s", verb),
+			})
+			return
+		}
+
+		if !templateVersion.TemplateID.Valid {
+			// Maybe we should allow this?
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot archive template versions not associate with a template.",
+			})
+			return
+		}
+
+		archived, err := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
+			UpdatedAt:         dbtime.Now(),
+			TemplateID:        templateVersion.TemplateID.UUID,
+			TemplateVersionID: templateVersion.ID,
+			JobStatus:         database.NullProvisionerJobStatus{},
+			Unarchive:         !archive,
+		})
+
+		if httpapi.Is404Error(err) || (len(archived) == 0 && err == nil) {
+			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+				Message: "Template or template versions not found.",
+			})
+			return
+		}
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching template version.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusOK, fmt.Sprintf("template version %q %s", templateVersion.ID.String(), verb))
+	}
+}
+
 // @Summary Update active template version by template ID
 // @ID update-active-template-version-by-template-id
 // @Security CoderSessionToken

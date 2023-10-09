@@ -256,6 +256,25 @@ func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
+	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
+	if archive {
+		u += "/archive"
+	} else {
+		u += "/unarchive"
+	}
+	res, err := c.Request(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
