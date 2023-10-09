@@ -32,6 +32,7 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 		Children: []*clibase.Cmd{
 			r.templateVersionsList(),
 			r.archiveTemplateVersion(),
+			r.unarchiveTemplateVersion(),
 		},
 	}
 

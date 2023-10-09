@@ -14,24 +14,30 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func (r *RootCmd) unarchiveTemplateVersion() *clibase.Cmd {
+	return r.setArchiveTemplateVersion(false)
+}
 func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
-	var unarchive clibase.Bool
+	return r.setArchiveTemplateVersion(true)
+}
+
+func (r *RootCmd) setArchiveTemplateVersion(archive bool) *clibase.Cmd {
+	presentVerb := "archive"
+	pastVerb := "archived"
+	if !archive {
+		presentVerb = "unarchive"
+		pastVerb = "unarchived"
+	}
 
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "archive <template-name> [template-version-names...] ",
-		Short: "Archive or unarchive a template version(s).",
+		Use:   presentVerb + " <template-name> [template-version-names...] ",
+		Short: strings.ToUpper(string(presentVerb[0])) + presentVerb[1:] + " a template version(s).",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
 		Options: clibase.OptionSet{
 			cliui.SkipPromptOption(),
-			clibase.Option{
-				Name:        "unarchive",
-				Description: "Unarchive the selected template version.",
-				Flag:        "unarchive",
-				Value:       &unarchive,
-			},
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			var (
@@ -64,26 +70,22 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 				versions = append(versions, version)
 			}
 
-			verb := "archived"
-			if unarchive {
-				verb = "unarchived"
-			}
 			failed := 0
 			for _, version := range versions {
-				if version.Archived == !unarchive.Value() {
+				if version.Archived == archive {
 					_, _ = fmt.Fprintln(
-						inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" already "+verb),
+						inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" already "+pastVerb),
 					)
 					continue
 				}
 
-				err := client.SetArchiveTemplateVersion(ctx, version.ID, !unarchive.Value())
+				err := client.SetArchiveTemplateVersion(ctx, version.ID, archive)
 				if err != nil {
-					return xerrors.Errorf("set template version %q: %w", version.Name, err)
+					return xerrors.Errorf("%s template version %q: %w", presentVerb, version.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(
-					inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+verb+" at "+cliui.Timestamp(time.Now())),
+					inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+pastVerb+" at "+cliui.Timestamp(time.Now())),
 				)
 			}
 
