@@ -3,10 +3,9 @@ BEGIN;
 -- The view will be rebuilt with the new column
 DROP VIEW template_version_with_user;
 
--- Hard deleting can cause reference issues with audit logs,
--- so we only support soft deleting this resource at this time.
+-- Archived template versions are not visible or usable by default.
 ALTER TABLE template_versions
-    ADD COLUMN deleted BOOLEAN NOT NULL DEFAULT FALSE;
+    ADD COLUMN archived BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Restore the old version of the template_version_with_user view.
 CREATE VIEW
@@ -18,8 +17,8 @@ SELECT
 	coalesce(visible_users.username, '') AS created_by_username
 FROM
 	template_versions
-		LEFT JOIN
-	visible_users
+	LEFT JOIN
+		visible_users
 	ON
 			template_versions.created_by = visible_users.id;
 

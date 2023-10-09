@@ -136,15 +136,15 @@ type (
 	}
 )
 
-type PruneTemplateVersionsRequest struct {
-	// By default, only failed versions are pruned. Set this to true
-	// to prune all unused versions regardless of job status.
+type ArchiveTemplateVersionsRequest struct {
+	// By default, only failed versions are archived. Set this to true
+	// to archive all unused versions regardless of job status.
 	All bool `json:"all"`
 }
 
-type PruneTemplateVersionsResponse struct {
-	TemplateID uuid.UUID   `json:"template_id" format:"uuid"`
-	DeletedIDs []uuid.UUID `json:"deleted_ids"`
+type ArchiveTemplateVersionsResponse struct {
+	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
+	ArchivedIDs []uuid.UUID `json:"archived_ids"`
 }
 
 type TemplateRole string
@@ -238,21 +238,21 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-func (c *Client) PruneTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (PruneTemplateVersionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/templates/%s/versions/prune", template),
-		PruneTemplateVersionsRequest{
+func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/versions/archive", template),
+		ArchiveTemplateVersionsRequest{
 			All: all,
 		},
 	)
 	if err != nil {
-		return PruneTemplateVersionsResponse{}, err
+		return ArchiveTemplateVersionsResponse{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return PruneTemplateVersionsResponse{}, ReadBodyAsError(res)
+		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
 	}
-	var resp PruneTemplateVersionsResponse
+	var resp ArchiveTemplateVersionsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

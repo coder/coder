@@ -33,6 +33,13 @@ type sqlcQuerier interface {
 	ActivityBumpWorkspace(ctx context.Context, workspaceID uuid.UUID) error
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context) ([]uuid.UUID, error)
+	// Archiving templates is a soft delete action, so is reversible.
+	// Archiving prevents the version from being used and discovered
+	// by listing.
+	// Only unused template versions will be archived, which are any versions not
+	// referenced by the latest build of a workspace.
+	// 				used_versions.transition != 'delete',
+	ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	CleanTailnetCoordinators(ctx context.Context) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
 	DeleteAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
@@ -274,13 +281,6 @@ type sqlcQuerier interface {
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)
-	// Pruning templates is a soft delete action, so is technically reversible.
-	// Soft deleting prevents the version from being used and discovered
-	// by listing.
-	// Only unused template versions will be pruned, which are any versions not
-	// referenced by the latest build of a workspace.
-	// 				used_versions.transition != 'delete',
-	PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error)
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.

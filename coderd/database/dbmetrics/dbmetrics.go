@@ -107,6 +107,13 @@ func (m metricsStore) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return r0, r1
 }
 
+func (m metricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ArchiveUnusedTemplateVersions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ArchiveUnusedTemplateVersions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)
@@ -1409,13 +1416,6 @@ func (m metricsStore) InsertWorkspaceResourceMetadata(ctx context.Context, arg d
 	metadata, err := m.s.InsertWorkspaceResourceMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceResourceMetadata").Observe(time.Since(start).Seconds())
 	return metadata, err
-}
-
-func (m metricsStore) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
-	start := time.Now()
-	r0, r1 := m.s.PruneUnusedTemplateVersions(ctx, arg)
-	m.queryLatencies.WithLabelValues("PruneUnusedTemplateVersions").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m metricsStore) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {

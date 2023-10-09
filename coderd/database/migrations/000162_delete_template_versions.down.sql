@@ -4,7 +4,7 @@ BEGIN;
 DROP VIEW template_version_with_user;
 
 ALTER TABLE template_versions
-	DROP COLUMN deleted;
+	DROP COLUMN archived;
 
 -- Restore the old version of the template_version_with_user view.
 CREATE VIEW

@@ -8,9 +8,9 @@ WHERE
 	AND CASE
 		-- If no filter is provided, default to returning ALL template versions.
 		-- The called should always provide a filter if they want to omit
-		-- deleted versions.
-		WHEN sqlc.narg('deleted') :: boolean IS NULL THEN true
-		ELSE template_versions.deleted = sqlc.narg('deleted') :: boolean
+		-- archived versions.
+		WHEN sqlc.narg('archived') :: boolean IS NULL THEN true
+		ELSE template_versions.archived = sqlc.narg('archived') :: boolean
 	END
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
@@ -138,16 +138,16 @@ ORDER BY created_at DESC
 LIMIT 1;
 
 
--- name: PruneUnusedTemplateVersions :many
--- Pruning templates is a soft delete action, so is technically reversible.
--- Soft deleting prevents the version from being used and discovered
+-- name: ArchiveUnusedTemplateVersions :many
+-- Archiving templates is a soft delete action, so is reversible.
+-- Archiving prevents the version from being used and discovered
 -- by listing.
--- Only unused template versions will be pruned, which are any versions not
+-- Only unused template versions will be archived, which are any versions not
 -- referenced by the latest build of a workspace.
 UPDATE
 	template_versions
 SET
-	deleted = true,
+	archived = true,
 	updated_at = sqlc.arg('updated_at')
 FROM
 	-- Delete all versions that are returned from this query.
@@ -155,16 +155,16 @@ FROM
 		SELECT
 			scoped_template_versions.id
 		FROM
-			-- Scope a prune to a single template and ignore already deleted template versions
-			(SELECT * FROM template_versions WHERE template_versions.template_id = sqlc.arg('template_id') :: uuid AND deleted = false) AS scoped_template_versions
+			-- Scope an archive to a single template and ignore already archived template versions
+			(SELECT * FROM template_versions WHERE template_versions.template_id = sqlc.arg('template_id') :: uuid AND archived = false) AS scoped_template_versions
 		LEFT JOIN
 			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
 		LEFT JOIN
 			templates ON scoped_template_versions.template_id = templates.id
 		WHERE
 		-- Actively used template versions (meaning the latest build is using
-		-- the version) are never pruned. A "restart" command on the workspace,
-		-- even if failed, would use the version. So it cannot be pruned until
+		-- the version) are never archived. A "restart" command on the workspace,
+		-- even if failed, would use the version. So it cannot be archived until
 		-- the build is outdated.
 		NOT EXISTS (
 			-- Return all "used" versions, where "used" is defined as being
@@ -179,24 +179,24 @@ FROM
 			WHERE
 				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
 				-- 	has a build with the transition "delete". This will prevent that template
-				-- 	version from ever being pruned. We need a method to prune deleted workspaces.
+				-- 	version from ever being archived. We need a method to archive deleted workspaces.
 -- 				used_versions.transition != 'delete',
 				scoped_template_versions.id = used_versions.template_version_id
 		)
-		  -- Also never delete the active template version
+		  -- Also never archive the active template version
 		AND active_version_id != scoped_template_versions.id
 		AND CASE
-			-- Optionally, only prune versions that match a given
+			-- Optionally, only archive versions that match a given
 			-- job status like 'failed'.
 			WHEN sqlc.narg('job_status') :: provisioner_job_status IS NOT NULL THEN
 				provisioner_jobs.job_status = sqlc.narg('job_status') :: provisioner_job_status
 			ELSE
 				true
 		END
-		-- Pending or running jobs should not be pruned, as they are "in progress"
+		-- Pending or running jobs should not be archived, as they are "in progress"
 		AND provisioner_jobs.job_status != 'running'
 		AND provisioner_jobs.job_status != 'pending'
-	) AS deleted_versions
+	) AS archived_versions
 WHERE
-	template_versions.id IN (deleted_versions.id)
+	template_versions.id IN (archived_versions.id)
 RETURNING template_versions.id;

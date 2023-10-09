@@ -5308,9 +5308,103 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 	return i, err
 }
 
+const archiveUnusedTemplateVersions = `-- name: ArchiveUnusedTemplateVersions :many
+UPDATE
+	template_versions
+SET
+	archived = true,
+	updated_at = $1
+FROM
+	-- Delete all versions that are returned from this query.
+	(
+		SELECT
+			scoped_template_versions.id
+		FROM
+			-- Scope an archive to a single template and ignore already archived template versions
+			(SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND archived = false) AS scoped_template_versions
+		LEFT JOIN
+			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
+		LEFT JOIN
+			templates ON scoped_template_versions.template_id = templates.id
+		WHERE
+		-- Actively used template versions (meaning the latest build is using
+		-- the version) are never archived. A "restart" command on the workspace,
+		-- even if failed, would use the version. So it cannot be archived until
+		-- the build is outdated.
+		NOT EXISTS (
+			-- Return all "used" versions, where "used" is defined as being
+		    -- used by a latest workspace build.
+			SELECT template_version_id FROM (
+				SELECT
+				    DISTINCT ON (workspace_id) template_version_id, transition
+				FROM
+				    workspace_builds
+				ORDER BY workspace_id, build_number DESC
+			) AS used_versions
+			WHERE
+				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
+				-- 	has a build with the transition "delete". This will prevent that template
+				-- 	version from ever being archived. We need a method to archive deleted workspaces.
+				scoped_template_versions.id = used_versions.template_version_id
+		)
+		  -- Also never archive the active template version
+		AND active_version_id != scoped_template_versions.id
+		AND CASE
+			-- Optionally, only archive versions that match a given
+			-- job status like 'failed'.
+			WHEN $3 :: provisioner_job_status IS NOT NULL THEN
+				provisioner_jobs.job_status = $3 :: provisioner_job_status
+			ELSE
+				true
+		END
+		-- Pending or running jobs should not be archived, as they are "in progress"
+		AND provisioner_jobs.job_status != 'running'
+		AND provisioner_jobs.job_status != 'pending'
+	) AS archived_versions
+WHERE
+	template_versions.id IN (archived_versions.id)
+RETURNING template_versions.id
+`
+
+type ArchiveUnusedTemplateVersionsParams struct {
+	UpdatedAt  time.Time                `db:"updated_at" json:"updated_at"`
+	TemplateID uuid.UUID                `db:"template_id" json:"template_id"`
+	JobStatus  NullProvisionerJobStatus `db:"job_status" json:"job_status"`
+}
+
+// Archiving templates is a soft delete action, so is reversible.
+// Archiving prevents the version from being used and discovered
+// by listing.
+// Only unused template versions will be archived, which are any versions not
+// referenced by the latest build of a workspace.
+//
+//	used_versions.transition != 'delete',
+func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, archiveUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID, arg.JobStatus)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5346,7 +5440,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
-		&i.Deleted,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5355,7 +5449,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5377,7 +5471,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
-		&i.Deleted,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5386,7 +5480,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5408,7 +5502,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
-		&i.Deleted,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5417,7 +5511,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5445,7 +5539,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
-		&i.Deleted,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5454,7 +5548,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5482,7 +5576,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
-			&i.Deleted,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5501,7 +5595,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5509,9 +5603,9 @@ WHERE
 	AND CASE
 		-- If no filter is provided, default to returning ALL template versions.
 		-- The called should always provide a filter if they want to omit
-		-- deleted versions.
+		-- archived versions.
 		WHEN $2 :: boolean IS NULL THEN true
-		ELSE template_versions.deleted = $2 :: boolean
+		ELSE template_versions.archived = $2 :: boolean
 	END
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
@@ -5543,7 +5637,7 @@ LIMIT
 
 type GetTemplateVersionsByTemplateIDParams struct {
 	TemplateID uuid.UUID    `db:"template_id" json:"template_id"`
-	Deleted    sql.NullBool `db:"deleted" json:"deleted"`
+	Archived   sql.NullBool `db:"archived" json:"archived"`
 	AfterID    uuid.UUID    `db:"after_id" json:"after_id"`
 	OffsetOpt  int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt   int32        `db:"limit_opt" json:"limit_opt"`
@@ -5552,7 +5646,7 @@ type GetTemplateVersionsByTemplateIDParams struct {
 func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID,
 		arg.TemplateID,
-		arg.Deleted,
+		arg.Archived,
 		arg.AfterID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -5576,7 +5670,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
-			&i.Deleted,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5594,7 +5688,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -5618,7 +5712,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
-			&i.Deleted,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5680,100 +5774,6 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.CreatedBy,
 	)
 	return err
-}
-
-const pruneUnusedTemplateVersions = `-- name: PruneUnusedTemplateVersions :many
-UPDATE
-	template_versions
-SET
-	deleted = true,
-	updated_at = $1
-FROM
-	-- Delete all versions that are returned from this query.
-	(
-		SELECT
-			scoped_template_versions.id
-		FROM
-			-- Scope a prune to a single template and ignore already deleted template versions
-			(SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, deleted FROM template_versions WHERE template_versions.template_id = $2 :: uuid AND deleted = false) AS scoped_template_versions
-		LEFT JOIN
-			provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
-		LEFT JOIN
-			templates ON scoped_template_versions.template_id = templates.id
-		WHERE
-		-- Actively used template versions (meaning the latest build is using
-		-- the version) are never pruned. A "restart" command on the workspace,
-		-- even if failed, would use the version. So it cannot be pruned until
-		-- the build is outdated.
-		NOT EXISTS (
-			-- Return all "used" versions, where "used" is defined as being
-		    -- used by a latest workspace build.
-			SELECT template_version_id FROM (
-				SELECT
-				    DISTINCT ON (workspace_id) template_version_id, transition
-				FROM
-				    workspace_builds
-				ORDER BY workspace_id, build_number DESC
-			) AS used_versions
-			WHERE
-				-- TODO: This is an issue for "deleted workspaces", since a deleted workspace
-				-- 	has a build with the transition "delete". This will prevent that template
-				-- 	version from ever being pruned. We need a method to prune deleted workspaces.
-				scoped_template_versions.id = used_versions.template_version_id
-		)
-		  -- Also never delete the active template version
-		AND active_version_id != scoped_template_versions.id
-		AND CASE
-			-- Optionally, only prune versions that match a given
-			-- job status like 'failed'.
-			WHEN $3 :: provisioner_job_status IS NOT NULL THEN
-				provisioner_jobs.job_status = $3 :: provisioner_job_status
-			ELSE
-				true
-		END
-		-- Pending or running jobs should not be pruned, as they are "in progress"
-		AND provisioner_jobs.job_status != 'running'
-		AND provisioner_jobs.job_status != 'pending'
-	) AS deleted_versions
-WHERE
-	template_versions.id IN (deleted_versions.id)
-RETURNING template_versions.id
-`
-
-type PruneUnusedTemplateVersionsParams struct {
-	UpdatedAt  time.Time                `db:"updated_at" json:"updated_at"`
-	TemplateID uuid.UUID                `db:"template_id" json:"template_id"`
-	JobStatus  NullProvisionerJobStatus `db:"job_status" json:"job_status"`
-}
-
-// Pruning templates is a soft delete action, so is technically reversible.
-// Soft deleting prevents the version from being used and discovered
-// by listing.
-// Only unused template versions will be pruned, which are any versions not
-// referenced by the latest build of a workspace.
-//
-//	used_versions.transition != 'delete',
-func (q *sqlQuerier) PruneUnusedTemplateVersions(ctx context.Context, arg PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, pruneUnusedTemplateVersions, arg.UpdatedAt, arg.TemplateID, arg.JobStatus)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		items = append(items, id)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const updateTemplateVersionByID = `-- name: UpdateTemplateVersionByID :exec

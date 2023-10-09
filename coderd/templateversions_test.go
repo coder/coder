@@ -1516,7 +1516,7 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 	require.Equal(t, thirdParameterName, templateRichParameters[4].Name)
 }
 
-func TestTemplatePruneVersions(t *testing.T) {
+func TestTemplateArchiveVersions(t *testing.T) {
 	t.Parallel()
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -1524,7 +1524,7 @@ func TestTemplatePruneVersions(t *testing.T) {
 	var _ = api
 
 	var totalVersions int
-	// Create a template to prune
+	// Create a template to archive
 	initialVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 	totalVersions++
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, initialVersion.ID)
@@ -1584,10 +1584,10 @@ func TestTemplatePruneVersions(t *testing.T) {
 	require.NoError(t, err, "fetch all versions")
 	require.Len(t, versions, totalVersions, "total versions")
 
-	// Prune failed versions
-	deleteFailed, err := client.PruneTemplateVersions(ctx, template.ID, false)
-	require.NoError(t, err, "prune failed versions")
-	require.ElementsMatch(t, deleteFailed.DeletedIDs, allFailed, "all failed versions deleted")
+	// Archive failed versions
+	deleteFailed, err := client.ArchiveTemplateVersions(ctx, template.ID, false)
+	require.NoError(t, err, "archive failed versions")
+	require.ElementsMatch(t, deleteFailed.ArchivedIDs, allFailed, "all failed versions deleted")
 
 	remaining, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 		TemplateID: template.ID,
@@ -1599,9 +1599,9 @@ func TestTemplatePruneVersions(t *testing.T) {
 	require.Len(t, remaining, totalVersions-len(allFailed), "remaining non-failed versions")
 
 	// Try pruning "All" unused templates
-	deleted, err := client.PruneTemplateVersions(ctx, template.ID, true)
-	require.NoError(t, err, "prune versions")
-	require.ElementsMatch(t, deleted.DeletedIDs, expDeleted, "all expected versions deleted")
+	deleted, err := client.ArchiveTemplateVersions(ctx, template.ID, true)
+	require.NoError(t, err, "archive versions")
+	require.ElementsMatch(t, deleted.ArchivedIDs, expDeleted, "all expected versions deleted")
 
 	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 		TemplateID: template.ID,

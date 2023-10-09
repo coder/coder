@@ -996,16 +996,16 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), nil))
 }
 
-// @Summary Prune template unused versions by template id
-// @ID prune-template-versions-by-template-id
+// @Summary Archive template unused versions by template id
+// @ID archive-template-versions-by-template-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /templates/{template}/versions/prune [delete]
-func (api *API) deletePruneTemplateVersions(rw http.ResponseWriter, r *http.Request) {
+// @Router /templates/{template}/versions/archive [post]
+func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		template          = httpmw.TemplateParam(r)
@@ -1020,7 +1020,7 @@ func (api *API) deletePruneTemplateVersions(rw http.ResponseWriter, r *http.Requ
 	defer commitAudit()
 	aReq.Old = template
 
-	var req codersdk.PruneTemplateVersionsRequest
+	var req codersdk.ArchiveTemplateVersionsRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
@@ -1033,7 +1033,7 @@ func (api *API) deletePruneTemplateVersions(rw http.ResponseWriter, r *http.Requ
 		status = database.NullProvisionerJobStatus{}
 	}
 
-	deleted, err := api.Database.PruneUnusedTemplateVersions(ctx, database.PruneUnusedTemplateVersionsParams{
+	deleted, err := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
 		UpdatedAt:  dbtime.Now(),
 		TemplateID: template.ID,
 		JobStatus:  status,
@@ -1053,9 +1053,9 @@ func (api *API) deletePruneTemplateVersions(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.PruneTemplateVersionsResponse{
-		TemplateID: template.ID,
-		DeletedIDs: deleted,
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ArchiveTemplateVersionsResponse{
+		TemplateID:  template.ID,
+		ArchivedIDs: deleted,
 	})
 }
 
@@ -1123,9 +1123,9 @@ func (api *API) patchActiveTemplateVersion(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	if version.Deleted {
+	if version.Archived {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The provided template version is deleted.",
+			Message: "The provided template version is archived.",
 		})
 		return
 	}

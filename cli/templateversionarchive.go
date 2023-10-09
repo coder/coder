@@ -6,23 +6,22 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/xerrors"
-
 	"github.com/coder/pretty"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (r *RootCmd) templatePrune() *clibase.Cmd {
+func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 	var (
 		all clibase.Bool
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "prune [name...]",
-		Short: "Prune unused failed template versions from a given template(s)",
+		Use:   "archive [name...] ",
+		Short: "Archive unused failed template versions from a given template(s)",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),
@@ -30,7 +29,7 @@ func (r *RootCmd) templatePrune() *clibase.Cmd {
 			cliui.SkipPromptOption(),
 			clibase.Option{
 				Name:        "all",
-				Description: "Include all unused template versions. By default, only failed template versions are pruned.",
+				Description: "Include all unused template versions. By default, only failed template versions are archived.",
 				Flag:        "all",
 				Value:       &all,
 			},
@@ -67,9 +66,9 @@ func (r *RootCmd) templatePrune() *clibase.Cmd {
 				templateNames = append(templateNames, template.Name)
 			}
 
-			// Confirm prune of the template.
+			// Confirm archive of the template.
 			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      fmt.Sprintf("Prune template versions of these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
+				Text:      fmt.Sprintf("Archive template versions of these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))),
 				IsConfirm: true,
 				Default:   cliui.ConfirmNo,
 			})
@@ -78,13 +77,13 @@ func (r *RootCmd) templatePrune() *clibase.Cmd {
 			}
 
 			for _, template := range templates {
-				resp, err := client.PruneTemplateVersions(ctx, template.ID, all.Value())
+				resp, err := client.ArchiveTemplateVersions(ctx, template.ID, all.Value())
 				if err != nil {
-					return xerrors.Errorf("delete template %q: %w", template.Name, err)
+					return xerrors.Errorf("archive template versions for %q: %w", template.Name, err)
 				}
 
 				_, _ = fmt.Fprintln(
-					inv.Stdout, fmt.Sprintf("Deleted %s versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.DeletedIDs)),
+					inv.Stdout, fmt.Sprintf("Archive %s versions from "+pretty.Sprint(cliui.DefaultStyles.Keyword, template.Name)+" at "+cliui.Timestamp(time.Now()), len(resp.ArchivedIDs)),
 				)
 
 				if ok, _ := inv.ParsedFlags().GetBool("verbose"); err == nil && ok {

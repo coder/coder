@@ -673,6 +673,17 @@ func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return q.db.AllUserIDs(ctx)
 }
 
+func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return nil, err
+	}
+	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -2240,17 +2251,6 @@ func (q *querier) InsertWorkspaceResourceMetadata(ctx context.Context, arg datab
 		return nil, err
 	}
 	return q.db.InsertWorkspaceResourceMetadata(ctx, arg)
-}
-
-func (q *querier) PruneUnusedTemplateVersions(ctx context.Context, arg database.PruneUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
-	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
-	if err != nil {
-		return nil, err
-	}
-	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
-		return nil, err
-	}
-	return q.db.PruneUnusedTemplateVersions(ctx, arg)
 }
 
 func (q *querier) RegisterWorkspaceProxy(ctx context.Context, arg database.RegisterWorkspaceProxyParams) (database.WorkspaceProxy, error) {
