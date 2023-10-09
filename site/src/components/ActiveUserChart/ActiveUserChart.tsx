@@ -70,7 +70,7 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
             scaleID: "y",
             display: shouldDisplayUserLimit(userLimit, chartData),
             value: userLimit,
-            borderColor: theme.palette.warning.light,
+            borderColor: theme.palette.secondary.contrastText,
             borderWidth: 5,
             label: {
               content: "User limit",
