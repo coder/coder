@@ -15,13 +15,14 @@ func TestTemplateVersions(t *testing.T) {
 	t.Run("ListVersions", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		admin := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
 
 		inv, root := clitest.New(t, "templates", "versions", "list", template.Name)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, member, root)
 
 		pty := ptytest.New(t).Attach(inv)
 
