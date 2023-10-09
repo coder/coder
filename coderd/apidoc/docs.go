@@ -2382,7 +2382,7 @@ const docTemplate = `{
                     "Templates"
                 ],
                 "summary": "Archive template unused versions by template id",
-                "operationId": "archive-template-versions-by-template-id",
+                "operationId": "archive-template-unused-versions-by-template-id",
                 "parameters": [
                     {
                         "type": "string",

@@ -1013,7 +1013,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 }
 
 // @Summary Archive template unused versions by template id
-// @ID archive-template-versions-by-template-id
+// @ID archive-template-unused-versions-by-template-id
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json
