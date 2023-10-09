@@ -14,11 +14,83 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
+	var unarchive clibase.Bool
+
+	client := new(codersdk.Client)
+	cmd := &clibase.Cmd{
+		Use:   "archive-version <template-name> [template-version-names...] ",
+		Short: "Archive or unarchive a template version(s)",
+		Middleware: clibase.Chain(
+			r.InitClient(client),
+		),
+		Options: clibase.OptionSet{
+			cliui.SkipPromptOption(),
+			clibase.Option{
+				Name:        "unarchive",
+				Description: "Unarchive the selected template version",
+				Flag:        "unarchive",
+				Value:       &unarchive,
+			},
+		},
+		Handler: func(inv *clibase.Invocation) error {
+			var (
+				ctx      = inv.Context()
+				versions []codersdk.TemplateVersion
+			)
+
+			organization, err := CurrentOrganization(inv, client)
+			if err != nil {
+				return err
+			}
+
+			if len(inv.Args) == 0 {
+				return xerrors.Errorf("missing template name")
+			}
+			if len(inv.Args) < 2 {
+				return xerrors.Errorf("missing template version name(s)")
+			}
+
+			templateName := inv.Args[0]
+			template, err := client.TemplateByName(ctx, organization.ID, templateName)
+			if err != nil {
+				return xerrors.Errorf("get template by name: %w", err)
+			}
+			for _, versionName := range inv.Args[1:] {
+				version, err := client.TemplateVersionByOrganizationAndName(ctx, organization.ID, template.Name, versionName)
+				if err != nil {
+					return xerrors.Errorf("get template version by name %q: %w", versionName, err)
+				}
+				versions = append(versions, version)
+			}
+
+			verb := "archived"
+			if unarchive {
+				verb = "unarchived"
+			}
+			for _, version := range versions {
+				err := client.SetArchiveTemplateVersion(ctx, version.ID, !unarchive.Value())
+				if err != nil {
+					return xerrors.Errorf("set archive to %t template versions for %q: %w", !unarchive, template.Name, err)
+				}
+
+				_, _ = fmt.Fprintln(
+					inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+verb+" at "+cliui.Timestamp(time.Now())),
+				)
+			}
+
+			return nil
+		},
+	}
+
+	return cmd
+}
+
 func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 	var all clibase.Bool
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
-		Use:   "archive [name...] ",
+		Use:   "archive-template [template-name...] ",
 		Short: "Archive unused failed template versions from a given template(s)",
 		Middleware: clibase.Chain(
 			r.InitClient(client),

@@ -44,6 +44,7 @@ func (r *RootCmd) templates() *clibase.Cmd {
 			r.templateDelete(),
 			r.templatePull(),
 			r.archiveTemplateVersions(),
+			r.archiveTemplateVersion(),
 		},
 	}
 
