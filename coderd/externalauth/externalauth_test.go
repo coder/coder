@@ -2,6 +2,7 @@ package externalauth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
@@ -269,7 +270,7 @@ func TestRefreshToken(t *testing.T) {
 			FakeIDPOpts: []oidctest.FakeIDPOpt{
 				oidctest.WithMutateToken(func(token map[string]interface{}) {
 					token["authed_user"] = map[string]interface{}{
-						"access_token": "slack-user-token",
+						"access_token": token["access_token"],
 					}
 				}),
 			},
@@ -289,6 +290,11 @@ func TestRefreshToken(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, ok)
 		require.True(t, updated.OAuthExtra.Valid)
+		extra := map[string]interface{}{}
+		require.NoError(t, json.Unmarshal(updated.OAuthExtra.RawMessage, &extra))
+		mapping, ok := extra["authed_user"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, updated.OAuthAccessToken, mapping["access_token"])
 	})
 }
 
