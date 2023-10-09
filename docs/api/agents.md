@@ -221,13 +221,56 @@ incoming connections and publishes node updates.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get workspace agent Git auth
+## Get workspace agent external auth
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%3A%2F%2Fexample.com \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?match=string&id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/external-auth`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "access_token": "string",
+  "password": "string",
+  "type": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Removed: Get workspace agent git auth
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=string&id=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -236,10 +279,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ### Parameters
 
-| Name     | In    | Type        | Required | Description                       |
-| -------- | ----- | ----------- | -------- | --------------------------------- |
-| `url`    | query | string(uri) | true     | Git URL                           |
-| `listen` | query | boolean     | false    | Wait for a new token to be issued |
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
 
 ### Example responses
 
@@ -247,7 +291,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ```json
 {
+  "access_token": "string",
   "password": "string",
+  "type": "string",
   "url": "string",
   "username": "string"
 }
@@ -255,9 +301,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitAuthResponse](schemas.md#agentsdkgitauthresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
