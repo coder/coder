@@ -1,4 +1,5 @@
 import {
+  MockTemplate,
   MockTemplateExample,
   MockTemplateVersionVariable1,
   MockTemplateVersionVariable2,
@@ -21,16 +22,26 @@ const meta: Meta<typeof CreateTemplateForm> = {
 export default meta;
 type Story = StoryObj<typeof CreateTemplateForm>;
 
-export const Initial: Story = {};
+export const Upload: Story = {
+  args: {
+    upload: {
+      isUploading: false,
+      onRemove: () => {},
+      onUpload: () => {},
+      file: undefined,
+    },
+  },
+};
 
-export const WithStarterTemplate: Story = {
+export const StarterTemplate: Story = {
   args: {
     starterTemplate: MockTemplateExample,
   },
 };
 
-export const WithVariables: Story = {
+export const DuplicateTemplateWithVariables: Story = {
   args: {
+    copiedTemplate: MockTemplate,
     variables: [
       MockTemplateVersionVariable1,
       MockTemplateVersionVariable2,
@@ -43,6 +54,7 @@ export const WithVariables: Story = {
 
 export const WithJobError: Story = {
   args: {
+    copiedTemplate: MockTemplate,
     jobError:
       "template import provision for start: recv import provision: plan terraform: terraform plan: exit status 1",
     logs: [
