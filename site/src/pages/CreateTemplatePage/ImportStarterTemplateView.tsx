@@ -4,6 +4,7 @@ import {
   JobError,
   createTemplate,
   templateExamples,
+  templateVersionVariables,
 } from "api/queries/templates";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { useOrganizationId } from "hooks";
@@ -40,6 +41,13 @@ export const ImportStarterTemplateView = () => {
     enabled: isJobError,
   });
 
+  const missedVariables = useQuery({
+    ...templateVersionVariables(isJobError ? createError.version.id : ""),
+    enabled:
+      isJobError &&
+      createError.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+  });
+
   if (isLoading) {
     return <Loader />;
   }
@@ -52,6 +60,7 @@ export const ImportStarterTemplateView = () => {
     <CreateTemplateForm
       {...formPermissions}
       starterTemplate={templateExample!}
+      variables={missedVariables.data}
       error={createTemplateMutation.error}
       isSubmitting={createTemplateMutation.isLoading}
       onCancel={() => navigate(-1)}

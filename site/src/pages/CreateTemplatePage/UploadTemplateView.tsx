@@ -1,6 +1,10 @@
 import { useQuery, useMutation } from "react-query";
 import { templateVersionLogs } from "api/queries/templateVersions";
-import { JobError, createTemplate } from "api/queries/templates";
+import {
+  JobError,
+  createTemplate,
+  templateVersionVariables,
+} from "api/queries/templates";
 import { useOrganizationId } from "hooks";
 import { useNavigate } from "react-router-dom";
 import { CreateTemplateForm } from "./CreateTemplateForm";
@@ -26,9 +30,17 @@ export const UploadTemplateView = () => {
     enabled: isJobError,
   });
 
+  const missedVariables = useQuery({
+    ...templateVersionVariables(isJobError ? createError.version.id : ""),
+    enabled:
+      isJobError &&
+      createError.job.error_code === "REQUIRED_TEMPLATE_VARIABLES",
+  });
+
   return (
     <CreateTemplateForm
       {...formPermissions}
+      variables={missedVariables.data}
       error={createTemplateMutation.error}
       isSubmitting={createTemplateMutation.isLoading}
       onCancel={() => navigate(-1)}
