@@ -62,8 +62,7 @@ const TemplateMenu: FC<TemplateMenuProps> = ({
     actionFn();
   };
 
-  const safeToDeleteTemplate =
-    workspaceCountQuery.status === "success" && workspaceCountQuery.data === 0;
+  const safeToDeleteTemplate = workspaceCountQuery.data === 0;
 
   return (
     <>
