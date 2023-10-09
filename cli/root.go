@@ -83,6 +83,7 @@ func (r *RootCmd) Core() []*clibase.Cmd {
 	// Please re-sort this list alphabetically if you change it!
 	return []*clibase.Cmd{
 		r.dotfiles(),
+		r.externalAuth(),
 		r.login(),
 		r.logout(),
 		r.netcheck(),

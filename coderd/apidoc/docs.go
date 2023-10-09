@@ -4579,9 +4579,8 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uri",
-                        "description": "Matching URL",
-                        "name": "url",
+                        "description": "Match",
+                        "name": "match",
                         "in": "query",
                         "required": true
                     },

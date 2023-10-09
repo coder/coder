@@ -227,7 +227,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?url=http%3A%2F%2Fexample.com&id=string \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?match=string&id=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -236,11 +236,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?url
 
 ### Parameters
 
-| Name     | In    | Type        | Required | Description                       |
-| -------- | ----- | ----------- | -------- | --------------------------------- |
-| `url`    | query | string(uri) | true     | Matching URL                      |
-| `id`     | query | string      | true     | Provider ID                       |
-| `listen` | query | boolean     | false    | Wait for a new token to be issued |
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
 
 ### Example responses
 

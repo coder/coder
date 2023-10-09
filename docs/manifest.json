@@ -558,6 +558,16 @@
           "path": "cli/dotfiles.md"
         },
         {
+          "title": "external-auth",
+          "description": "Manage external authentication",
+          "path": "cli/external-auth.md"
+        },
+        {
+          "title": "external-auth access-token",
+          "description": "Print auth for an external provider",
+          "path": "cli/external-auth_access-token.md"
+        },
+        {
           "title": "features",
           "description": "List Enterprise features",
           "path": "cli/features.md"
