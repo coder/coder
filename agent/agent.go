@@ -833,7 +833,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				}
 				break
 			}
-			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
+			clog := logger.With(
+				slog.F("remote", conn.RemoteAddr().String()),
+				slog.F("local", conn.LocalAddr().String()))
+			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -865,7 +868,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
-				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
+				_ = a.handleReconnectingPTY(ctx, clog, msg, conn)
 			}()
 		}
 		wg.Wait()
@@ -1021,12 +1024,12 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				connLogger.Debug(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
+				connLogger.Info(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
 			} else {
 				connLogger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
 			}
 		}
-		connLogger.Debug(ctx, "reconnecting pty connection closed")
+		connLogger.Info(ctx, "reconnecting pty connection closed")
 	}()
 
 	var rpty reconnectingpty.ReconnectingPTY
