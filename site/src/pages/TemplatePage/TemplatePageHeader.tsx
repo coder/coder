@@ -1,36 +1,46 @@
-import Button from "@mui/material/Button";
-import AddIcon from "@mui/icons-material/AddOutlined";
+import { type FC, useRef, useState } from "react";
+import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { useDeleteTemplate } from "./deleteTemplate";
+
 import {
   AuthorizationResponse,
   Template,
   TemplateVersion,
 } from "api/typesGenerated";
+
 import { Avatar } from "components/Avatar/Avatar";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
+import { Stack } from "components/Stack/Stack";
+import { Margins } from "components/Margins/Margins";
 import {
   PageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader";
-import { Stack } from "components/Stack/Stack";
-import { FC, useRef, useState } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { useDeleteTemplate } from "./deleteTemplate";
-import { Margins } from "components/Margins/Margins";
+
+import Button from "@mui/material/Button";
 import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
-import EditOutlined from "@mui/icons-material/EditOutlined";
-import FileCopyOutlined from "@mui/icons-material/FileCopyOutlined";
 import IconButton from "@mui/material/IconButton";
+import AddIcon from "@mui/icons-material/AddOutlined";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
+import EditIcon from "@mui/icons-material/EditOutlined";
+import CopyIcon from "@mui/icons-material/FileCopyOutlined";
 
-const TemplateMenu: FC<{
+type TemplateMenuProps = {
   templateName: string;
   templateVersion: string;
   onDelete: () => void;
-}> = ({ templateName, templateVersion, onDelete }) => {
+  onMenuOpen?: () => void;
+};
+
+const TemplateMenu: FC<TemplateMenuProps> = ({
+  templateName,
+  templateVersion,
+  onDelete,
+}) => {
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -38,7 +48,6 @@ const TemplateMenu: FC<{
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
     setIsMenuOpen(false);
-
     actionFn();
   };
 
@@ -65,9 +74,10 @@ const TemplateMenu: FC<{
             navigate(`/templates/${templateName}/settings`),
           )}
         >
-          <SettingsOutlined />
+          <SettingsIcon />
           Settings
         </MenuItem>
+
         <MenuItem
           onClick={onMenuItemClick(() =>
             navigate(
@@ -75,39 +85,27 @@ const TemplateMenu: FC<{
             ),
           )}
         >
-          <EditOutlined />
+          <EditIcon />
           Edit files
         </MenuItem>
+
         <MenuItem
           onClick={onMenuItemClick(() =>
             navigate(`/templates/new?fromTemplate=${templateName}`),
           )}
         >
-          <FileCopyOutlined />
+          <CopyIcon />
           Duplicate&hellip;
         </MenuItem>
+
         <MenuItem onClick={onMenuItemClick(onDelete)}>
-          <DeleteOutlined />
+          <DeleteIcon />
           Delete&hellip;
         </MenuItem>
       </Menu>
     </div>
   );
 };
-
-const CreateWorkspaceButton: FC<{
-  templateName: string;
-  className?: string;
-}> = ({ templateName }) => (
-  <Button
-    variant="contained"
-    startIcon={<AddIcon />}
-    component={RouterLink}
-    to={`/templates/${templateName}/workspace`}
-  >
-    Create Workspace
-  </Button>
-);
 
 export type TemplatePageHeaderProps = {
   template: Template;
@@ -130,7 +128,15 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
       <PageHeader
         actions={
           <>
-            <CreateWorkspaceButton templateName={template.name} />
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              component={RouterLink}
+              to={`/templates/${template.name}/workspace`}
+            >
+              Create Workspace
+            </Button>
+
             {permissions.canUpdateTemplate && (
               <TemplateMenu
                 templateVersion={activeVersion.name}
@@ -154,6 +160,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
                 ? template.display_name
                 : template.name}
             </PageHeaderTitle>
+
             {template.description !== "" && (
               <PageHeaderSubtitle condensed>
                 {template.description}
