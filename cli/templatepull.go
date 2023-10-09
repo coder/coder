@@ -23,7 +23,7 @@ func (r *RootCmd) templatePull() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "pull <name> [destination]",
-		Short: "Download the active or latest version of a template to a path.",
+		Short: "Download the active, latest, or specified version of a template to a path.",
 		Middleware: clibase.Chain(
 			clibase.RequireRangeArgs(1, 2),
 			r.InitClient(client),
