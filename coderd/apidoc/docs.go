@@ -8381,6 +8381,12 @@ const docTemplate = `{
                     "description": "DisplayName is shown in the UI to identify the auth config.",
                     "type": "string"
                 },
+                "extra_token_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
                     "type": "string"

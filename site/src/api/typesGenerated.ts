@@ -453,6 +453,7 @@ export interface ExternalAuthConfig {
   readonly app_installations_url: string;
   readonly no_refresh: boolean;
   readonly scopes: string[];
+  readonly extra_token_keys: string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
   readonly regex: string;
@@ -1650,12 +1651,14 @@ export type EnhancedExternalAuthProvider =
   | "azure-devops"
   | "bitbucket"
   | "github"
-  | "gitlab";
+  | "gitlab"
+  | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
+  "slack",
 ];
 
 // From codersdk/deployment.go

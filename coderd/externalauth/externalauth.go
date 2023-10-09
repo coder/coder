@@ -15,6 +15,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/google/go-github/v43/github"
+	"github.com/sqlc-dev/pqtype"
 	xgithub "golang.org/x/oauth2/github"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -44,6 +45,14 @@ type Config struct {
 	// DisplayIcon is the path to an image that will be displayed to the user.
 	DisplayIcon string
 
+	// ExtraTokenKeys is a list of extra properties to
+	// store in the database returned from the token endpoint.
+	//
+	// e.g. Slack returns `authed_user` in the token which is
+	// a payload that contains information about the authenticated
+	// user.
+	ExtraTokenKeys []string
+
 	// NoRefresh stops Coder from using the refresh token
 	// to renew the access token.
 	//
@@ -67,6 +76,25 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+}
+
+// GenerateTokenExtra generates the extra token data to store in the database.
+func (c *Config) GenerateTokenExtra(token *oauth2.Token) (pqtype.NullRawMessage, error) {
+	if len(c.ExtraTokenKeys) == 0 {
+		return pqtype.NullRawMessage{}, nil
+	}
+	extraMap := map[string]interface{}{}
+	for _, key := range c.ExtraTokenKeys {
+		extraMap[key] = token.Extra(key)
+	}
+	data, err := json.Marshal(extraMap)
+	if err != nil {
+		return pqtype.NullRawMessage{}, err
+	}
+	return pqtype.NullRawMessage{
+		RawMessage: data,
+		Valid:      true,
+	}, nil
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -101,6 +129,12 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// we aren't trying to surface an error, we're just trying to obtain a valid token.
 		return externalAuthLink, false, nil
 	}
+
+	extra, err := c.GenerateTokenExtra(token)
+	if err != nil {
+		return externalAuthLink, false, xerrors.Errorf("generate token extra: %w", err)
+	}
+
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
 	// See the comment below why the retry and cancel is required.
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
@@ -135,6 +169,7 @@ validate:
 			OAuthRefreshToken:      token.RefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // dbcrypt will update as required
 			OAuthExpiry:            token.Expiry,
+			OAuthExtra:             extra,
 		})
 		if err != nil {
 			return updatedAuthLink, false, xerrors.Errorf("update external auth link: %w", err)
@@ -538,6 +573,14 @@ var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthCo
 		Scopes:              []string{"repo", "workflow"},
 		DeviceCodeURL:       "https://github.com/login/device/code",
 		AppInstallationsURL: "https://api.github.com/user/installations",
+	},
+	codersdk.EnhancedExternalAuthProviderSlack: {
+		AuthURL:     "https://slack.com/oauth/v2/authorize",
+		TokenURL:    "https://slack.com/api/oauth.v2.access",
+		DisplayName: "Slack",
+		DisplayIcon: "/icon/slack.svg",
+		// See: https://api.slack.com/authentication/oauth-v2#exchanging
+		ExtraTokenKeys: []string{"authed_user"},
 	},
 }
 
