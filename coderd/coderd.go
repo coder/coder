@@ -813,7 +813,7 @@ func New(options *Options) *API {
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
 				// Deprecated: Required to support legacy agents
-				r.Get("/gitauth", api.workspaceAgentsExternalAuth)
+				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)

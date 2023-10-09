@@ -4608,6 +4608,53 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/me/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Removed: Get workspace agent git auth",
+                "operationId": "removed-get-workspace-agent-git-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match",
+                        "name": "match",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Wait for a new token to be issued",
+                        "name": "listen",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/me/gitsshkey": {
             "get": {
                 "security": [

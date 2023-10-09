@@ -264,6 +264,49 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Removed: Get workspace agent git auth
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=string&id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/gitauth`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "access_token": "string",
+  "password": "string",
+  "type": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get workspace agent Git SSH key
 
 ### Code samples
