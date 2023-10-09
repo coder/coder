@@ -67,6 +67,10 @@ type Config struct {
 	// AppInstallationsURL is an API endpoint that returns a list of
 	// installations for the user. This is used for GitHub Apps.
 	AppInstallationsURL string
+
+	// SlackAuthedUserToken is true if the user token should be returned
+	// instead of the bot token.
+	SlackAuthedUserToken bool
 }
 
 // RefreshToken automatically refreshes the token if expired and permitted.
@@ -101,6 +105,22 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 		// we aren't trying to surface an error, we're just trying to obtain a valid token.
 		return externalAuthLink, false, nil
 	}
+
+	// Slack's new OAuth2 flow has the user access token in a different field.
+	// It's weird and unfortunate, but the only way to access the user token.
+	// See: https://api.slack.com/authentication/oauth-v2#exchanging
+	if c.Type == string(codersdk.EnhancedExternalAuthProviderSlack) && c.SlackAuthedUserToken {
+		rawMap, ok := token.Extra("authed_user").(map[string]interface{})
+		if !ok {
+			return externalAuthLink, false, xerrors.Errorf("slack: could not obtain user access token from payload: %+v", token.Extra("authed_user"))
+		}
+		accessToken, ok := rawMap["access_token"].(string)
+		if !ok {
+			return externalAuthLink, false, xerrors.Errorf("slack: could not obtain user access token from payload: %+v", token.Extra("authed_user"))
+		}
+		token.AccessToken = accessToken
+	}
+
 	r := retry.New(50*time.Millisecond, 200*time.Millisecond)
 	// See the comment below why the retry and cancel is required.
 	retryCtx, retryCtxCancel := context.WithTimeout(ctx, time.Second)
@@ -424,16 +444,17 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 		}
 
 		cfg := &Config{
-			OAuth2Config:        oauthConfig,
-			ID:                  entry.ID,
-			Regex:               regex,
-			Type:                entry.Type,
-			NoRefresh:           entry.NoRefresh,
-			ValidateURL:         entry.ValidateURL,
-			AppInstallationsURL: entry.AppInstallationsURL,
-			AppInstallURL:       entry.AppInstallURL,
-			DisplayName:         entry.DisplayName,
-			DisplayIcon:         entry.DisplayIcon,
+			OAuth2Config:         oauthConfig,
+			ID:                   entry.ID,
+			Regex:                regex,
+			Type:                 entry.Type,
+			NoRefresh:            entry.NoRefresh,
+			ValidateURL:          entry.ValidateURL,
+			AppInstallationsURL:  entry.AppInstallationsURL,
+			AppInstallURL:        entry.AppInstallURL,
+			DisplayName:          entry.DisplayName,
+			DisplayIcon:          entry.DisplayIcon,
+			SlackAuthedUserToken: entry.SlackAuthedUserToken,
 		}
 
 		if entry.DeviceFlow {
@@ -538,6 +559,12 @@ var defaults = map[codersdk.EnhancedExternalAuthProvider]codersdk.ExternalAuthCo
 		Scopes:              []string{"repo", "workflow"},
 		DeviceCodeURL:       "https://github.com/login/device/code",
 		AppInstallationsURL: "https://api.github.com/user/installations",
+	},
+	codersdk.EnhancedExternalAuthProviderSlack: {
+		AuthURL:     "https://slack.com/oauth/v2/authorize",
+		TokenURL:    "https://slack.com/api/oauth.v2.access",
+		DisplayName: "Slack",
+		DisplayIcon: "/icon/slack.svg",
 	},
 }
 

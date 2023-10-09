@@ -349,6 +349,12 @@ type ExternalAuthConfig struct {
 	DisplayName string `json:"display_name"`
 	// DisplayIcon is a URL to an icon to display in the UI.
 	DisplayIcon string `json:"display_icon"`
+
+	// SlackAuthedUserToken is a Slack-specific field that controls
+	// whether the Bot or User token is returned from the OAuth exchange.
+	// Slack returns multiple OAuth tokens as part of it's flow.
+	// See: https://api.slack.com/authentication/oauth-v2#exchanging
+	SlackAuthedUserToken bool `json:"slack_authed_user_token"`
 }
 
 type ProvisionerConfig struct {

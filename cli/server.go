@@ -2259,6 +2259,12 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.DisplayName = v.Value
 		case "DISPLAY_ICON":
 			provider.DisplayIcon = v.Value
+		case "SLACK_AUTHED_USER_TOKEN":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.SlackAuthedUserToken = b
 		}
 		providers[providerNum] = provider
 	}
