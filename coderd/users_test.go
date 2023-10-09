@@ -1192,6 +1192,20 @@ func TestGetUser(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, exp, user)
 	})
+	t.Run("NoAuth", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		firstUser := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		uClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+		_, err := uClient.User(ctx, firstUser.UserID.String())
+		require.NoError(t, err)
+	})
 }
 
 // TestUsersFilter creates a set of users to run various filters against for testing.
