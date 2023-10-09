@@ -193,11 +193,11 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	if templateVersion.Deleted {
+	if templateVersion.Archived {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Template version %s is deleted.", createTemplate.VersionID),
+			Message: fmt.Sprintf("Template version %s is archived.", createTemplate.VersionID),
 			Validations: []codersdk.ValidationError{
-				{Field: "template_version_id", Detail: "Template version is deleted"},
+				{Field: "template_version_id", Detail: "Template version is archived"},
 			},
 		})
 		return

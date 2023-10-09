@@ -1530,7 +1530,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, initialVersion.ID)
 
 	allFailed := make([]uuid.UUID, 0)
-	expDeleted := make([]uuid.UUID, 0)
+	expArchived := make([]uuid.UUID, 0)
 	// create some failed versions
 	for i := 0; i < 2; i++ {
 		failed := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
@@ -1553,7 +1553,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 		}, func(req *codersdk.CreateTemplateVersionRequest) {
 			req.TemplateID = template.ID
 		})
-		expDeleted = append(expDeleted, unused.ID)
+		expArchived = append(expArchived, unused.ID)
 		totalVersions++
 	}
 
@@ -1585,9 +1585,9 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	require.Len(t, versions, totalVersions, "total versions")
 
 	// Archive failed versions
-	deleteFailed, err := client.ArchiveTemplateVersions(ctx, template.ID, false)
+	archiveFailed, err := client.ArchiveTemplateVersions(ctx, template.ID, false)
 	require.NoError(t, err, "archive failed versions")
-	require.ElementsMatch(t, deleteFailed.ArchivedIDs, allFailed, "all failed versions deleted")
+	require.ElementsMatch(t, archiveFailed.ArchivedIDs, allFailed, "all failed versions archived")
 
 	remaining, err := client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 		TemplateID: template.ID,
@@ -1598,10 +1598,10 @@ func TestTemplateArchiveVersions(t *testing.T) {
 	require.NoError(t, err, "fetch all non-failed versions")
 	require.Len(t, remaining, totalVersions-len(allFailed), "remaining non-failed versions")
 
-	// Try pruning "All" unused templates
-	deleted, err := client.ArchiveTemplateVersions(ctx, template.ID, true)
+	// Try archiving "All" unused templates
+	archived, err := client.ArchiveTemplateVersions(ctx, template.ID, true)
 	require.NoError(t, err, "archive versions")
-	require.ElementsMatch(t, deleted.ArchivedIDs, expDeleted, "all expected versions deleted")
+	require.ElementsMatch(t, archived.ArchivedIDs, expArchived, "all expected versions archived")
 
 	remaining, err = client.TemplateVersionsByTemplate(ctx, codersdk.TemplateVersionsByTemplateRequest{
 		TemplateID: template.ID,
@@ -1610,5 +1610,5 @@ func TestTemplateArchiveVersions(t *testing.T) {
 		},
 	})
 	require.NoError(t, err, "fetch all versions")
-	require.Len(t, remaining, totalVersions-len(expDeleted)-len(allFailed), "remaining versions")
+	require.Len(t, remaining, totalVersions-len(expArchived)-len(allFailed), "remaining versions")
 }

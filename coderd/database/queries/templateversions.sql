@@ -150,7 +150,7 @@ SET
 	archived = true,
 	updated_at = sqlc.arg('updated_at')
 FROM
-	-- Delete all versions that are returned from this query.
+	-- Archive all versions that are returned from this query.
 	(
 		SELECT
 			scoped_template_versions.id

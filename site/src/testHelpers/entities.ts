@@ -379,7 +379,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
-  deleted: false,
+  archived: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -398,7 +398,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
-  deleted: false,
+  archived: false,
 };
 
 export const MockTemplateVersion3: TypesGen.TemplateVersion = {
@@ -412,7 +412,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
-  deleted: false,
+  archived: false,
 };
 
 export const MockTemplate: TypesGen.Template = {

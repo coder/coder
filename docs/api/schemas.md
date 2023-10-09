@@ -4677,6 +4677,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -4716,6 +4717,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                                                        | Required | Restrictions | Description |
 | ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `archived`        | boolean                                                                     | false    |              |             |
 | `created_at`      | string                                                                      | false    |              |             |
 | `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |

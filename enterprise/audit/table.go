@@ -99,7 +99,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
-		"deleted":                 ActionTrack,
+		"archived":                ActionTrack,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,

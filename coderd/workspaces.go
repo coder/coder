@@ -356,13 +356,13 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
-		if templateVersion.Deleted {
+		if templateVersion.Archived {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Template version has been deleted.",
+				Message: "Archived template versions cannot be used to make a workspace.",
 				Validations: []codersdk.ValidationError{
 					{
 						Field:  "template_version_id",
-						Detail: "template version deleted and unusable",
+						Detail: "template version archived",
 					},
 				},
 			})

@@ -5315,7 +5315,7 @@ SET
 	archived = true,
 	updated_at = $1
 FROM
-	-- Delete all versions that are returned from this query.
+	-- Archive all versions that are returned from this query.
 	(
 		SELECT
 			scoped_template_versions.id

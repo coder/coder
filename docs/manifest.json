@@ -802,6 +802,11 @@
           "path": "cli/templates.md"
         },
         {
+          "title": "templates archive",
+          "description": "Archive unused failed template versions from a given template(s)",
+          "path": "cli/templates_archive.md"
+        },
+        {
           "title": "templates create",
           "description": "Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"

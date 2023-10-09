@@ -878,7 +878,7 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 		usedVersions[tpl.ActiveVersionID] = true
 	}
 
-	var deleted []uuid.UUID
+	var archived []uuid.UUID
 	for i, v := range q.templateVersions {
 		if v.Archived {
 			continue
@@ -905,11 +905,11 @@ func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg datab
 
 			v.Archived = true
 			q.templateVersions[i] = v
-			deleted = append(deleted, v.ID)
+			archived = append(archived, v.ID)
 		}
 	}
 
-	return deleted, nil
+	return archived, nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -2825,7 +2825,7 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 		if templateVersion.TemplateID.UUID != arg.TemplateID {
 			continue
 		}
-		if arg.Deleted.Valid && arg.Deleted.Bool != templateVersion.Deleted {
+		if arg.Archived.Valid && arg.Archived.Bool != templateVersion.Archived {
 			continue
 		}
 		version = append(version, q.templateVersionWithUserNoLock(templateVersion))

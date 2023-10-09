@@ -29,7 +29,7 @@ type TemplateVersion struct {
 	Job            ProvisionerJob `json:"job"`
 	Readme         string         `json:"readme"`
 	CreatedBy      MinimalUser    `json:"created_by"`
-	Deleted        bool           `json:"deleted"`
+	Archived       bool           `json:"archived"`
 
 	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
 }

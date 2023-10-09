@@ -717,6 +717,17 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// If this throws an error, the boolean is false. Which is the default we want.
+	parser := httpapi.NewQueryParamParser()
+	includeArchived := parser.Boolean(r.URL.Query(), false, "include_archived")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
 	var err error
 	apiVersions := []codersdk.TemplateVersion{}
 	err = api.Database.InTx(func(store database.Store) error {
@@ -738,16 +749,21 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 			}
 		}
 
+		// Exclude archived templates versions
+		archiveFilter := sql.NullBool{
+			Bool:  false,
+			Valid: true,
+		}
+		if includeArchived {
+			archiveFilter = sql.NullBool{Valid: false}
+		}
+
 		versions, err := store.GetTemplateVersionsByTemplateID(ctx, database.GetTemplateVersionsByTemplateIDParams{
 			TemplateID: template.ID,
 			AfterID:    paginationParams.AfterID,
 			LimitOpt:   int32(paginationParams.Limit),
 			OffsetOpt:  int32(paginationParams.Offset),
-			// Exclude deleted templates versions
-			Deleted: sql.NullBool{
-				Bool:  false,
-				Valid: true,
-			},
+			Archived:   archiveFilter,
 		})
 		if errors.Is(err, sql.ErrNoRows) {
 			httpapi.Write(ctx, rw, http.StatusOK, apiVersions)
@@ -1033,7 +1049,7 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 		status = database.NullProvisionerJobStatus{}
 	}
 
-	deleted, err := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
+	archived, err := api.Database.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
 		UpdatedAt:  dbtime.Now(),
 		TemplateID: template.ID,
 		JobStatus:  status,
@@ -1055,7 +1071,7 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ArchiveTemplateVersionsResponse{
 		TemplateID:  template.ID,
-		ArchivedIDs: deleted,
+		ArchivedIDs: archived,
 	})
 }
 
@@ -1478,6 +1494,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 			Username:  version.CreatedByUsername,
 			AvatarURL: version.CreatedByAvatarURL.String,
 		},
+		Archived: version.Archived,
 		Warnings: warnings,
 	}
 }
