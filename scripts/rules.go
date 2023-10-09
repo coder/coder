@@ -44,14 +44,9 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 }
 
 // testingWithOwnerUser is a lint rule that detects potential permission bugs.
-// Calling CreateFirstUser in a test is fine, but we should avoid
-// using the the methods of the client passed to it.
-// However, using it in coderdtest.* methods is generally OK since
-// these are used to setup the test environment.
-//
-// Similarly, calling clitest.SetupConfig with a client authenticated
-// as the Owner user can be a problem, since the CLI will be operating
-// as the owner user and we may miss permission bugs.
+// Calling clitest.SetupConfig with a client authenticated as the Owner user
+// can be a problem, since the CLI will be operating as that user and we may
+// miss permission bugs.
 //
 //nolint:unused,deadcode,varnamelen
 func testingWithOwnerUser(m dsl.Matcher) {
