@@ -1019,6 +1019,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 // @Produce json
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
+// @Param request body codersdk.ArchiveTemplateVersionsRequest true "Archive request"
 // @Success 200 {object} codersdk.Response
 // @Router /templates/{template}/versions/archive [post]
 func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Request) {
