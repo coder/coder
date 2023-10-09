@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 100" width="100px" height="100px">
 <circle fill="#f47421" cy="50" cx="50" r="45"/>
 <circle fill="none" stroke="#ffffff" stroke-width="8.55" cx="50" cy="50" r="21.825"/>
 <g id="friend"><circle fill="#f47421" cx="19.4" cy="50" r="8.4376"/>

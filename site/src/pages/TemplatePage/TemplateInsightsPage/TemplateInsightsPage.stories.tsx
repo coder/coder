@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { TemplateInsightsPageView } from "./TemplateInsightsPage";
+import { MockEntitlementsWithUserLimit } from "testHelpers/entities";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
   title: "pages/TemplateInsightsPageView",
@@ -515,7 +516,7 @@ export const Loaded: Story = {
           end_time: "2023-07-25T00:00:00Z",
           template_ids: ["0d286645-29aa-4eaf-9b52-cc5d2740c90b"],
           interval: "day",
-          active_users: 11,
+          active_users: 16,
         },
       ],
     },
@@ -859,5 +860,13 @@ export const Loaded: Story = {
         ],
       },
     },
+  },
+};
+
+export const LoadedWithUserLimit: Story = {
+  ...Loaded,
+  args: {
+    ...Loaded.args,
+    entitlements: MockEntitlementsWithUserLimit,
   },
 };
