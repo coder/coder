@@ -23,17 +23,19 @@ USAGE:
        $ coder templates push my-template
 
 SUBCOMMANDS:
-    archive     Archive unused failed template versions from a given template(s)
-    create      Create a template from the current directory or as specified by
-                flag
-    delete      Delete templates
-    edit        Edit the metadata of a template by name.
-    init        Get started with a templated template.
-    list        List all the templates available for the organization
-    pull        Download the latest version of a template to a path.
-    push        Push a new template version from the current directory or as
-                specified by flag
-    versions    Manage different versions of the specified template
+    archive-template    Archive unused failed template versions from a given
+                        template(s)
+    archive-version     Archive or unarchive a template version(s).
+    create              Create a template from the current directory or as
+                        specified by flag
+    delete              Delete templates
+    edit                Edit the metadata of a template by name.
+    init                Get started with a templated template.
+    list                List all the templates available for the organization
+    pull                Download the latest version of a template to a path.
+    push                Push a new template version from the current directory
+                        or as specified by flag
+    versions            Manage different versions of the specified template
 
 ———
 Run `coder --help` for a list of global options.

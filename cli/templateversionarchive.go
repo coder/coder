@@ -28,7 +28,7 @@ func (r *RootCmd) archiveTemplateVersion() *clibase.Cmd {
 			cliui.SkipPromptOption(),
 			clibase.Option{
 				Name:        "unarchive",
-				Description: "Unarchive the selected template version",
+				Description: "Unarchive the selected template version.",
 				Flag:        "unarchive",
 				Value:       &unarchive,
 			},
