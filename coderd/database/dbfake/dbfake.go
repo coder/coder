@@ -846,7 +846,7 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	return userIDs, nil
 }
 
-func (q *FakeQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -5340,7 +5340,7 @@ func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
 	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
 }
 
-func (q *FakeQuerier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.UnarchiveTemplateVersionParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

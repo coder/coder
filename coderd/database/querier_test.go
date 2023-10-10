@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"sort"
 	"testing"
 	"time"
@@ -551,8 +550,7 @@ func createTemplateVersion(t testing.TB, db database.Store, tpl database.Templat
 		j.StartedAt = earlier
 		j.CompletedAt = now
 	default:
-		t.Fatal(fmt.Sprintf("invalid status: %s", args.Status))
-
+		t.Fatalf("invalid status: %s", args.Status)
 	}
 
 	dbgen.ProvisionerJob(t, db, nil, j)
