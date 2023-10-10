@@ -74,7 +74,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   const [searchParams] = useSearchParams();
   const disabledParamsList = searchParams?.get("disable_params")?.split(",");
 
-  const { authErrors, errorCount } = getAuthErrors(externalAuth);
+  const authErrors = getAuthErrors(externalAuth);
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
@@ -91,6 +91,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
+        const errorCount = Object.keys(authErrors).length;
         if (errorCount > 0) {
           form.setSubmitting(false);
           return;
@@ -242,22 +243,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   );
 };
 
-type ExternalAuthErrors = Record<string, string>;
-
+type VerifiableAuth = Readonly<{ authenticated: boolean; id: string }>;
 function getAuthErrors(
-  externalAuth: readonly TypesGen.TemplateVersionExternalAuth[],
-) {
-  const authErrors: ExternalAuthErrors = {};
-  let errorCount = 0;
+  authList: readonly VerifiableAuth[],
+): Readonly<Record<string, string>> {
+  const authErrors: Record<string, string> = {};
 
-  for (const auth of externalAuth) {
+  for (const auth of authList) {
     if (!auth.authenticated) {
       authErrors[auth.id] = "You must authenticate to create a workspace!";
-      errorCount++;
     }
   }
 
-  return { authErrors, errorCount } as const;
+  return authErrors;
 }
 
 const useStyles = makeStyles((theme) => ({
