@@ -327,6 +327,8 @@ func TestWorkspace(t *testing.T) {
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
 		err := client.SetArchiveTemplateVersion(ctx, version.ID, true)
 		require.NoError(t, err, "archive version")
 
