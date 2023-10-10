@@ -469,6 +469,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			AppInstallURL:       entry.AppInstallURL,
 			DisplayName:         entry.DisplayName,
 			DisplayIcon:         entry.DisplayIcon,
+			ExtraTokenKeys:      entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {
