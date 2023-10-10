@@ -7869,6 +7869,7 @@ _None_
   "app_request": {
     "access_method": "path",
     "agent_name_or_id": "string",
+    "app_prefix": "string",
     "app_slug_or_port": "string",
     "base_path": "string",
     "username_or_id": "string",
@@ -7896,6 +7897,7 @@ _None_
 {
   "access_method": "path",
   "agent_name_or_id": "string",
+  "app_prefix": "string",
   "app_slug_or_port": "string",
   "base_path": "string",
   "username_or_id": "string",
@@ -7909,6 +7911,7 @@ _None_
 | ---------------------- | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `access_method`        | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                                                                                                                       |
 | `agent_name_or_id`     | string                                                   | false    |              | Agent name or ID is not required if the workspace has only one agent.                                                                                                                 |
+| `app_prefix`           | string                                                   | false    |              | Prefix is the prefix of the subdomain app URL. Prefix should have a trailing "---" if set.                                                                                            |
 | `app_slug_or_port`     | string                                                   | false    |              |                                                                                                                                                                                       |
 | `base_path`            | string                                                   | false    |              | Base path of the app. For path apps, this is the path prefix in the router for this particular app. For subdomain apps, this should be "/". This is used for setting the cookie path. |
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |

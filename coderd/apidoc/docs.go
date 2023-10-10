@@ -12182,6 +12182,10 @@ const docTemplate = `{
                     "description": "AgentNameOrID is not required if the workspace has only one agent.",
                     "type": "string"
                 },
+                "app_prefix": {
+                    "description": "Prefix is the prefix of the subdomain app URL. Prefix should have a\ntrailing \"---\" if set.",
+                    "type": "string"
+                },
                 "app_slug_or_port": {
                     "type": "string"
                 },
