@@ -9,7 +9,7 @@ import {
   UsersRequest,
 } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
-import { AUTHORIZATION_KEY, getAuthorizationKey } from "./authCheck";
+import { getAuthorizationKey } from "./authCheck";
 
 export const users = (req: UsersRequest): QueryOptions<GetUsersResponse> => {
   return {
