@@ -38,6 +38,7 @@ import (
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -1033,6 +1034,8 @@ type API struct {
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
+
+	LicenseMetrics *prometheusmetrics.LicenseMetrics
 }
 
 // Close waits for all WebSocket connections to drain before returning.
