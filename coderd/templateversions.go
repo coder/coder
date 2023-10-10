@@ -704,6 +704,7 @@ func (api *API) fetchTemplateVersionDryRunJob(rw http.ResponseWriter, r *http.Re
 // @Tags Templates
 // @Param template path string true "Template ID" format(uuid)
 // @Param after_id query string false "After ID" format(uuid)
+// @Param include_archived query bool false "Include archived versions in the list"
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {array} codersdk.TemplateVersion
