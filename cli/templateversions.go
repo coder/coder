@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/coder/pretty"
-
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -40,8 +39,15 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 }
 
 func (r *RootCmd) templateVersionsList() *clibase.Cmd {
+	defaultColumns := []string{
+		"Name",
+		"Created At",
+		"Created By",
+		"Status",
+		"Active",
+	}
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateVersionRow{}, nil),
+		cliui.TableFormat([]templateVersionRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
@@ -53,6 +59,29 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
+			func(next clibase.HandlerFunc) clibase.HandlerFunc {
+				return func(i *clibase.Invocation) error {
+					// This is the only way to dynamically add the "archived"
+					// column if '--include-archived' is true.
+					// It does not make sense to show this column if the
+					// flag is false.
+					if includeArchived {
+						for _, opt := range i.Command.Options {
+							if opt.Flag == "column" {
+								if opt.ValueSource == clibase.ValueSourceDefault {
+									v, ok := opt.Value.(*clibase.StringArray)
+									if ok {
+										// Add the extra new default column.
+										*v = append(*v, "Archived")
+									}
+								}
+								break
+							}
+						}
+					}
+					return next(i)
+				}
+			},
 		),
 		Short: "List all the versions of the specified template",
 		Options: clibase.OptionSet{

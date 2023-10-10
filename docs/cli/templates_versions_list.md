@@ -14,10 +14,10 @@ coder templates versions list [flags] <template>
 
 ### -c, --column
 
-|         |                                                                |
-| ------- | -------------------------------------------------------------- |
-| Type    | <code>string-array</code>                                      |
-| Default | <code>name,created at,created by,status,active,archived</code> |
+|         |                                                       |
+| ------- | ----------------------------------------------------- |
+| Type    | <code>string-array</code>                             |
+| Default | <code>Name,Created At,Created By,Status,Active</code> |
 
 Columns to display in table output. Available columns: name, created at, created by, status, active, archived.
 
