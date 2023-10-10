@@ -88,7 +88,8 @@ func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataR
 }
 
 type Manifest struct {
-	AgentID uuid.UUID `json:"agent_id"`
+	AgentID     uuid.UUID `json:"agent_id"`
+	WorkspaceID uuid.UUID `json:"workspace_id"`
 	// GitAuthConfigs stores the number of Git configurations
 	// the Coder deployment has. If this number is >0, we
 	// set up special configuration in the workspace.

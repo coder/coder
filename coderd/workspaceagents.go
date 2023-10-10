@@ -223,6 +223,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
+		WorkspaceID:              workspace.ID,
 		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),

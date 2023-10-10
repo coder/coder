@@ -1205,6 +1205,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify manifest API response.
+	require.Equal(t, workspace.ID, manifest.WorkspaceID)
 	require.Equal(t, "First Meta", manifest.Metadata[0].DisplayName)
 	require.Equal(t, "foo1", manifest.Metadata[0].Key)
 	require.Equal(t, "echo hi", manifest.Metadata[0].Script)
