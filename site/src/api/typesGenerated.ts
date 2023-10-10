@@ -404,6 +404,7 @@ export interface DeploymentValues {
   readonly proxy_health_status_interval?: number;
   readonly enable_terraform_debug_mode?: boolean;
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
+  readonly web_terminal_renderer?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;

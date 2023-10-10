@@ -8209,6 +8209,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "web_terminal_renderer": {
+                    "type": "string"
+                },
                 "wgtunnel_host": {
                     "type": "string"
                 },
