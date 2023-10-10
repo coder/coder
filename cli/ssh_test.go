@@ -183,7 +183,6 @@ func TestSSH(t *testing.T) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect!
 			_ = agenttest.New(t, client.URL, agentToken)
-			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 			<-ctx.Done()
 		})
 
@@ -246,7 +245,6 @@ func TestSSH(t *testing.T) {
 			// Run this async so the SSH command has to wait for
 			// the build and agent to connect.
 			_ = agenttest.New(t, client.URL, agentToken)
-			coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 			<-ctx.Done()
 		})
 

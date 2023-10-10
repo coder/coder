@@ -13,4 +13,6 @@ const meta: Meta<typeof UserDropdown> = {
 export default meta;
 type Story = StoryObj<typeof UserDropdown>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as UserDropdown };

@@ -3,7 +3,7 @@ import { AccountForm } from "./AccountForm";
 import { mockApiError } from "testHelpers/entities";
 
 const meta: Meta<typeof AccountForm> = {
-  title: "components/AccountForm",
+  title: "pages/UserSettingsPage/AccountForm",
   component: AccountForm,
   args: {
     email: "test-user@org.com",

@@ -3373,7 +3373,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "User ID, name, or me",
+                        "description": "User ID, username, or me",
                         "name": "user",
                         "in": "path",
                         "required": true
@@ -4561,7 +4561,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/gitauth": {
+        "/workspaceagents/me/external-auth": {
             "get": {
                 "security": [
                     {
@@ -4574,14 +4574,20 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get workspace agent Git auth",
-                "operationId": "get-workspace-agent-git-auth",
+                "summary": "Get workspace agent external auth",
+                "operationId": "get-workspace-agent-external-auth",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uri",
-                        "description": "Git URL",
-                        "name": "url",
+                        "description": "Match",
+                        "name": "match",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
                         "in": "query",
                         "required": true
                     },
@@ -4596,7 +4602,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.GitAuthResponse"
+                            "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Removed: Get workspace agent git auth",
+                "operationId": "removed-get-workspace-agent-git-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match",
+                        "name": "match",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Wait for a new token to be issued",
+                        "name": "listen",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
                         }
                     }
                 }
@@ -6417,16 +6470,27 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.GitAuthResponse": {
+        "agentsdk.ExternalAuthResponse": {
             "type": "object",
             "properties": {
+                "access_token": {
+                    "type": "string"
+                },
                 "password": {
+                    "type": "string"
+                },
+                "token_extra": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "type": {
                     "type": "string"
                 },
                 "url": {
                     "type": "string"
                 },
                 "username": {
+                    "description": "Deprecated: Only supported on ` + "`" + `/workspaceagents/me/gitauth` + "`" + `\nfor backwards compatibility.",
                     "type": "string"
                 }
             }
@@ -8320,6 +8384,12 @@ const docTemplate = `{
                 "display_name": {
                     "description": "DisplayName is shown in the UI to identify the auth config.",
                     "type": "string"
+                },
+                "extra_token_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",

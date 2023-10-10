@@ -17,10 +17,10 @@ func TestListRoles(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
-	// Create admin, member, and org admin
-	admin := coderdtest.CreateFirstUser(t, client)
-	member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleOrgAdmin(admin.OrganizationID))
+	// Create owner, member, and org admin
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleOrgAdmin(owner.OrganizationID))
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	t.Cleanup(cancel)
@@ -55,10 +55,10 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "OrgMemberListOrg",
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
-				return member.ListOrganizationRoles(ctx, admin.OrganizationID)
+				return member.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(admin.OrganizationID): false,
+				rbac.RoleOrgAdmin(owner.OrganizationID): false,
 			}),
 		},
 		{
@@ -84,10 +84,10 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "OrgAdminListOrg",
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
-				return orgAdmin.ListOrganizationRoles(ctx, admin.OrganizationID)
+				return orgAdmin.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(admin.OrganizationID): true,
+				rbac.RoleOrgAdmin(owner.OrganizationID): true,
 			}),
 		},
 		{
@@ -113,10 +113,10 @@ func TestListRoles(t *testing.T) {
 		{
 			Name: "AdminListOrg",
 			APICall: func(ctx context.Context) ([]codersdk.AssignableRoles, error) {
-				return client.ListOrganizationRoles(ctx, admin.OrganizationID)
+				return client.ListOrganizationRoles(ctx, owner.OrganizationID)
 			},
 			ExpectedRoles: convertRoles(map[string]bool{
-				rbac.RoleOrgAdmin(admin.OrganizationID): true,
+				rbac.RoleOrgAdmin(owner.OrganizationID): true,
 			}),
 		},
 	}

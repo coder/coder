@@ -14,7 +14,7 @@ const queryClient = new QueryClient({
 });
 
 const meta: Meta<typeof ConfirmDeleteDialog> = {
-  title: "components/ConfirmDeleteDialog",
+  title: "pages/UserSettingsPage/TokensDeleteDialog",
   component: ConfirmDeleteDialog,
   decorators: [
     (Story) => (

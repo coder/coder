@@ -525,6 +525,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 
 		useHostUser bool
 
+		parameterFlags workspaceParameterFlags
+
 		tracingFlags    = &scaletestTracingFlags{}
 		strategy        = &scaletestStrategyFlags{}
 		cleanupStrategy = &scaletestStrategyFlags{cleanup: true}
@@ -597,11 +599,29 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
 			}
 
+			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
+			if err != nil {
+				return xerrors.Errorf("can't parse given parameter values: %w", err)
+			}
+
+			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
+				Action:           WorkspaceCreate,
+				Template:         tpl,
+				NewWorkspaceName: "scaletest-%", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+
+				RichParameterFile: parameterFlags.richParameterFile,
+				RichParameters:    cliRichParameters,
+			})
+			if err != nil {
+				return xerrors.Errorf("prepare build: %w", err)
+			}
+
 			// Do a dry-run to ensure the template and parameters are valid
 			// before we start creating users and workspaces.
 			if !noPlan {
 				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName: "scaletest",
+					WorkspaceName:       "scaletest",
+					RichParameterValues: richParameters,
 				})
 				if err != nil {
 					return xerrors.Errorf("start dry run workspace creation: %w", err)
@@ -653,7 +673,8 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 						OrganizationID: me.OrganizationIDs[0],
 						// UserID is set by the test automatically.
 						Request: codersdk.CreateWorkspaceRequest{
-							TemplateID: tpl.ID,
+							TemplateID:          tpl.ID,
+							RichParameterValues: richParameters,
 						},
 						NoWaitForAgents: noWaitForAgents,
 					},
@@ -865,6 +886,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		},
 	}
 
+	cmd.Options = append(cmd.Options, parameterFlags.cliParameters()...)
 	tracingFlags.attach(&cmd.Options)
 	strategy.attach(&cmd.Options)
 	cleanupStrategy.attach(&cmd.Options)

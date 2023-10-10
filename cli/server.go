@@ -2258,6 +2258,8 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 			provider.NoRefresh = b
 		case "SCOPES":
 			provider.Scopes = strings.Split(v.Value, " ")
+		case "EXTRA_TOKEN_KEYS":
+			provider.ExtraTokenKeys = strings.Split(v.Value, " ")
 		case "APP_INSTALL_URL":
 			provider.AppInstallURL = v.Value
 		case "APP_INSTALLATIONS_URL":

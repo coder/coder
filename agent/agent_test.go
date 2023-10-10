@@ -356,7 +356,7 @@ func TestAgent_Session_TTY_MOTD(t *testing.T) {
 				Enabled: true,
 				Message: "\n\n\n\n\n\nbanner\n\n\n\n\n\n",
 			},
-			expectedRe: regexp.MustCompile("([^\n\r]|^)banner\r\n\r\n[^\r\n]"),
+			expectedRe: regexp.MustCompile(`([^\n\r]|^)banner\r\n\r\n[^\r\n]`),
 		},
 	}
 
@@ -1850,13 +1850,16 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 func TestAgent_Speedtest(t *testing.T) {
 	t.Parallel()
 	t.Skip("This test is relatively flakey because of Tailscale's speedtest code...")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	//nolint:dogsled
 	conn, _, _, _, _ := setupAgent(t, agentsdk.Manifest{
 		DERPMap: derpMap,
-	}, 0)
+	}, 0, func(client *agenttest.Client, options *agent.Options) {
+		options.Logger = logger.Named("agent")
+	})
 	defer conn.Close()
 	res, err := conn.Speedtest(ctx, speedtest.Upload, 250*time.Millisecond)
 	require.NoError(t, err)

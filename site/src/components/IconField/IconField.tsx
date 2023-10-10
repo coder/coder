@@ -2,17 +2,39 @@ import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import Popover from "@mui/material/Popover";
 import TextField, { TextFieldProps } from "@mui/material/TextField";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
-import { useRef, FC, useState } from "react";
-import Picker from "@emoji-mart/react";
 import { makeStyles } from "@mui/styles";
+import Picker from "@emoji-mart/react";
+import { useRef, FC, useState } from "react";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { Stack } from "components/Stack/Stack";
 import { colors } from "theme/colors";
 import data from "@emoji-mart/data/sets/14/twitter.json";
-import { Stack } from "components/Stack/Stack";
+import icons from "theme/icons.json";
+
+// See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
+const urlFromUnifiedCode = (unified: string) =>
+  `/emojis/${unified.replace(/-fe0f$/, "")}.png`;
 
 type IconFieldProps = TextFieldProps & {
   onPickEmoji: (value: string) => void;
 };
+
+const custom = [
+  {
+    id: "icons",
+    name: "Icons",
+    emojis: icons.map((icon) => {
+      const id = icon.split(".")[0];
+
+      return {
+        id,
+        name: id,
+        keywords: id.split("-"),
+        skins: [{ src: `/icon/${icon}` }],
+      };
+    }),
+  },
+];
 
 const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
   if (
@@ -69,14 +91,12 @@ const IconField: FC<IconFieldProps> = ({ onPickEmoji, ...textFieldProps }) => {
         }}
       >
         <Picker
+          set="twitter"
           theme="dark"
           data={data}
-          onEmojiSelect={(emojiData) => {
-            // See: https://github.com/missive/emoji-mart/issues/51#issuecomment-287353222
-            const value = `/emojis/${emojiData.unified.replace(
-              /-fe0f$/,
-              "",
-            )}.png`;
+          custom={custom}
+          onEmojiSelect={(emoji) => {
+            const value = emoji.src ?? urlFromUnifiedCode(emoji.unified);
             onPickEmoji(value);
             setIsEmojiPickerOpen(false);
           }}
@@ -92,6 +112,9 @@ const useStyles = makeStyles((theme) => ({
       "--rgb-background": theme.palette.background.paper,
       "--rgb-input": colors.gray[17],
       "--rgb-color": colors.gray[4],
+
+      // Hack to prevent the right side from being cut off
+      width: 350,
     },
   },
   adornment: {
@@ -103,6 +126,7 @@ const useStyles = makeStyles((theme) => ({
 
     "& img": {
       maxWidth: "100%",
+      objectFit: "contain",
     },
   },
 }));

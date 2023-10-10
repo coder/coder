@@ -3,7 +3,7 @@ import { TemplateInsightsPageView } from "./TemplateInsightsPage";
 import { MockEntitlementsWithUserLimit } from "testHelpers/entities";
 
 const meta: Meta<typeof TemplateInsightsPageView> = {
-  title: "pages/TemplateInsightsPageView",
+  title: "pages/TemplatePage/TemplateInsightsPageView",
   component: TemplateInsightsPageView,
 };
 

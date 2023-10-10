@@ -269,7 +269,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 			)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database, false))
+				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/", api.workspaceQuota)
 			})
 		})
@@ -296,7 +296,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database, false),
+				httpmw.ExtractUserParam(options.Database),
 			)
 
 			r.Get("/", api.userQuietHoursSchedule)

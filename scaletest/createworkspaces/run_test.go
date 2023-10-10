@@ -34,6 +34,19 @@ func Test_Runner(t *testing.T) {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
+	testParameters := []*proto.RichParameter{
+		{
+			Name:         "foo",
+			DefaultValue: "baz",
+		},
+	}
+	testParameterValues := []codersdk.WorkspaceBuildParameter{
+		{
+			Name:  "foo",
+			Value: "baz",
+		},
+	}
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -47,8 +60,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -102,7 +123,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
@@ -132,6 +154,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -173,8 +202,16 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{Log: &proto.Log{}},
@@ -200,7 +237,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})
@@ -288,8 +326,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -344,7 +390,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
@@ -374,6 +421,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -413,8 +467,16 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Apply{
@@ -438,7 +500,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})

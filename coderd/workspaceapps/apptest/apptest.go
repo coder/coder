@@ -1353,7 +1353,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
 
 		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
-		assert.Equal(t, proxyTestAppNameOwner, stats[0].SlugOrPort)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
 		assert.Equal(t, 1, stats[0].Requests)
 	})
 }

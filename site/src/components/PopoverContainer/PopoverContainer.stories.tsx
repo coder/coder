@@ -20,4 +20,6 @@ const meta: Meta<typeof PopoverContainer> = {
 export default meta;
 
 type Story = StoryObj<typeof PopoverContainer>;
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as PopoverContainer };

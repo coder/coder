@@ -17,7 +17,7 @@ import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
-  title: "pages/TemplateVersionEditor",
+  title: "pages/TemplateVersionEditorPage",
   component: TemplateVersionEditor,
   args: {
     template: MockTemplate,

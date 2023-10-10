@@ -33,9 +33,9 @@ import MenuItem from "@mui/material/MenuItem";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
-  calculateAutostopRequirementDaysValue,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
+import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;

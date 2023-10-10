@@ -33,4 +33,6 @@ const meta: Meta<typeof HelpTooltip> = {
 export default meta;
 type Story = StoryObj<typeof HelpTooltip>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as HelpTooltip };

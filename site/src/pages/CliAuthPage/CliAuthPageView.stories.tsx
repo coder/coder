@@ -2,7 +2,7 @@ import { CliAuthPageView } from "./CliAuthPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof CliAuthPageView> = {
-  title: "pages/CliAuthPageView",
+  title: "pages/CliAuthPage",
   component: CliAuthPageView,
   args: {
     sessionToken: "some-session-token",
@@ -12,4 +12,6 @@ const meta: Meta<typeof CliAuthPageView> = {
 export default meta;
 type Story = StoryObj<typeof CliAuthPageView>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as CliAuthPage };
