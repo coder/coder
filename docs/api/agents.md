@@ -250,6 +250,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 {
   "access_token": "string",
   "password": "string",
+  "token_extra": {},
   "type": "string",
   "url": "string",
   "username": "string"
@@ -293,6 +294,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 {
   "access_token": "string",
   "password": "string",
+  "token_extra": {},
   "type": "string",
   "url": "string",
   "username": "string"

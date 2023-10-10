@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
@@ -2306,7 +2307,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			if !valid {
 				continue
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+			resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to create external auth response.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, resp)
 			return
 		}
 	}
@@ -2354,13 +2363,21 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create external auth response.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string) agentsdk.ExternalAuthResponse {
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
@@ -2382,7 +2399,12 @@ func createExternalAuthResponse(typ, token string) agentsdk.ExternalAuthResponse
 	}
 	resp.AccessToken = token
 	resp.Type = typ
-	return resp
+
+	var err error
+	if extra.Valid {
+		err = json.Unmarshal(extra.RawMessage, &resp.TokenExtra)
+	}
+	return resp, err
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

@@ -379,6 +379,9 @@ require (
 	github.com/tcnksm/go-httpstat v0.2.0 // indirect
 	github.com/tdewolff/parse/v2 v2.6.6 // indirect
 	github.com/tdewolff/test v1.0.9 // indirect
+	github.com/tidwall/gjson v1.17.0 // indirect
+	github.com/tidwall/match v1.1.1 // indirect
+	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tinylib/msgp v1.1.8 // indirect
 	github.com/u-root/uio v0.0.0-20230305220412-3e8cd9d6bf63 // indirect
 	github.com/ulikunitz/xz v0.5.11 // indirect
