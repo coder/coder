@@ -16,6 +16,7 @@ import { createContext, FC, PropsWithChildren, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { permissionsToCheck, Permissions } from "./permissions";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 
 type AuthContextValue = {
   isSignedOut: boolean;
@@ -81,6 +82,10 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const updateProfile = (req: UpdateUserProfileRequest) => {
     updateProfileMutation.mutate({ userId: userQuery.data!.id, req });
   };
+
+  if (isLoading) {
+    return <FullScreenLoader />;
+  }
 
   return (
     <AuthContext.Provider
