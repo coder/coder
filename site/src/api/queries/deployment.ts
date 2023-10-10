@@ -17,6 +17,13 @@ export const deploymentDAUs = () => {
 export const deploymentStats = () => {
   return {
     queryKey: ["deployment", "stats"],
-    queryFn: () => API.getDeploymentStats(),
+    queryFn: API.getDeploymentStats,
+  };
+};
+
+export const health = () => {
+  return {
+    queryKey: ["deployment", "health"],
+    queryFn: API.getHealth,
   };
 };

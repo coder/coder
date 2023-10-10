@@ -42,7 +42,7 @@ export default function HealthPage() {
       </Helmet>
 
       {healthStatus ? (
-        <HealthPageView healthStatus={healthStatus.data} tab={tab} />
+        <HealthPageView healthStatus={healthStatus} tab={tab} />
       ) : (
         <Loader />
       )}
@@ -54,7 +54,7 @@ export function HealthPageView({
   healthStatus,
   tab,
 }: {
-  healthStatus: Awaited<ReturnType<typeof getHealth>>["data"];
+  healthStatus: Awaited<ReturnType<typeof getHealth>>;
   tab: ReturnType<typeof useTab>;
 }) {
   const styles = useStyles();

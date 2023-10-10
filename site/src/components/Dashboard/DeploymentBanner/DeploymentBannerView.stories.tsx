@@ -13,4 +13,18 @@ const meta: Meta<typeof DeploymentBannerView> = {
 export default meta;
 type Story = StoryObj<typeof DeploymentBannerView>;
 
-export const Preview: Story = {};
+export const Example: Story = {};
+
+export const WithHealthIssues: Story = {
+  args: {
+    health: {
+      healthy: false,
+      time: "no <3",
+      coder_version: "no <3",
+      derp: { healthy: false },
+      access_url: { healthy: false },
+      websocket: { healthy: false },
+      database: { healthy: false },
+    },
+  },
+};

@@ -1,11 +1,11 @@
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
-import { FC } from "react";
+import { type FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { pageTitle } from "utils/page";
-import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 import { useQuery } from "react-query";
+import { pageTitle } from "utils/page";
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const GeneralSettingsPage: FC = () => {
   const { deploymentValues } = useDeploySettings();
