@@ -17,6 +17,7 @@ export interface VersionRowProps {
   isActive: boolean;
   isLatest: boolean;
   onPromoteClick?: (templateVersionId: string) => void;
+  onArchiveClick?: (templateVersionId: string) => void;
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
@@ -24,6 +25,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   isActive,
   isLatest,
   onPromoteClick,
+  onArchiveClick,
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -33,6 +35,14 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   });
 
   const jobStatus = version.job.status;
+  let buttonVerb = "Promote";
+  let buttonAction = onPromoteClick;
+  let buttonDisabled = isActive || jobStatus !== "succeeded";
+  if (jobStatus === "failed") {
+    buttonVerb = "Archive";
+    buttonAction = onArchiveClick;
+    buttonDisabled = false;
+  }
 
   return (
     <TimelineEntry
@@ -90,17 +100,21 @@ export const VersionRow: React.FC<VersionRowProps> = ({
               <Pill text="Canceled" type="neutral" lightBorder />
             )}
             {jobStatus === "failed" && <Pill text="Failed" type="error" />}
-            {onPromoteClick && (
+            {buttonAction && (
               <Button
                 className={styles.promoteButton}
-                disabled={isActive || jobStatus !== "succeeded"}
+                disabled={buttonDisabled}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onPromoteClick(version.id);
+                  if (buttonAction) {
+                    // Linter was complaining about this unless I threw it
+                    // in an if statement.
+                    buttonAction(version.id);
+                  }
                 }}
               >
-                Promote&hellip;
+                {buttonVerb}&hellip;
               </Button>
             )}
           </Stack>

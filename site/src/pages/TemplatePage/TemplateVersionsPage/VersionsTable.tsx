@@ -21,11 +21,13 @@ export const Language = {
 export interface VersionsTableProps {
   activeVersionId: string;
   onPromoteClick?: (templateVersionId: string) => void;
+  onArchiveClick?: (templateVersionId: string) => void;
+
   versions?: TypesGen.TemplateVersion[];
 }
 
 export const VersionsTable: FC<VersionsTableProps> = (props) => {
-  const { versions, onPromoteClick, activeVersionId } = props;
+  const { versions, onArchiveClick, onPromoteClick, activeVersionId } = props;
 
   const latestVersionId = versions?.reduce(
     (latestSoFar, against) => {
@@ -55,6 +57,7 @@ export const VersionsTable: FC<VersionsTableProps> = (props) => {
               getDate={(version) => new Date(version.created_at)}
               row={(version) => (
                 <VersionRow
+                  onArchiveClick={onArchiveClick}
                   onPromoteClick={onPromoteClick}
                   version={version}
                   key={version.id}
