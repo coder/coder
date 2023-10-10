@@ -20,7 +20,6 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# The logic below depends on the exact version being correct :(
 	sqlc generate
 
-	locale
 	first=true
 	for fi in queries/*.sql.go; do
 		# Find the last line from the imports section and add 1. We have to
