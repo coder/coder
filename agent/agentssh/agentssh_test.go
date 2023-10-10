@@ -90,19 +90,22 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
-		cmd, err := s.CreateCommand(ctx, `#!/bin/bash
+		cmd, cleanup, err := s.CreateCommand(ctx, `#!/bin/bash
 		echo test`, nil)
 		require.NoError(t, err)
+		t.Cleanup(cleanup)
 		output, err := cmd.AsExec().CombinedOutput()
 		require.NoError(t, err)
 		require.Equal(t, "test\n", string(output))
 	})
 	t.Run("Args", func(t *testing.T) {
 		t.Parallel()
-		cmd, err := s.CreateCommand(ctx, `#!/usr/bin/env bash
+		cmd, cleanup, err := s.CreateCommand(ctx, `#!/usr/bin/env bash
 		echo test`, nil)
 		require.NoError(t, err)
+		t.Cleanup(cleanup)
 		output, err := cmd.AsExec().CombinedOutput()
+		t.Log(string(output))
 		require.NoError(t, err)
 		require.Equal(t, "test\n", string(output))
 	})

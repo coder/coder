@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -274,7 +275,7 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 	magicTypeLabel := magicTypeMetricLabel(magicType)
 	sshPty, windowSize, isPty := session.Pty()
 
-	cmd, err := s.CreateCommand(ctx, session.RawCommand(), env)
+	cmd, cleanup, err := s.CreateCommand(ctx, session.RawCommand(), env)
 	if err != nil {
 		ptyLabel := "no"
 		if isPty {
@@ -283,6 +284,7 @@ func (s *Server) sessionStart(session ssh.Session, extraEnv []string) (retErr er
 		s.metrics.sessionErrors.WithLabelValues(magicTypeLabel, ptyLabel, "create_command").Add(1)
 		return err
 	}
+	defer cleanup()
 
 	if ssh.AgentRequested(session) {
 		l, err := ssh.NewAgentListener()
@@ -493,21 +495,21 @@ func (s *Server) sftpHandler(session ssh.Session) {
 // CreateCommand processes raw command input with OpenSSH-like behavior.
 // If the script provided is empty, it will default to the users shell.
 // This injects environment variables specified by the user at launch too.
-func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*pty.Cmd, error) {
+func (s *Server) CreateCommand(ctx context.Context, script string, env []string) (*pty.Cmd, func(), error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return nil, xerrors.Errorf("get current user: %w", err)
+		return nil, nil, xerrors.Errorf("get current user: %w", err)
 	}
 	username := currentUser.Username
 
 	shell, err := usershell.Get(username)
 	if err != nil {
-		return nil, xerrors.Errorf("get user shell: %w", err)
+		return nil, nil, xerrors.Errorf("get user shell: %w", err)
 	}
 
 	manifest := s.Manifest.Load()
 	if manifest == nil {
-		return nil, xerrors.Errorf("no metadata was provided")
+		return nil, nil, xerrors.Errorf("no metadata was provided")
 	}
 
 	// OpenSSH executes all commands with the users current shell.
@@ -518,7 +520,9 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 	}
 	name := shell
 	args := []string{caller, script}
-
+	cleanup := func() {
+		// Default to noop. This only applies for scripts.
+	}
 	// A preceding space is generally not idiomatic for a shebang,
 	// but in Terraform it's quite standard to use <<EOF for a multi-line
 	// string which would indent with spaces, so we accept it for user-ease.
@@ -531,7 +535,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		shebang = strings.TrimPrefix(shebang, "#!")
 		words, err := shellquote.Split(shebang)
 		if err != nil {
-			return nil, xerrors.Errorf("split shebang: %w", err)
+			return nil, nil, xerrors.Errorf("split shebang: %w", err)
 		}
 		name = words[0]
 		if len(words) > 1 {
@@ -539,7 +543,23 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		} else {
 			args = []string{}
 		}
-		args = append(args, caller, script)
+		scriptSha := sha256.Sum256([]byte(script))
+		tempFile, err := os.CreateTemp("", fmt.Sprintf("coder-script-%x", scriptSha))
+		if err != nil {
+			return nil, nil, xerrors.Errorf("create temp file: %w", err)
+		}
+		cleanup = func() {
+			_ = os.Remove(tempFile.Name())
+		}
+		_, err = tempFile.WriteString(script)
+		if err != nil {
+			return nil, nil, xerrors.Errorf("write temp file: %w", err)
+		}
+		err = tempFile.Close()
+		if err != nil {
+			return nil, nil, xerrors.Errorf("close temp file: %w", err)
+		}
+		args = append(args, tempFile.Name())
 	}
 
 	// gliderlabs/ssh returns a command slice of zero
@@ -563,14 +583,14 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		// Default to user home if a directory is not set.
 		homedir, err := userHomeDir()
 		if err != nil {
-			return nil, xerrors.Errorf("get home dir: %w", err)
+			return nil, nil, xerrors.Errorf("get home dir: %w", err)
 		}
 		cmd.Dir = homedir
 	}
 	cmd.Env = append(os.Environ(), env...)
 	executablePath, err := os.Executable()
 	if err != nil {
-		return nil, xerrors.Errorf("getting os executable: %w", err)
+		return nil, nil, xerrors.Errorf("getting os executable: %w", err)
 	}
 	// Set environment variables reliable detection of being inside a
 	// Coder workspace.
@@ -615,7 +635,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", envKey, value))
 	}
 
-	return cmd, nil
+	return cmd, cleanup, nil
 }
 
 func (s *Server) Serve(l net.Listener) (retErr error) {

@@ -292,11 +292,12 @@ func (a *agent) collectMetadata(ctx context.Context, md codersdk.WorkspaceAgentM
 		// if it can guarantee the clocks are synchronized.
 		CollectedAt: now,
 	}
-	cmdPty, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
+	cmdPty, cleanup, err := a.sshServer.CreateCommand(ctx, md.Script, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("create cmd: %+v", err)
 		return result
 	}
+	defer cleanup()
 	cmd := cmdPty.AsExec()
 
 	cmd.Stdout = &out
@@ -1069,7 +1070,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}()
 
 		// Empty command will default to the users shell!
-		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
+		cmd, cleanup, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
 		if err != nil {
 			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
@@ -1082,6 +1083,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 
 		if err = a.trackConnGoroutine(func() {
 			rpty.Wait()
+			cleanup()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
 			rpty.Close(err)

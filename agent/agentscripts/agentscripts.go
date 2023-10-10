@@ -171,10 +171,11 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript) 
 		cmdCtx, ctxCancel = context.WithTimeout(ctx, script.Timeout)
 		defer ctxCancel()
 	}
-	cmdPty, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil)
+	cmdPty, cleanup, err := r.SSHServer.CreateCommand(cmdCtx, script.Script, nil)
 	if err != nil {
 		return xerrors.Errorf("%s script: create command: %w", logPath, err)
 	}
+	defer cleanup()
 	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.WaitDelay = 10 * time.Second
