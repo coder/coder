@@ -23,7 +23,7 @@ export const LoginPage: FC = () => {
   if (isSignedIn) {
     return <Navigate to={redirectTo} replace />;
   } else if (isConfiguringTheFirstUser) {
-    return <Navigate to="/setup" />;
+    return <Navigate to="/setup" replace />;
   } else {
     return (
       <>

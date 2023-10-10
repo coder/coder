@@ -9,8 +9,7 @@ import { ProxyProvider } from "contexts/ProxyContext";
 import { isApiError } from "api/errors";
 
 export const RequireAuth: FC = () => {
-  const { signOut, isSigningOut, isSignedOut, isConfiguringTheFirstUser } =
-    useAuth();
+  const { signOut, isSigningOut, isSignedOut } = useAuth();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const navigateTo = isHomePage
@@ -39,9 +38,9 @@ export const RequireAuth: FC = () => {
   }, [signOut]);
 
   if (isSignedOut) {
-    return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />;
-  } else if (isConfiguringTheFirstUser) {
-    return <Navigate to="/setup" />;
+    return (
+      <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
+    );
   } else if (isSigningOut) {
     return <FullScreenLoader />;
   } else {

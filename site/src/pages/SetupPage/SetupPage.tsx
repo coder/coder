@@ -16,12 +16,12 @@ export const SetupPage: FC = () => {
 
   // If the user is logged in, navigate to the app
   if (isSignedIn) {
-    return <Navigate to="/" state={{ isRedirect: true }} />;
+    return <Navigate to="/" state={{ isRedirect: true }} replace />;
   }
 
   // If we've already completed setup, navigate to the login page
   if (setupIsComplete) {
-    return <Navigate to="/login" state={{ isRedirect: true }} />;
+    return <Navigate to="/login" state={{ isRedirect: true }} replace />;
   }
 
   return (
