@@ -336,6 +336,7 @@ type ExternalAuthConfig struct {
 	AppInstallationsURL string   `json:"app_installations_url"`
 	NoRefresh           bool     `json:"no_refresh"`
 	Scopes              []string `json:"scopes"`
+	ExtraTokenKeys      []string `json:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url"`
 	// Regex allows API requesters to match an auth config by

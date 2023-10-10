@@ -146,27 +146,24 @@ func TestProvisionerd(t *testing.T) {
 		var (
 			completeChan = make(chan struct{})
 			completeOnce sync.Once
+			acq          = newAcquireOne(t, &proto.AcquiredJob{
+				JobId:       "test",
+				Provisioner: "someprovisioner",
+				TemplateSourceArchive: createTar(t, map[string]string{
+					"../../../etc/passwd": "content",
+				}),
+				Type: &proto.AcquiredJob_TemplateImport_{
+					TemplateImport: &proto.AcquiredJob_TemplateImport{
+						Metadata: &sdkproto.Metadata{},
+					},
+				},
+			})
 		)
 
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
 			return createProvisionerDaemonClient(t, done, provisionerDaemonTestServer{
-				acquireJobWithCancel: func(stream proto.DRPCProvisionerDaemon_AcquireJobWithCancelStream) error {
-					err := stream.Send(&proto.AcquiredJob{
-						JobId:       "test",
-						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
-							"../../../etc/passwd": "content",
-						}),
-						Type: &proto.AcquiredJob_TemplateImport_{
-							TemplateImport: &proto.AcquiredJob_TemplateImport{
-								Metadata: &sdkproto.Metadata{},
-							},
-						},
-					})
-					assert.NoError(t, err)
-					return nil
-				},
-				updateJob: noopUpdateJob,
+				acquireJobWithCancel: acq.acquireWithCancel,
+				updateJob:            noopUpdateJob,
 				failJob: func(ctx context.Context, job *proto.FailedJob) (*proto.Empty, error) {
 					completeOnce.Do(func() { close(completeChan) })
 					return &proto.Empty{}, nil

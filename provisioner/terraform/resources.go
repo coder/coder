@@ -661,28 +661,29 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	// A map is used to ensure we don't have duplicates!
-	gitAuthProvidersMap := map[string]struct{}{}
+	externalAuthProvidersMap := map[string]struct{}{}
 	for _, tfResources := range tfResourcesByLabel {
 		for _, resource := range tfResources {
-			if resource.Type != "coder_git_auth" {
+			// Checking for `coder_git_auth` is legacy!
+			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
 				continue
 			}
 			id, ok := resource.AttributeValues["id"].(string)
 			if !ok {
-				return nil, xerrors.Errorf("git auth id is not a string")
+				return nil, xerrors.Errorf("external auth id is not a string")
 			}
-			gitAuthProvidersMap[id] = struct{}{}
+			externalAuthProvidersMap[id] = struct{}{}
 		}
 	}
-	gitAuthProviders := make([]string, 0, len(gitAuthProvidersMap))
-	for id := range gitAuthProvidersMap {
-		gitAuthProviders = append(gitAuthProviders, id)
+	externalAuthProviders := make([]string, 0, len(externalAuthProvidersMap))
+	for id := range externalAuthProvidersMap {
+		externalAuthProviders = append(externalAuthProviders, id)
 	}
 
 	return &State{
 		Resources:             resources,
 		Parameters:            parameters,
-		ExternalAuthProviders: gitAuthProviders,
+		ExternalAuthProviders: externalAuthProviders,
 	}, nil
 }
 

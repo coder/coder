@@ -68,12 +68,20 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  "owner not found for workspace",
+		})
+		return
+	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.users,
+		ownerName,
 		data.resources,
 		data.metadata,
 		data.agents,
@@ -274,12 +282,20 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  "owner not found for workspace",
+		})
+		return
+	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		workspaceBuild,
 		workspace,
 		data.jobs[0],
-		data.users,
+		ownerName,
 		data.resources,
 		data.metadata,
 		data.agents,
@@ -398,6 +414,14 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	ownerName, exists := usernameWithID(workspace.OwnerID, users)
+	if !exists {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error converting workspace build.",
+			Detail:  "owner not found for workspace",
+		})
+		return
+	}
 
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
@@ -406,7 +430,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		users,
+		ownerName,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -807,12 +831,16 @@ func (api *API) convertWorkspaceBuilds(
 		if !exists {
 			return nil, xerrors.New("template version not found")
 		}
+		ownerName, exists := usernameWithID(workspace.OwnerID, users)
+		if !exists {
+			return nil, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
+		}
 
 		apiBuild, err := api.convertWorkspaceBuild(
 			build,
 			workspace,
 			job,
-			users,
+			ownerName,
 			workspaceResources,
 			resourceMetadata,
 			resourceAgents,
@@ -835,7 +863,7 @@ func (api *API) convertWorkspaceBuild(
 	build database.WorkspaceBuild,
 	workspace database.Workspace,
 	job database.GetProvisionerJobsByIDsWithQueuePositionRow,
-	users []database.User,
+	ownerName string,
 	workspaceResources []database.WorkspaceResource,
 	resourceMetadata []database.WorkspaceResourceMetadatum,
 	resourceAgents []database.WorkspaceAgent,
@@ -844,10 +872,6 @@ func (api *API) convertWorkspaceBuild(
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
 ) (codersdk.WorkspaceBuild, error) {
-	userByID := map[uuid.UUID]database.User{}
-	for _, user := range users {
-		userByID[user.ID] = user
-	}
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {
 		resourcesByJobID[resource.JobID] = append(resourcesByJobID[resource.JobID], resource)
@@ -873,11 +897,6 @@ func (api *API) convertWorkspaceBuild(
 		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
 	}
 
-	owner, exists := userByID[workspace.OwnerID]
-	if !exists {
-		return codersdk.WorkspaceBuild{}, xerrors.Errorf("owner not found for workspace: %q", workspace.Name)
-	}
-
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
 	for _, resource := range resources {
@@ -888,7 +907,7 @@ func (api *API) convertWorkspaceBuild(
 			scripts := scriptsByAgentID[agent.ID]
 			logSources := logSourcesByAgentID[agent.ID]
 			apiAgent, err := convertWorkspaceAgent(
-				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps, agent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+				api.DERPMap(), *api.TailnetCoordinator.Load(), agent, convertApps(apps, agent, ownerName, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 				api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 			)
 			if err != nil {
@@ -906,7 +925,7 @@ func (api *API) convertWorkspaceBuild(
 		CreatedAt:           build.CreatedAt,
 		UpdatedAt:           build.UpdatedAt,
 		WorkspaceOwnerID:    workspace.OwnerID,
-		WorkspaceOwnerName:  owner.Username,
+		WorkspaceOwnerName:  ownerName,
 		WorkspaceID:         build.WorkspaceID,
 		WorkspaceName:       workspace.Name,
 		TemplateVersionID:   build.TemplateVersionID,
