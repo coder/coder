@@ -9,13 +9,8 @@ import { ProxyProvider } from "contexts/ProxyContext";
 import { isApiError } from "api/errors";
 
 export const RequireAuth: FC = () => {
-  const {
-    signOut,
-    isSigningOut,
-    isLoading,
-    isSignedOut,
-    isConfiguringTheFirstUser,
-  } = useAuth();
+  const { signOut, isSigningOut, isSignedOut, isConfiguringTheFirstUser } =
+    useAuth();
   const location = useLocation();
   const isHomePage = location.pathname === "/";
   const navigateTo = isHomePage
@@ -47,7 +42,7 @@ export const RequireAuth: FC = () => {
     return <Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} />;
   } else if (isConfiguringTheFirstUser) {
     return <Navigate to="/setup" />;
-  } else if (isLoading || isSigningOut) {
+  } else if (isSigningOut) {
     return <FullScreenLoader />;
   } else {
     // Authenticated pages have access to some contexts for knowing enabled experiments

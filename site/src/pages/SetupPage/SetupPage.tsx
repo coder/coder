@@ -3,15 +3,16 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { SetupPageView } from "./SetupPageView";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useMutation } from "react-query";
 import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {
-  const { signIn, isLoading, isConfiguringTheFirstUser, isSignedIn } =
+  const { signIn, isConfiguringTheFirstUser, isSignedIn, isSigningIn } =
     useAuth();
   const createFirstUserMutation = useMutation(createFirstUser());
-  const setupIsComplete = !isLoading && !isConfiguringTheFirstUser;
+  const setupIsComplete = !isConfiguringTheFirstUser;
+  const navigate = useNavigate();
 
   // If the user is logged in, navigate to the app
   if (isSignedIn) {
@@ -29,11 +30,12 @@ export const SetupPage: FC = () => {
         <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
-        isLoading={createFirstUserMutation.isLoading}
+        isLoading={createFirstUserMutation.isLoading || isSigningIn}
         error={createFirstUserMutation.error}
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);
-          signIn(firstUser.email, firstUser.password);
+          await signIn(firstUser.email, firstUser.password);
+          navigate("/");
         }}
       />
     </>

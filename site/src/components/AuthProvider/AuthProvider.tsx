@@ -17,10 +17,10 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { permissionsToCheck, Permissions } from "./permissions";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { FullScreenLoader } from "components/Loader/FullScreenLoader";
+import { isApiError } from "api/errors";
 
 type AuthContextValue = {
   isSignedOut: boolean;
-  isLoading: boolean;
   isSigningOut: boolean;
   isConfiguringTheFirstUser: boolean;
   isSignedIn: boolean;
@@ -32,7 +32,7 @@ type AuthContextValue = {
   signInError: unknown;
   updateProfileError: unknown;
   signOut: () => void;
-  signIn: (email: string, password: string) => void;
+  signIn: (email: string, password: string) => Promise<void>;
   updateProfile: (data: UpdateUserProfileRequest) => void;
 };
 
@@ -61,22 +61,27 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     },
   });
 
-  const isSignedOut = userQuery.isSuccess && !userQuery.data;
+  const isSignedOut =
+    userQuery.isError &&
+    isApiError(userQuery.error) &&
+    userQuery.error.response.status === 401;
   const isSigningOut = logoutMutation.isLoading;
   const isLoading =
     authMethodsQuery.isLoading ||
     userQuery.isLoading ||
-    permissionsQuery.isLoading ||
-    hasFirstUserQuery.isLoading;
+    hasFirstUserQuery.isLoading ||
+    (userQuery.isSuccess && permissionsQuery.isLoading);
   const isConfiguringTheFirstUser = !hasFirstUserQuery.data;
   const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
   const isSigningIn = loginMutation.isLoading;
   const isUpdatingProfile = updateProfileMutation.isLoading;
 
-  const signOut = logoutMutation.mutate;
+  const signOut = () => {
+    logoutMutation.mutate();
+  };
 
-  const signIn = (email: string, password: string) => {
-    loginMutation.mutate({ email, password });
+  const signIn = async (email: string, password: string) => {
+    await loginMutation.mutateAsync({ email, password });
   };
 
   const updateProfile = (req: UpdateUserProfileRequest) => {
@@ -92,7 +97,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
       value={{
         isSignedOut,
         isSigningOut,
-        isLoading,
         isConfiguringTheFirstUser,
         isSignedIn,
         isSigningIn,

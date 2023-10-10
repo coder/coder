@@ -12,14 +12,12 @@ type Story = StoryObj<typeof LoginPageView>;
 
 export const Example: Story = {
   args: {
-    isLoading: false,
     authMethods: MockAuthMethods,
   },
 };
 
 export const AuthError: Story = {
   args: {
-    isLoading: false,
     error: mockApiError({
       message: "User or password is incorrect",
       detail: "Please, try again",
@@ -28,9 +26,9 @@ export const AuthError: Story = {
   },
 };
 
-export const LoadingInitialData: Story = {
+export const LoadingAuthMethods: Story = {
   args: {
-    isLoading: true,
+    authMethods: undefined,
   },
 };
 

@@ -1,5 +1,4 @@
 import { makeStyles } from "@mui/styles";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { FC } from "react";
 import { useLocation } from "react-router-dom";
 import { SignInForm } from "./SignInForm";
@@ -11,7 +10,6 @@ import { AuthMethods } from "api/typesGenerated";
 export interface LoginPageViewProps {
   authMethods: AuthMethods | undefined;
   error: unknown;
-  isLoading: boolean;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
@@ -19,7 +17,6 @@ export interface LoginPageViewProps {
 export const LoginPageView: FC<LoginPageViewProps> = ({
   authMethods,
   error,
-  isLoading,
   isSigningIn,
   onSignIn,
 }) => {
@@ -47,9 +44,7 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
     <CoderIcon fill="white" opacity={1} className={styles.icon} />
   );
 
-  return isLoading ? (
-    <FullScreenLoader />
-  ) : (
+  return (
     <div className={styles.root}>
       <div className={styles.container}>
         {applicationLogo}
