@@ -469,6 +469,7 @@ func ConvertConfig(entries []codersdk.ExternalAuthConfig, accessURL *url.URL) ([
 			AppInstallURL:       entry.AppInstallURL,
 			DisplayName:         entry.DisplayName,
 			DisplayIcon:         entry.DisplayIcon,
+			ExtraTokenKeys:      entry.ExtraTokenKeys,
 		}
 
 		if entry.DeviceFlow {
@@ -520,6 +521,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	}
 	if config.DisplayIcon == "" {
 		config.DisplayIcon = defaults.DisplayIcon
+	}
+	if config.ExtraTokenKeys == nil || len(config.ExtraTokenKeys) == 0 {
+		config.ExtraTokenKeys = defaults.ExtraTokenKeys
 	}
 
 	// Apply defaults if it's still empty...

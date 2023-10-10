@@ -92,12 +92,19 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -274,12 +281,19 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -541,21 +555,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	initiator, err := api.Database.GetUserByID(ctx, workspaceBuild.InitiatorID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
 	})
 
-	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -563,7 +567,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		users,
+		user.Username,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -584,7 +588,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		findUser(user.ID, users),
+		user.Username,
 	))
 }
 
@@ -897,6 +901,14 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 
 	if len(data.templates) == 0 {
 		httpapi.Forbidden(rw)
@@ -908,7 +920,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -1123,13 +1135,24 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+		if !ok {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal error fetching workspace resources.",
+					Detail:  "unable to find workspace owner's username",
+				},
+			})
+			return
+		}
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspace(
 				workspace,
 				data.builds[0],
 				data.templates[0],
-				findUser(workspace.OwnerID, data.users),
+				ownerName,
 			),
 		})
 	}
@@ -1279,7 +1302,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			workspace,
 			build,
 			template,
-			&owner,
+			owner.Username,
 		))
 	}
 	return apiWorkspaces, nil
@@ -1289,7 +1312,7 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	owner *database.User,
+	ownerName string,
 ) codersdk.Workspace {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
@@ -1322,7 +1345,7 @@ func convertWorkspace(
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            owner.Username,
+		OwnerName:                            ownerName,
 		OrganizationID:                       workspace.OrganizationID,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,

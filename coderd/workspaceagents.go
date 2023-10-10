@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
@@ -120,7 +121,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner.Username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -234,7 +235,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
-		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
+		Apps:                     convertApps(dbApps, workspaceAgent, owner.Username, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
@@ -1403,14 +1404,14 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
-	return convertApps(dbApps, database.WorkspaceAgent{}, database.User{}, database.Workspace{})
+	return convertApps(dbApps, database.WorkspaceAgent{}, "", database.Workspace{})
 }
 
-func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
+func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		var subdomainName string
-		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
+		if dbApp.Subdomain && agent.Name != "" && ownerName != "" && workspace.Name != "" {
 			appSlug := dbApp.Slug
 			if appSlug == "" {
 				appSlug = dbApp.DisplayName
@@ -1419,7 +1420,7 @@ func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, 
 				AppSlugOrPort: appSlug,
 				AgentName:     agent.Name,
 				WorkspaceName: workspace.Name,
-				Username:      owner.Username,
+				Username:      ownerName,
 			}.String()
 		}
 
@@ -2177,13 +2178,14 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 // @Router /workspaceagents/me/external-auth [get]
 func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	query := r.URL.Query()
 	// Either match or configID must be provided!
-	match := r.URL.Query().Get("match")
+	match := query.Get("match")
 	if match == "" {
 		// Support legacy agents!
-		match = r.URL.Query().Get("url")
+		match = query.Get("url")
 	}
-	id := chi.URLParam(r, "id")
+	id := query.Get("id")
 	if match == "" && id == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "'url' or 'id' must be provided!",
@@ -2305,7 +2307,15 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 			if !valid {
 				continue
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+			resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to create external auth response.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, resp)
 			return
 		}
 	}
@@ -2353,13 +2363,21 @@ func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Requ
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken))
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create external auth response.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
 // createExternalAuthResponse creates an ExternalAuthResponse based on the
 // provider type. This is to support legacy `/workspaceagents/me/gitauth`
 // which uses `Username` and `Password`.
-func createExternalAuthResponse(typ, token string) agentsdk.ExternalAuthResponse {
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
 	var resp agentsdk.ExternalAuthResponse
 	switch typ {
 	case string(codersdk.EnhancedExternalAuthProviderGitLab):
@@ -2381,7 +2399,12 @@ func createExternalAuthResponse(typ, token string) agentsdk.ExternalAuthResponse
 	}
 	resp.AccessToken = token
 	resp.Type = typ
-	return resp
+
+	var err error
+	if extra.Valid {
+		err = json.Unmarshal(extra.RawMessage, &resp.TokenExtra)
+	}
+	return resp, err
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

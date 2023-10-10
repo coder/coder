@@ -15,6 +15,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
@@ -56,7 +57,8 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create an initial template bundle.
 	source1 := genTemplateVersionSource()
@@ -67,18 +69,18 @@ func TestTemplatePull_Stdout(t *testing.T) {
 	expected, err := echo.Tar(source2)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	var buf bytes.Buffer
 	inv.Stdout = &buf
@@ -97,7 +99,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create an initial template bundle.
 	source1 := genTemplateVersionSource()
@@ -108,14 +111,14 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	expected, err := echo.Tar(source2)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
@@ -128,7 +131,7 @@ func TestTemplatePull_ToDir(t *testing.T) {
 	require.NoError(t, err)
 
 	inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	ptytest.New(t).Attach(inv)
 
@@ -147,7 +150,8 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create an initial template bundle.
 	source1 := genTemplateVersionSource()
@@ -158,14 +162,14 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 	expected, err := echo.Tar(source2)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	// create a tempdir and change the working directory to it for the duration of the test (cannot run in parallel)
@@ -188,7 +192,7 @@ func TestTemplatePull_ToImplicit(t *testing.T) {
 	require.NoError(t, err)
 
 	inv, root := clitest.New(t, "templates", "pull", template.Name)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	ptytest.New(t).Attach(inv)
 
@@ -208,7 +212,8 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	// Create an initial template bundle.
 	source1 := genTemplateVersionSource()
@@ -219,14 +224,14 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	expected, err := echo.Tar(source2)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
 	// Update the template version so that we can assert that templates
 	// are being sorted correctly.
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	dir := t.TempDir()
@@ -249,7 +254,7 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	pty := ptytest.New(t).Attach(inv)
 

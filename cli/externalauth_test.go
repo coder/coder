@@ -46,4 +46,22 @@ func TestExternalAuth(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatch("bananas")
 	})
+	t.Run("SuccessWithExtra", func(t *testing.T) {
+		t.Parallel()
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
+				AccessToken: "bananas",
+				TokenExtra: map[string]interface{}{
+					"hey": "there",
+				},
+			})
+		}))
+		t.Cleanup(srv.Close)
+		url := srv.URL
+		inv, _ := clitest.New(t, "--agent-url", url, "external-auth", "access-token", "github", "--extra", "hey")
+		pty := ptytest.New(t)
+		inv.Stdout = pty.Output()
+		clitest.Start(t, inv)
+		pty.ExpectMatch("there")
+	})
 }
