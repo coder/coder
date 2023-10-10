@@ -838,7 +838,7 @@
         },
         {
           "title": "templates pull",
-          "description": "Download the latest version of a template to a path.",
+          "description": "Download the active, latest, or specified version of a template to a path.",
           "path": "cli/templates_pull.md"
         },
         {
