@@ -88,10 +88,7 @@ export const DormantWorkspaceBanner = ({
       ) : (
         <>
           <span>There are</span>{" "}
-          <Link
-            component={RouterLink}
-            to="/workspaces?filter=dormant_at:1970-01-01"
-          >
+          <Link component={RouterLink} to="/workspaces?filter=is-dormant:true">
             workspaces
           </Link>{" "}
           that may be deleted soon due to inactivity. Activate the workspaces
