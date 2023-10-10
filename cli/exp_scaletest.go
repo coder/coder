@@ -1160,7 +1160,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 					RandIntn:   rndGen.Intn,
 				}
 				//nolint:gocritic
-				logger.Info(ctx, "runner config", slog.F("min_wait", interval), slog.F("max_wait", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
+				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
 					return err
 				}
