@@ -5,7 +5,7 @@ import { type ReactElement } from "react";
  * Buttons supported by workspace actions. Canceling, Deleted, and Pending
  * should all be associated with disabled states
  */
-type ButtonType =
+export type ButtonType =
   | Exclude<WorkspaceStatus, "failed" | "canceled" | "running" | "stopped">
   | "start"
   | "stop"
