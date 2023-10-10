@@ -238,7 +238,7 @@ func Screenshot(ctx context.Context, name string) (string, error) {
 	fname := fmt.Sprintf("scaletest-dashboard-%s-%s.png", name, time.Now().Format("20060102-150405"))
 	pwd := os.Getenv("PWD")
 	fpath := filepath.Join(pwd, fname)
-	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return "", xerrors.Errorf("open file: %w", err)
 	}
