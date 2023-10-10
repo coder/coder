@@ -15,7 +15,8 @@ import {
 import { assign, createMachine } from "xstate";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
-export type CreateWorkspaceMode = "form" | "auto";
+export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
 type CreateWorkspaceContext = {
   organizationId: string;

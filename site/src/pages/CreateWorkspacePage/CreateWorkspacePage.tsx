@@ -10,6 +10,7 @@ import {
   CreateWSPermissions,
   CreateWorkspaceMode,
   createWorkspaceMachine,
+  createWorkspaceModes,
 } from "xServices/createWorkspace/createWorkspaceXService";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import { Loader } from "components/Loader/Loader";
@@ -33,7 +34,7 @@ const CreateWorkspacePage: FC = () => {
   const navigate = useNavigate();
 
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
-  const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode;
+  const mode = getWorkspaceMode(searchParams);
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
@@ -87,6 +88,11 @@ const CreateWorkspacePage: FC = () => {
     }
   }
 
+  const isFormLoading = Boolean(
+    createWorkspaceState.matches("loadingFormData") ||
+      createWorkspaceState.matches("autoCreating"),
+  );
+
   return (
     <>
       <Helmet>
@@ -99,10 +105,7 @@ const CreateWorkspacePage: FC = () => {
         </title>
       </Helmet>
 
-      {Boolean(
-        createWorkspaceState.matches("loadingFormData") ||
-          createWorkspaceState.matches("autoCreating"),
-      ) && <Loader />}
+      {isFormLoading && <Loader />}
 
       {createWorkspaceState.matches("loadError") && (
         <ErrorAlert error={error} />
@@ -121,6 +124,7 @@ const CreateWorkspacePage: FC = () => {
           permissions={permissions as CreateWSPermissions}
           parameters={parameters!}
           creatingWorkspace={createWorkspaceState.matches("creatingWorkspace")}
+          mode={mode}
           startPollingExternalAuth={() => {
             setExternalAuthPollingState("polling");
           }}
@@ -151,6 +155,15 @@ const getDefaultBuildParameters = (
       return { name, value };
     });
 };
+
+function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
+  const paramMode = params.get("mode");
+  if (createWorkspaceModes.includes(paramMode as CreateWorkspaceMode)) {
+    return paramMode as CreateWorkspaceMode;
+  }
+
+  return "form";
+}
 
 const generateUniqueName = () => {
   const numberDictionary = NumberDictionary.generate({ min: 0, max: 99 });

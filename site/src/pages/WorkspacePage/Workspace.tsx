@@ -49,6 +49,7 @@ export interface WorkspaceProps {
   handleUpdate: () => void;
   handleCancel: () => void;
   handleSettings: () => void;
+  handleClone: () => void;
   handleChangeVersion: () => void;
   handleDormantActivate: () => void;
   isUpdating: boolean;
@@ -87,6 +88,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
+  handleClone,
   handleChangeVersion,
   handleDormantActivate: handleDormantActivate,
   workspace,
@@ -201,6 +203,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               handleUpdate={handleUpdate}
               handleCancel={handleCancel}
               handleSettings={handleSettings}
+              handleClone={handleClone}
               handleChangeVersion={handleChangeVersion}
               handleDormantActivate={handleDormantActivate}
               canChangeVersions={canChangeVersions}

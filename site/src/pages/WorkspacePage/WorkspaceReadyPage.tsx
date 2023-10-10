@@ -2,7 +2,7 @@ import { useActor } from "@xstate/react";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
 import dayjs from "dayjs";
 import { useFeatureVisibility } from "hooks/useFeatureVisibility";
-import { FC, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate } from "react-router-dom";
 import {
@@ -34,6 +34,7 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import { type CreateWorkspaceMode } from "xServices/createWorkspace/createWorkspaceXService";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -56,11 +57,6 @@ export const WorkspaceReadyPage = ({
   isLoadingMoreBuilds,
   hasMoreBuilds,
 }: WorkspaceReadyPageProps): JSX.Element => {
-  const [_, bannerSend] = useActor(
-    workspaceState.children["scheduleBannerMachine"],
-  );
-  const { buildInfo } = useDashboard();
-  const featureVisibility = useFeatureVisibility();
   const {
     workspace,
     template,
@@ -72,17 +68,22 @@ export const WorkspaceReadyPage = ({
     permissions,
     missedParameters,
   } = workspaceState.context;
+
+  // Breaks the rules of hooks, but if we're throwing an error, the rules won't
+  // even have a chance to matter. Best to get the check out of the way early
+  // for better type narrowing
   if (workspace === undefined) {
     throw Error("Workspace is undefined");
   }
-  const deadline = getDeadline(workspace);
-  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
-  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
-  const canRetryDebugMode =
-    Boolean(permissions?.viewDeploymentValues) &&
-    Boolean(deploymentValues?.enable_terraform_debug_mode);
-  const favicon = getFaviconByStatus(workspace.latest_build);
+
+  const { buildInfo } = useDashboard();
+  const featureVisibility = useFeatureVisibility();
   const navigate = useNavigate();
+
+  const [_, bannerSend] = useActor(
+    workspaceState.children["scheduleBannerMachine"],
+  );
+
   const [changeVersionDialogOpen, setChangeVersionDialogOpen] = useState(false);
   const [isConfirmingUpdate, setIsConfirmingUpdate] = useState(false);
   const [confirmingRestart, setConfirmingRestart] = useState<{
@@ -90,29 +91,19 @@ export const WorkspaceReadyPage = ({
     buildParameters?: TypesGen.WorkspaceBuildParameter[];
   }>({ open: false });
 
-  const { data: allVersions } = useQuery({
+  const { data: allTemplateVersions } = useQuery({
     ...templateVersions(workspace.template_id),
     enabled: changeVersionDialogOpen,
   });
-  const { data: latestVersion } = useQuery({
+
+  const { data: latestTemplateVersion } = useQuery({
     ...templateVersion(workspace.template_active_version_id),
     enabled: workspace.outdated,
   });
-  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) {
-      return;
-    }
-    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
-    // We want the favicon the opposite of the theme.
-    setFaviconTheme(isDark ? "light" : "dark");
-  }, []);
+
   const buildLogs = useWorkspaceBuildLogs(workspace.latest_build.id);
-  const shouldDisplayBuildLogs =
-    hasJobError(workspace) ||
-    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
-      workspace.latest_build.status,
-    );
+  const faviconTheme = useFaviconTheme();
+
   const {
     mutate: mutateRestartWorkspace,
     error: restartBuildError,
@@ -120,10 +111,41 @@ export const WorkspaceReadyPage = ({
   } = useMutation({
     mutationFn: restartWorkspace,
   });
+
   // keep banner machine in sync with workspace
   useEffect(() => {
     bannerSend({ type: "REFRESH_WORKSPACE", workspace });
   }, [bannerSend, workspace]);
+
+  const handleWorkspaceCloning = () => {
+    if (template?.name === undefined) {
+      return;
+    }
+
+    const workspaceCreationParams = new URLSearchParams({
+      mode: "duplicate" satisfies CreateWorkspaceMode,
+      name: workspace.name,
+    });
+
+    navigate({
+      pathname: `/templates/${template.name}/workspace`,
+      search: workspaceCreationParams.toString(),
+    });
+  };
+
+  const favicon = getFaviconByStatus(workspace.latest_build);
+  const deadline = getDeadline(workspace);
+  const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
+  const canUpdateTemplate = Boolean(permissions?.updateTemplate);
+  const canRetryDebugMode =
+    Boolean(permissions?.viewDeploymentValues) &&
+    Boolean(deploymentValues?.enable_terraform_debug_mode);
+
+  const shouldDisplayBuildLogs =
+    hasJobError(workspace) ||
+    ["canceling", "deleting", "pending", "starting", "stopping"].includes(
+      workspace.latest_build.status,
+    );
 
   return (
     <>
@@ -177,6 +199,7 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
+        handleClone={handleWorkspaceCloning}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);
@@ -188,7 +211,7 @@ export const WorkspaceReadyPage = ({
         isLoadingMoreBuilds={isLoadingMoreBuilds}
         hasMoreBuilds={hasMoreBuilds}
         canUpdateWorkspace={canUpdateWorkspace}
-        updateMessage={latestVersion?.message}
+        updateMessage={latestTemplateVersion?.message}
         canRetryDebugMode={canRetryDebugMode}
         canChangeVersions={canUpdateTemplate}
         hideSSHButton={featureVisibility["browser_only"]}
@@ -234,9 +257,9 @@ export const WorkspaceReadyPage = ({
         }}
       />
       <ChangeVersionDialog
-        templateVersions={allVersions?.reverse()}
+        templateVersions={allTemplateVersions?.reverse()}
         template={template}
-        defaultTemplateVersion={allVersions?.find(
+        defaultTemplateVersion={allTemplateVersions?.find(
           (v) => workspace.latest_build.template_version_id === v.id,
         )}
         open={changeVersionDialogOpen}
@@ -266,8 +289,8 @@ export const WorkspaceReadyPage = ({
               Restarting your workspace will stop all running processes and{" "}
               <strong>delete non-persistent data</strong>.
             </p>
-            {latestVersion?.message && (
-              <Alert severity="info">{latestVersion.message}</Alert>
+            {latestTemplateVersion?.message && (
+              <Alert severity="info">{latestTemplateVersion.message}</Alert>
             )}
           </Stack>
         }
@@ -295,6 +318,21 @@ export const WorkspaceReadyPage = ({
     </>
   );
 };
+
+function useFaviconTheme() {
+  const [faviconTheme, setFaviconTheme] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) {
+      return;
+    }
+    const isDark = window.matchMedia("(prefers-color-scheme: dark)");
+    // We want the favicon the opposite of the theme.
+    setFaviconTheme(isDark ? "light" : "dark");
+  }, []);
+
+  return faviconTheme;
+}
 
 const WarningDialog: FC<
   Pick<

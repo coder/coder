@@ -25,7 +25,7 @@ import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import MoreOptionsIcon from "@mui/icons-material/MoreVertOutlined";
-import CloneIcon from "@mui/icons-material/ContentCopyOutlined";
+import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -35,6 +35,7 @@ export interface WorkspaceActionsProps {
   handleDelete: () => void;
   handleUpdate: () => void;
   handleCancel: () => void;
+  handleClone: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleDormantActivate: () => void;
@@ -53,6 +54,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
+  handleClone,
   handleChangeVersion,
   handleDormantActivate: handleDormantActivate,
   isUpdating,
@@ -149,9 +151,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             </MenuItem>
           )}
 
-          <MenuItem>
-            <CloneIcon />
-            Clone&hellip;
+          <MenuItem onClick={onMenuItemClick(handleClone)}>
+            <DuplicateIcon />
+            Duplicate&hellip;
           </MenuItem>
 
           <MenuItem
