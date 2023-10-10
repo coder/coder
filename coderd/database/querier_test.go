@@ -599,7 +599,6 @@ func TestArchiveVersions(t *testing.T) {
 		require.NoError(t, err)
 		db := database.New(sqlDB)
 		ctx := context.Background()
-		var _ = ctx
 
 		org := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
