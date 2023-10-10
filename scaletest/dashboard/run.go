@@ -73,6 +73,11 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.Logger, r.cfg.RandIntn, actionCompleteByDeadline)
 			if err != nil {
 				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
+				sPath, sErr := screenshot(cdpCtx, me.Username)
+				if sErr != nil {
+					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
+				}
+				r.cfg.Logger.Info(ctx, "screenshot saved", slog.F("path", sPath))
 				continue
 			}
 			start := time.Now()
@@ -83,6 +88,11 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 				r.metrics.IncErrors(string(l))
 				//nolint:gocritic
 				r.cfg.Logger.Error(ctx, "action failed", slog.F("label", l), slog.Error(err))
+				sPath, sErr := screenshot(cdpCtx, me.Username+"-"+string(l))
+				if sErr != nil {
+					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
+				}
+				r.cfg.Logger.Info(ctx, "screenshot saved", slog.F("path", sPath))
 			} else {
 				//nolint:gocritic
 				r.cfg.Logger.Info(ctx, "action success", slog.F("label", l))

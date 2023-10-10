@@ -2,8 +2,10 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
@@ -219,6 +221,26 @@ func setSessionTokenCookie(ctx context.Context, token, domain string) error {
 
 func visitMainPage(ctx context.Context, u *url.URL) error {
 	return chromedp.Run(ctx, chromedp.Navigate(u.String()))
+}
+
+func screenshot(ctx context.Context, name string) (string, error) {
+	var buf []byte
+	if err := chromedp.Run(ctx, chromedp.CaptureScreenshot(&buf)); err != nil {
+		return "", xerrors.Errorf("capture screenshot: %w", err)
+	}
+	fname := fmt.Sprintf("scaletest-dashboard-%s-%s.png", name, time.Now().Format("20060102-150405"))
+	pwd := os.Getenv("PWD")
+	fpath := filepath.Join(pwd, fname)
+	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return "", xerrors.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Write(buf); err != nil {
+		return "", xerrors.Errorf("write file: %w", err)
+	}
+
+	return fpath, nil
 }
 
 // pick chooses a random element from a slice.
