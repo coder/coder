@@ -101,7 +101,8 @@ func TestTemplatePull_ActiveOldStdout(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	source1 := genTemplateVersionSource()
 	source2 := genTemplateVersionSource()
@@ -109,16 +110,16 @@ func TestTemplatePull_ActiveOldStdout(t *testing.T) {
 	expected, err := echo.Tar(source1)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	var buf bytes.Buffer
 	inv.Stdout = &buf
@@ -140,7 +141,8 @@ func TestTemplatePull_SpecifiedStdout(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	source1 := genTemplateVersionSource()
 	source2 := genTemplateVersionSource()
@@ -149,20 +151,20 @@ func TestTemplatePull_SpecifiedStdout(t *testing.T) {
 	expected, err := echo.Tar(source1)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
-	updatedVersion2 := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source3, template.ID)
+	updatedVersion2 := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source3, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion2.ID)
 	coderdtest.UpdateActiveTemplateVersion(t, client, template.ID, updatedVersion2.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name, "--version", version1.Name)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	var buf bytes.Buffer
 	inv.Stdout = &buf
@@ -181,7 +183,8 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
-	user := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	source1 := genTemplateVersionSource()
 	source2 := genTemplateVersionSource()
@@ -189,16 +192,16 @@ func TestTemplatePull_LatestStdout(t *testing.T) {
 	expected, err := echo.Tar(source1)
 	require.NoError(t, err)
 
-	version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, source1)
+	version1 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, source1)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version1.ID)
 
-	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, user.OrganizationID, source2, template.ID)
+	updatedVersion := coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, source2, template.ID)
 	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, updatedVersion.ID)
 
 	inv, root := clitest.New(t, "templates", "pull", "--tar", template.Name, "latest")
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, templateAdmin, root)
 
 	var buf bytes.Buffer
 	inv.Stdout = &buf
