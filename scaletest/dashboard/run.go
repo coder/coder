@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -25,6 +26,15 @@ var (
 
 func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 	client.Trace = cfg.Trace
+	if cfg.WaitLoaded == nil {
+		cfg.WaitLoaded = waitForWorkspacesPageLoaded
+	}
+	if cfg.ActionFunc == nil {
+		cfg.ActionFunc = clickRandomElement
+	}
+	if cfg.Screenshot == nil {
+		cfg.Screenshot = screenshot
+	}
 	return &Runner{
 		client:  client,
 		cfg:     cfg,
@@ -33,6 +43,16 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	err := r._run(ctx)
+	// If the context deadline exceeded, don't return an error.
+	// This just means the test finished.
+	if err == nil || errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+	return err
+}
+
+func (r *Runner) _run(ctx context.Context) error {
 	if r.client == nil {
 		return xerrors.Errorf("client is nil")
 	}
@@ -55,7 +75,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	defer t.Stop()
 	r.cfg.Logger.Info(ctx, "waiting for workspaces page to load")
 	loadWorkspacePageDeadline := time.Now().Add(r.cfg.Interval)
-	if err := waitForWorkspacesPageLoaded(cdpCtx, loadWorkspacePageDeadline); err != nil {
+	if err := r.cfg.WaitLoaded(cdpCtx, loadWorkspacePageDeadline); err != nil {
 		return xerrors.Errorf("wait for workspaces page to load: %w", err)
 	}
 	for {
@@ -73,7 +93,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.Logger, r.cfg.RandIntn, actionCompleteByDeadline)
 			if err != nil {
 				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
-				sPath, sErr := screenshot(cdpCtx, me.Username)
+				sPath, sErr := r.cfg.Screenshot(cdpCtx, me.Username)
 				if sErr != nil {
 					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
 				}
@@ -88,7 +108,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 				r.metrics.IncErrors(string(l))
 				//nolint:gocritic
 				r.cfg.Logger.Error(ctx, "action failed", slog.F("label", l), slog.Error(err))
-				sPath, sErr := screenshot(cdpCtx, me.Username+"-"+string(l))
+				sPath, sErr := r.cfg.Screenshot(cdpCtx, me.Username+"-"+string(l))
 				if sErr != nil {
 					r.cfg.Logger.Error(ctx, "screenshot failed", slog.Error(sErr))
 				}

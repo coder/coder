@@ -88,11 +88,11 @@ var defaultTargets = []Target{
 	},
 }
 
-// ClickRandomElement returns an action that will click an element from defaultTargets.
+// clickRandomElement returns an action that will click an element from defaultTargets.
 // If no elements are found, an error is returned.
 // If more than one element is found, one is chosen at random.
 // The label of the clicked element is returned.
-func ClickRandomElement(ctx context.Context, log slog.Logger, randIntn func(int) int, deadline time.Time) (Label, Action, error) {
+func clickRandomElement(ctx context.Context, log slog.Logger, randIntn func(int) int, deadline time.Time) (Label, Action, error) {
 	var xpath Selector
 	var found bool
 	var err error

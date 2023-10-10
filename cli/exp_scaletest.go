@@ -1151,13 +1151,12 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				userClient.SetSessionToken(userTokResp.Key)
 
 				config := dashboard.Config{
-					Interval:   interval,
-					Jitter:     jitter,
-					Trace:      tracingEnabled,
-					Logger:     logger.Named(name),
-					Headless:   headless,
-					ActionFunc: dashboard.ClickRandomElement,
-					RandIntn:   rndGen.Intn,
+					Interval: interval,
+					Jitter:   jitter,
+					Trace:    tracingEnabled,
+					Logger:   logger.Named(name),
+					Headless: headless,
+					RandIntn: rndGen.Intn,
 				}
 				//nolint:gocritic
 				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
