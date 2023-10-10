@@ -1,14 +1,14 @@
 import CircularProgress from "@mui/material/CircularProgress";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import Autocomplete from "@mui/material/Autocomplete";
 import { useMachine } from "@xstate/react";
-import { Group, User } from "api/typesGenerated";
+import Box from "@mui/material/Box";
+import { type ChangeEvent, useState } from "react";
+import { css } from "@emotion/react";
+import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { ChangeEvent, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import { searchUsersAndGroupsMachine } from "xServices/template/searchUsersAndGroupsXService";
-import Box from "@mui/material/Box";
 import { useDebouncedFunction } from "hooks/debounce";
 
 export type UserOrGroupAutocompleteValue = User | Group | null;
@@ -25,10 +25,21 @@ export type UserOrGroupAutocompleteProps = {
   exclude: UserOrGroupAutocompleteValue[];
 };
 
+const autoCompleteStyles = css`
+  width: 300px;
+
+  & .MuiFormControl-root {
+    width: 100%;
+  }
+
+  & .MuiInputBase-root {
+    width: 100%;
+  }
+`;
+
 export const UserOrGroupAutocomplete: React.FC<
   UserOrGroupAutocompleteProps
 > = ({ value, onChange, organizationId, templateID, exclude }) => {
-  const styles = useStyles();
   const [isAutocompleteOpen, setIsAutocompleteOpen] = useState(false);
   const [searchState, sendSearch] = useMachine(searchUsersAndGroupsMachine, {
     context: {
@@ -92,7 +103,7 @@ export const UserOrGroupAutocomplete: React.FC<
       }}
       options={options}
       loading={searchState.matches("searching")}
-      className={styles.autocomplete}
+      css={autoCompleteStyles}
       renderInput={(params) => (
         <>
           <TextField
@@ -118,19 +129,3 @@ export const UserOrGroupAutocomplete: React.FC<
     />
   );
 };
-
-export const useStyles = makeStyles(() => {
-  return {
-    autocomplete: {
-      width: "300px",
-
-      "& .MuiFormControl-root": {
-        width: "100%",
-      },
-
-      "& .MuiInputBase-root": {
-        width: "100%",
-      },
-    },
-  };
-});
