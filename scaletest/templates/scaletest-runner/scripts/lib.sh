@@ -276,7 +276,7 @@ fetch_coder_full() {
 		--namespace "${namespace}" \
 		cp \
 		--container coder \
-		--retries 3 \
+		--retries 10 \
 		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
 	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
 	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
