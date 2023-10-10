@@ -26,14 +26,18 @@ else
   echo $OUTPUT
 fi
 
+
+  - Obtain an extra property of an access token for additional metadata.:
+
+     $ coder external-auth access-token slack --extra "authed_user.id"
 ```
 
 ## Options
 
-### --s
+### --extra
 
-|      |                   |
-| ---- | ----------------- |
-| Type | <code>bool</code> |
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
 
-Do not print the URL or access token.
+Extract a field from the "extra" properties of the OAuth token.

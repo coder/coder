@@ -6479,6 +6479,10 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "token_extra": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
                 "type": {
                     "type": "string"
                 },

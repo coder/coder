@@ -19,10 +19,14 @@ USAGE:
     echo "Please authenticate with GitHub:"
     echo $OUTPUT
   fi
+  
+      - Obtain an extra property of an access token for additional metadata.:
+  
+       $ coder external-auth access-token slack --extra "authed_user.id"
 
 OPTIONS:
-      --s bool
-          Do not print the URL or access token.
+      --extra string
+          Extract a field from the "extra" properties of the OAuth token.
 
 ———
 Run `coder --help` for a list of global options.

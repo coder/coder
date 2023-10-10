@@ -711,9 +711,10 @@ func (c *Client) GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerCo
 }
 
 type ExternalAuthResponse struct {
-	AccessToken string `json:"access_token"`
-	URL         string `json:"url"`
-	Type        string `json:"type"`
+	AccessToken string                 `json:"access_token"`
+	TokenExtra  map[string]interface{} `json:"token_extra"`
+	URL         string                 `json:"url"`
+	Type        string                 `json:"type"`
 
 	// Deprecated: Only supported on `/workspaceagents/me/gitauth`
 	// for backwards compatibility.

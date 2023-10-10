@@ -115,6 +115,7 @@
 {
   "access_token": "string",
   "password": "string",
+  "token_extra": {},
   "type": "string",
   "url": "string",
   "username": "string"
@@ -127,6 +128,7 @@
 | -------------- | ------ | -------- | ------------ | ---------------------------------------------------------------------------------------- |
 | `access_token` | string | false    |              |                                                                                          |
 | `password`     | string | false    |              |                                                                                          |
+| `token_extra`  | object | false    |              |                                                                                          |
 | `type`         | string | false    |              |                                                                                          |
 | `url`          | string | false    |              |                                                                                          |
 | `username`     | string | false    |              | Deprecated: Only supported on `/workspaceagents/me/gitauth` for backwards compatibility. |

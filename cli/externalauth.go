@@ -1,9 +1,12 @@
 package cli
 
 import (
+	"encoding/json"
 	"os/signal"
 
 	"golang.org/x/xerrors"
+
+	"github.com/tidwall/gjson"
 
 	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -25,7 +28,7 @@ func (r *RootCmd) externalAuth() *clibase.Cmd {
 }
 
 func (r *RootCmd) externalAuthAccessToken() *clibase.Cmd {
-	var silent bool
+	var extra string
 	return &clibase.Cmd{
 		Use:   "access-token <provider>",
 		Short: "Print auth for an external provider",
@@ -45,12 +48,16 @@ else
 fi
 `,
 			},
+			example{
+				Description: "Obtain an extra property of an access token for additional metadata.",
+				Command:     "coder external-auth access-token slack --extra \"authed_user.id\"",
+			},
 		),
 		Options: clibase.OptionSet{{
-			Name:        "Silent",
-			Flag:        "s",
-			Description: "Do not print the URL or access token.",
-			Value:       clibase.BoolOf(&silent),
+			Name:        "Extra",
+			Flag:        "extra",
+			Description: "Extract a field from the \"extra\" properties of the OAuth token.",
+			Value:       clibase.StringOf(&extra),
 		}},
 
 		Handler: func(inv *clibase.Invocation) error {
@@ -64,26 +71,37 @@ fi
 				return xerrors.Errorf("create agent client: %w", err)
 			}
 
-			token, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			extAuth, err := client.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
 				ID: inv.Args[0],
 			})
 			if err != nil {
 				return xerrors.Errorf("get external auth token: %w", err)
 			}
-
-			if !silent {
-				if token.URL != "" {
-					_, err = inv.Stdout.Write([]byte(token.URL))
-				} else {
-					_, err = inv.Stdout.Write([]byte(token.AccessToken))
-				}
+			if extAuth.URL != "" {
+				_, err = inv.Stdout.Write([]byte(extAuth.URL))
 				if err != nil {
 					return err
 				}
-			}
-
-			if token.URL != "" {
 				return cliui.Canceled
+			}
+			if extra != "" {
+				if extAuth.TokenExtra == nil {
+					return xerrors.Errorf("no extra properties found for token")
+				}
+				data, err := json.Marshal(extAuth.TokenExtra)
+				if err != nil {
+					return xerrors.Errorf("marshal extra properties: %w", err)
+				}
+				result := gjson.GetBytes(data, extra)
+				_, err = inv.Stdout.Write([]byte(result.String()))
+				if err != nil {
+					return err
+				}
+				return nil
+			}
+			_, err = inv.Stdout.Write([]byte(extAuth.AccessToken))
+			if err != nil {
+				return err
 			}
 			return nil
 		},
