@@ -5319,9 +5319,123 @@ func (q *sqlQuerier) InsertTemplateVersionParameter(ctx context.Context, arg Ins
 	return i, err
 }
 
+const archiveUnusedTemplateVersions = `-- name: ArchiveUnusedTemplateVersions :many
+UPDATE
+	template_versions
+SET
+	archived = true,
+	updated_at = $1
+FROM
+	-- Archive all versions that are returned from this query.
+	(
+		SELECT
+			scoped_template_versions.id
+		FROM
+			-- Scope an archive to a single template and ignore already archived template versions
+			(
+				SELECT
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived
+				FROM
+					template_versions
+				WHERE
+					template_versions.template_id = $2 :: uuid
+					AND
+					archived = false
+					AND
+					-- This allows archiving a specific template version.
+					CASE
+						WHEN $3::uuid  != '00000000-0000-0000-0000-000000000000'::uuid THEN
+							template_versions.id = $3 :: uuid
+						ELSE
+							true
+						END
+			) AS scoped_template_versions
+			LEFT JOIN
+				provisioner_jobs ON scoped_template_versions.job_id = provisioner_jobs.id
+			LEFT JOIN
+				templates ON scoped_template_versions.template_id = templates.id
+		WHERE
+		  -- Actively used template versions (meaning the latest build is using
+		  -- the version) are never archived. A "restart" command on the workspace,
+		  -- even if failed, would use the version. So it cannot be archived until
+		  -- the build is outdated.
+		NOT EXISTS (
+			-- Return all "used" versions, where "used" is defined as being
+			-- used by a latest workspace build.
+			SELECT template_version_id FROM (
+				SELECT
+					DISTINCT ON (workspace_id) template_version_id, transition
+				FROM
+					workspace_builds
+				ORDER BY workspace_id, build_number DESC
+				) AS used_versions
+			WHERE
+				used_versions.transition != 'delete'
+				AND
+				scoped_template_versions.id = used_versions.template_version_id
+		)
+		-- Also never archive the active template version
+		AND active_version_id != scoped_template_versions.id
+		AND CASE
+			-- Optionally, only archive versions that match a given
+			-- job status like 'failed'.
+			WHEN $4 :: provisioner_job_status IS NOT NULL THEN
+				provisioner_jobs.job_status = $4 :: provisioner_job_status
+			ELSE
+				true
+		END
+		-- Pending or running jobs should not be archived, as they are "in progress"
+		AND provisioner_jobs.job_status != 'running'
+		AND provisioner_jobs.job_status != 'pending'
+	) AS archived_versions
+WHERE
+	template_versions.id IN (archived_versions.id)
+RETURNING template_versions.id
+`
+
+type ArchiveUnusedTemplateVersionsParams struct {
+	UpdatedAt         time.Time                `db:"updated_at" json:"updated_at"`
+	TemplateID        uuid.UUID                `db:"template_id" json:"template_id"`
+	TemplateVersionID uuid.UUID                `db:"template_version_id" json:"template_version_id"`
+	JobStatus         NullProvisionerJobStatus `db:"job_status" json:"job_status"`
+}
+
+// Archiving templates is a soft delete action, so is reversible.
+// Archiving prevents the version from being used and discovered
+// by listing.
+// Only unused template versions will be archived, which are any versions not
+// referenced by the latest build of a workspace.
+func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, archiveUnusedTemplateVersions,
+		arg.UpdatedAt,
+		arg.TemplateID,
+		arg.TemplateVersionID,
+		arg.JobStatus,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5357,6 +5471,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5365,7 +5480,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5387,6 +5502,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5395,7 +5511,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5417,6 +5533,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5425,7 +5542,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5453,6 +5570,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.CreatedBy,
 		pq.Array(&i.ExternalAuthProviders),
 		&i.Message,
+		&i.Archived,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -5461,7 +5579,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -5489,6 +5607,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5507,16 +5626,23 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
 	template_id = $1 :: uuid
+	  AND CASE
+		-- If no filter is provided, default to returning ALL template versions.
+		-- The called should always provide a filter if they want to omit
+		-- archived versions.
+		WHEN $2 :: boolean IS NULL THEN true
+		ELSE template_versions.archived = $2 :: boolean
+	END
 	AND CASE
 		-- This allows using the last element on a page as effectively a cursor.
 		-- This is an important option for scripts that need to paginate without
 		-- duplicating or missing data.
-		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+		WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
 			-- The pagination cursor is the last ID of the previous page.
 			-- The query is ordered by the created_at field, so select all
 			-- rows after the cursor.
@@ -5526,7 +5652,7 @@ WHERE
 				FROM
 					template_versions
 				WHERE
-					id = $2
+					id = $3
 			)
 		)
 		ELSE true
@@ -5534,22 +5660,24 @@ WHERE
 ORDER BY
     -- Deterministic and consistent ordering of all rows, even if they share
     -- a timestamp. This is to ensure consistent pagination.
-	(created_at, id) ASC OFFSET $3
+	(created_at, id) ASC OFFSET $4
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($4 :: int, 0)
+	NULLIF($5 :: int, 0)
 `
 
 type GetTemplateVersionsByTemplateIDParams struct {
-	TemplateID uuid.UUID `db:"template_id" json:"template_id"`
-	AfterID    uuid.UUID `db:"after_id" json:"after_id"`
-	OffsetOpt  int32     `db:"offset_opt" json:"offset_opt"`
-	LimitOpt   int32     `db:"limit_opt" json:"limit_opt"`
+	TemplateID uuid.UUID    `db:"template_id" json:"template_id"`
+	Archived   sql.NullBool `db:"archived" json:"archived"`
+	AfterID    uuid.UUID    `db:"after_id" json:"after_id"`
+	OffsetOpt  int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt   int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg GetTemplateVersionsByTemplateIDParams) ([]TemplateVersion, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateVersionsByTemplateID,
 		arg.TemplateID,
+		arg.Archived,
 		arg.AfterID,
 		arg.OffsetOpt,
 		arg.LimitOpt,
@@ -5573,6 +5701,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5590,7 +5719,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -5614,6 +5743,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.CreatedBy,
 			pq.Array(&i.ExternalAuthProviders),
 			&i.Message,
+			&i.Archived,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5674,6 +5804,27 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.JobID,
 		arg.CreatedBy,
 	)
+	return err
+}
+
+const unarchiveTemplateVersion = `-- name: UnarchiveTemplateVersion :exec
+UPDATE
+	template_versions
+SET
+	archived = false,
+	updated_at = $1
+WHERE
+		id = $2
+`
+
+type UnarchiveTemplateVersionParams struct {
+	UpdatedAt         time.Time `db:"updated_at" json:"updated_at"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+}
+
+// This will always work regardless of the current state of the template version.
+func (q *sqlQuerier) UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error {
+	_, err := q.db.ExecContext(ctx, unarchiveTemplateVersion, arg.UpdatedAt, arg.TemplateVersionID)
 	return err
 }
 
@@ -9572,6 +9723,119 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
+SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
+INSERT INTO
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
+SELECT
+	$1 :: uuid AS workspace_agent_id,
+	$2 :: timestamptz AS created_at,
+	unnest($3 :: uuid [ ]) AS log_source_id,
+	unnest($4 :: text [ ]) AS log_path,
+	unnest($5 :: text [ ]) AS script,
+	unnest($6 :: text [ ]) AS cron,
+	unnest($7 :: boolean [ ]) AS start_blocks_login,
+	unnest($8 :: boolean [ ]) AS run_on_start,
+	unnest($9 :: boolean [ ]) AS run_on_stop,
+	unnest($10 :: integer [ ]) AS timeout_seconds
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
+`
+
+type InsertWorkspaceAgentScriptsParams struct {
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogPath          []string    `db:"log_path" json:"log_path"`
+	Script           []string    `db:"script" json:"script"`
+	Cron             []string    `db:"cron" json:"cron"`
+	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
+		arg.WorkspaceAgentID,
+		arg.CreatedAt,
+		pq.Array(arg.LogSourceID),
+		pq.Array(arg.LogPath),
+		pq.Array(arg.Script),
+		pq.Array(arg.Cron),
+		pq.Array(arg.StartBlocksLogin),
+		pq.Array(arg.RunOnStart),
+		pq.Array(arg.RunOnStop),
+		pq.Array(arg.TimeoutSeconds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
@@ -10531,117 +10795,4 @@ type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
 func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspacesDormantDeletingAtByTemplateID, arg.TimeTilDormantAutodeleteMs, arg.DormantAt, arg.TemplateID)
 	return err
-}
-
-const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
-INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
-SELECT
-	$1 :: uuid AS workspace_agent_id,
-	$2 :: timestamptz AS created_at,
-	unnest($3 :: uuid [ ]) AS log_source_id,
-	unnest($4 :: text [ ]) AS log_path,
-	unnest($5 :: text [ ]) AS script,
-	unnest($6 :: text [ ]) AS cron,
-	unnest($7 :: boolean [ ]) AS start_blocks_login,
-	unnest($8 :: boolean [ ]) AS run_on_start,
-	unnest($9 :: boolean [ ]) AS run_on_stop,
-	unnest($10 :: integer [ ]) AS timeout_seconds
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
-`
-
-type InsertWorkspaceAgentScriptsParams struct {
-	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          []string    `db:"log_path" json:"log_path"`
-	Script           []string    `db:"script" json:"script"`
-	Cron             []string    `db:"cron" json:"cron"`
-	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
-		arg.WorkspaceAgentID,
-		arg.CreatedAt,
-		pq.Array(arg.LogSourceID),
-		pq.Array(arg.LogPath),
-		pq.Array(arg.Script),
-		pq.Array(arg.Cron),
-		pq.Array(arg.StartBlocksLogin),
-		pq.Array(arg.RunOnStart),
-		pq.Array(arg.RunOnStop),
-		pq.Array(arg.TimeoutSeconds),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
