@@ -6,9 +6,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"cdr.dev/slog"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/coder/v2/codersdk"
 )
