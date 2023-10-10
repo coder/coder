@@ -1081,7 +1081,7 @@ func (api *API) postArchiveTemplateVersions(rw http.ResponseWriter, r *http.Requ
 // @Summary Archive template version
 // @ID archive-template-version
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {object} codersdk.Response
@@ -1093,7 +1093,7 @@ func (api *API) postArchiveTemplateVersion() func(rw http.ResponseWriter, r *htt
 // @Summary Unarchive template version
 // @ID unarchive-template-version
 // @Security CoderSessionToken
-// @Accept json
+// @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
 // @Success 200 {object} codersdk.Response

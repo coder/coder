@@ -1320,7 +1320,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/archive \
-  -H 'Accept: */*' \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -1335,6 +1335,19 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 ### Example responses
 
 > 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
 
 ### Responses
 
@@ -2443,7 +2456,7 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/unarchive \
-  -H 'Accept: */*' \
+  -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
@@ -2458,6 +2471,19 @@ curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/
 ### Example responses
 
 > 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
 
 ### Responses
 

@@ -2226,7 +2226,7 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
+        "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Archive template version",
         "operationId": "archive-template-version",
@@ -2717,7 +2717,7 @@
             "CoderSessionToken": []
           }
         ],
-        "consumes": ["application/json"],
+        "produces": ["application/json"],
         "tags": ["Templates"],
         "summary": "Unarchive template version",
         "operationId": "unarchive-template-version",
