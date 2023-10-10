@@ -23,12 +23,12 @@ func TestDelete(t *testing.T) {
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		admin := coderdtest.CreateFirstUser(t, client)
-		member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, member, admin.OrganizationID, template.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, member, root)
@@ -49,11 +49,11 @@ func TestDelete(t *testing.T) {
 	t.Run("Orphan", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		admin := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, admin.OrganizationID, template.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y", "--orphan")
 
@@ -82,13 +82,13 @@ func TestDelete(t *testing.T) {
 	t.Run("OrphanDeletedUser", func(t *testing.T) {
 		t.Parallel()
 		client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		admin := coderdtest.CreateFirstUser(t, client)
-		deleteMeClient, deleteMeUser := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-		version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		deleteMeClient, deleteMeUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		workspace := coderdtest.CreateWorkspace(t, deleteMeClient, admin.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, deleteMeClient, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, deleteMeClient, workspace.LatestBuild.ID)
 
 		// The API checks if the user has any workspaces, so we cannot delete a user

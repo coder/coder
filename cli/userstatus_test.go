@@ -36,9 +36,9 @@ func TestUserStatus(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, nil)
-		admin := coderdtest.CreateFirstUser(t, client)
-		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleUserAdmin())
-		other, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		other, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		otherUser, err := other.User(context.Background(), codersdk.Me)
 		require.NoError(t, err, "fetch user")
 

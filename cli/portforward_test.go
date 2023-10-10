@@ -28,8 +28,8 @@ func TestPortForward_None(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
-	admin := coderdtest.CreateFirstUser(t, client)
-	member, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	inv, root := clitest.New(t, "port-forward", "blah")
 	clitest.SetupConfig(t, member, root)
