@@ -652,7 +652,6 @@ func New(options *Options) *API {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractUserParam(options.Database),
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
