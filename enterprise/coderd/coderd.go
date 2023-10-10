@@ -924,9 +924,3 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 func (api *API) Authorize(r *http.Request, action rbac.Action, object rbac.Objecter) bool {
 	return api.AGPL.HTTPAuth.Authorize(r, action, object)
 }
-
-func (api *API) fetchEntitlements() codersdk.Entitlements {
-	api.entitlementsMu.RLock()
-	defer api.entitlementsMu.RUnlock()
-	return api.entitlements
-}
