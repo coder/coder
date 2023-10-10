@@ -158,7 +158,7 @@ export const getMaxDeadlineChange = (
 
 export const validTime = (time: string): boolean => {
   return /^[0-9][0-9]:[0-9][0-9]$/.test(time);
-}
+};
 
 export const timeToCron = (time: string, tz?: string) => {
   if (!validTime(time)) {
