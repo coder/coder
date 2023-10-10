@@ -8,14 +8,21 @@ import { getApplicationName } from "utils/appearance";
 
 export const LoginPage: FC = () => {
   const location = useLocation();
-  const { actor, signIn } = useAuth();
-  const [authState] = actor;
+  const {
+    isSignedIn,
+    isLoading,
+    isConfiguringTheFirstUser,
+    signIn,
+    isSigningIn,
+    authMethods,
+    signInError,
+  } = useAuth();
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
 
-  if (authState.matches("signedIn")) {
+  if (isSignedIn) {
     return <Navigate to={redirectTo} replace />;
-  } else if (authState.matches("configuringTheFirstUser")) {
+  } else if (isConfiguringTheFirstUser) {
     return <Navigate to="/setup" />;
   } else {
     return (
@@ -24,9 +31,10 @@ export const LoginPage: FC = () => {
           <title>Sign in to {applicationName}</title>
         </Helmet>
         <LoginPageView
-          context={authState.context}
-          isLoading={authState.matches("loadingInitialAuthData")}
-          isSigningIn={authState.matches("signingIn")}
+          authMethods={authMethods}
+          error={signInError}
+          isLoading={isLoading}
+          isSigningIn={isSigningIn}
           onSignIn={({ email, password }) => {
             signIn(email, password);
           }}

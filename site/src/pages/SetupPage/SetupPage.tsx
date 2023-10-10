@@ -8,16 +8,13 @@ import { useMutation } from "react-query";
 import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {
-  const { signIn, actor } = useAuth();
-  const [authState] = actor;
+  const { signIn, isLoading, isConfiguringTheFirstUser, isSignedIn } =
+    useAuth();
   const createFirstUserMutation = useMutation(createFirstUser());
-  const userIsSignedIn = authState.matches("signedIn");
-  const setupIsComplete =
-    !authState.matches("loadingInitialAuthData") &&
-    !authState.matches("configuringTheFirstUser");
+  const setupIsComplete = !isLoading && !isConfiguringTheFirstUser;
 
   // If the user is logged in, navigate to the app
-  if (userIsSignedIn) {
+  if (isSignedIn) {
     return <Navigate to="/" state={{ isRedirect: true }} />;
   }
 
