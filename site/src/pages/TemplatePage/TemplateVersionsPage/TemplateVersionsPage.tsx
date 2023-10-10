@@ -109,7 +109,7 @@ const TemplateVersionsPage = () => {
         title="Archive version"
         confirmLoading={isArchiving}
         confirmText="Archive"
-        description="Are you sure you want to archive this version? Archived versions cannot be used by workspaces."
+        description="Are you sure you want to archive this version (this is reversible)? Archived versions cannot be used by workspaces."
       />
     </>
   );
