@@ -34,9 +34,7 @@ func UserParam(r *http.Request) database.User {
 
 // ExtractUserParam extracts a user from an ID/username in the {user} URL
 // parameter.
-//
-//nolint:revive
-func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Handler) http.Handler {
+func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
@@ -44,7 +42,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 			// organizations/{organization}/members/{user}/ paths, and we need to allow
 			// org-admins to call these paths --- they might not have sitewide read permissions on users.
 			// nolint:gocritic
-			user, ok := extractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r, redirectToLoginOnMe)
+			user, ok := extractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
 			if !ok {
 				// response already handled
 				return
@@ -56,9 +54,7 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 }
 
 // extractUserContext queries the database for the parameterized `{user}` from the request URL.
-//
-//nolint:revive
-func extractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request, redirectToLoginOnMe bool) (user database.User, ok bool) {
+func extractUserContext(ctx context.Context, db database.Store, rw http.ResponseWriter, r *http.Request) (user database.User, ok bool) {
 	// userQuery is either a uuid, a username, or 'me'
 	userQuery := chi.URLParam(r, "user")
 	if userQuery == "" {
@@ -71,11 +67,6 @@ func extractUserContext(ctx context.Context, db database.Store, rw http.Response
 	if userQuery == "me" {
 		apiKey, ok := APIKeyOptional(r)
 		if !ok {
-			if redirectToLoginOnMe {
-				RedirectToLogin(rw, r, nil, SignedOutErrorMessage)
-				return database.User{}, false
-			}
-
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot use \"me\" without a valid session.",
 			})
