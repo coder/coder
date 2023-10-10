@@ -740,6 +740,8 @@ func TestWorkspacesFiltering(t *testing.T) {
 	t.Parallel()
 
 	t.Run("IsDormant", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
