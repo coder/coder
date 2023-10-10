@@ -2,7 +2,8 @@ import { useAuth } from "components/AuthProvider/AuthProvider";
 import { isAuthenticated } from "xServices/auth/authXService";
 
 export const useOrganizationId = (): string => {
-  const [authState] = useAuth();
+  const { actor } = useAuth();
+  const [authState] = actor;
   const { data } = authState.context;
 
   if (isAuthenticated(data)) {

@@ -8,7 +8,8 @@ import { useMutation } from "react-query";
 import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {
-  const [authState, authSend] = useAuth();
+  const { signIn, actor } = useAuth();
+  const [authState] = actor;
   const createFirstUserMutation = useMutation(createFirstUser());
   const userIsSignedIn = authState.matches("signedIn");
   const setupIsComplete =
@@ -35,11 +36,7 @@ export const SetupPage: FC = () => {
         error={createFirstUserMutation.error}
         onSubmit={async (firstUser) => {
           await createFirstUserMutation.mutateAsync(firstUser);
-          authSend({
-            type: "SIGN_IN",
-            email: firstUser.email,
-            password: firstUser.password,
-          });
+          signIn(firstUser.email, firstUser.password);
         }}
       />
     </>

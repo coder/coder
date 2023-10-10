@@ -6,7 +6,8 @@ import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
 
 export const AccountPage: FC = () => {
-  const [authState, authSend] = useAuth();
+  const { updateProfile, actor } = useAuth();
+  const [authState] = actor;
   const me = useMe();
   const permissions = usePermissions();
   const { updateProfileError } = authState.context;
@@ -22,12 +23,7 @@ export const AccountPage: FC = () => {
         initialValues={{
           username: me.username,
         }}
-        onSubmit={(data) => {
-          authSend({
-            type: "UPDATE_PROFILE",
-            data,
-          });
-        }}
+        onSubmit={updateProfile}
       />
     </Section>
   );

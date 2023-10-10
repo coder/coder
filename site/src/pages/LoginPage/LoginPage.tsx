@@ -8,7 +8,8 @@ import { getApplicationName } from "utils/appearance";
 
 export const LoginPage: FC = () => {
   const location = useLocation();
-  const [authState, authSend] = useAuth();
+  const { actor, signIn } = useAuth();
+  const [authState] = actor;
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
 
@@ -27,7 +28,7 @@ export const LoginPage: FC = () => {
           isLoading={authState.matches("loadingInitialAuthData")}
           isSigningIn={authState.matches("signingIn")}
           onSignIn={({ email, password }) => {
-            authSend({ type: "SIGN_IN", email, password });
+            signIn(email, password);
           }}
         />
       </>
