@@ -29,7 +29,7 @@ import {
   LoadedScriptsAlert,
   LoadingScriptsAlert,
 } from "./TerminalAlerts";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { deploymentConfig } from "api/queries/deployment";
 
 export const Language = {
