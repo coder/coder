@@ -52,8 +52,14 @@ log "Cleaning up from previous runs (if applicable)..."
 
 log "Preparation complete!"
 
-log "Scaling up provisioners to ${SCALETEST_PARAM_CREATE_CONCURRENCY}..."
+PROVISIONER_REPLICA_COUNT="${SCALETEST_PARAM_CREATE_CONCURRENCY:-0}"
+if [[ "${PROVISIONER_REPLICA_COUNT}" -eq 0 ]]; then
+	# TODO(Cian): what is a good default value here?
+	echo "Setting PROVISIONER_REPLICA_COUNT to 10 since SCALETEST_PARAM_CREATE_CONCURRENCY is 0"
+	PROVISIONER_REPLICA_COUNT=10
+fi
+log "Scaling up provisioners to ${PROVISIONER_REPLICA_COUNT}..."
 maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner \
-	--replicas "${SCALETEST_PARAM_CREATE_CONCURRENCY}"
+	--replicas "${PROVISIONER_REPLICA_COUNT}"
 log "Waiting for provisioners to scale up..."
 maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
