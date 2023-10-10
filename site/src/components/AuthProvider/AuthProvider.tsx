@@ -1,21 +1,21 @@
-import { useMachine } from "@xstate/react";
+import { checkAuthorization } from "api/queries/authCheck";
+import {
+  authMethods,
+  hasFirstUser,
+  login,
+  logout,
+  me,
+  updateProfile as updateProfileOptions,
+} from "api/queries/users";
 import {
   AuthMethods,
   UpdateUserProfileRequest,
   User,
 } from "api/typesGenerated";
-import {
-  createContext,
-  FC,
-  PropsWithChildren,
-  useCallback,
-  useContext,
-} from "react";
-import {
-  Permissions,
-  authMachine,
-  isAuthenticated,
-} from "xServices/auth/authXService";
+import { createContext, FC, PropsWithChildren, useContext } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { permissionsToCheck, Permissions } from "./permissions";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 type AuthContextValue = {
   isSignedOut: boolean;
@@ -38,37 +38,49 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const [authState, authSend] = useMachine(authMachine);
+  const meOptions = me();
+  const userQuery = useQuery(meOptions);
+  const authMethodsQuery = useQuery(authMethods());
+  const hasFirstUserQuery = useQuery(hasFirstUser());
+  const permissionsQuery = useQuery({
+    ...checkAuthorization({ checks: permissionsToCheck }),
+    enabled: userQuery.data !== undefined,
+  });
 
-  const isSignedOut = authState.matches("signedOut");
-  const isSigningOut = authState.matches("signingOut");
-  const isLoading = authState.matches("loadingInitialAuthData");
-  const isConfiguringTheFirstUser = authState.matches(
-    "configuringTheFirstUser",
+  const queryClient = useQueryClient();
+  const loginMutation = useMutation(
+    login({ checks: permissionsToCheck }, queryClient),
   );
-  const isSignedIn = authState.matches("signedIn");
-  const isSigningIn = authState.matches("signingIn");
-  const isUpdatingProfile = authState.matches(
-    "signedIn.profile.updatingProfile",
-  );
-
-  const signOut = useCallback(() => {
-    authSend("SIGN_OUT");
-  }, [authSend]);
-
-  const signIn = useCallback(
-    (email: string, password: string) => {
-      authSend({ type: "SIGN_IN", email, password });
+  const logoutMutation = useMutation(logout(queryClient));
+  const updateProfileMutation = useMutation({
+    ...updateProfileOptions(),
+    onSuccess: (user) => {
+      queryClient.setQueryData(meOptions.queryKey, user);
+      displaySuccess("Updated settings.");
     },
-    [authSend],
-  );
+  });
 
-  const updateProfile = useCallback(
-    (data: UpdateUserProfileRequest) => {
-      authSend({ type: "UPDATE_PROFILE", data });
-    },
-    [authSend],
-  );
+  const isSignedOut = userQuery.isSuccess && !userQuery.data;
+  const isSigningOut = logoutMutation.isLoading;
+  const isLoading =
+    authMethodsQuery.isLoading ||
+    userQuery.isLoading ||
+    permissionsQuery.isLoading ||
+    hasFirstUserQuery.isLoading;
+  const isConfiguringTheFirstUser = !hasFirstUserQuery.data;
+  const isSignedIn = userQuery.isSuccess && userQuery.data !== undefined;
+  const isSigningIn = loginMutation.isLoading;
+  const isUpdatingProfile = updateProfileMutation.isLoading;
+
+  const signOut = logoutMutation.mutate;
+
+  const signIn = (email: string, password: string) => {
+    loginMutation.mutate({ email, password });
+  };
+
+  const updateProfile = (req: UpdateUserProfileRequest) => {
+    updateProfileMutation.mutate({ userId: userQuery.data!.id, req });
+  };
 
   return (
     <AuthContext.Provider
@@ -83,17 +95,11 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         signOut,
         signIn,
         updateProfile,
-        user: isAuthenticated(authState.context.data)
-          ? authState.context.data.user
-          : undefined,
-        permissions: isAuthenticated(authState.context.data)
-          ? authState.context.data.permissions
-          : undefined,
-        authMethods: !isAuthenticated(authState.context.data)
-          ? authState.context.data?.authMethods
-          : undefined,
-        signInError: authState.context.error,
-        updateProfileError: authState.context.updateProfileError,
+        user: userQuery.data,
+        permissions: permissionsQuery.data as Permissions | undefined,
+        authMethods: authMethodsQuery.data,
+        signInError: loginMutation.error,
+        updateProfileError: updateProfileMutation.error,
       }}
     >
       {children}

@@ -2,7 +2,6 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import * as API from "api/api";
 import * as AccountForm from "./AccountForm";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import * as AuthXService from "xServices/auth/authXService";
 import { AccountPage } from "./AccountPage";
 import { mockApiError } from "testHelpers/entities";
 
@@ -42,9 +41,7 @@ describe("AccountPage", () => {
       const { user } = renderPage();
       await fillAndSubmitForm();
 
-      const successMessage = await screen.findByText(
-        AuthXService.Language.successProfileUpdate,
-      );
+      const successMessage = await screen.findByText("Updated settings.");
       expect(successMessage).toBeDefined();
       expect(API.updateProfile).toBeCalledTimes(1);
       expect(API.updateProfile).toBeCalledWith(user.id, newData);

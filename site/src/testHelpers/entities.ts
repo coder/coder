@@ -7,7 +7,7 @@ import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "xServices/auth/authXService";
+import { Permissions } from "components/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
