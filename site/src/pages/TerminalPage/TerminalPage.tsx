@@ -167,12 +167,9 @@ const TerminalPage: FC = () => {
         background: colors.gray[16],
       },
     });
-    if (config.data && config.data.config.web_terminal_renderer === "webgl") {
+    if (config.data?.config.web_terminal_renderer === "webgl") {
       terminal.loadAddon(new WebglAddon());
-    } else if (
-      config.data &&
-      config.data.config.web_terminal_renderer === "canvas"
-    ) {
+    } else if (config.data?.config.web_terminal_renderer === "canvas") {
       terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
