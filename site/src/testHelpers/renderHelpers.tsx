@@ -1,8 +1,4 @@
-import {
-  render as tlRender,
-  screen,
-  waitForElementToBeRemoved,
-} from "@testing-library/react";
+import { render as tlRender, screen, waitFor } from "@testing-library/react";
 import { AppProviders } from "App";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
@@ -22,7 +18,7 @@ export const renderWithRouter = (
   return {
     ...tlRender(
       <AppProviders>
-        (<RouterProvider router={router} />)
+        <RouterProvider router={router} />
       </AppProviders>,
     ),
     router,
@@ -159,10 +155,13 @@ export function renderWithWorkspaceSettingsLayout(
   };
 }
 
-export const waitForLoaderToBeRemoved = (): Promise<void> =>
-  // Sometimes, we have pages that are doing a lot of requests to get done, so the
-  // default timeout of 1_000 is not enough. We should revisit this when we unify
-  // some of the endpoints
-  waitForElementToBeRemoved(() => screen.queryByTestId("loader"), {
-    timeout: 5_000,
-  });
+export const waitForLoaderToBeRemoved = async (): Promise<void> => {
+  return waitFor(
+    () => {
+      expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
+    },
+    {
+      timeout: 5_000,
+    },
+  );
+};
