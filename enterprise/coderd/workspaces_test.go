@@ -788,7 +788,6 @@ func TestWorkspacesFiltering(t *testing.T) {
 			}
 		}
 	})
-
 }
 
 // TestWorkspacesWithoutTemplatePerms creates a workspace for a user, then drops
