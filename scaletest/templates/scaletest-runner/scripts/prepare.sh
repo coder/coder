@@ -51,3 +51,9 @@ log "Cleaning up from previous runs (if applicable)..."
 "${SCRIPTS_DIR}/cleanup.sh" "prepare"
 
 log "Preparation complete!"
+
+log "Scaling up provisioners to ${SCALETEST_PARAM_CREATE_CONCURRENCY}..."
+maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner \
+	--replicas "${SCALETEST_PARAM_CREATE_CONCURRENCY}"
+log "Waiting for provisioners to scale up..."
+maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
