@@ -22,10 +22,10 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 
 	cat /etc/os-release
 	ls --version
-	ls -ty -1 queries/*.sql.go
+	files="$(ls -1 queries/*.sql.go)"
 
 	first=true
-	for fi in queries/*.sql.go; do
+	for fi in "$files"; do
 		# Find the last line from the imports section and add 1. We have to
 		# disable pipefail temporarily to avoid ERRPIPE errors when piping into
 		# `head -n1`.
