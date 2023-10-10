@@ -345,7 +345,6 @@ func New(options *Options) *API {
 	}
 
 	licenseMetrics, err := prometheusmetrics.NewLicenseMetrics(&prometheusmetrics.LicenseMetricsOptions{
-		Database: options.Database,
 		Logger:   options.Logger,
 		Registry: options.PrometheusRegistry,
 	})
