@@ -359,7 +359,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token text NOT NULL,
     oauth_expiry timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';

@@ -17,6 +17,7 @@ func (r *RootCmd) users() *clibase.Cmd {
 			r.userCreate(),
 			r.userList(),
 			r.userSingle(),
+			r.userDelete(),
 			r.createUserStatusCommand(codersdk.UserStatusActive),
 			r.createUserStatusCommand(codersdk.UserStatusSuspended),
 		},

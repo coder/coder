@@ -1104,7 +1104,7 @@ export const getTemplateExamples = async (
   return response.data;
 };
 
-export const uploadTemplateFile = async (
+export const uploadFile = async (
   file: File,
 ): Promise<TypesGen.UploadResponse> => {
   const response = await axios.post("/api/v2/files", file, {

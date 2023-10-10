@@ -501,7 +501,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.User
 // @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {

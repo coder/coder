@@ -9,7 +9,7 @@ const mockError = mockApiError({
 });
 
 const meta: Meta<typeof ErrorAlert> = {
-  title: "components/ErrorAlert",
+  title: "components/Alert/ErrorAlert",
   component: ErrorAlert,
   args: {
     error: mockError,

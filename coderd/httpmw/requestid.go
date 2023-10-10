@@ -5,6 +5,8 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"cdr.dev/slog"
 )
@@ -28,6 +30,9 @@ func AttachRequestID(next http.Handler) http.Handler {
 
 		ctx := context.WithValue(r.Context(), requestIDContextKey{}, rid)
 		ctx = slog.With(ctx, slog.F("request_id", rid))
+
+		trace.SpanFromContext(ctx).
+			SetAttributes(attribute.String("request_id", rid.String()))
 
 		rw.Header().Set("X-Coder-Request-Id", ridString)
 		next.ServeHTTP(rw, r.WithContext(ctx))

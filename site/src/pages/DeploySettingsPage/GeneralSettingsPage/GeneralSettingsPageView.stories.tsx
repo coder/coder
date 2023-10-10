@@ -1,9 +1,13 @@
 import { Meta, StoryObj } from "@storybook/react";
-import { mockApiError, MockDeploymentDAUResponse } from "testHelpers/entities";
+import {
+  mockApiError,
+  MockDeploymentDAUResponse,
+  MockEntitlementsWithUserLimit,
+} from "testHelpers/entities";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
-  title: "pages/GeneralSettingsPageView",
+  title: "pages/DeploySettingsPage/GeneralSettingsPageView",
   component: GeneralSettingsPageView,
   args: {
     deploymentOptions: [
@@ -43,6 +47,13 @@ export default meta;
 type Story = StoryObj<typeof GeneralSettingsPageView>;
 
 export const Page: Story = {};
+
+export const WithUserLimit: Story = {
+  args: {
+    deploymentDAUs: MockDeploymentDAUResponse,
+    entitlements: MockEntitlementsWithUserLimit,
+  },
+};
 
 export const NoDAUs: Story = {
   args: {

@@ -21,6 +21,7 @@ import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
+  Entitlements,
   Template,
   TemplateAppUsage,
   TemplateInsightsResponse,
@@ -48,6 +49,7 @@ import {
   insightsUserLatency,
 } from "api/queries/insights";
 import { useSearchParams } from "react-router-dom";
+import { entitlements } from "api/queries/entitlements";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
@@ -75,6 +77,7 @@ export default function TemplateInsightsPage() {
   const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
   const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
   const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
+  const { data: entitlementsQuery } = useQuery(entitlements());
 
   return (
     <>
@@ -106,6 +109,7 @@ export default function TemplateInsightsPage() {
         userLatency={userLatency}
         userActivity={userActivity}
         interval={interval}
+        entitlements={entitlementsQuery}
       />
     </>
   );
@@ -146,12 +150,14 @@ export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
   userActivity,
+  entitlements,
   controls,
   interval,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
   userActivity: UserActivityInsightsResponse | undefined;
+  entitlements: Entitlements | undefined;
   controls: ReactNode;
   interval: InsightsInterval;
 }) => {
@@ -178,6 +184,11 @@ export const TemplateInsightsPageView = ({
         <ActiveUsersPanel
           sx={{ gridColumn: "span 2" }}
           interval={interval}
+          userLimit={
+            entitlements?.features.user_limit.enabled
+              ? entitlements?.features.user_limit.limit
+              : undefined
+          }
           data={templateInsights?.interval_reports}
         />
         <UsersLatencyPanel data={userLatency} />
@@ -198,10 +209,12 @@ export const TemplateInsightsPageView = ({
 const ActiveUsersPanel = ({
   data,
   interval,
+  userLimit,
   ...panelProps
 }: PanelProps & {
   data: TemplateInsightsResponse["interval_reports"] | undefined;
   interval: InsightsInterval;
+  userLimit: number | undefined;
 }) => {
   return (
     <Panel {...panelProps}>
@@ -216,6 +229,7 @@ const ActiveUsersPanel = ({
         {data && data.length > 0 && (
           <ActiveUserChart
             interval={interval}
+            userLimit={userLimit}
             data={data.map((d) => ({
               amount: d.active_users,
               date: d.start_time,

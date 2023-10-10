@@ -48,6 +48,8 @@ func TestScaleTestCreateWorkspaces(t *testing.T) {
 		"--cleanup-job-timeout", "15s",
 		"--output", "text",
 		"--output", "json:"+outputFile,
+		"--parameter", "foo=baz",
+		"--rich-parameter-file", "/path/to/some/parameter/file.ext",
 	)
 	clitest.SetupConfig(t, client, root)
 	pty := ptytest.New(t)
