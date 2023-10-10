@@ -145,8 +145,7 @@ export const logout = (queryClient: QueryClient) => {
   return {
     mutationFn: API.logout,
     onSuccess: () => {
-      queryClient.setQueryData(["me"], undefined);
-      queryClient.removeQueries([AUTHORIZATION_KEY]);
+      queryClient.removeQueries();
     },
   };
 };
