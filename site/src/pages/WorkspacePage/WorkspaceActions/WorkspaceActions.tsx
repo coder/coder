@@ -14,14 +14,10 @@ import {
   UpdateButton,
   ActivateButton,
 } from "./Buttons";
-import {
-  ButtonMapping,
-  ButtonTypesEnum,
-  actionsByWorkspaceStatus,
-} from "./constants";
-import SettingsOutlined from "@mui/icons-material/SettingsOutlined";
-import HistoryOutlined from "@mui/icons-material/HistoryOutlined";
-import DeleteOutlined from "@mui/icons-material/DeleteOutlined";
+import { ButtonMapping, actionsByWorkspaceStatus } from "./constants";
+import SettingsIcon from "@mui/icons-material/SettingsOutlined";
+import HistoryIcon from "@mui/icons-material/HistoryOutlined";
+import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import IconButton from "@mui/material/IconButton";
 
 export interface WorkspaceActionsProps {
@@ -68,40 +64,30 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
-    [ButtonTypesEnum.update]: <UpdateButton handleAction={handleUpdate} />,
-    [ButtonTypesEnum.updating]: (
-      <UpdateButton loading handleAction={handleUpdate} />
-    ),
-    [ButtonTypesEnum.start]: (
-      <StartButton workspace={workspace} handleAction={handleStart} />
-    ),
-    [ButtonTypesEnum.starting]: (
+    update: <UpdateButton handleAction={handleUpdate} />,
+    updating: <UpdateButton loading handleAction={handleUpdate} />,
+    start: <StartButton workspace={workspace} handleAction={handleStart} />,
+    starting: (
       <StartButton loading workspace={workspace} handleAction={handleStart} />
     ),
-    [ButtonTypesEnum.stop]: <StopButton handleAction={handleStop} />,
-    [ButtonTypesEnum.stopping]: (
-      <StopButton loading handleAction={handleStop} />
-    ),
-    [ButtonTypesEnum.restart]: (
+    stop: <StopButton handleAction={handleStop} />,
+    stopping: <StopButton loading handleAction={handleStop} />,
+    restart: (
       <RestartButton workspace={workspace} handleAction={handleRestart} />
     ),
-    [ButtonTypesEnum.restarting]: (
+    restarting: (
       <RestartButton
         loading
         workspace={workspace}
         handleAction={handleRestart}
       />
     ),
-    [ButtonTypesEnum.deleting]: <ActionLoadingButton label="Deleting" />,
-    [ButtonTypesEnum.canceling]: <DisabledButton label="Canceling..." />,
-    [ButtonTypesEnum.deleted]: <DisabledButton label="Deleted" />,
-    [ButtonTypesEnum.pending]: <ActionLoadingButton label="Pending..." />,
-    [ButtonTypesEnum.activate]: (
-      <ActivateButton handleAction={handleDormantActivate} />
-    ),
-    [ButtonTypesEnum.activating]: (
-      <ActivateButton loading handleAction={handleDormantActivate} />
-    ),
+    deleting: <ActionLoadingButton label="Deleting" />,
+    canceling: <DisabledButton label="Canceling..." />,
+    deleted: <DisabledButton label="Deleted" />,
+    pending: <ActionLoadingButton label="Pending..." />,
+    activate: <ActivateButton handleAction={handleDormantActivate} />,
+    activating: <ActivateButton loading handleAction={handleDormantActivate} />,
   };
 
   // Returns a function that will execute the action and close the menu
@@ -113,10 +99,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   return (
     <div className={styles.actions} data-testid="workspace-actions">
       {canBeUpdated &&
-        (isUpdating
-          ? buttonMapping[ButtonTypesEnum.updating]
-          : buttonMapping[ButtonTypesEnum.update])}
-      {isRestarting && buttonMapping[ButtonTypesEnum.restarting]}
+        (isUpdating ? buttonMapping.updating : buttonMapping.update)}
+      {isRestarting && buttonMapping.restarting}
       {!isRestarting &&
         actionsByStatus.map((action) => (
           <Fragment key={action}>{buttonMapping[action]}</Fragment>
@@ -142,12 +126,12 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           onClose={() => setIsMenuOpen(false)}
         >
           <MenuItem onClick={onMenuItemClick(handleSettings)}>
-            <SettingsOutlined />
+            <SettingsIcon />
             Settings
           </MenuItem>
           {canChangeVersions && (
             <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
-              <HistoryOutlined />
+              <HistoryIcon />
               Change version&hellip;
             </MenuItem>
           )}
@@ -155,7 +139,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             onClick={onMenuItemClick(handleDelete)}
             data-testid="delete-button"
           >
-            <DeleteOutlined />
+            <DeleteIcon />
             Delete&hellip;
           </MenuItem>
         </Menu>

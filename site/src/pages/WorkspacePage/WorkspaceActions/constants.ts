@@ -1,31 +1,27 @@
-import { Workspace, WorkspaceStatus } from "api/typesGenerated";
-import { ReactNode } from "react";
+import { type Workspace, type WorkspaceStatus } from "api/typesGenerated";
+import { type ReactElement } from "react";
 
-// the button types we have
-export enum ButtonTypesEnum {
-  start = "start",
-  starting = "starting",
-  stop = "stop",
-  stopping = "stopping",
-  restart = "restart",
-  restarting = "restarting",
-  deleting = "deleting",
-  update = "update",
-  updating = "updating",
-  activate = "activate",
-  activating = "activating",
-  // disabled buttons
-  canceling = "canceling",
-  deleted = "deleted",
-  pending = "pending",
-}
+/**
+ * Buttons supported by workspace actions. Canceling, Deleted, and Pending
+ * should all be associated with disabled states
+ */
+type ButtonType =
+  | Exclude<WorkspaceStatus, "failed" | "canceled" | "running" | "stopped">
+  | "start"
+  | "stop"
+  | "restart"
+  | "restarting"
+  | "update"
+  | "updating"
+  | "activate"
+  | "activating";
 
 export type ButtonMapping = {
-  [key in ButtonTypesEnum]: ReactNode;
+  [key in ButtonType]: ReactElement;
 };
 
 interface WorkspaceAbilities {
-  actions: ButtonTypesEnum[];
+  actions: readonly ButtonType[];
   canCancel: boolean;
   canAcceptJobs: boolean;
 }
@@ -36,7 +32,7 @@ export const actionsByWorkspaceStatus = (
 ): WorkspaceAbilities => {
   if (workspace.dormant_at) {
     return {
-      actions: [ButtonTypesEnum.activate],
+      actions: ["activate"],
       canCancel: false,
       canAcceptJobs: false,
     };
@@ -44,35 +40,35 @@ export const actionsByWorkspaceStatus = (
   return statusToActions[status];
 };
 
-const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
+const statusToActions = {
   starting: {
-    actions: [ButtonTypesEnum.starting],
+    actions: ["starting"],
     canCancel: true,
     canAcceptJobs: false,
   },
   running: {
-    actions: [ButtonTypesEnum.stop, ButtonTypesEnum.restart],
+    actions: ["stop", "restart"],
     canCancel: false,
     canAcceptJobs: true,
   },
   stopping: {
-    actions: [ButtonTypesEnum.stopping],
+    actions: ["stopping"],
     canCancel: true,
     canAcceptJobs: false,
   },
   stopped: {
-    actions: [ButtonTypesEnum.start],
+    actions: ["start"],
     canCancel: false,
     canAcceptJobs: true,
   },
   canceled: {
-    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
+    actions: ["start", "stop"],
     canCancel: false,
     canAcceptJobs: true,
   },
   // in the case of an error
   failed: {
-    actions: [ButtonTypesEnum.start, ButtonTypesEnum.stop],
+    actions: ["start", "stop"],
     canCancel: false,
     canAcceptJobs: true,
   },
@@ -80,23 +76,23 @@ const statusToActions: Record<WorkspaceStatus, WorkspaceAbilities> = {
    * disabled states
    */
   canceling: {
-    actions: [ButtonTypesEnum.canceling],
+    actions: ["canceling"],
     canCancel: false,
     canAcceptJobs: false,
   },
   deleting: {
-    actions: [ButtonTypesEnum.deleting],
+    actions: ["deleting"],
     canCancel: true,
     canAcceptJobs: false,
   },
   deleted: {
-    actions: [ButtonTypesEnum.deleted],
+    actions: ["deleted"],
     canCancel: false,
     canAcceptJobs: false,
   },
   pending: {
-    actions: [ButtonTypesEnum.pending],
+    actions: ["pending"],
     canCancel: false,
     canAcceptJobs: false,
   },
-};
+} as const satisfies Record<WorkspaceStatus, WorkspaceAbilities>;
