@@ -1966,7 +1966,6 @@ const (
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
-	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
 	// ExperimentTemplateAutostopRequirement allows template admins to have more
@@ -1999,6 +1998,7 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
+	ExperimentSingleTailnet,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.
