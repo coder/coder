@@ -2,6 +2,7 @@ package prometheusmetrics
 
 import (
 	"context"
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -50,42 +51,59 @@ func NewLicenseMetrics(opts *LicenseMetricsOptions) (*LicenseMetrics, error) {
 }
 
 func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
-	licenseLimitGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "coderd",
-		Subsystem: "license",
-		Name:      "user_limit",
-		Help:      `The user seats limit based on the current license. "Zero" means unlimited or a disabled feature.`,
-	})
-	err := lm.registry.Register(licenseLimitGauge)
-	if err != nil {
-		return nil, err
-	}
-
-	activeUsersGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+	activeUsersGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "license",
 		Name:      "active_users",
-		Help:      "The number of active users.",
-	})
-	err = lm.registry.Register(activeUsersGauge)
+		Help:      `The number of active users.`,
+	}, []string{"entitled"}))
+	err := lm.registry.Register(activeUsersGauge)
 	if err != nil {
 		return nil, err
 	}
 
-	userLimitGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+	userLimitGauge := NewCachedGaugeVec(prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "license",
 		Name:      "user_limit",
 		Help:      "The user seats limit based on the active Coder license.",
-	})
-	err = lm.registry.Register(activeUsersGauge)
+	}, []string{"entitled"}))
+	err = lm.registry.Register(userLimitGauge)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-	ticker := time.NewTicker(lm.interval)
+	ticker := time.NewTicker(time.Nanosecond)
+
+	doTick := func() {
+		defer ticker.Reset(lm.interval)
+
+		entitlements := lm.Entitlements.Load()
+		userLimitEntitlement, ok := entitlements.Features[codersdk.FeatureUserLimit]
+		if !ok {
+			lm.logger.Warn(ctx, `"user_limit" entitlement is not present`)
+			return
+		}
+
+		enabled := fmt.Sprintf("%v", userLimitEntitlement.Enabled)
+		if userLimitEntitlement.Actual != nil {
+			activeUsersGauge.WithLabelValues(VectorOperationSet, float64(*userLimitEntitlement.Actual), enabled)
+		} else {
+			activeUsersGauge.WithLabelValues(VectorOperationSet, 0, enabled)
+		}
+
+		if userLimitEntitlement.Limit != nil {
+			userLimitGauge.WithLabelValues(VectorOperationSet, float64(*userLimitEntitlement.Limit), enabled)
+		} else {
+			userLimitGauge.WithLabelValues(VectorOperationSet, 0, enabled)
+		}
+
+		activeUsersGauge.Commit()
+		userLimitGauge.Commit()
+	}
+
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -94,8 +112,8 @@ func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				doTick()
 			}
-
 		}
 	}()
 	return func() {
