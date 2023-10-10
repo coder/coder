@@ -4,7 +4,7 @@ import Autocomplete from "@mui/material/Autocomplete";
 import { useMachine } from "@xstate/react";
 import Box from "@mui/material/Box";
 import { type ChangeEvent, useState } from "react";
-import { css } from "@emotion/css";
+import { css } from "@emotion/react";
 import type { Group, User } from "api/typesGenerated";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { getGroupSubtitle } from "utils/groups";
