@@ -40,7 +40,11 @@ func ExtractUserParam(db database.Store, redirectToLoginOnMe bool) func(http.Han
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			user, ok := extractUserContext(ctx, db, rw, r, redirectToLoginOnMe)
+			// We need to call as SystemRestricted because this middleware is called from
+			// organizations/{organization}/members/{user}/ paths, and we need to allow
+			// org-admins to call these paths --- they might not have sitewide read permissions on users.
+			// nolint:gocritic
+			user, ok := extractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r, redirectToLoginOnMe)
 			if !ok {
 				// response already handled
 				return
@@ -77,8 +81,7 @@ func extractUserContext(ctx context.Context, db database.Store, rw http.Response
 			})
 			return database.User{}, false
 		}
-		//nolint:gocritic // System needs to be able to get user from param.
-		user, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), apiKey.UserID)
+		user, err := db.GetUserByID(ctx, apiKey.UserID)
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
 			return database.User{}, false
@@ -94,8 +97,7 @@ func extractUserContext(ctx context.Context, db database.Store, rw http.Response
 	}
 
 	if userID, err := uuid.Parse(userQuery); err == nil {
-		//nolint:gocritic // If the userQuery is a valid uuid
-		user, err = db.GetUserByID(dbauthz.AsSystemRestricted(ctx), userID)
+		user, err = db.GetUserByID(ctx, userID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: userErrorMessage,
@@ -106,8 +108,8 @@ func extractUserContext(ctx context.Context, db database.Store, rw http.Response
 		return user, true
 	}
 
-	// nolint:gocritic // Try as a username last
-	user, err := db.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
+	// Try as a username last
+	user, err := db.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: userQuery,
 	})
 	if err != nil {
