@@ -25,24 +25,32 @@ const queryClient = new QueryClient({
   },
 });
 
+export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <StyledEngineProvider injectFirst>
+      <MuiThemeProvider theme={dark}>
+        <EmotionThemeProvider theme={dark}>
+          <CssBaseline enableColorScheme />
+          {children}
+        </EmotionThemeProvider>
+      </MuiThemeProvider>
+    </StyledEngineProvider>
+  );
+};
+
 export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
   return (
     <HelmetProvider>
-      <StyledEngineProvider injectFirst>
-        <MuiThemeProvider theme={dark}>
-          <EmotionThemeProvider theme={dark}>
-            <CssBaseline enableColorScheme />
-            <ErrorBoundary>
-              <QueryClientProvider client={queryClient}>
-                <AuthProvider>
-                  {children}
-                  <GlobalSnackbar />
-                </AuthProvider>
-              </QueryClientProvider>
-            </ErrorBoundary>
-          </EmotionThemeProvider>
-        </MuiThemeProvider>
-      </StyledEngineProvider>
+      <ThemeProviders>
+        <ErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              {children}
+              <GlobalSnackbar />
+            </AuthProvider>
+          </QueryClientProvider>
+        </ErrorBoundary>
+      </ThemeProviders>
     </HelmetProvider>
   );
 };

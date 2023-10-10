@@ -1,5 +1,5 @@
 import { render as tlRender, screen, waitFor } from "@testing-library/react";
-import { AppProviders } from "App";
+import { AppProviders, ThemeProviders } from "App";
 import { DashboardLayout } from "components/Dashboard/DashboardLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
@@ -164,4 +164,8 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
       timeout: 5_000,
     },
   );
+};
+
+export const renderComponent = (component: React.ReactNode) => {
+  return tlRender(<ThemeProviders>{component}</ThemeProviders>);
 };
