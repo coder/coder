@@ -3,6 +3,7 @@ import {
   getValidationErrorMessage,
   isApiError,
   mapApiErrorToFieldErrors,
+  getErrorMessage,
 } from "./errors";
 
 describe("isApiError", () => {
@@ -81,5 +82,11 @@ describe("getValidationErrorMessage", () => {
         }),
       ),
     ).toEqual("");
+  });
+
+  it("returns default message for error that is empty string", () => {
+    expect(getErrorMessage("", "Something went wrong.")).toBe(
+      "Something went wrong.",
+    );
   });
 });
