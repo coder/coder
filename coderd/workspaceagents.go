@@ -121,7 +121,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner.Username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -235,7 +235,7 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
-		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
+		Apps:                     convertApps(dbApps, workspaceAgent, owner.Username, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
@@ -1404,14 +1404,14 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
-	return convertApps(dbApps, database.WorkspaceAgent{}, database.User{}, database.Workspace{})
+	return convertApps(dbApps, database.WorkspaceAgent{}, "", database.Workspace{})
 }
 
-func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
+func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		var subdomainName string
-		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
+		if dbApp.Subdomain && agent.Name != "" && ownerName != "" && workspace.Name != "" {
 			appSlug := dbApp.Slug
 			if appSlug == "" {
 				appSlug = dbApp.DisplayName
@@ -1420,7 +1420,7 @@ func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, 
 				AppSlugOrPort: appSlug,
 				AgentName:     agent.Name,
 				WorkspaceName: workspace.Name,
-				Username:      owner.Username,
+				Username:      ownerName,
 			}.String()
 		}
 
