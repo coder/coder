@@ -1,8 +1,7 @@
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { ComponentProps, FC } from "react";
-import { TemplateSettingsForm } from "./TemplateSettingsForm";
+import { type ComponentProps, type FC } from "react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { makeStyles } from "@mui/styles";
+import { TemplateSettingsForm } from "./TemplateSettingsForm";
 
 export interface TemplateSettingsPageViewProps {
   template: Template;
@@ -23,11 +22,9 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
   submitError,
   initialTouched,
 }) => {
-  const styles = useStyles();
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader css={{ paddingTop: 0 }}>
         <PageHeaderTitle>General Settings</PageHeaderTitle>
       </PageHeader>
 
@@ -42,9 +39,3 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));

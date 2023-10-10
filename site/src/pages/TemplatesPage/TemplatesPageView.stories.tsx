@@ -8,7 +8,7 @@ import { TemplatesPageView } from "./TemplatesPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatesPageView> = {
-  title: "pages/TemplatesPageView",
+  title: "pages/TemplatesPage",
   component: TemplatesPageView,
 };
 

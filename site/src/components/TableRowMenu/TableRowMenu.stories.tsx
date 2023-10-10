@@ -9,7 +9,7 @@ const meta: Meta<typeof TableRowMenu> = {
 export default meta;
 type Story = StoryObj<typeof TableRowMenu<{ id: string }>>;
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     data: { id: "123" },
     menuItems: [
@@ -20,3 +20,5 @@ export const Example: Story = {
     ],
   },
 };
+
+export { Example as TableRowMenu };

@@ -124,8 +124,11 @@ func TestWorkspaceAgent(t *testing.T) {
 	})
 	t.Run("Timeout", func(t *testing.T) {
 		t.Parallel()
+		// timeouts can cause error logs to be dropped on shutdown
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client := coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
+			Logger:                   &logger,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		authToken := uuid.NewString()

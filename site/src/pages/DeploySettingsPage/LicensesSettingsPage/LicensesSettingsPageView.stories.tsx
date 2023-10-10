@@ -2,7 +2,7 @@ import LicensesSettingsPageView from "./LicensesSettingsPageView";
 import { MockLicenseResponse } from "testHelpers/entities";
 
 export default {
-  title: "pages/LicensesSettingsPageView",
+  title: "pages/DeploySettingsPage/LicensesSettingsPageView",
   component: LicensesSettingsPageView,
 };
 

@@ -31,14 +31,14 @@ import {
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
 import { ComponentProps, ReactNode } from "react";
-import { subDays, addWeeks } from "date-fns";
+import { subDays, addWeeks, format } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
 import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
 import Link from "@mui/material/Link";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import { getDateRangeFilter, lastWeeks } from "./utils";
+import { lastWeeks } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
 import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
@@ -70,7 +70,8 @@ export default function TemplateInsightsPage() {
 
   const commonFilters = {
     template_ids: template.id,
-    ...getDateRangeFilter(dateRange),
+    start_time: toISOLocal(dateRange.startDate),
+    end_time: toISOLocal(dateRange.endDate),
   };
 
   const insightsFilter = { ...commonFilters, interval };
@@ -779,4 +780,8 @@ function formatTime(seconds: number): string {
 
     return hours.toFixed(1) + " hours";
   }
+}
+
+function toISOLocal(d: Date) {
+  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
 }

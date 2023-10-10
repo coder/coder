@@ -1177,13 +1177,13 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 	return member.OrganizationIDs, nil
 }
 
-func findUser(id uuid.UUID, users []database.User) *database.User {
-	for _, u := range users {
-		if u.ID == id {
-			return &u
+func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+	for _, user := range users {
+		if id == user.ID {
+			return user.Username, true
 		}
 	}
-	return nil
+	return "", false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

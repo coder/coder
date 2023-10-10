@@ -4,7 +4,7 @@ import { CreateUserForm } from "./CreateUserForm";
 import { mockApiError } from "testHelpers/entities";
 
 const meta: Meta<typeof CreateUserForm> = {
-  title: "components/CreateUserForm",
+  title: "pages/CreateUserPage",
   component: CreateUserForm,
   args: {
     onCancel: action("cancel"),

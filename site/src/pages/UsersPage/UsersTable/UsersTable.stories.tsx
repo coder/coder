@@ -8,7 +8,7 @@ import { UsersTable } from "./UsersTable";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof UsersTable> = {
-  title: "components/UsersTable",
+  title: "pages/UsersPage/UsersTable",
   component: UsersTable,
   args: {
     isNonInitialPage: false,

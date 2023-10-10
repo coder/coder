@@ -3,7 +3,7 @@ import * as Mocks from "testHelpers/entities";
 import { WorkspaceActions } from "./WorkspaceActions";
 
 const meta: Meta<typeof WorkspaceActions> = {
-  title: "components/WorkspaceActions",
+  title: "pages/WorkspacePage/WorkspaceActions",
   component: WorkspaceActions,
   args: {
     isUpdating: false,
