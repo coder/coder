@@ -2177,13 +2177,14 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 // @Router /workspaceagents/me/external-auth [get]
 func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	query := r.URL.Query()
 	// Either match or configID must be provided!
-	match := r.URL.Query().Get("match")
+	match := query.Get("match")
 	if match == "" {
 		// Support legacy agents!
-		match = r.URL.Query().Get("url")
+		match = query.Get("url")
 	}
-	id := chi.URLParam(r, "id")
+	id := query.Get("id")
 	if match == "" && id == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "'url' or 'id' must be provided!",
