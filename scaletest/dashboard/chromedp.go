@@ -230,7 +230,7 @@ func visitMainPage(ctx context.Context, u *url.URL) error {
 	return chromedp.Run(ctx, chromedp.Navigate(u.String()))
 }
 
-func screenshot(ctx context.Context, name string) (string, error) {
+func Screenshot(ctx context.Context, name string) (string, error) {
 	var buf []byte
 	if err := chromedp.Run(ctx, chromedp.CaptureScreenshot(&buf)); err != nil {
 		return "", xerrors.Errorf("capture screenshot: %w", err)

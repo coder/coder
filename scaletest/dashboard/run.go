@@ -33,7 +33,7 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 		cfg.ActionFunc = clickRandomElement
 	}
 	if cfg.Screenshot == nil {
-		cfg.Screenshot = screenshot
+		cfg.Screenshot = Screenshot
 	}
 	return &Runner{
 		client:  client,
