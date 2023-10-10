@@ -30,11 +30,11 @@ import { useLocalStorage } from "hooks";
 import AlertTitle from "@mui/material/AlertTitle";
 import dayjs from "dayjs";
 
-export enum WorkspaceErrors {
-  GET_BUILDS_ERROR = "getBuildsError",
-  BUILD_ERROR = "buildError",
-  CANCELLATION_ERROR = "cancellationError",
-}
+export type WorkspaceError =
+  | "getBuildsError"
+  | "buildError"
+  | "cancellationError";
+
 export interface WorkspaceProps {
   scheduleProps: {
     onDeadlinePlus: (hours: number) => void;
@@ -62,7 +62,7 @@ export interface WorkspaceProps {
   canChangeVersions: boolean;
   hideSSHButton?: boolean;
   hideVSCodeDesktopButton?: boolean;
-  workspaceErrors: Partial<Record<WorkspaceErrors, unknown>>;
+  workspaceErrors: Partial<Record<WorkspaceError, unknown>>;
   buildInfo?: TypesGen.BuildInfoResponse;
   sshPrefix?: string;
   template?: TypesGen.Template;
@@ -117,20 +117,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   const serverVersion = buildInfo?.version || "";
   const { saveLocal, getLocal } = useLocalStorage();
 
-  const buildError = Boolean(workspaceErrors[WorkspaceErrors.BUILD_ERROR]) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.BUILD_ERROR]}
-      dismissible
-    />
+  const buildError = Boolean(workspaceErrors.buildError) && (
+    <ErrorAlert error={workspaceErrors.buildError} dismissible />
   );
 
-  const cancellationError = Boolean(
-    workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR],
-  ) && (
-    <ErrorAlert
-      error={workspaceErrors[WorkspaceErrors.CANCELLATION_ERROR]}
-      dismissible
-    />
+  const cancellationError = Boolean(workspaceErrors.cancellationError) && (
+    <ErrorAlert error={workspaceErrors.cancellationError} dismissible />
   );
 
   let transitionStats: TypesGen.TransitionStats | undefined = undefined;
@@ -346,10 +338,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             />
           )}
 
-          {workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR] ? (
-            <ErrorAlert
-              error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
-            />
+          {workspaceErrors.getBuildsError ? (
+            <ErrorAlert error={workspaceErrors.getBuildsError} />
           ) : (
             <BuildsTable
               builds={builds}

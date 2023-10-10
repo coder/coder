@@ -13,7 +13,7 @@ import {
 } from "utils/schedule";
 import { StateFrom } from "xstate";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
-import { Workspace, WorkspaceErrors } from "./Workspace";
+import { Workspace } from "./Workspace";
 import { pageTitle } from "utils/page";
 import { getFaviconByStatus, hasJobError } from "utils/workspace";
 import {
@@ -194,9 +194,9 @@ export const WorkspaceReadyPage = ({
         hideSSHButton={featureVisibility["browser_only"]}
         hideVSCodeDesktopButton={featureVisibility["browser_only"]}
         workspaceErrors={{
-          [WorkspaceErrors.GET_BUILDS_ERROR]: buildsError,
-          [WorkspaceErrors.BUILD_ERROR]: buildError || restartBuildError,
-          [WorkspaceErrors.CANCELLATION_ERROR]: cancellationError,
+          getBuildsError: buildsError,
+          buildError: buildError || restartBuildError,
+          cancellationError: cancellationError,
         }}
         buildInfo={buildInfo}
         sshPrefix={sshPrefix}

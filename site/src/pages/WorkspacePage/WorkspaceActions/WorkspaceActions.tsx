@@ -1,9 +1,10 @@
-import MenuItem from "@mui/material/MenuItem";
-import Menu from "@mui/material/Menu";
-import { makeStyles } from "@mui/styles";
-import MoreVertOutlined from "@mui/icons-material/MoreVertOutlined";
-import { FC, Fragment, ReactNode, useRef, useState } from "react";
-import { Workspace, WorkspaceBuildParameter } from "api/typesGenerated";
+import { type FC, Fragment, type ReactNode, useRef, useState } from "react";
+import { ButtonMapping, actionsByWorkspaceStatus } from "./constants";
+import {
+  type Workspace,
+  type WorkspaceBuildParameter,
+} from "api/typesGenerated";
+
 import {
   ActionLoadingButton,
   CancelButton,
@@ -14,11 +15,17 @@ import {
   UpdateButton,
   ActivateButton,
 } from "./Buttons";
-import { ButtonMapping, actionsByWorkspaceStatus } from "./constants";
+
+import { makeStyles } from "@mui/styles";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import IconButton from "@mui/material/IconButton";
+
 import SettingsIcon from "@mui/icons-material/SettingsOutlined";
 import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
-import IconButton from "@mui/material/IconButton";
+import MoreOptionsIcon from "@mui/icons-material/MoreVertOutlined";
+import CloneIcon from "@mui/icons-material/ContentCopyOutlined";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -52,16 +59,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   isRestarting,
   canChangeVersions,
 }) => {
-  const styles = useStyles();
-  const {
-    canCancel,
-    canAcceptJobs,
-    actions: actionsByStatus,
-  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
-  const canBeUpdated = workspace.outdated && canAcceptJobs;
-  const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
   // A mapping of button type to the corresponding React component
   const buttonMapping: ButtonMapping = {
     update: <UpdateButton handleAction={handleUpdate} />,
@@ -90,21 +87,35 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
     activating: <ActivateButton loading handleAction={handleDormantActivate} />,
   };
 
+  const styles = useStyles();
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
     setIsMenuOpen(false);
     actionFn();
   };
 
+  const {
+    canCancel,
+    canAcceptJobs,
+    actions: actionsByStatus,
+  } = actionsByWorkspaceStatus(workspace, workspace.latest_build.status);
+  const canBeUpdated = workspace.outdated && canAcceptJobs;
+
   return (
     <div className={styles.actions} data-testid="workspace-actions">
       {canBeUpdated &&
         (isUpdating ? buttonMapping.updating : buttonMapping.update)}
+
       {isRestarting && buttonMapping.restarting}
+
       {!isRestarting &&
         actionsByStatus.map((action) => (
           <Fragment key={action}>{buttonMapping[action]}</Fragment>
         ))}
+
       {canCancel && <CancelButton handleAction={handleCancel} />}
       <div>
         <IconButton
@@ -117,8 +128,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           ref={menuTriggerRef}
           onClick={() => setIsMenuOpen(true)}
         >
-          <MoreVertOutlined />
+          <MoreOptionsIcon />
         </IconButton>
+
         <Menu
           id="workspace-options"
           anchorEl={menuTriggerRef.current}
@@ -129,12 +141,19 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             <SettingsIcon />
             Settings
           </MenuItem>
+
           {canChangeVersions && (
             <MenuItem onClick={onMenuItemClick(handleChangeVersion)}>
               <HistoryIcon />
               Change version&hellip;
             </MenuItem>
           )}
+
+          <MenuItem>
+            <CloneIcon />
+            Clone&hellip;
+          </MenuItem>
+
           <MenuItem
             onClick={onMenuItemClick(handleDelete)}
             data-testid="delete-button"
