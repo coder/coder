@@ -816,6 +816,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer closeAgentsFunc()
 
+				if coderAPI.LicenseMetrics == nil {
+					return xerrors.Errorf("developer error: LicenseMetrics should be not nil")
+				}
 				closeLicenseMetricsFunc, err := coderAPI.LicenseMetrics.Collect(ctx)
 				if err != nil {
 					return xerrors.Errorf("register license metric: %w", err)

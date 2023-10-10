@@ -73,6 +73,16 @@ func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
 		defer ticker.Reset(lm.interval)
 
 		entitlements := lm.Entitlements.Load()
+		if entitlements == nil {
+			lm.logger.Warn(ctx, `entitlements have not been loaded yet`)
+			return
+		}
+
+		if entitlements.Features == nil {
+			lm.logger.Warn(ctx, `entitlements features are undefined`)
+			return
+		}
+
 		userLimitEntitlement, ok := entitlements.Features[codersdk.FeatureUserLimit]
 		if !ok {
 			lm.logger.Warn(ctx, `"user_limit" entitlement is not present`)
