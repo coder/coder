@@ -20,12 +20,9 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# The logic below depends on the exact version being correct :(
 	sqlc generate
 
-	cat /etc/os-release
-	ls --version
-	files="$(ls -1 queries/*.sql.go)"
-
 	first=true
-	for fi in "$files"; do
+	for fi in queries/*.sql.go; do
+		echo "$fi"
 		# Find the last line from the imports section and add 1. We have to
 		# disable pipefail temporarily to avoid ERRPIPE errors when piping into
 		# `head -n1`.
