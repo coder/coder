@@ -76,7 +76,7 @@ func TestCollectLicenseMetrics(t *testing.T) {
 			switch metric.GetName() {
 			case "coderd_license_active_users", "coderd_license_user_limit":
 				for _, m := range metric.Metric {
-					collected[m.Label[0].GetValue()+":"+metric.GetName()] = int(m.Gauge.GetValue())
+					collected[m.Label[0].GetName()+"="+m.Label[0].GetValue()+":"+metric.GetName()] = int(m.Gauge.GetValue())
 				}
 			default:
 				require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
