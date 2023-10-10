@@ -20,7 +20,9 @@ SCRIPT_DIR=$(dirname "${BASH_SOURCE[0]}")
 	# The logic below depends on the exact version being correct :(
 	sqlc generate
 
-	ls queries/*.sql.go
+	cat /etc/os-release
+	ls --version
+	ls -ty -1 queries/*.sql.go
 
 	first=true
 	for fi in queries/*.sql.go; do
