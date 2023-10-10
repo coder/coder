@@ -846,6 +846,82 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 	return userIDs, nil
 }
 
+func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	type latestBuild struct {
+		Number  int32
+		Version uuid.UUID
+	}
+	latest := make(map[uuid.UUID]latestBuild)
+
+	for _, b := range q.workspaceBuilds {
+		v, ok := latest[b.WorkspaceID]
+		if ok || b.BuildNumber < v.Number {
+			// Not the latest
+			continue
+		}
+		// Ignore deleted workspaces.
+		if b.Transition == database.WorkspaceTransitionDelete {
+			continue
+		}
+		latest[b.WorkspaceID] = latestBuild{
+			Number:  b.BuildNumber,
+			Version: b.TemplateVersionID,
+		}
+	}
+
+	usedVersions := make(map[uuid.UUID]bool)
+	for _, l := range latest {
+		usedVersions[l.Version] = true
+	}
+	for _, tpl := range q.templates {
+		usedVersions[tpl.ActiveVersionID] = true
+	}
+
+	var archived []uuid.UUID
+	for i, v := range q.templateVersions {
+		if arg.TemplateVersionID != uuid.Nil {
+			if v.ID != arg.TemplateVersionID {
+				continue
+			}
+		}
+		if v.Archived {
+			continue
+		}
+
+		if _, ok := usedVersions[v.ID]; !ok {
+			var job *database.ProvisionerJob
+			for i, j := range q.provisionerJobs {
+				if v.JobID == j.ID {
+					job = &q.provisionerJobs[i]
+					break
+				}
+			}
+
+			if arg.JobStatus.Valid {
+				if job.JobStatus != arg.JobStatus.ProvisionerJobStatus {
+					continue
+				}
+			}
+
+			if job.JobStatus == database.ProvisionerJobStatusRunning || job.JobStatus == database.ProvisionerJobStatusPending {
+				continue
+			}
+
+			v.Archived = true
+			q.templateVersions[i] = v
+			archived = append(archived, v.ID)
+		}
+	}
+
+	return archived, nil
+}
+
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
 	return ErrUnimplemented
 }
@@ -2757,6 +2833,9 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 
 	for _, templateVersion := range q.templateVersions {
 		if templateVersion.TemplateID.UUID != arg.TemplateID {
+			continue
+		}
+		if arg.Archived.Valid && arg.Archived.Bool != templateVersion.Archived {
 			continue
 		}
 		version = append(version, q.templateVersionWithUserNoLock(templateVersion))
@@ -5259,6 +5338,24 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
 	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
+}
+
+func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for i, v := range q.data.templateVersions {
+		if v.ID == arg.TemplateVersionID {
+			v.Archived = false
+			v.UpdatedAt = arg.UpdatedAt
+			q.data.templateVersions[i] = v
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
