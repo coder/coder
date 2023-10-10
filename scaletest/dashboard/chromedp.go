@@ -192,6 +192,13 @@ func initChromeDPCtx(ctx context.Context, log slog.Logger, u *url.URL, sessionTo
 		}
 	}
 
+	// force a viewport size of 1024x768 so we don't go into mobile mode
+	if err := chromedp.Run(cdpCtx, chromedp.EmulateViewport(1024, 768)); err != nil {
+		cancelFunc()
+		allocCtxCancel()
+		return nil, nil, xerrors.Errorf("set viewport size: %w", err)
+	}
+
 	// set cookies
 	if err := setSessionTokenCookie(cdpCtx, sessionToken, u.Host); err != nil {
 		cancelFunc()
