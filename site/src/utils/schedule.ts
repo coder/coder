@@ -156,7 +156,14 @@ export const getMaxDeadlineChange = (
   extremeDeadline: dayjs.Dayjs,
 ): number => Math.abs(deadline.diff(extremeDeadline, "hours"));
 
+export const validTime = (time: string): boolean => {
+  return /^[0-9][0-9]:[0-9][0-9]$/.test(time);
+};
+
 export const timeToCron = (time: string, tz?: string) => {
+  if (!validTime(time)) {
+    throw new Error(`Invalid time: ${time}`);
+  }
   const [HH, mm] = time.split(":");
   let prefix = "";
   if (tz) {
@@ -170,6 +177,10 @@ export const quietHoursDisplay = (
   tz: string,
   now: Date | undefined,
 ): string => {
+  if (!validTime(time)) {
+    return "Invalid time";
+  }
+
   // The cron-parser package doesn't accept a timezone in the cron string, but
   // accepts it as an option.
   const cron = timeToCron(time);
