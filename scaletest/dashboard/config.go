@@ -21,7 +21,7 @@ type Config struct {
 	// Headless controls headless mode for chromedp.
 	Headless bool `json:"headless"`
 	// ActionFunc is a function that returns an action to run.
-	ActionFunc func(ctx context.Context, randIntn func(int) int) (Label, Action, error) `json:"-"`
+	ActionFunc func(ctx context.Context, log slog.Logger, randIntn func(int) int, deadline time.Time) (Label, Action, error) `json:"-"`
 	// RandIntn is a function that returns a random number between 0 and n-1.
 	RandIntn func(int) int `json:"-"`
 }

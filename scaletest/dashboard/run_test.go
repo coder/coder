@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dashboard"
@@ -51,7 +52,7 @@ func Test_Run(t *testing.T) {
 		Jitter:   100 * time.Millisecond,
 		Logger:   log,
 		Headless: true,
-		ActionFunc: func(_ context.Context, rnd func(int) int) (dashboard.Label, dashboard.Action, error) {
+		ActionFunc: func(_ context.Context, _ slog.Logger, rnd func(int) int, _ time.Time) (dashboard.Label, dashboard.Action, error) {
 			if rnd(2) == 0 {
 				return "fails", failAction, nil
 			}

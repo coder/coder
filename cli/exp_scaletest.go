@@ -1099,6 +1099,9 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			if r.verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
@@ -1200,14 +1203,14 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
-			Default:     "3s",
+			Default:     "10s",
 			Description: "Interval between actions.",
 			Value:       clibase.DurationOf(&interval),
 		},
 		{
 			Flag:        "jitter",
 			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
-			Default:     "2s",
+			Default:     "5s",
 			Description: "Jitter between actions.",
 			Value:       clibase.DurationOf(&jitter),
 		},

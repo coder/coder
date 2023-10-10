@@ -53,6 +53,11 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	defer cdpCancel()
 	t := time.NewTicker(1) // First one should be immediate
 	defer t.Stop()
+	r.cfg.Logger.Info(ctx, "waiting for workspaces page to load")
+	loadWorkspacePageDeadline := time.Now().Add(r.cfg.Interval)
+	if err := waitForWorkspacesPageLoaded(cdpCtx, loadWorkspacePageDeadline); err != nil {
+		return xerrors.Errorf("wait for workspaces page to load: %w", err)
+	}
 	for {
 		select {
 		case <-cdpCtx.Done():
@@ -63,8 +68,9 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 				offset = time.Duration(r.cfg.RandIntn(int(2*r.cfg.Jitter)) - int(r.cfg.Jitter))
 			}
 			wait := r.cfg.Interval + offset
+			actionCompleteByDeadline := time.Now().Add(wait)
 			t.Reset(wait)
-			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.RandIntn)
+			l, act, err := r.cfg.ActionFunc(cdpCtx, r.cfg.Logger, r.cfg.RandIntn, actionCompleteByDeadline)
 			if err != nil {
 				r.cfg.Logger.Error(ctx, "calling ActionFunc", slog.Error(err))
 				continue
