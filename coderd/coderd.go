@@ -652,7 +652,7 @@ func New(options *Options) *API {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractUserParam(options.Database, false),
+							httpmw.ExtractUserParam(options.Database),
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
@@ -741,7 +741,7 @@ func New(options *Options) *API {
 					r.Get("/", api.assignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
