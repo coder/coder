@@ -521,6 +521,9 @@ func applyDefaultsToConfig(config *codersdk.ExternalAuthConfig) {
 	if config.DisplayIcon == "" {
 		config.DisplayIcon = defaults.DisplayIcon
 	}
+	if config.ExtraTokenKeys == nil || len(config.ExtraTokenKeys) == 0 {
+		config.ExtraTokenKeys = defaults.ExtraTokenKeys
+	}
 
 	// Apply defaults if it's still empty...
 	if config.ID == "" {
