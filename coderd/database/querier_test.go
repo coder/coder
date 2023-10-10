@@ -501,7 +501,9 @@ type tvArgs struct {
 	WorkspaceTransition database.WorkspaceTransition
 }
 
+// createTemplateVersion is a helper function to create a version with its dependencies.
 func createTemplateVersion(t testing.TB, db database.Store, tpl database.Template, args tvArgs) database.TemplateVersion {
+	t.Helper()
 	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		TemplateID: uuid.NullUUID{
 			UUID:  tpl.ID,
