@@ -1,4 +1,4 @@
-import { useActor, useInterpret } from "@xstate/react";
+import { useMachine } from "@xstate/react";
 import {
   AuthMethods,
   UpdateUserProfileRequest,
@@ -16,7 +16,6 @@ import {
   authMachine,
   isAuthenticated,
 } from "xServices/auth/authXService";
-import { ActorRefFrom } from "xstate";
 
 type AuthContextValue = {
   isSignedOut: boolean;
@@ -34,14 +33,12 @@ type AuthContextValue = {
   signOut: () => void;
   signIn: (email: string, password: string) => void;
   updateProfile: (data: UpdateUserProfileRequest) => void;
-  authService: ActorRefFrom<typeof authMachine>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const authService = useInterpret(authMachine);
-  const [authState, authSend] = useActor(authService);
+  const [authState, authSend] = useMachine(authMachine);
 
   const isSignedOut = authState.matches("signedOut");
   const isSigningOut = authState.matches("signingOut");
@@ -83,7 +80,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
         isSignedIn,
         isSigningIn,
         isUpdatingProfile,
-        authService,
         signOut,
         signIn,
         updateProfile,
@@ -112,8 +108,5 @@ export const useAuth = () => {
     throw new Error("useAuth should be used inside of <AuthProvider />");
   }
 
-  return {
-    ...context,
-    actor: useActor(context.authService),
-  };
+  return context;
 };
