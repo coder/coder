@@ -661,6 +661,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	defer api.entitlementsMu.Unlock()
 	api.entitlements = entitlements
 	api.AGPL.SiteHandler.Entitlements.Store(&entitlements)
+	api.AGPL.LicenseMetrics.Entitlements.Store(&entitlements)
 
 	return nil
 }

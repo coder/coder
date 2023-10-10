@@ -5,13 +5,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"cdr.dev/slog"
-	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -51,14 +50,13 @@ func NewLicenseMetrics(opts *LicenseMetricsOptions) (*LicenseMetrics, error) {
 }
 
 func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
-
 	licenseLimitGauge := prometheus.NewGauge(prometheus.GaugeOpts{
 		Namespace: "coderd",
 		Subsystem: "license",
 		Name:      "user_limit",
 		Help:      `The user seats limit based on the current license. "Zero" means unlimited or a disabled feature.`,
 	})
-	err := registerer.Register(licenseLimitGauge)
+	err := lm.registry.Register(licenseLimitGauge)
 	if err != nil {
 		return nil, err
 	}
@@ -69,14 +67,25 @@ func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
 		Name:      "active_users",
 		Help:      "The number of active users.",
 	})
-	err = registerer.Register(activeUsersGauge)
+	err = lm.registry.Register(activeUsersGauge)
+	if err != nil {
+		return nil, err
+	}
+
+	userLimitGauge := prometheus.NewGauge(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "license",
+		Name:      "user_limit",
+		Help:      "The user seats limit based on the active Coder license.",
+	})
+	err = lm.registry.Register(activeUsersGauge)
 	if err != nil {
 		return nil, err
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-	ticker := time.NewTicker(duration)
+	ticker := time.NewTicker(lm.interval)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
@@ -87,15 +96,6 @@ func (lm *LicenseMetrics) Collect(ctx context.Context) (func(), error) {
 			case <-ticker.C:
 			}
 
-			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, dbtime.Now().Add(-1*time.Hour))
-			if err != nil {
-				continue
-			}
-			distinctUsers := map[uuid.UUID]struct{}{}
-			for _, apiKey := range apiKeys {
-				distinctUsers[apiKey.UserID] = struct{}{}
-			}
-			gauge.Set(float64(len(distinctUsers)))
 		}
 	}()
 	return func() {
