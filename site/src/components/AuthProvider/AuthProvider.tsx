@@ -12,7 +12,13 @@ import {
   UpdateUserProfileRequest,
   User,
 } from "api/typesGenerated";
-import { createContext, FC, PropsWithChildren, useContext } from "react";
+import {
+  createContext,
+  FC,
+  PropsWithChildren,
+  useCallback,
+  useContext,
+} from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { permissionsToCheck, Permissions } from "./permissions";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -76,9 +82,9 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
   const isSigningIn = loginMutation.isLoading;
   const isUpdatingProfile = updateProfileMutation.isLoading;
 
-  const signOut = () => {
+  const signOut = useCallback(() => {
     logoutMutation.mutate();
-  };
+  }, [logoutMutation]);
 
   const signIn = async (email: string, password: string) => {
     await loginMutation.mutateAsync({ email, password });
