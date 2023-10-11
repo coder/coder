@@ -14,13 +14,22 @@ import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import CollectedIcon from "@mui/icons-material/Compare";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Button from "@mui/material/Button";
-import { css, type Theme, type Interpolation, useTheme } from "@emotion/react";
+import Box from "@mui/material/Box";
+import Popover from "@mui/material/Popover";
+import {
+  css,
+  type CSSObject,
+  type Theme,
+  type Interpolation,
+  useTheme,
+} from "@emotion/react";
 import dayjs from "dayjs";
 import { TerminalIcon } from "components/Icons/TerminalIcon";
 import { RocketIcon } from "components/Icons/RocketIcon";
 import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
+import { colors } from "theme/colors";
 
 export const bannerHeight = 36;
 
@@ -112,7 +121,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    background-color: ${unhealthy ? "red" : undefined};
+    background-color: ${unhealthy ? colors.red[10] : undefined};
     padding: ${theme.spacing(0, 1.5)};
     height: ${bannerHeight}px;
     color: #fff;
@@ -121,6 +130,18 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
       width: 16px;
       height: 16px;
     }
+  `;
+
+  const statusSummaryStyle = css`
+    ${theme.typography.body2 as CSSObject}
+
+    margin-top: ${theme.spacing(0.5)};
+    width: ${theme.spacing(38)};
+    padding: ${theme.spacing(1)};
+    color: ${theme.palette.text.primary};
+    background-color: ${colors.gray[10]};
+    border: ${theme.palette.background.default};
+    pointer-events: none;
   `;
 
   return (
@@ -144,9 +165,17 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     >
       <Tooltip
         title={
-          unhealthy
-            ? "We have detected problems with your Coder deployment."
-            : "Status of your Coder deployment. Only visible for admins!"
+          unhealthy ? (
+            <>
+              We have detected problems with your Coder deployment.
+              {health.access_url && <>Your access_url is broken.</>}
+              {health.database && <>Your database is broken.</>}
+              {health.derp && <>Your derp is broken.</>}
+              {health.websocket && <>Your websocket is broken.</>}
+            </>
+          ) : (
+            <>Status of your Coder deployment. Only visible for admins!</>
+          )
         }
         css={{ marginRight: theme.spacing(-2) }}
       >

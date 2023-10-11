@@ -1516,10 +1516,10 @@ export interface Health {
   healthy: boolean;
   time: string;
   coder_version: string;
-  derp: { healthy: boolean };
   access_url: { healthy: boolean };
-  websocket: { healthy: boolean };
   database: { healthy: boolean };
+  derp: { healthy: boolean };
+  websocket: { healthy: boolean };
 }
 
 export const getHealth = async () => {

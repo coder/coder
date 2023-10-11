@@ -21,10 +21,10 @@ export const WithHealthIssues: Story = {
       healthy: false,
       time: "no <3",
       coder_version: "no <3",
-      derp: { healthy: false },
       access_url: { healthy: false },
-      websocket: { healthy: false },
       database: { healthy: false },
+      derp: { healthy: false },
+      websocket: { healthy: false },
     },
   },
 };
