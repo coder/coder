@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates versions unarchive [flags] <template-name>
+  [template-version-names...] 
+
+  Unarchive a template version(s).
+
+OPTIONS:
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

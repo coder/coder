@@ -31,7 +31,6 @@ import (
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
-		user         = httpmw.UserParam(r)
 		organization = httpmw.OrganizationParam(r)
 		member       = httpmw.OrganizationMemberParam(r)
 		apiKey       = httpmw.APIKey(r)
@@ -51,7 +50,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUser, err := api.updateOrganizationMemberRoles(ctx, database.UpdateMemberRolesParams{
 		GrantedRoles: params.Roles,
-		UserID:       user.ID,
+		UserID:       member.UserID,
 		OrgID:        organization.ID,
 	})
 	if err != nil {

@@ -4,14 +4,14 @@ import { StarterTemplatePageView } from "./StarterTemplatePageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof StarterTemplatePageView> = {
-  title: "pages/StarterTemplatePageView",
+  title: "pages/StarterTemplatePage",
   component: StarterTemplatePageView,
 };
 
 export default meta;
 type Story = StoryObj<typeof StarterTemplatePageView>;
 
-export const Default: Story = {
+export const Example: Story = {
   args: {
     error: undefined,
     starterTemplate: MockTemplateExample,

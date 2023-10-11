@@ -176,8 +176,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			GoogleTokenValidator:     validator,
 			IncludeProvisionerDaemon: true,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
 			ProvisionApply: []*proto.Response{{
 				Type: &proto.Response_Apply{
@@ -195,14 +196,14 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		ptytest.New(t).Attach(inv)
-		clitest.SetupConfig(t, client, cfg)
+		clitest.SetupConfig(t, member, cfg)
 		clitest.Start(t,
 			inv.WithContext(
 				//nolint:revive,staticcheck

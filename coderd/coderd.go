@@ -652,7 +652,6 @@ func New(options *Options) *API {
 					r.Get("/roles", api.assignableOrgRoles)
 					r.Route("/{user}", func(r chi.Router) {
 						r.Use(
-							httpmw.ExtractUserParam(options.Database, false),
 							httpmw.ExtractOrganizationMemberParam(options.Database),
 						)
 						r.Put("/roles", api.putMemberRoles)
@@ -671,6 +670,7 @@ func New(options *Options) *API {
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)
 			r.Route("/versions", func(r chi.Router) {
+				r.Post("/archive", api.postArchiveTemplateVersions)
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)
 				r.Get("/{templateversionname}", api.templateVersionByName)
@@ -684,6 +684,8 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
+			r.Post("/archive", api.postArchiveTemplateVersion())
+			r.Post("/unarchive", api.postUnarchiveTemplateVersion())
 			// Old agents may expect a non-error response from /schema and /parameters endpoints.
 			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
 			r.Get("/schema", templateVersionSchemaDeprecated)
@@ -741,7 +743,7 @@ func New(options *Options) *API {
 					r.Get("/", api.assignableSiteRoles)
 				})
 				r.Route("/{user}", func(r chi.Router) {
-					r.Use(httpmw.ExtractUserParam(options.Database, false))
+					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Post("/convert-login", api.postConvertLoginType)
 					r.Delete("/", api.deleteUser)
 					r.Get("/", api.userByName)
@@ -812,7 +814,9 @@ func New(options *Options) *API {
 				r.Patch("/startup-logs", api.patchWorkspaceAgentLogsDeprecated)
 				r.Patch("/logs", api.patchWorkspaceAgentLogs)
 				r.Post("/app-health", api.postWorkspaceAppHealth)
+				// Deprecated: Required to support legacy agents
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
+				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)

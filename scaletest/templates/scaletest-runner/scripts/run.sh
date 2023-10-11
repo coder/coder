@@ -49,7 +49,6 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		;;
 	"Dashboard Traffic")
 		coder exp scaletest dashboard \
-			--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-dashboard.json" \

@@ -1,5 +1,12 @@
 import RefreshIcon from "@mui/icons-material/Refresh";
-import { FC } from "react";
+import { type FC } from "react";
+import InfoIcon from "@mui/icons-material/InfoOutlined";
+import { useQuery } from "react-query";
+import Box from "@mui/material/Box";
+import Skeleton from "@mui/material/Skeleton";
+import Link from "@mui/material/Link";
+import { css } from "@emotion/css";
+import { templateVersion } from "api/queries/templates";
 import {
   HelpTooltip,
   HelpTooltipAction,
@@ -7,14 +14,7 @@ import {
   HelpTooltipText,
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { makeStyles } from "@mui/styles";
 import { colors } from "theme/colors";
-import { useQuery } from "react-query";
-import { templateVersion } from "api/queries/templates";
-import Box from "@mui/material/Box";
-import Skeleton from "@mui/material/Skeleton";
-import Link from "@mui/material/Link";
 
 export const Language = {
   outdatedLabel: "Outdated",
@@ -36,15 +36,22 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
   latestVersionId,
   templateName,
 }) => {
-  const styles = useStyles();
   const { data: activeVersion } = useQuery(templateVersion(latestVersionId));
 
   return (
     <HelpTooltip
       size="small"
       icon={InfoIcon}
-      iconClassName={styles.icon}
-      buttonClassName={styles.button}
+      iconClassName={css`
+        color: ${colors.yellow[5]};
+      `}
+      buttonClassName={css`
+        opacity: 1;
+
+        &:hover {
+          opacity: 1;
+        }
+      `}
     >
       <HelpTooltipTitle>{Language.outdatedLabel}</HelpTooltipTitle>
       <HelpTooltipText>{Language.versionTooltipText}</HelpTooltipText>
@@ -117,17 +124,3 @@ export const WorkspaceOutdatedTooltip: FC<TooltipProps> = ({
     </HelpTooltip>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  icon: {
-    color: colors.yellow[5],
-  },
-
-  button: {
-    opacity: 1,
-
-    "&:hover": {
-      opacity: 1,
-    },
-  },
-}));

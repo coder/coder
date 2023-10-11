@@ -136,8 +136,9 @@ func TestDERPHeaders(t *testing.T) {
 	})
 
 	var (
-		user      = coderdtest.CreateFirstUser(t, client)
-		workspace = runAgent(t, client, user.UserID)
+		admin     = coderdtest.CreateFirstUser(t, client)
+		member, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace = runAgent(t, client, member)
 	)
 
 	// Inject custom /derp handler so we can inspect the headers.
@@ -183,7 +184,7 @@ func TestDERPHeaders(t *testing.T) {
 		}
 	}
 	inv, root := clitest.New(t, args...)
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t)
 	inv.Stdin = pty.Input()
 	inv.Stderr = pty.Output()

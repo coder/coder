@@ -271,10 +271,12 @@ fetch_coder_full() {
 		exit 1
 	fi
 	log "Fetching full Coder binary from ${pod}"
+	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
 	maybedryrun "${DRY_RUN}" kubectl \
 		--namespace "${namespace}" \
 		cp \
 		--container coder \
+		--retries 10 \
 		"${pod}:/opt/coder" "${SCALETEST_CODER_BINARY}"
 	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
 	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"

@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 )
@@ -24,14 +25,15 @@ func TestTemplateDelete(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		inv, root := clitest.New(t, "templates", "delete", template.Name)
 
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
@@ -52,19 +54,20 @@ func TestTemplateDelete(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		templates := []codersdk.Template{}
 		templateNames := []string{}
 		for i := 0; i < 3; i++ {
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 			templates = append(templates, template)
 			templateNames = append(templateNames, template.Name)
 		}
 
 		inv, root := clitest.New(t, append([]string{"templates", "delete", "--yes"}, templateNames...)...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		require.NoError(t, inv.Run())
 
 		for _, template := range templates {
@@ -77,19 +80,20 @@ func TestTemplateDelete(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		templates := []codersdk.Template{}
 		templateNames := []string{}
 		for i := 0; i < 3; i++ {
-			version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 			templates = append(templates, template)
 			templateNames = append(templateNames, template.Name)
 		}
 
 		inv, root := clitest.New(t, append([]string{"templates", "delete"}, templateNames...)...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
@@ -112,13 +116,14 @@ func TestTemplateDelete(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		inv, root := clitest.New(t, "templates", "delete")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		pty := ptytest.New(t).Attach(inv)
 

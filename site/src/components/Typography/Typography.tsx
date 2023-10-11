@@ -3,12 +3,10 @@
  * verbatim port from `@coder/ui`.
  */
 
-import { makeStyles } from "@mui/styles";
 import MuiTypography, {
   TypographyProps as MuiTypographyProps,
 } from "@mui/material/Typography";
 import * as React from "react";
-import { appendCSSString, combineClasses } from "utils/combineClasses";
 
 export interface TypographyProps extends MuiTypographyProps {
   short?: boolean;
@@ -20,29 +18,21 @@ export interface TypographyProps extends MuiTypographyProps {
  *
  * See original component's Material UI documentation here: https://material-ui.com/components/typography/
  */
-export const Typography: React.FC<TypographyProps> = ({
-  className,
-  short,
-  ...rest
-}) => {
-  const styles = useStyles();
-
-  let classes = combineClasses({ [styles.short]: short });
-  if (className) {
-    classes = appendCSSString(classes ?? "", className);
-  }
-
-  return <MuiTypography {...rest} className={classes} />;
+export const Typography: React.FC<TypographyProps> = ({ short, ...attrs }) => {
+  return (
+    <MuiTypography
+      css={[
+        short && {
+          "&.MuiTypography-body1": {
+            lineHeight: "21px",
+          },
+          "&.MuiTypography-body2": {
+            lineHeight: "18px",
+            letterSpacing: 0.2,
+          },
+        },
+      ]}
+      {...attrs}
+    />
+  );
 };
-
-const useStyles = makeStyles({
-  short: {
-    "&.MuiTypography-body1": {
-      lineHeight: "21px",
-    },
-    "&.MuiTypography-body2": {
-      lineHeight: "18px",
-      letterSpacing: 0.2,
-    },
-  },
-});

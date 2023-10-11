@@ -645,12 +645,20 @@ func (c *testConn) recvNodes(ctx context.Context, t *testing.T) []*agpl.Node {
 
 func (c *testConn) recvErr(ctx context.Context, t *testing.T) error {
 	t.Helper()
-	select {
-	case <-ctx.Done():
-		t.Fatal("timeout receiving error")
-		return ctx.Err()
-	case err := <-c.errChan:
-		return err
+	// pgCoord works on eventual consistency, so it sometimes sends extra node
+	// updates, and these block errors if not read from the nodes channel.
+	for {
+		select {
+		case nodes := <-c.nodeChan:
+			t.Logf("ignoring nodes update while waiting for error; id=%s, nodes=%+v",
+				c.id.String(), nodes)
+			continue
+		case <-ctx.Done():
+			t.Fatal("timeout receiving error")
+			return ctx.Err()
+		case err := <-c.errChan:
+			return err
+		}
 	}
 }
 

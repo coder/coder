@@ -22,6 +22,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/mod/semver"
@@ -120,7 +121,7 @@ func (api *API) workspaceAgent(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	apiAgent, err := convertWorkspaceAgent(
-		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
+		api.DERPMap(), *api.TailnetCoordinator.Load(), workspaceAgent, convertApps(dbApps, workspaceAgent, owner.Username, workspace), convertScripts(scripts), convertLogSources(logSources), api.AgentInactiveDisconnectTimeout,
 		api.DeploymentValues.AgentFallbackTroubleshootingURL.String(),
 	)
 	if err != nil {
@@ -225,13 +226,20 @@ func (api *API) workspaceAgentManifest(rw http.ResponseWriter, r *http.Request) 
 		vscodeProxyURI += fmt.Sprintf(":%s", api.AccessURL.Port())
 	}
 
+	gitAuthConfigs := 0
+	for _, cfg := range api.ExternalAuthConfigs {
+		if codersdk.EnhancedExternalAuthProvider(cfg.Type).Git() {
+			gitAuthConfigs++
+		}
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.Manifest{
 		AgentID:                  apiAgent.ID,
-		Apps:                     convertApps(dbApps, workspaceAgent, owner, workspace),
+		Apps:                     convertApps(dbApps, workspaceAgent, owner.Username, workspace),
 		Scripts:                  convertScripts(scripts),
 		DERPMap:                  api.DERPMap(),
 		DERPForceWebSockets:      api.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		GitAuthConfigs:           len(api.ExternalAuthConfigs),
+		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     apiAgent.EnvironmentVariables,
 		Directory:                apiAgent.Directory,
 		VSCodePortProxyURI:       vscodeProxyURI,
@@ -1396,23 +1404,27 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
 // It means that they may not have an agent or workspace assigned (dry-run job).
 func convertProvisionedApps(dbApps []database.WorkspaceApp) []codersdk.WorkspaceApp {
-	return convertApps(dbApps, database.WorkspaceAgent{}, database.User{}, database.Workspace{})
+	return convertApps(dbApps, database.WorkspaceAgent{}, "", database.Workspace{})
 }
 
-func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, owner database.User, workspace database.Workspace) []codersdk.WorkspaceApp {
+func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerName string, workspace database.Workspace) []codersdk.WorkspaceApp {
 	apps := make([]codersdk.WorkspaceApp, 0)
 	for _, dbApp := range dbApps {
 		var subdomainName string
-		if dbApp.Subdomain && agent.Name != "" && owner.Username != "" && workspace.Name != "" {
+		if dbApp.Subdomain && agent.Name != "" && ownerName != "" && workspace.Name != "" {
 			appSlug := dbApp.Slug
 			if appSlug == "" {
 				appSlug = dbApp.DisplayName
 			}
 			subdomainName = httpapi.ApplicationURL{
+				// We never generate URLs with a prefix. We only allow prefixes
+				// when parsing URLs from the hostname. Users that want this
+				// feature can write out their own URLs.
+				Prefix:        "",
 				AppSlugOrPort: appSlug,
 				AgentName:     agent.Name,
 				WorkspaceName: workspace.Name,
-				Username:      owner.Username,
+				Username:      ownerName,
 			}.String()
 		}
 
@@ -2155,44 +2167,63 @@ func (api *API) postWorkspaceAppHealth(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
-// workspaceAgentsGitAuth returns a username and password for use
-// with GIT_ASKPASS.
+// workspaceAgentsExternalAuth returns an access token for a given URL
+// or finds a provider by ID.
 //
-// @Summary Get workspace agent Git auth
-// @ID get-workspace-agent-git-auth
+// @Summary Get workspace agent external auth
+// @ID get-workspace-agent-external-auth
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Agents
-// @Param url query string true "Git URL" format(uri)
+// @Param match query string true "Match"
+// @Param id query string true "Provider ID"
 // @Param listen query bool false "Wait for a new token to be issued"
-// @Success 200 {object} agentsdk.GitAuthResponse
-// @Router /workspaceagents/me/gitauth [get]
-func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} agentsdk.ExternalAuthResponse
+// @Router /workspaceagents/me/external-auth [get]
+func (api *API) workspaceAgentsExternalAuth(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	gitURL := r.URL.Query().Get("url")
-	if gitURL == "" {
+	query := r.URL.Query()
+	// Either match or configID must be provided!
+	match := query.Get("match")
+	if match == "" {
+		// Support legacy agents!
+		match = query.Get("url")
+	}
+	id := query.Get("id")
+	if match == "" && id == "" {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Missing 'url' query parameter!",
+			Message: "'url' or 'id' must be provided!",
 		})
 		return
 	}
+	if match != "" && id != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "'url' and 'id' cannot be provided together!",
+		})
+		return
+	}
+
 	// listen determines if the request will wait for a
 	// new token to be issued!
 	listen := r.URL.Query().Has("listen")
 
 	var externalAuthConfig *externalauth.Config
-	for _, gitAuth := range api.ExternalAuthConfigs {
-		if gitAuth.Regex == nil {
+	for _, extAuth := range api.ExternalAuthConfigs {
+		if extAuth.ID == id {
+			externalAuthConfig = extAuth
+			break
+		}
+		if match == "" || extAuth.Regex == nil {
 			continue
 		}
-		matches := gitAuth.Regex.MatchString(gitURL)
+		matches := extAuth.Regex.MatchString(match)
 		if !matches {
 			continue
 		}
-		externalAuthConfig = gitAuth
+		externalAuthConfig = extAuth
 	}
 	if externalAuthConfig == nil {
-		detail := "No external auth providers are configured."
+		detail := "External auth provider not found."
 		if len(api.ExternalAuthConfigs) > 0 {
 			regexURLs := make([]string, 0, len(api.ExternalAuthConfigs))
 			for _, extAuth := range api.ExternalAuthConfigs {
@@ -2201,18 +2232,11 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 				}
 				regexURLs = append(regexURLs, fmt.Sprintf("%s=%q", extAuth.ID, extAuth.Regex.String()))
 			}
-			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the git url. Provider url regexs: %s", strings.Join(regexURLs, ","))
+			detail = fmt.Sprintf("The configured external auth provider have regex filters that do not match the url. Provider url regex: %s", strings.Join(regexURLs, ","))
 		}
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
-			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", gitURL),
+			Message: fmt.Sprintf("No matching external auth provider found in Coder for the url %q.", match),
 			Detail:  detail,
-		})
-		return
-	}
-	enhancedType := codersdk.EnhancedExternalAuthProvider(externalAuthConfig.Type)
-	if !enhancedType.Git() {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "External auth provider does not support git.",
 		})
 		return
 	}
@@ -2287,7 +2311,15 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			if !valid {
 				continue
 			}
-			httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(enhancedType, externalAuthLink.OAuthAccessToken))
+			resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to create external auth response.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			httpapi.Write(ctx, rw, http.StatusOK, resp)
 			return
 		}
 	}
@@ -2315,7 +2347,7 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 			return
 		}
 
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
@@ -2330,36 +2362,53 @@ func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if !updated {
-		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.GitAuthResponse{
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.ExternalAuthResponse{
 			URL: redirectURL.String(),
 		})
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, formatGitAuthAccessToken(enhancedType, externalAuthLink.OAuthAccessToken))
+	resp, err := createExternalAuthResponse(externalAuthConfig.Type, externalAuthLink.OAuthAccessToken, externalAuthLink.OAuthExtra)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to create external auth response.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// Provider types have different username/password formats.
-func formatGitAuthAccessToken(typ codersdk.EnhancedExternalAuthProvider, token string) agentsdk.GitAuthResponse {
-	var resp agentsdk.GitAuthResponse
+// createExternalAuthResponse creates an ExternalAuthResponse based on the
+// provider type. This is to support legacy `/workspaceagents/me/gitauth`
+// which uses `Username` and `Password`.
+func createExternalAuthResponse(typ, token string, extra pqtype.NullRawMessage) (agentsdk.ExternalAuthResponse, error) {
+	var resp agentsdk.ExternalAuthResponse
 	switch typ {
-	case codersdk.EnhancedExternalAuthProviderGitLab:
+	case string(codersdk.EnhancedExternalAuthProviderGitLab):
 		// https://stackoverflow.com/questions/25409700/using-gitlab-token-to-clone-without-authentication
-		resp = agentsdk.GitAuthResponse{
+		resp = agentsdk.ExternalAuthResponse{
 			Username: "oauth2",
 			Password: token,
 		}
-	case codersdk.EnhancedExternalAuthProviderBitBucket:
+	case string(codersdk.EnhancedExternalAuthProviderBitBucket):
 		// https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/#Cloning-a-repository-with-an-access-token
-		resp = agentsdk.GitAuthResponse{
+		resp = agentsdk.ExternalAuthResponse{
 			Username: "x-token-auth",
 			Password: token,
 		}
 	default:
-		resp = agentsdk.GitAuthResponse{
+		resp = agentsdk.ExternalAuthResponse{
 			Username: token,
 		}
 	}
-	return resp
+	resp.AccessToken = token
+	resp.Type = typ
+
+	var err error
+	if extra.Valid {
+		err = json.Unmarshal(extra.RawMessage, &resp.TokenExtra)
+	}
+	return resp, err
 }
 
 // wsNetConn wraps net.Conn created by websocket.NetConn(). Cancel func

@@ -9,7 +9,7 @@ import { WorkspaceProxyView } from "./WorkspaceProxyView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof WorkspaceProxyView> = {
-  title: "components/WorkspaceProxyView",
+  title: "pages/UserSettingsPage/WorkspaceProxyView",
   component: WorkspaceProxyView,
 };
 
