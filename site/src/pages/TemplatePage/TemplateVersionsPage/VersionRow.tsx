@@ -95,7 +95,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
             {jobStatus === "failed" ? (
               <Button
                 className={styles.promoteButton}
-                disabled={!version.archived}
+                disabled={isActive || version.archived}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
