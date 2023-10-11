@@ -35,14 +35,6 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   });
 
   const jobStatus = version.job.status;
-  let buttonVerb = "Promote";
-  let buttonAction = onPromoteClick;
-  let buttonDisabled = isActive || jobStatus !== "succeeded";
-  if (jobStatus === "failed") {
-    buttonVerb = "Archive";
-    buttonAction = onArchiveClick;
-    buttonDisabled = false;
-  }
 
   return (
     <TimelineEntry
@@ -100,21 +92,33 @@ export const VersionRow: React.FC<VersionRowProps> = ({
               <Pill text="Canceled" type="neutral" lightBorder />
             )}
             {jobStatus === "failed" && <Pill text="Failed" type="error" />}
-            {buttonAction && (
+            {jobStatus === "failed" ? (
               <Button
                 className={styles.promoteButton}
-                disabled={buttonDisabled}
+                disabled={!version.archived}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  if (buttonAction) {
-                    // Linter was complaining about this unless I threw it
-                    // in an if statement.
-                    buttonAction(version.id);
+                  if (onArchiveClick) {
+                    onArchiveClick(version.id);
                   }
                 }}
               >
-                {buttonVerb}&hellip;
+                Archive&hellip;
+              </Button>
+            ) : (
+              <Button
+                className={styles.promoteButton}
+                disabled={isActive || jobStatus !== "succeeded"}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onPromoteClick) {
+                    onPromoteClick(version.id);
+                  }
+                }}
+              >
+                Promote&hellip;
               </Button>
             )}
           </Stack>
