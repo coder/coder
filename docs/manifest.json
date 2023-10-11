@@ -209,9 +209,9 @@
           "state": "enterprise"
         },
         {
-            "title": "Workspace Scheduling",
-            "description": "Set workspace scheduling policies",
-            "path": "./templates/schedule.md"
+          "title": "Workspace Scheduling",
+          "description": "Set workspace scheduling policies",
+          "path": "./templates/schedule.md"
         }
       ]
     },
