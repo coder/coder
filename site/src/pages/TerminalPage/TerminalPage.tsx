@@ -154,7 +154,7 @@ const TerminalPage: FC = () => {
 
   // Create the terminal!
   useEffect(() => {
-    if (!xtermRef.current) {
+    if (!xtermRef.current || config.isLoading) {
       return;
     }
     const terminal = new XTerm.Terminal({
@@ -210,7 +210,7 @@ const TerminalPage: FC = () => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [config.data, sendEvent, xtermRef, handleWebLink]);
+  }, [config.data, config.isLoading, sendEvent, xtermRef, handleWebLink]);
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
