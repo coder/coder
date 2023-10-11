@@ -2295,6 +2295,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "Include archived versions in the list",
+                        "name": "include_archived",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page limit",
                         "name": "limit",

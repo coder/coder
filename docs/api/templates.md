@@ -827,12 +827,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description |
-| ---------- | ----- | ------------ | -------- | ----------- |
-| `template` | path  | string(uuid) | true     | Template ID |
-| `after_id` | query | string(uuid) | false    | After ID    |
-| `limit`    | query | integer      | false    | Page limit  |
-| `offset`   | query | integer      | false    | Page offset |
+| Name               | In    | Type         | Required | Description                           |
+| ------------------ | ----- | ------------ | -------- | ------------------------------------- |
+| `template`         | path  | string(uuid) | true     | Template ID                           |
+| `after_id`         | query | string(uuid) | false    | After ID                              |
+| `include_archived` | query | boolean      | false    | Include archived versions in the list |
+| `limit`            | query | integer      | false    | Page limit                            |
+| `offset`           | query | integer      | false    | Page offset                           |
 
 ### Example responses
 

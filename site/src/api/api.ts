@@ -387,6 +387,20 @@ export const patchTemplateVersion = async (
   return response.data;
 };
 
+export const archiveTemplateVersion = async (templateVersionId: string) => {
+  const response = await axios.post<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}/archive`,
+  );
+  return response.data;
+};
+
+export const unarchiveTemplateVersion = async (templateVersionId: string) => {
+  const response = await axios.post<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}/unarchive`,
+  );
+  return response.data;
+};
+
 export const updateTemplateMeta = async (
   templateId: string,
   data: TypesGen.UpdateTemplateMeta,
