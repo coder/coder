@@ -43,7 +43,7 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 }
 
 func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
-	err := r._run(ctx)
+	err := r.runUntilDeadlineExceeded(ctx)
 	// If the context deadline exceeded, don't return an error.
 	// This just means the test finished.
 	if err == nil || errors.Is(err, context.DeadlineExceeded) {
@@ -52,7 +52,7 @@ func (r *Runner) Run(ctx context.Context, _ string, _ io.Writer) error {
 	return err
 }
 
-func (r *Runner) _run(ctx context.Context) error {
+func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 	if r.client == nil {
 		return xerrors.Errorf("client is nil")
 	}
