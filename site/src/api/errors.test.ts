@@ -89,4 +89,15 @@ describe("getValidationErrorMessage", () => {
       "Something went wrong.",
     );
   });
+
+  it("returns default message for 404 API response", () => {
+    expect(
+      getErrorMessage(
+        mockApiError({
+          message: "",
+        }),
+        "Something went wrong.",
+      ),
+    ).toBe("Something went wrong.");
+  });
 });

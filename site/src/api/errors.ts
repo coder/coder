@@ -62,13 +62,13 @@ export const getErrorMessage = (
   error: unknown,
   defaultMessage: string,
 ): string => {
+  // if error is API error
+  // 404s result in the default message being returned
   if (isApiError(error) && error.response.data.message) {
-    console.log("in first error block");
     return error.response.data.message;
   }
   // if error is a non-empty string
   if (error && typeof error === "string") {
-    console.log("in second error block");
     return error;
   }
   return defaultMessage;

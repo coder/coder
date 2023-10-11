@@ -9,9 +9,6 @@ export const ErrorAlert: FC<
   const message = getErrorMessage(error, "Something went wrong.");
   const detail = getErrorDetail(error);
 
-  console.log("message", message);
-  console.log("detail", detail);
-
   // For some reason, the message and detail can be the same on the BE, but does
   // not make sense in the FE to showing them duplicated
   const shouldDisplayDetail = message !== detail;
