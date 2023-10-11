@@ -63,10 +63,12 @@ export const getErrorMessage = (
   defaultMessage: string,
 ): string => {
   if (isApiError(error)) {
+    console.log("in first error block");
     return error.response.data.message;
   }
   // if error is a non-empty string
   if (error && typeof error === "string") {
+    console.log("in second error block");
     return error;
   }
   return defaultMessage;
