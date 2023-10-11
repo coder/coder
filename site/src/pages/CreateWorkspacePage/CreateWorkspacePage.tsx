@@ -28,6 +28,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { richParameters } from "api/queries/templateVersions";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
+import { useEffectEvent } from "hooks/hookPolyfills";
 
 type CreateWorkspaceMode = "form" | "auto";
 
@@ -88,34 +89,28 @@ const CreateWorkspacePage: FC = () => {
     [navigate],
   );
 
+  const automateWorkspaceCreation = useEffectEvent(async () => {
+    try {
+      const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
+        templateName,
+        organizationId,
+        defaultBuildParameters,
+        defaultName,
+        versionId: realizedVersionId,
+      });
+
+      onCreateWorkspace(newWorkspace);
+    } catch (err) {
+      searchParams.delete("mode");
+      setSearchParams(searchParams);
+    }
+  });
+
   useEffect(() => {
     if (mode === "auto") {
-      autoCreateWorkspaceMutation
-        .mutateAsync({
-          templateName,
-          organizationId,
-          defaultBuildParameters,
-          defaultName,
-          versionId: realizedVersionId,
-        })
-        .then(onCreateWorkspace)
-        .catch(() => {
-          searchParams.delete("mode");
-          setSearchParams(searchParams);
-        });
+      void automateWorkspaceCreation();
     }
-  }, [
-    autoCreateWorkspaceMutation,
-    defaultBuildParameters,
-    defaultName,
-    mode,
-    onCreateWorkspace,
-    organizationId,
-    realizedVersionId,
-    searchParams,
-    setSearchParams,
-    templateName,
-  ]);
+  }, [automateWorkspaceCreation, mode]);
 
   return (
     <>
@@ -137,7 +132,7 @@ const CreateWorkspacePage: FC = () => {
           externalAuthPollingState={externalAuthPollingState}
           startPollingExternalAuth={startPollingExternalAuth}
           permissions={permissionsQuery.data as CreateWSPermissions}
-          parameters={realizedParameters!}
+          parameters={realizedParameters as TemplateVersionParameter[]}
           creatingWorkspace={createWorkspaceMutation.isLoading}
           onCancel={() => {
             navigate(-1);
