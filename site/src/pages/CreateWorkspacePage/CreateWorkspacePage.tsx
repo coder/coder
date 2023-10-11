@@ -11,7 +11,6 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import {
   CreateWSPermissions,
-  CreateWorkspaceMode,
   createWorkspaceMachine,
 } from "xServices/createWorkspace/createWorkspaceXService";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -23,8 +22,11 @@ import {
   colors,
   NumberDictionary,
 } from "unique-names-generator";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { templateVersionExternalAuth } from "api/queries/templates";
+import { autoCreateWorkspace } from "api/queries/workspaces";
+
+type CreateWorkspaceMode = "form" | "auto";
 
 export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
 
@@ -33,17 +35,15 @@ const CreateWorkspacePage: FC = () => {
   const { template: templateName } = useParams() as { template: string };
   const me = useMe();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode;
   const [createWorkspaceState, send] = useMachine(createWorkspaceMachine, {
     context: {
       organizationId,
       templateName,
-      mode,
       defaultBuildParameters,
-      defaultName:
-        mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "",
+      defaultName: searchParams.get("name") ?? "",
       versionId: searchParams.get("version") ?? undefined,
     },
     actions: {
@@ -54,7 +54,13 @@ const CreateWorkspacePage: FC = () => {
   });
   const { template, parameters, permissions, defaultName, versionId } =
     createWorkspaceState.context;
-  const title = createWorkspaceState.matches("autoCreating")
+
+  const queryClient = useQueryClient();
+  const autoCreateWorkspaceMutation = useMutation(
+    autoCreateWorkspace(queryClient),
+  );
+
+  const title = autoCreateWorkspaceMutation.isLoading
     ? "Creating workspace..."
     : "Create workspace";
 
@@ -97,6 +103,38 @@ const CreateWorkspacePage: FC = () => {
     };
   }, [externalAuthPollingState, allSignedIn]);
 
+  useEffect(() => {
+    if (mode === "auto") {
+      autoCreateWorkspaceMutation
+        .mutateAsync({
+          templateName,
+          organizationId,
+          defaultBuildParameters,
+          defaultName:
+            mode === "auto"
+              ? generateUniqueName()
+              : searchParams.get("name") ?? "",
+          versionId: searchParams.get("version") ?? undefined,
+        })
+        .then((workspace) => {
+          navigate(`/@${workspace.owner_name}/${workspace.name}`);
+        })
+        .catch(() => {
+          searchParams.delete("mode");
+          setSearchParams(searchParams);
+        });
+    }
+  }, [
+    autoCreateWorkspaceMutation,
+    defaultBuildParameters,
+    mode,
+    navigate,
+    organizationId,
+    searchParams,
+    setSearchParams,
+    templateName,
+  ]);
+
   return (
     <>
       <Helmet>
@@ -104,7 +142,7 @@ const CreateWorkspacePage: FC = () => {
       </Helmet>
       {Boolean(
         createWorkspaceState.matches("loadingFormData") ||
-          createWorkspaceState.matches("autoCreating"),
+          autoCreateWorkspaceMutation.isLoading,
       ) && <Loader />}
       {createWorkspaceState.matches("loadError") && (
         <ErrorAlert error={error} />

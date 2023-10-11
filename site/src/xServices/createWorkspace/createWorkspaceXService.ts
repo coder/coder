@@ -15,12 +15,9 @@ import {
 import { assign, createMachine } from "xstate";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
-export type CreateWorkspaceMode = "form" | "auto";
-
 type CreateWorkspaceContext = {
   organizationId: string;
   templateName: string;
-  mode: CreateWorkspaceMode;
   defaultName: string;
   // Not exposed in the form yet, but can be set as a search param to
   // create a workspace with a specific version of a template
@@ -61,34 +58,10 @@ export const createWorkspaceMachine =
           createWorkspace: {
             data: Workspace;
           };
-          autoCreateWorkspace: {
-            data: Workspace;
-          };
         },
       },
-      initial: "checkingMode",
+      initial: "loadingFormData",
       states: {
-        checkingMode: {
-          always: [
-            {
-              target: "autoCreating",
-              cond: ({ mode }) => mode === "auto",
-            },
-            { target: "loadingFormData" },
-          ],
-        },
-        autoCreating: {
-          invoke: {
-            src: "autoCreateWorkspace",
-            onDone: {
-              actions: ["onCreateWorkspace"],
-            },
-            onError: {
-              actions: ["assignError"],
-              target: "loadingFormData",
-            },
-          },
-        },
         loadingFormData: {
           invoke: {
             src: "loadFormData",
@@ -146,29 +119,6 @@ export const createWorkspaceMachine =
           }
 
           return createWorkspace(organizationId, owner.id, request);
-        },
-        autoCreateWorkspace: async ({
-          templateName,
-          versionId,
-          organizationId,
-          defaultBuildParameters,
-          defaultName,
-        }) => {
-          let templateVersionParameters;
-          if (versionId) {
-            templateVersionParameters = { template_version_id: versionId };
-          } else {
-            const template = await getTemplateByName(
-              organizationId,
-              templateName,
-            );
-            templateVersionParameters = { template_id: template.id };
-          }
-          return createWorkspace(organizationId, "me", {
-            ...templateVersionParameters,
-            name: defaultName,
-            rich_parameter_values: defaultBuildParameters,
-          });
         },
         loadFormData: async ({ templateName, organizationId, versionId }) => {
           const [template, permissions] = await Promise.all([
