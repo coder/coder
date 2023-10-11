@@ -10,7 +10,7 @@ import {
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
-  title: "pages/CreateWorkspacePageView",
+  title: "pages/CreateWorkspacePage",
   component: CreateWorkspacePageView,
   args: {
     defaultName: "",

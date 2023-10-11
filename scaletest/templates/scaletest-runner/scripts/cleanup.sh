@@ -28,6 +28,12 @@ coder exp scaletest cleanup \
 	tee "${SCALETEST_RESULTS_DIR}/cleanup-${event}.txt"
 end_phase
 
+if [[ $event != prepare ]]; then
+	start_phase "Scaling down provisioners..."
+	maybedryrun "$DRY_RUN" kubectl scale deployment/coder-provisioner --replicas 1
+	maybedryrun "$DRY_RUN" kubectl rollout status deployment/coder-provisioner
+fi
+
 if [[ $event = manual ]]; then
 	echo 'Press any key to continue...'
 	read -s -r -n 1

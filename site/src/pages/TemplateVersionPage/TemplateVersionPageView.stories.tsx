@@ -47,7 +47,7 @@ const defaultArgs: TemplateVersionPageViewProps = {
 };
 
 const meta: Meta<typeof TemplateVersionPageView> = {
-  title: "pages/TemplateVersionPageView",
+  title: "pages/TemplateVersionPage",
   component: TemplateVersionPageView,
   args: defaultArgs,
 };

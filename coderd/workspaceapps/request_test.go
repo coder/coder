@@ -154,6 +154,44 @@ func Test_RequestValidate(t *testing.T) {
 			errContains: "app slug or port is required",
 		},
 		{
+			name: "Prefix/OK",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "blah---",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+		},
+		{
+			name: "Prefix/Invalid",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "blah", // no trailing ---
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			errContains: "prefix must have a trailing '---'",
+		},
+		{
+			name: "Prefix/NotAllowedPath",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodPath,
+				Prefix:            "blah---",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			errContains: "prefix is only valid for subdomain apps",
+		},
+		{
 			name: "Terminal/OtherFields/UsernameOrID",
 			req: workspaceapps.Request{
 				AccessMethod:  workspaceapps.AccessMethodTerminal,

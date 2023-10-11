@@ -11,13 +11,27 @@ import {
 import { RequireAuth } from "../components/RequireAuth/RequireAuth";
 import { MockUser } from "./entities";
 import { ReactNode } from "react";
+import { QueryClient } from "react-query";
 
 export const renderWithRouter = (
   router: ReturnType<typeof createMemoryRouter>,
 ) => {
+  // Create one query client for each render isolate it avoid other
+  // tests to be affected
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        retry: false,
+        cacheTime: 0,
+        refetchOnWindowFocus: false,
+        networkMode: "offlineFirst",
+      },
+    },
+  });
+
   return {
     ...tlRender(
-      <AppProviders>
+      <AppProviders queryClient={queryClient}>
         <RouterProvider router={router} />
       </AppProviders>,
     ),

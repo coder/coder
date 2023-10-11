@@ -16,7 +16,7 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const meta: Meta<typeof WorkspaceScheduleForm> = {
-  title: "components/WorkspaceScheduleForm",
+  title: "pages/WorkspaceSettingsPage/WorkspaceScheduleForm",
   component: WorkspaceScheduleForm,
   args: {
     enableAutoStart: true,

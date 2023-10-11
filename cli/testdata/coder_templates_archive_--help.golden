@@ -1,0 +1,17 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder templates archive [flags] [template-name...] 
+
+  Archive unused or failed template versions from a given template(s)
+
+OPTIONS:
+      --all bool
+          Include all unused template versions. By default, only failed template
+          versions are archived.
+
+  -y, --yes bool
+          Bypass prompts.
+
+———
+Run `coder --help` for a list of global options.

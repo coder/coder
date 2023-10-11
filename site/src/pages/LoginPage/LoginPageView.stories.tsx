@@ -3,7 +3,7 @@ import { LoginPageView } from "./LoginPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof LoginPageView> = {
-  title: "pages/LoginPageView",
+  title: "pages/LoginPage",
   component: LoginPageView,
 };
 

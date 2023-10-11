@@ -174,6 +174,54 @@ func Test_TokenMatchesRequest(t *testing.T) {
 			},
 			want: false,
 		},
+		{
+			name: "SamePrefix",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "dean-was--here---",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					Prefix:            "dean--was--here---",
+					BasePath:          "/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "quux",
+				},
+			},
+			want: false,
+		},
+		{
+			name: "DifferentPrefix",
+			req: workspaceapps.Request{
+				AccessMethod:      workspaceapps.AccessMethodSubdomain,
+				Prefix:            "yolo--",
+				BasePath:          "/",
+				UsernameOrID:      "foo",
+				WorkspaceNameOrID: "bar",
+				AgentNameOrID:     "baz",
+				AppSlugOrPort:     "qux",
+			},
+			token: workspaceapps.SignedToken{
+				Request: workspaceapps.Request{
+					AccessMethod:      workspaceapps.AccessMethodSubdomain,
+					Prefix:            "swag--",
+					BasePath:          "/",
+					UsernameOrID:      "foo",
+					WorkspaceNameOrID: "bar",
+					AgentNameOrID:     "baz",
+					AppSlugOrPort:     "quux",
+				},
+			},
+			want: false,
+		},
 	}
 
 	for _, c := range cases {

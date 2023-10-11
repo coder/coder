@@ -92,12 +92,19 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
-
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -124,7 +131,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, postFilter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -184,26 +191,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var filteredWorkspaces []codersdk.Workspace
-	// apply post filters, if they exist
-	if postFilter.DeletingBy == nil {
-		filteredWorkspaces = append(filteredWorkspaces, wss...)
-	} else {
-		for _, v := range wss {
-			if v.DeletingAt == nil {
-				continue
-			}
-			// get the beginning of the day on which deletion is scheduled
-			truncatedDeletionAt := time.Date(v.DeletingAt.Year(), v.DeletingAt.Month(), v.DeletingAt.Day(), 0, 0, 0, 0, v.DeletingAt.Location())
-			if truncatedDeletionAt.After(*postFilter.DeletingBy) {
-				continue
-			}
-			filteredWorkspaces = append(filteredWorkspaces, v)
-		}
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
-		Workspaces: filteredWorkspaces,
+		Workspaces: wss,
 		Count:      int(workspaceRows[0].Count),
 	})
 }
@@ -274,12 +263,19 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 	httpapi.Write(ctx, rw, http.StatusOK, convertWorkspace(
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -302,9 +298,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		organization          = httpmw.OrganizationParam(r)
 		apiKey                = httpmw.APIKey(r)
 		auditor               = api.Auditor.Load()
-		user                  = httpmw.UserParam(r)
+		member                = httpmw.OrganizationMemberParam(r)
 		workspaceResourceInfo = audit.AdditionalFields{
-			WorkspaceOwner: user.Username,
+			WorkspaceOwner: member.Username,
 		}
 	)
 
@@ -325,7 +321,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 
 	// Do this upfront to save work.
 	if !api.Authorize(r, rbac.ActionCreate,
-		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(user.ID.String())) {
+		rbac.ResourceWorkspace.InOrg(organization.ID).WithOwner(member.UserID.String())) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -353,6 +349,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error fetching template version.",
 				Detail:  err.Error(),
+			})
+			return
+		}
+		if templateVersion.Archived {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Archived template versions cannot be used to make a workspace.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "template_version_id",
+						Detail: "template version archived",
+					},
+				},
 			})
 			return
 		}
@@ -442,7 +450,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	// read other workspaces. Ideally we check the error on create and look for
 	// a postgres conflict error.
 	workspace, err := api.Database.GetWorkspaceByOwnerIDAndName(ctx, database.GetWorkspaceByOwnerIDAndNameParams{
-		OwnerID: user.ID,
+		OwnerID: member.UserID,
 		Name:    createWorkspace.Name,
 	})
 	if err == nil {
@@ -475,7 +483,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ID:                uuid.New(),
 			CreatedAt:         now,
 			UpdatedAt:         now,
-			OwnerID:           user.ID,
+			OwnerID:           member.UserID,
 			OrganizationID:    template.OrganizationID,
 			TemplateID:        template.ID,
 			Name:              createWorkspace.Name,
@@ -529,21 +537,11 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 	}
 	aReq.New = workspace
 
-	initiator, err := api.Database.GetUserByID(ctx, workspaceBuild.InitiatorID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching user.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
 	api.Telemetry.Report(&telemetry.Snapshot{
 		Workspaces:      []telemetry.Workspace{telemetry.ConvertWorkspace(workspace)},
 		WorkspaceBuilds: []telemetry.WorkspaceBuild{telemetry.ConvertWorkspaceBuild(*workspaceBuild)},
 	})
 
-	users := []database.User{user, initiator}
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -551,7 +549,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			ProvisionerJob: *provisionerJob,
 			QueuePosition:  0,
 		},
-		users,
+		member.Username,
 		[]database.WorkspaceResource{},
 		[]database.WorkspaceResourceMetadatum{},
 		[]database.WorkspaceAgent{},
@@ -572,7 +570,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		workspace,
 		apiBuild,
 		template,
-		findUser(user.ID, users),
+		member.Username,
 	))
 }
 
@@ -885,6 +883,14 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching workspace resources.",
+			Detail:  "unable to find workspace owner's username",
+		})
+		return
+	}
 
 	if len(data.templates) == 0 {
 		httpapi.Forbidden(rw)
@@ -896,7 +902,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		workspace,
 		data.builds[0],
 		data.templates[0],
-		findUser(workspace.OwnerID, data.users),
+		ownerName,
 	))
 }
 
@@ -1111,13 +1117,24 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		ownerName, ok := usernameWithID(workspace.OwnerID, data.users)
+		if !ok {
+			_ = sendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeError,
+				Data: codersdk.Response{
+					Message: "Internal error fetching workspace resources.",
+					Detail:  "unable to find workspace owner's username",
+				},
+			})
+			return
+		}
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeData,
 			Data: convertWorkspace(
 				workspace,
 				data.builds[0],
 				data.templates[0],
-				findUser(workspace.OwnerID, data.users),
+				ownerName,
 			),
 		})
 	}
@@ -1267,7 +1284,7 @@ func convertWorkspaces(workspaces []database.Workspace, data workspaceData) ([]c
 			workspace,
 			build,
 			template,
-			&owner,
+			owner.Username,
 		))
 	}
 	return apiWorkspaces, nil
@@ -1277,7 +1294,7 @@ func convertWorkspace(
 	workspace database.Workspace,
 	workspaceBuild codersdk.WorkspaceBuild,
 	template database.Template,
-	owner *database.User,
+	ownerName string,
 ) codersdk.Workspace {
 	var autostartSchedule *string
 	if workspace.AutostartSchedule.Valid {
@@ -1310,7 +1327,7 @@ func convertWorkspace(
 		CreatedAt:                            workspace.CreatedAt,
 		UpdatedAt:                            workspace.UpdatedAt,
 		OwnerID:                              workspace.OwnerID,
-		OwnerName:                            owner.Username,
+		OwnerName:                            ownerName,
 		OrganizationID:                       workspace.OrganizationID,
 		TemplateID:                           workspace.TemplateID,
 		LatestBuild:                          workspaceBuild,

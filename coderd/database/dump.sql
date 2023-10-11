@@ -359,7 +359,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token text NOT NULL,
     oauth_expiry timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -675,7 +676,8 @@ CREATE TABLE template_versions (
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
     external_auth_providers text[],
-    message character varying(1048576) DEFAULT ''::character varying NOT NULL
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL,
+    archived boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -720,6 +722,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.created_by,
     template_versions.external_auth_providers,
     template_versions.message,
+    template_versions.archived,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.template_versions

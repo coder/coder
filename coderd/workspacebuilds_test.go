@@ -729,16 +729,16 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		deploymentValues.EnableTerraformDebugMode = true
 
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
-		admin := coderdtest.CreateFirstUser(t, adminClient)
-		templateAuthorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, admin.OrganizationID, rbac.RoleTemplateAdmin())
+		owner := coderdtest.CreateFirstUser(t, adminClient)
+		templateAuthorClient, _ := coderdtest.CreateAnotherUser(t, adminClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		// Template author: create a template
-		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, admin.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, templateAuthorClient, admin.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, templateAuthorClient, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, templateAuthorClient, owner.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAuthorClient, version.ID)
 
 		// Template author: create a workspace
-		workspace := coderdtest.CreateWorkspace(t, templateAuthorClient, admin.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, templateAuthorClient, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAuthorClient, workspace.LatestBuild.ID)
 
 		// Template author: try to start a workspace build in debug mode
@@ -766,7 +766,7 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 		deploymentValues.EnableTerraformDebugMode = true
 
 		adminClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, DeploymentValues: deploymentValues})
-		admin := coderdtest.CreateFirstUser(t, adminClient)
+		owner := coderdtest.CreateFirstUser(t, adminClient)
 
 		// Interact as template admin
 		echoResponses := &echo.Responses{
@@ -799,12 +799,12 @@ func TestWorkspaceBuildDebugMode(t *testing.T) {
 				},
 			}},
 		}
-		version := coderdtest.CreateTemplateVersion(t, adminClient, admin.OrganizationID, echoResponses)
-		template := coderdtest.CreateTemplate(t, adminClient, admin.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, adminClient, owner.OrganizationID, echoResponses)
+		template := coderdtest.CreateTemplate(t, adminClient, owner.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
 
 		// Create workspace
-		workspace := coderdtest.CreateWorkspace(t, adminClient, admin.OrganizationID, template.ID)
+		workspace := coderdtest.CreateWorkspace(t, adminClient, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, workspace.LatestBuild.ID)
 
 		// Create workspace build

@@ -68,10 +68,10 @@ const WorkspacesPage: FC = () => {
   // are at risk of being deleted.
   useEffect(() => {
     if (schedulingEnabled) {
-      const includesDormant = filterProps.filter.query.includes("dormant_at");
+      const includesDormant = filterProps.filter.query.includes("is-dormant");
       const dormantQuery = includesDormant
         ? filterProps.filter.query
-        : filterProps.filter.query + " dormant_at:1970-01-01";
+        : filterProps.filter.query + " is-dormant:true";
 
       if (includesDormant && data) {
         setDormantWorkspaces(data.workspaces);

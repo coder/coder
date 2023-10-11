@@ -11,6 +11,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -21,17 +22,18 @@ func TestTemplateList(t *testing.T) {
 	t.Run("ListTemplates", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		firstVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		firstVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
-		firstTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, firstVersion.ID)
+		firstTemplate := coderdtest.CreateTemplate(t, client, owner.OrganizationID, firstVersion.ID)
 
-		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		secondVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
-		secondTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
+		secondTemplate := coderdtest.CreateTemplate(t, client, owner.OrganizationID, secondVersion.ID)
 
 		inv, root := clitest.New(t, "templates", "list")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		pty := ptytest.New(t).Attach(inv)
 
@@ -56,17 +58,18 @@ func TestTemplateList(t *testing.T) {
 	t.Run("ListTemplatesJSON", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		firstVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		firstVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, firstVersion.ID)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, firstVersion.ID)
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, firstVersion.ID)
 
-		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		secondVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
-		_ = coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
+		_ = coderdtest.CreateTemplate(t, client, owner.OrganizationID, secondVersion.ID)
 
 		inv, root := clitest.New(t, "templates", "list", "--output=json")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -83,10 +86,11 @@ func TestTemplateList(t *testing.T) {
 	t.Run("NoTemplates", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{})
-		coderdtest.CreateFirstUser(t, client)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		inv, root := clitest.New(t, "templates", "list")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 
 		pty := ptytest.New(t)
 		inv.Stdin = pty.Input()

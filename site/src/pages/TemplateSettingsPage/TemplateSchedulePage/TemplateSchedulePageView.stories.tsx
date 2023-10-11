@@ -16,7 +16,7 @@ const queryClient = new QueryClient({
 });
 
 const meta: Meta<typeof TemplateSchedulePageView> = {
-  title: "pages/TemplateSchedulePageView",
+  title: "pages/TemplateSettingsPage/TemplateSchedulePageView",
   component: TemplateSchedulePageView,
   decorators: [
     (Story) => (
