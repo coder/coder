@@ -107,6 +107,13 @@ func (m metricsStore) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return r0, r1
 }
 
+func (m metricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ArchiveUnusedTemplateVersions(ctx, arg)
+	m.queryLatencies.WithLabelValues("ArchiveUnusedTemplateVersions").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m metricsStore) CleanTailnetCoordinators(ctx context.Context) error {
 	start := time.Now()
 	err := m.s.CleanTailnetCoordinators(ctx)
@@ -1430,6 +1437,13 @@ func (m metricsStore) TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock 
 	ok, err := m.s.TryAcquireLock(ctx, pgTryAdvisoryXactLock)
 	m.queryLatencies.WithLabelValues("TryAcquireLock").Observe(time.Since(start).Seconds())
 	return ok, err
+}
+
+func (m metricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	start := time.Now()
+	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnarchiveTemplateVersion").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m metricsStore) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {

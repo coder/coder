@@ -22,8 +22,7 @@ export const DuplicateTemplateView = () => {
   const templateByNameQuery = useQuery(
     templateByName(organizationId, searchParams.get("fromTemplate")!),
   );
-  const activeVersionId =
-    templateByNameQuery.data?.template.active_version_id ?? "";
+  const activeVersionId = templateByNameQuery.data?.active_version_id ?? "";
   const templateVersionQuery = useQuery({
     ...templateVersion(activeVersionId),
     enabled: templateByNameQuery.isSuccess,
@@ -63,7 +62,7 @@ export const DuplicateTemplateView = () => {
   return (
     <CreateTemplateForm
       {...formPermissions}
-      copiedTemplate={templateByNameQuery.data!.template}
+      copiedTemplate={templateByNameQuery.data!}
       error={createTemplateMutation.error}
       isSubmitting={createTemplateMutation.isLoading}
       variables={templateVersionVariablesQuery.data}

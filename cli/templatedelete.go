@@ -48,33 +48,13 @@ func (r *RootCmd) templateDelete() *clibase.Cmd {
 					templates = append(templates, template)
 				}
 			} else {
-				allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
+				template, err := selectTemplate(inv, client, organization)
 				if err != nil {
-					return xerrors.Errorf("get templates by organization: %w", err)
+					return err
 				}
 
-				if len(allTemplates) == 0 {
-					return xerrors.Errorf("no templates exist in the current organization %q", organization.Name)
-				}
-
-				opts := make([]string, 0, len(allTemplates))
-				for _, template := range allTemplates {
-					opts = append(opts, template.Name)
-				}
-
-				selection, err := cliui.Select(inv, cliui.SelectOptions{
-					Options: opts,
-				})
-				if err != nil {
-					return xerrors.Errorf("select template: %w", err)
-				}
-
-				for _, template := range allTemplates {
-					if template.Name == selection {
-						templates = append(templates, template)
-						templateNames = append(templateNames, template.Name)
-					}
-				}
+				templates = append(templates, template)
+				templateNames = append(templateNames, template.Name)
 			}
 
 			// Confirm deletion of the template.

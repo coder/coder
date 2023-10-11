@@ -17,9 +17,17 @@ coder templates versions list [flags] <template>
 |         |                                                       |
 | ------- | ----------------------------------------------------- |
 | Type    | <code>string-array</code>                             |
-| Default | <code>name,created at,created by,status,active</code> |
+| Default | <code>Name,Created At,Created By,Status,Active</code> |
 
-Columns to display in table output. Available columns: name, created at, created by, status, active.
+Columns to display in table output. Available columns: name, created at, created by, status, active, archived.
+
+### --include-archived
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Include archived versions in the result list.
 
 ### -o, --output
 

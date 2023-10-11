@@ -2111,15 +2111,15 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				t.Parallel()
 
 				client := coderdtest.New(t, nil)
-				admin := coderdtest.CreateFirstUser(t, client)
+				owner := coderdtest.CreateFirstUser(t, client)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
 				var templateIDs []uuid.UUID
 				if tt.withTemplate {
-					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 					templateIDs = append(templateIDs, template.ID)
 				}
 
@@ -2135,17 +2135,17 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				t.Parallel()
 
 				client := coderdtest.New(t, nil)
-				admin := coderdtest.CreateFirstUser(t, client)
+				owner := coderdtest.CreateFirstUser(t, client)
 
-				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
 				var templateIDs []uuid.UUID
 				if tt.withTemplate {
-					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 					templateIDs = append(templateIDs, template.ID)
 				}
 
@@ -2161,17 +2161,17 @@ func TestTemplateInsights_RBAC(t *testing.T) {
 				t.Parallel()
 
 				client := coderdtest.New(t, nil)
-				admin := coderdtest.CreateFirstUser(t, client)
+				owner := coderdtest.CreateFirstUser(t, client)
 
-				regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 				defer cancel()
 
 				var templateIDs []uuid.UUID
 				if tt.withTemplate {
-					version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-					template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+					version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+					template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 					templateIDs = append(templateIDs, template.ID)
 				}
 
@@ -2240,15 +2240,15 @@ func TestGenericInsights_RBAC(t *testing.T) {
 					t.Parallel()
 
 					client := coderdtest.New(t, nil)
-					admin := coderdtest.CreateFirstUser(t, client)
+					owner := coderdtest.CreateFirstUser(t, client)
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
 
 					var templateIDs []uuid.UUID
 					if tt.withTemplate {
-						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 						templateIDs = append(templateIDs, template.ID)
 					}
 
@@ -2262,17 +2262,17 @@ func TestGenericInsights_RBAC(t *testing.T) {
 					t.Parallel()
 
 					client := coderdtest.New(t, nil)
-					admin := coderdtest.CreateFirstUser(t, client)
+					owner := coderdtest.CreateFirstUser(t, client)
 
-					templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, rbac.RoleTemplateAdmin())
+					templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
 
 					var templateIDs []uuid.UUID
 					if tt.withTemplate {
-						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 						templateIDs = append(templateIDs, template.ID)
 					}
 
@@ -2286,17 +2286,17 @@ func TestGenericInsights_RBAC(t *testing.T) {
 					t.Parallel()
 
 					client := coderdtest.New(t, nil)
-					admin := coderdtest.CreateFirstUser(t, client)
+					owner := coderdtest.CreateFirstUser(t, client)
 
-					regular, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+					regular, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 					defer cancel()
 
 					var templateIDs []uuid.UUID
 					if tt.withTemplate {
-						version := coderdtest.CreateTemplateVersion(t, client, admin.OrganizationID, nil)
-						template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+						version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+						template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 						templateIDs = append(templateIDs, template.ID)
 					}
 

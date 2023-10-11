@@ -1680,7 +1680,8 @@ type ExternalAuthLink struct {
 	// The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
-	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthRefreshTokenKeyID sql.NullString        `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExtra             pqtype.NullRawMessage `db:"oauth_extra" json:"oauth_extra"`
 }
 
 type File struct {
@@ -1941,6 +1942,7 @@ type TemplateVersion struct {
 	CreatedBy             uuid.UUID      `db:"created_by" json:"created_by"`
 	ExternalAuthProviders []string       `db:"external_auth_providers" json:"external_auth_providers"`
 	Message               string         `db:"message" json:"message"`
+	Archived              bool           `db:"archived" json:"archived"`
 	CreatedByAvatarURL    sql.NullString `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string         `db:"created_by_username" json:"created_by_username"`
 }
@@ -1994,7 +1996,8 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders []string `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message string `db:"message" json:"message"`
+	Message  string `db:"message" json:"message"`
+	Archived bool   `db:"archived" json:"archived"`
 }
 
 type TemplateVersionVariable struct {

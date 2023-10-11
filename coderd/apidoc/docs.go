@@ -2295,6 +2295,12 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "type": "boolean",
+                        "description": "Include archived versions in the list",
+                        "name": "include_archived",
+                        "in": "query"
+                    },
+                    {
                         "type": "integer",
                         "description": "Page limit",
                         "name": "limit",
@@ -2353,6 +2359,53 @@ const docTemplate = `{
                         "name": "template",
                         "in": "path",
                         "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/templates/{template}/versions/archive": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Archive template unused versions by template id",
+                "operationId": "archive-template-unused-versions-by-template-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template ID",
+                        "name": "template",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Archive request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ArchiveTemplateVersionsRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -2485,6 +2538,41 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/archive": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Archive template version",
+                "operationId": "archive-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 }
@@ -2992,6 +3080,41 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/unarchive": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Unarchive template version",
+                "operationId": "unarchive-template-version",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 }
             }
@@ -4561,7 +4684,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/workspaceagents/me/gitauth": {
+        "/workspaceagents/me/external-auth": {
             "get": {
                 "security": [
                     {
@@ -4574,14 +4697,20 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get workspace agent Git auth",
-                "operationId": "get-workspace-agent-git-auth",
+                "summary": "Get workspace agent external auth",
+                "operationId": "get-workspace-agent-external-auth",
                 "parameters": [
                     {
                         "type": "string",
-                        "format": "uri",
-                        "description": "Git URL",
-                        "name": "url",
+                        "description": "Match",
+                        "name": "match",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
                         "in": "query",
                         "required": true
                     },
@@ -4596,7 +4725,54 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/agentsdk.GitAuthResponse"
+                            "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/workspaceagents/me/gitauth": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Removed: Get workspace agent git auth",
+                "operationId": "removed-get-workspace-agent-git-auth",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Match",
+                        "name": "match",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provider ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Wait for a new token to be issued",
+                        "name": "listen",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.ExternalAuthResponse"
                         }
                     }
                 }
@@ -6417,16 +6593,27 @@ const docTemplate = `{
                 }
             }
         },
-        "agentsdk.GitAuthResponse": {
+        "agentsdk.ExternalAuthResponse": {
             "type": "object",
             "properties": {
+                "access_token": {
+                    "type": "string"
+                },
                 "password": {
+                    "type": "string"
+                },
+                "token_extra": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "type": {
                     "type": "string"
                 },
                 "url": {
                     "type": "string"
                 },
                 "username": {
+                    "description": "Deprecated: Only supported on ` + "`" + `/workspaceagents/me/gitauth` + "`" + `\nfor backwards compatibility.",
                     "type": "string"
                 }
             }
@@ -7078,6 +7265,15 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.LinkConfig"
                     }
+                }
+            }
+        },
+        "codersdk.ArchiveTemplateVersionsRequest": {
+            "type": "object",
+            "properties": {
+                "all": {
+                    "description": "By default, only failed versions are archived. Set this to true\nto archive all unused versions regardless of job status.",
+                    "type": "boolean"
                 }
             }
         },
@@ -8145,6 +8341,9 @@ const docTemplate = `{
                 "verbose": {
                     "type": "boolean"
                 },
+                "web_terminal_renderer": {
+                    "type": "string"
+                },
                 "wgtunnel_host": {
                     "type": "string"
                 },
@@ -8320,6 +8519,12 @@ const docTemplate = `{
                 "display_name": {
                     "description": "DisplayName is shown in the UI to identify the auth config.",
                     "type": "string"
+                },
+                "extra_token_keys": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "description": "ID is a unique identifier for the auth config.\nIt defaults to ` + "`" + `type` + "`" + ` when not provided.",
@@ -10014,6 +10219,9 @@ const docTemplate = `{
         "codersdk.TemplateVersion": {
             "type": "object",
             "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -12107,6 +12315,10 @@ const docTemplate = `{
                 },
                 "agent_name_or_id": {
                     "description": "AgentNameOrID is not required if the workspace has only one agent.",
+                    "type": "string"
+                },
+                "app_prefix": {
+                    "description": "Prefix is the prefix of the subdomain app URL. Prefix should have a\ntrailing \"---\" if set.",
                     "type": "string"
                 },
                 "app_slug_or_port": {

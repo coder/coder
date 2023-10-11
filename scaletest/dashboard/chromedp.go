@@ -2,14 +2,18 @@ package dashboard
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/chromedp/cdproto/cdp"
 	"github.com/chromedp/cdproto/network"
 	"github.com/chromedp/chromedp"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/cryptorand"
 
 	"cdr.dev/slog"
 )
@@ -86,17 +90,17 @@ var defaultTargets = []Target{
 	},
 }
 
-// ClickRandomElement returns an action that will click an element from defaultTargets.
+// clickRandomElement returns an action that will click an element from defaultTargets.
 // If no elements are found, an error is returned.
 // If more than one element is found, one is chosen at random.
 // The label of the clicked element is returned.
-func ClickRandomElement(ctx context.Context, randIntn func(int) int) (Label, Action, error) {
+func clickRandomElement(ctx context.Context, log slog.Logger, randIntn func(int) int, deadline time.Time) (Label, Action, error) {
 	var xpath Selector
 	var found bool
 	var err error
 	matches := make([]Target, 0)
 	for _, tgt := range defaultTargets {
-		xpath, found, err = randMatch(ctx, tgt.ClickOn, randIntn)
+		xpath, found, err = randMatch(ctx, log, tgt.ClickOn, randIntn, deadline)
 		if err != nil {
 			return "", nil, xerrors.Errorf("find matches for %q: %w", tgt.ClickOn, err)
 		}
@@ -111,13 +115,19 @@ func ClickRandomElement(ctx context.Context, randIntn func(int) int) (Label, Act
 	}
 
 	if len(matches) == 0 {
+		log.Debug(ctx, "no matches found this time")
 		return "", nil, xerrors.Errorf("no matches found")
 	}
 	match := pick(matches, randIntn)
-	// rely on map iteration order being random
 	act := func(actx context.Context) error {
-		if err := clickAndWait(actx, match.ClickOn, match.WaitFor); err != nil {
+		log.Debug(ctx, "clicking", slog.F("label", match.Label), slog.F("xpath", match.ClickOn))
+		if err := runWithDeadline(ctx, deadline, chromedp.Click(match.ClickOn, chromedp.NodeReady)); err != nil {
+			log.Error(ctx, "click failed", slog.F("label", match.Label), slog.F("xpath", match.ClickOn), slog.Error(err))
 			return xerrors.Errorf("click %q: %w", match.ClickOn, err)
+		}
+		if err := runWithDeadline(ctx, deadline, chromedp.WaitReady(match.WaitFor)); err != nil {
+			log.Error(ctx, "wait failed", slog.F("label", match.Label), slog.F("xpath", match.WaitFor), slog.Error(err))
+			return xerrors.Errorf("wait for %q: %w", match.WaitFor, err)
 		}
 		return nil
 	}
@@ -128,26 +138,32 @@ func ClickRandomElement(ctx context.Context, randIntn func(int) int) (Label, Act
 // The returned selector is the full XPath of the matched node.
 // If no matches are found, an error is returned.
 // If multiple matches are found, one is chosen at random.
-func randMatch(ctx context.Context, s Selector, randIntn func(int) int) (Selector, bool, error) {
+func randMatch(ctx context.Context, log slog.Logger, s Selector, randIntn func(int) int, deadline time.Time) (Selector, bool, error) {
 	var nodes []*cdp.Node
-	err := chromedp.Run(ctx, chromedp.Nodes(s, &nodes, chromedp.NodeVisible, chromedp.AtLeast(0)))
-	if err != nil {
+	log.Debug(ctx, "getting nodes for selector", slog.F("selector", s))
+	if err := runWithDeadline(ctx, deadline, chromedp.Nodes(s, &nodes, chromedp.NodeReady, chromedp.AtLeast(0))); err != nil {
+		log.Debug(ctx, "failed to get nodes for selector", slog.F("selector", s), slog.Error(err))
 		return "", false, xerrors.Errorf("get nodes for selector %q: %w", s, err)
 	}
 	if len(nodes) == 0 {
+		log.Debug(ctx, "no nodes found for selector", slog.F("selector", s))
 		return "", false, nil
 	}
 	n := pick(nodes, randIntn)
+	log.Debug(ctx, "found node", slog.F("node", n.FullXPath()))
 	return Selector(n.FullXPath()), true, nil
 }
 
-// clickAndWait clicks the given selector and waits for the page to finish loading.
-// The page is considered loaded when the network event "LoadingFinished" is received.
-func clickAndWait(ctx context.Context, clickOn, waitFor Selector) error {
-	return chromedp.Run(ctx, chromedp.Tasks{
-		chromedp.Click(clickOn, chromedp.NodeVisible),
-		chromedp.WaitVisible(waitFor, chromedp.NodeVisible),
-	})
+func waitForWorkspacesPageLoaded(ctx context.Context, deadline time.Time) error {
+	return runWithDeadline(ctx, deadline, chromedp.WaitReady(`tbody.MuiTableBody-root`))
+}
+
+func runWithDeadline(ctx context.Context, deadline time.Time, acts ...chromedp.Action) error {
+	deadlineCtx, deadlineCancel := context.WithDeadline(ctx, deadline)
+	defer deadlineCancel()
+	c := chromedp.FromContext(ctx)
+	tasks := chromedp.Tasks(acts)
+	return tasks.Do(cdp.WithExecutor(deadlineCtx, c.Target))
 }
 
 // initChromeDPCtx initializes a chromedp context with the given session token cookie
@@ -176,6 +192,13 @@ func initChromeDPCtx(ctx context.Context, log slog.Logger, u *url.URL, sessionTo
 		if err := os.RemoveAll(dir); err != nil {
 			log.Error(ctx, "failed to remove temp user data dir", slog.F("dir", dir), slog.Error(err))
 		}
+	}
+
+	// force a viewport size of 1024x768 so we don't go into mobile mode
+	if err := chromedp.Run(cdpCtx, chromedp.EmulateViewport(1024, 768)); err != nil {
+		cancelFunc()
+		allocCtxCancel()
+		return nil, nil, xerrors.Errorf("set viewport size: %w", err)
 	}
 
 	// set cookies
@@ -207,6 +230,34 @@ func setSessionTokenCookie(ctx context.Context, token, domain string) error {
 
 func visitMainPage(ctx context.Context, u *url.URL) error {
 	return chromedp.Run(ctx, chromedp.Navigate(u.String()))
+}
+
+func Screenshot(ctx context.Context, name string) (string, error) {
+	var buf []byte
+	if err := chromedp.Run(ctx, chromedp.CaptureScreenshot(&buf)); err != nil {
+		return "", xerrors.Errorf("capture screenshot: %w", err)
+	}
+	randExt, err := cryptorand.String(4)
+	if err != nil {
+		// this should never happen
+		return "", xerrors.Errorf("generate random string: %w", err)
+	}
+	fname := fmt.Sprintf("scaletest-dashboard-%s-%s-%s.png", name, time.Now().Format("20060102-150405"), randExt)
+	pwd, err := os.Getwd()
+	if err != nil {
+		return "", xerrors.Errorf("get working directory: %w", err)
+	}
+	fpath := filepath.Join(pwd, fname)
+	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return "", xerrors.Errorf("open file: %w", err)
+	}
+	defer f.Close()
+	if _, err := f.Write(buf); err != nil {
+		return "", xerrors.Errorf("write file: %w", err)
+	}
+
+	return fpath, nil
 }
 
 // pick chooses a random element from a slice.

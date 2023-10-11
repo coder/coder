@@ -7,7 +7,7 @@ import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "xServices/auth/authXService";
+import { Permissions } from "components/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -379,6 +379,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+  archived: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -397,6 +398,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+  archived: false,
 };
 
 export const MockTemplateVersion3: TypesGen.TemplateVersion = {
@@ -410,6 +412,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
+  archived: false,
 };
 
 export const MockTemplate: TypesGen.Template = {

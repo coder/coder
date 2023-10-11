@@ -1,7 +1,7 @@
 import { assign, createMachine } from "xstate";
 import { getUpdateCheck } from "api/api";
 import { AuthorizationResponse, UpdateCheckResponse } from "api/typesGenerated";
-import { checks, Permissions } from "xServices/auth/authXService";
+import { checks, Permissions } from "components/AuthProvider/permissions";
 
 export interface UpdateCheckContext {
   permissions: Permissions;

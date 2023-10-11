@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -29,11 +30,12 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -41,7 +43,7 @@ func TestTemplatePush(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
@@ -75,11 +77,12 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("Message less than or equal to 72 chars", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
@@ -88,7 +91,7 @@ func TestTemplatePush(t *testing.T) {
 		wantMessage := strings.Repeat("a", 72)
 
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", wantMessage, "--yes")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
@@ -114,11 +117,12 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("Message too long, warn but continue", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
@@ -134,8 +138,13 @@ func TestTemplatePush(t *testing.T) {
 			{wantMessage: strings.Repeat("a", 73), wantMatch: "Template message is longer than 72 characters"},
 			{wantMessage: "This is my title\n\nAnd this is my body.", wantMatch: "Template message contains newlines"},
 		} {
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--message", tt.wantMessage, "--yes")
-			clitest.SetupConfig(t, client, root)
+			inv, root := clitest.New(t, "templates", "push", template.Name,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--message", tt.wantMessage,
+				"--yes",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
 			inv = inv.WithContext(ctx)
@@ -159,11 +168,12 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("NoLockfile", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -172,8 +182,12 @@ func TestTemplatePush(t *testing.T) {
 		})
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-		clitest.SetupConfig(t, client, root)
+		inv, root := clitest.New(t, "templates", "push", template.Name,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
@@ -202,11 +216,12 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("NoLockfileIgnored", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
@@ -215,8 +230,13 @@ func TestTemplatePush(t *testing.T) {
 		})
 		require.NoError(t, os.Remove(filepath.Join(source, ".terraform.lock.hcl")))
 
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--ignore-lockfile")
-		clitest.SetupConfig(t, client, root)
+		inv, root := clitest.New(t, "templates", "push", template.Name,
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+			"--ignore-lockfile",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		execDone := make(chan error)
@@ -239,19 +259,25 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("PushInactiveTemplateVersion", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		// Test the cli command.
 		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionApply: echo.ApplyComplete,
 		})
-		inv, root := clitest.New(t, "templates", "push", template.Name, "--activate=false", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-		clitest.SetupConfig(t, client, root)
+		inv, root := clitest.New(t, "templates", "push", template.Name,
+			"--activate=false",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--name", "example",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
 
@@ -286,8 +312,9 @@ func TestTemplatePush(t *testing.T) {
 		}
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// Test the cli command.
@@ -296,15 +323,18 @@ func TestTemplatePush(t *testing.T) {
 			ProvisionApply: echo.ApplyComplete,
 		})
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID,
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID,
 			func(r *codersdk.CreateTemplateRequest) {
 				r.Name = filepath.Base(source)
 			})
 
 		// Don't pass the name of the template, it should use the
 		// directory of the source.
-		inv, root := clitest.New(t, "templates", "push", "--test.provisioner", string(database.ProvisionerTypeEcho), "--test.workdir", source)
-		clitest.SetupConfig(t, client, root)
+		inv, root := clitest.New(t, "templates", "push",
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--test.workdir", source,
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t).Attach(inv)
 
 		waiter := clitest.StartWithWaiter(t, inv)
@@ -334,8 +364,9 @@ func TestTemplatePush(t *testing.T) {
 	t.Run("Stdin", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		source, err := echo.Tar(&echo.Responses{
@@ -344,14 +375,14 @@ func TestTemplatePush(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 		inv, root := clitest.New(
 			t, "templates", "push", "--directory", "-",
 			"--test.provisioner", string(database.ProvisionerTypeEcho),
 			template.Name,
 		)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, templateAdmin, root)
 		pty := ptytest.New(t)
 		inv.Stdin = bytes.NewReader(source)
 		inv.Stdout = pty.Output()
@@ -389,11 +420,12 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("VariableIsRequired", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
 			modifiedTemplateVariables := append(initialTemplateVariables,
@@ -409,8 +441,13 @@ func TestTemplatePush(t *testing.T) {
 			removeTmpDirUntilSuccessAfterTest(t, tempDir)
 			variablesFile, _ := os.CreateTemp(tempDir, "variables*.yaml")
 			_, _ = variablesFile.WriteString(`second_variable: foobar`)
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variables-file", variablesFile.Name())
-			clitest.SetupConfig(t, client, root)
+			inv, root := clitest.New(t, "templates", "push", template.Name,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--name", "example",
+				"--variables-file", variablesFile.Name(),
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -452,11 +489,12 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("VariableIsRequiredButNotProvided", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
 			modifiedTemplateVariables := append(initialTemplateVariables,
@@ -469,7 +507,7 @@ func TestTemplatePush(t *testing.T) {
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
 			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -498,11 +536,12 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("VariableIsOptionalButNotProvided", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
 			modifiedTemplateVariables := append(initialTemplateVariables,
@@ -515,8 +554,12 @@ func TestTemplatePush(t *testing.T) {
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
-			clitest.SetupConfig(t, client, root)
+			inv, root := clitest.New(t, "templates", "push", template.Name,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--name", "example",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -559,11 +602,12 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("WithVariableOption", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
-			templateVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
+			templateVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, createEchoResponsesWithTemplateVariables(initialTemplateVariables))
 			_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, templateVersion.ID)
-			template := coderdtest.CreateTemplate(t, client, user.OrganizationID, templateVersion.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, templateVersion.ID)
 
 			// Test the cli command.
 			modifiedTemplateVariables := append(initialTemplateVariables,
@@ -575,8 +619,14 @@ func TestTemplatePush(t *testing.T) {
 				},
 			)
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(modifiedTemplateVariables))
-			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--variable", "second_variable=foobar")
-			clitest.SetupConfig(t, client, root)
+			inv, root := clitest.New(t,
+				"templates", "push", template.Name,
+				"--directory", source,
+				"--test.provisioner", string(database.ProvisionerTypeEcho),
+				"--name", "example",
+				"--variable", "second_variable=foobar",
+			)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -618,7 +668,8 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("CreateTemplate", func(t *testing.T) {
 			t.Parallel()
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-			user := coderdtest.CreateFirstUser(t, client)
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 			source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
 
 			const templateName = "my-template"
@@ -631,7 +682,7 @@ func TestTemplatePush(t *testing.T) {
 				"--create",
 			}
 			inv, root := clitest.New(t, args...)
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, templateAdmin, root)
 			pty := ptytest.New(t).Attach(inv)
 
 			waiter := clitest.StartWithWaiter(t, inv)
@@ -652,7 +703,7 @@ func TestTemplatePush(t *testing.T) {
 
 			waiter.RequireSuccess()
 
-			template, err := client.TemplateByName(context.Background(), user.OrganizationID, templateName)
+			template, err := client.TemplateByName(context.Background(), owner.OrganizationID, templateName)
 			require.NoError(t, err)
 			require.Equal(t, templateName, template.Name)
 			require.NotEqual(t, uuid.Nil, template.ActiveVersionID)

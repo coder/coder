@@ -22,6 +22,7 @@ func WriteWorkspaceApp404(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
 			slog.F("agent_name_or_id", appReq.AgentNameOrID),
 			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+			slog.F("hostname_prefix", appReq.Prefix),
 			slog.F("warnings", warnings),
 		)
 	}
@@ -48,6 +49,7 @@ func WriteWorkspaceApp500(log slog.Logger, accessURL *url.URL, rw http.ResponseW
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
 			slog.F("agent_name_or_id", appReq.AgentNameOrID),
 			slog.F("app_name_or_port", appReq.AppSlugOrPort),
+			slog.F("hostname_prefix", appReq.Prefix),
 		)
 	}
 	log.Warn(ctx,
@@ -76,6 +78,7 @@ func WriteWorkspaceAppOffline(log slog.Logger, accessURL *url.URL, rw http.Respo
 			slog.F("workspace_name_or_id", appReq.WorkspaceNameOrID),
 			slog.F("agent_name_or_id", appReq.AgentNameOrID),
 			slog.F("app_slug_or_port", appReq.AppSlugOrPort),
+			slog.F("hostname_prefix", appReq.Prefix),
 		)
 	}
 

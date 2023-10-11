@@ -49,6 +49,7 @@ export default defineConfig({
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
+      `--web-terminal-renderer=dom ` +
       `--pprof-enable`,
     env: {
       ...process.env,

@@ -1,30 +1,27 @@
 import { makeStyles } from "@mui/styles";
-import { FullScreenLoader } from "components/Loader/FullScreenLoader";
 import { FC } from "react";
 import { useLocation } from "react-router-dom";
-import { AuthContext, UnauthenticatedData } from "xServices/auth/authXService";
 import { SignInForm } from "./SignInForm";
 import { retrieveRedirect } from "utils/redirect";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { getApplicationName, getLogoURL } from "utils/appearance";
+import { AuthMethods } from "api/typesGenerated";
 
 export interface LoginPageViewProps {
-  context: AuthContext;
-  isLoading: boolean;
+  authMethods: AuthMethods | undefined;
+  error: unknown;
   isSigningIn: boolean;
   onSignIn: (credentials: { email: string; password: string }) => void;
 }
 
 export const LoginPageView: FC<LoginPageViewProps> = ({
-  context,
-  isLoading,
+  authMethods,
+  error,
   isSigningIn,
   onSignIn,
 }) => {
   const location = useLocation();
   const redirectTo = retrieveRedirect(location.search);
-  const { error } = context;
-  const data = context.data as UnauthenticatedData;
   const styles = useStyles();
   // This allows messages to be displayed at the top of the sign in form.
   // Helpful for any redirects that want to inform the user of something.
@@ -47,14 +44,12 @@ export const LoginPageView: FC<LoginPageViewProps> = ({
     <CoderIcon fill="white" opacity={1} className={styles.icon} />
   );
 
-  return isLoading ? (
-    <FullScreenLoader />
-  ) : (
+  return (
     <div className={styles.root}>
       <div className={styles.container}>
         {applicationLogo}
         <SignInForm
-          authMethods={data.authMethods}
+          authMethods={authMethods}
           redirectTo={redirectTo}
           isSigningIn={isSigningIn}
           error={error}
