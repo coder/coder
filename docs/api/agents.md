@@ -518,6 +518,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   ],
   "motd_file": "string",
+  "owner_name": "string",
   "scripts": [
     {
       "cron": "string",

@@ -6574,6 +6574,9 @@ const docTemplate = `{
                 "motd_file": {
                     "type": "string"
                 },
+                "owner_name": {
+                    "type": "string"
+                },
                 "scripts": {
                     "type": "array",
                     "items": {
@@ -6584,7 +6587,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "workspace_id": {
-                    "description": "Allows a forwarding proxy to identify workspaces from /workspaceagents/me/* calls",
                     "type": "string"
                 }
             }

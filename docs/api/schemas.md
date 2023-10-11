@@ -283,6 +283,7 @@
     }
   ],
   "motd_file": "string",
+  "owner_name": "string",
   "scripts": [
     {
       "cron": "string",
@@ -315,9 +316,10 @@
 | `git_auth_configs`           | integer                                                                                           | false    |              | Git auth configs stores the number of Git configurations the Coder deployment has. If this number is >0, we set up special configuration in the workspace. |
 | `metadata`                   | array of [codersdk.WorkspaceAgentMetadataDescription](#codersdkworkspaceagentmetadatadescription) | false    |              |                                                                                                                                                            |
 | `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
+| `owner_name`                 | string                                                                                            | false    |              |                                                                                                                                                            |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
-| `workspace_id`               | string                                                                                            | false    |              | Allows a forwarding proxy to identify workspaces from /workspaceagents/me/\* calls                                                                         |
+| `workspace_id`               | string                                                                                            | false    |              |                                                                                                                                                            |
 
 ## agentsdk.PatchLogs
 
