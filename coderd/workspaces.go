@@ -131,7 +131,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, postFilter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(queryStr, page, api.AgentInactiveDisconnectTimeout)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -191,26 +191,8 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var filteredWorkspaces []codersdk.Workspace
-	// apply post filters, if they exist
-	if postFilter.DeletingBy == nil {
-		filteredWorkspaces = append(filteredWorkspaces, wss...)
-	} else {
-		for _, v := range wss {
-			if v.DeletingAt == nil {
-				continue
-			}
-			// get the beginning of the day on which deletion is scheduled
-			truncatedDeletionAt := time.Date(v.DeletingAt.Year(), v.DeletingAt.Month(), v.DeletingAt.Day(), 0, 0, 0, 0, v.DeletingAt.Location())
-			if truncatedDeletionAt.After(*postFilter.DeletingBy) {
-				continue
-			}
-			filteredWorkspaces = append(filteredWorkspaces, v)
-		}
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspacesResponse{
-		Workspaces: filteredWorkspaces,
+		Workspaces: wss,
 		Count:      int(workspaceRows[0].Count),
 	})
 }

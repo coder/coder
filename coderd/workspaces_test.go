@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1395,63 +1394,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		}, testutil.IntervalMedium, "agent status timeout")
 	})
 
-	t.Run("FilterQueryHasDeletingByAndUnlicensed", func(t *testing.T) {
-		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
-		t.Parallel()
-		inactivityTTL := 1 * 24 * time.Hour
-		var setCalled int64
-
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
-				SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
-					if atomic.AddInt64(&setCalled, 1) == 2 {
-						assert.Equal(t, inactivityTTL, options.TimeTilDormant)
-					}
-					template.TimeTilDormant = int64(options.TimeTilDormant)
-					return template, nil
-				},
-			},
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		authToken := uuid.NewString()
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
-		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-
-		// update template with inactivity ttl
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactivityTTL.Milliseconds(),
-		})
-
-		assert.NoError(t, err)
-		assert.Equal(t, inactivityTTL.Milliseconds(), template.TimeTilDormantMillis)
-
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		// stop build so workspace is inactive
-		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
-
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(inactivityTTL).Format("2006-01-02")),
-		})
-
-		assert.NoError(t, err)
-		// we are expecting that no workspaces are returned as user is unlicensed
-		// and template.TimeTilDormant should be 0
-		assert.Len(t, res.Workspaces, 0)
-	})
-
-	t.Run("DormantAt", func(t *testing.T) {
+	t.Run("IsDormant", func(t *testing.T) {
 		// this test has a licensed counterpart in enterprise/coderd/workspaces_test.go: FilterQueryHasDeletingByAndLicensed
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{
@@ -1484,7 +1427,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		require.NoError(t, err)
 
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			FilterQuery: fmt.Sprintf("dormant_at:%s", time.Now().Add(-time.Minute).Format("2006-01-02")),
+			FilterQuery: "is-dormant:true",
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 1)

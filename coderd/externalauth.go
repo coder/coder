@@ -8,13 +8,14 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/sqlc-dev/pqtype"
+
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/sqlc-dev/pqtype"
 )
 
 // @Summary Get external auth by ID
