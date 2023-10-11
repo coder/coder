@@ -552,13 +552,13 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
-	if req.AutostartRequirment == nil {
-		req.AutostartRequirment = &codersdk.TemplateAutostartRequirement{
+	if req.AutostartRequirement == nil {
+		req.AutostartRequirement = &codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostartRequirement.DaysOfWeek),
 		}
 	}
-	if len(req.AutostartRequirment.DaysOfWeek) > 0 {
-		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostartRequirment.DaysOfWeek)
+	if len(req.AutostartRequirement.DaysOfWeek) > 0 {
+		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostartRequirement.DaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
 		}

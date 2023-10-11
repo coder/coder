@@ -201,11 +201,11 @@ type UpdateTemplateMeta struct {
 	DefaultTTLMillis int64  `json:"default_ttl_ms,omitempty"`
 	// TODO(@dean): remove max_ttl once autostop_requirement is matured
 	MaxTTLMillis int64 `json:"max_ttl_ms,omitempty"`
-	// AutostopRequirement and AutostartRequirment can only be set if your license
+	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.
 	AutostopRequirement            *TemplateAutostopRequirement  `json:"autostop_requirement,omitempty"`
-	AutostartRequirment            *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
+	AutostartRequirement           *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 	AllowUserAutostart             bool                          `json:"allow_user_autostart,omitempty"`
 	AllowUserAutostop              bool                          `json:"allow_user_autostop,omitempty"`
 	AllowUserCancelWorkspaceJobs   bool                          `json:"allow_user_cancel_workspace_jobs,omitempty"`
