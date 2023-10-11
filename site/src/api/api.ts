@@ -461,9 +461,9 @@ export const getWorkspaces = async (
 ): Promise<TypesGen.WorkspacesResponse> => {
   const url = getURLWithSearchParams("/api/v2/workspaces", options);
   const response = await axios.get<TypesGen.WorkspacesResponse>(url);
-  return response.data;
   console.log("response", response);
   console.log("response.data", response.data);
+  return response.data;
 };
 
 export const getWorkspaceByOwnerAndName = async (

@@ -62,7 +62,7 @@ export const getErrorMessage = (
   error: unknown,
   defaultMessage: string,
 ): string => {
-  if (isApiError(error)) {
+  if (isApiError(error) && error.response.data.message) {
     console.log("in first error block");
     return error.response.data.message;
   }
