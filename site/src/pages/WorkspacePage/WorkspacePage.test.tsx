@@ -26,10 +26,7 @@ import {
 } from "testHelpers/entities";
 import * as api from "api/api";
 import { Workspace } from "api/typesGenerated";
-import {
-  renderWithAuth,
-  waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
 
@@ -50,8 +47,7 @@ const renderWorkspacePage = async () => {
     route: `/@${MockWorkspace.owner_name}/${MockWorkspace.name}`,
     path: "/:username/:workspace",
   });
-
-  await waitForLoaderToBeRemoved();
+  await screen.findByText(MockWorkspace.name);
 };
 
 /**
