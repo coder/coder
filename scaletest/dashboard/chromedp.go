@@ -243,7 +243,10 @@ func Screenshot(ctx context.Context, name string) (string, error) {
 		return "", xerrors.Errorf("generate random string: %w", err)
 	}
 	fname := fmt.Sprintf("scaletest-dashboard-%s-%s-%s.png", name, time.Now().Format("20060102-150405"), randExt)
-	pwd := os.Getenv("PWD")
+	pwd, err := os.Getwd()
+	if err != nil {
+		return "", xerrors.Errorf("get working directory: %w", err)
+	}
 	fpath := filepath.Join(pwd, fname)
 	f, err := os.OpenFile(fpath, os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
