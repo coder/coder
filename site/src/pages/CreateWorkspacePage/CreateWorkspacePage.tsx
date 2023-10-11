@@ -9,10 +9,7 @@ import { type FC, useCallback, useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import {
-  CreateWSPermissions,
-  createWorkspaceMachine,
-} from "xServices/createWorkspace/createWorkspaceXService";
+import { createWorkspaceMachine } from "xServices/createWorkspace/createWorkspaceXService";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 import { Loader } from "components/Loader/Loader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -23,8 +20,15 @@ import {
   NumberDictionary,
 } from "unique-names-generator";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { templateVersionExternalAuth } from "api/queries/templates";
+import {
+  templateByName,
+  templateVersionExternalAuth,
+} from "api/queries/templates";
 import { autoCreateWorkspace } from "api/queries/workspaces";
+import { checkAuthorization } from "api/queries/authCheck";
+import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
+import { richParameters } from "api/queries/templateVersions";
+import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
 type CreateWorkspaceMode = "form" | "auto";
 
@@ -69,6 +73,21 @@ const CreateWorkspacePage: FC = () => {
     autoCreateWorkspace(queryClient),
   );
 
+  const templateQuery = useQuery(templateByName(organizationId, templateName));
+  const permissionsQuery = useQuery(
+    checkAuthorization({
+      checks: createWorkspaceChecks(organizationId),
+    }),
+  );
+  const realizedVersionId = versionId ?? templateQuery.data?.active_version_id;
+  const richParametersQuery = useQuery({
+    ...richParameters(realizedVersionId ?? ""),
+    enabled: realizedVersionId !== undefined,
+  });
+  const realizedParameters = richParametersQuery.data
+    ? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
+    : undefined;
+
   const title = autoCreateWorkspaceMutation.isLoading
     ? "Creating workspace..."
     : "Create workspace";
@@ -103,6 +122,31 @@ const CreateWorkspacePage: FC = () => {
     searchParams,
     setSearchParams,
     templateName,
+  ]);
+
+  useEffect(() => {
+    if (
+      templateQuery.data &&
+      permissionsQuery.data &&
+      realizedParameters &&
+      realizedVersionId
+    ) {
+      send({
+        type: "LOAD_FORM_DATA",
+        data: {
+          template: templateQuery.data,
+          permissions: permissionsQuery.data as CreateWSPermissions,
+          parameters: realizedParameters,
+          versionId: realizedVersionId,
+        },
+      });
+    }
+  }, [
+    permissionsQuery.data,
+    realizedParameters,
+    send,
+    templateQuery.data,
+    realizedVersionId,
   ]);
 
   return (

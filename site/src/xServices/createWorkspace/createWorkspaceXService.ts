@@ -1,9 +1,4 @@
-import {
-  checkAuthorization,
-  createWorkspace,
-  getTemplateByName,
-  getTemplateVersionRichParameters,
-} from "api/api";
+import { createWorkspace } from "api/api";
 import {
   CreateWorkspaceRequest,
   Template,
@@ -12,8 +7,8 @@ import {
   Workspace,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
+import { CreateWSPermissions } from "pages/CreateWorkspacePage/permissions";
 import { assign, createMachine } from "xstate";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 
 type CreateWorkspaceContext = {
   organizationId: string;
@@ -46,15 +41,18 @@ export const createWorkspaceMachine =
       tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
       schema: {
         context: {} as CreateWorkspaceContext,
-        events: {} as CreateWorkspaceEvent,
+        events: {} as
+          | CreateWorkspaceEvent
+          | {
+              type: "LOAD_FORM_DATA";
+              data: {
+                template: Template;
+                permissions: CreateWSPermissions;
+                parameters: TemplateVersionParameter[];
+                versionId: string;
+              };
+            },
         services: {} as {
-          loadFormData: {
-            data: {
-              template: Template;
-              permissions: CreateWSPermissions;
-              parameters: TemplateVersionParameter[];
-            };
-          };
           createWorkspace: {
             data: Workspace;
           };
@@ -63,15 +61,10 @@ export const createWorkspaceMachine =
       initial: "loadingFormData",
       states: {
         loadingFormData: {
-          invoke: {
-            src: "loadFormData",
-            onDone: {
+          on: {
+            LOAD_FORM_DATA: {
               target: "idle",
               actions: ["assignFormData"],
-            },
-            onError: {
-              target: "loadError",
-              actions: ["assignError"],
             },
           },
         },
@@ -120,26 +113,6 @@ export const createWorkspaceMachine =
 
           return createWorkspace(organizationId, owner.id, request);
         },
-        loadFormData: async ({ templateName, organizationId, versionId }) => {
-          const [template, permissions] = await Promise.all([
-            getTemplateByName(organizationId, templateName),
-            checkCreateWSPermissions(organizationId),
-          ]);
-
-          const realizedVersionId = versionId ?? template.active_version_id;
-          const [parameters] = await Promise.all([
-            getTemplateVersionRichParameters(realizedVersionId).then((p) =>
-              p.filter(paramsUsedToCreateWorkspace),
-            ),
-          ]);
-
-          return {
-            template,
-            permissions,
-            parameters,
-            versionId: realizedVersionId,
-          };
-        },
       },
       actions: {
         assignFormData: assign((ctx, event) => {
@@ -157,27 +130,3 @@ export const createWorkspaceMachine =
       },
     },
   );
-
-const checkCreateWSPermissions = async (organizationId: string) => {
-  // HACK: below, we pass in * for the owner_id, which is a hacky way of checking if the
-  // current user can create a workspace on behalf of anyone within the org (only org owners should be able to do this).
-  // This pattern should not be replicated outside of this narrow use case.
-  const permissionsToCheck = {
-    createWorkspaceForUser: {
-      object: {
-        resource_type: "workspace",
-        organization_id: organizationId,
-        owner_id: "*",
-      },
-      action: "create",
-    },
-  } as const;
-
-  return checkAuthorization({
-    checks: permissionsToCheck,
-  }) as Promise<Record<keyof typeof permissionsToCheck, boolean>>;
-};
-
-export type CreateWSPermissions = Awaited<
-  ReturnType<typeof checkCreateWSPermissions>
->;

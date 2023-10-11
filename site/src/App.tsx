@@ -14,7 +14,7 @@ import {
 } from "@mui/material/styles";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 
-const queryClient = new QueryClient({
+const defaultQueryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
@@ -38,7 +38,9 @@ export const ThemeProviders: FC<PropsWithChildren> = ({ children }) => {
   );
 };
 
-export const AppProviders: FC<PropsWithChildren> = ({ children }) => {
+export const AppProviders: FC<
+  PropsWithChildren<{ queryClient?: QueryClient }>
+> = ({ children, queryClient = defaultQueryClient }) => {
   return (
     <HelmetProvider>
       <ThemeProviders>
