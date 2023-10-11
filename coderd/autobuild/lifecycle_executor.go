@@ -364,7 +364,8 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	return currentTick.After(nextTransition)
+	// Must used '.Before' vs '.After' so equal times are considered "valid for autostart".
+	return !currentTick.Before(nextTransition)
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
