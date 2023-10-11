@@ -2,9 +2,11 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Box from "@mui/material/Box";
 import { styled, useTheme } from "@mui/material/styles";
 import { BoxProps } from "@mui/system";
-import { useQuery } from "@tanstack/react-query";
-import { getInsightsTemplate, getInsightsUserLatency } from "api/api";
-import { DAUChart, DAUTitle } from "components/DAUChart/DAUChart";
+import { useQuery } from "react-query";
+import {
+  ActiveUsersTitle,
+  ActiveUserChart,
+} from "components/ActiveUserChart/ActiveUserChart";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
   HelpTooltip,
@@ -19,48 +21,64 @@ import { Helmet } from "react-helmet-async";
 import { getTemplatePageTitle } from "../utils";
 import { Loader } from "components/Loader/Loader";
 import {
-  DAUsResponse,
+  Entitlements,
+  Template,
+  TemplateAppUsage,
   TemplateInsightsResponse,
   TemplateParameterUsage,
   TemplateParameterValue,
+  UserActivityInsightsResponse,
   UserLatencyInsightsResponse,
 } from "api/typesGenerated";
-import { ComponentProps, ReactNode, useState } from "react";
-import { subDays, isToday } from "date-fns";
+import { ComponentProps, ReactNode } from "react";
+import { subDays, addWeeks, format } from "date-fns";
 import "react-date-range/dist/styles.css";
 import "react-date-range/dist/theme/default.css";
-import { DateRange, DateRangeValue } from "./DateRange";
+import { DateRange as DailyPicker, DateRangeValue } from "./DateRange";
 import Link from "@mui/material/Link";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 import CancelOutlined from "@mui/icons-material/CancelOutlined";
-import { getDateRangeFilter } from "./utils";
+import { lastWeeks } from "./utils";
 import Tooltip from "@mui/material/Tooltip";
 import LinkOutlined from "@mui/icons-material/LinkOutlined";
+import { InsightsInterval, IntervalMenu } from "./IntervalMenu";
+import { WeekPicker, numberOfWeeksOptions } from "./WeekPicker";
+import {
+  insightsTemplate,
+  insightsUserActivity,
+  insightsUserLatency,
+} from "api/queries/insights";
+import { useSearchParams } from "react-router-dom";
+import { entitlements } from "api/queries/entitlements";
+
+const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
 
 export default function TemplateInsightsPage() {
-  const now = new Date();
-  const [dateRangeValue, setDateRangeValue] = useState<DateRangeValue>({
-    startDate: subDays(now, 6),
-    endDate: now,
-  });
   const { template } = useTemplateLayoutContext();
-  const insightsFilter = {
-    template_ids: template.id,
-    ...getDateRangeFilter({
-      startDate: dateRangeValue.startDate,
-      endDate: dateRangeValue.endDate,
-      now,
-      isToday,
-    }),
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const defaultInterval = getDefaultInterval(template);
+  const interval =
+    (searchParams.get("interval") as InsightsInterval) || defaultInterval;
+
+  const dateRange = getDateRange(searchParams, interval);
+  const setDateRange = (newDateRange: DateRangeValue) => {
+    searchParams.set("startDate", newDateRange.startDate.toISOString());
+    searchParams.set("endDate", newDateRange.endDate.toISOString());
+    setSearchParams(searchParams);
   };
-  const { data: templateInsights } = useQuery({
-    queryKey: ["templates", template.id, "usage", insightsFilter],
-    queryFn: () => getInsightsTemplate(insightsFilter),
-  });
-  const { data: userLatency } = useQuery({
-    queryKey: ["templates", template.id, "user-latency", insightsFilter],
-    queryFn: () => getInsightsUserLatency(insightsFilter),
-  });
+
+  const commonFilters = {
+    template_ids: template.id,
+    start_time: toISOLocal(dateRange.startDate),
+    end_time: toISOLocal(dateRange.endDate),
+  };
+
+  const insightsFilter = { ...commonFilters, interval };
+  const { data: templateInsights } = useQuery(insightsTemplate(insightsFilter));
+  const { data: userLatency } = useQuery(insightsUserLatency(commonFilters));
+  const { data: userActivity } = useQuery(insightsUserActivity(commonFilters));
+  const { data: entitlementsQuery } = useQuery(entitlements());
 
   return (
     <>
@@ -68,77 +86,163 @@ export default function TemplateInsightsPage() {
         <title>{getTemplatePageTitle("Insights", template)}</title>
       </Helmet>
       <TemplateInsightsPageView
-        dateRange={
-          <DateRange value={dateRangeValue} onChange={setDateRangeValue} />
+        controls={
+          <>
+            <IntervalMenu
+              value={interval}
+              onChange={(interval) => {
+                // When going from daily to week we need to set a safe week range
+                if (interval === "week") {
+                  setDateRange(lastWeeks(DEFAULT_NUMBER_OF_WEEKS));
+                }
+                searchParams.set("interval", interval);
+                setSearchParams(searchParams);
+              }}
+            />
+            {interval === "day" ? (
+              <DailyPicker value={dateRange} onChange={setDateRange} />
+            ) : (
+              <WeekPicker value={dateRange} onChange={setDateRange} />
+            )}
+          </>
         }
         templateInsights={templateInsights}
         userLatency={userLatency}
+        userActivity={userActivity}
+        interval={interval}
+        entitlements={entitlementsQuery}
       />
     </>
   );
 }
 
+const getDefaultInterval = (template: Template) => {
+  const now = new Date();
+  const templateCreateDate = new Date(template.created_at);
+  const hasFiveWeeksOrMore = addWeeks(templateCreateDate, 5) < now;
+  return hasFiveWeeksOrMore ? "week" : "day";
+};
+
+const getDateRange = (
+  searchParams: URLSearchParams,
+  interval: InsightsInterval,
+) => {
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
+
+  if (startDate && endDate) {
+    return {
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+    };
+  }
+
+  if (interval === "day") {
+    return {
+      startDate: subDays(new Date(), 6),
+      endDate: new Date(),
+    };
+  }
+
+  return lastWeeks(DEFAULT_NUMBER_OF_WEEKS);
+};
+
 export const TemplateInsightsPageView = ({
   templateInsights,
   userLatency,
-  dateRange,
+  userActivity,
+  entitlements,
+  controls,
+  interval,
 }: {
   templateInsights: TemplateInsightsResponse | undefined;
   userLatency: UserLatencyInsightsResponse | undefined;
-  dateRange: ReactNode;
+  userActivity: UserActivityInsightsResponse | undefined;
+  entitlements: Entitlements | undefined;
+  controls: ReactNode;
+  interval: InsightsInterval;
 }) => {
   return (
     <>
-      <Box sx={{ mb: 4 }}>{dateRange}</Box>
+      <Box
+        css={(theme) => ({
+          marginBottom: theme.spacing(4),
+          display: "flex",
+          alignItems: "center",
+          gap: theme.spacing(1),
+        })}
+      >
+        {controls}
+      </Box>
       <Box
         sx={{
           display: "grid",
           gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-          gridTemplateRows: "440px auto",
+          gridTemplateRows: "440px 440px auto",
           gap: (theme) => theme.spacing(3),
         }}
       >
-        <DailyUsersPanel
+        <ActiveUsersPanel
           sx={{ gridColumn: "span 2" }}
+          interval={interval}
+          userLimit={
+            entitlements?.features.user_limit.enabled
+              ? entitlements?.features.user_limit.limit
+              : undefined
+          }
           data={templateInsights?.interval_reports}
         />
-        <UserLatencyPanel data={userLatency} />
+        <UsersLatencyPanel data={userLatency} />
         <TemplateUsagePanel
-          sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.apps_usage}
+          sx={{ gridColumn: "span 2" }}
+          data={templateInsights?.report?.apps_usage}
         />
+        <UsersActivityPanel data={userActivity} />
         <TemplateParametersUsagePanel
           sx={{ gridColumn: "span 3" }}
-          data={templateInsights?.report.parameters_usage}
+          data={templateInsights?.report?.parameters_usage}
         />
       </Box>
     </>
   );
 };
 
-const DailyUsersPanel = ({
+const ActiveUsersPanel = ({
   data,
+  interval,
+  userLimit,
   ...panelProps
 }: PanelProps & {
   data: TemplateInsightsResponse["interval_reports"] | undefined;
+  interval: InsightsInterval;
+  userLimit: number | undefined;
 }) => {
   return (
     <Panel {...panelProps}>
       <PanelHeader>
         <PanelTitle>
-          <DAUTitle />
+          <ActiveUsersTitle />
         </PanelTitle>
       </PanelHeader>
       <PanelContent>
         {!data && <Loader sx={{ height: "100%" }} />}
         {data && data.length === 0 && <NoDataAvailable />}
-        {data && data.length > 0 && <DAUChart daus={mapToDAUsResponse(data)} />}
+        {data && data.length > 0 && (
+          <ActiveUserChart
+            interval={interval}
+            userLimit={userLimit}
+            data={data.map((d) => ({
+              amount: d.active_users,
+              date: d.start_time,
+            }))}
+          />
+        )}
       </PanelContent>
     </Panel>
   );
 };
 
-const UserLatencyPanel = ({
+const UsersLatencyPanel = ({
   data,
   ...panelProps
 }: PanelProps & { data: UserLatencyInsightsResponse | undefined }) => {
@@ -170,6 +274,7 @@ const UserLatencyPanel = ({
                 sx={{
                   display: "flex",
                   justifyContent: "space-between",
+                  alignItems: "center",
                   fontSize: 14,
                   py: 1,
                 }}
@@ -198,11 +303,71 @@ const UserLatencyPanel = ({
   );
 };
 
+const UsersActivityPanel = ({
+  data,
+  ...panelProps
+}: PanelProps & { data: UserActivityInsightsResponse | undefined }) => {
+  const users = data?.report.users;
+
+  return (
+    <Panel {...panelProps} sx={{ overflowY: "auto", ...panelProps.sx }}>
+      <PanelHeader>
+        <PanelTitle sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          Activity by user
+          <HelpTooltip size="small">
+            <HelpTooltipTitle>How is activity calculated?</HelpTooltipTitle>
+            <HelpTooltipText>
+              When a connection is initiated to a user&apos;s workspace they are
+              considered an active user. e.g. apps, web terminal, SSH
+            </HelpTooltipText>
+          </HelpTooltip>
+        </PanelTitle>
+      </PanelHeader>
+      <PanelContent>
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {users && users.length === 0 && <NoDataAvailable />}
+        {users &&
+          users
+            .sort((a, b) => b.seconds - a.seconds)
+            .map((row) => (
+              <Box
+                key={row.user_id}
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  fontSize: 14,
+                  py: 1,
+                }}
+              >
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                  <UserAvatar
+                    username={row.username}
+                    avatarURL={row.avatar_url}
+                  />
+                  <Box sx={{ fontWeight: 500 }}>{row.username}</Box>
+                </Box>
+                <Box
+                  css={(theme) => ({
+                    color: theme.palette.text.secondary,
+                    fontSize: 13,
+                    textAlign: "right",
+                  })}
+                >
+                  {formatTime(row.seconds)}
+                </Box>
+              </Box>
+            ))}
+      </PanelContent>
+    </Panel>
+  );
+};
+
 const TemplateUsagePanel = ({
   data,
   ...panelProps
 }: PanelProps & {
-  data: TemplateInsightsResponse["report"]["apps_usage"] | undefined;
+  data: TemplateAppUsage[] | undefined;
 }) => {
   const validUsage = data?.filter((u) => u.seconds > 0);
   const totalInSeconds =
@@ -214,15 +379,21 @@ const TemplateUsagePanel = ({
   // The API returns a row for each app, even if the user didn't use it.
   const hasDataAvailable = validUsage && validUsage.length > 0;
   return (
-    <Panel {...panelProps}>
+    <Panel {...panelProps} css={{ overflowY: "auto" }}>
       <PanelHeader>
         <PanelTitle>App & IDE Usage</PanelTitle>
       </PanelHeader>
       <PanelContent>
-        {!data && <Loader sx={{ height: 200 }} />}
-        {data && !hasDataAvailable && <NoDataAvailable sx={{ height: 200 }} />}
+        {!data && <Loader sx={{ height: "100%" }} />}
+        {data && !hasDataAvailable && <NoDataAvailable />}
         {data && hasDataAvailable && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 3,
+            }}
+          >
             {validUsage
               .sort((a, b) => b.seconds - a.seconds)
               .map((usage, i) => {
@@ -293,7 +464,7 @@ const TemplateParametersUsagePanel = ({
   data,
   ...panelProps
 }: PanelProps & {
-  data: TemplateInsightsResponse["report"]["parameters_usage"] | undefined;
+  data: TemplateParameterUsage[] | undefined;
 }) => {
   return (
     <Panel {...panelProps}>
@@ -358,6 +529,7 @@ const TemplateParametersUsagePanel = ({
                   </ParameterUsageRow>
                   {parameter.values
                     .sort((a, b) => b.count - a.count)
+                    .filter((usage) => filterOrphanValues(usage, parameter))
                     .map((usage, usageIndex) => (
                       <ParameterUsageRow
                         key={`${parameterIndex}-${usageIndex}`}
@@ -376,6 +548,16 @@ const TemplateParametersUsagePanel = ({
       </PanelContent>
     </Panel>
   );
+};
+
+const filterOrphanValues = (
+  usage: TemplateParameterValue,
+  parameter: TemplateParameterUsage,
+) => {
+  if (parameter.options) {
+    return parameter.options.some((o) => o.value === usage.value);
+  }
+  return true;
 };
 
 const ParameterUsageRow = styled(Box)(({ theme }) => ({
@@ -583,20 +765,6 @@ const TextValue = ({ children }: { children: ReactNode }) => {
   );
 };
 
-function mapToDAUsResponse(
-  data: TemplateInsightsResponse["interval_reports"],
-): DAUsResponse {
-  return {
-    tz_hour_offset: 0,
-    entries: data.map((d) => {
-      return {
-        amount: d.active_users,
-        date: d.start_time,
-      };
-    }),
-  };
-}
-
 function formatTime(seconds: number): string {
   if (seconds < 60) {
     return seconds + " seconds";
@@ -612,4 +780,8 @@ function formatTime(seconds: number): string {
 
     return hours.toFixed(1) + " hours";
   }
+}
+
+function toISOLocal(d: Date) {
+  return format(d, "yyyy-MM-dd'T'HH:mm:ssxxx");
 }

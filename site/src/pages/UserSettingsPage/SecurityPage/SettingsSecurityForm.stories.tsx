@@ -3,7 +3,7 @@ import { SecurityForm } from "./SettingsSecurityForm";
 import { mockApiError } from "testHelpers/entities";
 
 const meta: Meta<typeof SecurityForm> = {
-  title: "components/SecurityForm",
+  title: "pages/UserSettingsPage/SecurityForm",
   component: SecurityForm,
   args: {
     isLoading: false,

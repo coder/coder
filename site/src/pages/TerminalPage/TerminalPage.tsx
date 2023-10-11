@@ -1,6 +1,5 @@
 import { makeStyles, useTheme } from "@mui/styles";
 import { useMachine } from "@xstate/react";
-import { Stack } from "components/Stack/Stack";
 import { FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -8,22 +7,30 @@ import { colors } from "theme/colors";
 import { v4 as uuidv4 } from "uuid";
 import * as XTerm from "xterm";
 import { WebglAddon } from "xterm-addon-webgl";
+import { CanvasAddon } from "xterm-addon-canvas";
 import { FitAddon } from "xterm-addon-fit";
 import { WebLinksAddon } from "xterm-addon-web-links";
 import { Unicode11Addon } from "xterm-addon-unicode11";
 import "xterm/css/xterm.css";
-import { MONOSPACE_FONT_FAMILY } from "../../theme/constants";
-import { pageTitle } from "../../utils/page";
-import { terminalMachine } from "../../xServices/terminal/terminalXService";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
+import { pageTitle } from "utils/page";
+import { terminalMachine } from "xServices/terminal/terminalXService";
 import { useProxy } from "contexts/ProxyContext";
 import Box from "@mui/material/Box";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { Region, WorkspaceAgent } from "api/typesGenerated";
+import { Region } from "api/typesGenerated";
 import { getLatencyColor } from "utils/latency";
 import Popover from "@mui/material/Popover";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
-import TerminalPageAlert, { TerminalPageAlertType } from "./TerminalPageAlert";
 import { portForwardURL } from "utils/portForward";
+import {
+  DisconnectedAlert,
+  ErrorScriptAlert,
+  LoadedScriptsAlert,
+  LoadingScriptsAlert,
+} from "./TerminalAlerts";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "api/queries/deployment";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -31,37 +38,7 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 
-const useTerminalWarning = ({ agent }: { agent?: WorkspaceAgent }) => {
-  const lifecycleState = agent?.lifecycle_state;
-  const [startupWarning, setStartupWarning] = useState<
-    TerminalPageAlertType | undefined
-  >(undefined);
-
-  useEffect(() => {
-    if (lifecycleState === "start_error") {
-      setStartupWarning("error");
-    } else if (lifecycleState === "starting") {
-      setStartupWarning("starting");
-    } else {
-      setStartupWarning((prev) => {
-        if (prev === "starting") {
-          return "success";
-        }
-        return undefined;
-      });
-    }
-  }, [lifecycleState]);
-
-  return {
-    startupWarning,
-  };
-};
-
-type TerminalPageProps = React.PropsWithChildren<{
-  renderer: "webgl" | "dom";
-}>;
-
-const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
+const TerminalPage: FC = () => {
   const navigate = useNavigate();
   const styles = useStyles();
   const { proxy } = useProxy();
@@ -110,16 +87,20 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
     workspaceAgent,
     websocketError,
   } = terminalState.context;
-  const reloading = useReloading(isDisconnected);
   const dashboard = useDashboard();
   const proxyContext = useProxy();
   const selectedProxy = proxyContext.proxy.proxy;
   const latency = selectedProxy
     ? proxyContext.proxyLatencies[selectedProxy.id]
     : undefined;
-  const { startupWarning } = useTerminalWarning({
-    agent: workspaceAgent,
-  });
+
+  const lifecycleState = workspaceAgent?.lifecycle_state;
+  const prevLifecycleState = useRef(lifecycleState);
+  useEffect(() => {
+    prevLifecycleState.current = lifecycleState;
+  }, [lifecycleState]);
+
+  const config = useQuery(deploymentConfig());
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -186,9 +167,10 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         background: colors.gray[16],
       },
     });
-    // DOM is the default renderer.
-    if (renderer === "webgl") {
+    if (config.data?.config.web_terminal_renderer === "webgl") {
       terminal.loadAddon(new WebglAddon());
+    } else if (config.data?.config.web_terminal_renderer === "canvas") {
+      terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
     setFitAddon(fitAddon);
@@ -228,7 +210,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, sendEvent, xtermRef, handleWebLink]);
+  }, [config.data, sendEvent, xtermRef, handleWebLink]);
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found
@@ -326,29 +308,12 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
             : ""}
         </title>
       </Helmet>
-      {/* This overlay makes it more obvious that the terminal is disconnected. */}
-      {/* It's nice for situations where Coder restarts, and they are temporarily disconnected. */}
-      <div className={`${styles.overlay} ${isDisconnected ? "" : "connected"}`}>
-        {reloading.status === "reloading" ? (
-          <span className={styles.overlayText}>Reloading...</span>
-        ) : (
-          <Stack spacing={0.5} alignItems="center">
-            <span className={styles.overlayText}>Disconnected</span>
-            <span className={styles.overlaySubtext}>
-              Press any key to retry
-            </span>
-          </Stack>
-        )}
-      </div>
       <Box display="flex" flexDirection="column" height="100vh">
-        {startupWarning && (
-          <TerminalPageAlert
-            alertType={startupWarning}
-            onDismiss={() => {
-              fitAddon?.fit();
-            }}
-          />
-        )}
+        {lifecycleState === "start_error" && <ErrorScriptAlert />}
+        {lifecycleState === "starting" && <LoadingScriptsAlert />}
+        {lifecycleState === "ready" &&
+          prevLifecycleState.current === "starting" && <LoadedScriptsAlert />}
+        {isDisconnected && <DisconnectedAlert />}
         <div
           className={styles.terminal}
           ref={xtermRef}
@@ -461,61 +426,6 @@ const BottomBar = ({ proxy, latency }: { proxy: Region; latency?: number }) => {
       </Popover>
     </Box>
   );
-};
-
-const useReloading = (isDisconnected: boolean) => {
-  const [status, setStatus] = useState<"reloading" | "notReloading">(
-    "notReloading",
-  );
-
-  // Retry connection on key press when it is disconnected
-  useEffect(() => {
-    if (!isDisconnected || status === "reloading") {
-      return;
-    }
-
-    // Modifier keys should not trigger a reload.
-    const ignoredKeys = [
-      "Alt",
-      "AltGraph",
-      "CapsLock",
-      "Control",
-      "Fn",
-      "FnLock",
-      "Meta",
-      "NumLock",
-      "ScrollLock",
-      "Shift",
-      "Symbol",
-      "SymbolLock",
-    ];
-
-    const keyDownHandler = (event: KeyboardEvent) => {
-      // In addition to ignored keys, avoid reloading while modifiers are held
-      // to cover cases where the terminal unexpectedly tries to reconnect like
-      // when pressing ctrl+w, ctrl+r, and so on.
-      if (
-        !ignoredKeys.includes(event.key) &&
-        !event.altKey &&
-        !event.ctrlKey &&
-        !event.metaKey &&
-        !event.shiftKey
-      ) {
-        setStatus("reloading");
-        window.location.reload();
-      }
-    };
-
-    document.addEventListener("keydown", keyDownHandler, true);
-
-    return () => {
-      document.removeEventListener("keydown", keyDownHandler, true);
-    };
-  }, [status, isDisconnected]);
-
-  return {
-    status,
-  };
 };
 
 const useStyles = makeStyles((theme) => ({

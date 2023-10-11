@@ -67,6 +67,10 @@ Clients include the coder cli, vs code extension, and the web UI.
       --ssh-hostname-prefix string, $CODER_SSH_HOSTNAME_PREFIX (default: coder.)
           The SSH deployment prefix is used in the Host of the ssh config.
 
+      --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
+          The renderer to use when opening a web terminal. Valid values are
+          'canvas', 'webgl', or 'dom'.
+
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
 

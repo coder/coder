@@ -30,9 +30,9 @@ export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27T00:00:00Z", amount: 10 },
+    { date: "2022-08-29T00:00:00Z", amount: 22 },
+    { date: "2022-08-30T00:00:00Z", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
@@ -450,8 +450,8 @@ export const MockTemplate: TypesGen.Template = {
   failure_ttl_ms: 0,
   time_til_dormant_ms: 0,
   time_til_dormant_autodelete_ms: 0,
-  allow_user_autostart: false,
-  allow_user_autostop: false,
+  allow_user_autostart: true,
+  allow_user_autostop: true,
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -956,6 +956,7 @@ export const MockWorkspace: TypesGen.Workspace = {
     healthy: true,
     failing_agents: [],
   },
+  automatic_updates: "never",
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1924,10 +1925,23 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 };
 
-export const MockExperiments: TypesGen.Experiment[] = [
-  "workspace_actions",
-  "moons",
-];
+export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
+  features: withDefaultFeatures({
+    user_limit: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 25,
+    },
+  }),
+};
+
+export const MockExperiments: TypesGen.Experiment[] = ["moons"];
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
@@ -2140,7 +2154,7 @@ export const MockPermissions: Permissions = {
   viewDeploymentValues: true,
   viewUpdateCheck: true,
   viewDeploymentStats: true,
-  viewGitAuthConfig: true,
+  viewExternalAuthConfig: true,
   editWorkspaceProxies: true,
 };
 
@@ -2152,6 +2166,7 @@ export const MockDeploymentConfig: DeploymentConfig = {
 };
 
 export const MockAppearanceConfig: TypesGen.AppearanceConfig = {
+  application_name: "",
   logo_url: "",
   service_banner: {
     enabled: false,
@@ -2183,19 +2198,24 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
   value: "5",
 };
 
-export const MockTemplateVersionGitAuth: TypesGen.TemplateVersionGitAuth = {
-  id: "github",
-  type: "github",
-  authenticate_url: "https://example.com/gitauth/github",
-  authenticated: false,
-};
-
-export const MockTemplateVersionGitAuthAuthenticated: TypesGen.TemplateVersionGitAuth =
+export const MockTemplateVersionExternalAuthGithub: TypesGen.TemplateVersionExternalAuth =
   {
     id: "github",
     type: "github",
-    authenticate_url: "https://example.com/gitauth/github",
+    authenticate_url: "https://example.com/external-auth/github",
+    authenticated: false,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
+  };
+
+export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.TemplateVersionExternalAuth =
+  {
+    id: "github",
+    type: "github",
+    authenticate_url: "https://example.com/external-auth/github",
     authenticated: true,
+    display_icon: "/icon/github.svg",
+    display_name: "GitHub",
   };
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {

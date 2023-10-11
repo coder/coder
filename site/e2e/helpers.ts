@@ -426,7 +426,7 @@ const createTemplateVersionTar = async (
           error: response.apply?.error ?? "",
           resources: response.apply?.resources ?? [],
           parameters: response.apply?.parameters ?? [],
-          gitAuthProviders: response.apply?.gitAuthProviders ?? [],
+          externalAuthProviders: response.apply?.externalAuthProviders ?? [],
         },
       };
     });
@@ -508,7 +508,7 @@ const createTemplateVersionTar = async (
       state: new Uint8Array(),
       resources: [],
       parameters: [],
-      gitAuthProviders: [],
+      externalAuthProviders: [],
       ...response.apply,
     } as ApplyComplete;
     response.apply.resources = response.apply.resources?.map(fillResource);
@@ -523,7 +523,7 @@ const createTemplateVersionTar = async (
       error: "",
       resources: [],
       parameters: [],
-      gitAuthProviders: [],
+      externalAuthProviders: [],
       ...response.plan,
     } as PlanComplete;
     response.plan.resources = response.plan.resources?.map(fillResource);

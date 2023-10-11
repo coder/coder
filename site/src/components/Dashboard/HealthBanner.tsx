@@ -2,7 +2,7 @@ import { Alert } from "components/Alert/Alert";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
 import { colors } from "theme/colors";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getHealth } from "api/api";
 import { useDashboard } from "./DashboardProvider";
 

@@ -59,7 +59,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/healthcheck"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -105,7 +105,7 @@ type Options struct {
 	AutobuildStats        chan<- autobuild.Stats
 	Auditor               audit.Auditor
 	TLSCertificates       []tls.Certificate
-	GitAuthConfigs        []*gitauth.Config
+	ExternalAuthConfigs   []*externalauth.Config
 	TrialGenerator        func(context.Context, string) error
 	TemplateScheduleStore schedule.TemplateScheduleStore
 	Coordinator           tailnet.Coordinator
@@ -182,6 +182,10 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	if options == nil {
 		options = &Options{}
 	}
+	if options.Logger == nil {
+		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		options.Logger = &logger
+	}
 	if options.GoogleTokenValidator == nil {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		t.Cleanup(cancelFunc)
@@ -214,7 +218,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
-		options.Database = dbauthz.New(options.Database, options.Authorizer, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		options.Database = dbauthz.New(options.Database, options.Authorizer, options.Logger.Leveled(slog.LevelDebug))
 	}
 
 	// Some routes expect a deployment ID, so just make sure one exists.
@@ -262,20 +266,27 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	templateScheduleStore.Store(&options.TemplateScheduleStore)
 
+	var auditor atomic.Pointer[audit.Auditor]
+	if options.Auditor == nil {
+		options.Auditor = audit.NewNop()
+	}
+	auditor.Store(&options.Auditor)
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	lifecycleExecutor := autobuild.NewExecutor(
 		ctx,
 		options.Database,
 		options.Pubsub,
 		&templateScheduleStore,
-		slogtest.Make(t, nil).Named("autobuild.executor").Leveled(slog.LevelDebug),
+		&auditor,
+		*options.Logger,
 		options.AutobuildTicker,
 	).WithStatsChannel(options.AutobuildStats)
 	lifecycleExecutor.Run()
 
 	hangDetectorTicker := time.NewTicker(options.DeploymentValues.JobHangDetectorInterval.Value())
 	defer hangDetectorTicker.Stop()
-	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, slogtest.Make(t, nil).Named("unhanger.detector"), hangDetectorTicker.C)
+	hangDetector := unhanger.New(ctx, options.Database, options.Pubsub, options.Logger.Named("unhanger.detector"), hangDetectorTicker.C)
 	hangDetector.Start()
 	t.Cleanup(hangDetector.Close)
 
@@ -334,7 +345,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		stunAddresses = options.DeploymentValues.DERP.Server.STUNAddresses.Value()
 	}
 
-	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(slogtest.Make(t, nil).Named("derp").Leveled(slog.LevelDebug)))
+	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp").Leveled(slog.LevelDebug)))
 	derpServer.SetMeshKey("test-key")
 
 	// match default with cli default
@@ -349,10 +360,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		require.NoError(t, err)
 	}
 
-	if options.Logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		options.Logger = &logger
-	}
 	region := &tailcfg.DERPRegion{
 		EmbeddedRelay: true,
 		RegionID:      int(options.DeploymentValues.DERP.Server.RegionID.Value()),
@@ -392,7 +399,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			CacheDir:                       t.TempDir(),
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
-			GitAuthConfigs:                 options.GitAuthConfigs,
+			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 
 			Auditor:                            options.Auditor,
 			AWSCertificates:                    options.AWSCertificates,
@@ -417,6 +424,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			MetricsCacheRefreshInterval:        options.MetricsCacheRefreshInterval,
 			AgentStatsRefreshInterval:          options.AgentStatsRefreshInterval,
 			DeploymentValues:                   options.DeploymentValues,
+			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
 			UpdateCheckOptions:                 options.UpdateCheckOptions,
 			SwaggerEndpoint:                    options.SwaggerEndpoint,
 			AppSecurityKey:                     AppSecurityKey,
@@ -512,7 +520,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	}, &provisionerd.Options{
 		Logger:              coderAPI.Logger.Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -552,7 +560,7 @@ func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uui
 	}, &provisionerd.Options{
 		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
-		ForceCancelInterval: time.Second,
+		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
@@ -745,11 +753,12 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
 func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	ctx := context.Background()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
-	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+	templateVersion, err := client.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
@@ -759,26 +768,65 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-// AwaitTemplateImportJob awaits for an import job to reach completed status.
-func AwaitTemplateVersionJob(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+func UpdateActiveTemplateVersion(t *testing.T, client *codersdk.Client, templateID, versionID uuid.UUID) {
+	err := client.UpdateActiveTemplateVersion(context.Background(), templateID, codersdk.UpdateActiveTemplateVersion{
+		ID: versionID,
+	})
+	require.NoError(t, err)
+}
+
+// AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
+func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+
+	t.Logf("waiting for template version %s build job to start", version)
+	var templateVersion codersdk.TemplateVersion
+	require.Eventually(t, func() bool {
+		var err error
+		templateVersion, err = client.TemplateVersion(ctx, version)
+		if err != nil {
+			return false
+		}
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
+		switch templateVersion.Job.Status {
+		case codersdk.ProvisionerJobPending:
+			return false
+		case codersdk.ProvisionerJobRunning:
+			return true
+		default:
+			t.FailNow()
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has started", version)
+	return templateVersion
+}
+
+// AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
+// from cancelation, an error, or from completing successfully.
+func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	t.Logf("waiting for template version job %s", version)
+	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
 	require.Eventually(t, func() bool {
 		var err error
 		templateVersion, err = client.TemplateVersion(ctx, version)
+		t.Logf("template version job status: %s", templateVersion.Job.Status)
 		return assert.NoError(t, err) && templateVersion.Job.CompletedAt != nil
-	}, testutil.WaitLong, testutil.IntervalMedium)
-	t.Logf("got template version job %s", version)
+	}, testutil.WaitLong, testutil.IntervalMedium, "make sure you set `IncludeProvisionerDaemon`!")
+	t.Logf("template version %s job has completed", version)
 	return templateVersion
 }
 
-// AwaitWorkspaceBuildJob waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJob(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
+func AwaitWorkspaceBuildJobCompleted(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -817,6 +865,9 @@ func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uui
 		if !assert.NoError(t, err) {
 			return false
 		}
+		if workspace.LatestBuild.Job.CompletedAt == nil {
+			return false
+		}
 		if workspace.LatestBuild.Job.CompletedAt.IsZero() {
 			return false
 		}
@@ -853,6 +904,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 		Name:              randomUsername(t),
 		AutostartSchedule: ptr.Ref("CRON_TZ=US/Central 30 9 * * 1-5"),
 		TTLMillis:         ptr.Ref((8 * time.Hour).Milliseconds()),
+		AutomaticUpdates:  codersdk.AutomaticUpdatesNever,
 	}
 	for _, mutator := range mutators {
 		mutator(&req)
@@ -879,7 +931,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 	})
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
-	_ = AwaitWorkspaceBuildJob(t, client, build.ID)
+	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 	updated := MustWorkspace(t, client, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceTransition(to), updated.LatestBuild.Transition, "expected workspace to be in state %s but got %s", to, updated.LatestBuild.Transition)
@@ -898,14 +950,14 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 	return ws
 }
 
-// RequestGitAuthCallback makes a request with the proper OAuth2 state cookie
-// to the git auth callback endpoint.
-func RequestGitAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+// RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
+// to the external auth callback endpoint.
+func RequestExternalAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
 	state := "somestate"
-	oauthURL, err := client.URL.Parse(fmt.Sprintf("/gitauth/%s/callback?code=asd&state=%s", providerID, state))
+	oauthURL, err := client.URL.Parse(fmt.Sprintf("/external-auth/%s/callback?code=asd&state=%s", providerID, state))
 	require.NoError(t, err)
 	req, err := http.NewRequestWithContext(context.Background(), "GET", oauthURL.String(), nil)
 	require.NoError(t, err)

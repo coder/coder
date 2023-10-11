@@ -1,6 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import WS from "jest-websocket-mock";
-import { renderWithAuth } from "../../testHelpers/renderHelpers";
+import { renderWithAuth } from "testHelpers/renderHelpers";
 import { WorkspaceBuildPage } from "./WorkspaceBuildPage";
 import { MockWorkspace, MockWorkspaceBuild } from "testHelpers/entities";
 import * as API from "api/api";

@@ -1,7 +1,7 @@
 import { assign, createMachine } from "xstate";
-import * as API from "../../api/api";
-import * as TypesGen from "../../api/typesGenerated";
-import { displaySuccess } from "../../components/GlobalSnackbar/utils";
+import * as API from "api/api";
+import * as TypesGen from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const Language = {
   successProfileUpdate: "Updated settings.",
@@ -18,7 +18,7 @@ export const checks = {
   viewDeploymentValues: "viewDeploymentValues",
   createGroup: "createGroup",
   viewUpdateCheck: "viewUpdateCheck",
-  viewGitAuthConfig: "viewGitAuthConfig",
+  viewExternalAuthConfig: "viewExternalAuthConfig",
   viewDeploymentStats: "viewDeploymentStats",
   editWorkspaceProxies: "editWorkspaceProxies",
 } as const;
@@ -84,7 +84,7 @@ export const permissionsToCheck = {
     },
     action: "read",
   },
-  [checks.viewGitAuthConfig]: {
+  [checks.viewExternalAuthConfig]: {
     object: {
       resource_type: "deployment_config",
     },

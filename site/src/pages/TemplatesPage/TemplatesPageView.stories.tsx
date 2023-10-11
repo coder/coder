@@ -3,12 +3,12 @@ import {
   MockTemplate,
   MockTemplateExample,
   MockTemplateExample2,
-} from "../../testHelpers/entities";
+} from "testHelpers/entities";
 import { TemplatesPageView } from "./TemplatesPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplatesPageView> = {
-  title: "pages/TemplatesPageView",
+  title: "pages/TemplatesPage",
   component: TemplatesPageView,
 };
 

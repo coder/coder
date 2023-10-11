@@ -1,10 +1,13 @@
-import { makeStyles } from "@mui/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import { type FC } from "react";
+import Box from "@mui/material/Box";
+import { css } from "@emotion/react";
+import type { ClibaseOption } from "api/typesGenerated";
 import {
   OptionConfig,
   OptionConfigFlag,
@@ -12,23 +15,30 @@ import {
   OptionName,
   OptionValue,
 } from "components/DeploySettingsLayout/Option";
-import { FC } from "react";
 import { optionValue } from "./optionValue";
-import { DeploymentOption } from "api/api";
-import Box from "@mui/material/Box";
 
 const OptionsTable: FC<{
-  options: DeploymentOption[];
+  options: ClibaseOption[];
 }> = ({ options }) => {
-  const styles = useStyles();
-
   if (options.length === 0) {
     return <p>No options to configure</p>;
   }
 
   return (
     <TableContainer>
-      <Table className={styles.table}>
+      <Table
+        css={(theme) => css`
+          & td {
+            padding-top: ${theme.spacing(3)};
+            padding-bottom: ${theme.spacing(3)};
+          }
+
+          & td:last-child,
+          & th:last-child {
+            padding-left: ${theme.spacing(4)};
+          }
+        `}
+      >
         <TableHead>
           <TableRow>
             <TableCell width="50%">Option</TableCell>
@@ -58,21 +68,27 @@ const OptionsTable: FC<{
                     }}
                   >
                     {option.flag && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>
                         --{option.flag}
                       </OptionConfig>
                     )}
                     {option.flag_shorthand && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "flag"}>
                         <OptionConfigFlag>CLI</OptionConfigFlag>-
                         {option.flag_shorthand}
                       </OptionConfig>
                     )}
                     {option.env && (
-                      <OptionConfig>
+                      <OptionConfig source={option.value_source === "env"}>
                         <OptionConfigFlag>ENV</OptionConfigFlag>
                         {option.env}
+                      </OptionConfig>
+                    )}
+                    {option.yaml && (
+                      <OptionConfig source={option.value_source === "yaml"}>
+                        <OptionConfigFlag>YAML</OptionConfigFlag>
+                        {option.yaml}
                       </OptionConfig>
                     )}
                   </Box>
@@ -89,18 +105,5 @@ const OptionsTable: FC<{
     </TableContainer>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  table: {
-    "& td": {
-      paddingTop: theme.spacing(3),
-      paddingBottom: theme.spacing(3),
-    },
-
-    "& td:last-child, & th:last-child": {
-      paddingLeft: theme.spacing(4),
-    },
-  },
-}));
 
 export default OptionsTable;

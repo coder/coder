@@ -12,7 +12,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -70,11 +69,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-type PostFilter struct {
-	DeletingBy *time.Time `json:"deleting_by" format:"date-time"`
-}
-
-func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, PostFilter, []codersdk.ValidationError) {
+func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -82,10 +77,8 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		Limit:  int32(page.Limit),
 	}
 
-	var postFilter PostFilter
-
 	if query == "" {
-		return filter, postFilter, nil
+		return filter, nil
 	}
 
 	// Always lowercase for all searches.
@@ -105,7 +98,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		return nil
 	})
 	if len(errors) > 0 {
-		return filter, postFilter, errors
+		return filter, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -114,21 +107,12 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
-	filter.DormantAt = parser.Time(values, time.Time{}, "dormant_at", "2006-01-02")
+	filter.IsDormant = parser.String(values, "", "is-dormant")
 	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
 	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 
-	if _, ok := values["deleting_by"]; ok {
-		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
-		// We want to make sure to grab dormant workspaces since they
-		// are omitted by default.
-		if filter.DormantAt.IsZero() {
-			filter.DormantAt = time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
-		}
-	}
-
 	parser.ErrorExcessParams(values)
-	return filter, postFilter, parser.Errors
+	return filter, parser.Errors
 }
 
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {

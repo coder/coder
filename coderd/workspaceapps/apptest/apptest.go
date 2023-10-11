@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-jose/go-jose/v3"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,13 +63,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			// Run the test against the path app hostname since that's where the
 			// reconnecting-pty proxy server we want to test is mounted.
 			client := appDetails.AppClient(t)
-			testReconnectingPTY(ctx, t, client, codersdk.WorkspaceAgentReconnectingPTYOpts{
-				AgentID:   appDetails.Agent.ID,
-				Reconnect: uuid.New(),
-				Height:    100,
-				Width:     100,
-				Command:   "bash",
-			})
+			testReconnectingPTY(ctx, t, client, appDetails.Agent.ID, "")
 		})
 
 		t.Run("SignedTokenQueryParameter", func(t *testing.T) {
@@ -96,14 +91,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Make an unauthenticated client.
 			unauthedAppClient := codersdk.New(appDetails.AppClient(t).URL)
-			testReconnectingPTY(ctx, t, unauthedAppClient, codersdk.WorkspaceAgentReconnectingPTYOpts{
-				AgentID:     appDetails.Agent.ID,
-				Reconnect:   uuid.New(),
-				Height:      100,
-				Width:       100,
-				Command:     "bash",
-				SignedToken: issueRes.SignedToken,
-			})
+			testReconnectingPTY(ctx, t, unauthedAppClient, appDetails.Agent.ID, issueRes.SignedToken)
 		})
 	})
 
@@ -563,6 +551,118 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				})
 			}
 		})
+	})
+
+	t.Run("WorkspaceAppsProxySubdomainHostnamePrefix/OK", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, nil)
+
+		// Try to load the owner app with a prefix.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		prefixedOwnerApp := appDetails.Apps.Owner
+		prefixedOwnerApp.Prefix = "some---prefix---"
+
+		u := appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, resp.Header.Get("X-Got-Host"), u.Host)
+
+		// Parse the returned signed token to verify that it contains the
+		// prefix.
+		var appTokenCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.SignedAppTokenCookie {
+				appTokenCookie = c
+				break
+			}
+		}
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+
+		// Parse the JWT without verifying it (since we can't access the key
+		// from this test).
+		object, err := jose.ParseSigned(appTokenCookie.Value)
+		require.NoError(t, err)
+		require.Len(t, object.Signatures, 1)
+
+		// Parse the payload.
+		var tok workspaceapps.SignedToken
+		//nolint:gosec
+		err = json.Unmarshal(object.UnsafePayloadWithoutVerification(), &tok)
+		require.NoError(t, err)
+
+		// Verify the prefix is in the token.
+		require.Equal(t, prefixedOwnerApp.Prefix, tok.Request.Prefix)
+
+		// Ensure the signed app token cookie is valid by making a request with
+		// it with no session token.
+		appTokenClient := appDetails.AppClient(t)
+		appTokenClient.SetSessionToken("")
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
+
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		require.Equal(t, resp.Header.Get("X-Got-Host"), u.Host)
+	})
+
+	t.Run("WorkspaceAppsProxySubdomainHostnamePrefix/Different", func(t *testing.T) {
+		t.Parallel()
+
+		appDetails := setupProxyTest(t, nil)
+
+		// Try to load the owner app with a prefix.
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		prefixedOwnerApp := appDetails.Apps.Owner
+		t.Log(appDetails.SubdomainAppURL(prefixedOwnerApp))
+		prefixedOwnerApp.Prefix = "some---prefix---"
+		t.Log(appDetails.SubdomainAppURL(prefixedOwnerApp))
+
+		u := appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Find the cookie.
+		var appTokenCookie *http.Cookie
+		for _, c := range resp.Cookies() {
+			if c.Name == codersdk.SignedAppTokenCookie {
+				appTokenCookie = c
+				break
+			}
+		}
+		require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+
+		// Ensure the signed app token cookie is valid only for the given prefix
+		// by making a request with it with no session token.
+		appTokenClient := appDetails.AppClient(t)
+		appTokenClient.SetSessionToken("")
+		appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		appTokenClient.HTTPClient.Jar.SetCookies(u, []*http.Cookie{appTokenCookie})
+
+		prefixedOwnerApp.Prefix = "different---"
+		u = appDetails.SubdomainAppURL(prefixedOwnerApp)
+		require.Contains(t, u.Host, prefixedOwnerApp.Prefix)
+
+		resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.NotEqual(t, http.StatusOK, resp.StatusCode)
 	})
 
 	// This test ensures that the subdomain handler does nothing if
@@ -1366,7 +1466,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		}, testutil.WaitLong, testutil.IntervalFast, "stats not reported")
 
 		assert.Equal(t, workspaceapps.AccessMethodPath, stats[0].AccessMethod)
-		assert.Equal(t, proxyTestAppNameOwner, stats[0].SlugOrPort)
+		assert.Equal(t, "test-app-owner", stats[0].SlugOrPort)
 		assert.Equal(t, 1, stats[0].Requests)
 	})
 }
@@ -1389,7 +1489,19 @@ func (r *fakeStatsReporter) Report(_ context.Context, stats []workspaceapps.Stat
 	return nil
 }
 
-func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, opts codersdk.WorkspaceAgentReconnectingPTYOpts) {
+func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Client, agentID uuid.UUID, signedToken string) {
+	opts := codersdk.WorkspaceAgentReconnectingPTYOpts{
+		AgentID:   agentID,
+		Reconnect: uuid.New(),
+		Width:     80,
+		Height:    80,
+		// --norc disables executing .bashrc, which is often used to customize the bash prompt
+		Command:     "bash --norc",
+		SignedToken: signedToken,
+	}
+	matchPrompt := func(line string) bool {
+		return strings.Contains(line, "$ ") || strings.Contains(line, "# ")
+	}
 	matchEchoCommand := func(line string) bool {
 		return strings.Contains(line, "echo test")
 	}
@@ -1407,34 +1519,24 @@ func testReconnectingPTY(ctx context.Context, t *testing.T, client *codersdk.Cli
 	require.NoError(t, err)
 	defer conn.Close()
 
-	// First attempt to resize the TTY.
-	// The websocket will close if it fails!
-	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
-		Height: 80,
-		Width:  80,
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-
-	// Brief pause to reduce the likelihood that we send keystrokes while
-	// the shell is simultaneously sending a prompt.
-	time.Sleep(500 * time.Millisecond)
-
-	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "echo test\r\n",
-	})
-	require.NoError(t, err)
-	_, err = conn.Write(data)
-	require.NoError(t, err)
-
 	tr := testutil.NewTerminalReader(t, conn)
+	// Wait for the prompt before writing commands.  If the command arrives before the prompt is written, screen
+	// will sometimes put the command output on the same line as the command and the test will flake
+	require.NoError(t, tr.ReadUntil(ctx, matchPrompt), "find prompt")
+
+	data, err := json.Marshal(codersdk.ReconnectingPTYRequest{
+		Data: "echo test\r",
+	})
+	require.NoError(t, err)
+	_, err = conn.Write(data)
+	require.NoError(t, err)
+
 	require.NoError(t, tr.ReadUntil(ctx, matchEchoCommand), "find echo command")
 	require.NoError(t, tr.ReadUntil(ctx, matchEchoOutput), "find echo output")
 
 	// Exit should cause the connection to close.
 	data, err = json.Marshal(codersdk.ReconnectingPTYRequest{
-		Data: "exit\r\n",
+		Data: "exit\r",
 	})
 	require.NoError(t, err)
 	_, err = conn.Write(data)

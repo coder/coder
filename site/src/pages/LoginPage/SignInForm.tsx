@@ -2,7 +2,6 @@ import { makeStyles } from "@mui/styles";
 import { FormikTouched } from "formik";
 import { FC, useState } from "react";
 import { AuthMethods } from "api/typesGenerated";
-import { Maybe } from "components/Conditionals/Maybe";
 import { PasswordSignInForm } from "./PasswordSignInForm";
 import { OAuthSignInForm } from "./OAuthSignInForm";
 import { BuiltInAuthFormValues } from "./SignInForm.types";
@@ -10,6 +9,7 @@ import Button from "@mui/material/Button";
 import EmailIcon from "@mui/icons-material/EmailOutlined";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { getApplicationName } from "utils/appearance";
 
 export const Language = {
   emailLabel: "Email",
@@ -91,64 +91,72 @@ export const SignInForm: FC<React.PropsWithChildren<SignInFormProps>> = ({
   // Hide password auth by default if any OAuth method is enabled
   const [showPasswordAuth, setShowPasswordAuth] = useState(!oAuthEnabled);
   const styles = useStyles();
+  const applicationName = getApplicationName();
 
   return (
     <div className={styles.root}>
       <h1 className={styles.title}>
-        Sign in to <strong>Coder</strong>
+        Sign in to <strong>{applicationName}</strong>
       </h1>
-      <Maybe condition={error !== undefined}>
+
+      {Boolean(error) && (
         <div className={styles.alert}>
           <ErrorAlert error={error} />
         </div>
-      </Maybe>
-      <Maybe condition={Boolean(info) && info !== "" && error === undefined}>
+      )}
+
+      {Boolean(info) && Boolean(error) && (
         <div className={styles.alert}>
           <Alert severity="info">{info}</Alert>
         </div>
-      </Maybe>
-      <Maybe condition={passwordEnabled && showPasswordAuth}>
+      )}
+
+      {passwordEnabled && showPasswordAuth && (
         <PasswordSignInForm
           onSubmit={onSubmit}
           initialTouched={initialTouched}
           isSigningIn={isSigningIn}
         />
-      </Maybe>
-      <Maybe condition={passwordEnabled && showPasswordAuth && oAuthEnabled}>
+      )}
+
+      {passwordEnabled && showPasswordAuth && oAuthEnabled && (
         <div className={styles.divider}>
           <div className={styles.dividerLine} />
           <div className={styles.dividerLabel}>Or</div>
           <div className={styles.dividerLine} />
         </div>
-      </Maybe>
-      <Maybe condition={oAuthEnabled}>
+      )}
+
+      {oAuthEnabled && (
         <OAuthSignInForm
           isSigningIn={isSigningIn}
           redirectTo={redirectTo}
           authMethods={authMethods}
         />
-      </Maybe>
+      )}
 
-      <Maybe condition={!passwordEnabled && !oAuthEnabled}>
+      {!passwordEnabled && !oAuthEnabled && (
         <Alert severity="error">No authentication methods configured!</Alert>
-      </Maybe>
+      )}
 
-      <Maybe condition={passwordEnabled && !showPasswordAuth}>
-        <div className={styles.divider}>
-          <div className={styles.dividerLine} />
-          <div className={styles.dividerLabel}>Or</div>
-          <div className={styles.dividerLine} />
-        </div>
+      {passwordEnabled && !showPasswordAuth && (
+        <>
+          <div className={styles.divider}>
+            <div className={styles.dividerLine} />
+            <div className={styles.dividerLabel}>Or</div>
+            <div className={styles.dividerLine} />
+          </div>
 
-        <Button
-          fullWidth
-          size="large"
-          onClick={() => setShowPasswordAuth(true)}
-          startIcon={<EmailIcon className={styles.icon} />}
-        >
-          Email and password
-        </Button>
-      </Maybe>
+          <Button
+            fullWidth
+            size="large"
+            onClick={() => setShowPasswordAuth(true)}
+            startIcon={<EmailIcon className={styles.icon} />}
+          >
+            Email and password
+          </Button>
+        </>
+      )}
     </div>
   );
 };

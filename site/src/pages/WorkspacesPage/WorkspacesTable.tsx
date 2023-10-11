@@ -13,9 +13,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
-import { makeStyles } from "@mui/styles";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import Box from "@mui/material/Box";
@@ -30,6 +28,8 @@ import Checkbox from "@mui/material/Checkbox";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import Skeleton from "@mui/material/Skeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
+import { css } from "@emotion/react";
+import { useTheme } from "@mui/system";
 
 export interface WorkspacesTableProps {
   workspaces?: Workspace[];
@@ -49,7 +49,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
   onCheckChange,
   canCheckWorkspaces,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
 
   return (
     <TableContainer>
@@ -93,14 +93,14 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
             <TableLoader canCheckWorkspaces={canCheckWorkspaces} />
           )}
           {workspaces && workspaces.length === 0 && (
-            <ChooseOne>
-              <Cond condition={isUsingFilter}>
+            <>
+              {isUsingFilter ? (
                 <TableEmpty message="No results matched your search" />
-              </Cond>
-
-              <Cond>
+              ) : (
                 <TableEmpty
-                  className={styles.withImage}
+                  css={{
+                    paddingBottom: 0,
+                  }}
                   message="Create a workspace"
                   description="A workspace is your personal, customizable development environment in the cloud"
                   cta={
@@ -109,18 +109,31 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
                       to="/templates"
                       startIcon={<AddOutlined />}
                       variant="contained"
+                      data-testid="button-select-template"
                     >
                       Select a Template
                     </Button>
                   }
                   image={
-                    <div className={styles.emptyImage}>
+                    <div
+                      css={css`
+                        max-width: 50%;
+                        height: ${theme.spacing(34)};
+                        overflow: hidden;
+                        margin-top: ${theme.spacing(6)};
+                        opacity: 0.85;
+
+                        & img {
+                          max-width: 100%;
+                        }
+                      `}
+                    >
                       <img src="/featured/workspaces.webp" alt="" />
                     </div>
                   }
                 />
-              </Cond>
-            </ChooseOne>
+              )}
+            </>
           )}
           {workspaces &&
             workspaces.map((workspace) => {
@@ -321,20 +334,3 @@ const TableLoader = ({
 const cantBeChecked = (workspace: Workspace) => {
   return ["deleting", "pending"].includes(workspace.latest_build.status);
 };
-
-const useStyles = makeStyles((theme) => ({
-  withImage: {
-    paddingBottom: 0,
-  },
-  emptyImage: {
-    maxWidth: "50%",
-    height: theme.spacing(34),
-    overflow: "hidden",
-    marginTop: theme.spacing(6),
-    opacity: 0.85,
-
-    "& img": {
-      maxWidth: "100%",
-    },
-  },
-}));

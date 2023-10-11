@@ -1,5 +1,4 @@
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -12,17 +11,24 @@ import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import gfm from "remark-gfm";
 import { colors } from "theme/colors";
 import { darcula } from "react-syntax-highlighter/dist/cjs/styles/prism";
-import { combineClasses } from "utils/combineClasses";
+import { type Interpolation, type Theme } from "@emotion/react";
 
-export const Markdown: FC<{ children: string; className?: string }> = ({
-  children,
-  className,
-}) => {
-  const styles = useStyles();
+interface MarkdownProps {
+  /**
+   * The Markdown text to parse and render
+   */
+  children: string;
+
+  className?: string;
+}
+
+export const Markdown: FC<MarkdownProps> = (props) => {
+  const { children, className } = props;
 
   return (
     <ReactMarkdown
-      className={combineClasses([styles.markdown, className])}
+      css={markdownStyles}
+      className={className}
       remarkPlugins={[gfm]}
       components={{
         a: ({ href, target, children }) => (
@@ -58,7 +64,16 @@ export const Markdown: FC<{ children: string; className?: string }> = ({
               {String(children)}
             </SyntaxHighlighter>
           ) : (
-            <code className={styles.codeWithoutLanguage} {...props}>
+            <code
+              css={(theme) => ({
+                padding: theme.spacing(0.125, 0.5),
+                background: theme.palette.divider,
+                borderRadius: 4,
+                color: theme.palette.text.primary,
+                fontSize: 14,
+              })}
+              {...props}
+            >
               {children}
             </code>
           );
@@ -100,67 +115,57 @@ export const Markdown: FC<{ children: string; className?: string }> = ({
 
 export const MemoizedMarkdown = memo(Markdown);
 
-const useStyles = makeStyles((theme) => ({
-  markdown: {
-    fontSize: 16,
-    lineHeight: "24px",
+const markdownStyles: Interpolation<Theme> = (theme: Theme) => ({
+  fontSize: 16,
+  lineHeight: "24px",
 
-    "& h1, & h2, & h3, & h4, & h5, & h6": {
-      marginTop: theme.spacing(4),
-      marginBottom: theme.spacing(2),
-      lineHeight: "1.25",
-    },
-
-    "& p": {
-      marginTop: 0,
-      marginBottom: theme.spacing(2),
-    },
-
-    "& p:only-child": {
-      marginTop: 0,
-      marginBottom: 0,
-    },
-
-    "& ul, & ol": {
-      display: "flex",
-      flexDirection: "column",
-      gap: theme.spacing(1),
-      marginBottom: theme.spacing(2),
-    },
-
-    "& li > ul, & li > ol": {
-      marginTop: theme.spacing(2),
-    },
-
-    "& li > p": {
-      marginBottom: 0,
-    },
-
-    "& .prismjs": {
-      background: theme.palette.background.paperLight,
-      borderRadius: theme.shape.borderRadius,
-      padding: theme.spacing(2, 3),
-      overflowX: "auto",
-
-      "& code": {
-        color: theme.palette.text.secondary,
-      },
-
-      "& .key, & .property, & .inserted, .keyword": {
-        color: colors.turquoise[7],
-      },
-
-      "& .deleted": {
-        color: theme.palette.error.light,
-      },
-    },
+  "& h1, & h2, & h3, & h4, & h5, & h6": {
+    marginTop: theme.spacing(4),
+    marginBottom: theme.spacing(2),
+    lineHeight: "1.25",
   },
 
-  codeWithoutLanguage: {
-    padding: theme.spacing(0.125, 0.5),
-    background: theme.palette.divider,
-    borderRadius: 4,
-    color: theme.palette.text.primary,
-    fontSize: 14,
+  "& p": {
+    marginTop: 0,
+    marginBottom: theme.spacing(2),
   },
-}));
+
+  "& p:only-child": {
+    marginTop: 0,
+    marginBottom: 0,
+  },
+
+  "& ul, & ol": {
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(1),
+    marginBottom: theme.spacing(2),
+  },
+
+  "& li > ul, & li > ol": {
+    marginTop: theme.spacing(2),
+  },
+
+  "& li > p": {
+    marginBottom: 0,
+  },
+
+  "& .prismjs": {
+    background: theme.palette.background.paperLight,
+    borderRadius: theme.shape.borderRadius,
+    padding: theme.spacing(2, 3),
+    overflowX: "auto",
+
+    "& code": {
+      color: theme.palette.text.secondary,
+    },
+
+    "& .key, & .property, & .inserted, .keyword": {
+      color: colors.turquoise[7],
+    },
+
+    "& .deleted": {
+      color: theme.palette.error.light,
+    },
+  },
+});

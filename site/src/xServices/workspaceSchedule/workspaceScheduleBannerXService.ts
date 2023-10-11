@@ -8,11 +8,8 @@ import dayjs from "dayjs";
 import minMax from "dayjs/plugin/minMax";
 import { getDeadline, getMaxDeadline, getMinDeadline } from "utils/schedule";
 import { assign, createMachine } from "xstate";
-import * as API from "../../api/api";
-import {
-  displayError,
-  displaySuccess,
-} from "../../components/GlobalSnackbar/utils";
+import * as API from "api/api";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 
 dayjs.extend(minMax);
 

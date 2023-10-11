@@ -269,7 +269,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				apiKeyMiddleware,
 			)
 			r.Route("/{user}", func(r chi.Router) {
-				r.Use(httpmw.ExtractUserParam(options.Database, false))
+				r.Use(httpmw.ExtractUserParam(options.Database))
 				r.Get("/", api.workspaceQuota)
 			})
 		})
@@ -296,7 +296,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.autostopRequirementEnabledMW,
 				apiKeyMiddleware,
-				httpmw.ExtractUserParam(options.Database, false),
+				httpmw.ExtractUserParam(options.Database),
 			)
 
 			r.Get("/", api.userQuietHoursSchedule)
@@ -460,12 +460,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 	entitlements, err := license.Entitlements(
 		ctx, api.Database,
-		api.Logger, len(api.replicaManager.AllPrimary()), len(api.GitAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
+		api.Logger, len(api.replicaManager.AllPrimary()), len(api.ExternalAuthConfigs), api.LicenseKeys, map[codersdk.FeatureName]bool{
 			codersdk.FeatureAuditLog:                   api.AuditLogging,
 			codersdk.FeatureBrowserOnly:                api.BrowserOnly,
 			codersdk.FeatureSCIM:                       len(api.SCIMAPIKey) != 0,
 			codersdk.FeatureHighAvailability:           api.DERPServerRelayAddress != "",
-			codersdk.FeatureMultipleGitAuth:            len(api.GitAuthConfigs) > 1,
+			codersdk.FeatureMultipleExternalAuth:       len(api.ExternalAuthConfigs) > 1,
 			codersdk.FeatureTemplateRBAC:               api.RBAC,
 			codersdk.FeatureExternalTokenEncryption:    len(api.ExternalTokenEncryption) > 0,
 			codersdk.FeatureExternalProvisionerDaemons: true,

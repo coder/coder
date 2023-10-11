@@ -21,6 +21,7 @@ import { useFormik } from "formik";
 import { useTheme } from "@mui/styles";
 import Link from "@mui/material/Link";
 import { colors } from "theme/colors";
+import { hslToHex } from "utils/colors";
 
 export type AppearanceSettingsPageViewProps = {
   appearance: UpdateAppearanceConfig;
@@ -30,6 +31,9 @@ export type AppearanceSettingsPageViewProps = {
     preview: boolean,
   ) => void;
 };
+
+const fallbackBgColor = hslToHex(colors.blue[7]);
+
 export const AppearanceSettingsPageView = ({
   appearance,
   isEntitled,
@@ -37,6 +41,17 @@ export const AppearanceSettingsPageView = ({
 }: AppearanceSettingsPageViewProps): JSX.Element => {
   const styles = useStyles();
   const theme = useTheme();
+
+  const applicationNameForm = useFormik<{
+    application_name: string;
+  }>({
+    initialValues: {
+      application_name: appearance.application_name,
+    },
+    onSubmit: (values) => onSaveAppearance(values, false),
+  });
+  const applicationNameFieldHelpers = getFormHelpers(applicationNameForm);
+
   const logoForm = useFormik<{
     logo_url: string;
   }>({
@@ -53,7 +68,7 @@ export const AppearanceSettingsPageView = ({
         message: appearance.service_banner.message,
         enabled: appearance.service_banner.enabled,
         background_color:
-          appearance.service_banner.background_color ?? colors.blue[7],
+          appearance.service_banner.background_color ?? fallbackBgColor,
       },
       onSubmit: (values) =>
         onSaveAppearance(
@@ -65,9 +80,11 @@ export const AppearanceSettingsPageView = ({
     },
   );
   const serviceBannerFieldHelpers = getFormHelpers(serviceBannerForm);
+
   const [backgroundColor, setBackgroundColor] = useState(
     serviceBannerForm.values.background_color,
   );
+
   return (
     <>
       <Header
@@ -79,6 +96,22 @@ export const AppearanceSettingsPageView = ({
         {isEntitled ? <EntitledBadge /> : <DisabledBadge />}
         <EnterpriseBadge />
       </Badges>
+
+      <Fieldset
+        title="Application name"
+        subtitle="Specify a custom application name to be displayed on the login page."
+        validation={!isEntitled ? "This is an Enterprise only feature." : ""}
+        onSubmit={applicationNameForm.handleSubmit}
+        button={!isEntitled && <Button disabled>Submit</Button>}
+      >
+        <TextField
+          {...applicationNameFieldHelpers("application_name")}
+          defaultValue={appearance.application_name}
+          fullWidth
+          placeholder='Leave empty to display "Coder".'
+          disabled={!isEntitled}
+        />
+      </Fieldset>
 
       <Fieldset
         title="Logo URL"

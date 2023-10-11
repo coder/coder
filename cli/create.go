@@ -27,6 +27,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 		workspaceName string
 
 		parameterFlags workspaceParameterFlags
+		autoUpdates    string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -169,6 +170,7 @@ func (r *RootCmd) create() *clibase.Cmd {
 				AutostartSchedule:   schedSpec,
 				TTLMillis:           ttlMillis,
 				RichParameterValues: richParameters,
+				AutomaticUpdates:    codersdk.AutomaticUpdates(autoUpdates),
 			})
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
@@ -207,6 +209,13 @@ func (r *RootCmd) create() *clibase.Cmd {
 			Env:         "CODER_WORKSPACE_STOP_AFTER",
 			Description: "Specify a duration after which the workspace should shut down (e.g. 8h).",
 			Value:       clibase.DurationOf(&stopAfter),
+		},
+		clibase.Option{
+			Flag:        "automatic-updates",
+			Env:         "CODER_WORKSPACE_AUTOMATIC_UPDATES",
+			Description: "Specify automatic updates setting for the workspace (accepts 'always' or 'never').",
+			Default:     string(codersdk.AutomaticUpdatesNever),
+			Value:       clibase.StringOf(&autoUpdates),
 		},
 		cliui.SkipPromptOption(),
 	)
@@ -265,9 +274,9 @@ func prepWorkspaceBuild(inv *clibase.Invocation, client *codersdk.Client, args p
 		return nil, err
 	}
 
-	err = cliui.GitAuth(ctx, inv.Stdout, cliui.GitAuthOptions{
-		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionGitAuth, error) {
-			return client.TemplateVersionGitAuth(ctx, templateVersion.ID)
+	err = cliui.ExternalAuth(ctx, inv.Stdout, cliui.ExternalAuthOptions{
+		Fetch: func(ctx context.Context) ([]codersdk.TemplateVersionExternalAuth, error) {
+			return client.TemplateVersionExternalAuth(ctx, templateVersion.ID)
 		},
 	})
 	if err != nil {

@@ -9,6 +9,7 @@ export const usePagination = ({
   const [searchParams, setSearchParams] = searchParamsResult;
   const page = searchParams.get("page") ? Number(searchParams.get("page")) : 1;
   const limit = DEFAULT_RECORDS_PER_PAGE;
+  const offset = page <= 0 ? 0 : (page - 1) * limit;
 
   const goToPage = (page: number) => {
     searchParams.set("page", page.toString());
@@ -19,5 +20,6 @@ export const usePagination = ({
     page,
     limit,
     goToPage,
+    offset,
   };
 };

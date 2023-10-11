@@ -4,7 +4,7 @@ import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "react-query";
 import { updateAppearance } from "api/queries/appearance";
 import { getErrorMessage } from "api/errors";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -17,21 +17,17 @@ const AppearanceSettingsPage: FC = () => {
   const { appearance, entitlements } = useDashboard();
   const queryClient = useQueryClient();
   const updateAppearanceMutation = useMutation(updateAppearance(queryClient));
-  const isEntitled =
-    entitlements.features["appearance"].entitlement !== "not_entitled";
 
   const onSaveAppearance = async (
     newConfig: Partial<UpdateAppearanceConfig>,
     preview: boolean,
   ) => {
-    const newAppearance = {
-      ...appearance.config,
-      ...newConfig,
-    };
+    const newAppearance = { ...appearance.config, ...newConfig };
     if (preview) {
       appearance.setPreview(newAppearance);
       return;
     }
+
     try {
       await updateAppearanceMutation.mutateAsync(newAppearance);
       displaySuccess("Successfully updated appearance settings!");
@@ -50,8 +46,10 @@ const AppearanceSettingsPage: FC = () => {
 
       <AppearanceSettingsPageView
         appearance={appearance.config}
-        isEntitled={isEntitled}
         onSaveAppearance={onSaveAppearance}
+        isEntitled={
+          entitlements.features.appearance.entitlement !== "not_entitled"
+        }
       />
     </>
   );

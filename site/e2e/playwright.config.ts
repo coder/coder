@@ -49,6 +49,7 @@ export default defineConfig({
       `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
+      `--web-terminal-renderer=dom ` +
       `--pprof-enable`,
     env: {
       ...process.env,
@@ -57,6 +58,7 @@ export default defineConfig({
       CODER_GITAUTH_0_ID: gitAuth.deviceProvider,
       CODER_GITAUTH_0_TYPE: "github",
       CODER_GITAUTH_0_CLIENT_ID: "client",
+      CODER_GITAUTH_0_CLIENT_SECRET: "secret",
       CODER_GITAUTH_0_DEVICE_FLOW: "true",
       CODER_GITAUTH_0_APP_INSTALL_URL:
         "https://github.com/apps/coder/installations/new",

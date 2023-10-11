@@ -1,7 +1,9 @@
 import axios from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
-import { delay } from "utils/delay";
+// This needs to include the `../`, otherwise it breaks when importing into
+// vscode-coder.
+import { delay } from "../utils/delay";
 import userAgentParser from "ua-parser-js";
 
 // Adds 304 for the default axios validateStatus function
@@ -194,9 +196,12 @@ export const getTokenConfig = async (): Promise<TypesGen.TokenConfig> => {
 
 export const getUsers = async (
   options: TypesGen.UsersRequest,
+  signal?: AbortSignal,
 ): Promise<TypesGen.GetUsersResponse> => {
   const url = getURLWithSearchParams("/api/v2/users", options);
-  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString());
+  const response = await axios.get<TypesGen.GetUsersResponse>(url.toString(), {
+    signal,
+  });
   return response.data;
 };
 
@@ -331,11 +336,11 @@ export const createTemplateVersion = async (
   return response.data;
 };
 
-export const getTemplateVersionGitAuth = async (
+export const getTemplateVersionExternalAuth = async (
   versionId: string,
-): Promise<TypesGen.TemplateVersionGitAuth[]> => {
+): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
   const response = await axios.get(
-    `/api/v2/templateversions/${versionId}/gitauth`,
+    `/api/v2/templateversions/${versionId}/external-auth`,
   );
   return response.data;
 };
@@ -772,10 +777,10 @@ export const regenerateUserSSHKey = async (
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
-): Promise<TypesGen.WorkspaceBuild[]> => {
+  req?: TypesGen.WorkspaceBuildsRequest,
+) => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
 };
@@ -855,25 +860,28 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 };
 
-export const getGitAuthProvider = async (
+export const getExternalAuthProvider = async (
   provider: string,
-): Promise<TypesGen.GitAuth> => {
-  const resp = await axios.get(`/api/v2/gitauth/${provider}`);
+): Promise<TypesGen.ExternalAuth> => {
+  const resp = await axios.get(`/api/v2/external-auth/${provider}`);
   return resp.data;
 };
 
-export const getGitAuthDevice = async (
+export const getExternalAuthDevice = async (
   provider: string,
-): Promise<TypesGen.GitAuthDevice> => {
-  const resp = await axios.get(`/api/v2/gitauth/${provider}/device`);
+): Promise<TypesGen.ExternalAuthDevice> => {
+  const resp = await axios.get(`/api/v2/external-auth/${provider}/device`);
   return resp.data;
 };
 
-export const exchangeGitAuthDevice = async (
+export const exchangeExternalAuthDevice = async (
   provider: string,
-  req: TypesGen.GitAuthDeviceExchange,
+  req: TypesGen.ExternalAuthDeviceExchange,
 ): Promise<void> => {
-  const resp = await axios.post(`/api/v2/gitauth/${provider}/device`, req);
+  const resp = await axios.post(
+    `/api/v2/external-auth/${provider}/device`,
+    req,
+  );
   return resp.data;
 };
 
@@ -1016,28 +1024,9 @@ export const getDeploymentSSHConfig =
     return response.data;
   };
 
-// The Deployment types are not generated on from the Go generator yet because
-// it does not know how to generate OptionSet
-export interface DeploymentGroup {
-  readonly name: string;
-  readonly parent?: DeploymentGroup;
-  readonly description: string;
-  readonly children: DeploymentGroup[];
-}
-export interface DeploymentOption {
-  readonly name: string;
-  readonly description: string;
-  readonly flag: string;
-  readonly flag_shorthand: string;
-  readonly value: unknown;
-  readonly hidden: boolean;
-  readonly group?: DeploymentGroup;
-  readonly env?: string;
-}
-
 export type DeploymentConfig = {
   readonly config: TypesGen.DeploymentValues;
-  readonly options: DeploymentOption[];
+  readonly options: TypesGen.ClibaseOption[];
 };
 
 export const getDeploymentConfig = async (): Promise<DeploymentConfig> => {
@@ -1088,6 +1077,7 @@ export const getAppearance = async (): Promise<TypesGen.AppearanceConfig> => {
   } catch (ex) {
     if (axios.isAxiosError(ex) && ex.response?.status === 404) {
       return {
+        application_name: "",
         logo_url: "",
         service_banner: {
           enabled: false,
@@ -1114,7 +1104,7 @@ export const getTemplateExamples = async (
   return response.data;
 };
 
-export const uploadTemplateFile = async (
+export const uploadFile = async (
   file: File,
 ): Promise<TypesGen.UploadResponse> => {
   const response = await axios.post("/api/v2/files", file, {
@@ -1486,28 +1476,39 @@ export const getWorkspaceParameters = async (workspace: TypesGen.Workspace) => {
   };
 };
 
-type InsightsFilter = {
+export type InsightsParams = {
   start_time: string;
   end_time: string;
   template_ids: string;
 };
 
 export const getInsightsUserLatency = async (
-  filters: InsightsFilter,
+  filters: InsightsParams,
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/user-latency?${params}`);
   return response.data;
 };
 
+export const getInsightsUserActivity = async (
+  filters: InsightsParams,
+): Promise<TypesGen.UserActivityInsightsResponse> => {
+  const params = new URLSearchParams(filters);
+  const response = await axios.get(`/api/v2/insights/user-activity?${params}`);
+  return response.data;
+};
+
+export type InsightsTemplateParams = InsightsParams & {
+  interval: "day" | "week";
+};
+
 export const getInsightsTemplate = async (
-  filters: InsightsFilter,
+  params: InsightsTemplateParams,
 ): Promise<TypesGen.TemplateInsightsResponse> => {
-  const params = new URLSearchParams({
-    ...filters,
-    interval: "day",
-  });
-  const response = await axios.get(`/api/v2/insights/templates?${params}`);
+  const searchParams = new URLSearchParams(params);
+  const response = await axios.get(
+    `/api/v2/insights/templates?${searchParams}`,
+  );
   return response.data;
 };
 

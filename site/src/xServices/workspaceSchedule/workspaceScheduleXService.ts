@@ -3,8 +3,8 @@
  * an individual workspace's schedule.
  */
 import { assign, createMachine } from "xstate";
-import * as API from "../../api/api";
-import * as TypesGen from "../../api/typesGenerated";
+import * as API from "api/api";
+import * as TypesGen from "api/typesGenerated";
 
 type Permissions = Record<keyof ReturnType<typeof permissionsToCheck>, boolean>;
 

@@ -110,10 +110,10 @@ const UserAuthSettingsPage = lazy(
       "./pages/DeploySettingsPage/UserAuthSettingsPage/UserAuthSettingsPage"
     ),
 );
-const GitAuthSettingsPage = lazy(
+const ExternalAuthSettingsPage = lazy(
   () =>
     import(
-      "./pages/DeploySettingsPage/GitAuthSettingsPage/GitAuthSettingsPage"
+      "./pages/DeploySettingsPage/ExternalAuthSettingsPage/ExternalAuthSettingsPage"
     ),
 );
 const NetworkSettingsPage = lazy(
@@ -122,7 +122,9 @@ const NetworkSettingsPage = lazy(
       "./pages/DeploySettingsPage/NetworkSettingsPage/NetworkSettingsPage"
     ),
 );
-const GitAuthPage = lazy(() => import("./pages/GitAuthPage/GitAuthPage"));
+const ExternalAuthPage = lazy(
+  () => import("./pages/ExternalAuthPage/ExternalAuthPage"),
+);
 const TemplateVersionPage = lazy(
   () => import("./pages/TemplateVersionPage/TemplateVersionPage"),
 );
@@ -191,6 +193,7 @@ const TemplateInsightsPage = lazy(
 );
 const HealthPage = lazy(() => import("./pages/HealthPage/HealthPage"));
 const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
+const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 
 export const AppRouter: FC = () => {
   return (
@@ -205,18 +208,21 @@ export const AppRouter: FC = () => {
             <Route element={<DashboardLayout />}>
               <Route index element={<Navigate to="/workspaces" replace />} />
 
-              <Route path="health" element={<HealthPage />} />
+              <Route path="/health" element={<HealthPage />} />
 
-              <Route path="gitauth/:provider" element={<GitAuthPage />} />
+              <Route
+                path="/external-auth/:provider"
+                element={<ExternalAuthPage />}
+              />
 
-              <Route path="workspaces" element={<WorkspacesPage />} />
+              <Route path="/workspaces" element={<WorkspacesPage />} />
 
-              <Route path="starter-templates">
+              <Route path="/starter-templates">
                 <Route index element={<StarterTemplatesPage />} />
                 <Route path=":exampleId" element={<StarterTemplatePage />} />
               </Route>
 
-              <Route path="templates">
+              <Route path="/templates">
                 <Route index element={<TemplatesPage />} />
                 <Route path="new" element={<CreateTemplatePage />} />
                 <Route path=":template">
@@ -256,7 +262,7 @@ export const AppRouter: FC = () => {
                 </Route>
               </Route>
 
-              <Route path="users">
+              <Route path="/users">
                 <Route element={<UsersLayout />}>
                   <Route index element={<UsersPage />} />
                 </Route>
@@ -287,14 +293,17 @@ export const AppRouter: FC = () => {
                 <Route path="appearance" element={<AppearanceSettingsPage />} />
                 <Route path="network" element={<NetworkSettingsPage />} />
                 <Route path="userauth" element={<UserAuthSettingsPage />} />
-                <Route path="gitauth" element={<GitAuthSettingsPage />} />
+                <Route
+                  path="external-auth"
+                  element={<ExternalAuthSettingsPage />}
+                />
                 <Route
                   path="workspace-proxies"
                   element={<WorkspaceProxyPage />}
                 />
               </Route>
 
-              <Route path="settings" element={<SettingsLayout />}>
+              <Route path="/settings" element={<SettingsLayout />}>
                 <Route path="account" element={<AccountPage />} />
                 <Route path="schedule" element={<SchedulePage />} />
                 <Route path="security" element={<SecurityPage />} />
@@ -330,9 +339,10 @@ export const AppRouter: FC = () => {
             {/* Terminal and CLI auth pages don't have the dashboard layout */}
             <Route
               path="/:username/:workspace/terminal"
-              element={<TerminalPage renderer="webgl" />}
+              element={<TerminalPage />}
             />
-            <Route path="cli-auth" element={<CliAuthenticationPage />} />
+            <Route path="/cli-auth" element={<CliAuthenticationPage />} />
+            <Route path="/icons" element={<IconsPage />} />
           </Route>
 
           {/* Using path="*"" means "match anything", so this route

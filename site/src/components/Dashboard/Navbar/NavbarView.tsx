@@ -1,16 +1,12 @@
 import Drawer from "@mui/material/Drawer";
 import IconButton from "@mui/material/IconButton";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import { makeStyles } from "@mui/styles";
 import MenuIcon from "@mui/icons-material/Menu";
 import { CoderIcon } from "components/Icons/CoderIcon";
-import { FC, useRef, useState } from "react";
+import { type FC, type ReactNode, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { colors } from "theme/colors";
-import * as TypesGen from "../../../api/typesGenerated";
-import { navHeight } from "../../../theme/constants";
-import { combineClasses } from "../../../utils/combineClasses";
+import * as TypesGen from "api/typesGenerated";
+import { navHeight } from "theme/constants";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
 import Box from "@mui/material/Box";
 import Menu from "@mui/material/Menu";
@@ -25,6 +21,7 @@ import { BUTTON_SM_HEIGHT } from "theme/theme";
 import { ProxyStatusLatency } from "components/ProxyStatusLatency/ProxyStatusLatency";
 import { usePermissions } from "hooks/usePermissions";
 import Typography from "@mui/material/Typography";
+import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 
 export const USERS_LINK = `/users?filter=${encodeURIComponent(
   "status:active",
@@ -50,57 +47,128 @@ export const Language = {
   deployment: "Deployment",
 };
 
-const NavItems: React.FC<
-  React.PropsWithChildren<{
-    className?: string;
-    canViewAuditLog: boolean;
-    canViewDeployment: boolean;
-    canViewAllUsers: boolean;
-  }>
-> = ({ className, canViewAuditLog, canViewDeployment, canViewAllUsers }) => {
-  const styles = useStyles();
+const styles = {
+  desktopNavItems: (theme) => css`
+    display: none;
+
+    ${theme.breakpoints.up("md")} {
+      display: flex;
+    }
+  `,
+  mobileMenuButton: (theme) => css`
+    ${theme.breakpoints.up("md")} {
+      display: none;
+    }
+  `,
+  wrapper: (theme) => css`
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    ${theme.breakpoints.up("md")} {
+      justify-content: flex-start;
+    }
+  `,
+  drawerHeader: (theme) => ({
+    padding: theme.spacing(2),
+    paddingTop: theme.spacing(4),
+    paddingBottom: theme.spacing(4),
+  }),
+  logo: (theme) => css`
+    align-items: center;
+    display: flex;
+    height: ${navHeight}px;
+    color: ${theme.palette.text.primary};
+    padding: ${theme.spacing(2)};
+
+    // svg is for the Coder logo, img is for custom images
+    & svg,
+    & img {
+      height: 100%;
+      object-fit: contain;
+    }
+  `,
+  drawerLogo: (theme) => ({
+    padding: 0,
+    maxHeight: theme.spacing(5),
+  }),
+  item: {
+    padding: 0,
+  },
+  link: (theme) => css`
+    align-items: center;
+    color: ${colors.gray[6]};
+    display: flex;
+    flex: 1;
+    font-size: 16px;
+    padding: ${theme.spacing(1.5)} ${theme.spacing(2)};
+    text-decoration: none;
+    transition: background-color 0.15s ease-in-out;
+
+    &.active {
+      color: ${theme.palette.text.primary};
+      font-weight: 500;
+    }
+
+    &:hover {
+      background-color: ${theme.palette.action.hover};
+    }
+
+    ${theme.breakpoints.up("md")} {
+      height: ${navHeight}px;
+      padding: 0 ${theme.spacing(3)};
+    }
+  `,
+} satisfies Record<string, Interpolation<Theme>>;
+
+interface NavItemsProps {
+  children?: ReactNode;
+  className?: string;
+  canViewAuditLog: boolean;
+  canViewDeployment: boolean;
+  canViewAllUsers: boolean;
+}
+
+const NavItems: React.FC<NavItemsProps> = (props) => {
+  const { className, canViewAuditLog, canViewDeployment, canViewAllUsers } =
+    props;
   const location = useLocation();
+  const theme = useTheme();
 
   return (
-    <List className={combineClasses([styles.navItems, className])}>
-      <ListItem button className={styles.item}>
-        <NavLink
-          className={combineClasses([
-            styles.link,
-            location.pathname.startsWith("/@") && "active",
-          ])}
-          to="/workspaces"
-        >
-          {Language.workspaces}
-        </NavLink>
-      </ListItem>
-      <ListItem button className={styles.item}>
-        <NavLink className={styles.link} to="/templates">
-          {Language.templates}
-        </NavLink>
-      </ListItem>
+    <nav className={className}>
+      <NavLink
+        css={[
+          styles.link,
+          location.pathname.startsWith("/@") && {
+            color: theme.palette.text.primary,
+            fontWeight: 500,
+          },
+        ]}
+        to="/workspaces"
+      >
+        {Language.workspaces}
+      </NavLink>
+      <NavLink css={styles.link} to="/templates">
+        {Language.templates}
+      </NavLink>
       {canViewAllUsers && (
-        <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to={USERS_LINK}>
-            {Language.users}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to={USERS_LINK}>
+          {Language.users}
+        </NavLink>
       )}
       {canViewAuditLog && (
-        <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/audit">
-            {Language.audit}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to="/audit">
+          {Language.audit}
+        </NavLink>
       )}
       {canViewDeployment && (
-        <ListItem button className={styles.item}>
-          <NavLink className={styles.link} to="/deployment/general">
-            {Language.deployment}
-          </NavLink>
-        </ListItem>
+        <NavLink css={styles.link} to="/deployment/general">
+          {Language.deployment}
+        </NavLink>
       )}
-    </List>
+    </nav>
   );
 };
 export const NavbarView: FC<NavbarViewProps> = ({
@@ -114,15 +182,20 @@ export const NavbarView: FC<NavbarViewProps> = ({
   canViewAllUsers,
   proxyContextValue,
 }) => {
-  const styles = useStyles();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
-    <nav className={styles.root}>
-      <div className={styles.wrapper}>
+    <nav
+      css={(theme) => ({
+        height: navHeight,
+        background: theme.palette.background.paper,
+        borderBottom: `1px solid ${theme.palette.divider}`,
+      })}
+    >
+      <div css={styles.wrapper}>
         <IconButton
           aria-label="Open menu"
-          className={styles.mobileMenuButton}
+          css={styles.mobileMenuButton}
           onClick={() => {
             setIsDrawerOpen(true);
           }}
@@ -136,9 +209,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
           open={isDrawerOpen}
           onClose={() => setIsDrawerOpen(false)}
         >
-          <div className={styles.drawer}>
-            <div className={styles.drawerHeader}>
-              <div className={combineClasses([styles.logo, styles.drawerLogo])}>
+          <div css={{ width: 250 }}>
+            <div css={styles.drawerHeader}>
+              <div css={[styles.logo, styles.drawerLogo]}>
                 {logo_url ? (
                   <img src={logo_url} alt="Custom Logo" />
                 ) : (
@@ -154,7 +227,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
           </div>
         </Drawer>
 
-        <NavLink className={styles.logo} to="/workspaces">
+        <NavLink css={styles.logo} to="/workspaces">
           {logo_url ? (
             <img src={logo_url} alt="Custom Logo" />
           ) : (
@@ -163,7 +236,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
         </NavLink>
 
         <NavItems
-          className={styles.desktopNavItems}
+          css={styles.desktopNavItems}
           canViewAuditLog={canViewAuditLog}
           canViewDeployment={canViewDeployment}
           canViewAllUsers={canViewAllUsers}
@@ -385,93 +458,3 @@ const ProxyMenu: FC<{ proxyContextValue: ProxyContextValue }> = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  displayInitial: {
-    display: "initial",
-  },
-  root: {
-    height: navHeight,
-    background: theme.palette.background.paper,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-  },
-  wrapper: {
-    position: "relative",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    [theme.breakpoints.up("md")]: {
-      justifyContent: "flex-start",
-    },
-  },
-  drawer: {
-    width: 250,
-  },
-  drawerHeader: {
-    padding: theme.spacing(2),
-    paddingTop: theme.spacing(4),
-    paddingBottom: theme.spacing(4),
-  },
-  navItems: {
-    padding: 0,
-  },
-  desktopNavItems: {
-    display: "none",
-    [theme.breakpoints.up("md")]: {
-      display: "flex",
-    },
-  },
-  mobileMenuButton: {
-    [theme.breakpoints.up("md")]: {
-      display: "none",
-    },
-  },
-  logo: {
-    alignItems: "center",
-    display: "flex",
-    height: navHeight,
-    color: theme.palette.text.primary,
-    padding: theme.spacing(2),
-    // svg is for the Coder logo, img is for custom images
-    "& svg, & img": {
-      height: "100%",
-      objectFit: "contain",
-    },
-  },
-  drawerLogo: {
-    padding: 0,
-    maxHeight: theme.spacing(5),
-  },
-  title: {
-    flex: 1,
-    textAlign: "center",
-  },
-  item: {
-    padding: 0,
-  },
-  link: {
-    alignItems: "center",
-    color: colors.gray[6],
-    display: "flex",
-    flex: 1,
-    fontSize: 16,
-    padding: `${theme.spacing(1.5)} ${theme.spacing(2)}`,
-    textDecoration: "none",
-    transition: "background-color 0.15s ease-in-out",
-
-    "&:hover": {
-      backgroundColor: theme.palette.action.hover,
-    },
-
-    // NavLink adds this class when the current route matches.
-    "&.active": {
-      color: theme.palette.text.primary,
-      fontWeight: 500,
-    },
-
-    [theme.breakpoints.up("md")]: {
-      height: navHeight,
-      padding: `0 ${theme.spacing(3)}`,
-    },
-  },
-}));

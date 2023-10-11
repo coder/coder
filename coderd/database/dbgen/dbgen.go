@@ -125,7 +125,7 @@ func APIKey(t testing.TB, db database.Store, seed database.APIKey) (key database
 }
 
 func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgent) database.WorkspaceAgent {
-	workspace, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
+	agt, err := db.InsertWorkspaceAgent(genCtx, database.InsertWorkspaceAgentParams{
 		ID:         takeFirst(orig.ID, uuid.New()),
 		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
@@ -154,9 +154,10 @@ func WorkspaceAgent(t testing.TB, db database.Store, orig database.WorkspaceAgen
 		ConnectionTimeoutSeconds: takeFirst(orig.ConnectionTimeoutSeconds, 3600),
 		TroubleshootingURL:       takeFirst(orig.TroubleshootingURL, "https://example.com"),
 		MOTDFile:                 takeFirst(orig.TroubleshootingURL, ""),
+		DisplayApps:              append([]database.DisplayApp{}, orig.DisplayApps...),
 	})
 	require.NoError(t, err, "insert workspace agent")
-	return workspace
+	return agt
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.Workspace) database.Workspace {
@@ -171,6 +172,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
+		AutomaticUpdates:  takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
 	})
 	require.NoError(t, err, "insert workspace")
 	return workspace
@@ -204,6 +206,7 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			JobID:             takeFirst(orig.JobID, uuid.New()),
 			ProvisionerState:  takeFirstSlice(orig.ProvisionerState, []byte{}),
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
+			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
 		})
 		if err != nil {
@@ -326,16 +329,16 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
-	id := takeFirst(orig.ID, uuid.New())
+	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
 			orig.Tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
-		orig.Tags[id.String()] = "true"
+		orig.Tags[jobID.String()] = "true"
 	}
-	jobID := takeFirst(orig.ID, uuid.New())
+
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -348,6 +351,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
 		Tags:           orig.Tags,
+		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
 	if ps != nil {
@@ -359,8 +363,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 			StartedAt: orig.StartedAt,
 			Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
 			Tags:      must(json.Marshal(orig.Tags)),
+			WorkerID:  uuid.NullUUID{},
 		})
 		require.NoError(t, err)
+		// There is no easy way to make sure we acquire the correct job.
+		require.Equal(t, jobID, job.ID, "acquired incorrect job")
 	}
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
@@ -460,6 +467,8 @@ func WorkspaceProxy(t testing.TB, db database.Store, orig database.WorkspaceProx
 		TokenHashedSecret: hashedSecret[:],
 		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DerpEnabled:       takeFirst(orig.DerpEnabled, false),
+		DerpOnly:          takeFirst(orig.DerpEnabled, false),
 	})
 	require.NoError(t, err, "insert proxy")
 
@@ -504,8 +513,9 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 	return link
 }
 
-func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) database.GitAuthLink {
-	link, err := db.InsertGitAuthLink(genCtx, database.InsertGitAuthLinkParams{
+func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAuthLink) database.ExternalAuthLink {
+	msg := takeFirst(&orig.OAuthExtra, &pqtype.NullRawMessage{})
+	link, err := db.InsertExternalAuthLink(genCtx, database.InsertExternalAuthLinkParams{
 		ProviderID:             takeFirst(orig.ProviderID, uuid.New().String()),
 		UserID:                 takeFirst(orig.UserID, uuid.New()),
 		OAuthAccessToken:       takeFirst(orig.OAuthAccessToken, uuid.NewString()),
@@ -515,9 +525,10 @@ func GitAuthLink(t testing.TB, db database.Store, orig database.GitAuthLink) dat
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OAuthExtra:             *msg,
 	})
 
-	require.NoError(t, err, "insert git auth link")
+	require.NoError(t, err, "insert external auth link")
 	return link
 }
 

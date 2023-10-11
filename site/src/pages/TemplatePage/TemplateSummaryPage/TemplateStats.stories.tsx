@@ -3,7 +3,7 @@ import { TemplateStats } from "./TemplateStats";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateStats> = {
-  title: "components/TemplateStats",
+  title: "pages/TemplatePage/TemplateStats",
   component: TemplateStats,
 };
 

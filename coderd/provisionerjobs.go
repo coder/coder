@@ -17,7 +17,6 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -258,7 +257,7 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	if provisionerJob.WorkerID.Valid {
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
-	job.Status = db2sdk.ProvisionerJobStatus(provisionerJob)
+	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
 	return job
 }
@@ -282,7 +281,7 @@ func fetchAndWriteLogs(ctx context.Context, db database.Store, jobID uuid.UUID, 
 }
 
 func jobIsComplete(logger slog.Logger, job database.ProvisionerJob) bool {
-	status := db2sdk.ProvisionerJobStatus(job)
+	status := codersdk.ProvisionerJobStatus(job.JobStatus)
 	switch status {
 	case codersdk.ProvisionerJobCanceled:
 		return true

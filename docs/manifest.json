@@ -308,9 +308,9 @@
           "icon_path": "./images/icons/toggle_on.svg"
         },
         {
-          "title": "Git Providers",
-          "description": "Learn how connect Coder with external git providers",
-          "path": "./admin/git-providers.md",
+          "title": "External Auth",
+          "description": "Learn how connect Coder with external auth providers",
+          "path": "./admin/external-auth.md",
           "icon_path": "./images/icons/git.svg"
         },
         {
@@ -556,6 +556,16 @@
           "title": "dotfiles",
           "description": "Personalize your workspace by applying a canonical dotfiles repository",
           "path": "cli/dotfiles.md"
+        },
+        {
+          "title": "external-auth",
+          "description": "Manage external authentication",
+          "path": "cli/external-auth.md"
+        },
+        {
+          "title": "external-auth access-token",
+          "description": "Print auth for an external provider",
+          "path": "cli/external-auth_access-token.md"
         },
         {
           "title": "features",
@@ -828,7 +838,7 @@
         },
         {
           "title": "templates pull",
-          "description": "Download the latest version of a template to a path.",
+          "description": "Download the active, latest, or specified version of a template to a path.",
           "path": "cli/templates_pull.md"
         },
         {
@@ -884,6 +894,11 @@
         {
           "title": "users create",
           "path": "cli/users_create.md"
+        },
+        {
+          "title": "users delete",
+          "description": "Delete a user by username or user_id.",
+          "path": "cli/users_delete.md"
         },
         {
           "title": "users list",

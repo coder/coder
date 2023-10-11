@@ -2,7 +2,7 @@
 
 # templates pull
 
-Download the latest version of a template to a path.
+Download the active, latest, or specified version of a template to a path.
 
 ## Usage
 
@@ -19,6 +19,14 @@ coder templates pull [flags] <name> [destination]
 | Type | <code>bool</code> |
 
 Output the template as a tar archive to stdout.
+
+### --version
+
+|      |                     |
+| ---- | ------------------- |
+| Type | <code>string</code> |
+
+The name of the template version to pull. Use 'active' to pull the active version, 'latest' to pull the latest version, or the name of the template version to pull.
 
 ### -y, --yes
 

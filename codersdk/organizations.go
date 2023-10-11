@@ -136,6 +136,7 @@ type CreateWorkspaceRequest struct {
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
 	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	AutomaticUpdates    AutomaticUpdates          `json:"automatic_updates,omitempty"`
 }
 
 func (c *Client) Organization(ctx context.Context, id uuid.UUID) (Organization, error) {

@@ -71,31 +71,6 @@ func TemplateVersionParameter(param database.TemplateVersionParameter) (codersdk
 	}, nil
 }
 
-func ProvisionerJobStatus(provisionerJob database.ProvisionerJob) codersdk.ProvisionerJobStatus {
-	// The case where jobs are hung is handled by the unhang package. We can't
-	// just return Failed here when it's hung because that doesn't reflect in
-	// the database.
-	switch {
-	case provisionerJob.CanceledAt.Valid:
-		if !provisionerJob.CompletedAt.Valid {
-			return codersdk.ProvisionerJobCanceling
-		}
-		if provisionerJob.Error.String == "" {
-			return codersdk.ProvisionerJobCanceled
-		}
-		return codersdk.ProvisionerJobFailed
-	case !provisionerJob.StartedAt.Valid:
-		return codersdk.ProvisionerJobPending
-	case provisionerJob.CompletedAt.Valid:
-		if provisionerJob.Error.String == "" {
-			return codersdk.ProvisionerJobSucceeded
-		}
-		return codersdk.ProvisionerJobFailed
-	default:
-		return codersdk.ProvisionerJobRunning
-	}
-}
-
 func User(user database.User, organizationIDs []uuid.UUID) codersdk.User {
 	convertedUser := codersdk.User{
 		ID:              user.ID,

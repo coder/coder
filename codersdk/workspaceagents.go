@@ -744,32 +744,6 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 	}), nil
 }
 
-// GitProvider is a constant that represents the
-// type of providers that are supported within Coder.
-type GitProvider string
-
-func (g GitProvider) Pretty() string {
-	switch g {
-	case GitProviderAzureDevops:
-		return "Azure DevOps"
-	case GitProviderGitHub:
-		return "GitHub"
-	case GitProviderGitLab:
-		return "GitLab"
-	case GitProviderBitBucket:
-		return "Bitbucket"
-	default:
-		return string(g)
-	}
-}
-
-const (
-	GitProviderAzureDevops GitProvider = "azure-devops"
-	GitProviderGitHub      GitProvider = "github"
-	GitProviderGitLab      GitProvider = "gitlab"
-	GitProviderBitBucket   GitProvider = "bitbucket"
-)
-
 type WorkspaceAgentLog struct {
 	ID        int64     `json:"id"`
 	CreatedAt time.Time `json:"created_at" format:"date-time"`

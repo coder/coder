@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles";
 import { useMachine } from "@xstate/react";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { LicenseBanner } from "components/Dashboard/LicenseBanner/LicenseBanner";
@@ -19,7 +18,6 @@ import { docs } from "utils/docs";
 import { HealthBanner } from "./HealthBanner";
 
 export const DashboardLayout: FC = () => {
-  const styles = useStyles();
   const permissions = usePermissions();
   const [updateCheckState, updateCheckSend] = useMachine(updateCheckMachine, {
     context: {
@@ -35,10 +33,23 @@ export const DashboardLayout: FC = () => {
       <ServiceBanner />
       {canViewDeployment && <LicenseBanner />}
 
-      <div className={styles.site}>
+      <div
+        css={{
+          display: "flex",
+          minHeight: "100%",
+          flexDirection: "column",
+        }}
+      >
         <Navbar />
 
-        <div className={styles.siteContent}>
+        <div
+          css={{
+            flex: 1,
+            paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <Suspense fallback={<Loader />}>
             <Outlet />
           </Suspense>
@@ -118,17 +129,3 @@ export const DashboardFullPage = (props: BoxProps) => {
     />
   );
 };
-
-const useStyles = makeStyles({
-  site: {
-    display: "flex",
-    minHeight: "100%",
-    flexDirection: "column",
-  },
-  siteContent: {
-    flex: 1,
-    paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
-    display: "flex",
-    flexDirection: "column",
-  },
-});

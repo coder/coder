@@ -225,10 +225,10 @@ func Tar(responses *Responses) ([]byte, error) {
 			}
 			responses.ProvisionPlan = append(responses.ProvisionPlan, &proto.Response{
 				Type: &proto.Response_Plan{Plan: &proto.PlanComplete{
-					Error:            resp.GetApply().GetError(),
-					Resources:        resp.GetApply().GetResources(),
-					Parameters:       resp.GetApply().GetParameters(),
-					GitAuthProviders: resp.GetApply().GetGitAuthProviders(),
+					Error:                 resp.GetApply().GetError(),
+					Resources:             resp.GetApply().GetResources(),
+					Parameters:            resp.GetApply().GetParameters(),
+					ExternalAuthProviders: resp.GetApply().GetExternalAuthProviders(),
 				}},
 			})
 		}

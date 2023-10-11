@@ -1,4 +1,3 @@
-import { makeStyles } from "@mui/styles";
 import { useMachine } from "@xstate/react";
 import { Alert } from "components/Alert/Alert";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -24,24 +23,14 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "react-query";
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);
 const getAutostop = (workspace: TypesGen.Workspace) =>
   ttlMsToAutostop(workspace.ttl_ms);
 
-const useStyles = makeStyles((theme) => ({
-  topMargin: {
-    marginTop: theme.spacing(3),
-  },
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));
-
 export const WorkspaceSchedulePage: FC = () => {
-  const styles = useStyles();
   const params = useParams() as { username: string; workspace: string };
   const navigate = useNavigate();
   const username = params.username.replace("@", "");
@@ -72,7 +61,11 @@ export const WorkspaceSchedulePage: FC = () => {
       <Helmet>
         <title>{pageTitle([workspaceName, "Schedule"])}</title>
       </Helmet>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader
+        css={{
+          paddingTop: 0,
+        }}
+      >
         <PageHeaderTitle>Workspace Schedule</PageHeaderTitle>
       </PageHeader>
       {(scheduleState.hasTag("loading") || !template) && <Loader />}
@@ -90,6 +83,8 @@ export const WorkspaceSchedulePage: FC = () => {
         (scheduleState.matches("presentForm") ||
           scheduleState.matches("submittingSchedule")) && (
           <WorkspaceScheduleForm
+            enableAutoStart={template.allow_user_autostart}
+            enableAutoStop={template.allow_user_autostop}
             submitScheduleError={submitScheduleError}
             initialValues={{
               ...getAutostart(workspace),

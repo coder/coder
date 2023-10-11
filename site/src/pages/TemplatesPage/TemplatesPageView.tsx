@@ -7,8 +7,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import AddIcon from "@mui/icons-material/AddOutlined";
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Maybe } from "components/Conditionals/Maybe";
 import { FC } from "react";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
@@ -152,25 +150,27 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
   canCreateTemplates,
 }) => {
   const isLoading = !templates;
-  const isEmpty = Boolean(templates && templates.length === 0);
+  const isEmpty = templates && templates.length === 0;
 
   return (
     <Margins>
       <PageHeader
         actions={
-          <Maybe condition={canCreateTemplates}>
-            <Button component={RouterLink} to="/starter-templates">
-              Starter Templates
-            </Button>
-            <Button
-              startIcon={<AddIcon />}
-              component={RouterLink}
-              to="new"
-              variant="contained"
-            >
-              Create Template
-            </Button>
-          </Maybe>
+          canCreateTemplates && (
+            <>
+              <Button component={RouterLink} to="/starter-templates">
+                Starter Templates
+              </Button>
+              <Button
+                startIcon={<AddIcon />}
+                component={RouterLink}
+                to="new"
+                variant="contained"
+              >
+                Create Template
+              </Button>
+            </>
+          )
         }
       >
         <PageHeaderTitle>
@@ -179,54 +179,44 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
             <TemplateHelpTooltip />
           </Stack>
         </PageHeaderTitle>
-        <Maybe condition={Boolean(templates && templates.length > 0)}>
+        {templates && templates.length > 0 && (
           <PageHeaderSubtitle>
             Select a template to create a workspace.
           </PageHeaderSubtitle>
-        </Maybe>
+        )}
       </PageHeader>
 
-      <ChooseOne>
-        <Cond condition={Boolean(error)}>
-          <ErrorAlert error={error} />
-        </Cond>
+      {error ? (
+        <ErrorAlert error={error} />
+      ) : (
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell width="35%">{Language.nameLabel}</TableCell>
+                <TableCell width="15%">{Language.usedByLabel}</TableCell>
+                <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
+                <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
+                <TableCell width="1%"></TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {isLoading && <TableLoader />}
 
-        <Cond>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell width="35%">{Language.nameLabel}</TableCell>
-                  <TableCell width="15%">{Language.usedByLabel}</TableCell>
-                  <TableCell width="10%">{Language.buildTimeLabel}</TableCell>
-                  <TableCell width="15%">{Language.lastUpdatedLabel}</TableCell>
-                  <TableCell width="1%"></TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                <Maybe condition={isLoading}>
-                  <TableLoader />
-                </Maybe>
-
-                <ChooseOne>
-                  <Cond condition={isEmpty}>
-                    <EmptyTemplates
-                      canCreateTemplates={canCreateTemplates}
-                      examples={examples ?? []}
-                    />
-                  </Cond>
-
-                  <Cond>
-                    {templates?.map((template) => (
-                      <TemplateRow key={template.id} template={template} />
-                    ))}
-                  </Cond>
-                </ChooseOne>
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Cond>
-      </ChooseOne>
+              {isEmpty ? (
+                <EmptyTemplates
+                  canCreateTemplates={canCreateTemplates}
+                  examples={examples ?? []}
+                />
+              ) : (
+                templates?.map((template) => (
+                  <TemplateRow key={template.id} template={template} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </Margins>
   );
 };

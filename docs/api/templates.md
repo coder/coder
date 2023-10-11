@@ -1800,18 +1800,18 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get git auth by template version
+## Get external auth by template version
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/gitauth \
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/external-auth \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /templateversions/{templateversion}/gitauth`
+`GET /templateversions/{templateversion}/external-auth`
 
 ### Parameters
 
@@ -1828,38 +1828,33 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/g
   {
     "authenticate_url": "string",
     "authenticated": true,
+    "display_icon": "string",
+    "display_name": "string",
     "id": "string",
-    "type": "azure-devops"
+    "type": "string"
   }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionGitAuth](schemas.md#codersdktemplateversiongitauth) |
+| Status | Meaning                                                 | Description | Schema                                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TemplateVersionExternalAuth](schemas.md#codersdktemplateversionexternalauth) |
 
-<h3 id="get-git-auth-by-template-version-responseschema">Response Schema</h3>
+<h3 id="get-external-auth-by-template-version-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                 | Type                                                   | Required | Restrictions | Description |
-| -------------------- | ------------------------------------------------------ | -------- | ------------ | ----------- |
-| `[array item]`       | array                                                  | false    |              |             |
-| `» authenticate_url` | string                                                 | false    |              |             |
-| `» authenticated`    | boolean                                                | false    |              |             |
-| `» id`               | string                                                 | false    |              |             |
-| `» type`             | [codersdk.GitProvider](schemas.md#codersdkgitprovider) | false    |              |             |
-
-#### Enumerated Values
-
-| Property | Value          |
-| -------- | -------------- |
-| `type`   | `azure-devops` |
-| `type`   | `github`       |
-| `type`   | `gitlab`       |
-| `type`   | `bitbucket`    |
+| Name                 | Type    | Required | Restrictions | Description |
+| -------------------- | ------- | -------- | ------------ | ----------- |
+| `[array item]`       | array   | false    |              |             |
+| `» authenticate_url` | string  | false    |              |             |
+| `» authenticated`    | boolean | false    |              |             |
+| `» display_icon`     | string  | false    |              |             |
+| `» display_name`     | string  | false    |              |             |
+| `» id`               | string  | false    |              |             |
+| `» type`             | string  | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -1,39 +1,30 @@
-import { makeStyles } from "@mui/styles";
-import Tooltip from "@mui/material/Tooltip";
+import Tooltip, { type TooltipProps } from "@mui/material/Tooltip";
 import { useClickable } from "hooks/useClickable";
 import { useClipboard } from "hooks/useClipboard";
-import { FC, HTMLProps } from "react";
-import { combineClasses } from "utils/combineClasses";
+import { type FC, type HTMLProps } from "react";
 
 interface CopyableValueProps extends HTMLProps<HTMLDivElement> {
   value: string;
+  placement?: TooltipProps["placement"];
+  PopperProps?: TooltipProps["PopperProps"];
 }
 
 export const CopyableValue: FC<CopyableValueProps> = ({
   value,
-  className,
+  placement = "bottom-start",
+  PopperProps,
   ...props
 }) => {
   const { isCopied, copy } = useClipboard(value);
   const clickableProps = useClickable<HTMLSpanElement>(copy);
-  const styles = useStyles();
 
   return (
     <Tooltip
       title={isCopied ? "Copied!" : "Click to copy"}
-      placement="bottom-start"
+      placement={placement}
+      PopperProps={PopperProps}
     >
-      <span
-        {...props}
-        {...clickableProps}
-        className={combineClasses([styles.value, className])}
-      />
+      <span {...props} {...clickableProps} css={{ cursor: "pointer" }} />
     </Tooltip>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  value: {
-    cursor: "pointer",
-  },
-}));

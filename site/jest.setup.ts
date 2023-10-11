@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom";
 import { cleanup } from "@testing-library/react";
 import crypto from "crypto";
-import { server } from "./src/testHelpers/server";
+import { server } from "testHelpers/server";
 import "jest-location-mock";
 import { TextEncoder, TextDecoder } from "util";
 import { Blob } from "buffer";
@@ -47,6 +47,7 @@ global.TextEncoder = TextEncoder;
 global.TextDecoder = TextDecoder as any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Polyfill for jsdom
 global.Blob = Blob as any;
+global.scrollTo = jest.fn();
 
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {

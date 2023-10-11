@@ -10,7 +10,7 @@ import {
 } from "testHelpers/entities";
 
 const meta: Meta<typeof TemplateEmbedPageView> = {
-  title: "pages/TemplateEmbedPageView",
+  title: "pages/TemplatePage/TemplateEmbedPageView",
   component: TemplateEmbedPageView,
   args: {
     template: MockTemplate,

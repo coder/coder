@@ -86,19 +86,20 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"time_til_dormant_autodelete":       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":                    ActionTrack,
-		"template_id":           ActionTrack,
-		"organization_id":       ActionIgnore, // Never changes.
-		"created_at":            ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":            ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":                  ActionTrack,
-		"message":               ActionIgnore, // Never changes after creation.
-		"readme":                ActionTrack,
-		"job_id":                ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":            ActionTrack,
-		"git_auth_providers":    ActionIgnore, // Not helpful because this can only change when new versions are added.
-		"created_by_avatar_url": ActionIgnore,
-		"created_by_username":   ActionIgnore,
+		"id":                      ActionTrack,
+		"template_id":             ActionTrack,
+		"organization_id":         ActionIgnore, // Never changes.
+		"created_at":              ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":              ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":                    ActionTrack,
+		"message":                 ActionIgnore, // Never changes after creation.
+		"readme":                  ActionTrack,
+		"job_id":                  ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":              ActionTrack,
+		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"created_by_avatar_url":   ActionIgnore,
+		"created_by_username":     ActionIgnore,
+		"archived":                ActionTrack,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,
@@ -129,6 +130,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_used_at":       ActionIgnore,
 		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
+		"automatic_updates":  ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,

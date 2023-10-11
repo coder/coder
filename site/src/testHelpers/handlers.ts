@@ -1,6 +1,6 @@
 import { rest } from "msw";
-import { CreateWorkspaceBuildRequest } from "../api/typesGenerated";
-import { permissionsToCheck } from "../xServices/auth/authXService";
+import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
+import { permissionsToCheck } from "xServices/auth/authXService";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 import fs from "fs";
@@ -112,9 +112,15 @@ export const handlers = [
     },
   ),
   rest.get(
-    "/api/v2/templateversions/:templateVersionId/gitauth",
+    "/api/v2/templateversions/:templateVersionId/external-auth",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([]));
+    },
+  ),
+  rest.get(
+    "/api/v2/templateversions/:templateversionId/logs",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs));
     },
   ),
   rest.get(
@@ -339,6 +345,10 @@ export const handlers = [
 
   rest.get("/api/v2/deployment/stats", (_, res, ctx) => {
     return res(ctx.status(200), ctx.json(M.MockDeploymentStats));
+  }),
+
+  rest.get("/api/v2/deployment/config", (_, res, ctx) => {
+    return res(ctx.status(200), ctx.json(M.MockDeploymentConfig));
   }),
 
   rest.get(

@@ -2,10 +2,11 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
-  title: "pages/AppearanceSettingsPageView",
+  title: "pages/DeploySettingsPage/AppearanceSettingsPageView",
   component: AppearanceSettingsPageView,
   args: {
     appearance: {
+      application_name: "Foobar",
       logo_url: "https://github.com/coder.png",
       service_banner: {
         enabled: true,

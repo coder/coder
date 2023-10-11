@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Section } from "../../../components/SettingsLayout/Section";
+import { Section } from "components/SettingsLayout/Section";
 import TextField from "@mui/material/TextField";
 import Box from "@mui/material/Box";
 import GitHubIcon from "@mui/icons-material/GitHub";
@@ -14,7 +14,7 @@ import {
   UserLoginType,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from "react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getErrorMessage } from "api/errors";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";

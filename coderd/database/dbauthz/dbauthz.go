@@ -673,6 +673,17 @@ func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return q.db.AllUserIDs(ctx)
 }
 
+func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return nil, err
+	}
+	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -851,6 +862,11 @@ func (q *querier) GetAppSecurityKey(ctx context.Context) (string, error) {
 	return q.db.GetAppSecurityKey(ctx)
 }
 
+func (q *querier) GetApplicationName(ctx context.Context) (string, error) {
+	// No authz checks
+	return q.db.GetApplicationName(ctx)
+}
+
 func (q *querier) GetAuditLogsOffset(ctx context.Context, arg database.GetAuditLogsOffsetParams) ([]database.GetAuditLogsOffsetRow, error) {
 	// To optimize audit logs, we only check the global audit log permission once.
 	// This is because we expect a large unbounded set of audit logs, and applying a SQL
@@ -908,6 +924,17 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
+func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	return fetch(q.log, q.auth, q.db.GetExternalAuthLink)(ctx, arg)
+}
+
+func (q *querier) GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.ExternalAuthLink, error) {
+	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetExternalAuthLinksByUserID(ctx, userID)
+}
+
 func (q *querier) GetFileByHashAndCreator(ctx context.Context, arg database.GetFileByHashAndCreatorParams) (database.File, error) {
 	file, err := q.db.GetFileByHashAndCreator(ctx, arg)
 	if err != nil {
@@ -945,17 +972,6 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 		return nil, err
 	}
 	return q.db.GetFileTemplates(ctx, fileID)
-}
-
-func (q *querier) GetGitAuthLink(ctx context.Context, arg database.GetGitAuthLinkParams) (database.GitAuthLink, error) {
-	return fetch(q.log, q.auth, q.db.GetGitAuthLink)(ctx, arg)
-}
-
-func (q *querier) GetGitAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]database.GitAuthLink, error) {
-	if err := q.authorizeContext(ctx, rbac.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-	return q.db.GetGitAuthLinksByUserID(ctx, userID)
 }
 
 func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
@@ -1950,12 +1966,12 @@ func (q *querier) InsertDeploymentID(ctx context.Context, value string) error {
 	return q.db.InsertDeploymentID(ctx, value)
 }
 
-func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
-	return insert(q.log, q.auth, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.db.InsertFile)(ctx, arg)
+func (q *querier) InsertExternalAuthLink(ctx context.Context, arg database.InsertExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertExternalAuthLink)(ctx, arg)
 }
 
-func (q *querier) InsertGitAuthLink(ctx context.Context, arg database.InsertGitAuthLinkParams) (database.GitAuthLink, error) {
-	return insert(q.log, q.auth, rbac.ResourceUserData.WithOwner(arg.UserID.String()).WithID(arg.UserID), q.db.InsertGitAuthLink)(ctx, arg)
+func (q *querier) InsertFile(ctx context.Context, arg database.InsertFileParams) (database.File, error) {
+	return insert(q.log, q.auth, rbac.ResourceFile.WithOwner(arg.CreatedBy.String()), q.db.InsertFile)(ctx, arg)
 }
 
 func (q *querier) InsertGitSSHKey(ctx context.Context, arg database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -2255,6 +2271,22 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
+func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	v, err := q.db.GetTemplateVersionByID(ctx, arg.TemplateVersionID)
+	if err != nil {
+		return err
+	}
+
+	tpl, err := q.db.GetTemplateByID(ctx, v.TemplateID.UUID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return err
+	}
+	return q.db.UnarchiveTemplateVersion(ctx, arg)
+}
+
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
@@ -2262,11 +2294,11 @@ func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKe
 	return update(q.log, q.auth, fetch, q.db.UpdateAPIKeyByID)(ctx, arg)
 }
 
-func (q *querier) UpdateGitAuthLink(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
-	fetch := func(ctx context.Context, arg database.UpdateGitAuthLinkParams) (database.GitAuthLink, error) {
-		return q.db.GetGitAuthLink(ctx, database.GetGitAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
+func (q *querier) UpdateExternalAuthLink(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+	fetch := func(ctx context.Context, arg database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+		return q.db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{UserID: arg.UserID, ProviderID: arg.ProviderID})
 	}
-	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateGitAuthLink)(ctx, arg)
+	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateExternalAuthLink)(ctx, arg)
 }
 
 func (q *querier) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -2480,8 +2512,8 @@ func (q *querier) UpdateTemplateVersionDescriptionByJobID(ctx context.Context, a
 	return q.db.UpdateTemplateVersionDescriptionByJobID(ctx, arg)
 }
 
-func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionGitAuthProvidersByJobIDParams) error {
-	// An actor is allowed to update the template version git auth providers if they are authorized to update the template.
+func (q *querier) UpdateTemplateVersionExternalAuthProvidersByJobID(ctx context.Context, arg database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams) error {
+	// An actor is allowed to update the template version external auth providers if they are authorized to update the template.
 	tv, err := q.db.GetTemplateVersionByJobID(ctx, arg.JobID)
 	if err != nil {
 		return err
@@ -2499,7 +2531,7 @@ func (q *querier) UpdateTemplateVersionGitAuthProvidersByJobID(ctx context.Conte
 	if err := q.authorizeContext(ctx, rbac.ActionUpdate, obj); err != nil {
 		return err
 	}
-	return q.db.UpdateTemplateVersionGitAuthProvidersByJobID(ctx, arg)
+	return q.db.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, arg)
 }
 
 func (q *querier) UpdateTemplateWorkspacesLastUsedAt(ctx context.Context, arg database.UpdateTemplateWorkspacesLastUsedAtParams) error {
@@ -2710,6 +2742,19 @@ func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database
 	return q.db.UpdateWorkspaceAppHealthByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg database.UpdateWorkspaceAutomaticUpdatesParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAutomaticUpdates(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
@@ -2806,6 +2851,13 @@ func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Cont
 func (q *querier) UpsertAppSecurityKey(ctx context.Context, data string) error {
 	// No authz checks as this is done during startup
 	return q.db.UpsertAppSecurityKey(ctx, data)
+}
+
+func (q *querier) UpsertApplicationName(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, rbac.ActionCreate, rbac.ResourceDeploymentValues); err != nil {
+		return err
+	}
+	return q.db.UpsertApplicationName(ctx, value)
 }
 
 func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDefaultProxyParams) error {

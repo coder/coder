@@ -5,7 +5,7 @@ import {
   HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import InfoIcon from "@mui/icons-material/InfoOutlined";
-import { makeStyles } from "@mui/styles";
+import { css } from "@emotion/css";
 import { colors } from "theme/colors";
 
 interface InfoTooltipProps {
@@ -17,31 +17,22 @@ interface InfoTooltipProps {
 export const InfoTooltip: FC<InfoTooltipProps> = (props) => {
   const { title, message, type = "info" } = props;
 
-  const styles = useStyles({ type });
-
   return (
     <HelpTooltip
       size="small"
       icon={InfoIcon}
-      iconClassName={styles.icon}
-      buttonClassName={styles.button}
+      iconClassName={css`
+        color: ${type === "info" ? colors.blue[5] : colors.yellow[5]};
+      `}
+      buttonClassName={css`
+        opacity: 1;
+        &:hover {
+          opacity: 1;
+        }
+      `}
     >
       <HelpTooltipTitle>{title}</HelpTooltipTitle>
       <HelpTooltipText>{message}</HelpTooltipText>
     </HelpTooltip>
   );
 };
-
-const useStyles = makeStyles<unknown, Pick<InfoTooltipProps, "type">>(() => ({
-  icon: ({ type }) => ({
-    color: type === "info" ? colors.blue[5] : colors.yellow[5],
-  }),
-
-  button: {
-    opacity: 1,
-
-    "&:hover": {
-      opacity: 1,
-    },
-  },
-}));

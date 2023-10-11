@@ -16,7 +16,7 @@ const MockedAppearance = {
 };
 
 const meta: Meta<typeof WorkspaceStats> = {
-  title: "components/WorkspaceStats",
+  title: "pages/WorkspacePage/WorkspaceStats",
   component: WorkspaceStats,
   decorators: [
     (Story) => (

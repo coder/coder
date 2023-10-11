@@ -72,7 +72,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/devtunnel"
-	"github.com/coder/coder/v2/coderd/gitauth"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -97,85 +97,6 @@ import (
 	"github.com/coder/retry"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
-
-// ReadGitAuthProvidersFromEnv is provided for compatibility purposes with the
-// viper CLI.
-// DEPRECATED
-func ReadGitAuthProvidersFromEnv(environ []string) ([]codersdk.GitAuthConfig, error) {
-	// The index numbers must be in-order.
-	sort.Strings(environ)
-
-	var providers []codersdk.GitAuthConfig
-	for _, v := range clibase.ParseEnviron(environ, "CODER_GITAUTH_") {
-		tokens := strings.SplitN(v.Name, "_", 2)
-		if len(tokens) != 2 {
-			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
-		}
-
-		providerNum, err := strconv.Atoi(tokens[0])
-		if err != nil {
-			return nil, xerrors.Errorf("parse number: %s", v.Name)
-		}
-
-		var provider codersdk.GitAuthConfig
-		switch {
-		case len(providers) < providerNum:
-			return nil, xerrors.Errorf(
-				"provider num %v skipped: %s",
-				len(providers),
-				v.Name,
-			)
-		case len(providers) == providerNum:
-			// At the next next provider.
-			providers = append(providers, provider)
-		case len(providers) == providerNum+1:
-			// At the current provider.
-			provider = providers[providerNum]
-		}
-
-		key := tokens[1]
-		switch key {
-		case "ID":
-			provider.ID = v.Value
-		case "TYPE":
-			provider.Type = v.Value
-		case "CLIENT_ID":
-			provider.ClientID = v.Value
-		case "CLIENT_SECRET":
-			provider.ClientSecret = v.Value
-		case "AUTH_URL":
-			provider.AuthURL = v.Value
-		case "TOKEN_URL":
-			provider.TokenURL = v.Value
-		case "VALIDATE_URL":
-			provider.ValidateURL = v.Value
-		case "REGEX":
-			provider.Regex = v.Value
-		case "DEVICE_FLOW":
-			b, err := strconv.ParseBool(v.Value)
-			if err != nil {
-				return nil, xerrors.Errorf("parse bool: %s", v.Value)
-			}
-			provider.DeviceFlow = b
-		case "DEVICE_CODE_URL":
-			provider.DeviceCodeURL = v.Value
-		case "NO_REFRESH":
-			b, err := strconv.ParseBool(v.Value)
-			if err != nil {
-				return nil, xerrors.Errorf("parse bool: %s", v.Value)
-			}
-			provider.NoRefresh = b
-		case "SCOPES":
-			provider.Scopes = strings.Split(v.Value, " ")
-		case "APP_INSTALL_URL":
-			provider.AppInstallURL = v.Value
-		case "APP_INSTALLATIONS_URL":
-			provider.AppInstallationsURL = v.Value
-		}
-		providers[providerNum] = provider
-	}
-	return providers, nil
-}
 
 func createOIDCConfig(ctx context.Context, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
@@ -568,22 +489,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			gitAuthEnv, err := ReadGitAuthProvidersFromEnv(os.Environ())
+			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
 			if err != nil {
-				return xerrors.Errorf("read git auth providers from env: %w", err)
+				return xerrors.Errorf("read external auth providers from env: %w", err)
 			}
 
-			vals.GitAuthProviders.Value = append(vals.GitAuthProviders.Value, gitAuthEnv...)
-			gitAuthConfigs, err := gitauth.ConvertConfig(
-				vals.GitAuthProviders.Value,
+			vals.ExternalAuthConfigs.Value = append(vals.ExternalAuthConfigs.Value, extAuthEnv...)
+			externalAuthConfigs, err := externalauth.ConvertConfig(
+				vals.ExternalAuthConfigs.Value,
 				vals.AccessURL.Value(),
 			)
 			if err != nil {
-				return xerrors.Errorf("convert git auth config: %w", err)
+				return xerrors.Errorf("convert external auth config: %w", err)
 			}
-			for _, c := range gitAuthConfigs {
+			for _, c := range externalAuthConfigs {
 				logger.Debug(
-					ctx, "loaded git auth config",
+					ctx, "loaded external auth config",
 					slog.F("id", c.ID),
 				)
 			}
@@ -608,7 +529,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      pubsub.NewInMemory(),
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				GitAuthConfigs:              gitAuthConfigs,
+				ExternalAuthConfigs:         externalAuthConfigs,
 				RealIPConfig:                realIPConfig,
 				SecureAuthCookie:            vals.SecureAuthCookie.Value(),
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,
@@ -617,6 +538,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				MetricsCacheRefreshInterval: vals.MetricsCacheRefreshInterval.Value(),
 				AgentStatsRefreshInterval:   vals.AgentStatRefreshInterval.Value(),
 				DeploymentValues:            vals,
+				// Do not pass secret values to DeploymentOptions. All values should be read from
+				// the DeploymentValues instead, this just serves to indicate the source of each
+				// option. This is just defensive to prevent accidentally leaking.
+				DeploymentOptions:           codersdk.DeploymentOptionsWithoutSecrets(opts),
 				PrometheusRegistry:          prometheus.NewRegistry(),
 				APIRateLimit:                int(vals.RateLimit.API.Value()),
 				LoginRateLimit:              loginRateLimit,
@@ -812,7 +737,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if vals.Telemetry.Enable {
 				gitAuth := make([]telemetry.GitAuth, 0)
 				// TODO:
-				var gitAuthConfigs []codersdk.GitAuthConfig
+				var gitAuthConfigs []codersdk.ExternalAuthConfig
 				for _, cfg := range gitAuthConfigs {
 					gitAuth = append(gitAuth, telemetry.GitAuth{
 						Type: cfg.Type,
@@ -1013,7 +938,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, logger, autobuildTicker.C)
+				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, logger, autobuildTicker.C)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())
@@ -1950,45 +1875,49 @@ func BuildLogger(inv *clibase.Invocation, cfg *codersdk.DeploymentValues) (slog.
 	}, nil
 }
 
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (*sql.DB, error) {
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (sqlDB *sql.DB, err error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	var (
-		sqlDB *sql.DB
-		err   error
-		ok    = false
-		tries int
-	)
+	defer func() {
+		if err == nil {
+			return
+		}
+		if sqlDB != nil {
+			_ = sqlDB.Close()
+			sqlDB = nil
+		}
+		logger.Error(ctx, "connect to postgres failed", slog.Error(err))
+	}()
+
+	var tries int
 	for r := retry.New(time.Second, 3*time.Second); r.Wait(ctx); {
 		tries++
 
 		sqlDB, err = sql.Open(driver, dbURL)
 		if err != nil {
-			logger.Warn(ctx, "connect to postgres; retrying", slog.Error(err), slog.F("try", tries))
+			logger.Warn(ctx, "connect to postgres: retrying", slog.Error(err), slog.F("try", tries))
 			continue
 		}
 
 		err = pingPostgres(ctx, sqlDB)
 		if err != nil {
-			logger.Warn(ctx, "ping postgres; retrying", slog.Error(err), slog.F("try", tries))
+			logger.Warn(ctx, "ping postgres: retrying", slog.Error(err), slog.F("try", tries))
+			_ = sqlDB.Close()
+			sqlDB = nil
 			continue
 		}
 
 		break
 	}
-	// Make sure we close the DB in case it opened but the ping failed for some
-	// reason.
-	defer func() {
-		if !ok && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-	}()
+	if err == nil {
+		err = ctx.Err()
+	}
 	if err != nil {
-		return nil, xerrors.Errorf("connect to postgres; tries %d; last error: %w", tries, err)
+		return nil, xerrors.Errorf("unable to connect after %d tries; last error: %w", tries, err)
 	}
 
 	// Ensure the PostgreSQL version is >=13.0.0!
@@ -2033,7 +1962,6 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	// of connection churn.
 	sqlDB.SetMaxIdleConns(3)
 
-	ok = true
 	return sqlDB, nil
 }
 
@@ -2237,4 +2165,104 @@ func ConfigureHTTPServers(inv *clibase.Invocation, cfg *codersdk.DeploymentValue
 	}
 
 	return httpServers, nil
+}
+
+// ReadExternalAuthProvidersFromEnv is provided for compatibility purposes with
+// the viper CLI.
+func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuthConfig, error) {
+	providers, err := parseExternalAuthProvidersFromEnv("CODER_EXTERNAL_AUTH_", environ)
+	if err != nil {
+		return nil, err
+	}
+	// Deprecated: To support legacy git auth!
+	gitProviders, err := parseExternalAuthProvidersFromEnv("CODER_GITAUTH_", environ)
+	if err != nil {
+		return nil, err
+	}
+	return append(providers, gitProviders...), nil
+}
+
+// parseExternalAuthProvidersFromEnv consumes environment variables to parse
+// external auth providers. A prefix is provided to support the legacy
+// parsing of `GITAUTH` environment variables.
+func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
+	// The index numbers must be in-order.
+	sort.Strings(environ)
+
+	var providers []codersdk.ExternalAuthConfig
+	for _, v := range clibase.ParseEnviron(environ, prefix) {
+		tokens := strings.SplitN(v.Name, "_", 2)
+		if len(tokens) != 2 {
+			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
+		}
+
+		providerNum, err := strconv.Atoi(tokens[0])
+		if err != nil {
+			return nil, xerrors.Errorf("parse number: %s", v.Name)
+		}
+
+		var provider codersdk.ExternalAuthConfig
+		switch {
+		case len(providers) < providerNum:
+			return nil, xerrors.Errorf(
+				"provider num %v skipped: %s",
+				len(providers),
+				v.Name,
+			)
+		case len(providers) == providerNum:
+			// At the next next provider.
+			providers = append(providers, provider)
+		case len(providers) == providerNum+1:
+			// At the current provider.
+			provider = providers[providerNum]
+		}
+
+		key := tokens[1]
+		switch key {
+		case "ID":
+			provider.ID = v.Value
+		case "TYPE":
+			provider.Type = v.Value
+		case "CLIENT_ID":
+			provider.ClientID = v.Value
+		case "CLIENT_SECRET":
+			provider.ClientSecret = v.Value
+		case "AUTH_URL":
+			provider.AuthURL = v.Value
+		case "TOKEN_URL":
+			provider.TokenURL = v.Value
+		case "VALIDATE_URL":
+			provider.ValidateURL = v.Value
+		case "REGEX":
+			provider.Regex = v.Value
+		case "DEVICE_FLOW":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.DeviceFlow = b
+		case "DEVICE_CODE_URL":
+			provider.DeviceCodeURL = v.Value
+		case "NO_REFRESH":
+			b, err := strconv.ParseBool(v.Value)
+			if err != nil {
+				return nil, xerrors.Errorf("parse bool: %s", v.Value)
+			}
+			provider.NoRefresh = b
+		case "SCOPES":
+			provider.Scopes = strings.Split(v.Value, " ")
+		case "EXTRA_TOKEN_KEYS":
+			provider.ExtraTokenKeys = strings.Split(v.Value, " ")
+		case "APP_INSTALL_URL":
+			provider.AppInstallURL = v.Value
+		case "APP_INSTALLATIONS_URL":
+			provider.AppInstallationsURL = v.Value
+		case "DISPLAY_NAME":
+			provider.DisplayName = v.Value
+		case "DISPLAY_ICON":
+			provider.DisplayIcon = v.Value
+		}
+		providers[providerNum] = provider
+	}
+	return providers, nil
 }

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "./WorkspaceSettingsLayout";
 import { WorkspaceSettingsPageView } from "./WorkspaceSettingsPageView";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from "react-query";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { patchWorkspace } from "api/api";
 import { WorkspaceSettingsFormValues } from "./WorkspaceSettingsForm";

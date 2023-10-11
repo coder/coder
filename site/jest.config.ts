@@ -16,6 +16,7 @@ module.exports = {
               transform: {
                 react: {
                   runtime: "automatic",
+                  importSource: "@emotion/react",
                 },
               },
               experimental: {

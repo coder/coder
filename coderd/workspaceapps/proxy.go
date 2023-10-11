@@ -301,6 +301,7 @@ func (s *Server) workspaceAppsProxyPath(rw http.ResponseWriter, r *http.Request)
 		AppRequest: Request{
 			AccessMethod:      AccessMethodPath,
 			BasePath:          basePath,
+			Prefix:            "", // Prefix doesn't exist for path apps
 			UsernameOrID:      chi.URLParam(r, "user"),
 			WorkspaceAndAgent: chi.URLParam(r, "workspace_and_agent"),
 			// We don't support port proxying on paths. The ResolveRequest method
@@ -405,6 +406,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 					AppRequest: Request{
 						AccessMethod:      AccessMethodSubdomain,
 						BasePath:          "/",
+						Prefix:            app.Prefix,
 						UsernameOrID:      app.Username,
 						WorkspaceNameOrID: app.WorkspaceName,
 						AgentNameOrID:     app.AgentName,
