@@ -179,7 +179,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						Reason(reason)
 					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
 					if nextTransition == database.WorkspaceTransitionStart &&
-						ws.AutomaticUpdates == database.AutomaticUpdatesAlways {
+						useActiveVersion(templateSchedule, ws) {
 						log.Debug(e.ctx, "autostarting with active version")
 						builder = builder.ActiveVersion()
 					}
@@ -468,4 +468,8 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 		Status:           status,
 		AdditionalFields: raw,
 	})
+}
+
+func useActiveVersion(opts schedule.TemplateScheduleOptions, ws database.Workspace) bool {
+	return opts.RequirePromotedVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
 }
