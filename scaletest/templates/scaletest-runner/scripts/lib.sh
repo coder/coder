@@ -247,6 +247,20 @@ set_appearance() {
 		"${CODER_URL}/api/v2/appearance"
 }
 
+namespace() {
+	local ns
+	ns=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
+	echo "${ns}"
+}
+coder_pods() {
+	local pods
+	pods=$(kubectl get pods \
+		--namespace "$(namespace)" \
+		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
+		--output jsonpath='{.items[*].metadata.name}')
+	echo "${pods}"
+}
+
 # fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
 # running in the same namespace as the current pod.
 fetch_coder_full() {
@@ -254,18 +268,18 @@ fetch_coder_full() {
 		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
 		return
 	fi
-	local pod
-	local namespace
-	namespace=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
-	if [[ -z "${namespace}" ]]; then
+	ns=$(namespace)
+	if [[ -z "${ns}" ]]; then
 		log "Could not determine namespace!"
 		exit 1
 	fi
-	log "Namespace from serviceaccount token is ${namespace}"
-	pod=$(kubectl get pods \
-		--namespace "${namespace}" \
-		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
-		--output jsonpath='{.items[0].metadata.name}')
+	log "Namespace from serviceaccount token is ${ns}"
+	pods=$(coder_pods)
+	if [[ -z ${pods} ]]; then
+		log "Could not find coder pods!"
+		exit 1
+	fi
+	pod=$(echo "${pods}" | cut -d ' ' -f 1)
 	if [[ -z ${pod} ]]; then
 		log "Could not find coder pod!"
 		exit 1
@@ -273,7 +287,7 @@ fetch_coder_full() {
 	log "Fetching full Coder binary from ${pod}"
 	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
 	maybedryrun "${DRY_RUN}" kubectl \
-		--namespace "${namespace}" \
+		--namespace "${ns}" \
 		cp \
 		--container coder \
 		--retries 10 \
