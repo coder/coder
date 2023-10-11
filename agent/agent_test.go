@@ -1066,34 +1066,43 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
+
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
-					Key:      "greeting",
+					Key:      "greeting1",
 					Interval: 0,
+					Script:   echoHello,
+				},
+				{
+					Key:      "greeting2",
+					Interval: 1,
 					Script:   echoHello,
 				},
 			},
 		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
-			opts.ReportMetadataInterval = 100 * time.Millisecond
+			opts.ReportMetadataInterval = testutil.IntervalFast
 		})
 
 		var gotMd map[string]agentsdk.Metadata
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
-			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
+			return len(gotMd) == 2
+		}, testutil.WaitShort, testutil.IntervalFast/2)
 
-		collectedAt := gotMd["greeting"].CollectedAt
+		collectedAt1 := gotMd["greeting1"].CollectedAt
+		collectedAt2 := gotMd["greeting2"].CollectedAt
 
-		require.Never(t, func() bool {
+		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
-			if len(gotMd) != 1 {
+			if len(gotMd) != 2 {
 				panic("unexpected number of metadata")
 			}
-			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
-		}, testutil.WaitShort, testutil.IntervalMedium)
+			return !gotMd["greeting2"].CollectedAt.Equal(collectedAt2)
+		}, testutil.WaitShort, testutil.IntervalFast/2)
+
+		require.Equal(t, gotMd["greeting1"].CollectedAt, collectedAt1, "metadata should not be collected again")
 	})
 
 	t.Run("Many", func(t *testing.T) {
