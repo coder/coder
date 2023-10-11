@@ -5,14 +5,14 @@ import Tooltip from "@mui/material/Tooltip";
 import { type FC } from "react";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Stack } from "components/Stack/Stack";
-import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import { type ExternalAuthPollingStatus } from "./CreateWorkspacePage";
 
 export interface ExternalAuthProps {
   displayName: string;
   displayIcon: string;
   authenticated: boolean;
   authenticateURL: string;
-  externalAuthPollingState: ExternalAuthPollingState;
+  externalAuthPollingState: ExternalAuthPollingStatus;
   startPollingExternalAuth: () => void;
   error?: string;
 }

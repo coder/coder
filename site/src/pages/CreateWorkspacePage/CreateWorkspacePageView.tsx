@@ -35,7 +35,7 @@ import { useTheme } from "@emotion/react";
 import { Alert } from "components/Alert/Alert";
 import { Margins } from "components/Margins/Margins";
 import {
-  type ExternalAuthPollingState,
+  type ExternalAuthPollingStatus,
   type CreateWorkspaceMode,
 } from "./CreateWorkspacePage";
 
@@ -46,7 +46,7 @@ export interface CreateWorkspacePageViewProps {
   template: TypesGen.Template;
   versionId?: string;
   externalAuth: TypesGen.TemplateVersionExternalAuth[];
-  externalAuthPollingState: ExternalAuthPollingState;
+  externalAuthPollingStatus: ExternalAuthPollingStatus;
   startPollingExternalAuth: () => void;
   parameters: TypesGen.TemplateVersionParameter[];
   defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
@@ -67,7 +67,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   template,
   versionId,
   externalAuth,
-  externalAuthPollingState,
+  externalAuthPollingStatus,
   startPollingExternalAuth,
   parameters,
   defaultBuildParameters,
@@ -187,7 +187,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                     key={auth.id}
                     authenticateURL={auth.authenticate_url}
                     authenticated={auth.authenticated}
-                    externalAuthPollingState={externalAuthPollingState}
+                    externalAuthPollingState={externalAuthPollingStatus}
                     startPollingExternalAuth={startPollingExternalAuth}
                     displayName={auth.display_name}
                     displayIcon={auth.display_icon}

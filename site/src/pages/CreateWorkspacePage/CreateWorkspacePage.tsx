@@ -23,102 +23,87 @@ import {
   templateByName,
   templateVersionExternalAuth,
 } from "api/queries/templates";
-import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
+import {
+  AutoCreateWorkspaceOptions,
+  autoCreateWorkspace,
+  createWorkspace,
+} from "api/queries/workspaces";
 import { checkAuthorization } from "api/queries/authCheck";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { richParameters } from "api/queries/templateVersions";
-import { paramsUsedToCreateWorkspace } from "utils/workspace";
 import { useEffectEvent } from "hooks/hookPolyfills";
 
-type CreateWorkspaceMode = "form" | "auto";
+export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
+export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
 
-export type ExternalAuthPollingState = "idle" | "polling" | "abandoned";
+export type ExternalAuthPollingStatus = "idle" | "polling" | "abandoned";
 
 const CreateWorkspacePage: FC = () => {
   const organizationId = useOrganizationId();
+  const [searchParams] = useSearchParams();
   const { template: templateName } = useParams() as { template: string };
-  const me = useMe();
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const defaultBuildParameters = getDefaultBuildParameters(searchParams);
-  const mode = (searchParams.get("mode") ?? "form") as CreateWorkspaceMode;
-  const customVersionId = searchParams.get("version") ?? undefined;
-  const defaultName =
-    mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "";
+  const me = useMe();
 
   const queryClient = useQueryClient();
-  const autoCreateWorkspaceMutation = useMutation(
-    autoCreateWorkspace(queryClient),
-  );
   const createWorkspaceMutation = useMutation(createWorkspace(queryClient));
 
   const templateQuery = useQuery(templateByName(organizationId, templateName));
   const permissionsQuery = useQuery(
-    checkAuthorization({
-      checks: createWorkspaceChecks(organizationId),
-    }),
+    checkAuthorization({ checks: createWorkspaceChecks(organizationId) }),
   );
-  const realizedVersionId =
-    customVersionId ?? templateQuery.data?.active_version_id;
-  const richParametersQuery = useQuery({
-    ...richParameters(realizedVersionId ?? ""),
-    enabled: realizedVersionId !== undefined,
-  });
-  const realizedParameters = richParametersQuery.data
-    ? richParametersQuery.data.filter(paramsUsedToCreateWorkspace)
-    : undefined;
 
-  const { externalAuth, externalAuthPollingState, startPollingExternalAuth } =
-    useExternalAuth(realizedVersionId);
+  const versionId =
+    searchParams.get("version") ?? templateQuery.data?.active_version_id;
+
+  const { authList, pollingStatus, startPolling } = useExternalAuth(versionId);
+  const richParametersQuery = useQuery({
+    ...richParameters(versionId ?? ""),
+    enabled: versionId !== undefined,
+  });
+
+  const defaultBuildParameters = getDefaultBuildParameters(searchParams);
+  const mode = getWorkspaceMode(searchParams);
+  const defaultName =
+    mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "";
+
+  const onCreateWorkspace = (workspace: Workspace) => {
+    navigate(`/@${workspace.owner_name}/${workspace.name}`);
+  };
+
+  const isAutoCreating = useAutomatedWorkspaceCreation({
+    auto: mode === "auto",
+    onSuccess: onCreateWorkspace,
+    payload: {
+      templateName,
+      organizationId,
+      defaultBuildParameters,
+      defaultName,
+      versionId,
+    },
+  });
 
   const isLoadingFormData =
     templateQuery.isLoading ||
     permissionsQuery.isLoading ||
     richParametersQuery.isLoading;
+
   const loadFormDataError =
     templateQuery.error ?? permissionsQuery.error ?? richParametersQuery.error;
-
-  const title = autoCreateWorkspaceMutation.isLoading
-    ? "Creating workspace..."
-    : "Create workspace";
-
-  const onCreateWorkspace = useCallback(
-    (workspace: Workspace) => {
-      navigate(`/@${workspace.owner_name}/${workspace.name}`);
-    },
-    [navigate],
-  );
-
-  const automateWorkspaceCreation = useEffectEvent(async () => {
-    try {
-      const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync({
-        templateName,
-        organizationId,
-        defaultBuildParameters,
-        defaultName,
-        versionId: realizedVersionId,
-      });
-
-      onCreateWorkspace(newWorkspace);
-    } catch (err) {
-      searchParams.delete("mode");
-      setSearchParams(searchParams);
-    }
-  });
-
-  useEffect(() => {
-    if (mode === "auto") {
-      void automateWorkspaceCreation();
-    }
-  }, [automateWorkspaceCreation, mode]);
 
   return (
     <>
       <Helmet>
-        <title>{pageTitle(title)}</title>
+        <title>
+          {pageTitle(
+            isAutoCreating ? "Creating workspace..." : "Create workspace",
+          )}
+        </title>
       </Helmet>
+
       {loadFormDataError && <ErrorAlert error={loadFormDataError} />}
-      {isLoadingFormData || autoCreateWorkspaceMutation.isLoading ? (
+
+      {isLoadingFormData || isAutoCreating ? (
         <Loader />
       ) : (
         <CreateWorkspacePageView
@@ -128,22 +113,22 @@ const CreateWorkspacePage: FC = () => {
           defaultBuildParameters={defaultBuildParameters}
           error={createWorkspaceMutation.error}
           template={templateQuery.data!}
-          versionId={realizedVersionId}
-          externalAuth={externalAuth ?? []}
-          externalAuthPollingState={externalAuthPollingState}
-          startPollingExternalAuth={startPollingExternalAuth}
+          versionId={versionId}
+          externalAuth={authList ?? []}
+          externalAuthPollingStatus={pollingStatus}
+          startPollingExternalAuth={startPolling}
           permissions={permissionsQuery.data as CreateWSPermissions}
-          parameters={realizedParameters as TemplateVersionParameter[]}
           creatingWorkspace={createWorkspaceMutation.isLoading}
-          onCancel={() => {
-            navigate(-1);
-          }}
+          onCancel={() => navigate(-1)}
+          parameters={richParametersQuery.data!.filter(
+            (param) => !param.ephemeral,
+          )}
           onSubmit={async (request, owner) => {
-            if (realizedVersionId) {
+            if (versionId) {
               request = {
                 ...request,
                 template_id: undefined,
-                template_version_id: realizedVersionId,
+                template_version_id: versionId,
               };
             }
 
@@ -161,64 +146,103 @@ const CreateWorkspacePage: FC = () => {
 };
 
 const useExternalAuth = (versionId: string | undefined) => {
-  const [externalAuthPollingState, setExternalAuthPollingState] =
-    useState<ExternalAuthPollingState>("idle");
+  const [pollingStatus, setPollingStatus] =
+    useState<ExternalAuthPollingStatus>("idle");
 
-  const startPollingExternalAuth = useCallback(() => {
-    setExternalAuthPollingState("polling");
+  const startPolling = useCallback(() => {
+    setPollingStatus("polling");
   }, []);
 
-  const { data: externalAuth } = useQuery(
+  const { data: authList } = useQuery(
     versionId
       ? {
           ...templateVersionExternalAuth(versionId),
-          refetchInterval:
-            externalAuthPollingState === "polling" ? 1000 : false,
+          refetchInterval: pollingStatus === "polling" ? 1000 : false,
         }
       : { enabled: false },
   );
 
-  const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
   useEffect(() => {
-    if (allSignedIn) {
-      setExternalAuthPollingState("idle");
+    if (pollingStatus !== "polling") {
       return;
     }
 
-    if (externalAuthPollingState !== "polling") {
-      return;
-    }
-
-    // Poll for a maximum of one minute
-    const quitPolling = setTimeout(
-      () => setExternalAuthPollingState("abandoned"),
+    const timeoutId = window.setTimeout(
+      () => setPollingStatus("abandoned"),
       60_000,
     );
-    return () => {
-      clearTimeout(quitPolling);
-    };
-  }, [externalAuthPollingState, allSignedIn]);
 
-  return {
-    startPollingExternalAuth,
-    externalAuth,
-    externalAuthPollingState,
-  };
+    return () => clearTimeout(timeoutId);
+  }, [pollingStatus]);
+
+  const isAllSignedIn = authList?.every((it) => it.authenticated) ?? false;
+
+  // Doing inline state sync to minimize extra re-renders that useEffect
+  // approach would involve
+  if (isAllSignedIn && pollingStatus === "polling") {
+    setPollingStatus("idle");
+  }
+
+  return { authList, isAllSignedIn, pollingStatus, startPolling } as const;
 };
+
+function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
+  const paramMode = params.get("mode");
+  if (createWorkspaceModes.includes(paramMode as CreateWorkspaceMode)) {
+    return paramMode as CreateWorkspaceMode;
+  }
+
+  return "form";
+}
+
+type AutomatedWorkspaceConfig = {
+  auto: boolean;
+  payload: AutoCreateWorkspaceOptions;
+  onSuccess: (newWorkspace: Workspace) => void;
+};
+
+function useAutomatedWorkspaceCreation(config: AutomatedWorkspaceConfig) {
+  // Duplicates some of the hook calls from the parent, but that was preferable
+  // to having the function arguments balloon in complexity
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  const autoCreateWorkspaceMutation = useMutation(
+    autoCreateWorkspace(queryClient),
+  );
+
+  const automateWorkspaceCreation = useEffectEvent(async () => {
+    try {
+      const newWorkspace = await autoCreateWorkspaceMutation.mutateAsync(
+        config.payload,
+      );
+
+      config.onSuccess(newWorkspace);
+    } catch (err) {
+      searchParams.delete("mode");
+      setSearchParams(searchParams);
+    }
+  });
+
+  useEffect(() => {
+    if (config.auto) {
+      void automateWorkspaceCreation();
+    }
+  }, [automateWorkspaceCreation, config.auto]);
+
+  return autoCreateWorkspaceMutation.isLoading;
+}
 
 const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
 ): WorkspaceBuildParameter[] => {
-  const buildValues: WorkspaceBuildParameter[] = [];
-  Array.from(urlSearchParams.keys())
+  return [...urlSearchParams.keys()]
     .filter((key) => key.startsWith("param."))
-    .forEach((key) => {
-      const name = key.replace("param.", "");
-      const value = urlSearchParams.get(key) ?? "";
-      buildValues.push({ name, value });
+    .map((key) => {
+      return {
+        name: key.replace("param.", ""),
+        value: urlSearchParams.get(key) ?? "",
+      };
     });
-  return buildValues;
 };
 
 export const orderedTemplateParameters = (

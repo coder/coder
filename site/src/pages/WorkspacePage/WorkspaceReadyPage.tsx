@@ -34,7 +34,7 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { type CreateWorkspaceMode } from "xServices/createWorkspace/createWorkspaceXService";
+import { type CreateWorkspaceMode } from "../CreateWorkspacePage/CreateWorkspacePage";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;

@@ -26,7 +26,7 @@ export const workspaceByOwnerAndName = (
   };
 };
 
-type AutoCreateWorkspaceOptions = {
+export type AutoCreateWorkspaceOptions = {
   templateName: string;
   versionId?: string;
   organizationId: string;
