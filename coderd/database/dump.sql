@@ -755,7 +755,11 @@ CREATE TABLE templates (
     time_til_dormant_autodelete bigint DEFAULT 0 NOT NULL,
     autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
     autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
+<<<<<<< HEAD
     autostart_block_days_of_week smallint DEFAULT 0 NOT NULL
+=======
+    require_promoted_version boolean DEFAULT false NOT NULL
+>>>>>>> 5786e8135 (add migration)
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -799,7 +803,11 @@ CREATE VIEW template_with_users AS
     templates.time_til_dormant_autodelete,
     templates.autostop_requirement_days_of_week,
     templates.autostop_requirement_weeks,
+<<<<<<< HEAD
     templates.autostart_block_days_of_week,
+=======
+    templates.require_promoted_version,
+>>>>>>> 5786e8135 (add migration)
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
