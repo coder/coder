@@ -6,12 +6,3 @@ export const templateVersionLogs = (versionId: string) => {
     queryFn: () => API.getTemplateVersionLogs(versionId),
   };
 };
-
-
-export const promoteTemplateVersion = (versionId: string, templateID: string) => {
-  return {
-    mutationFn: () => API.updateActiveTemplateVersion(templateID, {
-      id: versionId
-    }),
-  };
-}
