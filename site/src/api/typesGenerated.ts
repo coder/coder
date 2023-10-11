@@ -52,6 +52,17 @@ export interface AppearanceConfig {
   readonly support_links?: LinkConfig[];
 }
 
+// From codersdk/templates.go
+export interface ArchiveTemplateVersionsRequest {
+  readonly all: boolean;
+}
+
+// From codersdk/templates.go
+export interface ArchiveTemplateVersionsResponse {
+  readonly template_id: string;
+  readonly archived_ids: string[];
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean;
@@ -1012,6 +1023,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob;
   readonly readme: string;
   readonly created_by: MinimalUser;
+  readonly archived: boolean;
   readonly warnings?: TemplateVersionWarning[];
 }
 
@@ -1067,6 +1079,7 @@ export interface TemplateVersionVariable {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string;
+  readonly include_archived: boolean;
 }
 
 // From codersdk/apikey.go

@@ -5345,6 +5345,8 @@ func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.U
 	if err != nil {
 		return err
 	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
 
 	for i, v := range q.data.templateVersions {
 		if v.ID == arg.TemplateVersionID {

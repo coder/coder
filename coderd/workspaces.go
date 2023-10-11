@@ -352,6 +352,18 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			})
 			return
 		}
+		if templateVersion.Archived {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Archived template versions cannot be used to make a workspace.",
+				Validations: []codersdk.ValidationError{
+					{
+						Field:  "template_version_id",
+						Detail: "template version archived",
+					},
+				},
+			})
+			return
+		}
 
 		templateID = templateVersion.TemplateID.UUID
 	}

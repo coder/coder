@@ -812,6 +812,11 @@
           "path": "cli/templates.md"
         },
         {
+          "title": "templates archive",
+          "description": "Archive unused or failed template versions from a given template(s)",
+          "path": "cli/templates_archive.md"
+        },
+        {
           "title": "templates create",
           "description": "Create a template from the current directory or as specified by flag",
           "path": "cli/templates_create.md"
@@ -852,9 +857,19 @@
           "path": "cli/templates_versions.md"
         },
         {
+          "title": "templates versions archive",
+          "description": "Archive a template version(s).",
+          "path": "cli/templates_versions_archive.md"
+        },
+        {
           "title": "templates versions list",
           "description": "List all the versions of the specified template",
           "path": "cli/templates_versions_list.md"
+        },
+        {
+          "title": "templates versions unarchive",
+          "description": "Unarchive a template version(s).",
+          "path": "cli/templates_versions_unarchive.md"
         },
         {
           "title": "tokens",

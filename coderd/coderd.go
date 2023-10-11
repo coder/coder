@@ -670,6 +670,7 @@ func New(options *Options) *API {
 			r.Delete("/", api.deleteTemplate)
 			r.Patch("/", api.patchTemplateMeta)
 			r.Route("/versions", func(r chi.Router) {
+				r.Post("/archive", api.postArchiveTemplateVersions)
 				r.Get("/", api.templateVersionsByTemplate)
 				r.Patch("/", api.patchActiveTemplateVersion)
 				r.Get("/{templateversionname}", api.templateVersionByName)
@@ -683,6 +684,8 @@ func New(options *Options) *API {
 			r.Get("/", api.templateVersion)
 			r.Patch("/", api.patchTemplateVersion)
 			r.Patch("/cancel", api.patchCancelTemplateVersion)
+			r.Post("/archive", api.postArchiveTemplateVersion())
+			r.Post("/unarchive", api.postUnarchiveTemplateVersion())
 			// Old agents may expect a non-error response from /schema and /parameters endpoints.
 			// The idea is to return an empty [], so that the coder CLI won't get blocked accidentally.
 			r.Get("/schema", templateVersionSchemaDeprecated)

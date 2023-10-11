@@ -308,6 +308,36 @@ func TestWorkspace(t *testing.T) {
 			assert.NotEmpty(t, agent2.Health.Reason)
 		})
 	})
+
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		active := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, active.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, active.ID)
+		// We need another version because the active template version cannot be
+		// archived.
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil, func(request *codersdk.CreateTemplateVersionRequest) {
+			request.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		err := client.SetArchiveTemplateVersion(ctx, version.ID, true)
+		require.NoError(t, err, "archive version")
+
+		_, err = client.CreateWorkspace(ctx, owner.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateVersionID: version.ID,
+			Name:              "testworkspace",
+		})
+		require.Error(t, err, "create workspace with archived version")
+		require.ErrorContains(t, err, "Archived template versions cannot")
+	})
 }
 
 func TestAdminViewAllWorkspaces(t *testing.T) {

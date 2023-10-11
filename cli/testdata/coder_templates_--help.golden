@@ -23,6 +23,8 @@ USAGE:
        $ coder templates push my-template
 
 SUBCOMMANDS:
+    archive     Archive unused or failed template versions from a given
+                template(s)
     create      Create a template from the current directory or as specified by
                 flag
     delete      Delete templates
