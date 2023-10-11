@@ -354,7 +354,17 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 	// Truncate is probably not necessary here, but doing it anyway to be sure.
 	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
 
-	return !currentTick.Before(nextTransition)
+	// The nextTransition is when the auto start should kick off. If it lands on a
+	// forbidden day, do not allow the auto start. We use the time location of the
+	// schedule to determine the weekday. So if "Saturday" is disallowed, the
+	// definition of "Saturday" depends on the location of the schedule.
+	zonedTransition := nextTransition.In(sched.Location())
+	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
+	if !allowed {
+		return false
+	}
+
+	return currentTick.After(nextTransition)
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.

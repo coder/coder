@@ -4716,7 +4716,7 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 FROM
 	template_with_users
 WHERE
@@ -4753,6 +4753,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.TimeTilDormantAutoDelete,
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
+		&i.AutostartBlockDaysOfWeek,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -4761,7 +4762,7 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -4806,6 +4807,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.TimeTilDormantAutoDelete,
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
+		&i.AutostartBlockDaysOfWeek,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -4813,7 +4815,7 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 }
 
 const getTemplates = `-- name: GetTemplates :many
-SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 ORDER BY (name, id) ASC
 `
 
@@ -4851,6 +4853,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.TimeTilDormantAutoDelete,
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
+			&i.AutostartBlockDaysOfWeek,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -4869,7 +4872,7 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
-	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, created_by_avatar_url, created_by_username
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 FROM
 	template_with_users AS templates
 WHERE
@@ -4944,6 +4947,7 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.TimeTilDormantAutoDelete,
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
+			&i.AutostartBlockDaysOfWeek,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5130,9 +5134,10 @@ SET
 	max_ttl = $6,
 	autostop_requirement_days_of_week = $7,
 	autostop_requirement_weeks = $8,
-	failure_ttl = $9,
-	time_til_dormant = $10,
-	time_til_dormant_autodelete = $11
+	autostart_block_days_of_week = $9,
+	failure_ttl = $10,
+	time_til_dormant = $11,
+	time_til_dormant_autodelete = $12
 WHERE
 	id = $1
 `
@@ -5146,6 +5151,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	MaxTTL                        int64     `db:"max_ttl" json:"max_ttl"`
 	AutostopRequirementDaysOfWeek int16     `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64     `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	AutostartBlockDaysOfWeek      int16     `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
@@ -5161,6 +5167,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.MaxTTL,
 		arg.AutostopRequirementDaysOfWeek,
 		arg.AutostopRequirementWeeks,
+		arg.AutostartBlockDaysOfWeek,
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
@@ -9723,6 +9730,119 @@ func (q *sqlQuerier) InsertWorkspaceResourceMetadata(ctx context.Context, arg In
 	return items, nil
 }
 
+const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
+SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
+`
+
+func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
+INSERT INTO
+	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
+SELECT
+	$1 :: uuid AS workspace_agent_id,
+	$2 :: timestamptz AS created_at,
+	unnest($3 :: uuid [ ]) AS log_source_id,
+	unnest($4 :: text [ ]) AS log_path,
+	unnest($5 :: text [ ]) AS script,
+	unnest($6 :: text [ ]) AS cron,
+	unnest($7 :: boolean [ ]) AS start_blocks_login,
+	unnest($8 :: boolean [ ]) AS run_on_start,
+	unnest($9 :: boolean [ ]) AS run_on_stop,
+	unnest($10 :: integer [ ]) AS timeout_seconds
+RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
+`
+
+type InsertWorkspaceAgentScriptsParams struct {
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
+	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
+	LogPath          []string    `db:"log_path" json:"log_path"`
+	Script           []string    `db:"script" json:"script"`
+	Cron             []string    `db:"cron" json:"cron"`
+	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
+	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
+	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
+	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
+	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
+		arg.WorkspaceAgentID,
+		arg.CreatedAt,
+		pq.Array(arg.LogSourceID),
+		pq.Array(arg.LogPath),
+		pq.Array(arg.Script),
+		pq.Array(arg.Cron),
+		pq.Array(arg.StartBlocksLogin),
+		pq.Array(arg.RunOnStart),
+		pq.Array(arg.RunOnStop),
+		pq.Array(arg.TimeoutSeconds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentScript
+	for rows.Next() {
+		var i WorkspaceAgentScript
+		if err := rows.Scan(
+			&i.WorkspaceAgentID,
+			&i.LogSourceID,
+			&i.LogPath,
+			&i.CreatedAt,
+			&i.Script,
+			&i.Cron,
+			&i.StartBlocksLogin,
+			&i.RunOnStart,
+			&i.RunOnStop,
+			&i.TimeoutSeconds,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDeploymentWorkspaceStats = `-- name: GetDeploymentWorkspaceStats :one
 WITH workspaces_with_jobs AS (
 	SELECT
@@ -10682,117 +10802,4 @@ type UpdateWorkspacesDormantDeletingAtByTemplateIDParams struct {
 func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Context, arg UpdateWorkspacesDormantDeletingAtByTemplateIDParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspacesDormantDeletingAtByTemplateID, arg.TimeTilDormantAutodeleteMs, arg.DormantAt, arg.TemplateID)
 	return err
-}
-
-const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
-SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
-`
-
-func (q *sqlQuerier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentScriptsByAgentIDs, pq.Array(ids))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const insertWorkspaceAgentScripts = `-- name: InsertWorkspaceAgentScripts :many
-INSERT INTO
-	workspace_agent_scripts (workspace_agent_id, created_at, log_source_id, log_path, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds)
-SELECT
-	$1 :: uuid AS workspace_agent_id,
-	$2 :: timestamptz AS created_at,
-	unnest($3 :: uuid [ ]) AS log_source_id,
-	unnest($4 :: text [ ]) AS log_path,
-	unnest($5 :: text [ ]) AS script,
-	unnest($6 :: text [ ]) AS cron,
-	unnest($7 :: boolean [ ]) AS start_blocks_login,
-	unnest($8 :: boolean [ ]) AS run_on_start,
-	unnest($9 :: boolean [ ]) AS run_on_stop,
-	unnest($10 :: integer [ ]) AS timeout_seconds
-RETURNING workspace_agent_scripts.workspace_agent_id, workspace_agent_scripts.log_source_id, workspace_agent_scripts.log_path, workspace_agent_scripts.created_at, workspace_agent_scripts.script, workspace_agent_scripts.cron, workspace_agent_scripts.start_blocks_login, workspace_agent_scripts.run_on_start, workspace_agent_scripts.run_on_stop, workspace_agent_scripts.timeout_seconds
-`
-
-type InsertWorkspaceAgentScriptsParams struct {
-	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
-	CreatedAt        time.Time   `db:"created_at" json:"created_at"`
-	LogSourceID      []uuid.UUID `db:"log_source_id" json:"log_source_id"`
-	LogPath          []string    `db:"log_path" json:"log_path"`
-	Script           []string    `db:"script" json:"script"`
-	Cron             []string    `db:"cron" json:"cron"`
-	StartBlocksLogin []bool      `db:"start_blocks_login" json:"start_blocks_login"`
-	RunOnStart       []bool      `db:"run_on_start" json:"run_on_start"`
-	RunOnStop        []bool      `db:"run_on_stop" json:"run_on_stop"`
-	TimeoutSeconds   []int32     `db:"timeout_seconds" json:"timeout_seconds"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceAgentScripts(ctx context.Context, arg InsertWorkspaceAgentScriptsParams) ([]WorkspaceAgentScript, error) {
-	rows, err := q.db.QueryContext(ctx, insertWorkspaceAgentScripts,
-		arg.WorkspaceAgentID,
-		arg.CreatedAt,
-		pq.Array(arg.LogSourceID),
-		pq.Array(arg.LogPath),
-		pq.Array(arg.Script),
-		pq.Array(arg.Cron),
-		pq.Array(arg.StartBlocksLogin),
-		pq.Array(arg.RunOnStart),
-		pq.Array(arg.RunOnStop),
-		pq.Array(arg.TimeoutSeconds),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []WorkspaceAgentScript
-	for rows.Next() {
-		var i WorkspaceAgentScript
-		if err := rows.Scan(
-			&i.WorkspaceAgentID,
-			&i.LogSourceID,
-			&i.LogPath,
-			&i.CreatedAt,
-			&i.Script,
-			&i.Cron,
-			&i.StartBlocksLogin,
-			&i.RunOnStart,
-			&i.RunOnStop,
-			&i.TimeoutSeconds,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }

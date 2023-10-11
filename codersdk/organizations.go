@@ -89,6 +89,9 @@ type CreateTemplateRequest struct {
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
+	// AutostartRequirement allows optionally specifying the autostart allowed days
+	// for workspaces created from this template. This is an enterprise feature.
+	AutostartRequirement *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
 	// *bool as the default value is "true".

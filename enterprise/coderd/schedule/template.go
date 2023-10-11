@@ -86,6 +86,9 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 			DaysOfWeek: uint8(tpl.AutostopRequirementDaysOfWeek),
 			Weeks:      tpl.AutostopRequirementWeeks,
 		},
+		AutostartRequirement: agpl.TemplateAutostartRequirement{
+			DaysOfWeek: tpl.AutostartAllowedDays(),
+		},
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
 		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
@@ -107,6 +110,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	if int64(opts.DefaultTTL) == tpl.DefaultTTL &&
 		int64(opts.MaxTTL) == tpl.MaxTTL &&
 		int16(opts.AutostopRequirement.DaysOfWeek) == tpl.AutostopRequirementDaysOfWeek &&
+		opts.AutostartRequirement.DaysOfWeek == tpl.AutostartAllowedDays() &&
 		opts.AutostopRequirement.Weeks == tpl.AutostopRequirementWeeks &&
 		int64(opts.FailureTTL) == tpl.FailureTTL &&
 		int64(opts.TimeTilDormant) == tpl.TimeTilDormant &&
@@ -119,7 +123,12 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 	err := agpl.VerifyTemplateAutostopRequirement(opts.AutostopRequirement.DaysOfWeek, opts.AutostopRequirement.Weeks)
 	if err != nil {
-		return database.Template{}, err
+		return database.Template{}, xerrors.Errorf("verify autostop requirement: %w", err)
+	}
+
+	err = agpl.VerifyTemplateAutostartRequirement(opts.AutostartRequirement.DaysOfWeek)
+	if err != nil {
+		return database.Template{}, xerrors.Errorf("verify autostart requirement: %w", err)
 	}
 
 	var template database.Template
@@ -136,9 +145,12 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			MaxTTL:                        int64(opts.MaxTTL),
 			AutostopRequirementDaysOfWeek: int16(opts.AutostopRequirement.DaysOfWeek),
 			AutostopRequirementWeeks:      opts.AutostopRequirement.Weeks,
-			FailureTTL:                    int64(opts.FailureTTL),
-			TimeTilDormant:                int64(opts.TimeTilDormant),
-			TimeTilDormantAutoDelete:      int64(opts.TimeTilDormantAutoDelete),
+			// Database stores the inverse of the allowed days of the week.
+			// Make sure the 8th bit is always zeroed out, as there is no 8th day of the week.
+			AutostartBlockDaysOfWeek: int16(^opts.AutostartRequirement.DaysOfWeek & 0b01111111),
+			FailureTTL:               int64(opts.FailureTTL),
+			TimeTilDormant:           int64(opts.TimeTilDormant),
+			TimeTilDormantAutoDelete: int64(opts.TimeTilDormantAutoDelete),
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

@@ -124,6 +124,15 @@ func (t Template) DeepCopy() Template {
 	return cpy
 }
 
+// AutostartAllowedDays returns the inverse of 'AutostartBlockDaysOfWeek'.
+// It is more useful to have the days that are allowed to autostart from a UX
+// POV. The database prefers the 0 value being 'all days allowed'.
+func (t Template) AutostartAllowedDays() uint8 {
+	// Just flip the binary 0s to 1s and vice versa.
+	// There is an extra day with the 8th bit that needs to be zeroed.
+	return ^uint8(t.AutostartBlockDaysOfWeek) & 0b01111111
+}
+
 func (TemplateVersion) RBACObject(template Template) rbac.Object {
 	// Just use the parent template resource for controlling versions
 	return template.RBACObject()
