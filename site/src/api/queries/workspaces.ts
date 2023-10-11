@@ -1,5 +1,9 @@
 import * as API from "api/api";
-import { WorkspaceBuildParameter, type Workspace } from "api/typesGenerated";
+import {
+  WorkspaceBuildParameter,
+  type Workspace,
+  CreateWorkspaceRequest,
+} from "api/typesGenerated";
 import { QueryClient, type QueryOptions } from "react-query";
 
 export const workspaceByOwnerAndNameKey = (owner: string, name: string) => [
@@ -25,6 +29,23 @@ type AutoCreateWorkspaceOptions = {
   organizationId: string;
   defaultBuildParameters?: WorkspaceBuildParameter[];
   defaultName: string;
+};
+
+type CreateWorkspaceMutationVariables = CreateWorkspaceRequest & {
+  userId: string;
+  organizationId: string;
+};
+
+export const createWorkspace = (queryClient: QueryClient) => {
+  return {
+    mutationFn: async (variables: CreateWorkspaceMutationVariables) => {
+      const { userId, organizationId, ...req } = variables;
+      return API.createWorkspace(organizationId, userId, req);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries(["workspaces"]);
+    },
+  };
 };
 
 export const autoCreateWorkspace = (queryClient: QueryClient) => {
