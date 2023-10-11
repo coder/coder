@@ -295,7 +295,8 @@
       "timeout": 0
     }
   ],
-  "vscode_port_proxy_uri": "string"
+  "vscode_port_proxy_uri": "string",
+  "workspace_id": "string"
 }
 ```
 
@@ -316,6 +317,7 @@
 | `motd_file`                  | string                                                                                            | false    |              |                                                                                                                                                            |
 | `scripts`                    | array of [codersdk.WorkspaceAgentScript](#codersdkworkspaceagentscript)                           | false    |              |                                                                                                                                                            |
 | `vscode_port_proxy_uri`      | string                                                                                            | false    |              |                                                                                                                                                            |
+| `workspace_id`               | string                                                                                            | false    |              | Allows a forwarding proxy to identify workspaces from /workspaceagents/me/\* calls                                                                         |
 
 ## agentsdk.PatchLogs
 

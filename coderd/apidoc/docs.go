@@ -6582,6 +6582,10 @@ const docTemplate = `{
                 },
                 "vscode_port_proxy_uri": {
                     "type": "string"
+                },
+                "workspace_id": {
+                    "description": "Allows a forwarding proxy to identify workspaces from /workspaceagents/me/* calls",
+                    "type": "string"
                 }
             }
         },
