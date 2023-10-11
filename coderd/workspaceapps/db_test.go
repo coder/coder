@@ -752,6 +752,7 @@ func Test_ResolveRequest(t *testing.T) {
 		require.NoError(t, err)
 
 		appHost := httpapi.ApplicationURL{
+			Prefix:        "",
 			AppSlugOrPort: req.AppSlugOrPort,
 			AgentName:     req.AgentNameOrID,
 			WorkspaceName: req.WorkspaceNameOrID,

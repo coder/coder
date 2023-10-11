@@ -619,6 +619,34 @@ func TestPatchActiveTemplateVersion(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 	})
 
+	t.Run("Archived", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			Auditor:                  auditor,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		version = coderdtest.UpdateTemplateVersion(t, client, owner.OrganizationID, nil, template.ID)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := client.SetArchiveTemplateVersion(ctx, version.ID, true)
+		require.NoError(t, err)
+
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version.ID,
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "The provided template version is archived")
+	})
+
 	t.Run("SuccessfulBuild", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1519,20 +1547,21 @@ func TestTemplateVersionParameters_Order(t *testing.T) {
 func TestTemplateArchiveVersions(t *testing.T) {
 	t.Parallel()
 
-	client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	user := coderdtest.CreateFirstUser(t, client)
+	ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 	var totalVersions int
 	// Create a template to archive
-	initialVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	initialVersion := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 	totalVersions++
-	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, initialVersion.ID)
+	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, initialVersion.ID)
 
 	allFailed := make([]uuid.UUID, 0)
 	expArchived := make([]uuid.UUID, 0)
 	// create some failed versions
 	for i := 0; i < 2; i++ {
-		failed := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		failed := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanFailed,
 			ProvisionApply: echo.ApplyFailed,
@@ -1545,7 +1574,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some unused versions
 	for i := 0; i < 2; i++ {
-		unused := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		unused := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
@@ -1558,7 +1587,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 
 	// Create some used template versions
 	for i := 0; i < 2; i++ {
-		used := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		used := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
 			ProvisionPlan:  echo.PlanComplete,
 			ProvisionApply: echo.ApplyComplete,
@@ -1566,7 +1595,7 @@ func TestTemplateArchiveVersions(t *testing.T) {
 			req.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, used.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
+		workspace := coderdtest.CreateWorkspace(t, client, owner.OrganizationID, uuid.Nil, func(request *codersdk.CreateWorkspaceRequest) {
 			request.TemplateVersionID = used.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)

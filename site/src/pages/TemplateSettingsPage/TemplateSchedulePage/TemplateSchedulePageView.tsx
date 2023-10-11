@@ -1,8 +1,7 @@
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { ComponentProps, FC } from "react";
-import { TemplateScheduleForm } from "./TemplateScheduleForm";
+import { type ComponentProps, type FC } from "react";
+import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
-import { makeStyles } from "@mui/styles";
+import { TemplateScheduleForm } from "./TemplateScheduleForm";
 
 export interface TemplateSchedulePageViewProps {
   template: Template;
@@ -27,11 +26,9 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
   submitError,
   initialTouched,
 }) => {
-  const styles = useStyles();
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader css={{ paddingTop: 0 }}>
         <PageHeaderTitle>Template schedule</PageHeaderTitle>
       </PageHeader>
 
@@ -48,9 +45,3 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));

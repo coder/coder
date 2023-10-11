@@ -7,6 +7,7 @@ import { colors } from "theme/colors";
 import { v4 as uuidv4 } from "uuid";
 import * as XTerm from "xterm";
 import { WebglAddon } from "xterm-addon-webgl";
+import { CanvasAddon } from "xterm-addon-canvas";
 import { FitAddon } from "xterm-addon-fit";
 import { WebLinksAddon } from "xterm-addon-web-links";
 import { Unicode11Addon } from "xterm-addon-unicode11";
@@ -28,6 +29,8 @@ import {
   LoadedScriptsAlert,
   LoadingScriptsAlert,
 } from "./TerminalAlerts";
+import { useQuery } from "react-query";
+import { deploymentConfig } from "api/queries/deployment";
 
 export const Language = {
   workspaceErrorMessagePrefix: "Unable to fetch workspace: ",
@@ -35,11 +38,7 @@ export const Language = {
   websocketErrorMessagePrefix: "WebSocket failed: ",
 };
 
-type TerminalPageProps = React.PropsWithChildren<{
-  renderer: "webgl" | "dom";
-}>;
-
-const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
+const TerminalPage: FC = () => {
   const navigate = useNavigate();
   const styles = useStyles();
   const { proxy } = useProxy();
@@ -100,6 +99,8 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
   useEffect(() => {
     prevLifecycleState.current = lifecycleState;
   }, [lifecycleState]);
+
+  const config = useQuery(deploymentConfig());
 
   // handleWebLink handles opening of URLs in the terminal!
   const handleWebLink = useCallback(
@@ -166,9 +167,10 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
         background: colors.gray[16],
       },
     });
-    // DOM is the default renderer.
-    if (renderer === "webgl") {
+    if (config.data?.config.web_terminal_renderer === "webgl") {
       terminal.loadAddon(new WebglAddon());
+    } else if (config.data?.config.web_terminal_renderer === "canvas") {
+      terminal.loadAddon(new CanvasAddon());
     }
     const fitAddon = new FitAddon();
     setFitAddon(fitAddon);
@@ -208,7 +210,7 @@ const TerminalPage: FC<TerminalPageProps> = ({ renderer }) => {
       window.removeEventListener("resize", listener);
       terminal.dispose();
     };
-  }, [renderer, sendEvent, xtermRef, handleWebLink]);
+  }, [config.data, sendEvent, xtermRef, handleWebLink]);
 
   // Triggers the initial terminal connection using
   // the reconnection token and workspace name found

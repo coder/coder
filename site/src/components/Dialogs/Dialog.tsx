@@ -1,19 +1,18 @@
 import MuiDialog, { DialogProps as MuiDialogProps } from "@mui/material/Dialog";
-import { makeStyles } from "@mui/styles";
-import * as React from "react";
+import { type ReactNode } from "react";
 import { colors } from "theme/colors";
-import { combineClasses } from "utils/combineClasses";
 import {
   LoadingButton,
   LoadingButtonProps,
 } from "../LoadingButton/LoadingButton";
 import { ConfirmDialogType } from "./types";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 export interface DialogActionButtonsProps {
   /** Text to display in the cancel button */
   cancelText?: string;
   /** Text to display in the confirm button */
-  confirmText?: React.ReactNode;
+  confirmText?: ReactNode;
   /** Whether or not confirm is loading, also disables cancel when true */
   confirmLoading?: boolean;
   /** Whether or not this is a confirm dialog */
@@ -46,8 +45,6 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   onConfirm,
   type = "info",
 }) => {
-  const styles = useButtonStyles({ type });
-
   return (
     <>
       {onCancel && (
@@ -65,10 +62,10 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
           loading={confirmLoading}
           disabled={disabled}
           type="submit"
-          className={combineClasses({
-            [styles.errorButton]: type === "delete",
-            [styles.successButton]: type === "success",
-          })}
+          css={[
+            type === "delete" && styles.errorButton,
+            type === "success" && styles.successButton,
+          ]}
         >
           {confirmText}
         </LoadingButton>
@@ -77,8 +74,8 @@ export const DialogActionButtons: React.FC<DialogActionButtonsProps> = ({
   );
 };
 
-const useButtonStyles = makeStyles((theme) => ({
-  errorButton: {
+const styles = {
+  errorButton: (theme) => ({
     "&.MuiButton-contained": {
       backgroundColor: colors.red[10],
       borderColor: colors.red[9],
@@ -95,8 +92,8 @@ const useButtonStyles = makeStyles((theme) => ({
         color: colors.red[9],
       },
     },
-  },
-  successButton: {
+  }),
+  successButton: (theme) => ({
     "&.MuiButton-contained": {
       backgroundColor: theme.palette.success.main,
       color: theme.palette.primary.contrastText,
@@ -145,8 +142,8 @@ const useButtonStyles = makeStyles((theme) => ({
         color: theme.palette.text.secondary,
       },
     },
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export type DialogProps = MuiDialogProps;
 

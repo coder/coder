@@ -1417,6 +1417,10 @@ func convertApps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, 
 				appSlug = dbApp.DisplayName
 			}
 			subdomainName = httpapi.ApplicationURL{
+				// We never generate URLs with a prefix. We only allow prefixes
+				// when parsing URLs from the hostname. Users that want this
+				// feature can write out their own URLs.
+				Prefix:        "",
 				AppSlugOrPort: appSlug,
 				AgentName:     agent.Name,
 				WorkspaceName: workspace.Name,

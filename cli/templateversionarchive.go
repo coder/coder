@@ -101,7 +101,7 @@ func (r *RootCmd) archiveTemplateVersions() *clibase.Cmd {
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
 		Use:   "archive [template-name...] ",
-		Short: "Archive unused failed template versions from a given template(s)",
+		Short: "Archive unused or failed template versions from a given template(s)",
 		Middleware: clibase.Chain(
 			r.InitClient(client),
 		),

@@ -242,8 +242,8 @@ WHERE
 	-- Filter by dormant workspaces. By default we do not return dormant
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
-		WHEN @dormant_at :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
-			dormant_at IS NOT NULL AND dormant_at >= @dormant_at
+		WHEN @is_dormant :: text != '' THEN
+			dormant_at IS NOT NULL 
 		ELSE
 			dormant_at IS NULL
 	END

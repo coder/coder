@@ -813,7 +813,7 @@
         },
         {
           "title": "templates archive",
-          "description": "Archive unused failed template versions from a given template(s)",
+          "description": "Archive unused or failed template versions from a given template(s)",
           "path": "cli/templates_archive.md"
         },
         {

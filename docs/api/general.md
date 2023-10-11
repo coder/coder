@@ -389,6 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_schedule": "string"
     },
     "verbose": true,
+    "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,

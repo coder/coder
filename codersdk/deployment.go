@@ -180,6 +180,7 @@ type DeploymentValues struct {
 	ProxyHealthStatusInterval       clibase.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
 	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
 	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
+	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -1762,7 +1763,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
 		},
+		{
+			Name:        "Web Terminal Renderer",
+			Description: "The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.",
+			Flag:        "web-terminal-renderer",
+			Env:         "CODER_WEB_TERMINAL_RENDERER",
+			Default:     "canvas",
+			Value:       &c.WebTerminalRenderer,
+			Group:       &deploymentGroupClient,
+			YAML:        "webTerminalRenderer",
+		},
 	}
+
 	return opts
 }
 
@@ -1966,7 +1978,6 @@ const (
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
-	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
 	// ExperimentTemplateAutostopRequirement allows template admins to have more
@@ -1999,6 +2010,7 @@ const (
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
 	ExperimentDeploymentHealthPage,
+	ExperimentSingleTailnet,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

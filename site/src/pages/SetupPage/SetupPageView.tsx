@@ -1,20 +1,19 @@
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
-import { makeStyles } from "@mui/styles";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { Welcome } from "components/Welcome/Welcome";
-import { FormikContextType, useFormik } from "formik";
+import { type FormikContextType, useFormik } from "formik";
 import {
   getFormHelpers,
   nameValidator,
   onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import * as TypesGen from "api/typesGenerated";
+import type * as TypesGen from "api/typesGenerated";
 
 export const Language = {
   emailLabel: "Email",
@@ -62,7 +61,6 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
     form,
     error,
   );
-  const styles = useStyles();
 
   return (
     <SignInLayout>
@@ -91,7 +89,7 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
             label={Language.passwordLabel}
             type="password"
           />
-          <div className={styles.callout}>
+          <div css={{ borderRadius: 16 }}>
             <Box display="flex">
               <div>
                 <Checkbox
@@ -128,9 +126,3 @@ export const SetupPageView: React.FC<SetupPageViewProps> = ({
     </SignInLayout>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  callout: {
-    borderRadius: 16,
-  },
-}));

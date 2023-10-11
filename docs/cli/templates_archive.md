@@ -2,7 +2,7 @@
 
 # templates archive
 
-Archive unused failed template versions from a given template(s)
+Archive unused or failed template versions from a given template(s)
 
 ## Usage
 

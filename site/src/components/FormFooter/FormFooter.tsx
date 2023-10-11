@@ -1,15 +1,18 @@
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
-import { ClassNameMap } from "@mui/styles/withStyles";
-import { FC } from "react";
+import { type FC } from "react";
 import { LoadingButton } from "../LoadingButton/LoadingButton";
+import { Interpolation, Theme } from "@emotion/react";
 
 export const Language = {
   cancelLabel: "Cancel",
   defaultSubmitLabel: "Submit",
 };
 
-type FormFooterStyles = ClassNameMap<"footer" | "button">;
+export interface FormFooterStyles {
+  footer: Interpolation<Theme>;
+  button: Interpolation<Theme>;
+}
+
 export interface FormFooterProps {
   onCancel: () => void;
   isLoading: boolean;
@@ -23,15 +26,15 @@ export const FormFooter: FC<FormFooterProps> = ({
   isLoading,
   submitDisabled,
   submitLabel = Language.defaultSubmitLabel,
-  styles = defaultStyles(),
+  styles = defaultStyles,
 }) => {
   return (
-    <div className={styles.footer}>
+    <div css={styles.footer}>
       <LoadingButton
         size="large"
         tabIndex={0}
         loading={isLoading}
-        className={styles.button}
+        css={styles.button}
         variant="contained"
         color="primary"
         type="submit"
@@ -43,7 +46,7 @@ export const FormFooter: FC<FormFooterProps> = ({
       <Button
         size="large"
         type="button"
-        className={styles.button}
+        css={styles.button}
         onClick={onCancel}
         tabIndex={0}
       >
@@ -53,8 +56,8 @@ export const FormFooter: FC<FormFooterProps> = ({
   );
 };
 
-const defaultStyles = makeStyles((theme) => ({
-  footer: {
+const defaultStyles = {
+  footer: (theme) => ({
     display: "flex",
     flex: "0",
     // The first button is the submit so it is the first element to be focused
@@ -63,8 +66,8 @@ const defaultStyles = makeStyles((theme) => ({
     gap: theme.spacing(1.5),
     alignItems: "center",
     marginTop: theme.spacing(3),
-  },
+  }),
   button: {
     width: "100%",
   },
-}));
+} satisfies FormFooterStyles;

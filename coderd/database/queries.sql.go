@@ -10160,8 +10160,8 @@ WHERE
 	-- Filter by dormant workspaces. By default we do not return dormant
 	-- workspaces since they are considered soft-deleted.
 	AND CASE
-		WHEN $10 :: timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN
-			dormant_at IS NOT NULL AND dormant_at >= $10
+		WHEN $10 :: text != '' THEN
+			dormant_at IS NOT NULL 
 		ELSE
 			dormant_at IS NULL
 	END
@@ -10204,7 +10204,7 @@ type GetWorkspacesParams struct {
 	Name                                  string      `db:"name" json:"name"`
 	HasAgent                              string      `db:"has_agent" json:"has_agent"`
 	AgentInactiveDisconnectTimeoutSeconds int64       `db:"agent_inactive_disconnect_timeout_seconds" json:"agent_inactive_disconnect_timeout_seconds"`
-	DormantAt                             time.Time   `db:"dormant_at" json:"dormant_at"`
+	IsDormant                             string      `db:"is_dormant" json:"is_dormant"`
 	LastUsedBefore                        time.Time   `db:"last_used_before" json:"last_used_before"`
 	LastUsedAfter                         time.Time   `db:"last_used_after" json:"last_used_after"`
 	Offset                                int32       `db:"offset_" json:"offset_"`
@@ -10243,7 +10243,7 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
-		arg.DormantAt,
+		arg.IsDormant,
 		arg.LastUsedBefore,
 		arg.LastUsedAfter,
 		arg.Offset,

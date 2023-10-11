@@ -14,7 +14,7 @@ import MenuItem from "@mui/material/MenuItem";
 import { Stack } from "components/Stack/Stack";
 import { timeZones, getPreferredTimezone } from "utils/timeZones";
 import { Alert } from "components/Alert/Alert";
-import { timeToCron, quietHoursDisplay } from "utils/schedule";
+import { timeToCron, quietHoursDisplay, validTime } from "utils/schedule";
 
 export interface ScheduleFormValues {
   time: string;
@@ -25,7 +25,7 @@ const validationSchema = Yup.object({
   time: Yup.string()
     .ensure()
     .test("is-time-string", "Time must be in HH:mm format.", (value) => {
-      if (!/^[0-9][0-9]:[0-9][0-9]$/.test(value)) {
+      if (!validTime(value)) {
         return false;
       }
       const parts = value.split(":");
@@ -115,13 +115,6 @@ export const ScheduleForm: FC<React.PropsWithChildren<ScheduleFormProps>> = ({
             ))}
           </TextField>
         </Stack>
-
-        <TextField
-          disabled
-          fullWidth
-          label="Cron schedule"
-          value={timeToCron(form.values.time, form.values.timezone)}
-        />
 
         <TextField
           disabled

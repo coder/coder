@@ -344,7 +344,9 @@ func TestStartupLogsSender(t *testing.T) {
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		// Prevent race between auto-flush and context cancellation with
+		// a really long timeout.
+		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug), agentsdk.LogsSenderFlushTimeout(time.Hour))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
