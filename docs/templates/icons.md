@@ -16,3 +16,5 @@ can see all of the icons (or suggest new ones) in our repository on
 You can also view the entire list, with search, by navigating to /icons on your
 Coder deployment. E.g. [https://coder.example.com/icons](#). This can be
 particularly useful in airgapped deployments.
+
+![The icon gallery](../images/icons-gallery.png)
