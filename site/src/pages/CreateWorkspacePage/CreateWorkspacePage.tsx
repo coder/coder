@@ -52,8 +52,17 @@ const CreateWorkspacePage: FC = () => {
       },
     },
   });
-  const { template, parameters, permissions, defaultName, versionId } =
-    createWorkspaceState.context;
+  const {
+    template,
+    parameters,
+    permissions,
+    defaultName,
+    versionId,
+    error: createWorkspaceError,
+  } = createWorkspaceState.context;
+
+  const { externalAuth, externalAuthPollingState, startPollingExternalAuth } =
+    useExternalAuth(versionId);
 
   const queryClient = useQueryClient();
   const autoCreateWorkspaceMutation = useMutation(
@@ -63,45 +72,6 @@ const CreateWorkspacePage: FC = () => {
   const title = autoCreateWorkspaceMutation.isLoading
     ? "Creating workspace..."
     : "Create workspace";
-
-  const [externalAuthPollingState, setExternalAuthPollingState] =
-    useState<ExternalAuthPollingState>("idle");
-
-  const startPollingExternalAuth = useCallback(() => {
-    setExternalAuthPollingState("polling");
-  }, []);
-
-  const { data: externalAuth, error } = useQuery(
-    versionId
-      ? {
-          ...templateVersionExternalAuth(versionId),
-          refetchInterval:
-            externalAuthPollingState === "polling" ? 1000 : false,
-        }
-      : { enabled: false },
-  );
-
-  const allSignedIn = externalAuth?.every((it) => it.authenticated);
-
-  useEffect(() => {
-    if (allSignedIn) {
-      setExternalAuthPollingState("idle");
-      return;
-    }
-
-    if (externalAuthPollingState !== "polling") {
-      return;
-    }
-
-    // Poll for a maximum of one minute
-    const quitPolling = setTimeout(
-      () => setExternalAuthPollingState("abandoned"),
-      60_000,
-    );
-    return () => {
-      clearTimeout(quitPolling);
-    };
-  }, [externalAuthPollingState, allSignedIn]);
 
   useEffect(() => {
     if (mode === "auto") {
@@ -145,14 +115,14 @@ const CreateWorkspacePage: FC = () => {
           autoCreateWorkspaceMutation.isLoading,
       ) && <Loader />}
       {createWorkspaceState.matches("loadError") && (
-        <ErrorAlert error={error} />
+        <ErrorAlert error={createWorkspaceError} />
       )}
       {createWorkspaceState.matches("idle") && (
         <CreateWorkspacePageView
           defaultName={defaultName}
           defaultOwner={me}
           defaultBuildParameters={defaultBuildParameters}
-          error={error}
+          error={createWorkspaceError}
           template={template!}
           versionId={versionId}
           externalAuth={externalAuth ?? []}
@@ -177,7 +147,52 @@ const CreateWorkspacePage: FC = () => {
   );
 };
 
-export default CreateWorkspacePage;
+const useExternalAuth = (versionId: string | undefined) => {
+  const [externalAuthPollingState, setExternalAuthPollingState] =
+    useState<ExternalAuthPollingState>("idle");
+
+  const startPollingExternalAuth = useCallback(() => {
+    setExternalAuthPollingState("polling");
+  }, []);
+
+  const { data: externalAuth } = useQuery(
+    versionId
+      ? {
+          ...templateVersionExternalAuth(versionId),
+          refetchInterval:
+            externalAuthPollingState === "polling" ? 1000 : false,
+        }
+      : { enabled: false },
+  );
+
+  const allSignedIn = externalAuth?.every((it) => it.authenticated);
+
+  useEffect(() => {
+    if (allSignedIn) {
+      setExternalAuthPollingState("idle");
+      return;
+    }
+
+    if (externalAuthPollingState !== "polling") {
+      return;
+    }
+
+    // Poll for a maximum of one minute
+    const quitPolling = setTimeout(
+      () => setExternalAuthPollingState("abandoned"),
+      60_000,
+    );
+    return () => {
+      clearTimeout(quitPolling);
+    };
+  }, [externalAuthPollingState, allSignedIn]);
+
+  return {
+    startPollingExternalAuth,
+    externalAuth,
+    externalAuthPollingState,
+  };
+};
 
 const getDefaultBuildParameters = (
   urlSearchParams: URLSearchParams,
@@ -216,3 +231,5 @@ const generateUniqueName = () => {
     style: "lowerCase",
   });
 };
+
+export default CreateWorkspacePage;
