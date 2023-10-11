@@ -1166,6 +1166,7 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				//nolint:gocritic
 				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
+					logger.Fatal(ctx, "validate config", slog.Error(err))
 					return err
 				}
 				var runner harness.Runnable = dashboard.NewRunner(userClient, metrics, config)

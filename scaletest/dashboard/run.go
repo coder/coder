@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/rand"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -34,6 +35,9 @@ func NewRunner(client *codersdk.Client, metrics Metrics, cfg Config) *Runner {
 	}
 	if cfg.Screenshot == nil {
 		cfg.Screenshot = Screenshot
+	}
+	if cfg.RandIntn == nil {
+		cfg.RandIntn = rand.Intn
 	}
 	return &Runner{
 		client:  client,

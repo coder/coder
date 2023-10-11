@@ -39,13 +39,5 @@ func (c Config) Validate() error {
 		return xerrors.Errorf("validate jitter: must be less than interval")
 	}
 
-	if c.ActionFunc == nil {
-		return xerrors.Errorf("validate action func: must not be nil")
-	}
-
-	if c.RandIntn == nil {
-		return xerrors.Errorf("validate rand intn: must not be nil")
-	}
-
 	return nil
 }
