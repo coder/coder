@@ -151,6 +151,7 @@ type TemplateScheduleOptions struct {
 	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
+	RequirePromotedVersion   bool `json:"require_promoted_version"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -200,6 +201,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		FailureTTL:               0,
 		TimeTilDormant:           0,
 		TimeTilDormantAutoDelete: 0,
+		RequirePromotedVersion:   false,
 	}, nil
 }
 
@@ -214,6 +216,9 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
+		// TODO (JonA): This seems ripe for a bug. Should we not
+		// be reading the template as part of the tx and then also
+		// setting our isolation level to repeatable read?
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:         tpl.ID,
 			UpdatedAt:  dbtime.Now(),
@@ -229,6 +234,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			FailureTTL:                    tpl.FailureTTL,
 			TimeTilDormant:                tpl.TimeTilDormant,
 			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
+			RequirePromotedVersion:        tpl.RequirePromotedVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

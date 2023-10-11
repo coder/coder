@@ -5176,10 +5176,17 @@ SET
 	max_ttl = $6,
 	autostop_requirement_days_of_week = $7,
 	autostop_requirement_weeks = $8,
+<<<<<<< HEAD
 	autostart_block_days_of_week = $9,
 	failure_ttl = $10,
 	time_til_dormant = $11,
 	time_til_dormant_autodelete = $12
+=======
+	failure_ttl = $9,
+	time_til_dormant = $10,
+	time_til_dormant_autodelete = $11,
+    require_promoted_version = $12
+>>>>>>> f6a08b15a (add template update plumbing)
 WHERE
 	id = $1
 `
@@ -5197,6 +5204,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
+	RequirePromotedVersion        bool      `db:"require_promoted_version" json:"require_promoted_version"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -5213,6 +5221,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
+		arg.RequirePromotedVersion,
 	)
 	return err
 }

@@ -151,6 +151,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			FailureTTL:               int64(opts.FailureTTL),
 			TimeTilDormant:           int64(opts.TimeTilDormant),
 			TimeTilDormantAutoDelete: int64(opts.TimeTilDormantAutoDelete),
+			RequirePromotedVersion:   opts.RequirePromotedVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)
