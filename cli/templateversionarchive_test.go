@@ -4,18 +4,14 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	"github.com/coder/coder/v2/provisioner/echo"
-
-	"github.com/coder/coder/v2/codersdk"
-
-	"github.com/coder/coder/v2/testutil"
-
-	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/stretchr/testify/require"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTemplateVersionsArchive(t *testing.T) {
