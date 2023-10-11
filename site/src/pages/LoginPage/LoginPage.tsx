@@ -1,21 +1,29 @@
 import { useAuth } from "components/AuthProvider/AuthProvider";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { retrieveRedirect } from "utils/redirect";
 import { LoginPageView } from "./LoginPageView";
 import { getApplicationName } from "utils/appearance";
 
 export const LoginPage: FC = () => {
   const location = useLocation();
-  const [authState, authSend] = useAuth();
+  const {
+    isSignedIn,
+    isConfiguringTheFirstUser,
+    signIn,
+    isSigningIn,
+    authMethods,
+    signInError,
+  } = useAuth();
   const redirectTo = retrieveRedirect(location.search);
   const applicationName = getApplicationName();
+  const navigate = useNavigate();
 
-  if (authState.matches("signedIn")) {
+  if (isSignedIn) {
     return <Navigate to={redirectTo} replace />;
-  } else if (authState.matches("configuringTheFirstUser")) {
-    return <Navigate to="/setup" />;
+  } else if (isConfiguringTheFirstUser) {
+    return <Navigate to="/setup" replace />;
   } else {
     return (
       <>
@@ -23,11 +31,12 @@ export const LoginPage: FC = () => {
           <title>Sign in to {applicationName}</title>
         </Helmet>
         <LoginPageView
-          context={authState.context}
-          isLoading={authState.matches("loadingInitialAuthData")}
-          isSigningIn={authState.matches("signingIn")}
-          onSignIn={({ email, password }) => {
-            authSend({ type: "SIGN_IN", email, password });
+          authMethods={authMethods}
+          error={signInError}
+          isSigningIn={isSigningIn}
+          onSignIn={async ({ email, password }) => {
+            await signIn(email, password);
+            navigate("/");
           }}
         />
       </>

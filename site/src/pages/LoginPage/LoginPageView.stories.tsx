@@ -1,4 +1,3 @@
-import { action } from "@storybook/addon-actions";
 import { MockAuthMethods, mockApiError } from "testHelpers/entities";
 import { LoginPageView } from "./LoginPageView";
 import type { Meta, StoryObj } from "@storybook/react";
@@ -13,51 +12,29 @@ type Story = StoryObj<typeof LoginPageView>;
 
 export const Example: Story = {
   args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    authMethods: MockAuthMethods,
   },
 };
 
 export const AuthError: Story = {
   args: {
-    isLoading: false,
-    onSignIn: action("onSignIn"),
-    context: {
-      error: mockApiError({
-        message: "User or password is incorrect",
-        detail: "Please, try again",
-      }),
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    error: mockApiError({
+      message: "User or password is incorrect",
+      detail: "Please, try again",
+    }),
+    authMethods: MockAuthMethods,
   },
 };
 
-export const LoadingInitialData: Story = {
+export const LoadingAuthMethods: Story = {
   args: {
-    isLoading: true,
-    onSignIn: action("onSignIn"),
-    context: {},
+    authMethods: undefined,
   },
 };
 
 export const SigningIn: Story = {
   args: {
     isSigningIn: true,
-    onSignIn: action("onSignIn"),
-    context: {
-      data: {
-        authMethods: MockAuthMethods,
-        hasFirstUser: false,
-      },
-    },
+    authMethods: MockAuthMethods,
   },
 };

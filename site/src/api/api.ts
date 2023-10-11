@@ -120,19 +120,9 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout");
 };
 
-export const getAuthenticatedUser = async (): Promise<
-  TypesGen.User | undefined
-> => {
-  try {
-    const response = await axios.get<TypesGen.User>("/api/v2/users/me");
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return undefined;
-    }
-
-    throw error;
-  }
+export const getAuthenticatedUser = async () => {
+  const response = await axios.get<TypesGen.User>("/api/v2/users/me");
+  return response.data;
 };
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
