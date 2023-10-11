@@ -40,10 +40,6 @@ type CreateWorkspaceEvent = {
   owner: User;
 };
 
-type RefreshGitAuthEvent = {
-  type: "REFRESH_GITAUTH";
-};
-
 export const createWorkspaceMachine =
   /** @xstate-layout N4IgpgJg5mDOIC5QGMBOYCGAXMB1A9qgNawAOGyYAyltmAHTIAWYyRAlgHZQCy+EYAMQBtAAwBdRKFL5Y7LO3ycpIAB6IATABYAnPR2iDWgOwBmAGynRo4wFZbAGhABPRDoAc9d+8OnTARlF-Uy0NUQ0AXwinNEwcAmIyCmpaHEYWNi5efiFhf0kkEBk5BSUVdQQNU1svEPcq9wsDU3ctJ1dKv3pRd3NzHVNjf1sjHX8omPQ6BJJySho6egwAVyx8AGEphW5BCCUGLgA3fCIGWOnCWeSFtJW1zbishCP8ZGxFTjFxL5Vi+Q-yoh7MZ9MZjLoQqItN5jDp2ogALT+PSWWwaDR9dzGDTeXTuCYgc7xS5JeapBh3DZbLKCMCoVCEeikAA22AAZoQALaMLZ4ElzFKLSkPd7cZ6cY5vUqfCQ-Qp-aWAhAtPQtWxDaE+OxQ4zwhD+dw1US2cw4-zmLQ9WyicwEol8xICm4MZn4DAQLIAMS5ABFsBhdvt6C9Tjy4g6rmTFq73V7ff7xZL3kovnLpLJ-mVChVzNb6P5tDoMei7P5-G0XIgQqZ6BjbFrWuZGrC7byZqTBWkYx7uN7UJy-bRafTGSz2VywxdHddyfRu3H+4OMInXsmZd8JL8M4rs4hejWCzYLOYDSfjOY9SENPpgmYy+bgjodLbooS2-yZ4t2BBmUJ1gAlABRABBAAVQCAH1cAAeX-ABpKgAAVgPWQC0yKbcAV3BBLHMWs61EQZjQ0ZF3D1ewa36S0QlhasQlbcN2ydWciSyJjkkDTgDglE4znfacozSVjuHYygVylD5U03eVMKzUAc1MPRGh0cEtBMJ9Wj1MxPFsKwmg0DwwmGBip0jTs+MeESP0oYcGVQJlWSwDl+0nYkBPM1y2OssBxLXKSCnTEosPkxBQn8eh7FaewBjRU1THIwIb2CLQ+nrXN1SiV9OByeBCntUTzK3IK5LUKstFrWE4uNGxwQxPUkRsfNqnRfxzybE1+hMtyzOddJWA4bg+AEIrM2UbD6gq58qmqsFQgvSsEGfehLEMExWp0LRSK6iMO164VqW4EadxC5Ui2W0wNDBDVekfLTrx8cIAnBKxgVsbaCt6+de3jWgjuC0qcIsZbfBtPE-F1BaGn0AzIWxGK-HxV98u83rv1-P6SpzSx6EUtT+kIsYT38PUtFscKDTUw1zGxMmy3elGWIOqACoxsaTtNPCLs2-oGlNVq9SJ2tQcCS0eZS+n3N6+0IFZpV3A2-MtBadx1uRcIyIWuxPDsforEM6x7AlnrZ27QCR1QWXxthHHLrBJ8nxtJsSd0ehsQsJWNHrYYi0yiIgA */
   createMachine(
@@ -53,7 +49,7 @@ export const createWorkspaceMachine =
       tsTypes: {} as import("./createWorkspaceXService.typegen").Typegen0,
       schema: {
         context: {} as CreateWorkspaceContext,
-        events: {} as CreateWorkspaceEvent | RefreshGitAuthEvent,
+        events: {} as CreateWorkspaceEvent,
         services: {} as {
           loadFormData: {
             data: {
