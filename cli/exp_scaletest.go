@@ -1099,6 +1099,9 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			if r.verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
@@ -1148,16 +1151,20 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				userClient.SetSessionToken(userTokResp.Key)
 
 				config := dashboard.Config{
-					Interval:   interval,
-					Jitter:     jitter,
-					Trace:      tracingEnabled,
-					Logger:     logger.Named(name),
-					Headless:   headless,
-					ActionFunc: dashboard.ClickRandomElement,
-					RandIntn:   rndGen.Intn,
+					Interval: interval,
+					Jitter:   jitter,
+					Trace:    tracingEnabled,
+					Logger:   logger.Named(name),
+					Headless: headless,
+					RandIntn: rndGen.Intn,
+				}
+				// Only take a screenshot if we're in verbose mode.
+				// This could be useful for debugging, but it will blow up the disk.
+				if r.verbose {
+					config.Screenshot = dashboard.Screenshot
 				}
 				//nolint:gocritic
-				logger.Info(ctx, "runner config", slog.F("min_wait", interval), slog.F("max_wait", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
+				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
 					return err
 				}
@@ -1200,14 +1207,14 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
-			Default:     "3s",
+			Default:     "10s",
 			Description: "Interval between actions.",
 			Value:       clibase.DurationOf(&interval),
 		},
 		{
 			Flag:        "jitter",
 			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
-			Default:     "2s",
+			Default:     "5s",
 			Description: "Jitter between actions.",
 			Value:       clibase.DurationOf(&jitter),
 		},
