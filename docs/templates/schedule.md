@@ -29,9 +29,9 @@ Dormancy Threshold defines how long a workspace is allowed to remain inactive
 before being moved into a dormant state. A workspace's inactivity is determined
 by the time elapsed since a user last accessed the workspace. A workspace in the
 dormant state is not eligible for autostart and must be manually activated by
-the user before being accessible. Inactive workspaces are stopped during their
-transition to the dormant state if they are detected to be running. Dormancy
-Threshold is an enterprise-only feature.
+the user before being accessible. Workspaces are stopped during their transition
+to the dormant state if they are detected to be running. Dormancy Threshold is
+an enterprise-only feature.
 
 ## Dormancy Auto-Deletion
 
