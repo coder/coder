@@ -6,3 +6,10 @@ export const templateVersionLogs = (versionId: string) => {
     queryFn: () => API.getTemplateVersionLogs(versionId),
   };
 };
+
+export const richParameters = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "richParameters"],
+    queryFn: () => API.getTemplateVersionRichParameters(versionId),
+  };
+};

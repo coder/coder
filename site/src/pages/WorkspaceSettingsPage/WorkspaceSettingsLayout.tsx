@@ -7,7 +7,7 @@ import { pageTitle } from "utils/page";
 import { Loader } from "components/Loader/Loader";
 import { Outlet, useParams } from "react-router-dom";
 import { Margins } from "components/Margins/Margins";
-import { workspaceByOwnerAndName } from "api/queries/workspace";
+import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import { useQuery } from "react-query";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { type Workspace } from "api/typesGenerated";

@@ -12,6 +12,7 @@ import { useOrganizationId } from "hooks/useOrganizationId";
 import { templateByName } from "api/queries/templates";
 import { type AuthorizationResponse, type Template } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { checkAuthorization } from "api/queries/authCheck";
 
 const TemplateSettings = createContext<
   { template: Template; permissions: AuthorizationResponse } | undefined
@@ -30,11 +31,23 @@ export const TemplateSettingsLayout: FC = () => {
   const styles = useStyles();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
-  const { data, error, isLoading, isError } = useQuery(
-    templateByName(orgId, templateName),
-  );
+  const templateQuery = useQuery(templateByName(orgId, templateName));
+  const permissionsQuery = useQuery({
+    ...checkAuthorization({
+      checks: {
+        canUpdateTemplate: {
+          object: {
+            resource_type: "template",
+            resource_id: templateQuery.data?.id ?? "",
+          },
+          action: "update",
+        },
+      },
+    }),
+    enabled: templateQuery.isSuccess,
+  });
 
-  if (isLoading) {
+  if (templateQuery.isLoading || permissionsQuery.isLoading) {
     return <Loader />;
   }
 
@@ -46,11 +59,16 @@ export const TemplateSettingsLayout: FC = () => {
 
       <Margins>
         <Stack className={styles.wrapper} direction="row" spacing={10}>
-          {isError ? (
-            <ErrorAlert error={error} />
+          {templateQuery.isError || permissionsQuery.isError ? (
+            <ErrorAlert error={templateQuery.error} />
           ) : (
-            <TemplateSettings.Provider value={data}>
-              <Sidebar template={data.template} />
+            <TemplateSettings.Provider
+              value={{
+                template: templateQuery.data,
+                permissions: permissionsQuery.data,
+              }}
+            >
+              <Sidebar template={templateQuery.data} />
               <Suspense fallback={<Loader />}>
                 <main className={styles.content}>
                   <Outlet />
