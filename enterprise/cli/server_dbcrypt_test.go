@@ -218,6 +218,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 		for _, loginType := range database.AllLoginTypeValues() {
 			for _, deleted := range []bool{false, true} {
 				usr := dbgen.User(t, db, database.User{
+					Username:  mustString(t, 32),
 					LoginType: loginType,
 					Status:    status,
 					Deleted:   deleted,
