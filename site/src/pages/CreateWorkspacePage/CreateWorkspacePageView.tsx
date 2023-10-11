@@ -261,9 +261,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   );
 };
 
-type VerifiableAuth = Readonly<{ authenticated: boolean; id: string }>;
 function getAuthErrors(
-  authList: readonly VerifiableAuth[],
+  authList: readonly TypesGen.TemplateVersionExternalAuth[],
 ): Readonly<Record<string, string>> {
   const authErrors: Record<string, string> = {};
 
@@ -284,6 +283,11 @@ function DuplicateWarningMessage() {
     return null;
   }
 
+  // Set up looks a little hokey (having an Alert already fully configured to
+  // listen to dismissals, on top of more dismissal state), but relying solely
+  // on the Alert API wouldn't get rid of the div and horizontal margin helper
+  // after the dismiss happens. Not using CSS margins because those can be a
+  // style maintenance nightmare over time
   return (
     <div css={{ paddingTop: theme.spacing(6) }}>
       <Margins size="medium">
