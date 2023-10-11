@@ -18,6 +18,8 @@ To follow this guide, you'll need:
 > When setting up your computer or computing instance, make sure to
 > install Docker first, then Coder.
 
+- The URL for your Coder instance. If you're running Coder locally, the default URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
+
 - A text editor and a tar utility. For this tour, we use [GNU
 nano](https://nano-editor.org/) and [GNU
 tar](https://www.gnu.org/software/tar/).
@@ -27,9 +29,9 @@ tar](https://www.gnu.org/software/tar/).
 ## What's in a template
 
 The main part of a Coder template is a
-[Terraform](https://terraform.io) `tf` file. A template often has
-other files to configure the other resources that the template needs.
-In this tour you'll also create a `Dockerfile`.
+[Terraform](https://terraform.io) `tf` file. A Coder template often
+has other files to configure the other resources that the template
+needs. In this tour you'll also create a `Dockerfile`.
 
 Coder can provision all Terraform modules, resources, and
 properties. The Coder server essentially runs a `terraform apply`
@@ -74,6 +76,7 @@ RUN useradd --groups sudo --no-create-home --shell /bin/bash ${USER} \
 	&& chmod 0440 /etc/sudoers.d/${USER}
 USER ${USER}
 WORKDIR /home/${USER}
+
 ```
 
 Notice how `Dockerfile` adds a few things to the parent `ubuntu`
@@ -184,6 +187,7 @@ resource "coder_agent" "main" {
     timeout      = 1
   }
 }
+
 ```
 
 Because Docker is running locally in the Coder server, there is no
@@ -231,6 +235,7 @@ resource "coder_app" "code-server" {
     threshold = 6
   }
 }
+
 ```
 
 You can also use a `coder_app` resource to link to
@@ -244,6 +249,7 @@ resource "coder_app" "coder-server-doc" {
   url          = "https://coder.com/docs/code-server"
   external     = true
 }
+
 ```
 
 ## 5. Persistent and ephemeral resources
@@ -277,6 +283,7 @@ resource "docker_volume" "home_volume" {
     ignore_changes = all
   }
 }
+
 ```
 
 For details, see [Resource persistence](./resource-persistence.md).
@@ -299,6 +306,7 @@ resource "docker_image" "main" {
     dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
   }
 }
+
 ```
 
 Our `docker_container` resource uses the `coder_workspace`
@@ -327,40 +335,68 @@ resource "docker_container" "workspace" {
     read_only      = false
   }
 }
+
 ```
 
 ## 7. Create the template in Coder
 
-We've created the files for our template. Now we can add them to our
-Coder deployment.
+Save `main.tf` and exit the editor.
+
+Now that we've created the files for our template. Now we can add them
+to our Coder deployment.
 
 We can do this with the Coder CLI or the Coder dashboard. For this
-tour, we'll use the dashboard.
+tour, we'll use the Coder CLI.
 
-First, we need to package up our template in a tar file:
+First, you'll need to log in to your Coder deployment from the CLI. This is where you need the URL for your deployment:
 
 ```console
-$ tar cvf ../template-tour .
-./
-./build/
-./build/Dockerfile
-./main.tf
-$ ls ..
- coder   template-tour   template-tour.tar
+$ coder login https://coder.example.com
+Your browser has been opened to visit:
+
+        https://coder.example.com/cli-auth
+
+> Paste your token here:
+```
+
+In your web browser, enter your credentials:
+
+![Logging in to your Coder deployment](../images/templates/coder-login-web.png)
+
+Copy the session token into the clipboard:
+
+![Logging in to your Coder deployment](../images/templates/coder-session-token.png)
+
+And paste it into the CLI:
+
+```console
+> Welcome to Coder, marc! You're authenticated.
+$
+```
+
+Now you can add your template files to your Coder deployment:
+
+```console
+$ pwd
+/home/marc/template-tour
+$ coder templates create
+> Upload "."? (yes/no) yes
+```
+
+The Coder CLI tool gives progress information then prompts you to confirm:
+
+```console
+> Confirm create? (yes/no) yes
+
+The template-tour template has been created! Developers can provision a workspace with this template using:
+
+   coder create --template="template-tour" [workspace name]
 ```
 
 In your web browser, log in to your Coder dashboard, select
-***Templates**, then **Create template**.
+***Templates**. Your template is ready to use for new workspaces.
 
-Upload the `template-tour.tar` file, the scroll down to select
-**Create template**.
-
-![Uploading a template](../images/templates/upload.png)
-
-After a few moments, your template will be ready to use for new
-workspaces.
-
-![Tour template, ready to use](../images/templates/template-tour.png)
+![Your new template, ready to use](../images/templates/template-tour.png)
 
 
 ## Next steps
