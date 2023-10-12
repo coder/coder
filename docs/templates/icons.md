@@ -26,7 +26,10 @@ come bundled with your Coder deployment.
   ```terraform
   data "coder_parameter" "my_parameter" {
     icon = "/icon/coder.svg"
-    ...
+
+    option {
+      icon = "/emojis/1f3f3-fe0f-200d-26a7-fe0f.png"
+    }
   }
   ```
 
