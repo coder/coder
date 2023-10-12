@@ -17,6 +17,7 @@ coder exp scaletest create-workspaces \
 	--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
 	--template "${SCALETEST_PARAM_TEMPLATE}" \
 	--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
+	--timeout 5h \
 	--job-timeout 5h \
 	--no-cleanup \
 	--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
