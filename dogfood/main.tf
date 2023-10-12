@@ -65,7 +65,7 @@ provider "docker" {
 
 provider "coder" {}
 
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
   id = "github"
 }
 
@@ -130,7 +130,7 @@ resource "coder_agent" "dev" {
   os   = "linux"
   dir  = data.coder_parameter.repo_dir.value
   env = {
-    GITHUB_TOKEN : data.coder_git_auth.github.access_token,
+    GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
   startup_script_behavior = "blocking"
