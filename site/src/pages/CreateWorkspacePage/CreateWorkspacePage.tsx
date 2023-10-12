@@ -64,8 +64,7 @@ const CreateWorkspacePage: FC = () => {
 
   const defaultBuildParameters = getDefaultBuildParameters(searchParams);
   const mode = getWorkspaceMode(searchParams);
-  const defaultName =
-    mode === "auto" ? generateUniqueName() : searchParams.get("name") ?? "";
+  const defaultName = getDefaultName(mode, searchParams);
 
   const onCreateWorkspace = (workspace: Workspace) => {
     navigate(`/@${workspace.owner_name}/${workspace.name}`);
@@ -177,14 +176,38 @@ const useExternalAuth = (versionId: string | undefined) => {
 
   const isAllSignedIn = authList?.every((it) => it.authenticated) ?? false;
 
-  // Doing inline state sync to minimize extra re-renders that useEffect
-  // approach would involve
+  // Doing state sync inline, because doing it inside a useEffect call would add
+  // unnecessary renders and re-painting.
   if (isAllSignedIn && pollingStatus === "polling") {
     setPollingStatus("idle");
   }
 
   return { authList, isAllSignedIn, pollingStatus, startPolling } as const;
 };
+
+/**
+ * Returns a function that takes a workspace, and then navigates the user to the
+ * workspace creation page, with the form pre-filled with the provided
+ * workspace's parameters.
+ */
+export function useWorkspaceDuplication() {
+  const navigate = useNavigate();
+
+  return useCallback(
+    (workspace: Workspace) => {
+      const workspaceCreationParams = new URLSearchParams({
+        mode: "duplicate" satisfies CreateWorkspaceMode,
+        name: workspace.name,
+      });
+
+      navigate({
+        pathname: `/templates/${workspace.template_name}/workspace`,
+        search: workspaceCreationParams.toString(),
+      });
+    },
+    [navigate],
+  );
+}
 
 function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   const paramMode = params.get("mode");
@@ -193,6 +216,19 @@ function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   }
 
   return "form";
+}
+
+function getDefaultName(mode: CreateWorkspaceMode, params: URLSearchParams) {
+  if (mode === "auto") {
+    return generateUniqueName();
+  }
+
+  const paramsName = params.get("name");
+  if (mode === "duplicate" && paramsName) {
+    return `${paramsName}-copy`;
+  }
+
+  return paramsName ?? "";
 }
 
 type AutomatedWorkspaceConfig = {

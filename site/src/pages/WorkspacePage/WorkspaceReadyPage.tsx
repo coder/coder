@@ -34,7 +34,6 @@ import { templateVersion, templateVersions } from "api/queries/templates";
 import { Alert } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import { type CreateWorkspaceMode } from "../CreateWorkspacePage/CreateWorkspacePage";
 
 interface WorkspaceReadyPageProps {
   workspaceState: StateFrom<typeof workspaceMachine>;
@@ -117,22 +116,6 @@ export const WorkspaceReadyPage = ({
     bannerSend({ type: "REFRESH_WORKSPACE", workspace });
   }, [bannerSend, workspace]);
 
-  const handleWorkspaceCloning = () => {
-    if (template?.name === undefined) {
-      return;
-    }
-
-    const workspaceCreationParams = new URLSearchParams({
-      mode: "duplicate" satisfies CreateWorkspaceMode,
-      name: workspace.name,
-    });
-
-    navigate({
-      pathname: `/templates/${template.name}/workspace`,
-      search: workspaceCreationParams.toString(),
-    });
-  };
-
   const favicon = getFaviconByStatus(workspace.latest_build);
   const deadline = getDeadline(workspace);
   const canUpdateWorkspace = Boolean(permissions?.updateWorkspace);
@@ -199,7 +182,6 @@ export const WorkspaceReadyPage = ({
         }}
         handleCancel={() => workspaceSend({ type: "CANCEL" })}
         handleSettings={() => navigate("settings")}
-        handleClone={handleWorkspaceCloning}
         handleBuildRetry={() => workspaceSend({ type: "RETRY_BUILD" })}
         handleChangeVersion={() => {
           setChangeVersionDialogOpen(true);

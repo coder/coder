@@ -26,6 +26,7 @@ import HistoryIcon from "@mui/icons-material/HistoryOutlined";
 import DeleteIcon from "@mui/icons-material/DeleteOutlined";
 import MoreOptionsIcon from "@mui/icons-material/MoreVertOutlined";
 import DuplicateIcon from "@mui/icons-material/FileCopyOutlined";
+import { useWorkspaceDuplication } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 
 export interface WorkspaceActionsProps {
   workspace: Workspace;
@@ -35,7 +36,6 @@ export interface WorkspaceActionsProps {
   handleDelete: () => void;
   handleUpdate: () => void;
   handleCancel: () => void;
-  handleClone: () => void;
   handleSettings: () => void;
   handleChangeVersion: () => void;
   handleDormantActivate: () => void;
@@ -54,7 +54,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   handleUpdate,
   handleCancel,
   handleSettings,
-  handleClone,
   handleChangeVersion,
   handleDormantActivate: handleDormantActivate,
   isUpdating,
@@ -92,6 +91,7 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const styles = useStyles();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const duplicateWorkspace = useWorkspaceDuplication();
 
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
@@ -151,7 +151,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
             </MenuItem>
           )}
 
-          <MenuItem onClick={onMenuItemClick(handleClone)}>
+          <MenuItem
+            onClick={onMenuItemClick(() => duplicateWorkspace(workspace))}
+          >
             <DuplicateIcon />
             Duplicate&hellip;
           </MenuItem>
