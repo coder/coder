@@ -64,4 +64,4 @@ done
 
 log "Scaletest complete!"
 set_status Complete
-set_status_annotation complete
+set_status_annotation completed
