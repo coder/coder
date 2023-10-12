@@ -38,7 +38,6 @@ import (
 	// Used for swagger docs.
 	_ "github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -344,14 +343,6 @@ func New(options *Options) *API {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
 
-	licenseMetrics, err := prometheusmetrics.NewLicenseMetrics(&prometheusmetrics.LicenseMetricsOptions{
-		Logger:   options.Logger,
-		Registry: options.PrometheusRegistry,
-	})
-	if err != nil {
-		panic(xerrors.Errorf("unable to initialize license metrics: %w", err))
-	}
-
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -386,8 +377,6 @@ func New(options *Options) *API {
 			options.Logger.Named("acquirer"),
 			options.Database,
 			options.Pubsub),
-
-		LicenseMetrics: licenseMetrics,
 	}
 	if options.UpdateCheckOptions != nil {
 		api.updateChecker = updatecheck.New(
@@ -1047,8 +1036,6 @@ type API struct {
 	statsBatcher *batchstats.Batcher
 
 	Acquirer *provisionerdserver.Acquirer
-
-	LicenseMetrics *prometheusmetrics.LicenseMetrics
 }
 
 // Close waits for all WebSocket connections to drain before returning.

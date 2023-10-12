@@ -30,7 +30,7 @@ func (e *APIKeyScope) Scan(src interface{}) error {
 	case string:
 		*e = APIKeyScope(s)
 	default:
-		return fmt.Errorf("unsupported scan type for APIKeyScope: %T", src)
+		return xerrors.Errorf("unsupported scan type for APIKeyScope: %T", src)
 	}
 	return nil
 }
@@ -89,7 +89,7 @@ func (e *AppSharingLevel) Scan(src interface{}) error {
 	case string:
 		*e = AppSharingLevel(s)
 	default:
-		return fmt.Errorf("unsupported scan type for AppSharingLevel: %T", src)
+		return xerrors.Errorf("unsupported scan type for AppSharingLevel: %T", src)
 	}
 	return nil
 }
@@ -155,7 +155,7 @@ func (e *AuditAction) Scan(src interface{}) error {
 	case string:
 		*e = AuditAction(s)
 	default:
-		return fmt.Errorf("unsupported scan type for AuditAction: %T", src)
+		return xerrors.Errorf("unsupported scan type for AuditAction: %T", src)
 	}
 	return nil
 }
@@ -225,7 +225,7 @@ func (e *AutomaticUpdates) Scan(src interface{}) error {
 	case string:
 		*e = AutomaticUpdates(s)
 	default:
-		return fmt.Errorf("unsupported scan type for AutomaticUpdates: %T", src)
+		return xerrors.Errorf("unsupported scan type for AutomaticUpdates: %T", src)
 	}
 	return nil
 }
@@ -287,7 +287,7 @@ func (e *BuildReason) Scan(src interface{}) error {
 	case string:
 		*e = BuildReason(s)
 	default:
-		return fmt.Errorf("unsupported scan type for BuildReason: %T", src)
+		return xerrors.Errorf("unsupported scan type for BuildReason: %T", src)
 	}
 	return nil
 }
@@ -356,7 +356,7 @@ func (e *DisplayApp) Scan(src interface{}) error {
 	case string:
 		*e = DisplayApp(s)
 	default:
-		return fmt.Errorf("unsupported scan type for DisplayApp: %T", src)
+		return xerrors.Errorf("unsupported scan type for DisplayApp: %T", src)
 	}
 	return nil
 }
@@ -420,7 +420,7 @@ func (e *GroupSource) Scan(src interface{}) error {
 	case string:
 		*e = GroupSource(s)
 	default:
-		return fmt.Errorf("unsupported scan type for GroupSource: %T", src)
+		return xerrors.Errorf("unsupported scan type for GroupSource: %T", src)
 	}
 	return nil
 }
@@ -481,7 +481,7 @@ func (e *LogLevel) Scan(src interface{}) error {
 	case string:
 		*e = LogLevel(s)
 	default:
-		return fmt.Errorf("unsupported scan type for LogLevel: %T", src)
+		return xerrors.Errorf("unsupported scan type for LogLevel: %T", src)
 	}
 	return nil
 }
@@ -545,7 +545,7 @@ func (e *LogSource) Scan(src interface{}) error {
 	case string:
 		*e = LogSource(s)
 	default:
-		return fmt.Errorf("unsupported scan type for LogSource: %T", src)
+		return xerrors.Errorf("unsupported scan type for LogSource: %T", src)
 	}
 	return nil
 }
@@ -607,7 +607,7 @@ func (e *LoginType) Scan(src interface{}) error {
 	case string:
 		*e = LoginType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for LoginType: %T", src)
+		return xerrors.Errorf("unsupported scan type for LoginType: %T", src)
 	}
 	return nil
 }
@@ -672,7 +672,7 @@ func (e *ParameterDestinationScheme) Scan(src interface{}) error {
 	case string:
 		*e = ParameterDestinationScheme(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ParameterDestinationScheme: %T", src)
+		return xerrors.Errorf("unsupported scan type for ParameterDestinationScheme: %T", src)
 	}
 	return nil
 }
@@ -733,7 +733,7 @@ func (e *ParameterScope) Scan(src interface{}) error {
 	case string:
 		*e = ParameterScope(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ParameterScope: %T", src)
+		return xerrors.Errorf("unsupported scan type for ParameterScope: %T", src)
 	}
 	return nil
 }
@@ -793,7 +793,7 @@ func (e *ParameterSourceScheme) Scan(src interface{}) error {
 	case string:
 		*e = ParameterSourceScheme(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ParameterSourceScheme: %T", src)
+		return xerrors.Errorf("unsupported scan type for ParameterSourceScheme: %T", src)
 	}
 	return nil
 }
@@ -851,7 +851,7 @@ func (e *ParameterTypeSystem) Scan(src interface{}) error {
 	case string:
 		*e = ParameterTypeSystem(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ParameterTypeSystem: %T", src)
+		return xerrors.Errorf("unsupported scan type for ParameterTypeSystem: %T", src)
 	}
 	return nil
 }
@@ -915,7 +915,7 @@ func (e *ProvisionerJobStatus) Scan(src interface{}) error {
 	case string:
 		*e = ProvisionerJobStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ProvisionerJobStatus: %T", src)
+		return xerrors.Errorf("unsupported scan type for ProvisionerJobStatus: %T", src)
 	}
 	return nil
 }
@@ -984,7 +984,7 @@ func (e *ProvisionerJobType) Scan(src interface{}) error {
 	case string:
 		*e = ProvisionerJobType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ProvisionerJobType: %T", src)
+		return xerrors.Errorf("unsupported scan type for ProvisionerJobType: %T", src)
 	}
 	return nil
 }
@@ -1043,7 +1043,7 @@ func (e *ProvisionerStorageMethod) Scan(src interface{}) error {
 	case string:
 		*e = ProvisionerStorageMethod(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ProvisionerStorageMethod: %T", src)
+		return xerrors.Errorf("unsupported scan type for ProvisionerStorageMethod: %T", src)
 	}
 	return nil
 }
@@ -1099,7 +1099,7 @@ func (e *ProvisionerType) Scan(src interface{}) error {
 	case string:
 		*e = ProvisionerType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ProvisionerType: %T", src)
+		return xerrors.Errorf("unsupported scan type for ProvisionerType: %T", src)
 	}
 	return nil
 }
@@ -1167,7 +1167,7 @@ func (e *ResourceType) Scan(src interface{}) error {
 	case string:
 		*e = ResourceType(s)
 	default:
-		return fmt.Errorf("unsupported scan type for ResourceType: %T", src)
+		return xerrors.Errorf("unsupported scan type for ResourceType: %T", src)
 	}
 	return nil
 }
@@ -1245,7 +1245,7 @@ func (e *StartupScriptBehavior) Scan(src interface{}) error {
 	case string:
 		*e = StartupScriptBehavior(s)
 	default:
-		return fmt.Errorf("unsupported scan type for StartupScriptBehavior: %T", src)
+		return xerrors.Errorf("unsupported scan type for StartupScriptBehavior: %T", src)
 	}
 	return nil
 }
@@ -1305,7 +1305,7 @@ func (e *UserStatus) Scan(src interface{}) error {
 	case string:
 		*e = UserStatus(s)
 	default:
-		return fmt.Errorf("unsupported scan type for UserStatus: %T", src)
+		return xerrors.Errorf("unsupported scan type for UserStatus: %T", src)
 	}
 	return nil
 }
@@ -1372,7 +1372,7 @@ func (e *WorkspaceAgentLifecycleState) Scan(src interface{}) error {
 	case string:
 		*e = WorkspaceAgentLifecycleState(s)
 	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceAgentLifecycleState: %T", src)
+		return xerrors.Errorf("unsupported scan type for WorkspaceAgentLifecycleState: %T", src)
 	}
 	return nil
 }
@@ -1446,7 +1446,7 @@ func (e *WorkspaceAgentSubsystem) Scan(src interface{}) error {
 	case string:
 		*e = WorkspaceAgentSubsystem(s)
 	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceAgentSubsystem: %T", src)
+		return xerrors.Errorf("unsupported scan type for WorkspaceAgentSubsystem: %T", src)
 	}
 	return nil
 }
@@ -1510,7 +1510,7 @@ func (e *WorkspaceAppHealth) Scan(src interface{}) error {
 	case string:
 		*e = WorkspaceAppHealth(s)
 	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
+		return xerrors.Errorf("unsupported scan type for WorkspaceAppHealth: %T", src)
 	}
 	return nil
 }
@@ -1573,7 +1573,7 @@ func (e *WorkspaceTransition) Scan(src interface{}) error {
 	case string:
 		*e = WorkspaceTransition(s)
 	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceTransition: %T", src)
+		return xerrors.Errorf("unsupported scan type for WorkspaceTransition: %T", src)
 	}
 	return nil
 }

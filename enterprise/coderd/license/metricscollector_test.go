@@ -1,4 +1,4 @@
-package prometheusmetrics_test
+package license_test
 
 import (
 	"context"
