@@ -63,6 +63,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	for _, opt := range opts {
 		opt(&o)
 	}
+	if o.returnSQLDB && !WillUsePostgres() {
+		t.Fatalf("cannot use WithReturnSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
+	}
 
 	db := dbfake.New()
 	ps := pubsub.NewInMemory()
