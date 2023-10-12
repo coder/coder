@@ -19,8 +19,8 @@ export const WithHealthIssues: Story = {
   args: {
     health: {
       healthy: false,
-      time: "no <3",
-      coder_version: "no <3",
+      time: "2023-10-12T23:15:00.000000000Z",
+      coder_version: "v2.3.0-devel+8cca4915a",
       access_url: { healthy: false },
       database: { healthy: false },
       derp: { healthy: false },
