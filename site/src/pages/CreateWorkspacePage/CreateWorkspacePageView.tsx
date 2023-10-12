@@ -20,7 +20,7 @@ import {
 import { makeStyles } from "@mui/styles";
 import {
   getInitialRichParameterValues,
-  useValidationSchemaForRichParameters,
+  validateRichParameters,
 } from "utils/richParameters";
 import {
   ImmutableTemplateParametersSection,
@@ -95,7 +95,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       },
       validationSchema: Yup.object({
         name: nameValidator("Workspace Name"),
-        rich_parameter_values: useValidationSchemaForRichParameters(parameters),
+        rich_parameter_values: validateRichParameters(parameters),
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
@@ -283,7 +283,7 @@ function DuplicateWarningMessage() {
     return null;
   }
 
-  // Set up looks a little hokey (having an Alert already fully configured to
+  // Setup looks a little hokey (having an Alert already fully configured to
   // listen to dismissals, on top of more dismissal state), but relying solely
   // on the Alert API wouldn't get rid of the div and horizontal margin helper
   // after the dismiss happens. Not using CSS margins because those can be a

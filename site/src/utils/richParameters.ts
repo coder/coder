@@ -38,7 +38,7 @@ const isValidValue = (
   return true;
 };
 
-export const useValidationSchemaForRichParameters = (
+export const validateRichParameters = (
   templateParameters?: TemplateVersionParameter[],
   lastBuildParameters?: WorkspaceBuildParameter[],
 ): Yup.AnySchema => {
