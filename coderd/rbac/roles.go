@@ -143,7 +143,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	memberRole := Role{
 		Name:        member,
-		DisplayName: "",
+		DisplayName: "Member",
 		Site: Permissions(map[string][]Action{
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
