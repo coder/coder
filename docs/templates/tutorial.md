@@ -10,7 +10,6 @@ can publish official updates or revert to previous versions.
 In this tutorial, you'll create your first template from the Docker
 starter template.
 
-
 ## Before you start
 
 You'll need a computer or cloud computing instance with both
@@ -62,7 +61,6 @@ After a few seconds, your workspace is ready to use.
 
 ![Workspace is ready](../images/templates/workspace-ready.png)
 
-
 ## 6. Try out your new workspace
 
 This starter template lets you connect to your workspace in a few ways:
@@ -78,8 +76,8 @@ This starter template lets you connect to your workspace in a few ways:
   you haven't already, you'll have to install Coder on your local
   machine to configure your SSH client.
 
-> **Tip**: You can edit the template to let developers connect to a workspace in
-[a few more ways](../ides.md).
+> **Tip**: You can edit the template to let developers connect to a
+> workspace in [a few more ways](../ides.md).
 
 When you're done, you can stop the workspace.
 
@@ -129,5 +127,6 @@ You can also handle [change management](./change-management.md)
 through your own repo and continuous integration.
 
 ## Next steps
+
 - [Write your own template](./tour.md)
 - [Setting up templates](./best-practices.md)

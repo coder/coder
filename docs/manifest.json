@@ -191,7 +191,7 @@
             {
               "title": "Agent metadata",
               "description": "Show operational metrics in the workspace",
-              "path": "./templates/agent-metadata.md"             
+              "path": "./templates/agent-metadata.md"
             },
             {
               "title": "Resource metadata",

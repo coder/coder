@@ -14,15 +14,15 @@ workspaces. There are two approaches to do this:
 
 - Pass credentials to the provisioner as parameters.
 - Preferred: Execute the Coder server in an environment that is
-authenticated with the cloud provider.
+  authenticated with the cloud provider.
 
 We encourage the latter approach where supported:
 
 - Simplifies the template.
 - Keeps cloud provider credentials out of Coder's database, making it
-a less valuable target for attackers.
+  a less valuable target for attackers.
 - Compatible with agent-based authentication schemes, which handle
-credential rotation or ensure the credentials are not written to disk.
+  credential rotation or ensure the credentials are not written to disk.
 
 Generally, you can set up an environment to provide credentials to
 Coder in these ways:

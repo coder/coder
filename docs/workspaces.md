@@ -9,7 +9,6 @@ template](./templates/index.md). This lets an entire team work in
 environments that are identically configured and provisioned with the
 same resources.
 
-
 ## Creating workspaces
 
 You can create a workspace in the UI. Log in to your Coder instance,
@@ -47,7 +46,6 @@ The following filters are supported:
 - `template` - Specifies the name of the template.
 - `status` - Indicates the status of the workspace. For a list of supported statuses, see [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
 
-
 ## Starting and stopping workspaces
 
 By default, you manually start and stop workspaces as you need. You
@@ -60,11 +58,10 @@ To set a workspace's schedule, go to the workspace, then **Settings** > **Schedu
 Coder might also stop a workspace automatically if there is a [template
 update](./templates/index.md#Start/stop) available.
 
-
 ### Autostart and autostop
 
-Use autostart to start a workspace at a specified time and which days of the
-week. Also, you can choose your preferred timezone.
+Use autostart to start a workspace at a specified time and which days
+of the week. Also, you can choose your preferred timezone.
 
 ![Autostart UI](./images/autostart.png)
 
@@ -75,14 +72,12 @@ connections in the IDE, SSH, Port Forwarding, and coder_app.
 
 ![Autostop UI](./images/autostop.png)
 
-
 ### Max lifetime
 
 Max lifetime is a template setting that determines the number of hours
 a workspace will run before Coder automatically stops it, regardless
 of any active connections. Use this setting to ensure that workspaces
 do not run in perpetuity when connections are left open inadvertently.
-
 
 ## Updating workspaces
 
@@ -122,7 +117,7 @@ information, see [Resource Persistence](./templates/resource-persistence.md).
 
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default
->  templates are documented in [../examples/templates](https://github.com/coder/coder/tree/main/examples/templates).
+> templates are documented in [../examples/templates](https://github.com/coder/coder/tree/main/examples/templates).
 >
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
@@ -147,3 +142,4 @@ Coder stores macOS and Linux logs at the following locations:
 
 - Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
 - Learn about using [IDEs](./ides.md)
+

@@ -12,17 +12,17 @@ same Docker starter template that the [tutorial](./tutorial.md) uses.
 To follow this guide, you'll need:
 
 - A computer or cloud computing instance with both
-[Docker](https://docs.docker.com/get-docker/) and
-[Coder](../install/index.md) installed on it.
+  [Docker](https://docs.docker.com/get-docker/) and
+  [Coder](../install/index.md) installed on it.
 
 > When setting up your computer or computing instance, make sure to
 > install Docker first, then Coder.
 
-- The URL for your Coder instance. If you're running Coder locally, the default URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
+- The URL for your Coder instance. If you're running Coder locally,
+  the default URL is [http://127.0.0.1:3000](http://127.0.0.1:3000).
 
-- A text editor and a tar utility. For this tour, we use [GNU
-nano](https://nano-editor.org/) and [GNU
-tar](https://www.gnu.org/software/tar/).
+- A text editor. For this tour, we use
+  [GNU nano](https://nano-editor.org/).
 
 > Haven't written Terraform before? Check out Hashicorp's [Getting Started Guides](https://developer.hashicorp.com/terraform/tutorials).
 

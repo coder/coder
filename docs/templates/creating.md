@@ -1,4 +1,4 @@
-#  Creating, editing, and updating templates
+# Working with templates
 
 You create and edit Coder templates as [Terraform](./concepts.md)
 configuration files (`.tf`) and any supporting files, like a README or
@@ -54,6 +54,6 @@ more about [change management](./change-management.md).
 
 ![Updating a template](../images/templates/update.png)
 
-## Next step
+## Next steps
 
 - [Your first template](./tutorial.md)

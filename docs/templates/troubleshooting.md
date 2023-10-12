@@ -1,3 +1,1 @@
 # Troubleshooting templates
-
-

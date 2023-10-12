@@ -156,7 +156,7 @@ Immutable parameters can be only be set in these situations:
 
 - Creating a workspace for the first time.
 - Updating a workspace to a new template version. This sets the
-initial value for required parameters.
+  initial value for required parameters.
 
 The idea is to prevent users from modifying fragile or
 persistent workspace resources like volumes, regions, and so on.
