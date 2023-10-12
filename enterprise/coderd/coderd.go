@@ -100,7 +100,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
-		licenseMetricsCollector: new(license.MetricsCollector),
+		licenseMetricsCollector: license.NewMetricsCollector(),
 	}
 	defer func() {
 		if err != nil {

@@ -63,16 +63,15 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		enabled = 1
 	}
 	mc.userLimitEnabledGauge.Set(enabled)
+	metricsCh <- mc.userLimitEnabledGauge
 
 	if userLimitEntitlement.Actual != nil {
 		mc.activeUsersGauge.Set(float64(*userLimitEntitlement.Actual))
+		metricsCh <- mc.activeUsersGauge
 	}
 
 	if userLimitEntitlement.Limit != nil {
 		mc.limitUsersGauge.Set(float64(*userLimitEntitlement.Limit))
+		metricsCh <- mc.limitUsersGauge
 	}
-
-	metricsCh <- mc.activeUsersGauge
-	metricsCh <- mc.limitUsersGauge
-	metricsCh <- mc.userLimitEnabledGauge
 }
