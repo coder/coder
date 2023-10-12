@@ -1,7 +1,6 @@
 package license_test
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -24,9 +23,6 @@ func TestCollectLicenseMetrics(t *testing.T) {
 	registry := prometheus.NewRegistry()
 
 	sut := license.NewMetricsCollector()
-
-	ctx, cancelFunc := context.WithCancel(context.Background())
-	t.Cleanup(cancelFunc)
 
 	const (
 		actualUsers = 4

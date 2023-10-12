@@ -815,15 +815,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					return xerrors.Errorf("register agents prometheus metric: %w", err)
 				}
 				defer closeAgentsFunc()
-
-				if coderAPI.LicenseMetrics == nil {
-					return xerrors.Errorf("developer error: LicenseMetrics should be not nil")
-				}
-				closeLicenseMetricsFunc, err := coderAPI.LicenseMetrics.Collect(ctx)
-				if err != nil {
-					return xerrors.Errorf("register license metric: %w", err)
-				}
-				defer closeLicenseMetricsFunc()
 			}
 
 			client := codersdk.New(localURL)
