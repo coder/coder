@@ -9,7 +9,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -38,11 +37,7 @@ func ExtractUserParam(db database.Store) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
-			// We need to call as SystemRestricted because this middleware is called from
-			// organizations/{organization}/members/{user}/ paths, and we need to allow
-			// org-admins to call these paths --- they might not have sitewide read permissions on users.
-			// nolint:gocritic
-			user, ok := extractUserContext(dbauthz.AsSystemRestricted(ctx), db, rw, r)
+			user, ok := extractUserContext(ctx, db, rw, r)
 			if !ok {
 				// response already handled
 				return

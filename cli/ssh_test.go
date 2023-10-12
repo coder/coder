@@ -43,6 +43,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+const (
+	startupScriptPattern = "i-am-ready"
+)
+
 func setupWorkspaceForAgent(t *testing.T, mutate func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, codersdk.Workspace, string) {
 	t.Helper()
 	if mutate == nil {
@@ -67,6 +71,12 @@ func setupWorkspaceForAgent(t *testing.T, mutate func([]*proto.Agent) []*proto.A
 							Id: uuid.NewString(),
 							Auth: &proto.Agent_Token{
 								Token: agentToken,
+							},
+							Scripts: []*proto.Script{
+								{
+									Script:     fmt.Sprintf("echo '%s'", startupScriptPattern),
+									RunOnStart: true,
+								},
 							},
 						}}),
 					}},
@@ -393,12 +403,6 @@ func TestSSH(t *testing.T) {
 
 		client, workspace, agentToken := setupWorkspaceForAgent(t, nil)
 
-		_ = agenttest.New(t, client.URL, agentToken)
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
 		inv, root := clitest.New(t,
 			"ssh",
 			workspace.Name,
@@ -408,14 +412,23 @@ func TestSSH(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
 		cmdDone := tGo(t, func() {
 			err := inv.WithContext(ctx).Run()
 			assert.NoError(t, err, "ssh command failed")
 		})
 
-		// Wait for the prompt or any output really to indicate the command has
-		// started and accepting input on stdin.
-		_ = pty.Peek(ctx, 1)
+		// Agent is still starting
+		pty.ExpectMatch("Waiting")
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		// Startup script has just finished
+		pty.ExpectMatch(startupScriptPattern)
 
 		// Download the test page
 		pty.WriteLine("curl localhost:8222")

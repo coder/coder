@@ -17,6 +17,7 @@ export interface VersionRowProps {
   isActive: boolean;
   isLatest: boolean;
   onPromoteClick?: (templateVersionId: string) => void;
+  onArchiveClick?: (templateVersionId: string) => void;
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
@@ -24,6 +25,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   isActive,
   isLatest,
   onPromoteClick,
+  onArchiveClick,
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -90,14 +92,30 @@ export const VersionRow: React.FC<VersionRowProps> = ({
               <Pill text="Canceled" type="neutral" lightBorder />
             )}
             {jobStatus === "failed" && <Pill text="Failed" type="error" />}
-            {onPromoteClick && (
+            {jobStatus === "failed" ? (
+              <Button
+                className={styles.promoteButton}
+                disabled={isActive || version.archived}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onArchiveClick) {
+                    onArchiveClick(version.id);
+                  }
+                }}
+              >
+                Archive&hellip;
+              </Button>
+            ) : (
               <Button
                 className={styles.promoteButton}
                 disabled={isActive || jobStatus !== "succeeded"}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onPromoteClick(version.id);
+                  if (onPromoteClick) {
+                    onPromoteClick(version.id);
+                  }
                 }}
               >
                 Promote&hellip;

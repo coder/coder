@@ -26,12 +26,12 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters";
-import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
 import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
+import { CreateWSPermissions } from "./permissions";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;

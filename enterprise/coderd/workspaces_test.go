@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -17,7 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -741,61 +739,56 @@ func TestWorkspaceAutobuild(t *testing.T) {
 func TestWorkspacesFiltering(t *testing.T) {
 	t.Parallel()
 
-	t.Run("DeletingBy", func(t *testing.T) {
+	t.Run("IsDormant", func(t *testing.T) {
 		t.Parallel()
 
-		dormantTTL := 24 * time.Hour
-
-		// nolint:gocritic // https://github.com/coder/coder/issues/9682
-		db, ps := dbtestutil.NewDB(t, dbtestutil.WithTimezone("UTC"))
-
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				Database:                 db,
-				Pubsub:                   ps,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-				},
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
 			},
 		})
 
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		// Create a template version that passes to get a functioning workspace.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		// update template with inactivity ttl
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
+		dormantWS1 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWS1.LatestBuild.ID)
 
-		template, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+		dormantWS2 := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, dormantWS2.LatestBuild.ID)
+
+		activeWS := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, activeWS.LatestBuild.ID)
+
+		err := client.UpdateWorkspaceDormancy(ctx, dormantWS1.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
+		require.NoError(t, err)
+
+		err = client.UpdateWorkspaceDormancy(ctx, dormantWS2.ID, codersdk.UpdateWorkspaceDormancy{Dormant: true})
+		require.NoError(t, err)
+
+		resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+			FilterQuery: "is-dormant:true",
 		})
 		require.NoError(t, err)
-		require.Equal(t, dormantTTL.Milliseconds(), template.TimeTilDormantAutoDeleteMillis)
+		require.Len(t, resp.Workspaces, 2)
 
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		// stop build so workspace is inactive
-		stopBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
-		err = client.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
-			Dormant: true,
-		})
-		require.NoError(t, err)
-		workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
-		require.NotNil(t, workspace.DeletingAt)
-
-		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			// adding a second to time.Now() to give some buffer in case test runs quickly
-			FilterQuery: fmt.Sprintf("deleting_by:%s", time.Now().Add(time.Second).Add(dormantTTL).Format("2006-01-02")),
-		})
-		require.NoError(t, err)
-		require.Len(t, res.Workspaces, 1)
-		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		for _, ws := range resp.Workspaces {
+			if ws.ID != dormantWS1.ID && ws.ID != dormantWS2.ID {
+				t.Fatalf("Unexpected workspace %+v", ws)
+			}
+		}
 	})
 }
 

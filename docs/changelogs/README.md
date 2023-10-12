@@ -9,11 +9,12 @@ These changelogs are currently not kept in sync with GitHub releases. Use [GitHu
 Run this command to generate release notes:
 
 ```shell
+git checkout main; git pull; git fetch --all
 export CODER_IGNORE_MISSING_COMMIT_METADATA=1
 export BRANCH=main
 ./scripts/release/generate_release_notes.sh \
-  --old-version=v2.2.1 \
-  --new-version=v2.2.2 \
+  --old-version=v2.3.0 \
+  --new-version=v2.3.1 \
   --ref=$(git rev-parse --short "${ref:-origin/$BRANCH}") \
-  > ./docs/changelogs/v2.2.2.md
+  > ./docs/changelogs/v2.3.1.md
 ```

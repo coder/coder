@@ -79,6 +79,17 @@ func (p *QueryParamParser) Int(vals url.Values, def int, queryParam string) int 
 	return v
 }
 
+func (p *QueryParamParser) Boolean(vals url.Values, def bool, queryParam string) bool {
+	v, err := parseQueryParam(p, vals, strconv.ParseBool, def, queryParam)
+	if err != nil {
+		p.Errors = append(p.Errors, codersdk.ValidationError{
+			Field:  queryParam,
+			Detail: fmt.Sprintf("Query param %q must be a valid boolean (%s)", queryParam, err.Error()),
+		})
+	}
+	return v
+}
+
 func (p *QueryParamParser) Required(queryParam string) *QueryParamParser {
 	p.RequiredParams[queryParam] = true
 	return p

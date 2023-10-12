@@ -15,7 +15,7 @@ import { Helmet } from "react-helmet-async";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import * as TypesGen from "api/typesGenerated";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspace";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService";
 import {

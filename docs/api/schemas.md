@@ -987,6 +987,20 @@ _None_
 | `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 | `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
+## codersdk.ArchiveTemplateVersionsRequest
+
+```json
+{
+  "all": true
+}
+```
+
+### Properties
+
+| Name  | Type    | Required | Restrictions | Description                                                                                                              |
+| ----- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `all` | boolean | false    |              | By default, only failed versions are archived. Set this to true to archive all unused versions regardless of job status. |
+
 ## codersdk.AssignableRoles
 
 ```json
@@ -4709,6 +4723,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -4748,6 +4763,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                                                        | Required | Restrictions | Description |
 | ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `archived`        | boolean                                                                     | false    |              |             |
 | `created_at`      | string                                                                      | false    |              |             |
 | `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |

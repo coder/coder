@@ -373,6 +373,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -443,6 +444,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -537,6 +539,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -824,12 +827,13 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 
 ### Parameters
 
-| Name       | In    | Type         | Required | Description |
-| ---------- | ----- | ------------ | -------- | ----------- |
-| `template` | path  | string(uuid) | true     | Template ID |
-| `after_id` | query | string(uuid) | false    | After ID    |
-| `limit`    | query | integer      | false    | Page limit  |
-| `offset`   | query | integer      | false    | Page offset |
+| Name               | In    | Type         | Required | Description                           |
+| ------------------ | ----- | ------------ | -------- | ------------------------------------- |
+| `template`         | path  | string(uuid) | true     | Template ID                           |
+| `after_id`         | query | string(uuid) | false    | After ID                              |
+| `include_archived` | query | boolean      | false    | Include archived versions in the list |
+| `limit`            | query | integer      | false    | Page limit                            |
+| `offset`           | query | integer      | false    | Page offset                           |
 
 ### Example responses
 
@@ -838,6 +842,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions \
 ```json
 [
   {
+    "archived": true,
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": {
       "avatar_url": "http://example.com",
@@ -887,6 +892,7 @@ Status Code **200**
 | Name                 | Type                                                                     | Required | Restrictions | Description |
 | -------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `[array item]`       | array                                                                    | false    |              |             |
+| `» archived`         | boolean                                                                  | false    |              |             |
 | `» created_at`       | string(date-time)                                                        | false    |              |             |
 | `» created_by`       | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                   | false    |              |             |
 | `»» avatar_url`      | string(uri)                                                              | false    |              |             |
@@ -984,6 +990,60 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template}/versions \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Archive template unused versions by template id
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templates/{template}/versions/archive \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templates/{template}/versions/archive`
+
+> Body parameter
+
+```json
+{
+  "all": true
+}
+```
+
+### Parameters
+
+| Name       | In   | Type                                                                                         | Required | Description     |
+| ---------- | ---- | -------------------------------------------------------------------------------------------- | -------- | --------------- |
+| `template` | path | string(uuid)                                                                                 | true     | Template ID     |
+| `body`     | body | [codersdk.ArchiveTemplateVersionsRequest](schemas.md#codersdkarchivetemplateversionsrequest) | true     | Archive request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template version by template ID and name
 
 ### Code samples
@@ -1011,6 +1071,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template}/versions/{templ
 ```json
 [
   {
+    "archived": true,
     "created_at": "2019-08-24T14:15:22Z",
     "created_by": {
       "avatar_url": "http://example.com",
@@ -1060,6 +1121,7 @@ Status Code **200**
 | Name                 | Type                                                                     | Required | Restrictions | Description |
 | -------------------- | ------------------------------------------------------------------------ | -------- | ------------ | ----------- |
 | `[array item]`       | array                                                                    | false    |              |             |
+| `» archived`         | boolean                                                                  | false    |              |             |
 | `» created_at`       | string(date-time)                                                        | false    |              |             |
 | `» created_by`       | [codersdk.MinimalUser](schemas.md#codersdkminimaluser)                   | false    |              |             |
 | `»» avatar_url`      | string(uri)                                                              | false    |              |             |
@@ -1128,6 +1190,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion} \
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -1207,6 +1270,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -1247,6 +1311,50 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 | Status | Meaning                                                 | Description | Schema                                                         |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersion](schemas.md#codersdktemplateversion) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Archive template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/archive \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/archive`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2339,6 +2447,50 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/s
 | Status | Meaning                                                 | Description | Schema |
 | ------ | ------------------------------------------------------- | ----------- | ------ |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Unarchive template version
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templateversions/{templateversion}/unarchive \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /templateversions/{templateversion}/unarchive`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

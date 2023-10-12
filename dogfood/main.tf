@@ -71,6 +71,12 @@ data "coder_git_auth" "github" {
 
 data "coder_workspace" "me" {}
 
+module "slackme" {
+  source           = "https://registry.coder.com/modules/slackme"
+  agent_id         = coder_agent.dev.id
+  auth_provider_id = "slack"
+}
+
 module "dotfiles" {
   source   = "https://registry.coder.com/modules/dotfiles"
   agent_id = coder_agent.dev.id
