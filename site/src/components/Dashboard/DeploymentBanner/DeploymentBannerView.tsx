@@ -1,6 +1,12 @@
 import type { Health } from "api/api";
 import type { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
-import { type FC, useMemo, useEffect, useState } from "react";
+import {
+  type FC,
+  useMemo,
+  useEffect,
+  useState,
+  PropsWithChildren,
+} from "react";
 import prettyBytes from "pretty-bytes";
 import BuildingIcon from "@mui/icons-material/Build";
 import Tooltip from "@mui/material/Tooltip";
@@ -14,8 +20,7 @@ import WebTerminalIcon from "@mui/icons-material/WebAsset";
 import CollectedIcon from "@mui/icons-material/Compare";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Button from "@mui/material/Button";
-import Box from "@mui/material/Box";
-import Popover from "@mui/material/Popover";
+import { css as className } from "@emotion/css";
 import {
   css,
   type CSSObject,
@@ -30,6 +35,8 @@ import ErrorIcon from "@mui/icons-material/ErrorOutline";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { colors } from "theme/colors";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
 
 export const bannerHeight = 36;
 
@@ -132,15 +139,15 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
     }
   `;
 
-  const statusSummaryStyle = css`
+  const statusSummaryStyle = className`
     ${theme.typography.body2 as CSSObject}
 
-    margin-top: ${theme.spacing(0.5)};
-    width: ${theme.spacing(38)};
-    padding: ${theme.spacing(1)};
+    margin: ${theme.spacing(0, 0, 0.5, 1.5)};
+    width: ${theme.spacing(50)};
+    padding: ${theme.spacing(2)};
     color: ${theme.palette.text.primary};
-    background-color: ${colors.gray[10]};
-    border: ${theme.palette.background.default};
+    background-color: ${theme.palette.background.paper};
+    border: 1px solid ${theme.palette.divider};
     pointer-events: none;
   `;
 
@@ -164,19 +171,37 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
       }}
     >
       <Tooltip
+        classes={{ tooltip: statusSummaryStyle }}
         title={
           unhealthy ? (
             <>
-              We have detected problems with your Coder deployment.
-              {health.access_url && <>Your access_url is broken.</>}
-              {health.database && <>Your database is broken.</>}
-              {health.derp && <>Your derp is broken.</>}
-              {health.websocket && <>Your websocket is broken.</>}
+              <HelpTooltipTitle>
+                We have detected problems with your Coder deployment.
+              </HelpTooltipTitle>
+              <Stack spacing={1}>
+                {health.access_url && (
+                  <HealthIssue>
+                    Your access URL may be configured incorrectly.
+                  </HealthIssue>
+                )}
+                {health.database && (
+                  <HealthIssue>Your database is unhealthy.</HealthIssue>
+                )}
+                {health.derp && (
+                  <HealthIssue>
+                    Your DERP is like, gonked up or something.
+                  </HealthIssue>
+                )}
+                {health.websocket && (
+                  <HealthIssue>We're noticing websocket issues.</HealthIssue>
+                )}
+              </Stack>
             </>
           ) : (
             <>Status of your Coder deployment. Only visible for admins!</>
           )
         }
+        open={process.env.STORYBOOK === "true" ? true : undefined}
         css={{ marginRight: theme.spacing(-2) }}
       >
         {unhealthy ? (
@@ -374,5 +399,14 @@ const WorkspaceBuildValue: FC<{
         </div>
       </Link>
     </Tooltip>
+  );
+};
+
+const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <Stack direction="row" spacing={1}>
+      <ErrorIcon fontSize="small" htmlColor={colors.red[10]} />
+      {children}
+    </Stack>
   );
 };
