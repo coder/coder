@@ -11,6 +11,7 @@ mkdir -p "${SCALETEST_RESULTS_DIR}"
 
 log "Preparing scaletest workspace environment..."
 set_status Preparing
+set_status_annotation preparing
 
 log "Compressing previous run logs (if applicable)..."
 mkdir -p "${HOME}/archive"
