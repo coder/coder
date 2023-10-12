@@ -207,6 +207,11 @@
           "description": "Audit commands in workspaces with exectrace",
           "path": "./templates/process-logging.md",
           "state": "enterprise"
+        },
+        {
+          "title": "Icons",
+          "description": "Coder includes icons for popular cloud providers and programming languages for you to use",
+          "path": "./templates/icons.md"
         }
       ]
     },

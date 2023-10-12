@@ -37,7 +37,11 @@ function sortTemplatesByUsersDesc(
 
   const termMatcher = new RegExp(searchTerm.replaceAll(/[^\w]/g, "."), "i");
   return templates
-    .filter((template) => termMatcher.test(template.display_name))
+    .filter(
+      (template) =>
+        termMatcher.test(template.display_name) ||
+        termMatcher.test(template.name),
+    )
     .sort((t1, t2) => t2.active_user_count - t1.active_user_count)
     .slice(0, 10);
 }
@@ -84,7 +88,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
             sx={{ marginY: 0, paddingBottom: 0.5, lineHeight: 1 }}
             noWrap
           >
-            {template.display_name || "[Unnamed]"}
+            {template.display_name || template.name || "[Unnamed]"}
           </Typography>
 
           <Box
