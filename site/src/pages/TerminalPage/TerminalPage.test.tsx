@@ -127,7 +127,7 @@ describe("TerminalPage", () => {
     const { container } = await renderTerminal();
 
     // Then
-    await ws.connected;
+    await ws.nextMessage;
     ws.send(text);
     await expectTerminalText(container, text);
     ws.close();
@@ -143,7 +143,6 @@ describe("TerminalPage", () => {
     await renderTerminal();
 
     // Then
-    await ws.connected;
     const msg = await ws.nextMessage;
     const req = JSON.parse(new TextDecoder().decode(msg as Uint8Array));
     expect(req.height).toBeGreaterThan(0);
@@ -164,7 +163,7 @@ describe("TerminalPage", () => {
     );
 
     // Then
-    await ws.connected;
+    await ws.nextMessage;
     ws.send(text);
     await expectTerminalText(container, text);
     ws.close();
