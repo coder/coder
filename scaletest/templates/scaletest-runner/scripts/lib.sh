@@ -295,3 +295,14 @@ fetch_coder_full() {
 	maybedryrun "${DRY_RUN}" chmod +x "${SCALETEST_CODER_BINARY}"
 	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
 }
+
+# set_status_annotation annotates the currently running pod with the key
+# com.coder.scaletest.status. It will overwrite the previous status.
+set_status_annotation() {
+	if [[ $# -ne 1 ]]; then
+		log "must specify an annotation value"
+		exit 1
+	else
+		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$2" --overwrite
+	fi
+}
