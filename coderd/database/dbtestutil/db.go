@@ -31,6 +31,7 @@ func WillUsePostgres() bool {
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
+	returnSQLDB   func(*sql.DB)
 }
 
 type Option func(*options)
@@ -46,6 +47,12 @@ func WithTimezone(tz string) Option {
 func WithDumpOnFailure() Option {
 	return func(o *options) {
 		o.dumpOnFailure = true
+	}
+}
+
+func WithReturnSQLDB(f func(*sql.DB)) Option {
+	return func(o *options) {
+		o.returnSQLDB = f
 	}
 }
 
@@ -88,6 +95,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
+		if o.returnSQLDB != nil {
+			o.returnSQLDB(sqlDB)
+		}
 		if o.dumpOnFailure {
 			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 		}
