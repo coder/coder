@@ -6,18 +6,14 @@ import (
 	"os"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
-	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -26,12 +22,8 @@ func TestCollectLicenseMetrics(t *testing.T) {
 
 	// Given
 	registry := prometheus.NewRegistry()
-	sut, err := prometheusmetrics.NewLicenseMetrics(&prometheusmetrics.LicenseMetricsOptions{
-		Interval: time.Millisecond,
-		Logger:   slogtest.Make(t, nil).Leveled(slog.LevelDebug),
-		Registry: registry,
-	})
-	require.NoError(t, err)
+
+	sut := license.NewMetricsCollector()
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	t.Cleanup(cancelFunc)
