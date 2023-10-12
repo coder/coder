@@ -91,8 +91,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	options.Database = cryptDB
 
-	licenseMetricsCollector := new(license.MetricsCollector)
-
 	api := &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
@@ -102,7 +100,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
-		licenseMetricsCollector: licenseMetricsCollector,
+		licenseMetricsCollector: new(license.MetricsCollector),
 	}
 	defer func() {
 		if err != nil {
@@ -368,7 +366,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		if err != nil {
 			return nil, xerrors.Errorf("initialize proxy health: %w", err)
 		}
-
 		go api.ProxyHealth.Run(ctx)
 		// Force the initial loading of the cache. Do this in a go routine in case
 		// the calls to the workspace proxies hang and this takes some time.

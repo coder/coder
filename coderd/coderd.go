@@ -342,7 +342,6 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
-
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
