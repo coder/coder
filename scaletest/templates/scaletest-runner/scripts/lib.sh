@@ -270,7 +270,7 @@ fetch_coder_full() {
 	ns=$(namespace)
 	if [[ -z "${ns}" ]]; then
 		log "Could not determine namespace!"
-		return
+		return 1
 	fi
 	log "Namespace from serviceaccount token is ${ns}"
 	pods=$(coder_pods)
