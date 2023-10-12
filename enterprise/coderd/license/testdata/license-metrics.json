@@ -1,4 +1,5 @@
 {
-  "entitled=true:coderd_license_active_users": 4,
-  "entitled=true:coderd_license_user_limit": 7
+  "coderd_license_active_users": 4,
+  "coderd_license_limit_users": 7,
+  "coderd_license_user_limit_enabled": 1
 }
