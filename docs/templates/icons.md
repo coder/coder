@@ -5,7 +5,34 @@
 Coder uses icons in several places, including ones that can be configured
 throughout the app, or specified in your Terraform. They're specified by a URL,
 which can be to an image hosted on a CDN of your own, or one of the icons that
-come included with your Coder deployment.
+come bundled with your Coder deployment.
+
+- **Template Icons**:
+
+  - Make templates and workspaces visually recognizable with a relevant or
+    memorable icon
+
+- [**Terraform**](https://registry.terraform.io/providers/coder/coder/latest/docs):
+
+  - [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app#icon)
+  - [`coder_parameter`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#icon)
+    and
+    [`option`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#nested-schema-for-option)
+    blocks
+  - [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script#icon)
+
+  These can all be configured to use an icon by setting the `icon` field.
+
+  ```terraform
+  data "coder_parameter" "my_parameter" {
+    icon = "/icon/coder.svg"
+    ...
+  }
+  ```
+
+- [**Authentication Providers**](https://coder.com/docs/v2/latest/admin/external-auth):
+
+  - Use icons for external authentication providers to make them recognizable
 
 ## Bundled icons
 
