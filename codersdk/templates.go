@@ -136,6 +136,17 @@ type (
 	}
 )
 
+type ArchiveTemplateVersionsRequest struct {
+	// By default, only failed versions are archived. Set this to true
+	// to archive all unused versions regardless of job status.
+	All bool `json:"all"`
+}
+
+type ArchiveTemplateVersionsResponse struct {
+	TemplateID  uuid.UUID   `json:"template_id" format:"uuid"`
+	ArchivedIDs []uuid.UUID `json:"archived_ids"`
+}
+
 type TemplateRole string
 
 const (
@@ -227,6 +238,44 @@ func (c *Client) Template(ctx context.Context, template uuid.UUID) (Template, er
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+func (c *Client) ArchiveTemplateVersions(ctx context.Context, template uuid.UUID, all bool) (ArchiveTemplateVersionsResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost,
+		fmt.Sprintf("/api/v2/templates/%s/versions/archive", template),
+		ArchiveTemplateVersionsRequest{
+			All: all,
+		},
+	)
+	if err != nil {
+		return ArchiveTemplateVersionsResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ArchiveTemplateVersionsResponse{}, ReadBodyAsError(res)
+	}
+	var resp ArchiveTemplateVersionsResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+//nolint:revive
+func (c *Client) SetArchiveTemplateVersion(ctx context.Context, templateVersion uuid.UUID, archive bool) error {
+	u := fmt.Sprintf("/api/v2/templateversions/%s", templateVersion.String())
+	if archive {
+		u += "/archive"
+	} else {
+		u += "/unarchive"
+	}
+	res, err := c.Request(ctx, http.MethodPost, u, nil)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ReadBodyAsError(res)
+	}
+
+	return nil
+}
+
 func (c *Client) DeleteTemplate(ctx context.Context, template uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/templates/%s", template), nil)
 	if err != nil {
@@ -311,13 +360,18 @@ func (c *Client) UpdateActiveTemplateVersion(ctx context.Context, template uuid.
 // TemplateVersionsByTemplateRequest defines the request parameters for
 // TemplateVersionsByTemplate.
 type TemplateVersionsByTemplateRequest struct {
-	TemplateID uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	TemplateID      uuid.UUID `json:"template_id" validate:"required" format:"uuid"`
+	IncludeArchived bool      `json:"include_archived"`
 	Pagination
 }
 
 // TemplateVersionsByTemplate lists versions associated with a template.
 func (c *Client) TemplateVersionsByTemplate(ctx context.Context, req TemplateVersionsByTemplateRequest) ([]TemplateVersion, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID), nil, req.Pagination.asRequestOption())
+	u := fmt.Sprintf("/api/v2/templates/%s/versions", req.TemplateID)
+	if req.IncludeArchived {
+		u += "?include_archived=true"
+	}
+	res, err := c.Request(ctx, http.MethodGet, u, nil, req.Pagination.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

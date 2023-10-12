@@ -65,11 +65,17 @@ provider "docker" {
 
 provider "coder" {}
 
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
   id = "github"
 }
 
 data "coder_workspace" "me" {}
+
+module "slackme" {
+  source           = "https://registry.coder.com/modules/slackme"
+  agent_id         = coder_agent.dev.id
+  auth_provider_id = "slack"
+}
 
 module "dotfiles" {
   source   = "https://registry.coder.com/modules/dotfiles"
@@ -124,7 +130,7 @@ resource "coder_agent" "dev" {
   os   = "linux"
   dir  = data.coder_parameter.repo_dir.value
   env = {
-    GITHUB_TOKEN : data.coder_git_auth.github.access_token,
+    GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
   startup_script_behavior = "blocking"

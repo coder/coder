@@ -1,14 +1,12 @@
 import { User } from "api/typesGenerated";
 import { useAuth } from "components/AuthProvider/AuthProvider";
-import { isAuthenticated } from "xServices/auth/authXService";
 
 export const useMe = (): User => {
-  const [authState] = useAuth();
-  const { data } = authState.context;
+  const { user } = useAuth();
 
-  if (isAuthenticated(data)) {
-    return data.user;
+  if (!user) {
+    throw new Error("User is not authenticated");
   }
 
-  throw new Error("User is not authenticated");
+  return user;
 };

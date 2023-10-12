@@ -342,6 +342,41 @@ func (s *MethodTestSuite) TestGroup() {
 }
 
 func (s *MethodTestSuite) TestProvsionerJob() {
+	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
+			Error: sql.NullString{
+				String: "failed",
+				Valid:  true,
+			},
+		})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:      j.ID,
+		})
+		check.Args(database.ArchiveUnusedTemplateVersionsParams{
+			UpdatedAt:         dbtime.Now(),
+			TemplateID:        tpl.ID,
+			TemplateVersionID: uuid.Nil,
+			JobStatus:         database.NullProvisionerJobStatus{},
+		}).Asserts(v.RBACObject(tpl), rbac.ActionUpdate)
+	}))
+	s.Run("UnarchiveTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeTemplateVersionImport,
+		})
+		tpl := dbgen.Template(s.T(), db, database.Template{})
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			JobID:      j.ID,
+			Archived:   true,
+		})
+		check.Args(database.UnarchiveTemplateVersionParams{
+			UpdatedAt:         dbtime.Now(),
+			TemplateVersionID: v.ID,
+		}).Asserts(v.RBACObject(tpl), rbac.ActionUpdate)
+	}))
 	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{

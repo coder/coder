@@ -503,7 +503,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 		count    int64
 		template string
 
-		noPlan    bool
 		noCleanup bool
 		// TODO: implement this flag
 		// noCleanupFailures bool
@@ -594,10 +593,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			if tpl.ID == uuid.Nil {
 				return xerrors.Errorf("could not find template %q in any organization", template)
 			}
-			templateVersion, err := client.TemplateVersion(ctx, tpl.ActiveVersionID)
-			if err != nil {
-				return xerrors.Errorf("get template version %q: %w", tpl.ActiveVersionID, err)
-			}
 
 			cliRichParameters, err := asWorkspaceBuildParameters(parameterFlags.richParameters)
 			if err != nil {
@@ -607,42 +602,13 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			richParameters, err := prepWorkspaceBuild(inv, client, prepWorkspaceBuildArgs{
 				Action:           WorkspaceCreate,
 				Template:         tpl,
-				NewWorkspaceName: "scaletest-%", // TODO: the scaletest runner will pass in a different name here. Does this matter?
+				NewWorkspaceName: "scaletest-N", // TODO: the scaletest runner will pass in a different name here. Does this matter?
 
 				RichParameterFile: parameterFlags.richParameterFile,
 				RichParameters:    cliRichParameters,
 			})
 			if err != nil {
 				return xerrors.Errorf("prepare build: %w", err)
-			}
-
-			// Do a dry-run to ensure the template and parameters are valid
-			// before we start creating users and workspaces.
-			if !noPlan {
-				dryRun, err := client.CreateTemplateVersionDryRun(ctx, templateVersion.ID, codersdk.CreateTemplateVersionDryRunRequest{
-					WorkspaceName:       "scaletest",
-					RichParameterValues: richParameters,
-				})
-				if err != nil {
-					return xerrors.Errorf("start dry run workspace creation: %w", err)
-				}
-				_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
-				err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
-					Fetch: func() (codersdk.ProvisionerJob, error) {
-						return client.TemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Cancel: func() error {
-						return client.CancelTemplateVersionDryRun(inv.Context(), templateVersion.ID, dryRun.ID)
-					},
-					Logs: func() (<-chan codersdk.ProvisionerJobLog, io.Closer, error) {
-						return client.TemplateVersionDryRunLogsAfter(inv.Context(), templateVersion.ID, dryRun.ID, 0)
-					},
-					// Don't show log output for the dry-run unless there's an error.
-					Silent: true,
-				})
-				if err != nil {
-					return xerrors.Errorf("dry-run workspace: %w", err)
-				}
 			}
 
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
@@ -792,12 +758,6 @@ func (r *RootCmd) scaletestCreateWorkspaces() *clibase.Cmd {
 			Env:           "CODER_SCALETEST_TEMPLATE",
 			Description:   "Required: Name or ID of the template to use for workspaces.",
 			Value:         clibase.StringOf(&template),
-		},
-		{
-			Flag:        "no-plan",
-			Env:         "CODER_SCALETEST_NO_PLAN",
-			Description: `Skip the dry-run step to plan the workspace creation. This step ensures that the given parameters are valid for the given template.`,
-			Value:       clibase.BoolOf(&noPlan),
 		},
 		{
 			Flag:        "no-cleanup",
@@ -1099,6 +1059,9 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 			}
 			ctx := inv.Context()
 			logger := slog.Make(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelInfo)
+			if r.verbose {
+				logger = logger.Leveled(slog.LevelDebug)
+			}
 			tracerProvider, closeTracing, tracingEnabled, err := tracingFlags.provider(ctx)
 			if err != nil {
 				return xerrors.Errorf("create tracer provider: %w", err)
@@ -1148,17 +1111,22 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 				userClient.SetSessionToken(userTokResp.Key)
 
 				config := dashboard.Config{
-					Interval:   interval,
-					Jitter:     jitter,
-					Trace:      tracingEnabled,
-					Logger:     logger.Named(name),
-					Headless:   headless,
-					ActionFunc: dashboard.ClickRandomElement,
-					RandIntn:   rndGen.Intn,
+					Interval: interval,
+					Jitter:   jitter,
+					Trace:    tracingEnabled,
+					Logger:   logger.Named(name),
+					Headless: headless,
+					RandIntn: rndGen.Intn,
+				}
+				// Only take a screenshot if we're in verbose mode.
+				// This could be useful for debugging, but it will blow up the disk.
+				if r.verbose {
+					config.Screenshot = dashboard.Screenshot
 				}
 				//nolint:gocritic
-				logger.Info(ctx, "runner config", slog.F("min_wait", interval), slog.F("max_wait", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
+				logger.Info(ctx, "runner config", slog.F("interval", interval), slog.F("jitter", jitter), slog.F("headless", headless), slog.F("trace", tracingEnabled))
 				if err := config.Validate(); err != nil {
+					logger.Fatal(ctx, "validate config", slog.Error(err))
 					return err
 				}
 				var runner harness.Runnable = dashboard.NewRunner(userClient, metrics, config)
@@ -1200,14 +1168,14 @@ func (r *RootCmd) scaletestDashboard() *clibase.Cmd {
 		{
 			Flag:        "interval",
 			Env:         "CODER_SCALETEST_DASHBOARD_INTERVAL",
-			Default:     "3s",
+			Default:     "10s",
 			Description: "Interval between actions.",
 			Value:       clibase.DurationOf(&interval),
 		},
 		{
 			Flag:        "jitter",
 			Env:         "CODER_SCALETEST_DASHBOARD_JITTER",
-			Default:     "2s",
+			Default:     "5s",
 			Description: "Jitter between actions.",
 			Value:       clibase.DurationOf(&jitter),
 		},

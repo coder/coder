@@ -79,6 +79,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all existing data has been encrypted with cipher A.
 	for _, usr := range users {
@@ -101,6 +102,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher B.
 	for _, usr := range users {
@@ -142,6 +144,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that both keys have been revoked.
 	keys, err = db.GetDBCryptKeys(ctx)
@@ -172,6 +175,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Validate that all data has been re-encrypted with cipher C.
 	for _, usr := range users {
@@ -189,6 +193,7 @@ func TestServerDBCrypt(t *testing.T) {
 	inv.Stdout = pty.Output()
 	err = inv.Run()
 	require.NoError(t, err)
+	require.NoError(t, pty.Close())
 
 	// Assert that no user links remain.
 	for _, usr := range users {
@@ -217,7 +222,10 @@ func genData(t *testing.T, db database.Store) []database.User {
 	for _, status := range database.AllUserStatusValues() {
 		for _, loginType := range database.AllLoginTypeValues() {
 			for _, deleted := range []bool{false, true} {
+				randName := mustString(t, 32)
 				usr := dbgen.User(t, db, database.User{
+					Username:  randName,
+					Email:     randName + "@notcoder.com",
 					LoginType: loginType,
 					Status:    status,
 					Deleted:   deleted,

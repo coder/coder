@@ -1,5 +1,9 @@
 import { useMutation, useQuery } from "react-query";
-import { getTemplateVersions, updateActiveTemplateVersion } from "api/api";
+import {
+  archiveTemplateVersion,
+  getTemplateVersions,
+  updateActiveTemplateVersion,
+} from "api/api";
 import { getErrorMessage } from "api/errors";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -34,7 +38,29 @@ const TemplateVersionsPage = () => {
       displayError(getErrorMessage(error, "Failed to promote version"));
     },
   });
+
+  const { mutate: archiveVersion, isLoading: isArchiving } = useMutation({
+    mutationFn: (templateVersionId: string) => {
+      return archiveTemplateVersion(templateVersionId);
+    },
+    onSuccess: async () => {
+      // The reload is unfortunate. When a version is archived, we should hide
+      // the row. I do not know an easy way to do that, so a reload makes the API call
+      // resend and now the version is omitted.
+      // TODO: Improve this to not reload the page.
+      location.reload();
+      setSelectedVersionIdToArchive(undefined);
+      displaySuccess("Version archived successfully");
+    },
+    onError: (error) => {
+      displayError(getErrorMessage(error, "Failed to archive version"));
+    },
+  });
+
   const [selectedVersionIdToPromote, setSelectedVersionIdToPromote] = useState<
+    string | undefined
+  >();
+  const [selectedVersionIdToArchive, setSelectedVersionIdToArchive] = useState<
     string | undefined
   >();
 
@@ -50,8 +76,14 @@ const TemplateVersionsPage = () => {
             ? setSelectedVersionIdToPromote
             : undefined
         }
+        onArchiveClick={
+          permissions.canUpdateTemplate
+            ? setSelectedVersionIdToArchive
+            : undefined
+        }
         activeVersionId={latestActiveVersion}
       />
+      {/* Promote confirm */}
       <ConfirmDialog
         type="info"
         hideCancel={false}
@@ -64,6 +96,20 @@ const TemplateVersionsPage = () => {
         confirmLoading={isPromoting}
         confirmText="Promote"
         description="Are you sure you want to promote this version? Workspaces will be prompted to “Update” to this version once promoted."
+      />
+      {/* Archive Confirm */}
+      <ConfirmDialog
+        type="info"
+        hideCancel={false}
+        open={selectedVersionIdToArchive !== undefined}
+        onConfirm={() => {
+          archiveVersion(selectedVersionIdToArchive as string);
+        }}
+        onClose={() => setSelectedVersionIdToArchive(undefined)}
+        title="Archive version"
+        confirmLoading={isArchiving}
+        confirmText="Archive"
+        description="Are you sure you want to archive this version (this is reversible)? Archived versions cannot be used by workspaces."
       />
     </>
   );

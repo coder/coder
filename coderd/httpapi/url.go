@@ -22,6 +22,7 @@ var (
 
 // ApplicationURL is a parsed application URL hostname.
 type ApplicationURL struct {
+	Prefix        string
 	AppSlugOrPort string
 	AgentName     string
 	WorkspaceName string
@@ -32,6 +33,7 @@ type ApplicationURL struct {
 // want to append a period and the base hostname.
 func (a ApplicationURL) String() string {
 	var appURL strings.Builder
+	_, _ = appURL.WriteString(a.Prefix)
 	_, _ = appURL.WriteString(a.AppSlugOrPort)
 	_, _ = appURL.WriteString("--")
 	_, _ = appURL.WriteString(a.AgentName)
@@ -47,13 +49,34 @@ func (a ApplicationURL) String() string {
 // error. If the hostname is not a subdomain of the given base hostname, returns
 // a non-nil error.
 //
-// The base hostname should not include a scheme, leading asterisk or dot.
-//
 // Subdomains should be in the form:
 //
-//	{PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
-//	(eg. https://8080--main--dev--dean.hi.c8s.io)
+//		({PREFIX}---)?{PORT/APP_SLUG}--{AGENT_NAME}--{WORKSPACE_NAME}--{USERNAME}
+//		e.g.
+//	     https://8080--main--dev--dean.hi.c8s.io
+//	     https://app--main--dev--dean.hi.c8s.io
+//	     https://prefix---8080--main--dev--dean.hi.c8s.io
+//	     https://prefix---app--main--dev--dean.hi.c8s.io
+//
+// The optional prefix is permitted to allow customers to put additional URL at
+// the beginning of their application URL (i.e. if they want to simulate
+// different subdomains on the same app/port).
+//
+// Prefix requires three hyphens at the end to separate it from the rest of the
+// URL so we can add/remove segments in the future from the parsing logic.
+//
+// TODO(dean): make the agent name optional when using the app slug. This will
+// reduce the character count for app URLs.
 func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
+	var (
+		prefixSegments = strings.Split(subdomain, "---")
+		prefix         = ""
+	)
+	if len(prefixSegments) > 1 {
+		prefix = strings.Join(prefixSegments[:len(prefixSegments)-1], "---") + "---"
+		subdomain = prefixSegments[len(prefixSegments)-1]
+	}
+
 	matches := appURL.FindAllStringSubmatch(subdomain, -1)
 	if len(matches) == 0 {
 		return ApplicationURL{}, xerrors.Errorf("invalid application url format: %q", subdomain)
@@ -61,6 +84,7 @@ func ParseSubdomainAppURL(subdomain string) (ApplicationURL, error) {
 	matchGroup := matches[0]
 
 	return ApplicationURL{
+		Prefix:        prefix,
 		AppSlugOrPort: matchGroup[appURL.SubexpIndex("AppSlug")],
 		AgentName:     matchGroup[appURL.SubexpIndex("AgentName")],
 		WorkspaceName: matchGroup[appURL.SubexpIndex("WorkspaceName")],
@@ -125,8 +149,12 @@ func CompileHostnamePattern(pattern string) (*regexp.Regexp, error) {
 	}
 	for i, label := range strings.Split(pattern, ".") {
 		if i == 0 {
-			// We have to allow the asterisk to be a valid hostname label.
+			// We have to allow the asterisk to be a valid hostname label, so
+			// we strip the asterisk (which is only on the first one).
 			label = strings.TrimPrefix(label, "*")
+			// Put an "a" at the start to stand in for the asterisk in the regex
+			// test below. This makes `*.coder.com` become `a.coder.com` and
+			// `*--prod.coder.com` become `a--prod.coder.com`.
 			label = "a" + label
 		}
 		if !validHostnameLabelRegex.MatchString(label) {

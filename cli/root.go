@@ -836,10 +836,18 @@ func (r *RootCmd) checkWarnings(i *clibase.Invocation, client *codersdk.Client) 
 	ctx, cancel := context.WithTimeout(i.Context(), 10*time.Second)
 	defer cancel()
 
+	user, err := client.User(ctx, codersdk.Me)
+	if err != nil {
+		return xerrors.Errorf("get user me: %w", err)
+	}
+
 	entitlements, err := client.Entitlements(ctx)
 	if err == nil {
-		for _, w := range entitlements.Warnings {
-			_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
+		// Don't show warning to regular users.
+		if len(user.Roles) > 0 {
+			for _, w := range entitlements.Warnings {
+				_, _ = fmt.Fprintln(i.Stderr, pretty.Sprint(cliui.DefaultStyles.Warn, w))
+			}
 		}
 	}
 	return nil

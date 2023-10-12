@@ -987,6 +987,20 @@ _None_
 | `service_banner`   | [codersdk.ServiceBannerConfig](#codersdkservicebannerconfig) | false    |              |             |
 | `support_links`    | array of [codersdk.LinkConfig](#codersdklinkconfig)          | false    |              |             |
 
+## codersdk.ArchiveTemplateVersionsRequest
+
+```json
+{
+  "all": true
+}
+```
+
+### Properties
+
+| Name  | Type    | Required | Restrictions | Description                                                                                                              |
+| ----- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `all` | boolean | false    |              | By default, only failed versions are archived. Set this to true to archive all unused versions regardless of job status. |
+
 ## codersdk.AssignableRoles
 
 ```json
@@ -2246,6 +2260,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "default_schedule": "string"
     },
     "verbose": true,
+    "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,
@@ -2614,6 +2629,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "default_schedule": "string"
   },
   "verbose": true,
+  "web_terminal_renderer": "string",
   "wgtunnel_host": "string",
   "wildcard_access_url": {
     "forceQuery": true,
@@ -2687,6 +2703,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `update_check`                       | boolean                                                                                              | false    |              |                                                                    |
 | `user_quiet_hours_schedule`          | [codersdk.UserQuietHoursScheduleConfig](#codersdkuserquiethoursscheduleconfig)                       | false    |              |                                                                    |
 | `verbose`                            | boolean                                                                                              | false    |              |                                                                    |
+| `web_terminal_renderer`              | string                                                                                               | false    |              |                                                                    |
 | `wgtunnel_host`                      | string                                                                                               | false    |              |                                                                    |
 | `wildcard_access_url`                | [clibase.URL](#clibaseurl)                                                                           | false    |              |                                                                    |
 | `write_config`                       | boolean                                                                                              | false    |              |                                                                    |
@@ -4706,6 +4723,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "archived": true,
   "created_at": "2019-08-24T14:15:22Z",
   "created_by": {
     "avatar_url": "http://example.com",
@@ -4745,6 +4763,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 | Name              | Type                                                                        | Required | Restrictions | Description |
 | ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `archived`        | boolean                                                                     | false    |              |             |
 | `created_at`      | string                                                                      | false    |              |             |
 | `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
 | `id`              | string                                                                      | false    |              |             |
@@ -7866,6 +7885,7 @@ _None_
   "app_request": {
     "access_method": "path",
     "agent_name_or_id": "string",
+    "app_prefix": "string",
     "app_slug_or_port": "string",
     "base_path": "string",
     "username_or_id": "string",
@@ -7893,6 +7913,7 @@ _None_
 {
   "access_method": "path",
   "agent_name_or_id": "string",
+  "app_prefix": "string",
   "app_slug_or_port": "string",
   "base_path": "string",
   "username_or_id": "string",
@@ -7906,6 +7927,7 @@ _None_
 | ---------------------- | -------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `access_method`        | [workspaceapps.AccessMethod](#workspaceappsaccessmethod) | false    |              |                                                                                                                                                                                       |
 | `agent_name_or_id`     | string                                                   | false    |              | Agent name or ID is not required if the workspace has only one agent.                                                                                                                 |
+| `app_prefix`           | string                                                   | false    |              | Prefix is the prefix of the subdomain app URL. Prefix should have a trailing "---" if set.                                                                                            |
 | `app_slug_or_port`     | string                                                   | false    |              |                                                                                                                                                                                       |
 | `base_path`            | string                                                   | false    |              | Base path of the app. For path apps, this is the path prefix in the router for this particular app. For subdomain apps, this should be "/". This is used for setting the cookie path. |
 | `username_or_id`       | string                                                   | false    |              | For the following fields, if the AccessMethod is AccessMethodTerminal, then only AgentNameOrID may be set and it must be a UUID. The other fields must be left blank.                 |

@@ -411,6 +411,10 @@ client:
   # incorrectly can break SSH to your deployment, use cautiously.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
+  # The renderer to use when opening a web terminal. Valid values are 'canvas',
+  # 'webgl', or 'dom'.
+  # (default: canvas, type: string)
+  webTerminalRenderer: canvas
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []

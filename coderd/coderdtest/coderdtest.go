@@ -753,11 +753,12 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
 func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+	ctx := context.Background()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
-	file, err := client.Upload(context.Background(), codersdk.ContentTypeTar, bytes.NewReader(data))
+	file, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 	require.NoError(t, err)
-	templateVersion, err := client.CreateTemplateVersion(context.Background(), organizationID, codersdk.CreateTemplateVersionRequest{
+	templateVersion, err := client.CreateTemplateVersion(ctx, organizationID, codersdk.CreateTemplateVersionRequest{
 		TemplateID:    templateID,
 		FileID:        file.ID,
 		StorageMethod: codersdk.ProvisionerStorageMethodFile,
@@ -765,6 +766,13 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	})
 	require.NoError(t, err)
 	return templateVersion
+}
+
+func UpdateActiveTemplateVersion(t *testing.T, client *codersdk.Client, templateID, versionID uuid.UUID) {
+	err := client.UpdateActiveTemplateVersion(context.Background(), templateID, codersdk.UpdateActiveTemplateVersion{
+		ID: versionID,
+	})
+	require.NoError(t, err)
 }
 
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.

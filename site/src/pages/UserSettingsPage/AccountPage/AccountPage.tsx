@@ -6,10 +6,9 @@ import { useMe } from "hooks/useMe";
 import { usePermissions } from "hooks/usePermissions";
 
 export const AccountPage: FC = () => {
-  const [authState, authSend] = useAuth();
+  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
   const me = useMe();
   const permissions = usePermissions();
-  const { updateProfileError } = authState.context;
   const canEditUsers = permissions && permissions.updateUsers;
 
   return (
@@ -18,16 +17,11 @@ export const AccountPage: FC = () => {
         editable={Boolean(canEditUsers)}
         email={me.email}
         updateProfileError={updateProfileError}
-        isLoading={authState.matches("signedIn.profile.updatingProfile")}
+        isLoading={isUpdatingProfile}
         initialValues={{
           username: me.username,
         }}
-        onSubmit={(data) => {
-          authSend({
-            type: "UPDATE_PROFILE",
-            data,
-          });
-        }}
+        onSubmit={updateProfile}
       />
     </Section>
   );

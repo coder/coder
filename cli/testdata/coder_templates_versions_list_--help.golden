@@ -6,9 +6,12 @@ USAGE:
   List all the versions of the specified template
 
 OPTIONS:
-  -c, --column string-array (default: name,created at,created by,status,active)
+  -c, --column string-array (default: Name,Created At,Created By,Status,Active)
           Columns to display in table output. Available columns: name, created
-          at, created by, status, active.
+          at, created by, status, active, archived.
+
+      --include-archived bool
+          Include archived versions in the result list.
 
   -o, --output string (default: table)
           Output format. Available formats: table, json.

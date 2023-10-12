@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -88,7 +89,9 @@ type App struct {
 	AgentName     string
 	AppSlugOrPort string
 
-	Query string
+	// Prefix should have ---.
+	Prefix string
+	Query  string
 }
 
 // Details are the full test details returned from setupProxyTestWithFactory.
@@ -143,6 +146,7 @@ func (d *Details) PathAppURL(app App) *url.URL {
 // SubdomainAppURL returns the URL for the given subdomain app.
 func (d *Details) SubdomainAppURL(app App) *url.URL {
 	appHost := httpapi.ApplicationURL{
+		Prefix:        app.Prefix,
 		AppSlugOrPort: app.AppSlugOrPort,
 		AgentName:     app.AgentName,
 		WorkspaceName: app.WorkspaceName,
@@ -252,6 +256,7 @@ func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
 				_, err := r.Cookie(codersdk.SessionTokenCookie)
 				assert.ErrorIs(t, err, http.ErrNoCookie)
 				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+				w.Header().Set("X-Got-Host", r.Host)
 				for name, values := range headers {
 					for _, value := range values {
 						w.Header().Add(name, value)
@@ -289,6 +294,17 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 	if serveHTTPS {
 		scheme = "https"
 	}
+
+	// Workspace name needs to be short to avoid hitting 62 char hostname
+	// segment limit.
+	workspaceName, err := cryptorand.String(6)
+	require.NoError(t, err)
+	workspaceName = "ws-" + workspaceName
+	workspaceMutators = append([]func(*codersdk.CreateWorkspaceRequest){
+		func(req *codersdk.CreateWorkspaceRequest) {
+			req.Name = workspaceName
+		},
+	}, workspaceMutators...)
 
 	appURL := fmt.Sprintf("%s://127.0.0.1:%d?%s", scheme, port, proxyTestAppQuery)
 	protoApps := []*proto.App{
@@ -354,6 +370,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		require.True(t, app.Subdomain)
 
 		appURL := httpapi.ApplicationURL{
+			Prefix: "",
 			// findProtoApp is needed as the order of apps returned from PG database
 			// is not guaranteed.
 			AppSlugOrPort: findProtoApp(t, protoApps, app.Slug).Slug,
@@ -382,6 +399,7 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 		require.NoError(t, err)
 
 		appHost := httpapi.ApplicationURL{
+			Prefix:        "",
 			AppSlugOrPort: "{{port}}",
 			AgentName:     proxyTestAgentName,
 			WorkspaceName: workspace.Name,
