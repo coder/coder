@@ -248,7 +248,7 @@ func TestTemplateEdit(t *testing.T) {
 		assert.Equal(t, "", updated.Icon)
 		assert.Equal(t, "", updated.DisplayName)
 	})
-	t.Run("AutostopRequirement", func(t *testing.T) {
+	t.Run("Autostop/startRequirement", func(t *testing.T) {
 		t.Parallel()
 		t.Run("BlockedAGPL", func(t *testing.T) {
 			t.Parallel()
@@ -286,6 +286,12 @@ func TestTemplateEdit(t *testing.T) {
 						"--autostop-requirement-weeks", "1",
 					},
 				},
+				{
+					name: "AutostartDays",
+					flags: []string{
+						"--autostart-requirement-weekdays", "monday",
+					},
+				},
 			}
 
 			for _, c := range cases {
@@ -321,6 +327,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 				})
 			}
 		})
