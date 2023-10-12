@@ -31,6 +31,7 @@ func WillUsePostgres() bool {
 type options struct {
 	fixedTimezone string
 	dumpOnFailure bool
+	returnSQLDB   func(*sql.DB)
 }
 
 type Option func(*options)
@@ -47,6 +48,27 @@ func WithDumpOnFailure() Option {
 	return func(o *options) {
 		o.dumpOnFailure = true
 	}
+}
+
+func withReturnSQLDB(f func(*sql.DB)) Option {
+	return func(o *options) {
+		o.returnSQLDB = f
+	}
+}
+
+func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
+	t.Helper()
+
+	if !WillUsePostgres() {
+		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
+	}
+
+	var sqlDB *sql.DB
+	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
+		sqlDB = db
+	}))
+	db, ps := NewDB(t, opts...)
+	return db, ps, sqlDB
 }
 
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
@@ -88,6 +110,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() {
 			_ = sqlDB.Close()
 		})
+		if o.returnSQLDB != nil {
+			o.returnSQLDB(sqlDB)
+		}
 		if o.dumpOnFailure {
 			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
 		}
