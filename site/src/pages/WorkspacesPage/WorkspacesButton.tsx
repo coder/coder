@@ -84,7 +84,7 @@ function WorkspaceResultsRow({ template }: { template: Template }) {
             sx={{ marginY: 0, paddingBottom: 0.5, lineHeight: 1 }}
             noWrap
           >
-            {template.display_name || "[Unnamed]"}
+            {template.display_name || template.name || "[Unnamed]"}
           </Typography>
 
           <Box
