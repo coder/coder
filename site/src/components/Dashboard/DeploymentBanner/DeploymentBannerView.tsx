@@ -193,7 +193,9 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
                   </HealthIssue>
                 )}
                 {health.websocket && (
-                  <HealthIssue>We're noticing websocket issues.</HealthIssue>
+                  <HealthIssue>
+                    We&apos;re noticing websocket issues.
+                  </HealthIssue>
                 )}
               </Stack>
             </>
