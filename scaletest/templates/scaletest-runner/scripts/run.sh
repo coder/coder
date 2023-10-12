@@ -11,7 +11,6 @@ export SCALETEST_PARAM_LOAD_SCENARIOS=("${scaletest_load_scenarios[@]}")
 
 log "Running scaletest..."
 set_status Running
-set_status_annotation running
 
 start_phase "Creating workspaces"
 coder exp scaletest create-workspaces \
@@ -64,4 +63,3 @@ done
 
 log "Scaletest complete!"
 set_status Complete
-set_status_annotation completed

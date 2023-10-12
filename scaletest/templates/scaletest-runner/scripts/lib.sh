@@ -40,7 +40,7 @@ show_json() {
 set_status() {
 	dry_run=
 	if [[ ${DRY_RUN} == 1 ]]; then
-		dry_run=" (dry-ryn)"
+		dry_run=" (dry-run)"
 	fi
 	prev_status=$(get_status)
 	if [[ ${prev_status} != *"Not started"* ]]; then
@@ -49,6 +49,9 @@ set_status() {
 	echo "$(date -Ins) ${*}${dry_run}" >>"${SCALETEST_STATE_DIR}/status"
 
 	annotate_grafana "status" "Status: ${*}"
+
+	status_lower=$(tr '[:upper:]' '[:lower:]' <<<"${*}")
+	set_pod_status_annotation "${status_lower}"
 }
 lock_status() {
 	chmod 0440 "${SCALETEST_STATE_DIR}/status"
@@ -248,17 +251,13 @@ set_appearance() {
 }
 
 namespace() {
-	local ns
-	ns=$(</var/run/secrets/kubernetes.io/serviceaccount/namespace)
-	echo "${ns}"
+	cat /var/run/secrets/kubernetes.io/serviceaccount/namespace
 }
 coder_pods() {
-	local pods
-	pods=$(kubectl get pods \
+	kubectl get pods \
 		--namespace "$(namespace)" \
 		--selector "app.kubernetes.io/name=coder,app.kubernetes.io/part-of=coder" \
-		--output jsonpath='{.items[*].metadata.name}')
-	echo "${pods}"
+		--output jsonpath='{.items[*].metadata.name}'
 }
 
 # fetch_coder_full fetches the full (non-slim) coder binary from one of the coder pods
@@ -271,18 +270,18 @@ fetch_coder_full() {
 	ns=$(namespace)
 	if [[ -z "${ns}" ]]; then
 		log "Could not determine namespace!"
-		exit 1
+		return
 	fi
 	log "Namespace from serviceaccount token is ${ns}"
 	pods=$(coder_pods)
 	if [[ -z ${pods} ]]; then
 		log "Could not find coder pods!"
-		exit 1
+		return
 	fi
-	pod=$(echo "${pods}" | cut -d ' ' -f 1)
+	pod=$(cut -d ' ' -f 1 <<<"${pods}")
 	if [[ -z ${pod} ]]; then
 		log "Could not find coder pod!"
-		exit 1
+		return
 	fi
 	log "Fetching full Coder binary from ${pod}"
 	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
@@ -296,12 +295,12 @@ fetch_coder_full() {
 	log "Full Coder binary downloaded to ${SCALETEST_CODER_BINARY}"
 }
 
-# set_status_annotation annotates the currently running pod with the key
+# set_pod_status_annotation annotates the currently running pod with the key
 # com.coder.scaletest.status. It will overwrite the previous status.
-set_status_annotation() {
+set_pod_status_annotation() {
 	if [[ $# -ne 1 ]]; then
 		log "must specify an annotation value"
-		exit 1
+		return
 	else
 		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$2" --overwrite
 	fi
