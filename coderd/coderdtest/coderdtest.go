@@ -155,7 +155,7 @@ func New(t testing.TB, options *Options) *codersdk.Client {
 // the provisioner. This is a temporary function while work is done to
 // standardize how provisioners are registered with coderd. The option
 // to include a provisioner is set to true for convenience.
-func NewWithProvisionerCloser(t *testing.T, options *Options) (*codersdk.Client, io.Closer) {
+func NewWithProvisionerCloser(t testing.TB, options *Options) (*codersdk.Client, io.Closer) {
 	if options == nil {
 		options = &Options{}
 	}
@@ -532,7 +532,7 @@ func NewProvisionerDaemon(t testing.TB, coderAPI *coderd.API) io.Closer {
 	return closer
 }
 
-func NewExternalProvisionerDaemon(t *testing.T, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	echoClient, echoServer := provisionersdk.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
@@ -594,15 +594,15 @@ func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirst
 }
 
 // CreateAnotherUser creates and authenticates a new user.
-func CreateAnotherUser(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUser(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles ...string) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles)
 }
 
-func CreateAnotherUserMutators(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func CreateAnotherUserMutators(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	return createAnotherUserRetry(t, client, organizationID, 5, roles, mutators...)
 }
 
-func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
+func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, retries int, roles []string, mutators ...func(r *codersdk.CreateUserRequest)) (*codersdk.Client, codersdk.User) {
 	req := codersdk.CreateUserRequest{
 		Email:          namesgenerator.GetRandomName(10) + "@coder.com",
 		Username:       randomUsername(t),
@@ -695,7 +695,7 @@ func createAnotherUserRetry(t *testing.T, client *codersdk.Client, organizationI
 // CreateTemplateVersion creates a template import provisioner job
 // with the responses provided. It uses the "echo" provisioner for compatibility
 // with testing.
-func CreateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
+func CreateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, mutators ...func(*codersdk.CreateTemplateVersionRequest)) codersdk.TemplateVersion {
 	t.Helper()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
@@ -737,7 +737,7 @@ func CreateWorkspaceBuild(
 
 // CreateTemplate creates a template with the "echo" provisioner for
 // compatibility with testing. The name assigned is randomly generated.
-func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
+func CreateTemplate(t testing.TB, client *codersdk.Client, organization uuid.UUID, version uuid.UUID, mutators ...func(*codersdk.CreateTemplateRequest)) codersdk.Template {
 	req := codersdk.CreateTemplateRequest{
 		Name:      randomUsername(t),
 		VersionID: version,
@@ -752,7 +752,7 @@ func CreateTemplate(t *testing.T, client *codersdk.Client, organization uuid.UUI
 
 // UpdateTemplateVersion creates a new template version with the "echo" provisioner
 // and associates it with the given templateID.
-func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
+func UpdateTemplateVersion(t testing.TB, client *codersdk.Client, organizationID uuid.UUID, res *echo.Responses, templateID uuid.UUID) codersdk.TemplateVersion {
 	ctx := context.Background()
 	data, err := echo.Tar(res)
 	require.NoError(t, err)
@@ -768,7 +768,7 @@ func UpdateTemplateVersion(t *testing.T, client *codersdk.Client, organizationID
 	return templateVersion
 }
 
-func UpdateActiveTemplateVersion(t *testing.T, client *codersdk.Client, templateID, versionID uuid.UUID) {
+func UpdateActiveTemplateVersion(t testing.TB, client *codersdk.Client, templateID, versionID uuid.UUID) {
 	err := client.UpdateActiveTemplateVersion(context.Background(), templateID, codersdk.UpdateActiveTemplateVersion{
 		ID: versionID,
 	})
@@ -776,7 +776,7 @@ func UpdateActiveTemplateVersion(t *testing.T, client *codersdk.Client, template
 }
 
 // AwaitTemplateVersionJobRunning waits for the build to be picked up by a provisioner.
-func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -807,7 +807,7 @@ func AwaitTemplateVersionJobRunning(t *testing.T, client *codersdk.Client, versi
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
 // from cancelation, an error, or from completing successfully.
-func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -826,7 +826,7 @@ func AwaitTemplateVersionJobCompleted(t *testing.T, client *codersdk.Client, ver
 }
 
 // AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed status.
-func AwaitWorkspaceBuildJobCompleted(t *testing.T, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -897,7 +897,7 @@ func AwaitWorkspaceAgents(t testing.TB, client *codersdk.Client, workspaceID uui
 // CreateWorkspace creates a workspace for the user and template provided.
 // A random name is generated for it.
 // To customize the defaults, pass a mutator func.
-func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
+func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UUID, templateID uuid.UUID, mutators ...func(*codersdk.CreateWorkspaceRequest)) codersdk.Workspace {
 	t.Helper()
 	req := codersdk.CreateWorkspaceRequest{
 		TemplateID:        templateID,
@@ -915,7 +915,7 @@ func CreateWorkspace(t *testing.T, client *codersdk.Client, organization uuid.UU
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -939,7 +939,7 @@ func MustTransitionWorkspace(t *testing.T, client *codersdk.Client, workspaceID 
 }
 
 // MustWorkspace is a convenience method for fetching a workspace that should exist.
-func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
+func MustWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	ws, err := client.Workspace(ctx, workspaceID)
@@ -952,7 +952,7 @@ func MustWorkspace(t *testing.T, client *codersdk.Client, workspaceID uuid.UUID)
 
 // RequestExternalAuthCallback makes a request with the proper OAuth2 state cookie
 // to the external auth callback endpoint.
-func RequestExternalAuthCallback(t *testing.T, providerID string, client *codersdk.Client) *http.Response {
+func RequestExternalAuthCallback(t testing.TB, providerID string, client *codersdk.Client) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
 	}
@@ -980,7 +980,7 @@ func RequestExternalAuthCallback(t *testing.T, providerID string, client *coders
 // NewGoogleInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Google Cloud.
 // nolint:revive
-func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
+func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
 	claims := jwt.MapClaims{
@@ -1042,7 +1042,7 @@ func NewGoogleInstanceIdentity(t *testing.T, instanceID string, expired bool) (*
 
 // NewAWSInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for AWS.
-func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certificates, *http.Client) {
+func NewAWSInstanceIdentity(t testing.TB, instanceID string) (awsidentity.Certificates, *http.Client) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -1102,7 +1102,7 @@ func NewAWSInstanceIdentity(t *testing.T, instanceID string) (awsidentity.Certif
 
 // NewAzureInstanceIdentity returns a metadata client and ID token validator for faking
 // instance authentication for Azure.
-func NewAzureInstanceIdentity(t *testing.T, instanceID string) (x509.VerifyOptions, *http.Client) {
+func NewAzureInstanceIdentity(t testing.TB, instanceID string) (x509.VerifyOptions, *http.Client) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 
@@ -1182,7 +1182,7 @@ type nopcloser struct{}
 func (nopcloser) Close() error { return nil }
 
 // SDKError coerces err into an SDK error.
-func SDKError(t *testing.T, err error) *codersdk.Error {
+func SDKError(t testing.TB, err error) *codersdk.Error {
 	var cerr *codersdk.Error
 	require.True(t, errors.As(err, &cerr))
 	return cerr
