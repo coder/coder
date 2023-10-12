@@ -302,6 +302,6 @@ set_pod_status_annotation() {
 		log "must specify an annotation value"
 		return
 	else
-		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$2" --overwrite
+		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$1" --overwrite
 	fi
 }
