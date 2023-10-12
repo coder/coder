@@ -1,6 +1,7 @@
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
+import { terminalWebsocketUrl } from "utils/terminal";
 import { getMatchingAgentOrFirst } from "utils/workspace";
 
 interface ReconnectingPTYRequest {
@@ -213,42 +214,12 @@ export const terminalMachine =
           if (!context.reconnection) {
             throw new Error("reconnection ID is not set");
           }
-
-          let baseURL = context.baseURL || "";
-          if (!baseURL) {
-            baseURL = `${location.protocol}//${location.host}`;
-          }
-
-          const query = new URLSearchParams({
-            reconnect: context.reconnection,
-          });
-          if (context.command) {
-            query.set("command", context.command);
-          }
-
-          const url = new URL(baseURL);
-          url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-          if (!url.pathname.endsWith("/")) {
-            url.pathname + "/";
-          }
-          url.pathname += `api/v2/workspaceagents/${context.workspaceAgent.id}/pty`;
-          url.search = "?" + query.toString();
-
-          // If the URL is just the primary API, we don't need a signed token to
-          // connect.
-          if (!context.baseURL) {
-            return url.toString();
-          }
-
-          // Do ticket issuance and set the query parameter.
-          const tokenRes = await API.issueReconnectingPTYSignedToken({
-            url: url.toString(),
-            agentID: context.workspaceAgent.id,
-          });
-          query.set("coder_signed_app_token_23db1dde", tokenRes.signed_token);
-          url.search = "?" + query.toString();
-
-          return url.toString();
+          return terminalWebsocketUrl(
+            context.baseURL,
+            context.reconnection,
+            context.workspaceAgent.id,
+            context.command,
+          );
         },
         connect: (context) => (send) => {
           return new Promise<WebSocket>((resolve, reject) => {
