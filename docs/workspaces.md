@@ -102,9 +102,13 @@ coder update <workspace-name>
 
 ## Repairing workspaces
 
-Use the following command to re-enter template input variables in an
-existing workspace. This command is useful when a workspace fails to
-build because its state is out of sync with the template.
+You can re-enter template input variables from a workspace. This is
+useful when a workspace fails to build because its state is out of
+sync with the template.
+
+![Re-entering template variables](./images/template-variables.png)
+
+You can also do this in the CLI with the following command:
 
 ```shell
 coder update <your workspace name> --always-prompt
