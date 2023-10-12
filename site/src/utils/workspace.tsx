@@ -286,3 +286,20 @@ export const hasJobError = (workspace: TypesGen.Workspace) => {
 export const paramsUsedToCreateWorkspace = (
   param: TypesGen.TemplateVersionParameter,
 ) => !param.ephemeral;
+
+export const getMatchingAgentOrFirst = (
+  workspace: TypesGen.Workspace,
+  agentName: string | undefined,
+): TypesGen.WorkspaceAgent | undefined => {
+  return workspace.latest_build.resources
+    .map((resource) => {
+      if (!resource.agents || resource.agents.length === 0) {
+        return;
+      }
+      if (!agentName) {
+        return resource.agents[0];
+      }
+      return resource.agents.find((agent) => agent.name === agentName);
+    })
+    .filter((a) => a)[0];
+};

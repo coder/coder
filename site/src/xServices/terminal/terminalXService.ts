@@ -1,6 +1,7 @@
 import { assign, createMachine } from "xstate";
 import * as API from "api/api";
 import * as TypesGen from "api/typesGenerated";
+import { getMatchingAgentOrFirst } from "utils/workspace";
 
 interface ReconnectingPTYRequest {
   readonly data?: string;
@@ -196,20 +197,10 @@ export const terminalMachine =
           if (!context.workspace || !context.workspaceName) {
             throw new Error("workspace or workspace name is not set");
           }
-
-          const agent = context.workspace.latest_build.resources
-            .map((resource) => {
-              if (!resource.agents || resource.agents.length === 0) {
-                return;
-              }
-              if (!context.agentName) {
-                return resource.agents[0];
-              }
-              return resource.agents.find(
-                (agent) => agent.name === context.agentName,
-              );
-            })
-            .filter((a) => a)[0];
+          const agent = getMatchingAgentOrFirst(
+            context.workspace,
+            context.agentName,
+          );
           if (!agent) {
             throw new Error("no agent found with id");
           }
