@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestExecutorAutostartOK(t *testing.T) {
@@ -60,6 +61,12 @@ func TestExecutorAutostartOK(t *testing.T) {
 
 	workspace = coderdtest.MustWorkspace(t, client, workspace.ID)
 	assert.Equal(t, codersdk.BuildReasonAutostart, workspace.LatestBuild.Reason)
+	// Assert some template props. If this is not set correctly, the test
+	// will fail.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	template, err := client.Template(ctx, workspace.TemplateID)
+	require.NoError(t, err)
+	require.Equal(t, template.AutostartRequirement.DaysOfWeek, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"})
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {

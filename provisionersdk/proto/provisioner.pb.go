@@ -836,6 +836,7 @@ type Agent struct {
 	Directory       string `protobuf:"bytes,7,opt,name=directory,proto3" json:"directory,omitempty"`
 	Apps            []*App `protobuf:"bytes,8,rep,name=apps,proto3" json:"apps,omitempty"`
 	// Types that are assignable to Auth:
+	//
 	//	*Agent_Token
 	//	*Agent_InstanceId
 	Auth                     isAgent_Auth `protobuf_oneof:"auth"`
@@ -2106,6 +2107,7 @@ type Request struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Type:
+	//
 	//	*Request_Config
 	//	*Request_Parse
 	//	*Request_Plan
@@ -2228,6 +2230,7 @@ type Response struct {
 	unknownFields protoimpl.UnknownFields
 
 	// Types that are assignable to Type:
+	//
 	//	*Response_Log
 	//	*Response_Parse
 	//	*Response_Plan
