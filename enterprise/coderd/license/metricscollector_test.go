@@ -35,8 +35,11 @@ func TestCollectLicenseMetrics(t *testing.T) {
 		},
 	})
 
-	// When
 	registry.Register(sut)
+
+	// When
+	metrics, err := registry.Gather()
+	require.NoError(t, err)
 
 	// Then
 	goldenFile, err := os.ReadFile("testdata/license-metrics.json")
@@ -46,10 +49,6 @@ func TestCollectLicenseMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	collected := map[string]int{}
-
-	metrics, err := registry.Gather()
-	require.NoError(t, err)
-
 	for _, metric := range metrics {
 		switch metric.GetName() {
 		case "coderd_license_active_users", "coderd_license_limit_users", "coderd_license_user_limit_enabled":
@@ -60,6 +59,5 @@ func TestCollectLicenseMetrics(t *testing.T) {
 			require.FailNowf(t, "unexpected metric collected", "metric: %s", metric.GetName())
 		}
 	}
-
 	require.EqualValues(t, golden, collected)
 }
