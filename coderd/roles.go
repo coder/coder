@@ -58,7 +58,8 @@ func (api *API) assignableOrgRoles(rw http.ResponseWriter, r *http.Request) {
 func assignableRoles(actorRoles rbac.ExpandableRoles, roles []rbac.Role) []codersdk.AssignableRoles {
 	assignable := make([]codersdk.AssignableRoles, 0)
 	for _, role := range roles {
-		if role.DisplayName == "" {
+		// The member role is implied, and not assignable.
+		if role.Name == rbac.RoleMember() {
 			continue
 		}
 		assignable = append(assignable, codersdk.AssignableRoles{
