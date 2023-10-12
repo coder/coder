@@ -10,11 +10,10 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "github.com/golang/mock/gomock"
-	uuid "github.com/google/uuid"
-
 	database "github.com/coder/coder/v2/coderd/database"
 	rbac "github.com/coder/coder/v2/coderd/rbac"
+	gomock "github.com/golang/mock/gomock"
+	uuid "github.com/google/uuid"
 )
 
 // MockStore is a mock of Store interface.
