@@ -89,7 +89,7 @@ export const TemplateScheduleAutostart: FC<
   );
 };
 
-const sortedDays = [
+export const sortedDays = [
   "monday",
   "tuesday",
   "wednesday",

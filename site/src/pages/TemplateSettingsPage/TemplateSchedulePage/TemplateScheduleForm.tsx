@@ -39,8 +39,6 @@ import {
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
 import { useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
-import FormHelperText from "@mui/material/FormHelperText";
 import { TemplateScheduleAutostart } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MS_HOUR_CONVERSION = 3600000;
