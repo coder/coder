@@ -99,11 +99,11 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
                   Stacktrace
                   <CopyButton
                     buttonClassName={css`
-                      backgroundcolor: transparent;
+                      background-color: transparent;
                       border: 0;
-                      borderradius: 999;
-                      minheight: ${theme.spacing(4)};
-                      minwidth: ${theme.spacing(4)};
+                      border-radius: 999px;
+                      min-height: ${theme.spacing(4)};
+                      min-width: ${theme.spacing(4)};
                       height: ${theme.spacing(4)};
                       width: ${theme.spacing(4)};
 
