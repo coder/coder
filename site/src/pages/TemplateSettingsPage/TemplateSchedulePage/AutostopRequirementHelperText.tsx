@@ -1,9 +1,5 @@
 import { Template } from "api/typesGenerated";
-import { FC } from "react";
-import {
-  TemplateAutostartRequirementDaysValue,
-  TemplateAutostopRequirementDaysValue,
-} from "utils/schedule";
+import { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const autostopRequirementDescriptions = {
   off: "Workspaces are not required to stop periodically.",
