@@ -133,7 +133,7 @@ const styles = {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-radius: ${theme.shape.borderRadius};
+    border-radius: ${theme.shape.borderRadius}px;
     border: 2px dashed ${theme.palette.divider};
     padding: ${theme.spacing(6)};
     cursor: pointer;
