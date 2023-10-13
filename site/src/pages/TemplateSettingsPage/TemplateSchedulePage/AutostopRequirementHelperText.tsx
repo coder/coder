@@ -41,8 +41,12 @@ export const sortedDays = [
 ] as TemplateAutostartRequirementDaysValue[];
 
 export const AutostartRequirementDaysHelperText: FC<{
+  allowed?: boolean;
   days: TemplateAutostartRequirementDaysValue[];
-}> = ({ days: unsortedDays }) => {
+}> = ({ allowed, days: unsortedDays }) => {
+  if (!allowed) {
+    return <span>Workspaces are not allowed to auto start.</span>;
+  }
   // Sort the days
   const days = unsortedDays.sort(
     (a, b) => sortedDays.indexOf(a) - sortedDays.indexOf(b),

@@ -360,74 +360,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         </Stack>
       </FormSection>
 
-      {allowAdvancedScheduling && (
-        <FormSection
-          title="Autostart Requirement"
-          description="Define when workspaces created from this template are allowed to auto start. Days not selected will block auto start actions from occurring."
-        >
-          <Stack direction="column">
-            <Stack direction="row" css={styles.ttlFields} spacing={0}>
-              {(
-                [
-                  { value: "monday", key: "Mon" },
-                  { value: "tuesday", key: "Tue" },
-                  { value: "wednesday", key: "Wed" },
-                  { value: "thursday", key: "Thu" },
-                  { value: "friday", key: "Fri" },
-                  { value: "saturday", key: "Sat" },
-                  { value: "sunday", key: "Sun" },
-                ] as {
-                  value: TemplateAutostartRequirementDaysValue;
-                  key: string;
-                }[]
-              ).map((day) => (
-                <Button
-                  key={day.key}
-                  css={styles.dayButtons}
-                  // TODO: Adding a background color would also help
-                  color={
-                    form.values.autostart_requirement_days_of_week.includes(
-                      day.value,
-                    )
-                      ? "primary"
-                      : "secondary"
-                  }
-                  disabled={isSubmitting}
-                  onClick={async () => {
-                    if (
-                      !form.values.autostart_requirement_days_of_week.includes(
-                        day.value,
-                      )
-                    ) {
-                      await form.setFieldValue(
-                        "autostart_requirement_days_of_week",
-                        form.values.autostart_requirement_days_of_week.concat(
-                          day.value,
-                        ),
-                      );
-                    } else {
-                      await form.setFieldValue(
-                        "autostart_requirement_days_of_week",
-                        form.values.autostart_requirement_days_of_week.filter(
-                          (obj) => obj !== day.value,
-                        ),
-                      );
-                    }
-                  }}
-                >
-                  {day.key}
-                </Button>
-              ))}
-            </Stack>
-            <FormHelperText>
-              <AutostartRequirementDaysHelperText
-                days={form.values.autostart_requirement_days_of_week}
-              />
-            </FormHelperText>
-          </Stack>
-        </FormSection>
-      )}
-
       {allowAutostopRequirement && (
         <FormSection
           title="Autostop Requirement"
@@ -509,6 +441,84 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               </strong>
             </Stack>
           </Stack>
+
+          {allowAdvancedScheduling && (
+            <Stack
+              direction="column"
+              width="100%"
+              alignItems="center"
+              css={{
+                marginBottom: "20px",
+              }}
+            >
+              <Stack
+                direction="row"
+                css={styles.ttlFields}
+                spacing={0}
+                alignItems="baseline"
+                justifyContent="center"
+              >
+                {(
+                  [
+                    { value: "monday", key: "Mon" },
+                    { value: "tuesday", key: "Tue" },
+                    { value: "wednesday", key: "Wed" },
+                    { value: "thursday", key: "Thu" },
+                    { value: "friday", key: "Fri" },
+                    { value: "saturday", key: "Sat" },
+                    { value: "sunday", key: "Sun" },
+                  ] as {
+                    value: TemplateAutostartRequirementDaysValue;
+                    key: string;
+                  }[]
+                ).map((day) => (
+                  <Button
+                    key={day.key}
+                    css={styles.dayButtons}
+                    // TODO: Adding a background color would also help
+                    color={
+                      form.values.autostart_requirement_days_of_week.includes(
+                        day.value,
+                      )
+                        ? "primary"
+                        : "secondary"
+                    }
+                    disabled={isSubmitting || !form.values.allow_user_autostart}
+                    onClick={async () => {
+                      if (
+                        !form.values.autostart_requirement_days_of_week.includes(
+                          day.value,
+                        )
+                      ) {
+                        await form.setFieldValue(
+                          "autostart_requirement_days_of_week",
+                          form.values.autostart_requirement_days_of_week.concat(
+                            day.value,
+                          ),
+                        );
+                      } else {
+                        await form.setFieldValue(
+                          "autostart_requirement_days_of_week",
+                          form.values.autostart_requirement_days_of_week.filter(
+                            (obj) => obj !== day.value,
+                          ),
+                        );
+                      }
+                    }}
+                  >
+                    {day.key}
+                  </Button>
+                ))}
+              </Stack>
+              <FormHelperText>
+                <AutostartRequirementDaysHelperText
+                  allowed={form.values.allow_user_autostart}
+                  days={form.values.autostart_requirement_days_of_week}
+                />
+              </FormHelperText>
+            </Stack>
+          )}
+
           <Stack direction="row" alignItems="center">
             <Checkbox
               id="allow-user-autostop"
