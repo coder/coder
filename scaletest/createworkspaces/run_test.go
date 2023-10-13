@@ -217,7 +217,7 @@ func Test_Runner(t *testing.T) {
 			},
 			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Response_Log{Log: &proto.Log{}},
+					Type: &proto.Response_Log{Log: &proto.Log{}}, // This provisioner job will never complete.
 				},
 			},
 		})
@@ -257,14 +257,25 @@ func Test_Runner(t *testing.T) {
 			close(done)
 		}()
 
+		// Wait for the workspace build job to be picked up.
 		require.Eventually(t, func() bool {
 			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
 			}
+			if len(workspaces.Workspaces) == 0 {
+				return false
+			}
 
-			return len(workspaces.Workspaces) > 0
-		}, testutil.WaitShort, testutil.IntervalFast)
+			ws := workspaces.Workspaces[0]
+			t.Logf("checking build: %s | %s", ws.LatestBuild.Transition, ws.LatestBuild.Job.Status)
+			// There should be only one build at present.
+			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
+				t.Fatalf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
+			}
+			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning
+
+		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		cancelFunc()
 		<-done
@@ -311,7 +322,7 @@ func Test_Runner(t *testing.T) {
 				}
 			}
 			return false
-		}, testutil.WaitShort, testutil.IntervalFast)
+		}, testutil.WaitShort, testutil.IntervalMedium)
 		cancelFunc()
 		<-done
 	})
