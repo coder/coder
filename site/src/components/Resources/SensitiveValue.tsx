@@ -1,10 +1,10 @@
 import IconButton from "@mui/material/IconButton";
-import { makeStyles } from "@mui/styles";
 import Tooltip from "@mui/material/Tooltip";
 import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
 import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { useState } from "react";
+import { css } from "@emotion/react";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
 
 const Language = {
   showLabel: "Show value",
@@ -13,7 +13,6 @@ const Language = {
 
 export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
   const [shouldDisplay, setShouldDisplay] = useState(false);
-  const styles = useStyles();
   const displayValue = shouldDisplay ? value : "••••••••";
   const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
   const icon = shouldDisplay ? (
@@ -23,13 +22,35 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
   );
 
   return (
-    <div className={styles.sensitiveValue}>
-      <CopyableValue value={value} className={styles.value}>
+    <div
+      css={(theme) => ({
+        display: "flex",
+        alignItems: "center",
+        gap: theme.spacing(0.5),
+      })}
+    >
+      <CopyableValue
+        value={value}
+        css={{
+          // 22px is the button width
+          width: "calc(100% - 22px)",
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          textOverflow: "ellipsis",
+        }}
+      >
         {displayValue}
       </CopyableValue>
       <Tooltip title={buttonLabel}>
         <IconButton
-          className={styles.button}
+          css={css`
+            color: inherit;
+
+            & .MuiSvgIcon-root {
+              width: 16px;
+              height: 16px;
+            }
+          `}
           onClick={() => {
             setShouldDisplay((value) => !value);
           }}
@@ -42,28 +63,3 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
     </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  value: {
-    // 22px is the button width
-    width: "calc(100% - 22px)",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    textOverflow: "ellipsis",
-  },
-
-  sensitiveValue: {
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(0.5),
-  },
-
-  button: {
-    color: "inherit",
-
-    "& .MuiSvgIcon-root": {
-      width: 16,
-      height: 16,
-    },
-  },
-}));
