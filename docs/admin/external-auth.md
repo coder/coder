@@ -101,7 +101,10 @@ provider deployments.
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
+
+> Note: The `REGEX` variable must be set if using a custom git domain.
 
 ### Custom scopes
 
@@ -114,9 +117,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ### Multiple External Providers (enterprise)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
-
-A custom regex can be used to match a specific repository or organization to
-limit auth scope. Here's a sample config:
+Below is an example configuration with multiple providers.
 
 ```env
 # Provider 1) github.com
