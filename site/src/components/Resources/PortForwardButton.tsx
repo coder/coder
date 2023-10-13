@@ -1,7 +1,12 @@
+import Box from "@mui/material/Box";
 import Link from "@mui/material/Link";
 import Popover from "@mui/material/Popover";
-import { makeStyles } from "@mui/styles";
+import CircularProgress from "@mui/material/CircularProgress";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
 import { useRef, useState } from "react";
+import { useQuery } from "react-query";
 import { colors } from "theme/colors";
 import {
   HelpTooltipLink,
@@ -11,16 +16,12 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { SecondaryAgentButton } from "components/Resources/AgentButton";
 import { docs } from "utils/docs";
-import Box from "@mui/material/Box";
-import { useQuery } from "react-query";
 import { getAgentListeningPorts } from "api/api";
-import {
+import type {
   WorkspaceAgent,
   WorkspaceAgentListeningPort,
 } from "api/typesGenerated";
-import CircularProgress from "@mui/material/CircularProgress";
 import { portForwardURL } from "utils/portForward";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 
 export interface PortForwardButtonProps {
   host: string;
@@ -30,10 +31,10 @@ export interface PortForwardButtonProps {
 }
 
 export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
+  const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "schedule-popover" : undefined;
-  const styles = useStyles();
   const portsQuery = useQuery({
     queryKey: ["portForward", props.agent.id],
     queryFn: () => getAgentListeningPorts(props.agent.id),
@@ -78,7 +79,14 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = (props) => {
         )}
       </SecondaryAgentButton>
       <Popover
-        classes={{ paper: styles.popoverPaper }}
+        classes={{
+          paper: css`
+            padding: 0;
+            width: ${theme.spacing(38)};
+            color: ${theme.palette.text.secondary};
+            margin-top: ${theme.spacing(0.5)};
+          `,
+        }}
         id={id}
         open={isOpen}
         anchorEl={anchorRef.current}
@@ -245,31 +253,3 @@ export const PortForwardPopoverView: React.FC<
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  popoverPaper: {
-    padding: 0,
-    width: theme.spacing(38),
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.5),
-  },
-
-  openUrlButton: {
-    flexShrink: 0,
-  },
-
-  portField: {
-    // The default border don't contrast well with the popover
-    "& .MuiOutlinedInput-root .MuiOutlinedInput-notchedOutline": {
-      borderColor: colors.gray[10],
-    },
-  },
-
-  code: {
-    margin: theme.spacing(2, 0),
-  },
-
-  form: {
-    margin: theme.spacing(2, 0),
-  },
-}));
