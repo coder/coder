@@ -1217,8 +1217,15 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.EqualValues(t, 3, manifest.Metadata[0].Timeout)
 
 	post := func(key string, mr codersdk.WorkspaceAgentMetadataResult) {
-		err := agentClient.PostMetadata(ctx, key, mr)
-		require.NoError(t, err, "post metadata", t)
+		err := agentClient.PostMetadata(ctx, agentsdk.PostMetadataRequest{
+			Metadata: []agentsdk.Metadata{
+				{
+					Key:                          key,
+					WorkspaceAgentMetadataResult: mr,
+				},
+			},
+		})
+		require.NoError(t, err, "post metadata: %s, %#v", key, mr)
 	}
 
 	workspace, err = client.Workspace(ctx, workspace.ID)
@@ -1302,8 +1309,7 @@ func TestWorkspaceAgent_Metadata(t *testing.T) {
 	require.NotEmpty(t, got.Result.Error)
 
 	unknownKeyMetadata := wantMetadata1
-	err = agentClient.PostMetadata(ctx, "unknown", unknownKeyMetadata)
-	require.NoError(t, err)
+	post("unknown", unknownKeyMetadata)
 }
 
 func TestWorkspaceAgent_Startup(t *testing.T) {
