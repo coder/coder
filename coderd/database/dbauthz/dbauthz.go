@@ -2200,7 +2200,7 @@ func (q *querier) InsertWorkspaceAppStats(ctx context.Context, arg database.Inse
 func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertWorkspaceBuildParams) error {
 	w, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("get workspace by id: %w", err)
 	}
 
 	var action rbac.Action = rbac.ActionUpdate
@@ -2209,7 +2209,28 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 	}
 
 	if err = q.authorizeContext(ctx, action, w.WorkspaceBuildRBAC(arg.Transition)); err != nil {
-		return err
+		return xerrors.Errorf("authorize context: %w", err)
+	}
+
+	// If we're starting a workspace we need to check the template.
+	if arg.Transition == database.WorkspaceTransitionStart {
+		// Fetch the template. We have to ensure that the request
+		// abides by the update policy of the templates.
+		t, err := q.db.GetTemplateByID(ctx, w.TemplateID)
+		if err != nil {
+			return xerrors.Errorf("get template by id: %w", err)
+		}
+
+		// If the template requires the promoted version we need to check if
+		// the user is a template admin. If they aren't and are attempting
+		// to use a non-promoted version then we must fail the request.
+		if t.RequirePromotedVersion {
+			if arg.TemplateVersionID != t.ActiveVersionID {
+				if err = q.authorizeContext(ctx, rbac.ActionUpdate, t); err != nil {
+					return xerrors.Errorf("cannot use non-active version: %w", err)
+				}
+			}
+		}
 	}
 
 	return q.db.InsertWorkspaceBuild(ctx, arg)

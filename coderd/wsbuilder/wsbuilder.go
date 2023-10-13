@@ -213,6 +213,7 @@ func (b *Builder) Build(
 	var provisionerJob *database.ProvisionerJob
 	err := database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
+		b.store = tx
 		workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
 		return err
 	})

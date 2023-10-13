@@ -685,6 +685,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
 		// Create a new version that will fail when we try to delete a workspace.
 		version = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -733,6 +735,102 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		stats = <-statCh
 		require.Len(t, stats.Transitions, 1)
 		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
+	})
+
+	t.Run("RequirePromotedVersion", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+			ctx     = testutil.Context(t, testutil.WaitMedium)
+		)
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		sched, err := cron.Weekly("CRON_TZ=UTC 0 * * * *")
+		require.NoError(t, err)
+
+		// Create a template version1 that passes to get a functioning workspace.
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
+		require.Equal(t, version1.ID, template.ActiveVersionID)
+
+		ws := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create a new version so that we can assert we don't update
+		// to the latest by default.
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+		}, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
+
+		// Make sure to promote it.
+		err = client.UpdateActiveTemplateVersion(ctx, template.ID, codersdk.UpdateActiveTemplateVersion{
+			ID: version2.ID,
+		})
+		require.NoError(t, err)
+
+		// Kick of an autostart build.
+		tickCh <- sched.Next(ws.LatestBuild.CreatedAt)
+		stats := <-statsCh
+		require.NoError(t, stats.Error)
+		require.Len(t, stats.Transitions, 1)
+		require.Contains(t, stats.Transitions, ws.ID)
+		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+
+		// Validate that we didn't update to the promoted version.
+		started := coderdtest.MustWorkspace(t, client, ws.ID)
+		firstBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, started.LatestBuild.ID)
+		require.Equal(t, version1.ID, ws.LatestBuild.TemplateVersionID)
+
+		// Update the template to require the promoted version.
+		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			RequirePromotedVersion: true,
+			AllowUserAutostart:     true,
+		})
+		require.NoError(t, err)
+
+		// Reset the workspace to the stopped state so we can try
+		// to autostart again.
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Force an autostart transition again.
+		tickCh <- sched.Next(firstBuild.CreatedAt)
+		stats = <-statsCh
+		require.NoError(t, stats.Error)
+		require.Len(t, stats.Transitions, 1)
+		require.Contains(t, stats.Transitions, ws.ID)
+		require.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+
+		// Validate that we are using the promoted version.
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.Equal(t, version2.ID, ws.LatestBuild.TemplateVersionID)
 	})
 }
 
