@@ -814,8 +814,26 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		if q.workspaceBuilds[i].Deadline.IsZero() {
 			return nil
 		}
+
+		// Check the template default TTL.
+		template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+		if err != nil {
+			return err
+		}
+
+		var ttlDur time.Duration
+		if workspace.Ttl.Valid {
+			ttlDur = time.Duration(workspace.Ttl.Int64)
+		}
+		if !template.AllowUserAutostop {
+			ttlDur = time.Duration(template.DefaultTTL)
+		}
+		if ttlDur <= 0 {
+			// There's no TTL set anymore, so we don't know the bump duration.
+			return nil
+		}
+
 		// Only bump if 5% of the deadline has passed.
-		ttlDur := time.Duration(workspace.Ttl.Int64)
 		ttlDur95 := ttlDur - (ttlDur / 20)
 		minBumpDeadline := q.workspaceBuilds[i].Deadline.Add(-ttlDur95)
 		if now.Before(minBumpDeadline) {
