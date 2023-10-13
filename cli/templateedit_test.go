@@ -328,6 +328,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
 					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 				})
 			}
 		})
@@ -443,6 +444,7 @@ func TestTemplateEdit(t *testing.T) {
 					assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 					assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 					assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+					assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 				})
 			}
 		})
@@ -543,6 +545,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 		})
 	})
 	// TODO(@dean): remove this test when we remove max_ttl
@@ -815,6 +818,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -910,6 +914,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
@@ -1009,6 +1014,7 @@ func TestTemplateEdit(t *testing.T) {
 			assert.Equal(t, template.DefaultTTLMillis, updated.DefaultTTLMillis)
 			assert.Equal(t, template.AutostopRequirement.DaysOfWeek, updated.AutostopRequirement.DaysOfWeek)
 			assert.Equal(t, template.AutostopRequirement.Weeks, updated.AutostopRequirement.Weeks)
+			assert.Equal(t, template.AutostartRequirement.DaysOfWeek, updated.AutostartRequirement.DaysOfWeek)
 			assert.Equal(t, template.AllowUserAutostart, updated.AllowUserAutostart)
 			assert.Equal(t, template.AllowUserAutostop, updated.AllowUserAutostop)
 			assert.Equal(t, template.FailureTTLMillis, updated.FailureTTLMillis)
