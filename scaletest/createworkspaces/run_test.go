@@ -177,7 +177,8 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, "Opening reconnecting PTY connection to agent")
 		require.Contains(t, logsStr, "Opening connection to workspace agent")
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 
 		// Ensure the user and workspace were deleted.
@@ -281,11 +282,12 @@ func Test_Runner(t *testing.T) {
 		<-done
 
 		// When we run the cleanup, it should be canceled
+		cleanupLogs := bytes.NewBuffer(nil)
 		cancelCtx, cancelFunc = context.WithCancel(ctx)
 		done = make(chan struct{})
 		go func() {
 			// This will return an error as the "delete" operation will never complete.
-			_ = runner.Cleanup(cancelCtx, "1")
+			_ = runner.Cleanup(cancelCtx, "1", cleanupLogs)
 			close(done)
 		}()
 
@@ -458,7 +460,8 @@ func Test_Runner(t *testing.T) {
 		require.Contains(t, logsStr, "Opening reconnecting PTY connection to agent")
 		require.Contains(t, logsStr, "Opening connection to workspace agent")
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 
 		// Ensure the user and workspace were not deleted.

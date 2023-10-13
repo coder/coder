@@ -151,12 +151,11 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 }
 
 // Cleanup implements Cleanable by wrapping CleanupRunner.
-func (r *Runner) Cleanup(ctx context.Context, id string) error {
-	// TODO: capture these logs
+func (r *Runner) Cleanup(ctx context.Context, id string, w io.Writer) error {
 	return (&CleanupRunner{
 		client:      r.client,
 		workspaceID: r.workspaceID,
-	}).Run(ctx, id, io.Discard)
+	}).Run(ctx, id, w)
 }
 
 func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {
