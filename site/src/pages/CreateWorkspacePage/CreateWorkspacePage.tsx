@@ -2,7 +2,6 @@ import {
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuildParameter,
-  WorkspaceResourceMetadata,
 } from "api/typesGenerated";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
@@ -33,6 +32,7 @@ import { checkAuthorization } from "api/queries/authCheck";
 import { CreateWSPermissions, createWorkspaceChecks } from "./permissions";
 import { richParameters } from "api/queries/templateVersions";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { workspaceBuildParameters } from "api/queries/workspaceBuilds";
 
 export const createWorkspaceModes = ["form", "auto", "duplicate"] as const;
 export type CreateWorkspaceMode = (typeof createWorkspaceModes)[number];
@@ -259,30 +259,19 @@ const getDefaultBuildParameters = (
 };
 
 function getDuplicationUrlParams(
-  templateParams: readonly TemplateVersionParameter[],
+  workspaceParams: readonly WorkspaceBuildParameter[],
   workspace: Workspace,
 ): URLSearchParams {
-  // Record type makes sure that every property key added starts with "param."
-  const buildParams: Record<`param.${string}`, string> = {};
+  // Record type makes sure that every property key added starts with "param.";
+  // page is also set up to parse params with this prefix for auto mode
+  const consolidatedParams: Record<`param.${string}`, string> = {};
 
-  const allMetadata: WorkspaceResourceMetadata[] = [];
-  for (const resource of workspace.latest_build.resources) {
-    const metadata = resource.metadata;
-    if (metadata !== undefined) {
-      allMetadata.push(...metadata);
-    }
-  }
-
-  for (const param of templateParams) {
-    /**
-     * @todo Pretty sure the last piece of the puzzle is figuring out how to
-     * cross-reference the resources from the build with the template params
-     */
-    buildParams[`param.${param.name}`] = String(param["default_value"]);
+  for (const p of workspaceParams) {
+    consolidatedParams[`param.${p.name}`] = p.value;
   }
 
   return new URLSearchParams({
-    ...buildParams,
+    ...consolidatedParams,
     mode: "duplicate" satisfies CreateWorkspaceMode,
     name: workspace.name,
     version: workspace.template_active_version_id,
@@ -297,21 +286,19 @@ function getDuplicationUrlParams(
 // Meant to be consumed by components outside of this file
 export function useWorkspaceDuplication(workspace: Workspace) {
   const navigate = useNavigate();
-
-  // Sadly, there isn't a good way to derive this data from the workspace itself
-  const templateParametersQuery = useQuery(
-    richParameters(workspace.template_active_version_id),
+  const buildParametersQuery = useQuery(
+    workspaceBuildParameters(workspace.latest_build.id),
   );
 
   // Not using useEffectEvent for this, even with the slightly more complicated
   // dependency array, because useEffect isn't really an intended use case
   const duplicateWorkspace = useCallback(() => {
-    const templateParams = templateParametersQuery.data;
-    if (templateParams === undefined) {
+    const buildParams = buildParametersQuery.data;
+    if (buildParams === undefined) {
       return;
     }
 
-    const newUrlParams = getDuplicationUrlParams(templateParams, workspace);
+    const newUrlParams = getDuplicationUrlParams(buildParams, workspace);
 
     // Necessary for giving modals/popups time to flush their state changes and
     // close the popup before actually navigating. Otherwise, you risk the modal
@@ -322,11 +309,11 @@ export function useWorkspaceDuplication(workspace: Workspace) {
         search: newUrlParams.toString(),
       });
     });
-  }, [navigate, workspace, templateParametersQuery.data]);
+  }, [navigate, workspace, buildParametersQuery.data]);
 
   return {
     duplicateWorkspace,
-    duplicationReady: !templateParametersQuery.isLoading,
+    duplicationReady: !buildParametersQuery.isLoading,
   } as const;
 }
 

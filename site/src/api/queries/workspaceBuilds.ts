@@ -1,6 +1,17 @@
-import { UseInfiniteQueryOptions } from "react-query";
+import { QueryOptions, UseInfiniteQueryOptions } from "react-query";
 import * as API from "api/api";
 import { WorkspaceBuild, WorkspaceBuildsRequest } from "api/typesGenerated";
+
+export function workspaceBuildParametersKey(workspaceId: string) {
+  return ["workspaceBuilds", workspaceId, "parameters"] as const;
+}
+
+export function workspaceBuildParameters(workspaceBuildId: string) {
+  return {
+    queryKey: workspaceBuildParametersKey(workspaceBuildId),
+    queryFn: () => API.getWorkspaceBuildParameters(workspaceBuildId),
+  } as const satisfies QueryOptions;
+}
 
 export const workspaceBuildByNumber = (
   username: string,
