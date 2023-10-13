@@ -33,7 +33,7 @@ export const LoginPage: FC = () => {
         const redirectURL = new URL(redirectTo);
         if (redirectURL.host !== window.location.host) {
           window.location.href = redirectTo;
-          return;
+          return <></>;
         }
       } catch {
         // Do nothing
@@ -41,7 +41,7 @@ export const LoginPage: FC = () => {
       // Path based apps.
       if (redirectTo.includes("/apps/")) {
         window.location.href = redirectTo;
-        return;
+        return <></>;
       }
     }
     return <Navigate to={redirectTo} replace />;
