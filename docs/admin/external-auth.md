@@ -101,7 +101,10 @@ provider deployments.
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
+
+> Note: The `REGEX` variable must be set if using a custom git domain.
 
 ### Custom scopes
 
