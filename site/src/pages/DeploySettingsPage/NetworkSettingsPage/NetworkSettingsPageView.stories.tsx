@@ -8,7 +8,7 @@ const group: ClibaseGroup = {
 };
 
 const meta: Meta<typeof NetworkSettingsPageView> = {
-  title: "pages/NetworkSettingsPageView",
+  title: "pages/DeploySettingsPage/NetworkSettingsPageView",
   component: NetworkSettingsPageView,
   args: {
     options: [

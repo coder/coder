@@ -157,6 +157,48 @@ func TestParseQueryParams(t *testing.T) {
 		testQueryParams(t, expParams, parser, parser.String)
 	})
 
+	t.Run("Boolean", func(t *testing.T) {
+		t.Parallel()
+		expParams := []queryParamTestCase[bool]{
+			{
+				QueryParam: "valid_true",
+				Value:      "true",
+				Expected:   true,
+			},
+			{
+				QueryParam: "casing",
+				Value:      "True",
+				Expected:   true,
+			},
+			{
+				QueryParam: "all_caps",
+				Value:      "TRUE",
+				Expected:   true,
+			},
+			{
+				QueryParam: "no_value_true_def",
+				NoSet:      true,
+				Default:    true,
+				Expected:   true,
+			},
+			{
+				QueryParam: "no_value",
+				NoSet:      true,
+				Expected:   false,
+			},
+
+			{
+				QueryParam:            "invalid_boolean",
+				Value:                 "yes",
+				Expected:              false,
+				ExpectedErrorContains: "must be a valid boolean",
+			},
+		}
+
+		parser := httpapi.NewQueryParamParser()
+		testQueryParams(t, expParams, parser, parser.Boolean)
+	})
+
 	t.Run("Int", func(t *testing.T) {
 		t.Parallel()
 		expParams := []queryParamTestCase[int]{

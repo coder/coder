@@ -358,6 +358,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			LastUsedAt:        r.LastUsedAt,
 			DormantAt:         r.DormantAt,
 			DeletingAt:        r.DeletingAt,
+			AutomaticUpdates:  r.AutomaticUpdates,
 		}
 	}
 
@@ -366,4 +367,20 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
+}
+
+func (p ProvisionerJob) Finished() bool {
+	return p.CanceledAt.Valid || p.CompletedAt.Valid
+}
+
+func (p ProvisionerJob) FinishedAt() time.Time {
+	if p.CompletedAt.Valid {
+		return p.CompletedAt.Time
+	}
+
+	if p.CanceledAt.Valid {
+		return p.CanceledAt.Time
+	}
+
+	return time.Time{}
 }

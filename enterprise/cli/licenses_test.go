@@ -254,6 +254,7 @@ func newFakeLicenseAPI(t *testing.T) http.Handler {
 	r.Post("/api/v2/licenses", a.postLicense)
 	r.Get("/api/v2/licenses", a.licenses)
 	r.Get("/api/v2/buildinfo", a.noop)
+	r.Get("/api/v2/users/me", a.noop)
 	r.Delete("/api/v2/licenses/{id}", a.deleteLicense)
 	r.Get("/api/v2/entitlements", a.entitlements)
 	return r

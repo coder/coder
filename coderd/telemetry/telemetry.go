@@ -506,6 +506,7 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 		Deleted:           workspace.Deleted,
 		Name:              workspace.Name,
 		AutostartSchedule: workspace.AutostartSchedule.String,
+		AutomaticUpdates:  string(workspace.AutomaticUpdates),
 	}
 }
 
@@ -840,6 +841,7 @@ type Workspace struct {
 	Deleted           bool      `json:"deleted"`
 	Name              string    `json:"name"`
 	AutostartSchedule string    `json:"autostart_schedule"`
+	AutomaticUpdates  string    `json:"automatic_updates"`
 }
 
 type Template struct {

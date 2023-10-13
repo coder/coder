@@ -997,6 +997,17 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 
 Periodically check for new releases of Coder and inform the owner. The check is performed once per day.
 
+### --web-terminal-renderer
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
+| YAML        | <code>client.webTerminalRenderer</code>   |
+| Default     | <code>canvas</code>                       |
+
+The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.
+
 ### --wildcard-access-url
 
 |             |                                           |

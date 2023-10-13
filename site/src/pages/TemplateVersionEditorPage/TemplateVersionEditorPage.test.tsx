@@ -30,7 +30,7 @@ test("Use custom name, message and set it as active when publishing", async () =
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
-  jest.spyOn(api, "uploadTemplateFile").mockResolvedValueOnce({ hash: "hash" });
+  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
   jest
     .spyOn(api, "createTemplateVersion")
     .mockResolvedValueOnce(MockTemplateVersion);
@@ -95,7 +95,7 @@ test("Do not mark as active if promote is not checked", async () => {
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
-  jest.spyOn(api, "uploadTemplateFile").mockResolvedValueOnce({ hash: "hash" });
+  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
   jest
     .spyOn(api, "createTemplateVersion")
     .mockResolvedValueOnce(MockTemplateVersion);
@@ -162,7 +162,7 @@ test("Patch request is not send when there are no changes", async () => {
   const topbar = await screen.findByTestId("topbar");
 
   // Build Template
-  jest.spyOn(api, "uploadTemplateFile").mockResolvedValueOnce({ hash: "hash" });
+  jest.spyOn(api, "uploadFile").mockResolvedValueOnce({ hash: "hash" });
   jest
     .spyOn(api, "createTemplateVersion")
     .mockResolvedValueOnce(MockTemplateVersionWithEmptyMessage);

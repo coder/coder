@@ -34,6 +34,19 @@ func Test_Runner(t *testing.T) {
 		t.Skip("Race detector enabled, skipping time-sensitive test.")
 	}
 
+	testParameters := []*proto.RichParameter{
+		{
+			Name:         "foo",
+			DefaultValue: "baz",
+		},
+	}
+	testParameterValues := []codersdk.WorkspaceBuildParameter{
+		{
+			Name:  "foo",
+			Value: "baz",
+		},
+	}
+
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
@@ -47,8 +60,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -86,8 +107,7 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(closer)
+		closerCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -102,7 +122,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
@@ -125,6 +146,10 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
 
+		// Wait for the workspace agent to start.
+		closer := <-closerCh
+		t.Cleanup(func() { _ = closer.Close() })
+
 		// Ensure a user and workspace were created.
 		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
@@ -132,6 +157,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -173,8 +205,16 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{Log: &proto.Log{}},
@@ -200,7 +240,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})
@@ -288,8 +329,16 @@ func Test_Runner(t *testing.T) {
 
 		authToken := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Log{
@@ -327,8 +376,7 @@ func Test_Runner(t *testing.T) {
 		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 
-		closer := goEventuallyStartFakeAgent(ctx, t, client, authToken)
-		t.Cleanup(closer)
+		closeCh := goEventuallyStartFakeAgent(ctx, t, client, authToken)
 
 		const (
 			username = "scaletest-user"
@@ -344,7 +392,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 			ReconnectingPTY: &reconnectingpty.Config{
@@ -367,6 +416,10 @@ func Test_Runner(t *testing.T) {
 		t.Log("Runner logs:\n\n" + logsStr)
 		require.NoError(t, err)
 
+		// Wait for the agent to start.
+		closer := <-closeCh
+		t.Cleanup(func() { _ = closer.Close() })
+
 		// Ensure a user and workspace were created.
 		users, err := client.Users(ctx, codersdk.UsersRequest{})
 		require.NoError(t, err)
@@ -374,6 +427,13 @@ func Test_Runner(t *testing.T) {
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 		require.NoError(t, err)
 		require.Len(t, workspaces.Workspaces, 1)
+
+		// Ensure the correct build parameters were used.
+		buildParams, err := client.WorkspaceBuildParameters(ctx, workspaces.Workspaces[0].LatestBuild.ID)
+		require.NoError(t, err)
+		require.Len(t, buildParams, 1)
+		require.Equal(t, testParameterValues[0].Name, buildParams[0].Name)
+		require.Equal(t, testParameterValues[0].Value, buildParams[0].Value)
 
 		// Look for strings in the logs.
 		require.Contains(t, logsStr, "Generating user password...")
@@ -413,8 +473,16 @@ func Test_Runner(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.PlanComplete,
+			Parse: echo.ParseComplete,
+			ProvisionPlan: []*proto.Response{
+				{
+					Type: &proto.Response_Plan{
+						Plan: &proto.PlanComplete{
+							Parameters: testParameters,
+						},
+					},
+				},
+			},
 			ProvisionApply: []*proto.Response{
 				{
 					Type: &proto.Response_Apply{
@@ -438,7 +506,8 @@ func Test_Runner(t *testing.T) {
 			Workspace: workspacebuild.Config{
 				OrganizationID: user.OrganizationID,
 				Request: codersdk.CreateWorkspaceRequest{
-					TemplateID: template.ID,
+					TemplateID:          template.ID,
+					RichParameterValues: testParameterValues,
 				},
 			},
 		})
@@ -456,7 +525,7 @@ func Test_Runner(t *testing.T) {
 // listing workspaces until we find it, then wait for the build to
 // finish, then start the agents. It is the caller's responsibility to
 // call the returned function to stop the agents.
-func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) func() {
+func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *codersdk.Client, agentToken string) chan io.Closer {
 	t.Helper()
 	ch := make(chan io.Closer, 1) // Don't block.
 	go func() {
@@ -474,7 +543,7 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 				break
 			}
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(testutil.IntervalMedium)
 		}
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
@@ -486,13 +555,12 @@ func goEventuallyStartFakeAgent(ctx context.Context, t *testing.T, client *coder
 			Logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).
 				Named("agent").Leveled(slog.LevelWarn),
 		})
-		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+		assert.GreaterOrEqual(t, len(resources), 1, "workspace %s has no resources", workspace.ID.String())
+		assert.NotEmpty(t, resources[0].Agents, "workspace %s has no agents", workspace.ID.String())
+		agentID := resources[0].Agents[0].ID
+		t.Logf("agent %s is running for workspace %s", agentID.String(), workspace.ID.String())
 		ch <- agentCloser
 	}()
-	closeFunc := func() {
-		if closer, ok := <-ch; ok {
-			_ = closer.Close()
-		}
-	}
-	return closeFunc
+	return ch
 }

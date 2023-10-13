@@ -1,4 +1,4 @@
-import { type FC, type ReactNode, useMemo } from "react";
+import { type FC, type ReactNode, useMemo, forwardRef } from "react";
 import { css, type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { colors } from "theme/colors";
 
@@ -44,61 +44,71 @@ const themeStyles =
     };
   };
 
-export const Pill: FC<PillProps> = (props) => {
-  const { lightBorder, icon, text = null, type = "neutral", ...attrs } = props;
-  const theme = useTheme();
+export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
+  (props, ref) => {
+    const {
+      lightBorder,
+      icon,
+      text = null,
+      type = "neutral",
+      ...attrs
+    } = props;
+    const theme = useTheme();
 
-  const typeStyles = useMemo(() => {
-    if (type in themeOverrides) {
-      return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
-    }
-    return themeStyles(type, lightBorder);
-  }, [type, lightBorder]);
+    const typeStyles = useMemo(() => {
+      if (type in themeOverrides) {
+        return themeOverrides[type as keyof typeof themeOverrides](lightBorder);
+      }
+      return themeStyles(type, lightBorder);
+    }, [type, lightBorder]);
 
-  return (
-    <div
-      css={[
-        {
-          display: "inline-flex",
-          alignItems: "center",
-          borderWidth: 1,
-          borderStyle: "solid",
-          borderRadius: 99999,
-          fontSize: 12,
-          color: "#FFF",
-          height: theme.spacing(3),
-          paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
-          paddingRight: theme.spacing(1.5),
-          whiteSpace: "nowrap",
-          fontWeight: 400,
-        },
-        typeStyles,
-      ]}
-      role="status"
-      {...attrs}
-    >
-      {icon && (
-        <div
-          css={css`
-            margin-right: ${theme.spacing(0.5)};
-            width: ${theme.spacing(1.75)};
-            height: ${theme.spacing(1.75)};
-            line-height: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            & > img,
-            & > svg {
+    return (
+      <div
+        ref={ref}
+        css={[
+          {
+            cursor: "default",
+            display: "inline-flex",
+            alignItems: "center",
+            borderWidth: 1,
+            borderStyle: "solid",
+            borderRadius: 99999,
+            fontSize: 12,
+            color: "#FFF",
+            height: theme.spacing(3),
+            paddingLeft: icon ? theme.spacing(0.75) : theme.spacing(1.5),
+            paddingRight: theme.spacing(1.5),
+            whiteSpace: "nowrap",
+            fontWeight: 400,
+          },
+          typeStyles,
+        ]}
+        role="status"
+        {...attrs}
+      >
+        {icon && (
+          <div
+            css={css`
+              margin-right: ${theme.spacing(0.5)};
               width: ${theme.spacing(1.75)};
               height: ${theme.spacing(1.75)};
-            }
-          `}
-        >
-          {icon}
-        </div>
-      )}
-      {text}
-    </div>
-  );
-};
+              line-height: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+
+              & > img,
+              & > svg {
+                width: ${theme.spacing(1.75)};
+                height: ${theme.spacing(1.75)};
+              }
+            `}
+          >
+            {icon}
+          </div>
+        )}
+        {text}
+      </div>
+    );
+  },
+);

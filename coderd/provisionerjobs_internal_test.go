@@ -44,8 +44,10 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 		expected codersdk.ProvisionerJob
 	}{
 		{
-			name:  "empty",
-			input: database.ProvisionerJob{},
+			name: "empty",
+			input: database.ProvisionerJob{
+				JobStatus: database.ProvisionerJobStatusPending,
+			},
 			expected: codersdk.ProvisionerJob{
 				Status: codersdk.ProvisionerJobPending,
 			},
@@ -55,6 +57,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: invalidNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusCanceling,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt: &validNullTimeMock.Time,
@@ -67,6 +70,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: validNullTimeMock,
 				Error:       errorMock,
+				JobStatus:   database.ProvisionerJobStatusFailed,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt:  &validNullTimeMock.Time,
@@ -80,6 +84,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CanceledAt:  validNullTimeMock,
 				CompletedAt: validNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusCanceled,
 			},
 			expected: codersdk.ProvisionerJob{
 				CanceledAt:  &validNullTimeMock.Time,
@@ -91,6 +96,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			name: "job pending",
 			input: database.ProvisionerJob{
 				StartedAt: invalidNullTimeMock,
+				JobStatus: database.ProvisionerJobStatusPending,
 			},
 			expected: codersdk.ProvisionerJob{
 				Status: codersdk.ProvisionerJobPending,
@@ -102,6 +108,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 				CompletedAt: validNullTimeMock,
 				StartedAt:   validNullTimeMock,
 				Error:       errorMock,
+				JobStatus:   database.ProvisionerJobStatusFailed,
 			},
 			expected: codersdk.ProvisionerJob{
 				CompletedAt: &validNullTimeMock.Time,
@@ -115,6 +122,7 @@ func TestConvertProvisionerJob_Unit(t *testing.T) {
 			input: database.ProvisionerJob{
 				CompletedAt: validNullTimeMock,
 				StartedAt:   validNullTimeMock,
+				JobStatus:   database.ProvisionerJobStatusSucceeded,
 			},
 			expected: codersdk.ProvisionerJob{
 				CompletedAt: &validNullTimeMock.Time,
@@ -156,7 +164,8 @@ func Test_logFollower_completeBeforeFollow(t *testing.T) {
 			Time:  now.Add(-time.Second),
 			Valid: true,
 		},
-		Error: sql.NullString{},
+		Error:     sql.NullString{},
+		JobStatus: database.ProvisionerJobStatusSucceeded,
 	}
 
 	// we need an HTTP server to get a websocket
@@ -217,6 +226,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 		CanceledAt:  sql.NullTime{},
 		CompletedAt: sql.NullTime{},
 		Error:       sql.NullString{},
+		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
 	// we need an HTTP server to get a websocket
@@ -238,6 +248,7 @@ func Test_logFollower_completeBeforeSubscribe(t *testing.T) {
 				Time:  now.Add(-time.Millisecond),
 				Valid: true,
 			},
+			JobStatus: database.ProvisionerJobStatusSucceeded,
 		},
 		nil,
 	)
@@ -293,6 +304,7 @@ func Test_logFollower_EndOfLogs(t *testing.T) {
 		CanceledAt:  sql.NullTime{},
 		CompletedAt: sql.NullTime{},
 		Error:       sql.NullString{},
+		JobStatus:   database.ProvisionerJobStatusRunning,
 	}
 
 	// we need an HTTP server to get a websocket

@@ -86,12 +86,8 @@ describe("SchedulePage", () => {
           ),
         );
 
-        const expectedCronSchedule = `CRON_TZ=${test.timezone} ${test.minute} ${test.hour} * * *`;
         renderWithAuth(<SchedulePage />);
         await fillForm(test);
-        const cron = screen.getByLabelText("Cron schedule");
-        expect(cron.getAttribute("value")).toEqual(expectedCronSchedule);
-
         await submitForm();
         const successMessage = await screen.findByText(
           "Schedule updated successfully",

@@ -1,6 +1,5 @@
-import { useRef, useState, FC } from "react";
-import { makeStyles } from "@mui/styles";
-import { WorkspaceAgent } from "api/typesGenerated";
+import { type FC, useRef, useState } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
 import { getDisplayVersionStatus } from "utils/workspace";
 import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
@@ -9,7 +8,6 @@ export const AgentVersion: FC<{
   serverVersion: string;
   onUpdate: () => void;
 }> = ({ agent, serverVersion, onUpdate }) => {
-  const styles = useStyles();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const id = isOpen ? "version-outdated-popover" : undefined;
@@ -27,7 +25,7 @@ export const AgentVersion: FC<{
         ref={anchorRef}
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
-        className={styles.trigger}
+        css={{ cursor: "pointer" }}
       >
         Outdated
       </span>
@@ -44,9 +42,3 @@ export const AgentVersion: FC<{
     </>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  trigger: {
-    cursor: "pointer",
-  },
-}));

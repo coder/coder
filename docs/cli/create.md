@@ -20,6 +20,16 @@ coder create [flags] [name]
 
 ## Options
 
+### --automatic-updates
+
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>string</code>                             |
+| Environment | <code>$CODER_WORKSPACE_AUTOMATIC_UPDATES</code> |
+| Default     | <code>never</code>                              |
+
+Specify automatic updates setting for the workspace (accepts 'always' or 'never').
+
 ### --parameter
 
 |             |                                    |

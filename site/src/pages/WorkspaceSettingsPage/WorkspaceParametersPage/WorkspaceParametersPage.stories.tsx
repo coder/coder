@@ -10,7 +10,7 @@ import {
 } from "testHelpers/entities";
 
 const meta: Meta<typeof WorkspaceParametersPageView> = {
-  title: "pages/WorkspaceParametersPageView",
+  title: "pages/WorkspaceSettingsPage/WorkspaceParametersPageView",
   component: WorkspaceParametersPageView,
   args: {
     submitError: undefined,
@@ -37,4 +37,6 @@ const meta: Meta<typeof WorkspaceParametersPageView> = {
 export default meta;
 type Story = StoryObj<typeof WorkspaceParametersPageView>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as WorkspaceParametersPage };

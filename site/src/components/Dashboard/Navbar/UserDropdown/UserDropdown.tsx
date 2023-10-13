@@ -5,10 +5,7 @@ import { colors } from "theme/colors";
 import * as TypesGen from "api/typesGenerated";
 import { navHeight } from "theme/constants";
 import { BorderedMenu } from "./BorderedMenu";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserDropdownContent } from "./UserDropdownContent";
 import { BUTTON_SM_HEIGHT } from "theme/theme";
@@ -69,11 +66,7 @@ export const UserDropdown: FC<PropsWithChildren<UserDropdownProps>> = ({
               avatarURL={user.avatar_url}
             />
           </Badge>
-          {anchorEl ? (
-            <CloseDropdown color={colors.gray[6]} />
-          ) : (
-            <OpenDropdown color={colors.gray[6]} />
-          )}
+          <DropdownArrow color={colors.gray[6]} close={Boolean(anchorEl)} />
         </div>
       </MenuItem>
 

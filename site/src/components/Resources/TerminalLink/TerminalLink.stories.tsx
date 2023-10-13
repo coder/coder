@@ -10,8 +10,10 @@ const meta: Meta<typeof TerminalLink> = {
 export default meta;
 type Story = StoryObj<typeof TerminalLink>;
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     workspaceName: MockWorkspace.name,
   },
 };
+
+export { Example as TerminalLink };

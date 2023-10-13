@@ -9,9 +9,11 @@ const meta: Meta<typeof GroupAvatar> = {
 export default meta;
 type Story = StoryObj<typeof GroupAvatar>;
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     name: "My Group",
     avatarURL: "",
   },
 };
+
+export { Example as GroupAvatar };

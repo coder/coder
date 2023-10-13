@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from "react-query";
 import { createLicense } from "api/api";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { FC } from "react";

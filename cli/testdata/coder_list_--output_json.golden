@@ -57,6 +57,7 @@
     "health": {
       "healthy": true,
       "failing_agents": []
-    }
+    },
+    "automatic_updates": "never"
   }
 ]

@@ -3,7 +3,7 @@ import { TemplateSettingsPageView } from "./TemplateSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateSettingsPageView> = {
-  title: "pages/TemplateSettingsPageView",
+  title: "pages/TemplateSettingsPage",
   component: TemplateSettingsPageView,
   args: {
     template: MockTemplate,

@@ -22,6 +22,11 @@ CREATE TYPE audit_action AS ENUM (
     'register'
 );
 
+CREATE TYPE automatic_updates AS ENUM (
+    'always',
+    'never'
+);
+
 CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
@@ -89,6 +94,18 @@ CREATE TYPE parameter_type_system AS ENUM (
     'none',
     'hcl'
 );
+
+CREATE TYPE provisioner_job_status AS ENUM (
+    'pending',
+    'running',
+    'succeeded',
+    'canceling',
+    'canceled',
+    'failed',
+    'unknown'
+);
+
+COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
 
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
@@ -343,7 +360,8 @@ CREATE TABLE external_auth_links (
     oauth_refresh_token text NOT NULL,
     oauth_expiry timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
-    oauth_refresh_token_key_id text
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb
 );
 
 COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
@@ -501,8 +519,26 @@ CREATE TABLE provisioner_jobs (
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
     error_code text,
-    trace_metadata jsonb
+    trace_metadata jsonb,
+    job_status provisioner_job_status GENERATED ALWAYS AS (
+CASE
+    WHEN (completed_at IS NOT NULL) THEN
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceled'::provisioner_job_status
+        ELSE 'succeeded'::provisioner_job_status
+    END
+    ELSE
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceling'::provisioner_job_status
+        WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
+        ELSE 'running'::provisioner_job_status
+    END
+END) STORED NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
 
 CREATE TABLE replicas (
     id uuid NOT NULL,
@@ -641,7 +677,8 @@ CREATE TABLE template_versions (
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
     external_auth_providers text[],
-    message character varying(1048576) DEFAULT ''::character varying NOT NULL
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL,
+    archived boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -686,6 +723,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.created_by,
     template_versions.external_auth_providers,
     template_versions.message,
+    template_versions.archived,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.template_versions
@@ -1098,7 +1136,8 @@ CREATE TABLE workspaces (
     ttl bigint,
     last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
@@ -1322,7 +1361,7 @@ CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(usernam
 
 CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_logs USING btree (agent_id, id);
 
-CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at DESC, user_id) WHERE (connection_count > 0);
+CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
 
 COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 

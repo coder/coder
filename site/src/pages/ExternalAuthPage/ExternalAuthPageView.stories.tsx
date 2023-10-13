@@ -4,7 +4,7 @@ import ExternalAuthPageView, {
 } from "./ExternalAuthPageView";
 
 export default {
-  title: "pages/ExternalAuthPageView",
+  title: "pages/ExternalAuthPage",
   component: ExternalAuthPageView,
 } as Meta<typeof ExternalAuthPageView>;
 

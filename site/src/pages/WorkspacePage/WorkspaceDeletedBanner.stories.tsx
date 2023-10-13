@@ -2,11 +2,13 @@ import { Meta, StoryObj } from "@storybook/react";
 import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 
 const meta: Meta<typeof WorkspaceDeletedBanner> = {
-  title: "components/WorkspaceDeletedBanner",
+  title: "pages/WorkspacePage/WorkspaceDeletedBanner",
   component: WorkspaceDeletedBanner,
 };
 
 export default meta;
 type Story = StoryObj<typeof WorkspaceDeletedBanner>;
 
-export const Example: Story = {};
+const Example: Story = {};
+
+export { Example as WorkspaceDeletedBanner };

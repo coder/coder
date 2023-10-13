@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { CreateUserForm } from "./CreateUserForm";
 import { Margins } from "components/Margins/Margins";
 import { pageTitle } from "utils/page";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 

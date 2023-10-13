@@ -3,7 +3,7 @@ import { SSHKeysPageView } from "./SSHKeysPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SSHKeysPageView> = {
-  title: "pages/SSHKeysPageView",
+  title: "pages/UserSettingsPage/SSHKeysPageView",
   component: SSHKeysPageView,
   args: {
     isLoading: false,

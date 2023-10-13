@@ -229,6 +229,10 @@ func (s *ServerTailnet) watchAgentUpdates() {
 
 		err := s.conn.UpdateNodes(nodes, false)
 		if err != nil {
+			if xerrors.Is(err, tailnet.ErrConnClosed) {
+				s.logger.Warn(context.Background(), "tailnet conn closed, exiting watchAgentUpdates", slog.Error(err))
+				return
+			}
 			s.logger.Error(context.Background(), "update node in server tailnet", slog.Error(err))
 			return
 		}

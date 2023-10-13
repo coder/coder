@@ -15,7 +15,7 @@ import { Helmet } from "react-helmet-async";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import * as TypesGen from "api/typesGenerated";
-import { workspaceByOwnerAndNameKey } from "api/queries/workspace";
+import { workspaceByOwnerAndNameKey } from "api/queries/workspaces";
 import { WorkspaceScheduleForm } from "./WorkspaceScheduleForm";
 import { workspaceSchedule } from "xServices/workspaceSchedule/workspaceScheduleXService";
 import {
@@ -23,7 +23,7 @@ import {
   formValuesToTTLRequest,
 } from "./formToRequest";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "react-query";
 
 const getAutostart = (workspace: TypesGen.Workspace) =>
   scheduleToAutostart(workspace.autostart_schedule);
@@ -83,6 +83,8 @@ export const WorkspaceSchedulePage: FC = () => {
         (scheduleState.matches("presentForm") ||
           scheduleState.matches("submittingSchedule")) && (
           <WorkspaceScheduleForm
+            enableAutoStart={template.allow_user_autostart}
+            enableAutoStop={template.allow_user_autostop}
             submitScheduleError={submitScheduleError}
             initialValues={{
               ...getAutostart(workspace),

@@ -1,17 +1,71 @@
-import { makeStyles } from "@mui/styles";
-import { FC, useState } from "react";
+import { type FC, useState } from "react";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import { type CSSObject, type Interpolation, type Theme } from "@emotion/react";
 import { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { Stack } from "../Stack/Stack";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
-import {
-  OpenDropdown,
-  CloseDropdown,
-} from "components/DropdownArrows/DropdownArrows";
-import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
-import { CopyableValue } from "components/CopyableValue/CopyableValue";
-import { type Theme } from "@mui/material/styles";
+
+const styles = {
+  resourceCard: (theme) => ({
+    background: theme.palette.background.paper,
+    borderRadius: theme.shape.borderRadius,
+    border: `1px solid ${theme.palette.divider}`,
+
+    "&:not(:first-of-type)": {
+      borderTop: 0,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+    },
+
+    "&:not(:last-child)": {
+      borderBottomLeftRadius: 0,
+      borderBottomRightRadius: 0,
+    },
+  }),
+
+  resourceCardProfile: {
+    flexShrink: 0,
+    width: "fit-content",
+  },
+
+  resourceCardHeader: (theme) => ({
+    padding: theme.spacing(3, 4),
+    borderBottom: `1px solid ${theme.palette.divider}`,
+
+    "&:last-child": {
+      borderBottom: 0,
+    },
+
+    [theme.breakpoints.down("md")]: {
+      width: "100%",
+      overflow: "scroll",
+    },
+  }),
+
+  metadata: (theme) => ({
+    ...(theme.typography.body2 as CSSObject),
+    lineHeight: "120%",
+  }),
+
+  metadataLabel: (theme) => ({
+    fontSize: 12,
+    color: theme.palette.text.secondary,
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+  }),
+
+  metadataValue: (theme) => ({
+    textOverflow: "ellipsis",
+    overflow: "hidden",
+    whiteSpace: "nowrap",
+    ...(theme.typography.body1 as CSSObject),
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 export interface ResourceCardProps {
   resource: WorkspaceResource;
@@ -33,44 +87,52 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
     metadataLength += 1;
     visibleMetadata.pop();
   }
-  const styles = useStyles({ metadataLength });
+  const gridWidth = metadataLength === 1 ? 1 : 4;
 
   return (
-    <div key={resource.id} className={`${styles.resourceCard} resource-card`}>
+    <div key={resource.id} css={styles.resourceCard} className="resource-card">
       <Stack
         direction="row"
         alignItems="flex-start"
-        className={styles.resourceCardHeader}
+        css={styles.resourceCardHeader}
         spacing={10}
       >
         <Stack
           direction="row"
           alignItems="center"
-          className={styles.resourceCardProfile}
+          css={styles.resourceCardProfile}
         >
           <div>
             <ResourceAvatar resource={resource} />
           </div>
-          <div className={styles.metadata}>
-            <div className={styles.metadataLabel}>{resource.type}</div>
-            <div className={styles.metadataValue}>{resource.name}</div>
+          <div css={styles.metadata}>
+            <div css={styles.metadataLabel}>{resource.type}</div>
+            <div css={styles.metadataValue}>{resource.name}</div>
           </div>
         </Stack>
 
-        <div className={styles.metadataHeader}>
+        <div
+          css={(theme) => ({
+            flexGrow: 2,
+            display: "grid",
+            gridTemplateColumns: `repeat(${gridWidth}, minmax(0, 1fr))`,
+            gap: theme.spacing(5),
+            rowGap: theme.spacing(3),
+          })}
+        >
           {resource.daily_cost > 0 && (
-            <div className={styles.metadata}>
-              <div className={styles.metadataLabel}>
+            <div css={styles.metadata}>
+              <div css={styles.metadataLabel}>
                 <b>cost</b>
               </div>
-              <div className={styles.metadataValue}>{resource.daily_cost}</div>
+              <div css={styles.metadataValue}>{resource.daily_cost}</div>
             </div>
           )}
           {visibleMetadata.map((meta) => {
             return (
-              <div className={styles.metadata} key={meta.key}>
-                <div className={styles.metadataLabel}>{meta.key}</div>
-                <div className={styles.metadataValue}>
+              <div css={styles.metadata} key={meta.key}>
+                <div css={styles.metadataLabel}>{meta.key}</div>
+                <div css={styles.metadataValue}>
                   {meta.sensitive ? (
                     <SensitiveValue value={meta.value} />
                   ) : (
@@ -95,11 +157,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
               }}
               size="large"
             >
-              {shouldDisplayAllMetadata ? (
-                <CloseDropdown margin={false} />
-              ) : (
-                <OpenDropdown margin={false} />
-              )}
+              <DropdownArrow margin={false} close={shouldDisplayAllMetadata} />
             </IconButton>
           </Tooltip>
         )}
@@ -111,66 +169,3 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
     </div>
   );
 };
-
-const useStyles = makeStyles<Theme, { metadataLength: number }>((theme) => ({
-  resourceCard: {
-    background: theme.palette.background.paper,
-    borderRadius: theme.shape.borderRadius,
-    border: `1px solid ${theme.palette.divider}`,
-
-    "&:not(:first-of-type)": {
-      borderTop: 0,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-    },
-
-    "&:not(:last-child)": {
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-    },
-  },
-
-  resourceCardProfile: {
-    flexShrink: 0,
-    width: "fit-content",
-  },
-
-  resourceCardHeader: {
-    padding: theme.spacing(3, 4),
-    borderBottom: `1px solid ${theme.palette.divider}`,
-
-    "&:last-child": {
-      borderBottom: 0,
-    },
-  },
-
-  metadataHeader: (props) => ({
-    flexGrow: 2,
-    display: "grid",
-    gridTemplateColumns: `repeat(${
-      props.metadataLength === 1 ? 1 : 4
-    }, minmax(0, 1fr))`,
-    gap: theme.spacing(5),
-    rowGap: theme.spacing(3),
-  }),
-
-  metadata: {
-    ...theme.typography.body2,
-    lineHeight: "120%",
-  },
-
-  metadataLabel: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-    textOverflow: "ellipsis",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-  },
-
-  metadataValue: {
-    textOverflow: "ellipsis",
-    overflow: "hidden",
-    whiteSpace: "nowrap",
-    ...theme.typography.body1,
-  },
-}));

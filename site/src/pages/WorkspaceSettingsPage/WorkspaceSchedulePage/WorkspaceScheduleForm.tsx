@@ -30,6 +30,8 @@ import { ChangeEvent, FC } from "react";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
 import { timeZones } from "utils/timeZones";
+import { Pill } from "components/Pill/Pill";
+import Tooltip from "@mui/material/Tooltip";
 
 // REMARK: some plugins depend on utc, so it's listed first. Otherwise they're
 //         sorted alphabetically.
@@ -76,6 +78,8 @@ export interface WorkspaceScheduleFormProps {
   submitScheduleError?: unknown;
   initialValues: WorkspaceScheduleFormValues;
   isLoading: boolean;
+  enableAutoStop: boolean;
+  enableAutoStart: boolean;
   onCancel: () => void;
   onSubmit: (values: WorkspaceScheduleFormValues) => void;
   // for storybook
@@ -193,6 +197,8 @@ export const WorkspaceScheduleForm: FC<
   onSubmit,
   initialTouched,
   defaultTTL,
+  enableAutoStop,
+  enableAutoStart,
 }) => {
   const styles = useStyles();
 
@@ -284,12 +290,25 @@ export const WorkspaceScheduleForm: FC<
     <HorizontalForm onSubmit={form.handleSubmit}>
       <FormSection
         title="Autostart"
-        description="Select the time and days of week on which you want the workspace starting automatically."
+        description={
+          <>
+            <div css={{ marginBottom: 16 }}>
+              Select the time and days of week on which you want the workspace
+              starting automatically.
+            </div>
+            {!enableAutoStart && (
+              <Tooltip title="This option can be enabled in the template settings">
+                <Pill text="Disabled" />
+              </Tooltip>
+            )}
+          </>
+        }
       >
         <FormFields>
           <FormControlLabel
             control={
               <Switch
+                disabled={!enableAutoStart}
                 name="autostartEnabled"
                 checked={form.values.autostartEnabled}
                 onChange={handleToggleAutostart}
@@ -352,7 +371,21 @@ export const WorkspaceScheduleForm: FC<
 
       <FormSection
         title="Autostop"
-        description="Set how many hours should elapse after a workspace is started before it automatically shuts down. If workspace connection activity is detected, the autostop timer will be bumped by this value."
+        description={
+          <>
+            <div css={{ marginBottom: 16 }}>
+              Set how many hours should elapse after a workspace is started
+              before it automatically shuts down. If workspace connection
+              activity is detected, the autostop timer will be bumped by this
+              value.
+            </div>
+            {!enableAutoStop && (
+              <Tooltip title="This option can be enabled in the template settings">
+                <Pill text="Disabled" />
+              </Tooltip>
+            )}
+          </>
+        }
       >
         <FormFields>
           <FormControlLabel
@@ -361,6 +394,7 @@ export const WorkspaceScheduleForm: FC<
                 name="autostopEnabled"
                 checked={form.values.autostopEnabled}
                 onChange={handleToggleAutostop}
+                disabled={!enableAutoStop}
               />
             }
             label={Language.stopSwitch}

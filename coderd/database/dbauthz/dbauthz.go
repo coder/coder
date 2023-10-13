@@ -673,6 +673,17 @@ func (q *querier) AllUserIDs(ctx context.Context) ([]uuid.UUID, error) {
 	return q.db.AllUserIDs(ctx)
 }
 
+func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return nil, err
+	}
+	return q.db.ArchiveUnusedTemplateVersions(ctx, arg)
+}
+
 func (q *querier) CleanTailnetCoordinators(ctx context.Context) error {
 	if err := q.authorizeContext(ctx, rbac.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return err
@@ -2260,6 +2271,22 @@ func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {
 	return q.db.TryAcquireLock(ctx, id)
 }
 
+func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	v, err := q.db.GetTemplateVersionByID(ctx, arg.TemplateVersionID)
+	if err != nil {
+		return err
+	}
+
+	tpl, err := q.db.GetTemplateByID(ctx, v.TemplateID.UUID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, rbac.ActionUpdate, tpl); err != nil {
+		return err
+	}
+	return q.db.UnarchiveTemplateVersion(ctx, arg)
+}
+
 func (q *querier) UpdateAPIKeyByID(ctx context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	fetch := func(ctx context.Context, arg database.UpdateAPIKeyByIDParams) (database.APIKey, error) {
 		return q.db.GetAPIKeyByID(ctx, arg.ID)
@@ -2713,6 +2740,19 @@ func (q *querier) UpdateWorkspaceAppHealthByID(ctx context.Context, arg database
 		return err
 	}
 	return q.db.UpdateWorkspaceAppHealthByID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceAutomaticUpdates(ctx context.Context, arg database.UpdateWorkspaceAutomaticUpdatesParams) error {
+	workspace, err := q.db.GetWorkspaceByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, rbac.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceAutomaticUpdates(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceAutostart(ctx context.Context, arg database.UpdateWorkspaceAutostartParams) error {

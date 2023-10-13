@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 import { useFormik } from "formik";
 import { Loader } from "components/Loader/Loader";
 import { displaySuccess, displayError } from "components/GlobalSnackbar/utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "react-query";
 import { createToken, getTokenConfig } from "api/api";
 import { CreateTokenForm } from "./CreateTokenForm";
 import { NANO_HOUR, CreateTokenData } from "./utils";

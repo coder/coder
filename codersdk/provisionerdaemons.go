@@ -64,6 +64,7 @@ const (
 	ProvisionerJobCanceling ProvisionerJobStatus = "canceling"
 	ProvisionerJobCanceled  ProvisionerJobStatus = "canceled"
 	ProvisionerJobFailed    ProvisionerJobStatus = "failed"
+	ProvisionerJobUnknown   ProvisionerJobStatus = "unknown"
 )
 
 // JobErrorCode defines the error code returned by job runner.

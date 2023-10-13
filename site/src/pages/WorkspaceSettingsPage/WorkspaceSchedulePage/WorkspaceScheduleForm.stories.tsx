@@ -16,8 +16,12 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const meta: Meta<typeof WorkspaceScheduleForm> = {
-  title: "components/WorkspaceScheduleForm",
+  title: "pages/WorkspaceSettingsPage/WorkspaceScheduleForm",
   component: WorkspaceScheduleForm,
+  args: {
+    enableAutoStart: true,
+    enableAutoStop: true,
+  },
 };
 
 export default meta;
@@ -38,6 +42,8 @@ export const AllDisabled: Story = {
       autostopEnabled: false,
       ttl: emptyTTL,
     },
+    enableAutoStart: false,
+    enableAutoStop: false,
   },
 };
 
@@ -49,6 +55,7 @@ export const Autostart: Story = {
       autostopEnabled: false,
       ttl: emptyTTL,
     },
+    enableAutoStop: false,
   },
 };
 

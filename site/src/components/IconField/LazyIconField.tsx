@@ -1,4 +1,4 @@
-import { lazy, Suspense, ComponentProps } from "react";
+import { lazy, Suspense, type ComponentProps } from "react";
 
 const IconField = lazy(() => import("./IconField"));
 

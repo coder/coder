@@ -1,9 +1,4 @@
-import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-  QueryKey,
-} from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, QueryKey } from "react-query";
 import { getTokens, deleteToken } from "api/api";
 import { TokensFilter } from "api/typesGenerated";
 

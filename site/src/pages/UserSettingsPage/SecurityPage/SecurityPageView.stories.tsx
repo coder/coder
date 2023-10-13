@@ -34,7 +34,7 @@ const defaultArgs: ComponentProps<typeof SecurityPageView> = {
 };
 
 const meta: Meta<typeof SecurityPageView> = {
-  title: "pages/SecurityPageView",
+  title: "pages/UserSettingsPage/SecurityPageView",
   component: SecurityPageView,
   args: defaultArgs,
 };

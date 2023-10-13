@@ -3,11 +3,16 @@ coder v0.0.0-devel
 USAGE:
   coder templates pull [flags] <name> [destination]
 
-  Download the latest version of a template to a path.
+  Download the active, latest, or specified version of a template to a path.
 
 OPTIONS:
       --tar bool
           Output the template as a tar archive to stdout.
+
+      --version string
+          The name of the template version to pull. Use 'active' to pull the
+          active version, 'latest' to pull the latest version, or the name of
+          the template version to pull.
 
   -y, --yes bool
           Bypass prompts.

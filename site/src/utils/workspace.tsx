@@ -51,6 +51,8 @@ export const getDisplayWorkspaceBuildStatus = (
         color: theme.palette.primary.main,
         status: DisplayWorkspaceBuildStatusLanguage.running,
       } as const;
+    // Just handle unknown as failed
+    case "unknown":
     case "failed":
       return {
         type: "error",

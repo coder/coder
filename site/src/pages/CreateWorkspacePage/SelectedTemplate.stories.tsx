@@ -3,7 +3,7 @@ import { SelectedTemplate } from "./SelectedTemplate";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof SelectedTemplate> = {
-  title: "components/SelectedTemplate",
+  title: "pages/CreateWorkspacePage/SelectedTemplate",
   component: SelectedTemplate,
 };
 

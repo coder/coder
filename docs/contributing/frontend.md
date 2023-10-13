@@ -36,7 +36,7 @@ important ones:
   fetching data
 - [XState](https://xstate.js.org/docs/) for handling complex state flows
 - [axios](https://github.com/axios/axios) as fetching lib
-- [Playwright](https://playwright.dev/) for E2E testing
+- [Playwright](https://playwright.dev/) for end-to-end (E2E) testing
 - [Jest](https://jestjs.io/) for integration testing
 - [Storybook](https://storybook.js.org/) and
   [Chromatic](https://www.chromatic.com/) for visual testing
@@ -47,20 +47,19 @@ important ones:
 All the code related to the UI is inside the `site` folder and we defined a few
 conventions to help people to navigate through it.
 
-- **e2e** - E2E tests
+- **e2e** - End-to-end (E2E) tests
 - **src** - Source code
   - **mocks** - [Manual mocks](https://jestjs.io/docs/manual-mocks) used by Jest
   - **@types** - Custom types for dependencies that don't have defined types
+    (largely code that has no server-side equivalent)
   - **api** - API code as function calls and types
   - **components** - UI components
   - **hooks** - Hooks that can be used across the application
-  - **i18n** - Translations
   - **pages** - Page components
   - **testHelpers** - Helper functions to help with integration tests
   - **util** - Helper functions that can be used across the application
-  - **xServices** - XState machines used to fetch data and handle complex
-    scenarios
-- **static** - UI static assets like images, fonts, icons, etc
+  - **xServices** - XState machines used to handle complex state representations
+- **static** - Static UI assets like images, fonts, icons, etc
 
 ## Routing
 
@@ -88,10 +87,10 @@ to the view. We explain this decision a bit better in the next section.
 
 ### States
 
-A page usually has at least three states: **loading**, **ready** or **success**,
-and **error** so remember to always handle these scenarios while you are coding
+A page usually has at least three states: **loading**, **ready**/**success**,
+and **error**, so always remember to handle these scenarios while you are coding
 a page. We also encourage you to add visual testing for these three states using
-the `*.stories.ts` file.
+a `*.stories.ts` file.
 
 ## Fetching data
 
@@ -107,8 +106,8 @@ states and transitions.
 
 ### Where to fetch data
 
-Finding the right place to fetch data in React apps is the one million dollar
-question but we decided to make it only in the page components and pass the
+Finding the right place to fetch data in React apps is the million-dollar
+question, but we decided to make it only in the page components and pass the
 props down to the views. This makes it easier to find where data is being loaded
 and easy to test using Storybook. So you will see components like `UsersPage`
 and `UsersPageView`.
@@ -118,9 +117,9 @@ and `UsersPageView`.
 We are using [axios](https://github.com/axios/axios) as our fetching library and
 writing the API functions in the `site/src/api/api.ts` files. We also have
 auto-generated types from our Go server on `site/src/api/typesGenerated.ts`.
-Usually, every endpoint has its own ` Request` and `Response` types but
-sometimes you need to pass extra parameters to make the call like the example
-below:
+Usually, every endpoint has its own ` Request` and `Response` types, but
+sometimes you need to pass extra parameters to make the call, like in the
+example below:
 
 ```ts
 export const getAgentListeningPorts = async (
@@ -133,8 +132,8 @@ export const getAgentListeningPorts = async (
 };
 ```
 
-Sometimes, a FE operation can have multiple API calls so it is ok to wrap it as
-a single function.
+Sometimes, a frontend operation can have multiple API calls, so it is okay to
+wrap it as a single function.
 
 ```ts
 export const updateWorkspaceVersion = async (
@@ -150,10 +149,11 @@ separated and use XState for that.
 
 ## Components
 
-We are using [Material V4](https://v4.mui.com/) in our UI and we don't have any
-short-term plans to update or even replace it. It still provides good value for
-us and changing it would cost too much work which is not valuable right now but
-of course, it can change in the future.
+The codebase is currently using MUI v5. Please see the
+[official documentation](https://mui.com/material-ui/getting-started/). In
+general, favor building a custom component via MUI instead of plain React/HTML,
+as MUI's suite of components is thoroughly battle-tested and accessible right
+out of the box.
 
 ### Structure
 
@@ -163,29 +163,56 @@ remain easy to navigate, healthy and maintainable for all contributors.
 
 ### Accessibility
 
-We strive to keep our UI accessible. When using colors, avoid adding new
-elements with low color contrast. Always use labels on inputs, not just
-placeholders. These are important for screen-readers.
+We strive to keep our UI accessible.
+
+In general, colors should come from the app theme, but if there is a need to add
+a custom color, please ensure that the foreground and background have a minimum
+contrast ratio of 4.5:1 to meet WCAG level AA compliance. WebAIM has
+[a great tool for checking your colors directly](https://webaim.org/resources/contrastchecker/),
+but tools like
+[Dequeue's axe DevTools](https://chrome.google.com/webstore/detail/axe-devtools-web-accessib/lhdoppojpmngadmnindnejefpokejbdd)
+can also do automated checks in certain situations.
+
+When using any kind of input element, always make sure that there is a label
+associated with that element (the label can be made invisible for aesthetic
+reasons, but it should always be in the HTML markup). Labels are important for
+screen-readers; a placeholder text value is not enough for all users.
+
+When possible, make sure that all image/graphic elements have accompanying text
+that describes the image. `<img />` elements should have an `alt` text value. In
+other situations, it might make sense to place invisible, descriptive text
+inside the component itself using MUI's `visuallyHidden` utility function.
+
+```tsx
+import { visuallyHidden } from "@mui/utils";
+
+<Button>
+  <GearIcon />
+  <Box component="span" sx={visuallyHidden}>
+    Settings
+  </Box>
+</Button>;
+```
 
 ### Should I create a new component?
 
 As with most things in the world, it depends. If you are creating a new
 component to encapsulate some UI abstraction like `UsersTable` it is ok but you
 should always try to use the base components that are provided by the library or
-from the codebase so I recommend you to always do a quick search before creating
-a custom primitive component like dialogs, popovers, buttons, etc.
+from the codebase. It's recommended that you always do a quick search before
+creating a custom primitive component like dialogs, popovers, buttons, etc.
 
 ## Testing
 
-We use three types of testing in our app: **E2E**, **Integration** and **Visual
-Testing**.
+We use three types of testing in our app: **End-to-end (E2E)**, **Integration**
+and **Visual Testing**.
 
-### E2E (end-to-end)
+### End-to-End (E2E)
 
-Are useful to test complete flows like "Create a user", "Import template", etc.
-For this one, we use [Playwright](https://playwright.dev/). If you only need to
-test if the page is being rendered correctly, you should probably consider using
-the **Visual Testing** approach.
+These are useful for testing complete flows like "Create a user", "Import
+template", etc. We use [Playwright](https://playwright.dev/). If you only need
+to test if the page is being rendered correctly, you should consider using the
+**Visual Testing** approach.
 
 > ℹ️ For scenarios where you need to be authenticated, you can use
 > `test.use({ storageState: getStatePath("authState") })`.

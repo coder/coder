@@ -20,6 +20,7 @@ SUBCOMMANDS:
     delete            Delete a workspace
     dotfiles          Personalize your workspace by applying a canonical
                       dotfiles repository
+    external-auth     Manage external authentication
     list              List workspaces
     login             Authenticate with Coder deployment
     logout            Unauthenticate your local session

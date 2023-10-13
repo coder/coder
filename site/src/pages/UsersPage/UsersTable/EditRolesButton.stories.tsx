@@ -7,7 +7,7 @@ import { EditRolesButton } from "./EditRolesButton";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof EditRolesButton> = {
-  title: "components/EditRolesButton",
+  title: "pages/UsersPage/EditRolesButton",
   component: EditRolesButton,
   args: {
     defaultIsOpen: true,

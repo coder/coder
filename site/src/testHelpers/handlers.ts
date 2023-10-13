@@ -1,6 +1,6 @@
 import { rest } from "msw";
 import { CreateWorkspaceBuildRequest } from "api/typesGenerated";
-import { permissionsToCheck } from "xServices/auth/authXService";
+import { permissionsToCheck } from "components/AuthProvider/permissions";
 import * as M from "./entities";
 import { MockGroup, MockWorkspaceQuota } from "./entities";
 import fs from "fs";
@@ -115,6 +115,12 @@ export const handlers = [
     "/api/v2/templateversions/:templateVersionId/external-auth",
     async (req, res, ctx) => {
       return res(ctx.status(200), ctx.json([]));
+    },
+  ),
+  rest.get(
+    "/api/v2/templateversions/:templateversionId/logs",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockWorkspaceBuildLogs));
     },
   ),
   rest.get(

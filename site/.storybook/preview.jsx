@@ -8,7 +8,7 @@ import { withRouter } from "storybook-addon-react-router-v6";
 import { HelmetProvider } from "react-helmet-async";
 import { dark } from "theme";
 import "theme/globalFonts";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider } from "react-query";
 
 export const decorators = [
   (Story) => (

@@ -7,7 +7,15 @@ import Button from "@mui/material/Button";
 import ArrowRightAltOutlined from "@mui/icons-material/ArrowRightAltOutlined";
 import Popover from "@mui/material/Popover";
 import { DateRangePicker, createStaticRanges } from "react-date-range";
-import { format, subDays } from "date-fns";
+import {
+  addDays,
+  addHours,
+  format,
+  isToday,
+  startOfDay,
+  startOfHour,
+  subDays,
+} from "date-fns";
 
 // The type definition from @types is wrong
 declare module "react-date-range" {
@@ -46,9 +54,12 @@ export const DateRange = ({
     endDate: ranges[0].endDate as Date,
   };
   const handleClose = () => {
+    const now = new Date();
     onChange({
-      startDate: currentRange.startDate,
-      endDate: currentRange.endDate,
+      startDate: startOfDay(currentRange.startDate),
+      endDate: isToday(currentRange.endDate)
+        ? startOfHour(addHours(now, 1))
+        : startOfDay(addDays(currentRange.endDate, 1)),
     });
     setIsOpen(false);
   };

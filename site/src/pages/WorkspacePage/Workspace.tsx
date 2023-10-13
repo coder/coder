@@ -55,7 +55,6 @@ export interface WorkspaceProps {
   isRestarting: boolean;
   workspace: TypesGen.Workspace;
   resources?: TypesGen.WorkspaceResource[];
-  builds?: TypesGen.WorkspaceBuild[];
   templateWarnings?: TypesGen.TemplateVersionWarning[];
   canUpdateWorkspace: boolean;
   updateMessage?: string;
@@ -70,6 +69,10 @@ export interface WorkspaceProps {
   quotaBudget?: number;
   handleBuildRetry: () => void;
   buildLogs?: React.ReactNode;
+  builds: TypesGen.WorkspaceBuild[] | undefined;
+  onLoadMoreBuilds: () => void;
+  isLoadingMoreBuilds: boolean;
+  hasMoreBuilds: boolean;
 }
 
 /**
@@ -105,6 +108,9 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   handleBuildRetry,
   templateWarnings,
   buildLogs,
+  onLoadMoreBuilds,
+  isLoadingMoreBuilds,
+  hasMoreBuilds,
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -345,7 +351,12 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
               error={workspaceErrors[WorkspaceErrors.GET_BUILDS_ERROR]}
             />
           ) : (
-            <BuildsTable builds={builds} />
+            <BuildsTable
+              builds={builds}
+              onLoadMoreBuilds={onLoadMoreBuilds}
+              isLoadingMoreBuilds={isLoadingMoreBuilds}
+              hasMoreBuilds={hasMoreBuilds}
+            />
           )}
         </Stack>
       </Margins>

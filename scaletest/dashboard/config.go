@@ -21,7 +21,11 @@ type Config struct {
 	// Headless controls headless mode for chromedp.
 	Headless bool `json:"headless"`
 	// ActionFunc is a function that returns an action to run.
-	ActionFunc func(ctx context.Context, randIntn func(int) int) (Label, Action, error) `json:"-"`
+	ActionFunc func(ctx context.Context, log slog.Logger, randIntn func(int) int, deadline time.Time) (Label, Action, error) `json:"-"`
+	// WaitLoaded is a function that waits for the page to be loaded.
+	WaitLoaded func(ctx context.Context, deadline time.Time) error
+	// Screenshot is a function that takes a screenshot.
+	Screenshot func(ctx context.Context, filename string) (string, error)
 	// RandIntn is a function that returns a random number between 0 and n-1.
 	RandIntn func(int) int `json:"-"`
 }
@@ -33,14 +37,6 @@ func (c Config) Validate() error {
 
 	if !(c.Jitter < c.Interval) {
 		return xerrors.Errorf("validate jitter: must be less than interval")
-	}
-
-	if c.ActionFunc == nil {
-		return xerrors.Errorf("validate action func: must not be nil")
-	}
-
-	if c.RandIntn == nil {
-		return xerrors.Errorf("validate rand intn: must not be nil")
 	}
 
 	return nil

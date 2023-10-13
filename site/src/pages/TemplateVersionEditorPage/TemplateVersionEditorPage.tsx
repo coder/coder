@@ -1,7 +1,6 @@
 import { useMachine } from "@xstate/react";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { usePermissions } from "hooks/usePermissions";
 import { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
@@ -22,7 +21,6 @@ export const TemplateVersionEditorPage: FC = () => {
   const [editorState, sendEvent] = useMachine(templateVersionEditorMachine, {
     context: { orgId },
   });
-  const permissions = usePermissions();
   const { isSuccess, data } = useTemplateVersionData(
     {
       orgId,
@@ -45,8 +43,8 @@ export const TemplateVersionEditorPage: FC = () => {
       {isSuccess && (
         <TemplateVersionEditor
           template={data.template}
-          deploymentBannerVisible={permissions.viewDeploymentStats}
           templateVersion={editorState.context.version || data.version}
+          isBuildingNewVersion={Boolean(editorState.context.version)}
           defaultFileTree={data.fileTree}
           onPreview={(fileTree) => {
             sendEvent({

@@ -73,7 +73,7 @@ CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 GitHub Enterprise requires the following authentication and token URLs:
 
 ```env
-CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://github.example.com/api/v3/user"
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
@@ -101,7 +101,10 @@ provider deployments.
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/oauth/token"
 CODER_EXTERNAL_AUTH_0_VALIDATE_URL="https://your-domain.com/oauth/token/info"
+CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
+
+> Note: The `REGEX` variable must be set if using a custom git domain.
 
 ### Custom scopes
 
@@ -114,9 +117,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ### Multiple External Providers (enterprise)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
-
-A custom regex can be used to match a specific repository or organization to
-limit auth scope. Here's a sample config:
+Below is an example configuration with multiple providers.
 
 ```env
 # Provider 1) github.com
@@ -134,7 +135,7 @@ CODER_EXTERNAL_AUTH_1_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_1_REGEX=github.example.com
 CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
-CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/login/oauth/access_token/info"
+CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
 To support regex matching for paths (e.g. github.com/orgname), you'll need to

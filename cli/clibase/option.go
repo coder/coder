@@ -262,6 +262,15 @@ func (optSet *OptionSet) ParseEnv(vs []EnvVar) error {
 		}
 
 		envVal, ok := envs[opt.Env]
+		if !ok {
+			// Homebrew strips all environment variables that do not start with `HOMEBREW_`.
+			// This prevented using brew to invoke the Coder agent, because the environment
+			// variables to not get passed down.
+			//
+			// A customer wanted to use their custom tap inside a workspace, which was failing
+			// because the agent lacked the environment variables to authenticate with Git.
+			envVal, ok = envs[`HOMEBREW_`+opt.Env]
+		}
 		// Currently, empty values are treated as if the environment variable is
 		// unset. This behavior is technically not correct as there is now no
 		// way for a user to change a Default value to an empty string from

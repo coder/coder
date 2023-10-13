@@ -65,11 +65,17 @@ provider "docker" {
 
 provider "coder" {}
 
-data "coder_git_auth" "github" {
+data "coder_external_auth" "github" {
   id = "github"
 }
 
 data "coder_workspace" "me" {}
+
+module "slackme" {
+  source           = "https://registry.coder.com/modules/slackme"
+  agent_id         = coder_agent.dev.id
+  auth_provider_id = "slack"
+}
 
 module "dotfiles" {
   source   = "https://registry.coder.com/modules/dotfiles"
@@ -124,7 +130,7 @@ resource "coder_agent" "dev" {
   os   = "linux"
   dir  = data.coder_parameter.repo_dir.value
   env = {
-    GITHUB_TOKEN : data.coder_git_auth.github.access_token,
+    GITHUB_TOKEN : data.coder_external_auth.github.access_token,
     OIDC_TOKEN : data.coder_workspace.me.owner_oidc_access_token,
   }
   startup_script_behavior = "blocking"
@@ -172,6 +178,7 @@ resource "coder_agent" "dev" {
     display_name = "Swap Usage (Host)"
     key          = "4_swap_usage_host"
     script       = <<EOT
+      #!/bin/bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -183,6 +190,7 @@ resource "coder_agent" "dev" {
     key          = "5_load_host"
     # get load avg scaled by number of cores
     script   = <<EOT
+      #!/bin/bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -201,6 +209,7 @@ resource "coder_agent" "dev" {
     display_name = "Word of the Day"
     key          = "7_word"
     script       = <<EOT
+      #!/bin/bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400

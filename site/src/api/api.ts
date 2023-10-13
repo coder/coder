@@ -1,7 +1,9 @@
 import axios from "axios";
 import dayjs from "dayjs";
 import * as TypesGen from "./typesGenerated";
-import { delay } from "utils/delay";
+// This needs to include the `../`, otherwise it breaks when importing into
+// vscode-coder.
+import { delay } from "../utils/delay";
 import userAgentParser from "ua-parser-js";
 
 // Adds 304 for the default axios validateStatus function
@@ -118,19 +120,9 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout");
 };
 
-export const getAuthenticatedUser = async (): Promise<
-  TypesGen.User | undefined
-> => {
-  try {
-    const response = await axios.get<TypesGen.User>("/api/v2/users/me");
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return undefined;
-    }
-
-    throw error;
-  }
+export const getAuthenticatedUser = async () => {
+  const response = await axios.get<TypesGen.User>("/api/v2/users/me");
+  return response.data;
 };
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
@@ -381,6 +373,20 @@ export const patchTemplateVersion = async (
   const response = await axios.patch<TypesGen.TemplateVersion>(
     `/api/v2/templateversions/${templateVersionId}`,
     data,
+  );
+  return response.data;
+};
+
+export const archiveTemplateVersion = async (templateVersionId: string) => {
+  const response = await axios.post<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}/archive`,
+  );
+  return response.data;
+};
+
+export const unarchiveTemplateVersion = async (templateVersionId: string) => {
+  const response = await axios.post<TypesGen.TemplateVersion>(
+    `/api/v2/templateversions/${templateVersionId}/unarchive`,
   );
   return response.data;
 };
@@ -775,10 +781,10 @@ export const regenerateUserSSHKey = async (
 
 export const getWorkspaceBuilds = async (
   workspaceId: string,
-  since: Date,
-): Promise<TypesGen.WorkspaceBuild[]> => {
+  req?: TypesGen.WorkspaceBuildsRequest,
+) => {
   const response = await axios.get<TypesGen.WorkspaceBuild[]>(
-    `/api/v2/workspaces/${workspaceId}/builds?since=${since.toISOString()}`,
+    getURLWithSearchParams(`/api/v2/workspaces/${workspaceId}/builds`, req),
   );
   return response.data;
 };
@@ -1102,7 +1108,7 @@ export const getTemplateExamples = async (
   return response.data;
 };
 
-export const uploadTemplateFile = async (
+export const uploadFile = async (
   file: File,
 ): Promise<TypesGen.UploadResponse> => {
   const response = await axios.post("/api/v2/files", file, {
@@ -1485,6 +1491,14 @@ export const getInsightsUserLatency = async (
 ): Promise<TypesGen.UserLatencyInsightsResponse> => {
   const params = new URLSearchParams(filters);
   const response = await axios.get(`/api/v2/insights/user-latency?${params}`);
+  return response.data;
+};
+
+export const getInsightsUserActivity = async (
+  filters: InsightsParams,
+): Promise<TypesGen.UserActivityInsightsResponse> => {
+  const params = new URLSearchParams(filters);
+  const response = await axios.get(`/api/v2/insights/user-activity?${params}`);
   return response.data;
 };
 

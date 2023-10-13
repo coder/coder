@@ -52,6 +52,17 @@ export interface AppearanceConfig {
   readonly support_links?: LinkConfig[];
 }
 
+// From codersdk/templates.go
+export interface ArchiveTemplateVersionsRequest {
+  readonly all: boolean;
+}
+
+// From codersdk/templates.go
+export interface ArchiveTemplateVersionsResponse {
+  readonly template_id: string;
+  readonly archived_ids: string[];
+}
+
 // From codersdk/roles.go
 export interface AssignableRoles extends Role {
   readonly assignable: boolean;
@@ -279,6 +290,7 @@ export interface CreateWorkspaceRequest {
   readonly autostart_schedule?: string;
   readonly ttl_ms?: number;
   readonly rich_parameter_values?: WorkspaceBuildParameter[];
+  readonly automatic_updates?: AutomaticUpdates;
 }
 
 // From codersdk/deployment.go
@@ -403,6 +415,7 @@ export interface DeploymentValues {
   readonly proxy_health_status_interval?: number;
   readonly enable_terraform_debug_mode?: boolean;
   readonly user_quiet_hours_schedule?: UserQuietHoursScheduleConfig;
+  readonly web_terminal_renderer?: string;
   readonly config?: string;
   readonly write_config?: boolean;
   readonly address?: string;
@@ -452,6 +465,7 @@ export interface ExternalAuthConfig {
   readonly app_installations_url: string;
   readonly no_refresh: boolean;
   readonly scopes: string[];
+  readonly extra_token_keys: string[];
   readonly device_flow: boolean;
   readonly device_code_url: string;
   readonly regex: string;
@@ -1009,6 +1023,7 @@ export interface TemplateVersion {
   readonly job: ProvisionerJob;
   readonly readme: string;
   readonly created_by: MinimalUser;
+  readonly archived: boolean;
   readonly warnings?: TemplateVersionWarning[];
 }
 
@@ -1064,6 +1079,7 @@ export interface TemplateVersionVariable {
 // From codersdk/templates.go
 export interface TemplateVersionsByTemplateRequest extends Pagination {
   readonly template_id: string;
+  readonly include_archived: boolean;
 }
 
 // From codersdk/apikey.go
@@ -1153,6 +1169,11 @@ export interface UpdateUserProfileRequest {
 // From codersdk/users.go
 export interface UpdateUserQuietHoursScheduleRequest {
   readonly schedule: string;
+}
+
+// From codersdk/workspaces.go
+export interface UpdateWorkspaceAutomaticUpdatesRequest {
+  readonly automatic_updates: AutomaticUpdates;
 }
 
 // From codersdk/workspaces.go
@@ -1323,6 +1344,7 @@ export interface Workspace {
   readonly deleting_at?: string;
   readonly dormant_at?: string;
   readonly health: WorkspaceHealth;
+  readonly automatic_updates: AutomaticUpdates;
 }
 
 // From codersdk/workspaceagents.go
@@ -1479,8 +1501,7 @@ export interface WorkspaceBuildParameter {
 
 // From codersdk/workspaces.go
 export interface WorkspaceBuildsRequest extends Pagination {
-  readonly WorkspaceID: string;
-  readonly Since: string;
+  readonly since?: string;
 }
 
 // From codersdk/deployment.go
@@ -1612,6 +1633,10 @@ export const AuditActions: AuditAction[] = [
   "write",
 ];
 
+// From codersdk/workspaces.go
+export type AutomaticUpdates = "always" | "never";
+export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
+
 // From codersdk/workspacebuilds.go
 export type BuildReason = "autostart" | "autostop" | "initiator";
 export const BuildReasons: BuildReason[] = [
@@ -1640,12 +1665,14 @@ export type EnhancedExternalAuthProvider =
   | "azure-devops"
   | "bitbucket"
   | "github"
-  | "gitlab";
+  | "gitlab"
+  | "slack";
 export const EnhancedExternalAuthProviders: EnhancedExternalAuthProvider[] = [
   "azure-devops",
   "bitbucket",
   "github",
   "gitlab",
+  "slack",
 ];
 
 // From codersdk/deployment.go
@@ -1658,19 +1685,19 @@ export const Entitlements: Entitlement[] = [
 
 // From codersdk/deployment.go
 export type Experiment =
+  | "dashboard_theme"
   | "deployment_health_page"
   | "moons"
   | "single_tailnet"
   | "tailnet_pg_coordinator"
-  | "template_autostop_requirement"
-  | "workspace_actions";
+  | "template_autostop_requirement";
 export const Experiments: Experiment[] = [
+  "dashboard_theme",
   "deployment_health_page",
   "moons",
   "single_tailnet",
   "tailnet_pg_coordinator",
   "template_autostop_requirement",
-  "workspace_actions",
 ];
 
 // From codersdk/deployment.go
@@ -1755,7 +1782,8 @@ export type ProvisionerJobStatus =
   | "failed"
   | "pending"
   | "running"
-  | "succeeded";
+  | "succeeded"
+  | "unknown";
 export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "canceled",
   "canceling",
@@ -1763,6 +1791,7 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
   "pending",
   "running",
   "succeeded",
+  "unknown",
 ];
 
 // From codersdk/workspaces.go

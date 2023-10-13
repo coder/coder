@@ -56,15 +56,16 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name, "--build-options")
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {
@@ -106,16 +107,17 @@ func TestStart(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name,
 			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {
@@ -170,11 +172,12 @@ func TestStartWithParameters(t *testing.T) {
 
 		// Create the workspace
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, echoResponses)
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, echoResponses)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
 			cwr.RichParameterValues = []codersdk.WorkspaceBuildParameter{
 				{
 					Name:  immutableParameterName,
@@ -190,7 +193,7 @@ func TestStartWithParameters(t *testing.T) {
 
 		// Start the workspace again
 		inv, root := clitest.New(t, "start", workspace.Name)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
 		go func() {

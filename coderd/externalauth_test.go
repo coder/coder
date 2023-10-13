@@ -132,7 +132,7 @@ func TestExternalAuthByID(t *testing.T) {
 	})
 }
 
-func TestGitAuthDevice(t *testing.T) {
+func TestExternalAuthDevice(t *testing.T) {
 	t.Parallel()
 	t.Run("NotSupported", func(t *testing.T) {
 		t.Parallel()
@@ -214,7 +214,7 @@ func TestGitAuthDevice(t *testing.T) {
 }
 
 // nolint:bodyclose
-func TestGitAuthCallback(t *testing.T) {
+func TestExternalAuthCallback(t *testing.T) {
 	t.Parallel()
 	t.Run("NoMatchingConfig", func(t *testing.T) {
 		t.Parallel()
@@ -236,7 +236,9 @@ func TestGitAuthCallback(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		_, err := agentClient.GitAuth(context.Background(), "github.com", false)
+		_, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com",
+		})
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusNotFound, apiError.StatusCode())
@@ -266,7 +268,9 @@ func TestGitAuthCallback(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
-		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
+		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 		require.True(t, strings.HasSuffix(token.URL, fmt.Sprintf("/external-auth/%s", "github")), token.URL)
 	})
@@ -345,7 +349,9 @@ func TestGitAuthCallback(t *testing.T) {
 		srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 		})
-		res, err := agentClient.GitAuth(ctx, "github.com/asd/asd", false)
+		res, err := agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 		require.NotEmpty(t, res.URL)
 
@@ -355,7 +361,9 @@ func TestGitAuthCallback(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte("Something went wrong!"))
 		})
-		_, err = agentClient.GitAuth(ctx, "github.com/asd/asd", false)
+		_, err = agentClient.ExternalAuth(ctx, agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusInternalServerError, apiError.StatusCode())
@@ -395,7 +403,9 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
+		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 		require.NotEmpty(t, token.URL)
 
@@ -407,7 +417,9 @@ func TestGitAuthCallback(t *testing.T) {
 
 		// Because the token is expired and `NoRefresh` is specified,
 		// a redirect URL should be returned again.
-		token, err = agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
+		token, err = agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 		require.NotEmpty(t, token.URL)
 	})
@@ -438,14 +450,19 @@ func TestGitAuthCallback(t *testing.T) {
 		agentClient := agentsdk.New(client.URL)
 		agentClient.SetSessionToken(authToken)
 
-		token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
+		token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 		require.NotEmpty(t, token.URL)
 
 		// Start waiting for the token callback...
-		tokenChan := make(chan agentsdk.GitAuthResponse, 1)
+		tokenChan := make(chan agentsdk.ExternalAuthResponse, 1)
 		go func() {
-			token, err := agentClient.GitAuth(context.Background(), "github.com/asd/asd", true)
+			token, err := agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+				Match:  "github.com/asd/asd",
+				Listen: true,
+			})
 			assert.NoError(t, err)
 			tokenChan <- token
 		}()
@@ -457,7 +474,9 @@ func TestGitAuthCallback(t *testing.T) {
 		token = <-tokenChan
 		require.Equal(t, "access_token", token.Username)
 
-		token, err = agentClient.GitAuth(context.Background(), "github.com/asd/asd", false)
+		token, err = agentClient.ExternalAuth(context.Background(), agentsdk.ExternalAuthRequest{
+			Match: "github.com/asd/asd",
+		})
 		require.NoError(t, err)
 	})
 }

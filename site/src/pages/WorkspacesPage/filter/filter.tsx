@@ -1,6 +1,7 @@
 import { FC } from "react";
 import Box from "@mui/material/Box";
-import { useIsWorkspaceActionsEnabled } from "components/Dashboard/DashboardProvider";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+
 import { Avatar, AvatarProps } from "components/Avatar/Avatar";
 import { Palette, PaletteColor } from "@mui/material/styles";
 import { TemplateFilterMenu, StatusFilterMenu } from "./menus";
@@ -68,7 +69,9 @@ export const WorkspacesFilter = ({
   error,
   menus,
 }: WorkspaceFilterProps) => {
-  const actionsEnabled = useIsWorkspaceActionsEnabled();
+  const { entitlements } = useDashboard();
+  const actionsEnabled =
+    entitlements.features["advanced_template_scheduling"].enabled;
   const presets = actionsEnabled ? PRESET_FILTERS : PRESETS_WITH_DORMANT;
 
   return (

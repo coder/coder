@@ -68,6 +68,7 @@ type FakeIDP struct {
 	// "Authorized Redirect URLs". This can be used to emulate that.
 	hookValidRedirectURL func(redirectURL string) error
 	hookUserInfo         func(email string) (jwt.MapClaims, error)
+	hookMutateToken      func(token map[string]interface{})
 	fakeCoderd           func(req *http.Request) (*http.Response, error)
 	hookOnRefresh        func(email string) error
 	// Custom authentication for the client. This is useful if you want
@@ -109,6 +110,14 @@ func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeID
 func WithRefresh(hook func(email string) error) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookOnRefresh = hook
+	}
+}
+
+// WithExtra returns extra fields that be accessed on the returned Oauth Token.
+// These extra fields can override the default fields (id_token, access_token, etc).
+func WithMutateToken(mutateToken func(token map[string]interface{})) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookMutateToken = mutateToken
 	}
 }
 
@@ -620,6 +629,9 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			"token_type":    "Bearer",
 			"expires_in":    int64((time.Minute * 5).Seconds()),
 			"id_token":      f.encodeClaims(t, claims),
+		}
+		if f.hookMutateToken != nil {
+			f.hookMutateToken(token)
 		}
 		// Store the claims for the next refresh
 		f.refreshIDTokenClaims.Store(refreshToken, claims)

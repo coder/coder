@@ -7,7 +7,7 @@ import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
 import * as TypesGen from "api/typesGenerated";
 import range from "lodash/range";
-import { Permissions } from "xServices/auth/authXService";
+import { Permissions } from "components/AuthProvider/permissions";
 import { TemplateVersionFiles } from "utils/templateVersion";
 import { FileTree } from "utils/filetree";
 import { ProxyLatencyReport } from "contexts/useProxyLatency";
@@ -30,9 +30,9 @@ export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
 export const MockDeploymentDAUResponse: TypesGen.DAUsResponse = {
   tz_hour_offset: 0,
   entries: [
-    { date: "2022-08-27T00:00:00Z", amount: 1 },
-    { date: "2022-08-29T00:00:00Z", amount: 2 },
-    { date: "2022-08-30T00:00:00Z", amount: 1 },
+    { date: "2022-08-27T00:00:00Z", amount: 10 },
+    { date: "2022-08-29T00:00:00Z", amount: 22 },
+    { date: "2022-08-30T00:00:00Z", amount: 14 },
   ],
 };
 export const MockSessionToken: TypesGen.LoginWithPasswordResponse = {
@@ -379,6 +379,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+  archived: false,
 };
 
 export const MockTemplateVersion2: TypesGen.TemplateVersion = {
@@ -397,6 +398,7 @@ You can add instructions here
 
 [Some link info](https://coder.com)`,
   created_by: MockUser,
+  archived: false,
 };
 
 export const MockTemplateVersion3: TypesGen.TemplateVersion = {
@@ -410,6 +412,7 @@ export const MockTemplateVersion3: TypesGen.TemplateVersion = {
   readme: "README",
   created_by: MockUser,
   warnings: ["UNSUPPORTED_WORKSPACES"],
+  archived: false,
 };
 
 export const MockTemplate: TypesGen.Template = {
@@ -450,8 +453,8 @@ export const MockTemplate: TypesGen.Template = {
   failure_ttl_ms: 0,
   time_til_dormant_ms: 0,
   time_til_dormant_autodelete_ms: 0,
-  allow_user_autostart: false,
-  allow_user_autostop: false,
+  allow_user_autostart: true,
+  allow_user_autostop: true,
 };
 
 export const MockTemplateVersionFiles: TemplateVersionFiles = {
@@ -956,6 +959,7 @@ export const MockWorkspace: TypesGen.Workspace = {
     healthy: true,
     failing_agents: [],
   },
+  automatic_updates: "never",
 };
 
 export const MockStoppedWorkspace: TypesGen.Workspace = {
@@ -1924,10 +1928,23 @@ export const MockEntitlementsWithScheduling: TypesGen.Entitlements = {
   }),
 };
 
-export const MockExperiments: TypesGen.Experiment[] = [
-  "workspace_actions",
-  "moons",
-];
+export const MockEntitlementsWithUserLimit: TypesGen.Entitlements = {
+  errors: [],
+  warnings: [],
+  has_license: true,
+  require_telemetry: false,
+  trial: false,
+  refreshed_at: "2022-05-20T16:45:57.122Z",
+  features: withDefaultFeatures({
+    user_limit: {
+      enabled: true,
+      entitlement: "entitled",
+      limit: 25,
+    },
+  }),
+};
+
+export const MockExperiments: TypesGen.Experiment[] = ["moons"];
 
 export const MockAuditLog: TypesGen.AuditLog = {
   id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",

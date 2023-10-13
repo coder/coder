@@ -2,6 +2,7 @@ package externalauth_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
@@ -43,7 +44,7 @@ func TestRefreshToken(t *testing.T) {
 					return nil, xerrors.New("should not be called")
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.NoRefresh = true
 			},
 		})
@@ -74,7 +75,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, nil
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.NoRefresh = true
 			},
 		})
@@ -117,7 +118,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, xerrors.New(staticError)
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 			},
 		})
 
@@ -142,7 +143,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 			},
 		})
 
@@ -175,7 +176,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, oidctest.StatusError(http.StatusUnauthorized, xerrors.New(staticError))
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
@@ -205,7 +206,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, nil
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 		})
@@ -236,7 +237,7 @@ func TestRefreshToken(t *testing.T) {
 					return jwt.MapClaims{}, nil
 				}),
 			},
-			GitConfigOpt: func(cfg *externalauth.Config) {
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
 				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
 			},
 			DB: db,
@@ -259,6 +260,41 @@ func TestRefreshToken(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, updated.OAuthAccessToken, dbLink.OAuthAccessToken, "token is updated in the DB")
+	})
+
+	t.Run("WithExtra", func(t *testing.T) {
+		t.Parallel()
+
+		db := dbfake.New()
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithMutateToken(func(token map[string]interface{}) {
+					token["authed_user"] = map[string]interface{}{
+						"access_token": token["access_token"],
+					}
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderSlack.String()
+				cfg.ExtraTokenKeys = []string{"authed_user"}
+				cfg.ValidateURL = ""
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		// Force a refresh
+		link.OAuthExpiry = expired
+
+		updated, ok, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.True(t, updated.OAuthExtra.Valid)
+		extra := map[string]interface{}{}
+		require.NoError(t, json.Unmarshal(updated.OAuthExtra.RawMessage, &extra))
+		mapping, ok := extra["authed_user"].(map[string]interface{})
+		require.True(t, ok)
+		require.Equal(t, updated.OAuthAccessToken, mapping["access_token"])
 	})
 }
 
@@ -344,7 +380,7 @@ func TestConvertYAML(t *testing.T) {
 type testConfig struct {
 	FakeIDPOpts         []oidctest.FakeIDPOpt
 	CoderOIDCConfigOpts []func(cfg *coderd.OIDCConfig)
-	GitConfigOpt        func(cfg *externalauth.Config)
+	ExternalAuthOpt     func(cfg *externalauth.Config)
 	// If DB is passed in, the link will be inserted into the DB.
 	DB database.Store
 }
@@ -367,7 +403,7 @@ func setupOauth2Test(t *testing.T, settings testConfig) (*oidctest.FakeIDP, *ext
 		ID:           providerID,
 		ValidateURL:  fake.WellknownConfig().UserInfoURL,
 	}
-	settings.GitConfigOpt(config)
+	settings.ExternalAuthOpt(config)
 
 	oauthToken, err := fake.GenerateAuthenticatedToken(jwt.MapClaims{
 		"email": "test@coder.com",

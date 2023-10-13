@@ -199,9 +199,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
 			switch auth {
 			case "token":
-				token, err := inv.ParsedFlags().GetString(varAgentToken)
-				if err != nil {
-					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
+				token, _ := inv.ParsedFlags().GetString(varAgentToken)
+				if token == "" {
+					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+					if tokenFile != "" {
+						tokenBytes, err := os.ReadFile(tokenFile)
+						if err != nil {
+							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+						}
+						token = strings.TrimSpace(string(tokenBytes))
+					}
+				}
+				if token == "" {
+					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":

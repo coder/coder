@@ -172,6 +172,7 @@ func Workspace(t testing.TB, db database.Store, orig database.Workspace) databas
 		Name:              takeFirst(orig.Name, namesgenerator.GetRandomName(1)),
 		AutostartSchedule: orig.AutostartSchedule,
 		Ttl:               orig.Ttl,
+		AutomaticUpdates:  takeFirst(orig.AutomaticUpdates, database.AutomaticUpdatesNever),
 	})
 	require.NoError(t, err, "insert workspace")
 	return workspace
@@ -328,16 +329,16 @@ func GroupMember(t testing.TB, db database.Store, orig database.GroupMember) dat
 // ProvisionerJob is a bit more involved to get the values such as "completedAt", "startedAt", "cancelledAt" set.  ps
 // can be set to nil if you are SURE that you don't require a provisionerdaemon to acquire the job in your test.
 func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig database.ProvisionerJob) database.ProvisionerJob {
-	id := takeFirst(orig.ID, uuid.New())
+	jobID := takeFirst(orig.ID, uuid.New())
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
 	if !orig.StartedAt.Time.IsZero() {
 		if orig.Tags == nil {
 			orig.Tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
-		orig.Tags[id.String()] = "true"
+		orig.Tags[jobID.String()] = "true"
 	}
-	jobID := takeFirst(orig.ID, uuid.New())
+
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
 		ID:             jobID,
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
@@ -365,6 +366,8 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 			WorkerID:  uuid.NullUUID{},
 		})
 		require.NoError(t, err)
+		// There is no easy way to make sure we acquire the correct job.
+		require.Equal(t, jobID, job.ID, "acquired incorrect job")
 	}
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
@@ -511,6 +514,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 }
 
 func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAuthLink) database.ExternalAuthLink {
+	msg := takeFirst(&orig.OAuthExtra, &pqtype.NullRawMessage{})
 	link, err := db.InsertExternalAuthLink(genCtx, database.InsertExternalAuthLinkParams{
 		ProviderID:             takeFirst(orig.ProviderID, uuid.New().String()),
 		UserID:                 takeFirst(orig.UserID, uuid.New()),
@@ -521,6 +525,7 @@ func ExternalAuthLink(t testing.TB, db database.Store, orig database.ExternalAut
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
 		CreatedAt:              takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:              takeFirst(orig.UpdatedAt, dbtime.Now()),
+		OAuthExtra:             *msg,
 	})
 
 	require.NoError(t, err, "insert external auth link")

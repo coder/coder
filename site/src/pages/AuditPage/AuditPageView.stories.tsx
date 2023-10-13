@@ -24,7 +24,7 @@ const defaultFilterProps = getDefaultFilterProps<FilterProps>({
 });
 
 const meta: Meta<typeof AuditPageView> = {
-  title: "pages/AuditPageView",
+  title: "pages/AuditPage",
   component: AuditPageView,
   args: {
     auditLogs: [MockAuditLog, MockAuditLog2],

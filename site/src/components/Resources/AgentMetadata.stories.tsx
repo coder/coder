@@ -28,7 +28,7 @@ const descriptionDefaults: WorkspaceAgentMetadataDescription = {
   script: "some command",
 };
 
-export const Example: Story = {
+const Example: Story = {
   args: {
     metadata: [
       {
@@ -105,3 +105,5 @@ export const Example: Story = {
     ],
   },
 };
+
+export { Example as AgentMetadata };

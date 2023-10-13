@@ -12,7 +12,7 @@ import {
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 

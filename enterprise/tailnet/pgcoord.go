@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -143,10 +144,27 @@ func NewPGCoord(ctx context.Context, logger slog.Logger, ps pubsub.Pubsub, store
 	return c, nil
 }
 
+// This is copied from codersdk because importing it here would cause an import
+// cycle. This is just temporary until wsconncache is phased out.
+var legacyAgentIP = netip.MustParseAddr("fd7a:115c:a1e0:49d6:b259:b7ac:b1b2:48f4")
+
 func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
 	ma := (&agpl.MultiAgent{
-		ID:                id,
-		AgentIsLegacyFunc: func(agentID uuid.UUID) bool { return true },
+		ID: id,
+		AgentIsLegacyFunc: func(agentID uuid.UUID) bool {
+			if n := c.Node(agentID); n == nil {
+				// If we don't have the node at all assume it's legacy for
+				// safety.
+				return true
+			} else if len(n.Addresses) > 0 && n.Addresses[0].Addr() == legacyAgentIP {
+				// An agent is determined to be "legacy" if it's first IP is the
+				// legacy IP. Agents with only the legacy IP aren't compatible
+				// with single_tailnet and must be routed through wsconncache.
+				return true
+			} else {
+				return false
+			}
+		},
 		OnSubscribe: func(enq agpl.Queue, agent uuid.UUID) (*agpl.Node, error) {
 			err := c.addSubscription(enq, agent)
 			return c.Node(agent), err

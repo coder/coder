@@ -1,4 +1,4 @@
-import { test } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   createTemplate,
   createWorkspace,
@@ -118,4 +118,26 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
     buildParameters,
   );
   await verifyParameters(page, workspaceName, richParameters, buildParameters);
+});
+
+test("create workspace with disable_param search params", async ({ page }) => {
+  const richParameters: RichParameter[] = [
+    firstParameter, // mutable
+    secondParameter, //immutable
+  ];
+
+  const templateName = await createTemplate(
+    page,
+    echoResponsesWithParameters(richParameters),
+  );
+
+  await page.goto(
+    `/templates/${templateName}/workspace?disable_params=first_parameter,second_parameter`,
+    {
+      waitUntil: "domcontentloaded",
+    },
+  );
+
+  await expect(page.getByLabel(/First parameter/i)).toBeDisabled();
+  await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
 });

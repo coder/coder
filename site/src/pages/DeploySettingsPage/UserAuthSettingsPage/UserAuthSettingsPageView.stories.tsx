@@ -13,7 +13,7 @@ const ghGroup: ClibaseGroup = {
 };
 
 const meta: Meta<typeof UserAuthSettingsPageView> = {
-  title: "pages/UserAuthSettingsPageView",
+  title: "pages/DeploySettingsPage/UserAuthSettingsPageView",
   component: UserAuthSettingsPageView,
   args: {
     options: [

@@ -50,6 +50,7 @@ func (t SignedToken) MatchesRequest(req Request) bool {
 
 	return t.AccessMethod == req.AccessMethod &&
 		tokenBasePath == reqBasePath &&
+		t.Prefix == req.Prefix &&
 		t.UsernameOrID == req.UsernameOrID &&
 		t.WorkspaceNameOrID == req.WorkspaceNameOrID &&
 		t.AgentNameOrID == req.AgentNameOrID &&

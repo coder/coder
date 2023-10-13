@@ -14,7 +14,7 @@ import {
   UserLoginType,
 } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation } from "react-query";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { getErrorMessage } from "api/errors";
 import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";

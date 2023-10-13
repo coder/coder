@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { buildInfo } from "api/queries/buildInfo";
 import { experiments } from "api/queries/experiments";
 import { entitlements } from "api/queries/entitlements";
@@ -109,14 +109,4 @@ export const useDashboard = (): DashboardProviderValue => {
   }
 
   return context;
-};
-
-export const useIsWorkspaceActionsEnabled = (): boolean => {
-  const { entitlements, experiments } = useDashboard();
-  const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled;
-  // This check can be removed when https://github.com/coder/coder/milestone/19
-  // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions");
-  return allowWorkspaceActions && allowAdvancedScheduling;
 };

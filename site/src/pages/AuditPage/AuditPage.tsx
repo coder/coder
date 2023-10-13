@@ -11,7 +11,7 @@ import { AuditPageView } from "./AuditPageView";
 import { useUserFilterMenu } from "components/Filter/UserFilter";
 import { useFilter } from "components/Filter/filter";
 import { usePagination } from "hooks";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { getAuditLogs } from "api/api";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 

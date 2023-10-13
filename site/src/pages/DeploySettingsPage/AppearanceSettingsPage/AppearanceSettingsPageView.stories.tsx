@@ -2,7 +2,7 @@ import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof AppearanceSettingsPageView> = {
-  title: "pages/AppearanceSettingsPageView",
+  title: "pages/DeploySettingsPage/AppearanceSettingsPageView",
   component: AppearanceSettingsPageView,
   args: {
     appearance: {

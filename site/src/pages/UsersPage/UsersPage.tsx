@@ -13,7 +13,7 @@ import { UsersPageView } from "./UsersPageView";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { useFilter } from "components/Filter/filter";
 import { useDashboard } from "components/Dashboard/DashboardProvider";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { roles } from "api/queries/roles";
 import { deploymentConfig } from "api/queries/deployment";
 import { prepareQuery } from "utils/filters";
@@ -49,7 +49,7 @@ export const UsersPage: FC<{ children?: ReactNode }> = () => {
     }),
   );
   const { updateUsers: canEditUsers, viewDeploymentValues } = usePermissions();
-  const rolesQuery = useQuery({ ...roles(), enabled: canEditUsers });
+  const rolesQuery = useQuery(roles());
   const { data: deploymentValues } = useQuery({
     ...deploymentConfig(),
     enabled: viewDeploymentValues,

@@ -5,12 +5,14 @@ import (
 	"math/rand"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/scaletest/dashboard"
@@ -46,16 +48,28 @@ func Test_Run(t *testing.T) {
 		IgnoreErrors: true,
 	})
 	m := &testMetrics{}
+	var (
+		waitLoadedCalled atomic.Bool
+		screenshotCalled atomic.Bool
+	)
 	cfg := dashboard.Config{
 		Interval: 500 * time.Millisecond,
 		Jitter:   100 * time.Millisecond,
 		Logger:   log,
 		Headless: true,
-		ActionFunc: func(_ context.Context, rnd func(int) int) (dashboard.Label, dashboard.Action, error) {
+		WaitLoaded: func(_ context.Context, _ time.Time) error {
+			waitLoadedCalled.Store(true)
+			return nil
+		},
+		ActionFunc: func(_ context.Context, _ slog.Logger, rnd func(int) int, _ time.Time) (dashboard.Label, dashboard.Action, error) {
 			if rnd(2) == 0 {
 				return "fails", failAction, nil
 			}
 			return "succeeds", successAction, nil
+		},
+		Screenshot: func(_ context.Context, name string) (string, error) {
+			screenshotCalled.Store(true)
+			return "/fake/path/to/" + name + ".png", nil
 		},
 		RandIntn: rg.Intn,
 	}

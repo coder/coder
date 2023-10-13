@@ -350,7 +350,7 @@ export const templateVersionEditorMachine = createMachine(
           tar.addFolder(fullPath);
         });
         const blob = (await tar.write()) as Blob;
-        return API.uploadTemplateFile(new File([blob], "template.tar"));
+        return API.uploadFile(new File([blob], "template.tar"));
       },
       createBuild: (ctx) => {
         if (!ctx.uploadResponse) {

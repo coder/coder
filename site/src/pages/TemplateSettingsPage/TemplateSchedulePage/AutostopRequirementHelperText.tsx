@@ -1,10 +1,5 @@
 import { Template } from "api/typesGenerated";
-
-export type TemplateAutostopRequirementDaysValue =
-  | "off"
-  | "daily"
-  | "saturday"
-  | "sunday";
+import { TemplateAutostopRequirementDaysValue } from "utils/schedule";
 
 const autostopRequirementDescriptions = {
   off: "Workspaces are not required to stop periodically.",
@@ -29,29 +24,6 @@ export const convertAutostopRequirementDaysValue = (
 
   // On unsupported values we default to "off".
   return "off";
-};
-
-export const calculateAutostopRequirementDaysValue = (
-  value: TemplateAutostopRequirementDaysValue,
-): Template["autostop_requirement"]["days_of_week"] => {
-  switch (value) {
-    case "daily":
-      return [
-        "monday",
-        "tuesday",
-        "wednesday",
-        "thursday",
-        "friday",
-        "saturday",
-        "sunday",
-      ];
-    case "saturday":
-      return ["saturday"];
-    case "sunday":
-      return ["sunday"];
-  }
-
-  return [];
 };
 
 export const AutostopRequirementDaysHelperText = ({

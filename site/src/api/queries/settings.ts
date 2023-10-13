@@ -3,7 +3,7 @@ import {
   type UserQuietHoursScheduleResponse,
   type UpdateUserQuietHoursScheduleRequest,
 } from "api/typesGenerated";
-import { type QueryClient, type QueryOptions } from "@tanstack/react-query";
+import { type QueryClient, type QueryOptions } from "react-query";
 
 export const userQuietHoursScheduleKey = (userId: string) => [
   "settings",

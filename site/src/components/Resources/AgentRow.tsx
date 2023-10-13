@@ -9,10 +9,7 @@ import {
   WorkspaceAgentLogSource,
   WorkspaceAgentMetadata,
 } from "api/typesGenerated";
-import {
-  CloseDropdown,
-  OpenDropdown,
-} from "components/DropdownArrows/DropdownArrows";
+import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { VSCodeDesktopButton } from "components/Resources/VSCodeDesktopButton/VSCodeDesktopButton";
 import {
@@ -443,7 +440,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   setShowLogs((v) => !v);
                 }}
               >
-                <CloseDropdown />
+                <DropdownArrow close />
                 Hide logs
               </button>
             ) : (
@@ -456,7 +453,7 @@ export const AgentRow: FC<AgentRowProps> = ({
                   setShowLogs((v) => !v);
                 }}
               >
-                <OpenDropdown />
+                <DropdownArrow />
                 Show logs
               </button>
             )}

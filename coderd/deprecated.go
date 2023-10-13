@@ -56,3 +56,17 @@ func (api *API) patchWorkspaceAgentLogsDeprecated(rw http.ResponseWriter, r *htt
 func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Request) {
 	api.workspaceAgentLogs(rw, r)
 }
+
+// @Summary Removed: Get workspace agent git auth
+// @ID removed-get-workspace-agent-git-auth
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param match query string true "Match"
+// @Param id query string true "Provider ID"
+// @Param listen query bool false "Wait for a new token to be issued"
+// @Success 200 {object} agentsdk.ExternalAuthResponse
+// @Router /workspaceagents/me/gitauth [get]
+func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
+	api.workspaceAgentsExternalAuth(rw, r)
+}

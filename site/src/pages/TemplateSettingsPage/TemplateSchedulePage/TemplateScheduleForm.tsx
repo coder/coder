@@ -1,8 +1,15 @@
 import TextField from "@mui/material/TextField";
-import { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import MenuItem from "@mui/material/MenuItem";
+import Link from "@mui/material/Link";
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Switch from "@mui/material/Switch";
 import { FormikTouched, useFormik } from "formik";
 import { FC, ChangeEvent, useState, useEffect } from "react";
+import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { getFormHelpers } from "utils/formUtils";
+import { docs } from "utils/docs";
+import { calculateAutostopRequirementDaysValue } from "utils/schedule";
 import {
   FormSection,
   HorizontalForm,
@@ -10,11 +17,6 @@ import {
   FormFields,
 } from "components/Form/Form";
 import { Stack } from "components/Stack/Stack";
-import { makeStyles } from "@mui/styles";
-import Link from "@mui/material/Link";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Switch from "@mui/material/Switch";
 import {
   useWorkspacesToGoDormant,
   useWorkspacesToBeDeleted,
@@ -27,15 +29,13 @@ import {
   FailureTTLHelperText,
   MaxTTLHelperText,
 } from "./TTLHelperText";
-import { docs } from "utils/docs";
-import { ScheduleDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import MenuItem from "@mui/material/MenuItem";
+import { ScheduleDialog } from "./ScheduleDialog";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
-  calculateAutostopRequirementDaysValue,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
+import { useTheme } from "@emotion/react";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -50,7 +50,6 @@ export interface TemplateScheduleForm {
   isSubmitting: boolean;
   error?: unknown;
   allowAdvancedScheduling: boolean;
-  allowWorkspaceActions: boolean;
   allowAutostopRequirement: boolean;
   // Helpful to show field errors on Storybook
   initialTouched?: FormikTouched<UpdateTemplateMeta>;
@@ -62,7 +61,6 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   onCancel,
   error,
   allowAdvancedScheduling,
-  allowWorkspaceActions,
   allowAutostopRequirement,
   isSubmitting,
   initialTouched,
@@ -145,7 +143,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
     form,
     error,
   );
-  const styles = useStyles();
+  const theme = useTheme();
 
   const now = new Date();
   const weekFromNow = new Date(now);
@@ -315,7 +313,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         title="Schedule"
         description="Define when workspaces created from this template are stopped."
       >
-        <Stack direction="row" className={styles.ttlFields}>
+        <Stack direction="row" css={styles.ttlFields}>
           <TextField
             {...getFieldHelpers(
               "default_ttl_ms",
@@ -356,7 +354,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           title="Autostop Requirement"
           description="Define when workspaces created from this template are stopped periodically to enforce template updates and ensure idle workspaces are stopped."
         >
-          <Stack direction="row" className={styles.ttlFields}>
+          <Stack direction="row" css={styles.ttlFields}>
             <TextField
               {...getFieldHelpers(
                 "autostop_requirement_days_of_week",
@@ -450,7 +448,12 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               <strong>
                 Allow users to customize autostop duration for workspaces.
               </strong>
-              <span className={styles.optionDescription}>
+              <span
+                css={{
+                  fontSize: 12,
+                  color: theme.palette.text.secondary,
+                }}
+              >
                 Workspaces will always use the default TTL if this is set.
                 Regardless of this setting, workspaces can only stay on for the
                 max lifetime.
@@ -459,7 +462,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           </Stack>
         </Stack>
       </FormSection>
-      {allowAdvancedScheduling && allowWorkspaceActions && (
+      {allowAdvancedScheduling && (
         <>
           <FormSection
             title="Failure Cleanup"
@@ -616,12 +619,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   ttlFields: {
     width: "100%",
   },
-  optionDescription: {
-    fontSize: 12,
-    color: theme.palette.text.secondary,
-  },
-}));
+};

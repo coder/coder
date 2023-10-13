@@ -16,6 +16,7 @@ exceptions=(
 	"do.png"
 	"gcp.png"
 	"k8s.png"
+	"ruby.png"
 )
 
 function is_exception() {

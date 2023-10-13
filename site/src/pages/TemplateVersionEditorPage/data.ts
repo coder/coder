@@ -1,4 +1,4 @@
-import { useQuery, UseQueryOptions } from "@tanstack/react-query";
+import { useQuery, UseQueryOptions } from "react-query";
 import { getFile, getTemplateByName, getTemplateVersionByName } from "api/api";
 import { TarReader } from "utils/tar";
 import { createTemplateVersionFileTree } from "utils/templateVersion";

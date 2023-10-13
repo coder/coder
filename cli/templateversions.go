@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/pretty"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
@@ -29,6 +30,8 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 		},
 		Children: []*clibase.Cmd{
 			r.templateVersionsList(),
+			r.archiveTemplateVersion(),
+			r.unarchiveTemplateVersion(),
 		},
 	}
 
@@ -36,19 +39,59 @@ func (r *RootCmd) templateVersions() *clibase.Cmd {
 }
 
 func (r *RootCmd) templateVersionsList() *clibase.Cmd {
+	defaultColumns := []string{
+		"Name",
+		"Created At",
+		"Created By",
+		"Status",
+		"Active",
+	}
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]templateVersionRow{}, nil),
+		cliui.TableFormat([]templateVersionRow{}, defaultColumns),
 		cliui.JSONFormat(),
 	)
 	client := new(codersdk.Client)
+
+	var includeArchived clibase.Bool
 
 	cmd := &clibase.Cmd{
 		Use: "list <template>",
 		Middleware: clibase.Chain(
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
+			func(next clibase.HandlerFunc) clibase.HandlerFunc {
+				return func(i *clibase.Invocation) error {
+					// This is the only way to dynamically add the "archived"
+					// column if '--include-archived' is true.
+					// It does not make sense to show this column if the
+					// flag is false.
+					if includeArchived {
+						for _, opt := range i.Command.Options {
+							if opt.Flag == "column" {
+								if opt.ValueSource == clibase.ValueSourceDefault {
+									v, ok := opt.Value.(*clibase.StringArray)
+									if ok {
+										// Add the extra new default column.
+										*v = append(*v, "Archived")
+									}
+								}
+								break
+							}
+						}
+					}
+					return next(i)
+				}
+			},
 		),
 		Short: "List all the versions of the specified template",
+		Options: clibase.OptionSet{
+			{
+				Name:        "include-archived",
+				Description: "Include archived versions in the result list.",
+				Flag:        "include-archived",
+				Value:       &includeArchived,
+			},
+		},
 		Handler: func(inv *clibase.Invocation) error {
 			organization, err := CurrentOrganization(inv, client)
 			if err != nil {
@@ -59,7 +102,8 @@ func (r *RootCmd) templateVersionsList() *clibase.Cmd {
 				return xerrors.Errorf("get template by name: %w", err)
 			}
 			req := codersdk.TemplateVersionsByTemplateRequest{
-				TemplateID: template.ID,
+				TemplateID:      template.ID,
+				IncludeArchived: includeArchived.Value(),
 			}
 
 			versions, err := client.TemplateVersionsByTemplate(inv.Context(), req)
@@ -92,6 +136,7 @@ type templateVersionRow struct {
 	CreatedBy string    `json:"-" table:"created by"`
 	Status    string    `json:"-" table:"status"`
 	Active    string    `json:"-" table:"active"`
+	Archived  string    `json:"-" table:"archived"`
 }
 
 // templateVersionsToRows converts a list of template versions to a list of rows
@@ -104,6 +149,11 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			activeStatus = cliui.Keyword("Active")
 		}
 
+		archivedStatus := ""
+		if templateVersion.Archived {
+			archivedStatus = pretty.Sprint(cliui.DefaultStyles.Warn, "Archived")
+		}
+
 		rows[i] = templateVersionRow{
 			TemplateVersion: templateVersion,
 			Name:            templateVersion.Name,
@@ -111,6 +161,7 @@ func templateVersionsToRows(activeVersionID uuid.UUID, templateVersions ...coder
 			CreatedBy:       templateVersion.CreatedBy.Username,
 			Status:          strings.Title(string(templateVersion.Job.Status)),
 			Active:          activeStatus,
+			Archived:        archivedStatus,
 		}
 	}
 

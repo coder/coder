@@ -2,6 +2,7 @@ import type { PropsWithChildren, FC } from "react";
 import Tooltip from "@mui/material/Tooltip";
 import { type Interpolation, type Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
+import { colors } from "theme/colors";
 
 const styles = {
   badge: (theme) => ({
@@ -109,10 +110,11 @@ export const AlphaBadge: FC = () => {
     <span
       css={[
         styles.badge,
-        (theme) => ({
-          border: `1px solid ${theme.palette.error.light}`,
-          backgroundColor: theme.palette.error.dark,
-        }),
+        {
+          border: `1px solid ${colors.violet[10]}`,
+          backgroundColor: colors.violet[14],
+          color: colors.violet[1],
+        },
       ]}
     >
       Alpha

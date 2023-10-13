@@ -28,10 +28,11 @@ func TestPortForward_None(t *testing.T) {
 	t.Parallel()
 
 	client := coderdtest.New(t, nil)
-	_ = coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	inv, root := clitest.New(t, "port-forward", "blah")
-	clitest.SetupConfig(t, client, root)
+	clitest.SetupConfig(t, member, root)
 	pty := ptytest.New(t).Attach(inv)
 	inv.Stderr = pty.Output()
 
@@ -132,8 +133,9 @@ func TestPortForward(t *testing.T) {
 	// non-parallel setup).
 	var (
 		client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-		user      = coderdtest.CreateFirstUser(t, client)
-		workspace = runAgent(t, client, user.UserID)
+		admin     = coderdtest.CreateFirstUser(t, client)
+		member, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+		workspace = runAgent(t, client, member)
 	)
 
 	for _, c := range cases {
@@ -151,7 +153,7 @@ func TestPortForward(t *testing.T) {
 			// Launch port-forward in a goroutine so we can start dialing
 			// the "local" listener.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, member, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -198,7 +200,7 @@ func TestPortForward(t *testing.T) {
 			// Launch port-forward in a goroutine so we can start dialing
 			// the "local" listeners.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
-			clitest.SetupConfig(t, client, root)
+			clitest.SetupConfig(t, member, root)
 			pty := ptytest.New(t)
 			inv.Stdin = pty.Input()
 			inv.Stdout = pty.Output()
@@ -253,7 +255,7 @@ func TestPortForward(t *testing.T) {
 		// Launch port-forward in a goroutine so we can start dialing
 		// the "local" listeners.
 		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, member, root)
 		pty := ptytest.New(t).Attach(inv)
 		inv.Stderr = pty.Output()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -294,33 +296,33 @@ func TestPortForward(t *testing.T) {
 // runAgent creates a fake workspace and starts an agent locally for that
 // workspace. The agent will be cleaned up on test completion.
 // nolint:unused
-func runAgent(t *testing.T, client *codersdk.Client, userID uuid.UUID) codersdk.Workspace {
+func runAgent(t *testing.T, adminClient, userClient *codersdk.Client) codersdk.Workspace {
 	ctx := context.Background()
-	user, err := client.User(ctx, userID.String())
+	user, err := userClient.User(ctx, codersdk.Me)
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
 
 	// Setup template
 	agentToken := uuid.NewString()
-	version := coderdtest.CreateTemplateVersion(t, client, orgID, &echo.Responses{
+	version := coderdtest.CreateTemplateVersion(t, adminClient, orgID, &echo.Responses{
 		Parse:          echo.ParseComplete,
 		ProvisionPlan:  echo.PlanComplete,
 		ProvisionApply: echo.ProvisionApplyWithAgent(agentToken),
 	})
 
 	// Create template and workspace
-	template := coderdtest.CreateTemplate(t, client, orgID, version.ID)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, client, orgID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	template := coderdtest.CreateTemplate(t, adminClient, orgID, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, orgID, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, adminClient, workspace.LatestBuild.ID)
 
-	_ = agenttest.New(t, client.URL, agentToken,
+	_ = agenttest.New(t, adminClient.URL, agentToken,
 		func(o *agent.Options) {
 			o.SSHMaxTimeout = 60 * time.Second
 		},
 	)
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	coderdtest.AwaitWorkspaceAgents(t, adminClient, workspace.ID)
 
 	return workspace
 }

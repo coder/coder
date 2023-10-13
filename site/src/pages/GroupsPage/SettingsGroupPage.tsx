@@ -3,7 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useNavigate, useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import SettingsGroupPageView from "./SettingsGroupPageView";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { group, patchGroup } from "api/queries/groups";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { getErrorMessage } from "api/errors";

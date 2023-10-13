@@ -17,6 +17,7 @@ export interface VersionRowProps {
   isActive: boolean;
   isLatest: boolean;
   onPromoteClick?: (templateVersionId: string) => void;
+  onArchiveClick?: (templateVersionId: string) => void;
 }
 
 export const VersionRow: React.FC<VersionRowProps> = ({
@@ -24,6 +25,7 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   isActive,
   isLatest,
   onPromoteClick,
+  onArchiveClick,
 }) => {
   const styles = useStyles();
   const navigate = useNavigate();
@@ -31,6 +33,8 @@ export const VersionRow: React.FC<VersionRowProps> = ({
   const clickableProps = useClickableTableRow({
     onClick: () => navigate(version.name),
   });
+
+  const jobStatus = version.job.status;
 
   return (
     <TimelineEntry
@@ -78,14 +82,40 @@ export const VersionRow: React.FC<VersionRowProps> = ({
           <Stack direction="row" alignItems="center" spacing={2}>
             {isActive && <Pill text="Active" type="success" />}
             {isLatest && <Pill text="Newest" type="info" />}
-            {onPromoteClick && (
+            {jobStatus === "pending" && (
+              <Pill text={<>Pending&hellip;</>} type="warning" lightBorder />
+            )}
+            {jobStatus === "running" && (
+              <Pill text={<>Building&hellip;</>} type="warning" lightBorder />
+            )}
+            {(jobStatus === "canceling" || jobStatus === "canceled") && (
+              <Pill text="Canceled" type="neutral" lightBorder />
+            )}
+            {jobStatus === "failed" && <Pill text="Failed" type="error" />}
+            {jobStatus === "failed" ? (
               <Button
                 className={styles.promoteButton}
-                disabled={isActive}
+                disabled={isActive || version.archived}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  onPromoteClick(version.id);
+                  if (onArchiveClick) {
+                    onArchiveClick(version.id);
+                  }
+                }}
+              >
+                Archive&hellip;
+              </Button>
+            ) : (
+              <Button
+                className={styles.promoteButton}
+                disabled={isActive || jobStatus !== "succeeded"}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (onPromoteClick) {
+                    onPromoteClick(version.id);
+                  }
                 }}
               >
                 Promote&hellip;

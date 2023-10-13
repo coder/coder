@@ -7,7 +7,7 @@ import { RequirePermission } from "components/RequirePermission/RequirePermissio
 import { usePermissions } from "hooks/usePermissions";
 import { Outlet } from "react-router-dom";
 import { DeploymentConfig } from "api/api";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery } from "react-query";
 import { deploymentConfig } from "api/queries/deployment";
 
 type DeploySettingsContextValue = {

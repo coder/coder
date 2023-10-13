@@ -207,6 +207,7 @@ func provisionEnv(
 	}
 	for _, extAuth := range externalAuth {
 		env = append(env, provider.GitAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
+		env = append(env, provider.ExternalAuthAccessTokenEnvironmentVariable(extAuth.Id)+"="+extAuth.AccessToken)
 	}
 
 	if config.ProvisionerLogLevel != "" {

@@ -11,7 +11,7 @@ import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 import type { Meta, StoryObj } from "@storybook/react";
 
 const meta: Meta<typeof TemplateVariablesPageView> = {
-  title: "pages/TemplateVariablesPageView",
+  title: "pages/TemplateSettingsPage/TemplateVariablesPageView",
   component: TemplateVariablesPageView,
 };
 

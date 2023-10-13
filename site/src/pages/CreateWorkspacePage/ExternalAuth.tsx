@@ -2,10 +2,9 @@ import ReplayIcon from "@mui/icons-material/Replay";
 import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import Tooltip from "@mui/material/Tooltip";
-import { makeStyles } from "@mui/styles";
+import { type FC } from "react";
 import { LoadingButton } from "components/LoadingButton/LoadingButton";
 import { Stack } from "components/Stack/Stack";
-import { FC } from "react";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 
 export interface ExternalAuthProps {
@@ -29,10 +28,6 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
     error,
   } = props;
 
-  const styles = useStyles({
-    error: typeof error !== "undefined",
-  });
-
   return (
     <Tooltip
       title={authenticated && `${displayName} has already been connected.`}
@@ -52,7 +47,7 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
             />
           }
           disabled={authenticated}
-          className={styles.button}
+          css={{ height: 52 }}
           color={error ? "error" : undefined}
           fullWidth
           onClick={(event) => {
@@ -80,9 +75,3 @@ export const ExternalAuth: FC<ExternalAuthProps> = (props) => {
     </Tooltip>
   );
 };
-
-const useStyles = makeStyles(() => ({
-  button: {
-    height: 52,
-  },
-}));

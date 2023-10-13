@@ -22,8 +22,7 @@ export const WeekPicker = ({
 }) => {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
-  // Why +1? If you get the week 1 and week 2 the diff is 1, but there are 2 weeks
-  const numberOfWeeks = differenceInWeeks(value.endDate, value.startDate) + 1;
+  const numberOfWeeks = differenceInWeeks(value.endDate, value.startDate);
 
   const handleClose = () => {
     setOpen(false);

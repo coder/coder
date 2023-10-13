@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -355,6 +354,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			DormantAt:         w.DormantAt,
 			DeletingAt:        w.DeletingAt,
 			Count:             count,
+			AutomaticUpdates:  w.AutomaticUpdates,
 		}
 
 		for _, t := range q.templates {
@@ -604,16 +604,6 @@ func (q *FakeQuerier) getGroupByIDNoLock(_ context.Context, id uuid.UUID) (datab
 	return database.Group{}, sql.ErrNoRows
 }
 
-// isNull is only used in dbfake, so reflect is ok. Use this to make the logic
-// look more similar to the postgres.
-func isNull(v interface{}) bool {
-	return !isNotNull(v)
-}
-
-func isNotNull(v interface{}) bool {
-	return reflect.ValueOf(v).FieldByName("Valid").Bool()
-}
-
 // ErrUnimplemented is returned by methods only used by the enterprise/tailnet.pgCoord.  This coordinator explicitly
 // depends on  postgres triggers that announce changes on the pubsub.  Implementing support for this in the fake
 // database would  strongly couple the FakeQuerier to the pubsub, which is undesirable.  Furthermore, it makes little
@@ -695,6 +685,36 @@ func minTime(t, u time.Time) time.Time {
 	return u
 }
 
+func provisonerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatus {
+	if isNotNull(j.CompletedAt) {
+		if j.Error.String != "" {
+			return database.ProvisionerJobStatusFailed
+		}
+		if isNotNull(j.CanceledAt) {
+			return database.ProvisionerJobStatusCanceled
+		}
+		return database.ProvisionerJobStatusSucceeded
+	}
+
+	if isNotNull(j.CanceledAt) {
+		return database.ProvisionerJobStatusCanceling
+	}
+	if isNull(j.StartedAt) {
+		return database.ProvisionerJobStatusPending
+	}
+	return database.ProvisionerJobStatusRunning
+}
+
+// isNull is only used in dbfake, so reflect is ok. Use this to make the logic
+// look more similar to the postgres.
+func isNull(v interface{}) bool {
+	return !isNotNull(v)
+}
+
+func isNotNull(v interface{}) bool {
+	return reflect.ValueOf(v).FieldByName("Valid").Bool()
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -748,6 +768,7 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		provisionerJob.StartedAt = arg.StartedAt
 		provisionerJob.UpdatedAt = arg.StartedAt.Time
 		provisionerJob.WorkerID = arg.WorkerID
+		provisionerJob.JobStatus = provisonerJobStatus(provisionerJob)
 		q.provisionerJobs[index] = provisionerJob
 		return provisionerJob, nil
 	}
@@ -824,6 +845,82 @@ func (q *FakeQuerier) AllUserIDs(_ context.Context) ([]uuid.UUID, error) {
 		userIDs[idx] = q.users[idx].ID
 	}
 	return userIDs, nil
+}
+
+func (q *FakeQuerier) ArchiveUnusedTemplateVersions(_ context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	type latestBuild struct {
+		Number  int32
+		Version uuid.UUID
+	}
+	latest := make(map[uuid.UUID]latestBuild)
+
+	for _, b := range q.workspaceBuilds {
+		v, ok := latest[b.WorkspaceID]
+		if ok || b.BuildNumber < v.Number {
+			// Not the latest
+			continue
+		}
+		// Ignore deleted workspaces.
+		if b.Transition == database.WorkspaceTransitionDelete {
+			continue
+		}
+		latest[b.WorkspaceID] = latestBuild{
+			Number:  b.BuildNumber,
+			Version: b.TemplateVersionID,
+		}
+	}
+
+	usedVersions := make(map[uuid.UUID]bool)
+	for _, l := range latest {
+		usedVersions[l.Version] = true
+	}
+	for _, tpl := range q.templates {
+		usedVersions[tpl.ActiveVersionID] = true
+	}
+
+	var archived []uuid.UUID
+	for i, v := range q.templateVersions {
+		if arg.TemplateVersionID != uuid.Nil {
+			if v.ID != arg.TemplateVersionID {
+				continue
+			}
+		}
+		if v.Archived {
+			continue
+		}
+
+		if _, ok := usedVersions[v.ID]; !ok {
+			var job *database.ProvisionerJob
+			for i, j := range q.provisionerJobs {
+				if v.JobID == j.ID {
+					job = &q.provisionerJobs[i]
+					break
+				}
+			}
+
+			if arg.JobStatus.Valid {
+				if job.JobStatus != arg.JobStatus.ProvisionerJobStatus {
+					continue
+				}
+			}
+
+			if job.JobStatus == database.ProvisionerJobStatusRunning || job.JobStatus == database.ProvisionerJobStatusPending {
+				continue
+			}
+
+			v.Archived = true
+			q.templateVersions[i] = v
+			archived = append(archived, v.ID)
+		}
+	}
+
+	return archived, nil
 }
 
 func (*FakeQuerier) CleanTailnetCoordinators(_ context.Context) error {
@@ -2739,6 +2836,9 @@ func (q *FakeQuerier) GetTemplateVersionsByTemplateID(_ context.Context, arg dat
 		if templateVersion.TemplateID.UUID != arg.TemplateID {
 			continue
 		}
+		if arg.Archived.Valid && arg.Archived.Bool != templateVersion.Archived {
+			continue
+		}
 		version = append(version, q.templateVersionWithUserNoLock(templateVersion))
 	}
 
@@ -4078,7 +4178,7 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context) ([
 		if err != nil {
 			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
 		}
-		if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed && build.Transition == database.WorkspaceTransitionStart {
+		if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed && build.Transition == database.WorkspaceTransitionStart {
 			workspaces = append(workspaces, workspace)
 			continue
 		}
@@ -4230,6 +4330,7 @@ func (q *FakeQuerier) InsertExternalAuthLink(_ context.Context, arg database.Ins
 		OAuthRefreshToken:      arg.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: arg.OAuthRefreshTokenKeyID,
 		OAuthExpiry:            arg.OAuthExpiry,
+		OAuthExtra:             arg.OAuthExtra,
 	}
 	q.externalAuthLinks = append(q.externalAuthLinks, gitAuthLink)
 	return gitAuthLink, nil
@@ -4469,6 +4570,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		Input:          arg.Input,
 		Tags:           arg.Tags,
 	}
+	job.JobStatus = provisonerJobStatus(job)
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil
 }
@@ -4749,6 +4851,7 @@ func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		AutostartSchedule: arg.AutostartSchedule,
 		Ttl:               arg.Ttl,
 		LastUsedAt:        arg.LastUsedAt,
+		AutomaticUpdates:  arg.AutomaticUpdates,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
@@ -5242,6 +5345,26 @@ func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {
 	return false, xerrors.New("TryAcquireLock must only be called within a transaction")
 }
 
+func (q *FakeQuerier) UnarchiveTemplateVersion(_ context.Context, arg database.UnarchiveTemplateVersionParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, v := range q.data.templateVersions {
+		if v.ID == arg.TemplateVersionID {
+			v.Archived = false
+			v.UpdatedAt = arg.UpdatedAt
+			q.data.templateVersions[i] = v
+			return nil
+		}
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateAPIKeyByID(_ context.Context, arg database.UpdateAPIKeyByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -5283,6 +5406,7 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		gitAuthLink.OAuthRefreshTokenKeyID = arg.OAuthRefreshTokenKeyID
 		gitAuthLink.OAuthExpiry = arg.OAuthExpiry
+		gitAuthLink.OAuthExtra = arg.OAuthExtra
 		q.externalAuthLinks[index] = gitAuthLink
 
 		return gitAuthLink, nil
@@ -5398,6 +5522,7 @@ func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 			continue
 		}
 		job.UpdatedAt = arg.UpdatedAt
+		job.JobStatus = provisonerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -5418,6 +5543,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 		}
 		job.CanceledAt = arg.CanceledAt
 		job.CompletedAt = arg.CompletedAt
+		job.JobStatus = provisonerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -5440,6 +5566,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
+		job.JobStatus = provisonerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -6070,6 +6197,26 @@ func (q *FakeQuerier) UpdateWorkspaceAppHealthByID(_ context.Context, arg databa
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceAutomaticUpdates(_ context.Context, arg database.UpdateWorkspaceAutomaticUpdatesParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+		workspace.AutomaticUpdates = arg.AutomaticUpdates
+		q.workspaces[index] = workspace
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.UpdateWorkspaceAutostartParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -6609,61 +6756,30 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 			// This logic should match the logic in the workspace.sql file.
 			var statusMatch bool
 			switch database.WorkspaceStatus(arg.Status) {
-			case database.WorkspaceStatusPending:
-				statusMatch = isNull(job.StartedAt)
 			case database.WorkspaceStatusStarting:
-				statusMatch = isNotNull(job.StartedAt) &&
-					isNull(job.CanceledAt) &&
-					isNull(job.CompletedAt) &&
-					time.Since(job.UpdatedAt) < 30*time.Second &&
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
 					build.Transition == database.WorkspaceTransitionStart
-
-			case database.WorkspaceStatusRunning:
-				statusMatch = isNotNull(job.CompletedAt) &&
-					isNull(job.CanceledAt) &&
-					isNull(job.Error) &&
-					build.Transition == database.WorkspaceTransitionStart
-
 			case database.WorkspaceStatusStopping:
-				statusMatch = isNotNull(job.StartedAt) &&
-					isNull(job.CanceledAt) &&
-					isNull(job.CompletedAt) &&
-					time.Since(job.UpdatedAt) < 30*time.Second &&
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
 					build.Transition == database.WorkspaceTransitionStop
-
-			case database.WorkspaceStatusStopped:
-				statusMatch = isNotNull(job.CompletedAt) &&
-					isNull(job.CanceledAt) &&
-					isNull(job.Error) &&
-					build.Transition == database.WorkspaceTransitionStop
-			case database.WorkspaceStatusFailed:
-				statusMatch = (isNotNull(job.CanceledAt) && isNotNull(job.Error)) ||
-					(isNotNull(job.CompletedAt) && isNotNull(job.Error))
-
-			case database.WorkspaceStatusCanceling:
-				statusMatch = isNotNull(job.CanceledAt) &&
-					isNull(job.CompletedAt)
-
-			case database.WorkspaceStatusCanceled:
-				statusMatch = isNotNull(job.CanceledAt) &&
-					isNotNull(job.CompletedAt)
-
-			case database.WorkspaceStatusDeleted:
-				statusMatch = isNotNull(job.StartedAt) &&
-					isNull(job.CanceledAt) &&
-					isNotNull(job.CompletedAt) &&
-					time.Since(job.UpdatedAt) < 30*time.Second &&
-					build.Transition == database.WorkspaceTransitionDelete &&
-					isNull(job.Error)
-
 			case database.WorkspaceStatusDeleting:
-				statusMatch = isNull(job.CompletedAt) &&
-					isNull(job.CanceledAt) &&
-					isNull(job.Error) &&
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusRunning &&
 					build.Transition == database.WorkspaceTransitionDelete
 
+			case "started":
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStart
+			case database.WorkspaceStatusDeleted:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionDelete
+			case database.WorkspaceStatusStopped:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStop
+			case database.WorkspaceStatusRunning:
+				statusMatch = job.JobStatus == database.ProvisionerJobStatusSucceeded &&
+					build.Transition == database.WorkspaceTransitionStart
 			default:
-				return nil, xerrors.Errorf("unknown workspace status in filter: %q", arg.Status)
+				statusMatch = job.JobStatus == database.ProvisionerJobStatus(arg.Status)
 			}
 			if !statusMatch {
 				continue
@@ -6709,12 +6825,11 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 		}
 
 		// We omit locked workspaces by default.
-		if arg.DormantAt.IsZero() && workspace.DormantAt.Valid {
+		if arg.IsDormant == "" && workspace.DormantAt.Valid {
 			continue
 		}
 
-		// Filter out workspaces that are locked after the timestamp.
-		if !arg.DormantAt.IsZero() && workspace.DormantAt.Time.Before(arg.DormantAt) {
+		if arg.IsDormant != "" && !workspace.DormantAt.Valid {
 			continue
 		}
 
