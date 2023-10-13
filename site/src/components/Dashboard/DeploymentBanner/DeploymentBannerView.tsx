@@ -189,7 +189,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
                 )}
                 {health.derp && (
                   <HealthIssue>
-                    Your DERP is like, gonked up or something.
+                    We&apos;re noticing DERP proxy issues.
                   </HealthIssue>
                 )}
                 {health.websocket && (

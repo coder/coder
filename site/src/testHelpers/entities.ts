@@ -1,7 +1,8 @@
 import {
   withDefaultFeatures,
-  GetLicensesResponse,
-  DeploymentConfig,
+  type GetLicensesResponse,
+  type DeploymentConfig,
+  type Health,
 } from "api/api";
 import { FieldError } from "api/errors";
 import { everyOneGroup } from "utils/groups";
@@ -2753,7 +2754,7 @@ export const MockListeningPortsResponse: TypesGen.WorkspaceAgentListeningPortsRe
     ],
   };
 
-export const DeploymentHealthUnhealthy = {
+export const DeploymentHealthUnhealthy: Health = {
   healthy: false,
   time: "2023-10-12T23:15:00.000000000Z",
   coder_version: "v2.3.0-devel+8cca4915a",
