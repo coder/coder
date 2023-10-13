@@ -731,6 +731,51 @@ func TestExecutorAutostartTemplateDisabled(t *testing.T) {
 	assert.Len(t, stats.Transitions, 0)
 }
 
+func TestExecutorAutostopTemplateDisabled(t *testing.T) {
+	t.Parallel()
+
+	// Given: we have a workspace built from a template that disallows user autostop
+	var (
+		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+
+		client = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+			// We are using a mock store here as the AGPL store does not implement this.
+			TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+				GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+					return schedule.TemplateScheduleOptions{
+						UserAutostopEnabled: false,
+						DefaultTTL:          time.Hour,
+					}, nil
+				},
+			},
+		})
+		// Given: we have a user with a workspace configured to autostart some time in the future
+		workspace = mustProvisionWorkspace(t, client, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.TTLMillis = ptr.Ref(8 * time.Hour.Milliseconds())
+		})
+	)
+
+	// When: we create the workspace
+	// Then: the deadline should be set to the template default TTL
+	assert.WithinDuration(t, workspace.LatestBuild.CreatedAt.Add(time.Hour), workspace.LatestBuild.Deadline.Time, time.Minute)
+
+	// When: the autobuild executor ticks before the next scheduled time
+	go func() {
+		tickCh <- sched.Next(workspace.LatestBuild.CreatedAt).Add(time.Minute)
+		close(tickCh)
+	}()
+
+	// Then: nothing should happen
+	stats := <-statsCh
+	assert.NoError(t, stats.Error)
+	assert.Len(t, stats.Transitions, 0)
+}
+
 // TestExecutorFailedWorkspace test AGPL functionality which mainly
 // ensures that autostop actions as a result of a failed workspace
 // build do not trigger.
