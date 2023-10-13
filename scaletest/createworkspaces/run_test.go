@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"strings"
 	"testing"
 	"time"
 
@@ -180,6 +181,10 @@ func Test_Runner(t *testing.T) {
 		cleanupLogs := bytes.NewBuffer(nil)
 		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
+		cleanupLogsStr := cleanupLogs.String()
+		require.Contains(t, cleanupLogsStr, "Deleting workspace: "+workspaces.Workspaces[0].ID.String())
+		require.NotContains(t, cleanupLogsStr, "canceling workspace build") // The build should have already completed.
+		require.Contains(t, cleanupLogsStr, "Build succeeded!")
 
 		// Ensure the user and workspace were deleted.
 		users, err = client.Users(ctx, codersdk.UsersRequest{})
@@ -293,6 +298,11 @@ func Test_Runner(t *testing.T) {
 
 		// Ensure the job has been marked as deleted
 		require.Eventually(t, func() bool {
+			cleanupLogsStr := cleanupLogs.String()
+			if !strings.Contains(cleanupLogsStr, "canceling workspace build") {
+				t.Logf("workspace build has not canceled yet")
+				return false
+			}
 			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false

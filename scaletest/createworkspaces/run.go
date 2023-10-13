@@ -178,6 +178,7 @@ resourceLoop:
 // Cleanup implements Cleanable.
 func (r *Runner) Cleanup(ctx context.Context, id string, w io.Writer) error {
 	if r.cfg.NoCleanup {
+		_, _ = fmt.Fprintln(w, "skipping cleanup")
 		return nil
 	}
 

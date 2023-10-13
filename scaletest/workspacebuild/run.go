@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -106,6 +107,7 @@ func NewCleanupRunner(client *codersdk.Client, workspaceID uuid.UUID) *CleanupRu
 
 // Run implements Runnable.
 func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
+	_, _ = fmt.Fprintf(logs, "Deleting workspace: %s\n", r.workspaceID)
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
@@ -119,12 +121,18 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 
 	ws, err := r.client.Workspace(ctx, r.workspaceID)
 	if err != nil {
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			_, _ = fmt.Fprintf(logs, "Workspace %s not found, skipping delete.\n", r.workspaceID)
+			return nil
+		}
 		return err
 	}
 
 	build, err := r.client.WorkspaceBuild(ctx, ws.LatestBuild.ID)
 	if err == nil && build.Job.Status.Active() {
 		// mark the build as canceled
+		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
 		if err = r.client.CancelWorkspaceBuild(ctx, build.ID); err == nil {
 			// Wait for the job to cancel before we delete it
 			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
