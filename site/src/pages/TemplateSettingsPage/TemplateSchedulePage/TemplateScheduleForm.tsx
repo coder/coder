@@ -36,10 +36,12 @@ import { ScheduleDialog } from "./ScheduleDialog";
 import {
   AutostopRequirementDaysHelperText,
   AutostopRequirementWeeksHelperText,
+  AutostartRequirementDaysHelperText,
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
 import { useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
+import FormHelperText from "@mui/material/FormHelperText";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -360,58 +362,65 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           title="Autostart Requirement"
           description="Define when workspaces created from this template are allowed to auto start. Days not selected will block auto start actions from occurring."
         >
-          <Stack direction="row" css={styles.ttlFields} spacing={0}>
-            {(
-              [
-                { value: "monday", key: "Mon" },
-                { value: "tuesday", key: "Tue" },
-                { value: "wednesday", key: "Wed" },
-                { value: "thursday", key: "Thu" },
-                { value: "friday", key: "Fri" },
-                { value: "saturday", key: "Sat" },
-                { value: "sunday", key: "Sun" },
-              ] as {
-                value: TemplateAutostartRequirementDaysValue;
-                key: string;
-              }[]
-            ).map((day) => (
-              <Button
-                key={day.key}
-                css={styles.dayButtons}
-                // TODO: Adding a background color would also help
-                color={
-                  form.values.autostart_requirement_days_of_week.includes(
-                    day.value,
-                  )
-                    ? "primary"
-                    : "secondary"
-                }
-                disabled={isSubmitting}
-                onClick={async () => {
-                  if (
-                    !form.values.autostart_requirement_days_of_week.includes(
+          <Stack direction="column">
+            <Stack direction="row" css={styles.ttlFields} spacing={0}>
+              {(
+                [
+                  { value: "monday", key: "Mon" },
+                  { value: "tuesday", key: "Tue" },
+                  { value: "wednesday", key: "Wed" },
+                  { value: "thursday", key: "Thu" },
+                  { value: "friday", key: "Fri" },
+                  { value: "saturday", key: "Sat" },
+                  { value: "sunday", key: "Sun" },
+                ] as {
+                  value: TemplateAutostartRequirementDaysValue;
+                  key: string;
+                }[]
+              ).map((day) => (
+                <Button
+                  key={day.key}
+                  css={styles.dayButtons}
+                  // TODO: Adding a background color would also help
+                  color={
+                    form.values.autostart_requirement_days_of_week.includes(
                       day.value,
                     )
-                  ) {
-                    await form.setFieldValue(
-                      "autostart_requirement_days_of_week",
-                      form.values.autostart_requirement_days_of_week.concat(
-                        day.value,
-                      ),
-                    );
-                  } else {
-                    await form.setFieldValue(
-                      "autostart_requirement_days_of_week",
-                      form.values.autostart_requirement_days_of_week.filter(
-                        (obj) => obj !== day.value,
-                      ),
-                    );
+                      ? "primary"
+                      : "secondary"
                   }
-                }}
-              >
-                {day.key}
-              </Button>
-            ))}
+                  disabled={isSubmitting}
+                  onClick={async () => {
+                    if (
+                      !form.values.autostart_requirement_days_of_week.includes(
+                        day.value,
+                      )
+                    ) {
+                      await form.setFieldValue(
+                        "autostart_requirement_days_of_week",
+                        form.values.autostart_requirement_days_of_week.concat(
+                          day.value,
+                        ),
+                      );
+                    } else {
+                      await form.setFieldValue(
+                        "autostart_requirement_days_of_week",
+                        form.values.autostart_requirement_days_of_week.filter(
+                          (obj) => obj !== day.value,
+                        ),
+                      );
+                    }
+                  }}
+                >
+                  {day.key}
+                </Button>
+              ))}
+            </Stack>
+            <FormHelperText>
+              <AutostartRequirementDaysHelperText
+                days={form.values.autostart_requirement_days_of_week}
+              />
+            </FormHelperText>
           </Stack>
         </FormSection>
       )}
@@ -689,12 +698,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 const styles = {
   ttlFields: {
     width: "100%",
-    ".autostart_day_on": {
-      backgroundColor: "#e6f7ff",
-    },
   },
   dayButtons: {
-    margin: "0px",
     borderRadius: "0px",
   },
 };
