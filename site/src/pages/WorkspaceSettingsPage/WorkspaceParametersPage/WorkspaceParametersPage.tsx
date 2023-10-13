@@ -14,14 +14,13 @@ import { FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { WorkspaceBuildParameter } from "api/typesGenerated";
+import { workspaceParameters } from "api/queries/workspaces";
 
 const WorkspaceParametersPage = () => {
   const workspace = useWorkspaceSettings();
-  const parameters = useQuery({
-    queryKey: ["workspace", workspace.id, "parameters"],
-    queryFn: () => getWorkspaceParameters(workspace),
-  });
+  const parameters = useQuery(workspaceParameters(workspace));
   const navigate = useNavigate();
+
   const updateParameters = useMutation({
     mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
       postWorkspaceBuild(workspace.id, {

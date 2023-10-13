@@ -84,6 +84,17 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
   };
 };
 
+export function workspaceParametersKey(workspaceId: string) {
+  return ["workspaces", workspaceId, "parameters"] as const;
+}
+
+export function workspaceParameters(workspace: Workspace) {
+  return {
+    queryKey: workspaceParametersKey(workspace.id),
+    queryFn: () => API.getWorkspaceParameters(workspace),
+  } as const;
+}
+
 export function workspacesKey(config: WorkspacesRequest = {}) {
   const { q, limit } = config;
   return ["workspaces", { q, limit }] as const;
