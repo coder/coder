@@ -1190,7 +1190,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 						// have a shutdown signal we can listen to.
 						<-wait
 						if err := s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
-							s.Logger.Error(ctx, "workspace notification after agent timeout failed",
+							// If the publish failed due to the context being canceled, there's nothing more for us
+							// to do here.
+							if errors.Is(err, context.Canceled) {
+								return
+							}
+							s.Logger.Error(context.Background(), "workspace notification after agent timeout failed",
 								slog.F("workspace_build_id", workspaceBuild.ID),
 								slog.Error(err),
 							)
