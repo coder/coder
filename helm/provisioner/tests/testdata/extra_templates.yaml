@@ -1,0 +1,11 @@
+coder:
+  image:
+    tag: latest
+extraTemplates:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: some-config
+    data:
+      key: some-value
