@@ -119,6 +119,19 @@ func Test_isEligibleForAutostart(t *testing.T) {
 			Tick:             okTick,
 			ExpectedResponse: false,
 		},
+		{
+			Name:      "BuildTransitionNotStop",
+			Workspace: okWorkspace,
+			Build: func(b database.WorkspaceBuild) database.WorkspaceBuild {
+				cpy := b
+				cpy.Transition = database.WorkspaceTransitionStart
+				return cpy
+			}(okBuild),
+			Job:              okJob,
+			TemplateSchedule: okTemplateSchedule,
+			Tick:             okTick,
+			ExpectedResponse: false,
+		},
 	}
 
 	for _, c := range testCases {
