@@ -1643,8 +1643,8 @@ func (q *querier) GetWorkspaceAgentLogsAfter(ctx context.Context, arg database.G
 	return q.db.GetWorkspaceAgentLogsAfter(ctx, arg)
 }
 
-func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
-	workspace, err := q.db.GetWorkspaceByAgentID(ctx, workspaceAgentID)
+func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, arg database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, arg.WorkspaceAgentID)
 	if err != nil {
 		return nil, err
 	}
@@ -1654,7 +1654,7 @@ func (q *querier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentI
 		return nil, err
 	}
 
-	return q.db.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
+	return q.db.GetWorkspaceAgentMetadata(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceAgentScriptsByAgentIDs(ctx context.Context, ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {

@@ -69,11 +69,20 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, json.NewDecoder(res.Body).Decode(&gitSSHKey)
 }
 
+type Metadata struct {
+	Key string `json:"key"`
+	codersdk.WorkspaceAgentMetadataResult
+}
+
+type PostMetadataRequest struct {
+	Metadata []Metadata `json:"metadata"`
+}
+
 // In the future, we may want to support sending back multiple values for
 // performance.
-type PostMetadataRequest = codersdk.WorkspaceAgentMetadataResult
+type PostMetadataRequestDeprecated = codersdk.WorkspaceAgentMetadataResult
 
-func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequest) error {
+func (c *Client) PostMetadata(ctx context.Context, key string, req PostMetadataRequestDeprecated) error {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/metadata/"+key, req)
 	if err != nil {
 		return xerrors.Errorf("execute request: %w", err)

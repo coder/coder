@@ -900,7 +900,7 @@ func (m metricsStore) GetWorkspaceAgentLogsAfter(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+func (m metricsStore) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
 	start := time.Now()
 	metadata, err := m.s.GetWorkspaceAgentMetadata(ctx, workspaceAgentID)
 	m.queryLatencies.WithLabelValues("GetWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())

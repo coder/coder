@@ -7318,10 +7318,16 @@ FROM
 	workspace_agent_metadata
 WHERE
 	workspace_agent_id = $1
+	AND CASE WHEN COALESCE(array_length($2::text[], 1), 0) > 0 THEN key = ANY($2::text[]) ELSE TRUE END
 `
 
-func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentMetadatum, error) {
-	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentMetadata, workspaceAgentID)
+type GetWorkspaceAgentMetadataParams struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Keys             []string  `db:"keys" json:"keys"`
+}
+
+func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorkspaceAgentMetadataParams) ([]WorkspaceAgentMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceAgentMetadata, arg.WorkspaceAgentID, pq.Array(arg.Keys))
 	if err != nil {
 		return nil, err
 	}
@@ -7880,32 +7886,41 @@ func (q *sqlQuerier) UpdateWorkspaceAgentLogOverflowByID(ctx context.Context, ar
 }
 
 const updateWorkspaceAgentMetadata = `-- name: UpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest($2::text[]) AS key,
+		unnest($3::text[]) AS value,
+		unnest($4::text[]) AS error,
+		unnest($5::timestamptz[]) AS collected_at
+)
 UPDATE
-	workspace_agent_metadata
+	workspace_agent_metadata wam
 SET
-	value = $3,
-	error = $4,
-	collected_at = $5
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
 WHERE
-	workspace_agent_id = $1
-	AND key = $2
+	wam.workspace_agent_id = $1
+	AND wam.key = m.key
 `
 
 type UpdateWorkspaceAgentMetadataParams struct {
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Key              string    `db:"key" json:"key"`
-	Value            string    `db:"value" json:"value"`
-	Error            string    `db:"error" json:"error"`
-	CollectedAt      time.Time `db:"collected_at" json:"collected_at"`
+	WorkspaceAgentID uuid.UUID   `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Key              []string    `db:"key" json:"key"`
+	Value            []string    `db:"value" json:"value"`
+	Error            []string    `db:"error" json:"error"`
+	CollectedAt      []time.Time `db:"collected_at" json:"collected_at"`
 }
 
 func (q *sqlQuerier) UpdateWorkspaceAgentMetadata(ctx context.Context, arg UpdateWorkspaceAgentMetadataParams) error {
 	_, err := q.db.ExecContext(ctx, updateWorkspaceAgentMetadata,
 		arg.WorkspaceAgentID,
-		arg.Key,
-		arg.Value,
-		arg.Error,
-		arg.CollectedAt,
+		pq.Array(arg.Key),
+		pq.Array(arg.Value),
+		pq.Array(arg.Error),
+		pq.Array(arg.CollectedAt),
 	)
 	return err
 }
