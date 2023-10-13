@@ -2,6 +2,7 @@ import {
   TemplateVersionParameter,
   Workspace,
   WorkspaceBuildParameter,
+  WorkspaceResourceMetadata,
 } from "api/typesGenerated";
 import { useMe } from "hooks/useMe";
 import { useOrganizationId } from "hooks/useOrganizationId";
@@ -185,30 +186,6 @@ const useExternalAuth = (versionId: string | undefined) => {
   return { authList, isAllSignedIn, pollingStatus, startPolling } as const;
 };
 
-/**
- * Returns a function that takes a workspace, and then navigates the user to the
- * workspace creation page, with the form pre-filled with the provided
- * workspace's parameters.
- */
-export function useWorkspaceDuplication() {
-  const navigate = useNavigate();
-
-  return useCallback(
-    (workspace: Workspace) => {
-      const workspaceCreationParams = new URLSearchParams({
-        mode: "duplicate" satisfies CreateWorkspaceMode,
-        name: workspace.name,
-      });
-
-      navigate({
-        pathname: `/templates/${workspace.template_name}/workspace`,
-        search: workspaceCreationParams.toString(),
-      });
-    },
-    [navigate],
-  );
-}
-
 function getWorkspaceMode(params: URLSearchParams): CreateWorkspaceMode {
   const paramMode = params.get("mode");
   if (createWorkspaceModes.includes(paramMode as CreateWorkspaceMode)) {
@@ -280,6 +257,78 @@ const getDefaultBuildParameters = (
       };
     });
 };
+
+function getDuplicationUrlParams(
+  templateParams: readonly TemplateVersionParameter[],
+  workspace: Workspace,
+): URLSearchParams {
+  // Record type makes sure that every property key added starts with "param."
+  const buildParams: Record<`param.${string}`, string> = {};
+
+  const allMetadata: WorkspaceResourceMetadata[] = [];
+  for (const resource of workspace.latest_build.resources) {
+    const metadata = resource.metadata;
+    if (metadata !== undefined) {
+      allMetadata.push(...metadata);
+    }
+  }
+
+  for (const param of templateParams) {
+    /**
+     * @todo Pretty sure the last piece of the puzzle is figuring out how to
+     * cross-reference the resources from the build with the template params
+     */
+    buildParams[`param.${param.name}`] = String(param["default_value"]);
+  }
+
+  return new URLSearchParams({
+    ...buildParams,
+    mode: "duplicate" satisfies CreateWorkspaceMode,
+    name: workspace.name,
+    version: workspace.template_active_version_id,
+  });
+}
+
+/**
+ * Takes a workspace, and returns out a function that will navigate the user to
+ * the 'Create Workspace' page, pre-filling the form with as much information
+ * about the workspace as possible.
+ */
+// Meant to be consumed by components outside of this file
+export function useWorkspaceDuplication(workspace: Workspace) {
+  const navigate = useNavigate();
+
+  // Sadly, there isn't a good way to derive this data from the workspace itself
+  const templateParametersQuery = useQuery(
+    richParameters(workspace.template_active_version_id),
+  );
+
+  // Not using useEffectEvent for this, even with the slightly more complicated
+  // dependency array, because useEffect isn't really an intended use case
+  const duplicateWorkspace = useCallback(() => {
+    const templateParams = templateParametersQuery.data;
+    if (templateParams === undefined) {
+      return;
+    }
+
+    const newUrlParams = getDuplicationUrlParams(templateParams, workspace);
+
+    // Necessary for giving modals/popups time to flush their state changes and
+    // close the popup before actually navigating. Otherwise, you risk the modal
+    // awkwardly hanging there during the page transition
+    void Promise.resolve().then(() => {
+      navigate({
+        pathname: `/templates/${workspace.template_name}/workspace`,
+        search: newUrlParams.toString(),
+      });
+    });
+  }, [navigate, workspace, templateParametersQuery.data]);
+
+  return {
+    duplicateWorkspace,
+    duplicationReady: !templateParametersQuery.isLoading,
+  } as const;
+}
 
 export const orderedTemplateParameters = (
   templateParameters?: TemplateVersionParameter[],

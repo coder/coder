@@ -91,7 +91,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
   const styles = useStyles();
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const duplicateWorkspace = useWorkspaceDuplication();
+
+  const { duplicateWorkspace, duplicationReady } =
+    useWorkspaceDuplication(workspace);
 
   // Returns a function that will execute the action and close the menu
   const onMenuItemClick = (actionFn: () => void) => () => {
@@ -152,7 +154,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
           )}
 
           <MenuItem
-            onClick={onMenuItemClick(() => duplicateWorkspace(workspace))}
+            onClick={onMenuItemClick(duplicateWorkspace)}
+            disabled={!duplicationReady}
           >
             <DuplicateIcon />
             Duplicate&hellip;
