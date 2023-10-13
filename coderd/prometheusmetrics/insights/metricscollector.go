@@ -4,7 +4,9 @@ import (
 	"context"
 	"time"
 
+	"cdr.dev/slog"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -17,20 +19,25 @@ var (
 
 type MetricsCollector struct {
 	database database.Store
+	logger   slog.Logger
 	duration time.Duration
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
-func NewMetricsCollector(db database.Store, duration time.Duration) *MetricsCollector {
+func NewMetricsCollector(db database.Store, logger slog.Logger, duration time.Duration) (*MetricsCollector, error) {
 	if duration == 0 {
 		duration = 5 * time.Minute
+	}
+	if duration < 5*time.Minute {
+		return nil, xerrors.Errorf("refresh interval must be at least 5 mins")
 	}
 
 	return &MetricsCollector{
 		database: db,
+		logger:   logger.Named("insights_metrics_collector"),
 		duration: duration,
-	}
+	}, nil
 }
 
 func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
@@ -42,6 +49,18 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 	ticker := time.NewTicker(time.Nanosecond)
 	doTick := func() {
 		defer ticker.Reset(mc.duration)
+
+		now := time.Now()
+
+		parameterRows, err := mc.database.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
+			StartTime: now.Add(-mc.duration),
+			EndTime:   now,
+		})
+		if err != nil {
+			mc.logger.Error(ctx, "unable to fetch template insights from database: %w", err)
+			return
+		}
+
 	}
 
 	go func() {

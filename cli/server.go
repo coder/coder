@@ -199,7 +199,10 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
 
-	insightsMetricsCollector := insights.NewMetricsCollector(options.Database, 0)
+	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to initialize insights metrics collector: %w", err)
+	}
 	err = options.PrometheusRegistry.Register(insightsMetricsCollector)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to register insights metrics collector: %w", err)
