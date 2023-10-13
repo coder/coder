@@ -100,7 +100,6 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			psk:        options.ProvisionerDaemonPSK,
 			authorizer: options.Authorizer,
 		},
-		licenseMetricsCollector: license.NewMetricsCollector(),
 	}
 	defer func() {
 		if err != nil {
@@ -376,7 +375,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 	}
 
-	err = api.PrometheusRegistry.Register(api.licenseMetricsCollector)
+	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to register license metrics collector")
 	}
@@ -441,7 +440,7 @@ type API struct {
 
 	provisionerDaemonAuth *provisionerDaemonAuth
 
-	licenseMetricsCollector *license.MetricsCollector
+	licenseMetricsCollector license.MetricsCollector
 }
 
 func (api *API) Close() error {

@@ -19,7 +19,7 @@ func TestCollectLicenseMetrics(t *testing.T) {
 	// Given
 	registry := prometheus.NewRegistry()
 
-	sut := license.NewMetricsCollector()
+	var sut license.MetricsCollector
 
 	const (
 		actualUsers = 4
@@ -35,7 +35,7 @@ func TestCollectLicenseMetrics(t *testing.T) {
 		},
 	})
 
-	registry.Register(sut)
+	registry.Register(&sut)
 
 	// When
 	metrics, err := registry.Gather()

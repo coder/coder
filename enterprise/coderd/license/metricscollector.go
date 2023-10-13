@@ -8,43 +8,22 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+var (
+	activeUsersDesc      = prometheus.NewDesc("coderd_license_active_users", "The number of active users.", nil, nil)
+	limitUsersDesc       = prometheus.NewDesc("coderd_license_limit_users", "The user seats limit based on the active Coder license.", nil, nil)
+	userLimitEnabledDesc = prometheus.NewDesc("coderd_license_user_limit_enabled", "Returns 1 if the current license enforces the user limit.", nil, nil)
+)
+
 type MetricsCollector struct {
 	Entitlements atomic.Pointer[codersdk.Entitlements]
-
-	activeUsersGauge      prometheus.Gauge
-	limitUsersGauge       prometheus.Gauge
-	userLimitEnabledGauge prometheus.Gauge
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
 
-func NewMetricsCollector() *MetricsCollector {
-	return &MetricsCollector{
-		activeUsersGauge: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coderd",
-			Subsystem: "license",
-			Name:      "active_users",
-			Help:      `The number of active users.`,
-		}),
-		limitUsersGauge: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coderd",
-			Subsystem: "license",
-			Name:      "limit_users",
-			Help:      "The user seats limit based on the active Coder license.",
-		}),
-		userLimitEnabledGauge: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: "coderd",
-			Subsystem: "license",
-			Name:      "user_limit_enabled",
-			Help:      "Returns 1 if the current license enforces the user limit.",
-		}),
-	}
-}
-
-func (mc *MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
-	descCh <- mc.activeUsersGauge.Desc()
-	descCh <- mc.limitUsersGauge.Desc()
-	descCh <- mc.userLimitEnabledGauge.Desc()
+func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
+	descCh <- activeUsersDesc
+	descCh <- limitUsersDesc
+	descCh <- userLimitEnabledDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -62,16 +41,13 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	if userLimitEntitlement.Enabled {
 		enabled = 1
 	}
-	mc.userLimitEnabledGauge.Set(enabled)
-	metricsCh <- mc.userLimitEnabledGauge
+	metricsCh <- prometheus.MustNewConstMetric(userLimitEnabledDesc, prometheus.GaugeValue, enabled)
 
 	if userLimitEntitlement.Actual != nil {
-		mc.activeUsersGauge.Set(float64(*userLimitEntitlement.Actual))
-		metricsCh <- mc.activeUsersGauge
+		metricsCh <- prometheus.MustNewConstMetric(activeUsersDesc, prometheus.GaugeValue, float64(*userLimitEntitlement.Actual))
 	}
 
 	if userLimitEntitlement.Limit != nil {
-		mc.limitUsersGauge.Set(float64(*userLimitEntitlement.Limit))
-		metricsCh <- mc.limitUsersGauge
+		metricsCh <- prometheus.MustNewConstMetric(limitUsersDesc, prometheus.GaugeValue, float64(*userLimitEntitlement.Limit))
 	}
 }
