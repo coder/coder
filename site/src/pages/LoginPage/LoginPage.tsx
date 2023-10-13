@@ -43,27 +43,25 @@ export const LoginPage: FC = () => {
       }
     }
     return <Navigate to={redirectTo} replace />;
+  } else if (isConfiguringTheFirstUser) {
+    return <Navigate to="/setup" replace />;
   } else {
-    if (isConfiguringTheFirstUser) {
-      return <Navigate to="/setup" replace />;
-    } else {
-      return (
-        <>
-          <Helmet>
-            <title>Sign in to {applicationName}</title>
-          </Helmet>
-          <LoginPageView
-            authMethods={authMethods}
-            error={signInError}
-            isSigningIn={isSigningIn}
-            onSignIn={async ({ email, password }) => {
-              await signIn(email, password);
-              navigate("/");
-            }}
-          />
-        </>
-      );
-    }
+    return (
+      <>
+        <Helmet>
+          <title>Sign in to {applicationName}</title>
+        </Helmet>
+        <LoginPageView
+          authMethods={authMethods}
+          error={signInError}
+          isSigningIn={isSigningIn}
+          onSignIn={async ({ email, password }) => {
+            await signIn(email, password);
+            navigate("/");
+          }}
+        />
+      </>
+    );
   }
 };
 
