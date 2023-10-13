@@ -54,7 +54,12 @@ export const AutostartRequirementDaysHelperText: FC<{
     return <span>Workspaces are allowed to auto start on any day.</span>;
   }
   if (days.length === 0) {
-    return <span>Workspaces will never auto start.</span>;
+    return (
+      <span>
+        Workspaces will never auto start. This is effectively the same as
+        disabling autostart.
+      </span>
+    );
   }
   if (
     days.length === 5 &&

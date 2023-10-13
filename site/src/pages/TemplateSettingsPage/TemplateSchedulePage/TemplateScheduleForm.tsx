@@ -223,6 +223,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
         ),
         weeks: autostop_requirement_weeks,
       },
+      autostart_requirement: {
+        days_of_week: form.values.autostart_requirement_days_of_week,
+      },
 
       allow_user_autostart: form.values.allow_user_autostart,
       allow_user_autostop: form.values.allow_user_autostop,
