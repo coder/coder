@@ -159,8 +159,7 @@ func TestTemplates(t *testing.T) {
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.AutostartRequirement.DaysOfWeek)
 
-		// ctx := testutil.Context(t, testutil.WaitLong)
-		ctx := context.Background()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			Name:        template.Name,
 			DisplayName: template.DisplayName,

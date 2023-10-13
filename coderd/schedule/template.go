@@ -37,7 +37,7 @@ var DaysOfWeek = []time.Weekday{
 
 type TemplateAutostartRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace is allowed
-	// to be restarted. If fully zero, the workspace is not allowed to be restarted.
+	// to be auto started. If fully zero, the workspace is not allowed to be auto started.
 	//
 	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
 	DaysOfWeek uint8
