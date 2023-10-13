@@ -512,7 +512,9 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 			db,
 			func(action rbac.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
-			})
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
 		return err
 	}, nil)
 	var bldErr wsbuilder.BuildError

@@ -15,6 +15,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -201,16 +202,20 @@ func (b *Builder) Build(
 	ctx context.Context,
 	store database.Store,
 	authFunc func(action rbac.Action, object rbac.Objecter) bool,
+	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
 	*database.WorkspaceBuild, *database.ProvisionerJob, error,
 ) {
-	b.ctx = ctx
+	var err error
+	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("create audit baggage: %w", err)
+	}
 
 	// Run the build in a transaction with RepeatableRead isolation, and retries.
 	// RepeatableRead isolation ensures that we get a consistent view of the database while
 	// computing the new build.  This simplifies the logic so that we do not need to worry if
 	// later reads are consistent with earlier ones.
-	var err error
 	for retries := 0; retries < 5; retries++ {
 		var workspaceBuild *database.WorkspaceBuild
 		var provisionerJob *database.ProvisionerJob

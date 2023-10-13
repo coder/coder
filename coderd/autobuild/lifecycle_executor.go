@@ -184,7 +184,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						builder = builder.ActiveVersion()
 					}
 
-					build, job, err = builder.Build(e.ctx, tx, nil)
+					build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+
 					if err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
