@@ -9,7 +9,7 @@ import { useFormik } from "formik";
 import { FC } from "react";
 import {
   getInitialRichParameterValues,
-  useValidationSchemaForRichParameters,
+  validateRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
 import { getFormHelpers } from "utils/formUtils";
@@ -46,7 +46,7 @@ export const WorkspaceParametersForm: FC<{
       ),
     },
     validationSchema: Yup.object({
-      rich_parameter_values: useValidationSchemaForRichParameters(
+      rich_parameter_values: validateRichParameters(
         templateVersionRichParameters,
       ),
     }),

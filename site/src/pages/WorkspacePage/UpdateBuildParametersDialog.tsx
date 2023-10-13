@@ -15,7 +15,7 @@ import { RichParameterInput } from "components/RichParameterInput/RichParameterI
 import { useFormik } from "formik";
 import {
   getInitialRichParameterValues,
-  useValidationSchemaForRichParameters,
+  validateRichParameters,
 } from "utils/richParameters";
 import * as Yup from "yup";
 import DialogActions from "@mui/material/DialogActions";
@@ -36,8 +36,7 @@ export const UpdateBuildParametersDialog: FC<
       rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
-      rich_parameter_values:
-        useValidationSchemaForRichParameters(missedParameters),
+      rich_parameter_values: validateRichParameters(missedParameters),
     }),
     onSubmit: (values) => {
       onUpdate(values.rich_parameter_values);
