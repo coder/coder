@@ -1,4 +1,4 @@
-import { getWorkspaceParameters, postWorkspaceBuild } from "api/api";
+import { getWorkspaceParameters } from "api/api";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { useWorkspaceSettings } from "../WorkspaceSettingsLayout";
@@ -13,8 +13,10 @@ import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { FC } from "react";
 import { isApiValidationError } from "api/errors";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { WorkspaceBuildParameter } from "api/typesGenerated";
-import { workspaceParameters } from "api/queries/workspaces";
+import {
+  updateWorkspaceParameters,
+  workspaceParameters,
+} from "api/queries/workspaces";
 
 const WorkspaceParametersPage = () => {
   const workspace = useWorkspaceSettings();
@@ -22,11 +24,7 @@ const WorkspaceParametersPage = () => {
   const navigate = useNavigate();
 
   const updateParameters = useMutation({
-    mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
-      postWorkspaceBuild(workspace.id, {
-        transition: "start",
-        rich_parameter_values: buildParameters,
-      }),
+    ...updateWorkspaceParameters(workspace.id),
     onSuccess: () => {
       navigate(`/${workspace.owner_name}/${workspace.name}`);
     },

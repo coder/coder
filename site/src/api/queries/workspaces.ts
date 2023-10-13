@@ -95,6 +95,16 @@ export function workspaceParameters(workspace: Workspace) {
   } as const;
 }
 
+export function updateWorkspaceParameters(workspaceId: string) {
+  return {
+    mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
+      API.postWorkspaceBuild(workspaceId, {
+        transition: "start",
+        rich_parameter_values: buildParameters,
+      }),
+  } as const;
+}
+
 export function workspacesKey(config: WorkspacesRequest = {}) {
   const { q, limit } = config;
   return ["workspaces", { q, limit }] as const;
