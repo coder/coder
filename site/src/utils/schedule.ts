@@ -211,6 +211,8 @@ export const quietHoursDisplay = (
   return display;
 };
 
+export type TemplateAutostartRequirementDaysValue =  "monday" | "tuesday" | "wednesday" |  "thursday" | "friday" | "saturday" | "sunday";
+
 export type TemplateAutostopRequirementDaysValue =
   | "off"
   | "daily"
