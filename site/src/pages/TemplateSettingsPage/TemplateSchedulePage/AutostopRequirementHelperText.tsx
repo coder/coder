@@ -30,53 +30,6 @@ export const convertAutostopRequirementDaysValue = (
   return "off";
 };
 
-export const sortedDays = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-] as TemplateAutostartRequirementDaysValue[];
-
-export const AutostartRequirementDaysHelperText: FC<{
-  allowed?: boolean;
-  days: TemplateAutostartRequirementDaysValue[];
-}> = ({ allowed, days: unsortedDays }) => {
-  if (!allowed) {
-    return <span>Workspaces are not allowed to auto start.</span>;
-  }
-  // Sort the days
-  const days = unsortedDays.sort(
-    (a, b) => sortedDays.indexOf(a) - sortedDays.indexOf(b),
-  );
-
-  let daymsg = `Workspaces can autostart on ${days.join(", ")}.`;
-  if (days.length === 7) {
-    // If every day is allowed, no more explaining is needed.
-    return <span>Workspaces are allowed to auto start on any day.</span>;
-  }
-  if (days.length === 0) {
-    return (
-      <span>
-        Workspaces will never auto start. This is effectively the same as
-        disabling autostart.
-      </span>
-    );
-  }
-  if (
-    days.length === 5 &&
-    !days.includes("saturday") &&
-    !days.includes("sunday")
-  ) {
-    daymsg = "Workspaces will never auto start on the weekends.";
-  }
-  return (
-    <span>{daymsg} These days are relative to the user&apos;s timezone.</span>
-  );
-};
-
 export const AutostopRequirementDaysHelperText = ({
   days = "off",
 }: {
