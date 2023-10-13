@@ -4,9 +4,10 @@ import (
 	"context"
 	"time"
 
-	"cdr.dev/slog"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -52,15 +53,18 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		now := time.Now()
 
+		// TODO collect iteration time
+
 		parameterRows, err := mc.database.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
 			StartTime: now.Add(-mc.duration),
 			EndTime:   now,
 		})
 		if err != nil {
-			mc.logger.Error(ctx, "unable to fetch template insights from database: %w", err)
+			mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
 			return
 		}
 
+		mc.logger.Info(ctx, "debug", slog.F("parameter_rows", parameterRows))
 	}
 
 	go func() {
