@@ -279,7 +279,6 @@ func Test_Runner(t *testing.T) {
 				t.Fatalf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
 			}
 			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning
-
 		}, testutil.WaitShort, testutil.IntervalMedium)
 
 		cancelFunc()
