@@ -5,24 +5,27 @@ import {
 import * as Yup from "yup";
 
 export const getInitialRichParameterValues = (
-  templateParameters: TemplateVersionParameter[],
-  buildParameters?: WorkspaceBuildParameter[],
+  templateParameters: readonly TemplateVersionParameter[],
+  buildParameters?: readonly WorkspaceBuildParameter[],
 ): WorkspaceBuildParameter[] => {
-  return templateParameters.map((parameter) => {
-    const existentBuildParameter = buildParameters?.find(
-      (p) => p.name === parameter.name,
+  return templateParameters.map((templateParam) => {
+    const matchedBuildParam = buildParameters?.find(
+      (buildParam) => buildParam.name === templateParam.name,
     );
-    const shouldReturnTheDefaultValue =
-      !existentBuildParameter ||
-      !isValidValue(parameter, existentBuildParameter) ||
-      parameter.ephemeral;
-    if (shouldReturnTheDefaultValue) {
-      return {
-        name: parameter.name,
-        value: parameter.default_value,
-      };
+
+    const shouldOverrideTemplate =
+      matchedBuildParam !== undefined &&
+      isValidValue(templateParam, matchedBuildParam) &&
+      !templateParam.ephemeral;
+
+    if (shouldOverrideTemplate) {
+      return matchedBuildParam;
     }
-    return existentBuildParameter;
+
+    return {
+      name: templateParam.name,
+      value: templateParam.default_value,
+    };
   });
 };
 
