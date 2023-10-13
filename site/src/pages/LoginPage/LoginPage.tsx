@@ -26,10 +26,6 @@ export const LoginPage: FC = () => {
     // to trigger a HTTP request. This allows the BE to generate the auth
     // cookie required.
     // If no redirect is present, then ignore this branched logic.
-    //
-    // The downside to this logic is that it is not required if the user
-    // is already authenticated. It only matters if the user has to
-    // authenticate in this login flow.
     if (redirectTo !== "" && redirectTo !== "/") {
       try {
         // This catches any absolute redirects. Relative redirects
