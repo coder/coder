@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
@@ -298,11 +297,6 @@ func Test_Runner(t *testing.T) {
 
 		// Ensure the job has been marked as deleted
 		require.Eventually(t, func() bool {
-			cleanupLogsStr := cleanupLogs.String()
-			if !strings.Contains(cleanupLogsStr, "canceling workspace build") {
-				t.Logf("workspace build has not canceled yet")
-				return false
-			}
 			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
@@ -337,6 +331,8 @@ func Test_Runner(t *testing.T) {
 		}, testutil.WaitShort, testutil.IntervalMedium)
 		cancelFunc()
 		<-done
+		cleanupLogsStr := cleanupLogs.String()
+		require.Contains(t, cleanupLogsStr, "canceling workspace build")
 	})
 
 	t.Run("NoCleanup", func(t *testing.T) {
