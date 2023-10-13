@@ -15,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/testutil"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,13 +33,15 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name                string
-		transition          database.WorkspaceTransition
-		jobCompletedAt      sql.NullTime
-		buildDeadlineOffset *time.Duration
-		maxDeadlineOffset   *time.Duration
-		workspaceTTL        time.Duration
-		expectedBump        time.Duration
+		name                          string
+		transition                    database.WorkspaceTransition
+		jobCompletedAt                sql.NullTime
+		buildDeadlineOffset           *time.Duration
+		maxDeadlineOffset             *time.Duration
+		workspaceTTL                  time.Duration
+		templateTTL                   time.Duration
+		templateDisallowsUserAutostop bool
+		expectedBump                  time.Duration
 	}{
 		{
 			name:                "NotFinishedYet",
@@ -97,7 +100,18 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-time.Minute)},
 			buildDeadlineOffset: ptr.Ref(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			expectedBump:        0,
+		},
+		{
+			// A workspace built from a template that disallows user autostop should bump
+			// by the template TTL instead.
+			name:                          "TemplateDisallowsUserAutostop",
+			transition:                    database.WorkspaceTransitionStart,
+			jobCompletedAt:                sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
+			buildDeadlineOffset:           ptr.Ref(8*time.Hour - 24*time.Minute),
+			workspaceTTL:                  6 * time.Hour,
+			templateTTL:                   8 * time.Hour,
+			templateDisallowsUserAutostop: true,
+			expectedBump:                  8 * time.Hour,
 		},
 	} {
 		tt := tt
@@ -143,6 +157,13 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					})
 					buildID = uuid.New()
 				)
+
+				require.NoError(t, db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+					ID:                template.ID,
+					UpdatedAt:         dbtime.Now(),
+					AllowUserAutostop: !tt.templateDisallowsUserAutostop,
+					DefaultTTL:        int64(tt.templateTTL),
+				}), "unexpected error updating template schedule")
 
 				var buildNumber int32 = 1
 				// Insert a number of previous workspace builds.
@@ -202,13 +223,13 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				require.NoError(t, err, "unexpected error getting latest workspace build")
 				require.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "max_deadline should not have changed")
 				if tt.expectedBump == 0 {
-					require.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
-					require.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
+					assert.Equal(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should not have bumped updated_at")
+					assert.Equal(t, bld.Deadline.UTC(), updatedBuild.Deadline.UTC(), "should not have bumped deadline")
 					return
 				}
-				require.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
+				assert.NotEqual(t, bld.UpdatedAt.UTC(), updatedBuild.UpdatedAt.UTC(), "should have bumped updated_at")
 				if tt.maxDeadlineOffset != nil {
-					require.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
+					assert.Equal(t, bld.MaxDeadline.UTC(), updatedBuild.MaxDeadline.UTC(), "new deadline must equal original max deadline")
 					return
 				}
 
