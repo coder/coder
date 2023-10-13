@@ -117,9 +117,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ### Multiple External Providers (enterprise)
 
 Multiple providers are an Enterprise feature. [Learn more](../enterprise.md).
-
-A custom regex can be used to match a specific repository or organization to
-limit auth scope. Here's a sample config:
+Below is an example configuration with multiple providers.
 
 ```env
 # Provider 1) github.com
