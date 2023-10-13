@@ -140,6 +140,89 @@ func TestTemplates(t *testing.T) {
 		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
 
+	t.Run("SetAutostartRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.AutostartRequirement.DaysOfWeek)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		updated, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Description: template.Description,
+			Icon:        template.Icon,
+			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+				DaysOfWeek: []string{"monday", "saturday"},
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, template.AutostartRequirement.DaysOfWeek)
+
+		// Ensure a missing field is a noop
+		updated, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Description: template.Description,
+			Icon:        template.Icon + "something",
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, updated.AutostartRequirement.DaysOfWeek)
+
+		template, err = client.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, []string{"monday", "saturday"}, template.AutostartRequirement.DaysOfWeek)
+	})
+
+	t.Run("SetInvalidAutostartRequirement", func(t *testing.T) {
+		t.Parallel()
+
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		require.Equal(t, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, template.AutostartRequirement.DaysOfWeek)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name:        template.Name,
+			DisplayName: template.DisplayName,
+			Description: template.Description,
+			Icon:        template.Icon,
+			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+				DaysOfWeek: []string{"foobar", "saturday"},
+			},
+		})
+		require.Error(t, err)
+	})
+
 	t.Run("SetAutostopRequirement", func(t *testing.T) {
 		t.Parallel()
 

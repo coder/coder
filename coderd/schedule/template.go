@@ -35,6 +35,18 @@ var DaysOfWeek = []time.Weekday{
 	time.Sunday,
 }
 
+type TemplateAutostartRequirement struct {
+	// DaysOfWeek is a bitmap of which days of the week the workspace is allowed
+	// to be auto started. If fully zero, the workspace is not allowed to be auto started.
+	//
+	// First bit is Monday, ..., seventh bit is Sunday, eighth bit is unused.
+	DaysOfWeek uint8
+}
+
+func (r TemplateAutostartRequirement) DaysMap() map[time.Weekday]bool {
+	return daysMap(r.DaysOfWeek)
+}
+
 type TemplateAutostopRequirement struct {
 	// DaysOfWeek is a bitmap of which days of the week the workspace must be
 	// restarted. If fully zero, the workspace is not required to be restarted
@@ -57,9 +69,15 @@ type TemplateAutostopRequirement struct {
 // DaysMap returns a map of the days of the week that the workspace must be
 // restarted.
 func (r TemplateAutostopRequirement) DaysMap() map[time.Weekday]bool {
+	return daysMap(r.DaysOfWeek)
+}
+
+// daysMap returns a map of the days of the week that are specified in the
+// bitmap.
+func daysMap(daysOfWeek uint8) map[time.Weekday]bool {
 	days := make(map[time.Weekday]bool)
 	for i, day := range DaysOfWeek {
-		days[day] = r.DaysOfWeek&(1<<uint(i)) != 0
+		days[day] = daysOfWeek&(1<<uint(i)) != 0
 	}
 	return days
 }
@@ -82,6 +100,19 @@ func VerifyTemplateAutostopRequirement(days uint8, weeks int64) error {
 	return nil
 }
 
+// VerifyTemplateAutostartRequirement returns an error if the autostart
+// requirement is invalid.
+func VerifyTemplateAutostartRequirement(days uint8) error {
+	if days&0b10000000 != 0 {
+		return xerrors.New("invalid autostart requirement days, last bit is set")
+	}
+	if days > 0b11111111 {
+		return xerrors.New("invalid autostart requirement days, too large")
+	}
+
+	return nil
+}
+
 type TemplateScheduleOptions struct {
 	UserAutostartEnabled bool          `json:"user_autostart_enabled"`
 	UserAutostopEnabled  bool          `json:"user_autostop_enabled"`
@@ -97,6 +128,8 @@ type TemplateScheduleOptions struct {
 	// AutostopRequirement dictates when the workspace must be restarted. This
 	// used to be handled by MaxTTL.
 	AutostopRequirement TemplateAutostopRequirement `json:"autostop_requirement"`
+	// AutostartRequirement dictates when the workspace can be auto started.
+	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
 	// FailureTTL dictates the duration after which failed workspaces will be
 	// stopped automatically.
 	FailureTTL time.Duration `json:"failure_ttl"`
@@ -154,6 +187,10 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		// FailureTTL, TimeTilDormant, and TimeTilDormantAutoDelete are enterprise features.
 		UseAutostopRequirement: false,
 		MaxTTL:                 0,
+		AutostartRequirement: TemplateAutostartRequirement{
+			// Default to allowing all days for AGPL
+			DaysOfWeek: 0b01111111,
+		},
 		AutostopRequirement: TemplateAutostopRequirement{
 			// No days means never. The weeks value should always be greater
 			// than zero though.
@@ -186,6 +223,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			MaxTTL:                        tpl.MaxTTL,
 			AutostopRequirementDaysOfWeek: tpl.AutostopRequirementDaysOfWeek,
 			AutostopRequirementWeeks:      tpl.AutostopRequirementWeeks,
+			AutostartBlockDaysOfWeek:      tpl.AutostartBlockDaysOfWeek,
 			AllowUserAutostart:            tpl.AllowUserAutostart,
 			AllowUserAutostop:             tpl.AllowUserAutostop,
 			FailureTTL:                    tpl.FailureTTL,

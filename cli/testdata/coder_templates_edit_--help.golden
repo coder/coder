@@ -17,6 +17,12 @@ OPTIONS:
       --allow-user-cancel-workspace-jobs bool (default: true)
           Allow users to cancel in-progress workspace jobs.
 
+      --autostart-requirement-weekdays string-array
+          Edit the template autostart requirement weekdays - workspaces created
+          from this template can only autostart on the given weekdays. To unset
+          this value for the template (and allow autostart on all days), pass
+          'all'.
+
       --default-ttl duration
           Edit the template default time before shutdown - workspaces created
           from this template default to this value. Maps to "Default autostop"

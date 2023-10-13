@@ -736,6 +736,65 @@ func TestWorkspaceAutobuild(t *testing.T) {
 	})
 }
 
+// Blocked by autostart requirements
+func TestExecutorAutostartBlocked(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	var allowed []string
+	for _, day := range agplschedule.DaysOfWeek {
+		// Skip the day the workspace was created on and if the next day is within 2
+		// hours, skip that too. The cron scheduler will start the workspace every hour,
+		// so it can span into the next day.
+		if day != now.UTC().Weekday() &&
+			day != now.UTC().Add(time.Hour*2).Weekday() {
+			allowed = append(allowed, day.String())
+		}
+	}
+
+	var (
+		sched         = must(cron.Weekly("CRON_TZ=UTC 0 * * * *"))
+		tickCh        = make(chan time.Time)
+		statsCh       = make(chan autobuild.Stats)
+		client, owner = coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore()),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+		version  = coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template = coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(request *codersdk.CreateTemplateRequest) {
+			request.AutostartRequirement = &codersdk.TemplateAutostartRequirement{
+				DaysOfWeek: allowed,
+			}
+		})
+		_         = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace = coderdtest.CreateWorkspace(t, client, owner.OrganizationID, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	)
+
+	// Given: workspace is stopped
+	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// When: the autobuild executor ticks way into the future
+	go func() {
+		tickCh <- workspace.LatestBuild.CreatedAt.Add(24 * time.Hour)
+		close(tickCh)
+	}()
+
+	// Then: the workspace should not be started.
+	stats := <-statsCh
+	require.NoError(t, stats.Error)
+	require.Len(t, stats.Transitions, 0)
+}
+
 func TestWorkspacesFiltering(t *testing.T) {
 	t.Parallel()
 
@@ -910,4 +969,11 @@ func TestWorkspaceLock(t *testing.T) {
 		// The last_used_at should get updated when we unlock the workspace.
 		require.True(t, workspace.LastUsedAt.After(lastUsedAt))
 	})
+}
+
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }

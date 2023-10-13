@@ -17,19 +17,20 @@ import (
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
-		name                          string
-		displayName                   string
-		description                   string
-		icon                          string
-		defaultTTL                    time.Duration
-		maxTTL                        time.Duration
-		autostopRequirementDaysOfWeek []string
-		autostopRequirementWeeks      int64
-		failureTTL                    time.Duration
-		inactivityTTL                 time.Duration
-		allowUserCancelWorkspaceJobs  bool
-		allowUserAutostart            bool
-		allowUserAutostop             bool
+		name                           string
+		displayName                    string
+		description                    string
+		icon                           string
+		defaultTTL                     time.Duration
+		maxTTL                         time.Duration
+		autostopRequirementDaysOfWeek  []string
+		autostopRequirementWeeks       int64
+		autostartRequirementDaysOfWeek []string
+		failureTTL                     time.Duration
+		inactivityTTL                  time.Duration
+		allowUserCancelWorkspaceJobs   bool
+		allowUserAutostart             bool
+		allowUserAutostop              bool
 	)
 	client := new(codersdk.Client)
 
@@ -48,7 +49,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				!allowUserAutostop ||
 				maxTTL != 0 ||
 				failureTTL != 0 ||
-				inactivityTTL != 0
+				inactivityTTL != 0 ||
+				len(autostartRequirementDaysOfWeek) > 0
+
 			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
@@ -77,6 +80,12 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			if len(autostopRequirementDaysOfWeek) == 0 {
 				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
+			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+				// Set it to every day of the week
+				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+			} else if len(autostartRequirementDaysOfWeek) == 0 {
+				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+			}
 			if unsetAutostopRequirementDaysOfWeek {
 				autostopRequirementDaysOfWeek = []string{}
 			}
@@ -92,6 +101,9 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
+				},
+				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
 				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
@@ -139,6 +151,22 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			Flag:        "max-ttl",
 			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to \"Max lifetime\" in the UI.",
 			Value:       clibase.DurationOf(&maxTTL),
+		},
+		{
+			Flag: "autostart-requirement-weekdays",
+			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
+			Value: clibase.Validate(clibase.StringArrayOf(&autostartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "all" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid autostart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
 		},
 		{
 			Flag:        "autostop-requirement-weekdays",
