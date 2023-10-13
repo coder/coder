@@ -32,15 +32,13 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 	}
 
 	for _, tt := range []struct {
-		name                         string
-		transition                   database.WorkspaceTransition
-		jobCompletedAt               sql.NullTime
-		buildDeadlineOffset          *time.Duration
-		maxDeadlineOffset            *time.Duration
-		workspaceTTL                 time.Duration
-		templateDisallowUserAutostop bool // inverted
-		templateTTL                  time.Duration
-		expectedBump                 time.Duration
+		name                string
+		transition          database.WorkspaceTransition
+		jobCompletedAt      sql.NullTime
+		buildDeadlineOffset *time.Duration
+		maxDeadlineOffset   *time.Duration
+		workspaceTTL        time.Duration
+		expectedBump        time.Duration
 	}{
 		{
 			name:                "NotFinishedYet",
@@ -71,7 +69,6 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			jobCompletedAt:      sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
 			buildDeadlineOffset: ptr.Ref(8*time.Hour - 24*time.Minute),
 			workspaceTTL:        8 * time.Hour,
-			templateTTL:         6 * time.Hour, // unused
 			expectedBump:        8 * time.Hour,
 		},
 		{
@@ -101,18 +98,6 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 			buildDeadlineOffset: ptr.Ref(-time.Minute),
 			workspaceTTL:        8 * time.Hour,
 			expectedBump:        0,
-		},
-		{
-			// If the template disallows user autostop, then the TTL of the
-			// template should be used.
-			name:                         "TemplateDisallowsUserAutostop",
-			transition:                   database.WorkspaceTransitionStart,
-			jobCompletedAt:               sql.NullTime{Valid: true, Time: dbtime.Now().Add(-24 * time.Minute)},
-			buildDeadlineOffset:          ptr.Ref(8*time.Hour - 24*time.Minute),
-			workspaceTTL:                 6 * time.Hour,
-			templateDisallowUserAutostop: true,
-			templateTTL:                  8 * time.Hour,
-			expectedBump:                 8 * time.Hour,
 		},
 	} {
 		tt := tt
@@ -159,15 +144,6 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 					buildID = uuid.New()
 				)
 
-				err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
-					ID:                template.ID,
-					UpdatedAt:         dbtime.Now(),
-					AllowUserAutostop: !tt.templateDisallowUserAutostop,
-					DefaultTTL:        int64(tt.templateTTL),
-					// The other fields don't matter.
-				})
-				require.NoError(t, err)
-
 				var buildNumber int32 = 1
 				// Insert a number of previous workspace builds.
 				for i := 0; i < 5; i++ {
@@ -186,7 +162,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				if tt.maxDeadlineOffset != nil {
 					maxDeadline = now.Add(*tt.maxDeadlineOffset)
 				}
-				err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+				err := db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 					ID:                buildID,
 					CreatedAt:         dbtime.Now(),
 					UpdatedAt:         dbtime.Now(),
