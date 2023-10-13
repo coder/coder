@@ -18,6 +18,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: some-config
+  namespace: default
 data:
   key: some-value
 ---

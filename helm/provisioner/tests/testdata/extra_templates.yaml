@@ -7,5 +7,6 @@ extraTemplates:
     kind: ConfigMap
     metadata:
       name: some-config
+      namespace: {{ .Release.Namespace }}
     data:
       key: some-value
