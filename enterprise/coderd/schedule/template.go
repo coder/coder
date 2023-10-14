@@ -92,6 +92,7 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
 		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
+		RequirePromotedVersion:   tpl.RequirePromotedVersion,
 	}, nil
 }
 

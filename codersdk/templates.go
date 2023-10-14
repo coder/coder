@@ -52,6 +52,8 @@ type Template struct {
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`
 	TimeTilDormantMillis           int64 `json:"time_til_dormant_ms"`
 	TimeTilDormantAutoDeleteMillis int64 `json:"time_til_dormant_autodelete_ms"`
+
+	RequirePromotedVersion bool `json:"require_promoted_version"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with

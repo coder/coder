@@ -343,7 +343,11 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {
-			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
+			code := http.StatusInternalServerError
+			if rbac.IsUnauthorizedError(err) {
+				code = http.StatusUnauthorized
+			}
+			return BuildError{code, "insert workspace build", err}
 		}
 
 		names, values, err := b.getParameters()

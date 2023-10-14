@@ -762,11 +762,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Create a template version1 that passes to get a functioning workspace.
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		})
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID)
@@ -781,11 +777,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Create a new version so that we can assert we don't update
 		// to the latest by default.
-		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
-			Parse:          echo.ParseComplete,
-			ProvisionPlan:  echo.PlanComplete,
-			ProvisionApply: echo.ApplyComplete,
-		}, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+		version2 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version2.ID)
@@ -807,7 +799,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Validate that we didn't update to the promoted version.
 		started := coderdtest.MustWorkspace(t, client, ws.ID)
 		firstBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, started.LatestBuild.ID)
-		require.Equal(t, version1.ID, ws.LatestBuild.TemplateVersionID)
+		require.Equal(t, version1.ID, firstBuild.TemplateVersionID)
 
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
@@ -818,7 +810,9 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
+		})
 
 		// Force an autostart transition again.
 		tickCh <- sched.Next(firstBuild.CreatedAt)

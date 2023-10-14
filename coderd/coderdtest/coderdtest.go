@@ -915,7 +915,7 @@ func CreateWorkspace(t testing.TB, client *codersdk.Client, organization uuid.UU
 }
 
 // TransitionWorkspace is a convenience method for transitioning a workspace from one state to another.
-func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition) codersdk.Workspace {
+func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID uuid.UUID, from, to database.WorkspaceTransition, muts ...func(req *codersdk.CreateWorkspaceBuildRequest)) codersdk.Workspace {
 	t.Helper()
 	ctx := context.Background()
 	workspace, err := client.Workspace(ctx, workspaceID)
@@ -925,10 +925,19 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	template, err := client.Template(ctx, workspace.TemplateID)
 	require.NoError(t, err, "fetch workspace template")
 
-	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+	req := codersdk.CreateWorkspaceBuildRequest{
+		// TODO (JonA): I get this is for convenience but we shoul probably
+		// change this. Tripped me up why my test was passing when it shouldn't
+		// have.
 		TemplateVersionID: template.ActiveVersionID,
 		Transition:        codersdk.WorkspaceTransition(to),
-	})
+	}
+
+	for _, mut := range muts {
+		mut(&req)
+	}
+
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, req)
 	require.NoError(t, err, "unexpected error transitioning workspace to %s", to)
 
 	_ = AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
