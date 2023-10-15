@@ -26,7 +26,7 @@ export function optionValue(
       const experimentMap: Record<string, boolean> | undefined =
         additionalValues?.reduce(
           (acc, v) => {
-            return { ...acc, [v]: false };
+            return { ...acc, [v]: option.value.includes("*") ? true : false };
           },
           {} as Record<string, boolean>,
         );
