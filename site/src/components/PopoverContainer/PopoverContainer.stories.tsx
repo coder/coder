@@ -2,11 +2,6 @@ import { Meta, StoryObj } from "@storybook/react";
 import { PopoverContainer } from "./PopoverContainer";
 import Button from "@mui/material/Button";
 
-const numbers: number[] = [];
-for (let i = 0; i < 20; i++) {
-  numbers.push(i + 1);
-}
-
 const meta: Meta<typeof PopoverContainer> = {
   title: "components/PopoverContainer",
   component: PopoverContainer,

@@ -120,9 +120,10 @@ SET
 	max_ttl = $6,
 	autostop_requirement_days_of_week = $7,
 	autostop_requirement_weeks = $8,
-	failure_ttl = $9,
-	time_til_dormant = $10,
-	time_til_dormant_autodelete = $11
+	autostart_block_days_of_week = $9,
+	failure_ttl = $10,
+	time_til_dormant = $11,
+	time_til_dormant_autodelete = $12
 WHERE
 	id = $1
 ;

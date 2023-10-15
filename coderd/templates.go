@@ -225,12 +225,13 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	var (
 		defaultTTL time.Duration
 		// TODO(@dean): remove max_ttl once autostop_requirement is ready
-		maxTTL                        time.Duration
-		autostopRequirementDaysOfWeek []string
-		autostopRequirementWeeks      int64
-		failureTTL                    time.Duration
-		dormantTTL                    time.Duration
-		dormantAutoDeletionTTL        time.Duration
+		maxTTL                         time.Duration
+		autostopRequirementDaysOfWeek  []string
+		autostartRequirementDaysOfWeek []string
+		autostopRequirementWeeks       int64
+		failureTTL                     time.Duration
+		dormantTTL                     time.Duration
+		dormantAutoDeletionTTL         time.Duration
 	)
 	if createTemplate.DefaultTTLMillis != nil {
 		defaultTTL = time.Duration(*createTemplate.DefaultTTLMillis) * time.Millisecond
@@ -238,6 +239,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if createTemplate.AutostopRequirement != nil {
 		autostopRequirementDaysOfWeek = createTemplate.AutostopRequirement.DaysOfWeek
 		autostopRequirementWeeks = createTemplate.AutostopRequirement.Weeks
+	}
+	if createTemplate.AutostartRequirement != nil {
+		autostartRequirementDaysOfWeek = createTemplate.AutostartRequirement.DaysOfWeek
+	} else {
+		// By default, we want to allow all days of the week to be autostarted.
+		autostartRequirementDaysOfWeek = codersdk.BitmapToWeekdays(0b01111111)
 	}
 	if createTemplate.FailureTTLMillis != nil {
 		failureTTL = time.Duration(*createTemplate.FailureTTLMillis) * time.Millisecond
@@ -250,8 +257,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	}
 
 	var (
-		validErrs                           []codersdk.ValidationError
-		autostopRequirementDaysOfWeekParsed uint8
+		validErrs                            []codersdk.ValidationError
+		autostopRequirementDaysOfWeekParsed  uint8
+		autostartRequirementDaysOfWeekParsed uint8
 	)
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -266,6 +274,12 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostopRequirementDaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
+		}
+	}
+	if len(autostartRequirementDaysOfWeek) > 0 {
+		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(autostartRequirementDaysOfWeek)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
 	if createTemplate.MaxTTLMillis != nil {
@@ -349,6 +363,9 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			AutostopRequirement: schedule.TemplateAutostopRequirement{
 				DaysOfWeek: autostopRequirementDaysOfWeekParsed,
 				Weeks:      autostopRequirementWeeks,
+			},
+			AutostartRequirement: schedule.TemplateAutostartRequirement{
+				DaysOfWeek: autostartRequirementDaysOfWeekParsed,
 			},
 			FailureTTL:               failureTTL,
 			TimeTilDormant:           dormantTTL,
@@ -510,8 +527,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var (
-		validErrs                           []codersdk.ValidationError
-		autostopRequirementDaysOfWeekParsed uint8
+		validErrs                            []codersdk.ValidationError
+		autostopRequirementDaysOfWeekParsed  uint8
+		autostartRequirementDaysOfWeekParsed uint8
 	)
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -532,6 +550,17 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostopRequirement.DaysOfWeek)
 		if err != nil {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
+		}
+	}
+	if req.AutostartRequirement == nil {
+		req.AutostartRequirement = &codersdk.TemplateAutostartRequirement{
+			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostartRequirement.DaysOfWeek),
+		}
+	}
+	if len(req.AutostartRequirement.DaysOfWeek) > 0 {
+		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostartRequirement.DaysOfWeek)
+		if err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
 		}
 	}
 	if req.AutostopRequirement.Weeks < 0 {
@@ -622,6 +651,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		if defaultTTL != time.Duration(template.DefaultTTL) ||
 			maxTTL != time.Duration(template.MaxTTL) ||
 			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
+			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
 			req.AutostopRequirement.Weeks != scheduleOpts.AutostopRequirement.Weeks ||
 			failureTTL != time.Duration(template.FailureTTL) ||
 			inactivityTTL != time.Duration(template.TimeTilDormant) ||
@@ -639,6 +669,9 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				AutostopRequirement: schedule.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeekParsed,
 					Weeks:      req.AutostopRequirement.Weeks,
+				},
+				AutostartRequirement: schedule.TemplateAutostartRequirement{
+					DaysOfWeek: autostartRequirementDaysOfWeekParsed,
 				},
 				FailureTTL:                failureTTL,
 				TimeTilDormant:            inactivityTTL,
@@ -786,6 +819,9 @@ func (api *API) convertTemplate(
 		AutostopRequirement: codersdk.TemplateAutostopRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(uint8(template.AutostopRequirementDaysOfWeek)),
 			Weeks:      autostopRequirementWeeks,
+		},
+		AutostartRequirement: codersdk.TemplateAutostartRequirement{
+			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
 	}
 }
