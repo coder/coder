@@ -95,20 +95,6 @@ On the command line:
 coder update <workspace-name>
 ```
 
-## Repairing workspaces
-
-You can re-enter template input variables from a workspace. This is
-useful when a workspace fails to build because its state is out of
-sync with the template.
-
-![Re-entering template variables](./images/template-variables.png)
-
-You can also do this in the CLI with the following command:
-
-```shell
-coder update <your workspace name> --always-prompt
-```
-
 ## Workspace resources
 
 Resources are often destroyed and re-created when a workspace is restarted,
@@ -135,6 +121,32 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > Note: Logs are truncated once they reach 5MB in size.
+
+## Repairing workspaces
+
+There are a couple of ways you can repair a workspace if its state 
+is out of sync with the template.
+
+First, try re-entering parameters from a workspace. 
+
+![Re-entering template variables](./images/template-variables.png)
+
+You can also do this in the CLI with the following command:
+
+```shell
+coder update <your workspace name> --always-prompt
+```
+
+If that does not work, a Coder admin can manually push and pull the
+Terraform state for a given workspace. This can lead to state
+corruption or deleted resources if you do not know what you are
+doing.
+
+```shell
+coder state pull <username>/<workspace name>
+# Make changes
+coder state push <username>/<workspace name>
+```
 
 ---
 
