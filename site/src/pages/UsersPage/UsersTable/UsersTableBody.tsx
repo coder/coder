@@ -3,7 +3,6 @@ import { makeStyles, useTheme } from "@mui/styles";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import { Pill } from "components/Pill/Pill";
 import { type FC } from "react";
 import * as TypesGen from "api/typesGenerated";
 import { combineClasses } from "utils/combineClasses";
@@ -14,8 +13,6 @@ import {
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
-import { EditRolesButton } from "./EditRolesButton";
-import { Stack } from "components/Stack/Stack";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
 import dayjs from "dayjs";
 import { SxProps, Theme } from "@mui/material/styles";
@@ -27,28 +24,17 @@ import relativeTime from "dayjs/plugin/relativeTime";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import Skeleton from "@mui/material/Skeleton";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { UserRoleCell } from "./UserRoleCell";
 
 dayjs.extend(relativeTime);
-
-const isOwnerRole = (role: TypesGen.Role): boolean => {
-  return role.name === "owner";
-};
-
-const roleOrder = ["owner", "user-admin", "template-admin", "auditor"];
-
-const sortRoles = (roles: TypesGen.Role[]) => {
-  return roles.slice(0).sort((a, b) => {
-    return roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name);
-  });
-};
 
 interface UsersTableBodyProps {
   users?: TypesGen.User[];
   authMethods?: TypesGen.AuthMethods;
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
-  canEditUsers?: boolean;
-  isLoading?: boolean;
+  canEditUsers: boolean;
+  isLoading: boolean;
   canViewActivity?: boolean;
   onSuspendUser: (user: TypesGen.User) => void;
   onDeleteUser: (user: TypesGen.User) => void;
@@ -101,15 +87,23 @@ export const UsersTableBody: FC<
                 <AvatarDataSkeleton />
               </Box>
             </TableCell>
+
             <TableCell>
               <Skeleton variant="text" width="25%" />
             </TableCell>
+
             <TableCell>
               <Skeleton variant="text" width="25%" />
             </TableCell>
+
             <TableCell>
               <Skeleton variant="text" width="25%" />
             </TableCell>
+
+            <TableCell>
+              <Skeleton variant="text" width="25%" />
+            </TableCell>
+
             {canEditUsers && (
               <TableCell>
                 <Skeleton variant="text" width="25%" />
@@ -118,6 +112,7 @@ export const UsersTableBody: FC<
           </TableRowSkeleton>
         </TableLoaderSkeleton>
       </Cond>
+
       <Cond condition={!users || users.length === 0}>
         <ChooseOne>
           <Cond condition={isNonInitialPage}>
@@ -129,6 +124,7 @@ export const UsersTableBody: FC<
               </TableCell>
             </TableRow>
           </Cond>
+
           <Cond>
             <TableRow>
               <TableCell colSpan={999}>
@@ -140,127 +136,89 @@ export const UsersTableBody: FC<
           </Cond>
         </ChooseOne>
       </Cond>
+
       <Cond>
-        <>
-          {users &&
-            users.map((user) => {
-              // When the user has no role we want to show they are a Member
-              const fallbackRole: TypesGen.Role = {
-                name: "member",
-                display_name: "Member",
-              };
-              const userRoles =
-                user.roles.length === 0
-                  ? [fallbackRole]
-                  : sortRoles(user.roles);
+        {users?.map((user) => (
+          <TableRow key={user.id} data-testid={`user-${user.id}`}>
+            <TableCell>
+              <AvatarData
+                title={user.username}
+                subtitle={user.email}
+                src={user.avatar_url}
+              />
+            </TableCell>
 
-              return (
-                <TableRow key={user.id} data-testid={`user-${user.id}`}>
-                  <TableCell>
-                    <AvatarData
-                      title={user.username}
-                      subtitle={user.email}
-                      src={user.avatar_url}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" spacing={1}>
-                      {canEditUsers && (
-                        <EditRolesButton
-                          roles={roles ? sortRoles(roles) : []}
-                          selectedRoles={userRoles}
-                          isLoading={Boolean(isUpdatingUserRoles)}
-                          userLoginType={user.login_type}
-                          oidcRoleSync={oidcRoleSyncEnabled}
-                          onChange={(roles) => {
-                            // Remove the fallback role because it is only for the UI
-                            const rolesWithoutFallback = roles.filter(
-                              (role) => role !== fallbackRole.name,
-                            );
-                            onUpdateUserRoles(user, rolesWithoutFallback);
-                          }}
-                        />
-                      )}
-                      {userRoles.map((role) => (
-                        <Pill
-                          key={role.name}
-                          text={role.display_name}
-                          className={combineClasses({
-                            [styles.rolePill]: true,
-                            [styles.rolePillOwner]: isOwnerRole(role),
-                          })}
-                        />
-                      ))}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <LoginType
-                      authMethods={authMethods!}
-                      value={user.login_type}
-                    />
-                  </TableCell>
-                  <TableCell
-                    className={combineClasses([
-                      styles.status,
-                      user.status === "suspended"
-                        ? styles.suspended
-                        : undefined,
-                    ])}
-                  >
-                    <Box>{user.status}</Box>
-                    <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
-                  </TableCell>
+            <UserRoleCell
+              canEditUsers={canEditUsers}
+              roles={roles}
+              user={user}
+              oidcRoleSyncEnabled={oidcRoleSyncEnabled}
+              isLoading={Boolean(isUpdatingUserRoles)}
+              onUserRolesUpdate={onUpdateUserRoles}
+            />
 
-                  {canEditUsers && (
-                    <TableCell>
-                      <TableRowMenu
-                        data={user}
-                        menuItems={[
-                          // Return either suspend or activate depending on status
-                          user.status === "active" || user.status === "dormant"
-                            ? {
-                                label: <>Suspend&hellip;</>,
-                                onClick: onSuspendUser,
-                                disabled: false,
-                              }
-                            : {
-                                label: <>Activate&hellip;</>,
-                                onClick: onActivateUser,
-                                disabled: false,
-                              },
-                          {
-                            label: <>Delete&hellip;</>,
-                            onClick: onDeleteUser,
-                            disabled: user.id === actorID,
-                          },
-                          {
-                            label: <>Reset password&hellip;</>,
-                            onClick: onResetUserPassword,
-                            disabled: user.login_type !== "password",
-                          },
-                          {
-                            label: "View workspaces",
-                            onClick: onListWorkspaces,
-                            disabled: false,
-                          },
-                          {
-                            label: (
-                              <>
-                                View activity
-                                {!canViewActivity && <EnterpriseBadge />}
-                              </>
-                            ),
-                            onClick: onViewActivity,
-                            disabled: !canViewActivity,
-                          },
-                        ]}
-                      />
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })}
-        </>
+            <TableCell>
+              <LoginType authMethods={authMethods!} value={user.login_type} />
+            </TableCell>
+
+            <TableCell
+              className={combineClasses([
+                styles.status,
+                user.status === "suspended" ? styles.suspended : undefined,
+              ])}
+            >
+              <Box>{user.status}</Box>
+              <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
+            </TableCell>
+
+            {canEditUsers && (
+              <TableCell>
+                <TableRowMenu
+                  data={user}
+                  menuItems={[
+                    // Return either suspend or activate depending on status
+                    user.status === "active" || user.status === "dormant"
+                      ? {
+                          label: <>Suspend&hellip;</>,
+                          onClick: onSuspendUser,
+                          disabled: false,
+                        }
+                      : {
+                          label: <>Activate&hellip;</>,
+                          onClick: onActivateUser,
+                          disabled: false,
+                        },
+                    {
+                      label: <>Delete&hellip;</>,
+                      onClick: onDeleteUser,
+                      disabled: user.id === actorID,
+                    },
+                    {
+                      label: <>Reset password&hellip;</>,
+                      onClick: onResetUserPassword,
+                      disabled: user.login_type !== "password",
+                    },
+                    {
+                      label: "View workspaces",
+                      onClick: onListWorkspaces,
+                      disabled: false,
+                    },
+                    {
+                      label: (
+                        <>
+                          View activity
+                          {!canViewActivity && <EnterpriseBadge />}
+                        </>
+                      ),
+                      onClick: onViewActivity,
+                      disabled: !canViewActivity,
+                    },
+                  ]}
+                />
+              </TableCell>
+            )}
+          </TableRow>
+        ))}
       </Cond>
     </ChooseOne>
   );

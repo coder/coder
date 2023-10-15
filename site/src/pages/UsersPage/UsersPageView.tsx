@@ -12,10 +12,10 @@ export interface UsersPageViewProps {
   users?: TypesGen.User[];
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
-  canEditUsers?: boolean;
+  canEditUsers: boolean;
   oidcRoleSyncEnabled: boolean;
   canViewActivity?: boolean;
-  isLoading?: boolean;
+  isLoading: boolean;
   authMethods?: TypesGen.AuthMethods;
   onSuspendUser: (user: TypesGen.User) => void;
   onDeleteUser: (user: TypesGen.User) => void;

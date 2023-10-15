@@ -16,15 +16,15 @@ export const Language = {
   statusLabel: "Status",
   lastSeenLabel: "Last Seen",
   loginTypeLabel: "Login Type",
-};
+} as const;
 
 export interface UsersTableProps {
   users?: TypesGen.User[];
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
-  canEditUsers?: boolean;
+  canEditUsers: boolean;
   canViewActivity?: boolean;
-  isLoading?: boolean;
+  isLoading: boolean;
   onSuspendUser: (user: TypesGen.User) => void;
   onActivateUser: (user: TypesGen.User) => void;
   onDeleteUser: (user: TypesGen.User) => void;
@@ -78,6 +78,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
         </TableHead>
+
         <TableBody>
           <UsersTableBody
             users={users}
