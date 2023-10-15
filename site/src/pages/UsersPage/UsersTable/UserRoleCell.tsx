@@ -1,30 +1,59 @@
-import { makeStyles } from "@mui/styles";
+import { useState } from "react";
+import { useTheme } from "@emotion/react";
 import { type User, type Role } from "api/typesGenerated";
-import { combineClasses } from "utils/combineClasses";
 
 import { EditRolesButton } from "./EditRolesButton";
 import { Pill } from "components/Pill/Pill";
 import TableCell from "@mui/material/TableCell";
 import Stack from "@mui/material/Stack";
 
-const useStyles = makeStyles((theme) => ({
-  rolePill: {
-    backgroundColor: theme.palette.background.paperLight,
-    borderColor: theme.palette.divider,
-  },
-  rolePillOwner: {
-    backgroundColor: theme.palette.info.dark,
-    borderColor: theme.palette.info.light,
-  },
-}));
+const roleNameDisplayOrder: readonly string[] = [
+  "owner",
+  "user-admin",
+  "template-admin",
+  "auditor",
+];
 
-const roleOrder = ["owner", "user-admin", "template-admin", "auditor"];
+const fallbackRole: Role = {
+  name: "member",
+  display_name: "Member",
+} as const;
 
-const sortRoles = (roles: readonly Role[]) => {
+function getPillRoleList(userRoles: readonly Role[]): readonly Role[] {
+  if (userRoles.length === 0) {
+    return [fallbackRole];
+  }
+
+  const matchedOwnerRole = userRoles.find((role) => role.name === "owner");
+  if (matchedOwnerRole !== undefined) {
+    return [matchedOwnerRole];
+  }
+
+  return [...userRoles].sort((r1, r2) => {
+    if (r1.name === r2.name) {
+      return 0;
+    }
+
+    return r1.name < r2.name ? -1 : 1;
+  });
+}
+
+function getSelectedRoleNames(roles: readonly Role[]) {
+  const roleNameSet = new Set(roles.map((role) => role.name));
+  if (roleNameSet.size === 0) {
+    roleNameSet.add(fallbackRole.name);
+  }
+
+  return roleNameSet;
+}
+
+function sortRolesByAccessLevel(roles: readonly Role[]) {
   return [...roles].sort(
-    (a, b) => roleOrder.indexOf(a.name) - roleOrder.indexOf(b.name),
+    (r1, r2) =>
+      roleNameDisplayOrder.indexOf(r1.name) -
+      roleNameDisplayOrder.indexOf(r2.name),
   );
-};
+}
 
 type Props = {
   canEditUsers: boolean;
@@ -35,12 +64,6 @@ type Props = {
   onUserRolesUpdate: (user: User, newRoleNames: string[]) => void;
 };
 
-// When the user has no role we want to show they are a Member
-const fallbackRole: Role = {
-  name: "member",
-  display_name: "Member",
-} as const;
-
 export function UserRoleCell({
   canEditUsers,
   roles,
@@ -49,18 +72,20 @@ export function UserRoleCell({
   oidcRoleSyncEnabled,
   onUserRolesUpdate,
 }: Props) {
-  const styles = useStyles();
+  const theme = useTheme();
 
-  const userRoles =
-    user.roles.length === 0 ? [fallbackRole] : sortRoles(user.roles);
+  const pillRoleList = getPillRoleList(user.roles);
+  const [rolesTruncated, setRolesTruncated] = useState(
+    user.roles.length - pillRoleList.length,
+  );
 
   return (
     <TableCell>
       <Stack direction="row" spacing={1}>
         {canEditUsers && (
           <EditRolesButton
-            roles={roles ? sortRoles(roles) : []}
-            selectedRoles={userRoles}
+            roles={sortRolesByAccessLevel(roles ?? [])}
+            selectedRoleNames={getSelectedRoleNames(user.roles)}
             isLoading={isLoading}
             userLoginType={user.login_type}
             oidcRoleSync={oidcRoleSyncEnabled}
@@ -69,21 +94,29 @@ export function UserRoleCell({
               const rolesWithoutFallback = roles.filter(
                 (role) => role !== fallbackRole.name,
               );
+
               onUserRolesUpdate(user, rolesWithoutFallback);
             }}
           />
         )}
 
-        {userRoles.map((role) => (
-          <Pill
-            key={role.name}
-            text={role.display_name}
-            className={combineClasses({
-              [styles.rolePill]: true,
-              [styles.rolePillOwner]: role.name === "owner",
-            })}
-          />
-        ))}
+        {pillRoleList.map((role) => {
+          const isOwnerRole = role.name === "owner";
+          const { palette } = theme;
+
+          return (
+            <Pill
+              key={role.name}
+              text={role.display_name}
+              css={{
+                backgroundColor: isOwnerRole
+                  ? palette.info.dark
+                  : palette.background.paperLight,
+                borderColor: isOwnerRole ? palette.info.light : palette.divider,
+              }}
+            />
+          );
+        })}
       </Stack>
     </TableCell>
   );
