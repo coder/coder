@@ -9966,6 +9966,10 @@ const docTemplate = `{
                         "terraform"
                     ]
                 },
+                "require_promoted_version": {
+                    "description": "RequireActiveVersion mandates that workspaces are built with the active\ntemplate version.",
+                    "type": "boolean"
+                },
                 "time_til_dormant_autodelete_ms": {
                     "type": "integer"
                 },

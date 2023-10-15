@@ -911,6 +911,7 @@ export interface Template {
   readonly failure_ttl_ms: number;
   readonly time_til_dormant_ms: number;
   readonly time_til_dormant_autodelete_ms: number;
+  readonly require_promoted_version: boolean;
 }
 
 // From codersdk/templates.go
@@ -1161,6 +1162,7 @@ export interface UpdateTemplateMeta {
   readonly time_til_dormant_autodelete_ms?: number;
   readonly update_workspace_last_used_at: boolean;
   readonly update_workspace_dormant_at: boolean;
+  readonly require_promoted_version: boolean;
 }
 
 // From codersdk/users.go
