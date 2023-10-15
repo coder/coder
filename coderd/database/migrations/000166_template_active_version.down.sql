@@ -1,9 +1,10 @@
 BEGIN;
 
-ALTER TABLE templates DROP COLUMN require_active_version;
-
 -- Update the template_with_users view;
 DROP VIEW template_with_users;
+
+ALTER TABLE templates DROP COLUMN require_active_version;
+
 -- If you need to update this view, put 'DROP VIEW template_with_users;' before this.
 CREATE VIEW
     template_with_users

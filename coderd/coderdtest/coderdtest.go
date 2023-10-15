@@ -926,7 +926,7 @@ func MustTransitionWorkspace(t testing.TB, client *codersdk.Client, workspaceID 
 	require.NoError(t, err, "fetch workspace template")
 
 	req := codersdk.CreateWorkspaceBuildRequest{
-		// TODO (JonA): I get this is for convenience but we shoul probably
+		// TODO (JonA): I get this is for convenience but we should probably
 		// change this. Tripped me up why my test was passing when it shouldn't
 		// have.
 		TemplateVersionID: template.ActiveVersionID,
