@@ -13,6 +13,7 @@ import { UsersTableBody } from "./UsersTableBody";
 export const Language = {
   usernameLabel: "User",
   rolesLabel: "Roles",
+  groupsLabel: "Groups",
   statusLabel: "Status",
   lastSeenLabel: "Last Seen",
   loginTypeLabel: "Login Type",
@@ -65,15 +66,19 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
       <Table>
         <TableHead>
           <TableRow>
-            <TableCell width="30%">{Language.usernameLabel}</TableCell>
-            <TableCell width="40%">
+            <TableCell width="29%">{Language.usernameLabel}</TableCell>
+
+            <TableCell width="29%">
               <Stack direction="row" spacing={1} alignItems="center">
                 <span>{Language.rolesLabel}</span>
                 <UserRoleHelpTooltip />
               </Stack>
             </TableCell>
-            <TableCell width="15%">{Language.loginTypeLabel}</TableCell>
-            <TableCell width="15%">{Language.statusLabel}</TableCell>
+
+            <TableCell width="14%">{Language.groupsLabel}</TableCell>
+            <TableCell width="14%">{Language.loginTypeLabel}</TableCell>
+            <TableCell width="14%">{Language.statusLabel}</TableCell>
+
             {/* 1% is a trick to make the table cell width fit the content */}
             {canEditUsers && <TableCell width="1%" />}
           </TableRow>
