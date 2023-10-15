@@ -55,7 +55,7 @@ type Template struct {
 
 	// RequireActiveVersion mandates that workspaces are built with the active
 	// template version.
-	RequireActiveVersion bool `json:"require_promoted_version"`
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -226,9 +226,9 @@ type UpdateTemplateMeta struct {
 	// deleted when updating the dormant_ttl field to a new, shorter value.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 	// RequireActiveVersion mandates workspaces built using this template
-	// use the latest promoted version of the template. This option has no
+	// use the active version of the template. This option has no
 	// effect on template admins.
-	RequireActiveVersion bool `json:"require_promoted_version"`
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 type TemplateExample struct {

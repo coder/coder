@@ -153,7 +153,7 @@ type TemplateScheduleOptions struct {
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
 	// RequireActiveVersion requires that a starting a workspace uses the active
 	// version for a template.
-	RequireActiveVersion bool `json:"require_promoted_version"`
+	RequireActiveVersion bool `json:"require_active_version"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template

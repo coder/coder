@@ -573,7 +573,7 @@ func TestTemplates(t *testing.T) {
 		require.True(t, updatedDormantWS.LastUsedAt.After(dormantWorkspace.LastUsedAt))
 	})
 
-	t.Run("RequirePromotedVersion", func(t *testing.T) {
+	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{

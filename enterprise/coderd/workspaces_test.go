@@ -737,7 +737,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, database.WorkspaceTransitionDelete, stats.Transitions[ws.ID])
 	})
 
-	t.Run("RequirePromotedVersion", func(t *testing.T) {
+	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
 		var (

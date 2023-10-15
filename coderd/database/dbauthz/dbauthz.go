@@ -2221,9 +2221,9 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 			return xerrors.Errorf("get template by id: %w", err)
 		}
 
-		// If the template requires the promoted version we need to check if
+		// If the template requires the active version we need to check if
 		// the user is a template admin. If they aren't and are attempting
-		// to use a non-promoted version then we must fail the request.
+		// to use a non-active version then we must fail the request.
 		if t.RequireActiveVersion {
 			if arg.TemplateVersionID != t.ActiveVersionID {
 				if err = q.authorizeContext(ctx, rbac.ActionUpdate, t); err != nil {

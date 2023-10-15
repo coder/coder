@@ -4370,7 +4370,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "provisioner": "terraform",
-  "require_promoted_version": true,
+  "require_active_version": true,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z"
@@ -4429,7 +4429,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`                             | string                                                                       | false    |              |                                                                                                                                                                                                 |
 | `organization_id`                  | string                                                                       | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                       | false    |              |                                                                                                                                                                                                 |
-| `require_promoted_version`         | boolean                                                                      | false    |              | Require promoted version mandates that workspaces are built with the active template version.                                                                                                   |
+| `require_active_version`           | boolean                                                                      | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                      | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                      | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                       | false    |              |                                                                                                                                                                                                 |
