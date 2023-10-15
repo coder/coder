@@ -70,7 +70,7 @@ curl -L https://coder.com/install.sh | sh
 
 You can run the install script with `--dry-run` to see the commands that will be used to install without executing them. You can modify the installation process by including flags. Run the install script with `--help` for reference.
 
-> See [install](docs/install) for additional methods.
+> See [install](https://coder.com/docs/v2/latest/install) for additional methods.
 
 Once installed, you can start a production deployment<sup>1</sup> with a single command:
 
