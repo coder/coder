@@ -124,7 +124,7 @@ SET
 	failure_ttl = $10,
 	time_til_dormant = $11,
 	time_til_dormant_autodelete = $12,
-    require_active_version = $13
+	require_active_version = $13
 WHERE
 	id = $1
 ;
