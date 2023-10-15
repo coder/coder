@@ -13,8 +13,7 @@ const Language = {
   workspaceTooltipText:
     "A workspace is your development environment in the cloud. It includes the infrastructure and tools you need to work on your project.",
   workspaceTooltipLink1: "Create Workspaces",
-  workspaceTooltipLink2: "Connect with SSH",
-  workspaceTooltipLink3: "Editors and IDEs",
+  workspaceTooltipLink2: "Editors and IDEs",
 }
 
 export const WorkspaceHelpTooltip: FC = () => {
@@ -23,14 +22,11 @@ export const WorkspaceHelpTooltip: FC = () => {
       <HelpTooltipTitle>{Language.workspaceTooltipTitle}</HelpTooltipTitle>
       <HelpTooltipText>{Language.workspaceTooltipText}</HelpTooltipText>
       <HelpTooltipLinksGroup>
-        <HelpTooltipLink href={docs("/workspaces#create-workspaces")}>
+        <HelpTooltipLink href={docs("/workspaces")}>
           {Language.workspaceTooltipLink1}
         </HelpTooltipLink>
-        <HelpTooltipLink href={docs("/workspaces#connect-with-ssh")}>
+        <HelpTooltipLink href={docs("/ides")}>
           {Language.workspaceTooltipLink2}
-        </HelpTooltipLink>
-        <HelpTooltipLink href={docs("/workspaces#editors-and-ides")}>
-          {Language.workspaceTooltipLink3}
         </HelpTooltipLink>
       </HelpTooltipLinksGroup>
     </HelpTooltip>

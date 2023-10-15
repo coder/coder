@@ -55,7 +55,7 @@ export const EmptyTemplates: FC<{
             for workspaces (e.g., docker_container, aws_instance,
             kubernetes_pod). Select a starter template below or
             <Link
-              href={docs("/templates#add-a-template")}
+              href={docs("/templates/tutorial")}
               target="_blank"
               rel="noreferrer"
             >
