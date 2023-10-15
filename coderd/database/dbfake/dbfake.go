@@ -5729,7 +5729,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.TimeTilDormant = arg.TimeTilDormant
 		tpl.TimeTilDormantAutoDelete = arg.TimeTilDormantAutoDelete
-		tpl.RequirePromotedVersion = arg.RequirePromotedVersion
+		tpl.RequireActiveVersion = arg.RequireActiveVersion
 		q.templates[idx] = tpl
 		return nil
 	}

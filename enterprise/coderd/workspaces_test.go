@@ -803,8 +803,8 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequirePromotedVersion: true,
-			AllowUserAutostart:     true,
+			RequireActiveVersion: true,
+			AllowUserAutostart:   true,
 		})
 		require.NoError(t, err)
 

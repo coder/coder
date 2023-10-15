@@ -18,7 +18,7 @@ import (
 
 func TestWorkspaceBuild(t *testing.T) {
 	t.Parallel()
-	t.Run("TemplateAdminNoActiveVersion", func(t *testing.T) {
+	t.Run("TemplateRequiresActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
@@ -43,7 +43,7 @@ func TestWorkspaceBuild(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, oldVersion.ID)
 		require.Equal(t, oldVersion.ID, template.ActiveVersionID)
 		template, err := ownerClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequirePromotedVersion: true,
+			RequireActiveVersion: true,
 		})
 		require.NoError(t, err)
 

@@ -2,7 +2,7 @@ BEGIN;
 
 DROP VIEW template_with_users;
 
-ALTER TABLE templates ADD COLUMN require_promoted_version boolean NOT NULL DEFAULT 'f';
+ALTER TABLE templates ADD COLUMN require_active_version boolean NOT NULL DEFAULT 'f';
 
 CREATE VIEW
     template_with_users

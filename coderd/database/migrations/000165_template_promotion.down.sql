@@ -1,6 +1,6 @@
 BEGIN;
 
-ALTER TABLE templates DROP COLUMN require_promoted_version;
+ALTER TABLE templates DROP COLUMN require_active_version;
 
 -- Update the template_with_users view;
 DROP VIEW template_with_users;

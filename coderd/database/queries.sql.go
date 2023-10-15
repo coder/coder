@@ -4727,10 +4727,14 @@ func (q *sqlQuerier) GetTemplateAverageBuildTime(ctx context.Context, arg GetTem
 const getTemplateByID = `-- name: GetTemplateByID :one
 SELECT
 <<<<<<< HEAD
+<<<<<<< HEAD
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 =======
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_promoted_version, created_by_avatar_url, created_by_username
 >>>>>>> 5786e8135 (add migration)
+=======
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_active_version, created_by_avatar_url, created_by_username
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 FROM
 	template_with_users
 WHERE
@@ -4768,10 +4772,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
 <<<<<<< HEAD
+<<<<<<< HEAD
 		&i.AutostartBlockDaysOfWeek,
 =======
 		&i.RequirePromotedVersion,
 >>>>>>> 5786e8135 (add migration)
+=======
+		&i.RequireActiveVersion,
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -4781,10 +4789,14 @@ func (q *sqlQuerier) GetTemplateByID(ctx context.Context, id uuid.UUID) (Templat
 const getTemplateByOrganizationAndName = `-- name: GetTemplateByOrganizationAndName :one
 SELECT
 <<<<<<< HEAD
+<<<<<<< HEAD
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 =======
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_promoted_version, created_by_avatar_url, created_by_username
 >>>>>>> 5786e8135 (add migration)
+=======
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_active_version, created_by_avatar_url, created_by_username
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 FROM
 	template_with_users AS templates
 WHERE
@@ -4830,10 +4842,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 		&i.AutostopRequirementDaysOfWeek,
 		&i.AutostopRequirementWeeks,
 <<<<<<< HEAD
+<<<<<<< HEAD
 		&i.AutostartBlockDaysOfWeek,
 =======
 		&i.RequirePromotedVersion,
 >>>>>>> 5786e8135 (add migration)
+=======
+		&i.RequireActiveVersion,
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -4842,10 +4858,14 @@ func (q *sqlQuerier) GetTemplateByOrganizationAndName(ctx context.Context, arg G
 
 const getTemplates = `-- name: GetTemplates :many
 <<<<<<< HEAD
+<<<<<<< HEAD
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 =======
 SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_promoted_version, created_by_avatar_url, created_by_username FROM template_with_users AS templates
 >>>>>>> 5786e8135 (add migration)
+=======
+SELECT id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_active_version, created_by_avatar_url, created_by_username FROM template_with_users AS templates
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 ORDER BY (name, id) ASC
 `
 
@@ -4884,10 +4904,14 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
 <<<<<<< HEAD
+<<<<<<< HEAD
 			&i.AutostartBlockDaysOfWeek,
 =======
 			&i.RequirePromotedVersion,
 >>>>>>> 5786e8135 (add migration)
+=======
+			&i.RequireActiveVersion,
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -4907,10 +4931,14 @@ func (q *sqlQuerier) GetTemplates(ctx context.Context) ([]Template, error) {
 const getTemplatesWithFilter = `-- name: GetTemplatesWithFilter :many
 SELECT
 <<<<<<< HEAD
+<<<<<<< HEAD
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, created_by_avatar_url, created_by_username
 =======
 	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_promoted_version, created_by_avatar_url, created_by_username
 >>>>>>> 5786e8135 (add migration)
+=======
+	id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, max_ttl, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, require_active_version, created_by_avatar_url, created_by_username
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 FROM
 	template_with_users AS templates
 WHERE
@@ -4986,10 +5014,14 @@ func (q *sqlQuerier) GetTemplatesWithFilter(ctx context.Context, arg GetTemplate
 			&i.AutostopRequirementDaysOfWeek,
 			&i.AutostopRequirementWeeks,
 <<<<<<< HEAD
+<<<<<<< HEAD
 			&i.AutostartBlockDaysOfWeek,
 =======
 			&i.RequirePromotedVersion,
 >>>>>>> 5786e8135 (add migration)
+=======
+			&i.RequireActiveVersion,
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -5185,8 +5217,12 @@ SET
 	failure_ttl = $9,
 	time_til_dormant = $10,
 	time_til_dormant_autodelete = $11,
+<<<<<<< HEAD
     require_promoted_version = $12
 >>>>>>> f6a08b15a (add template update plumbing)
+=======
+	require_active_version = $12
+>>>>>>> 6586b6fdb (require_promoted_version -> require_active_version)
 WHERE
 	id = $1
 `
@@ -5204,7 +5240,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
-	RequirePromotedVersion        bool      `db:"require_promoted_version" json:"require_promoted_version"`
+	RequireActiveVersion          bool      `db:"require_active_version" json:"require_active_version"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -5221,7 +5257,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
-		arg.RequirePromotedVersion,
+		arg.RequireActiveVersion,
 	)
 	return err
 }

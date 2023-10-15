@@ -151,7 +151,9 @@ type TemplateScheduleOptions struct {
 	// workspaces whose dormant_at field violates the new template time_til_dormant_autodelete
 	// threshold.
 	UpdateWorkspaceDormantAt bool `json:"update_workspace_dormant_at"`
-	RequirePromotedVersion   bool `json:"require_promoted_version"`
+	// RequireActiveVersion requires that a starting a workspace uses the active
+	// version for a template.
+	RequireActiveVersion bool `json:"require_promoted_version"`
 }
 
 // TemplateScheduleStore provides an interface for retrieving template
@@ -201,7 +203,7 @@ func (*agplTemplateScheduleStore) Get(ctx context.Context, db database.Store, te
 		FailureTTL:               0,
 		TimeTilDormant:           0,
 		TimeTilDormantAutoDelete: 0,
-		RequirePromotedVersion:   false,
+		RequireActiveVersion:     false,
 	}, nil
 }
 
@@ -234,7 +236,7 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 			FailureTTL:                    tpl.FailureTTL,
 			TimeTilDormant:                tpl.TimeTilDormant,
 			TimeTilDormantAutoDelete:      tpl.TimeTilDormantAutoDelete,
-			RequirePromotedVersion:        tpl.RequirePromotedVersion,
+			RequireActiveVersion:          tpl.RequireActiveVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

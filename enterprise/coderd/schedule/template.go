@@ -92,7 +92,7 @@ func (s *EnterpriseTemplateScheduleStore) Get(ctx context.Context, db database.S
 		FailureTTL:               time.Duration(tpl.FailureTTL),
 		TimeTilDormant:           time.Duration(tpl.TimeTilDormant),
 		TimeTilDormantAutoDelete: time.Duration(tpl.TimeTilDormantAutoDelete),
-		RequirePromotedVersion:   tpl.RequirePromotedVersion,
+		RequireActiveVersion:     tpl.RequireActiveVersion,
 	}, nil
 }
 
@@ -152,7 +152,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			FailureTTL:               int64(opts.FailureTTL),
 			TimeTilDormant:           int64(opts.TimeTilDormant),
 			TimeTilDormantAutoDelete: int64(opts.TimeTilDormantAutoDelete),
-			RequirePromotedVersion:   opts.RequirePromotedVersion,
+			RequireActiveVersion:     opts.RequireActiveVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template schedule: %w", err)

@@ -614,7 +614,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequirePromotedVersion == template.RequirePromotedVersion {
+			req.RequireActiveVersion == template.RequireActiveVersion {
 			return nil
 		}
 
@@ -659,7 +659,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
 			req.AllowUserAutostop != template.AllowUserAutostop ||
-			req.RequirePromotedVersion != template.RequirePromotedVersion {
+			req.RequireActiveVersion != template.RequireActiveVersion {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
 				// Some of these values are enterprise-only, but the
 				// TemplateScheduleStore will handle avoiding setting them if
@@ -680,7 +680,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
 				UpdateWorkspaceLastUsedAt: req.UpdateWorkspaceLastUsedAt,
 				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
-				RequirePromotedVersion:    req.RequirePromotedVersion,
+				RequireActiveVersion:      req.RequireActiveVersion,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template schedule options: %w", err)
@@ -826,6 +826,6 @@ func (api *API) convertTemplate(
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: codersdk.BitmapToWeekdays(template.AutostartAllowedDays()),
 		},
-		RequirePromotedVersion: template.RequirePromotedVersion,
+		RequireActiveVersion: template.RequireActiveVersion,
 	}
 }

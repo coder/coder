@@ -590,16 +590,16 @@ func TestTemplates(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		require.False(t, template.RequirePromotedVersion)
+		require.False(t, template.RequireActiveVersion)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
 		updatedTemplate, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequirePromotedVersion: true,
+			RequireActiveVersion: true,
 		})
 		require.NoError(t, err)
-		require.True(t, updatedTemplate.RequirePromotedVersion)
+		require.True(t, updatedTemplate.RequireActiveVersion)
 
 		// Assert that fetching a template is no different from the response
 		// when updating.

@@ -471,5 +471,5 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 }
 
 func useActiveVersion(opts schedule.TemplateScheduleOptions, ws database.Workspace) bool {
-	return opts.RequirePromotedVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
+	return opts.RequireActiveVersion || ws.AutomaticUpdates == database.AutomaticUpdatesAlways
 }
