@@ -315,12 +315,4 @@ const useStyles = makeStyles((theme) => ({
   suspended: {
     color: theme.palette.text.secondary,
   },
-  rolePill: {
-    backgroundColor: theme.palette.background.paperLight,
-    borderColor: theme.palette.divider,
-  },
-  rolePillOwner: {
-    backgroundColor: theme.palette.info.dark,
-    borderColor: theme.palette.info.light,
-  },
 }));
