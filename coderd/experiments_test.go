@@ -25,7 +25,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx)
+		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.Empty(t, experiments)
@@ -44,7 +44,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx)
+		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		// Should be lower-cased.
@@ -66,7 +66,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx)
+		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
@@ -88,7 +88,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx)
+		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.ElementsMatch(t, append(codersdk.ExperimentsAll, "danger"), experiments)
@@ -112,7 +112,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.Experiments(ctx)
+		_, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
 		require.Error(t, err)
 		require.ErrorContains(t, err, httpmw.SignedOutErrorMessage)
 	})
