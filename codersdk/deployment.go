@@ -2028,8 +2028,26 @@ func (e Experiments) Enabled(ex Experiment) bool {
 	return false
 }
 
-func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments", nil)
+type ExperimentOptions struct {
+	// All signifies that all experiments - rather than just those that are enabled -
+	// should be returned
+	IncludeAll bool `json:"include_all,omitempty"`
+}
+
+// asRequestOption returns a function that can be used in (*Client).Request.
+// It modifies the request query parameters.
+func (o ExperimentOptions) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if o.IncludeAll {
+			q.Set("include_all", "true")
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
+func (c *Client) Experiments(ctx context.Context, opts ExperimentOptions) (Experiments, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments", nil, opts.asRequestOption())
 	if err != nil {
 		return nil, err
 	}

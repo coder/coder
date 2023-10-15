@@ -852,9 +852,11 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   }
 };
 
-export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
+export const getExperiments = async (
+  params?: TypesGen.ExperimentOptions,
+): Promise<TypesGen.Experiment[]> => {
   try {
-    const response = await axios.get("/api/v2/experiments");
+    const response = await axios.get("/api/v2/experiments", { params });
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {

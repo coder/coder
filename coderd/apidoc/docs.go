@@ -589,6 +589,14 @@ const docTemplate = `{
                 ],
                 "summary": "Get experiments",
                 "operationId": "get-experiments",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "All available experiments",
+                        "name": "include_all",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

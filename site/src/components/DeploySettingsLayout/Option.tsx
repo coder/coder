@@ -4,6 +4,7 @@ import Box, { BoxProps } from "@mui/material/Box";
 import { useTheme } from "@mui/system";
 import { DisabledBadge, EnabledBadge } from "./Badges";
 import { css } from "@emotion/react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 
 export const OptionName: FC<PropsWithChildren> = (props) => {
   const { children } = props;
@@ -38,7 +39,7 @@ export const OptionDescription: FC<PropsWithChildren> = (props) => {
 };
 
 interface OptionValueProps {
-  children?: boolean | number | string | string[];
+  children?: boolean | number | string | string[] | Record<string, boolean>;
 }
 
 export const OptionValue: FC<OptionValueProps> = (props) => {
@@ -54,6 +55,15 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     & ul {
       padding: ${theme.spacing(2)};
     }
+  `;
+
+  const listStyles = css`
+    margin: 0,
+    padding: 0,
+    listStylePosition: "inside",
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(0.5),
   `;
 
   if (typeof children === "boolean") {
@@ -72,18 +82,38 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     return <span css={optionStyles}>{children}</span>;
   }
 
+  if (typeof children === "object" && !Array.isArray(children)) {
+    return (
+      <ul css={listStyles}>
+        {Object.entries(children).map(([option, isEnabled]) => (
+          <li key={option} css={optionStyles}>
+            <Box
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+              }}
+            >
+              {option}
+              {isEnabled && (
+                <CheckCircleOutlined
+                  sx={{
+                    width: 16,
+                    height: 16,
+                    color: (theme) => theme.palette.success.light,
+                    margin: (theme) => theme.spacing(0, 1),
+                  }}
+                />
+              )}
+            </Box>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   if (Array.isArray(children)) {
     return (
-      <ul
-        css={{
-          margin: 0,
-          padding: 0,
-          listStylePosition: "inside",
-          display: "flex",
-          flexDirection: "column",
-          gap: theme.spacing(0.5),
-        }}
-      >
+      <ul css={listStyles}>
         {children.map((item) => (
           <li key={item} css={optionStyles}>
             {item}

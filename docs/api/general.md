@@ -548,6 +548,12 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 
 `GET /experiments`
 
+### Parameters
+
+| Name          | In    | Type    | Required | Description               |
+| ------------- | ----- | ------- | -------- | ------------------------- |
+| `include_all` | query | boolean | false    | All available experiments |
+
 ### Example responses
 
 > 200 Response

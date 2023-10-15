@@ -433,6 +433,11 @@ export interface Entitlements {
 }
 
 // From codersdk/deployment.go
+export interface ExperimentOptions {
+  readonly include_all?: boolean;
+}
+
+// From codersdk/deployment.go
 export type Experiments = Experiment[];
 
 // From codersdk/externalauth.go
