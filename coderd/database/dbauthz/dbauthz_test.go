@@ -1213,7 +1213,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), rbac.ActionCreate)
 	}))
 	s.Run("Start/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		t := dbgen.Template(s.T(), db, database.Template{})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: t.ID,
+		})
 		check.Args(database.InsertWorkspaceBuildParams{
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionStart,
