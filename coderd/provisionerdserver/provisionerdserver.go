@@ -58,7 +58,10 @@ type Options struct {
 }
 
 type server struct {
-	ctx                         context.Context
+	// lifecycleCtx must be tied to the API server's lifecycle
+	// as when the API server shuts down, we want to cancel any
+	// long-running operations.
+	lifecycleCtx                context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
 	Logger                      slog.Logger
@@ -108,7 +111,7 @@ func (t Tags) Valid() error {
 }
 
 func NewServer(
-	ctx context.Context,
+	lifecycleCtx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
 	logger slog.Logger,
@@ -126,8 +129,8 @@ func NewServer(
 	deploymentValues *codersdk.DeploymentValues,
 	options Options,
 ) (proto.DRPCProvisionerDaemonServer, error) {
-	// Panic early if pointers are nil
-	if ctx == nil {
+	// Fail-fast if pointers are nil
+	if lifecycleCtx == nil {
 		return nil, xerrors.New("ctx is nil")
 	}
 	if quotaCommitter == nil {
@@ -158,7 +161,7 @@ func NewServer(
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
 	return &server{
-		ctx:                         ctx,
+		lifecycleCtx:                lifecycleCtx,
 		AccessURL:                   accessURL,
 		ID:                          id,
 		Logger:                      logger,
@@ -1191,7 +1194,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				go func() {
 					for _, wait := range updates {
 						select {
-						case <-s.ctx.Done():
+						case <-s.lifecycleCtx.Done():
 							// If the server is shutting down, we don't want to wait around.
 							s.Logger.Warn(context.Background(), "stopping notifications due to server shutdown",
 								slog.F("workspace_build_id", workspaceBuild.ID),
