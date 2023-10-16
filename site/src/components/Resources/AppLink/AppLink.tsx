@@ -110,7 +110,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
           href={href}
           target="_blank"
           css={{
-            pointerEvents: canClick ? "none" : undefined,
+            pointerEvents: canClick ? undefined : "none",
             textDecoration: "none !important",
           }}
           onClick={
