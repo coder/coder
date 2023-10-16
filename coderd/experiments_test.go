@@ -25,7 +25,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
+		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.Empty(t, experiments)
@@ -44,7 +44,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
+		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		// Should be lower-cased.
@@ -66,7 +66,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
+		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
@@ -88,7 +88,7 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
+		experiments, err := client.Experiments(ctx)
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
 		require.ElementsMatch(t, append(codersdk.ExperimentsAll, "danger"), experiments)
@@ -112,26 +112,8 @@ func Test_Experiments(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.Experiments(ctx, codersdk.ExperimentOptions{})
+		_, err := client.Experiments(ctx)
 		require.Error(t, err)
 		require.ErrorContains(t, err, httpmw.SignedOutErrorMessage)
-	})
-
-	t.Run("include_all query param", func(t *testing.T) {
-		t.Parallel()
-		cfg := coderdtest.DeploymentValues(t)
-		cfg.Experiments = []string{"foo", "BAR"}
-		client := coderdtest.New(t, &coderdtest.Options{
-			DeploymentValues: cfg,
-		})
-		_ = coderdtest.CreateFirstUser(t, client)
-
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-		defer cancel()
-
-		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{IncludeAll: true})
-		require.NoError(t, err)
-		require.NotNil(t, experiments)
-		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
 	})
 }

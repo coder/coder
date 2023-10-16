@@ -152,6 +152,11 @@ export interface AuthorizationRequest {
 export type AuthorizationResponse = Record<string, boolean>;
 
 // From codersdk/deployment.go
+export interface AvailableExperiments {
+  readonly safe: Experiment[];
+}
+
+// From codersdk/deployment.go
 export interface BuildInfoResponse {
   readonly external_url: string;
   readonly version: string;
@@ -431,11 +436,6 @@ export interface Entitlements {
   readonly trial: boolean;
   readonly require_telemetry: boolean;
   readonly refreshed_at: string;
-}
-
-// From codersdk/deployment.go
-export interface ExperimentOptions {
-  readonly include_all?: boolean;
 }
 
 // From codersdk/deployment.go

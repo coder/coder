@@ -40,7 +40,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
       },
     ],
     deploymentDAUs: MockDeploymentDAUResponse,
-    allExperiments: ["single_tailnet", "deployment_health_page"],
+    safeExperiments: ["single_tailnet", "deployment_health_page"],
   },
 };
 
@@ -102,6 +102,6 @@ export const allExperimentsEnabled: Story = {
         hidden: false,
       },
     ],
-    allExperiments: ["single_tailnet", "deployment_health_page"],
+    safeExperiments: ["single_tailnet", "deployment_health_page"],
   },
 };

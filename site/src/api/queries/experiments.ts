@@ -1,5 +1,5 @@
 import * as API from "api/api";
-import { Experiments, ExperimentOptions } from "api/typesGenerated";
+import { Experiments } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
 export const experiments = () => {
@@ -10,9 +10,9 @@ export const experiments = () => {
   };
 };
 
-export const updatedExperiments = (params?: ExperimentOptions) => {
+export const availableExperiments = () => {
   return {
-    queryKey: ["experiments"],
-    queryFn: async () => API.getExperiments(params),
+    queryKey: ["availableExperiments"],
+    queryFn: async () => API.getAvailableExperiments(),
   };
 };

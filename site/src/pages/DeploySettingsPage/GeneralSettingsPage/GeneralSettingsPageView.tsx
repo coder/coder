@@ -22,14 +22,14 @@ export type GeneralSettingsPageViewProps = {
   deploymentDAUs?: DAUsResponse;
   deploymentDAUsError: unknown;
   entitlements: Entitlements | undefined;
-  allExperiments: Experiments | undefined;
+  safeExperiments: Experiments | undefined;
 };
 export const GeneralSettingsPageView = ({
   deploymentOptions,
   deploymentDAUs,
   deploymentDAUsError,
   entitlements,
-  allExperiments,
+  safeExperiments,
 }: GeneralSettingsPageViewProps): JSX.Element => {
   return (
     <>
@@ -64,7 +64,7 @@ export const GeneralSettingsPageView = ({
             "Wildcard Access URL",
             "Experiments",
           )}
-          additionalValues={allExperiments}
+          additionalValues={safeExperiments}
         />
       </Stack>
     </>

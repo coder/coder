@@ -852,11 +852,9 @@ export const getEntitlements = async (): Promise<TypesGen.Entitlements> => {
   }
 };
 
-export const getExperiments = async (
-  params?: TypesGen.ExperimentOptions,
-): Promise<TypesGen.Experiment[]> => {
+export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   try {
-    const response = await axios.get("/api/v2/experiments", { params });
+    const response = await axios.get("/api/v2/experiments");
     return response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 404) {
@@ -865,6 +863,19 @@ export const getExperiments = async (
     throw error;
   }
 };
+
+export const getAvailableExperiments =
+  async (): Promise<TypesGen.AvailableExperiments> => {
+    try {
+      const response = await axios.get("/api/v2/experiments/available");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return { safe: [] };
+      }
+      throw error;
+    }
+  };
 
 export const getExternalAuthProvider = async (
   provider: string,
