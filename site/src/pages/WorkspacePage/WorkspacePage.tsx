@@ -41,8 +41,6 @@ export const WorkspacePage: FC = () => {
     enabled: Boolean(workspace),
   });
 
-  console.log(buildsQuery.hasNextPage);
-
   if (pageError) {
     return (
       <Margins>
