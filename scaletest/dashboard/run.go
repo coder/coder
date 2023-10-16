@@ -125,6 +125,6 @@ func (r *Runner) runUntilDeadlineExceeded(ctx context.Context) error {
 	}
 }
 
-func (*Runner) Cleanup(_ context.Context, _ string) error {
+func (*Runner) Cleanup(_ context.Context, _ string, _ io.Writer) error {
 	return nil
 }
