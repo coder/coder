@@ -116,4 +116,26 @@ func Test_Experiments(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, httpmw.SignedOutErrorMessage)
 	})
+
+	t.Run("include_all query param", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentValues(t)
+		cfg.Experiments = []string{"foo", "BAR"}
+		codersdk.ExperimentsAll = []codersdk.Experiment{"bat", "fizz", "foo", "BAR"}
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: cfg,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{IncludeAll: true})
+		require.NoError(t, err)
+		require.NotNil(t, experiments)
+		require.ElementsMatch(t, []codersdk.Experiment{"bat", "fizz", "foo", "BAR"}, experiments)
+
+		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("foo"))
+		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("BAR"))
+	})
 }

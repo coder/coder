@@ -2013,12 +2013,13 @@ var ExperimentsAll = Experiments{
 	ExperimentSingleTailnet,
 }
 
-// Experiments is a list of experiments that are enabled for the deployment.
+// Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
 type Experiments []Experiment
 
+// Returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
 	for _, v := range e {
 		if v == ex {
