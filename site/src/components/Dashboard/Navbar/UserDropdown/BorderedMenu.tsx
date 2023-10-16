@@ -1,6 +1,6 @@
 import { css } from "@emotion/css";
 import { useTheme } from "@emotion/react";
-import Popover, { PopoverProps } from "@mui/material/Popover";
+import Popover, { type PopoverProps } from "@mui/material/Popover";
 import type { FC, PropsWithChildren } from "react";
 
 type BorderedMenuVariant = "user-dropdown";
@@ -18,7 +18,7 @@ export const BorderedMenu: FC<PropsWithChildren<BorderedMenuProps>> = ({
 
   const paper = css`
     width: 260px;
-    border-radius: ${theme.shape.borderRadius};
+    border-radius: ${theme.shape.borderRadius}px;
     box-shadow: ${theme.shadows[6]};
   `;
 

@@ -1,20 +1,20 @@
-import { makeStyles } from "@mui/styles";
-import { useOrganizationId } from "hooks/useOrganizationId";
-import { createContext, FC, Suspense, useContext } from "react";
+import { css } from "@emotion/css";
+import { useTheme } from "@emotion/react";
+import { createContext, type FC, Suspense, useContext } from "react";
+import { useQuery } from "react-query";
 import { NavLink, Outlet, useNavigate, useParams } from "react-router-dom";
-import { combineClasses } from "utils/combineClasses";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
-import { Loader } from "components/Loader/Loader";
-import { TemplatePageHeader } from "./TemplatePageHeader";
+import type { AuthorizationRequest } from "api/typesGenerated";
 import {
   checkAuthorization,
   getTemplateByName,
   getTemplateVersion,
 } from "api/api";
-import { useQuery } from "react-query";
-import { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Margins } from "components/Margins/Margins";
+import { Stack } from "components/Stack/Stack";
+import { Loader } from "components/Loader/Loader";
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { TemplatePageHeader } from "./TemplatePageHeader";
 
 const templatePermissions = (
   templateId: string,
@@ -63,8 +63,8 @@ export const useTemplateLayoutContext = (): TemplateLayoutContextValue => {
 export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   children = <Outlet />,
 }) => {
+  const theme = useTheme();
   const navigate = useNavigate();
-  const styles = useStyles();
   const orgId = useOrganizationId();
   const { template: templateName } = useParams() as { template: string };
   const { data, error, isLoading } = useQuery({
@@ -75,7 +75,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
 
   if (error) {
     return (
-      <div className={styles.error}>
+      <div css={{ margin: theme.spacing(2) }}>
         <ErrorAlert error={error} />
       </div>
     );
@@ -84,6 +84,34 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
   if (isLoading || !data) {
     return <Loader />;
   }
+
+  const itemStyles = css`
+    text-decoration: none;
+    color: ${theme.palette.text.secondary};
+    font-size: 14;
+    display: block;
+    padding: ${theme.spacing(0, 2, 2)};
+
+    &:hover {
+      color: ${theme.palette.text.primary};
+    }
+  `;
+
+  const activeItemStyles = css`
+    ${itemStyles}
+    color: ${theme.palette.text.primary};
+    position: relative;
+
+    &:before {
+      content: "";
+      left: 0;
+      bottom: 0;
+      height: 2;
+      width: 100%;
+      background: ${theme.palette.secondary.dark};
+      position: absolute;
+    }
+  `;
 
   return (
     <>
@@ -96,17 +124,19 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
         }}
       />
 
-      <div className={styles.tabs}>
+      <div
+        css={{
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          marginBottom: theme.spacing(5),
+        }}
+      >
         <Margins>
           <Stack direction="row" spacing={0.25}>
             <NavLink
               end
               to={`/templates/${templateName}`}
               className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
+                isActive ? activeItemStyles : itemStyles
               }
             >
               Summary
@@ -115,10 +145,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               end
               to={`/templates/${templateName}/docs`}
               className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
+                isActive ? activeItemStyles : itemStyles
               }
             >
               Docs
@@ -127,10 +154,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               <NavLink
                 to={`/templates/${templateName}/files`}
                 className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
+                  isActive ? activeItemStyles : itemStyles
                 }
               >
                 Source Code
@@ -139,10 +163,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             <NavLink
               to={`/templates/${templateName}/versions`}
               className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
+                isActive ? activeItemStyles : itemStyles
               }
             >
               Versions
@@ -150,10 +171,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
             <NavLink
               to={`/templates/${templateName}/embed`}
               className={({ isActive }) =>
-                combineClasses([
-                  styles.tabItem,
-                  isActive ? styles.tabItemActive : undefined,
-                ])
+                isActive ? activeItemStyles : itemStyles
               }
             >
               Embed
@@ -162,10 +180,7 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
               <NavLink
                 to={`/templates/${templateName}/insights`}
                 className={({ isActive }) =>
-                  combineClasses([
-                    styles.tabItem,
-                    isActive ? styles.tabItemActive : undefined,
-                  ])
+                  isActive ? activeItemStyles : itemStyles
                 }
               >
                 Insights
@@ -183,42 +198,3 @@ export const TemplateLayout: FC<{ children?: JSX.Element }> = ({
     </>
   );
 };
-
-export const useStyles = makeStyles((theme) => {
-  return {
-    error: {
-      margin: theme.spacing(2),
-    },
-    tabs: {
-      borderBottom: `1px solid ${theme.palette.divider}`,
-      marginBottom: theme.spacing(5),
-    },
-
-    tabItem: {
-      textDecoration: "none",
-      color: theme.palette.text.secondary,
-      fontSize: 14,
-      display: "block",
-      padding: theme.spacing(0, 2, 2),
-
-      "&:hover": {
-        color: theme.palette.text.primary,
-      },
-    },
-
-    tabItemActive: {
-      color: theme.palette.text.primary,
-      position: "relative",
-
-      "&:before": {
-        content: `""`,
-        left: 0,
-        bottom: 0,
-        height: 2,
-        width: "100%",
-        background: theme.palette.secondary.dark,
-        position: "absolute",
-      },
-    },
-  };
-});

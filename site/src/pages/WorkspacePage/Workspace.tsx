@@ -1,22 +1,14 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
-import { makeStyles } from "@mui/styles";
-import { Avatar } from "components/Avatar/Avatar";
-import { AgentRow } from "components/Resources/AgentRow";
-import {
-  ActiveTransition,
-  WorkspaceBuildProgress,
-} from "./WorkspaceBuildProgress";
-import { FC, useEffect, useState } from "react";
+import AlertTitle from "@mui/material/AlertTitle";
+import { type FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import * as TypesGen from "api/typesGenerated";
+import dayjs from "dayjs";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { BuildsTable } from "./BuildsTable";
 import { Margins } from "components/Margins/Margins";
 import { Resources } from "components/Resources/Resources";
 import { Stack } from "components/Stack/Stack";
-import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
-import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
-import { WorkspaceStats } from "./WorkspaceStats";
 import {
   FullWidthPageHeader,
   PageHeaderActions,
@@ -26,9 +18,17 @@ import {
 import { TemplateVersionWarnings } from "components/TemplateVersionWarnings/TemplateVersionWarnings";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { DormantWorkspaceBanner } from "components/WorkspaceDeletion";
+import { Avatar } from "components/Avatar/Avatar";
+import { AgentRow } from "components/Resources/AgentRow";
 import { useLocalStorage } from "hooks";
-import AlertTitle from "@mui/material/AlertTitle";
-import dayjs from "dayjs";
+import { WorkspaceActions } from "pages/WorkspacePage/WorkspaceActions/WorkspaceActions";
+import {
+  ActiveTransition,
+  WorkspaceBuildProgress,
+} from "./WorkspaceBuildProgress";
+import { BuildsTable } from "./BuildsTable";
+import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
+import { WorkspaceStats } from "./WorkspaceStats";
 
 export enum WorkspaceErrors {
   GET_BUILDS_ERROR = "getBuildsError",
@@ -112,7 +112,6 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   isLoadingMoreBuilds,
   hasMoreBuilds,
 }) => {
-  const styles = useStyles();
   const navigate = useNavigate();
   const serverVersion = buildInfo?.version || "";
   const { saveLocal, getLocal } = useLocalStorage();
@@ -219,12 +218,8 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
         )}
       </FullWidthPageHeader>
 
-      <Margins className={styles.content}>
-        <Stack
-          direction="column"
-          className={styles.firstColumnSpacer}
-          spacing={4}
-        >
+      <Margins css={styles.content}>
+        <Stack direction="column" css={styles.firstColumnSpacer} spacing={4}>
           {workspace.outdated && (
             <Alert severity="info">
               <AlertTitle>An update is available for your workspace</AlertTitle>
@@ -282,7 +277,7 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
             <Alert severity="info">
               <AlertTitle>Workspace build is pending</AlertTitle>
               <AlertDetail>
-                <div className={styles.alertPendingInQueue}>
+                <div css={styles.alertPendingInQueue}>
                   This workspace build job is waiting for a provisioner to
                   become available. If you have been waiting for an extended
                   period of time, please contact your administrator for
@@ -364,58 +359,22 @@ export const Workspace: FC<React.PropsWithChildren<WorkspaceProps>> = ({
   );
 };
 
-const spacerWidth = 300;
+const styles = {
+  content: (theme) => ({
+    marginTop: theme.spacing(4),
+  }),
 
-export const useStyles = makeStyles((theme) => {
-  return {
-    content: {
-      marginTop: theme.spacing(4),
+  actions: (theme) => ({
+    [theme.breakpoints.down("md")]: {
+      flexDirection: "column",
     },
+  }),
 
-    statusBadge: {
-      marginLeft: theme.spacing(2),
-    },
+  firstColumnSpacer: {
+    flex: 2,
+  },
 
-    actions: {
-      [theme.breakpoints.down("md")]: {
-        flexDirection: "column",
-      },
-    },
-
-    firstColumnSpacer: {
-      flex: 2,
-    },
-
-    secondColumnSpacer: {
-      flex: `0 0 ${spacerWidth}px`,
-    },
-
-    layout: {
-      alignItems: "flex-start",
-    },
-
-    main: {
-      width: "100%",
-    },
-
-    timelineContents: {
-      margin: 0,
-    },
-    logs: {
-      border: `1px solid ${theme.palette.divider}`,
-    },
-
-    errorDetails: {
-      color: theme.palette.text.secondary,
-      fontSize: 12,
-    },
-
-    fullWidth: {
-      width: "100%",
-    },
-
-    alertPendingInQueue: {
-      marginBottom: 12,
-    },
-  };
-});
+  alertPendingInQueue: {
+    marginBottom: 12,
+  },
+} satisfies Record<string, Interpolation<Theme>>;
