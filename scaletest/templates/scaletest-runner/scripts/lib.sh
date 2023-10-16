@@ -185,16 +185,16 @@ annotate_grafana_end() {
 
 	if [[ -n ${GRAFANA_ADD_TAGS:-} ]]; then
 		json="$(
-			jq \
+			jq -n \
 				--argjson timeEnd "${end}" \
 				--argjson tags "${tags},${GRAFANA_ADD_TAGS}" \
-				'{timeEnd: $timeEnd, tags: $tags | split(",")}' <<<'{}'
+				'{timeEnd: $timeEnd, tags: $tags | split(",")}'
 		)"
 	else
 		json="$(
-			jq \
+			jq -n \
 				--argjson timeEnd "${end}" \
-				'{timeEnd: $timeEnd}' <<<'{}'
+				'{timeEnd: $timeEnd}'
 		)"
 	fi
 	if [[ ${DRY_RUN} == 1 ]]; then
