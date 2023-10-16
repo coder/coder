@@ -1,5 +1,5 @@
 /* eslint-disable no-console -- Logging is sort of the whole point here */
-import * as fs from "fs";
+import * as fs from "fs/promises";
 import type {
   FullConfig,
   Suite,
@@ -66,11 +66,15 @@ class CoderReporter implements Reporter {
       this.timedOutTests.push(test);
     }
 
+    const outputFile = `test-results/debug-pprof-goroutine-${test.title}.txt`;
+    await exportDebugPprof(outputFile);
+
     const preserve = this.config?.preserveOutput;
     const logOutput =
       preserve === "always" ||
       (result.status !== "passed" && preserve !== "never");
     if (logOutput) {
+      console.log(`Data from pprof has been saved to ${outputFile}`);
       console.log("==> Output");
       const output = this.testOutput.get(test.id)!;
       for (const [target, chunk] of output) {
@@ -92,8 +96,6 @@ class CoderReporter implements Reporter {
       }
     }
     this.testOutput.delete(test.id);
-
-    await exportDebugPprof(test.title);
   }
 
   onEnd(result: FullResult) {
@@ -114,28 +116,15 @@ class CoderReporter implements Reporter {
   }
 }
 
-const exportDebugPprof = async (testName: string) => {
-  const url = "http://127.0.0.1:6060/debug/pprof/goroutine?debug=1";
-  const outputFile = `test-results/debug-pprof-goroutine-${testName}.txt`;
+const exportDebugPprof = async (outputFile: string) => {
+  const response = await axios.get(
+    "http://127.0.0.1:6060/debug/pprof/goroutine?debug=1",
+  );
+  if (response.status !== 200) {
+    throw new Error(`Error: Received status code ${response.status}`);
+  }
 
-  await axios
-    .get(url)
-    .then((response) => {
-      if (response.status !== 200) {
-        throw new Error(`Error: Received status code ${response.status}`);
-      }
-
-      fs.writeFile(outputFile, response.data, (err) => {
-        if (err) {
-          throw new Error(`Error writing to ${outputFile}: ${err.message}`);
-        } else {
-          console.log(`Data from ${url} has been saved to ${outputFile}`);
-        }
-      });
-    })
-    .catch((error) => {
-      throw new Error(`Error: ${error.message}`);
-    });
+  await fs.writeFile(outputFile, response.data);
 };
 
 const reportError = (error: TestError) => {
