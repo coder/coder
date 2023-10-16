@@ -80,7 +80,7 @@ data "coder_parameter" "repo_branch" {
   type        = "string"
   name        = "Branch"
   default     = "main"
-  description = "Branch of coder/coder repo to check out."
+  description = "Branch of coder/coder repo to check out (only useful for developing the runner)."
   mutable     = true
 }
 
