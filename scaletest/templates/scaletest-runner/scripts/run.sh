@@ -63,9 +63,18 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		status=$?
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
 		;;
+	# Debug scenarios, for testing the runner.
+	"debug:success")
+		maybedryrun "$DRY_RUN" sleep 10
+		status=0
+		;;
+	"debug:error")
+		maybedryrun "$DRY_RUN" sleep 10
+		status=1
+		;;
 	esac
 	set -e
-	if (( status > 0 )); then
+	if ((status > 0)); then
 		log "Load scenario failed: ${scenario} (exit=${status})"
 		failed+=(["${scenario}"]="$status")
 		PHASE_ADD_TAGS=error end_phase
