@@ -58,6 +58,7 @@ type Options struct {
 }
 
 type server struct {
+	ctx                         context.Context
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
 	Logger                      slog.Logger
@@ -107,6 +108,7 @@ func (t Tags) Valid() error {
 }
 
 func NewServer(
+	ctx context.Context,
 	accessURL *url.URL,
 	id uuid.UUID,
 	logger slog.Logger,
@@ -125,6 +127,9 @@ func NewServer(
 	options Options,
 ) (proto.DRPCProvisionerDaemonServer, error) {
 	// Panic early if pointers are nil
+	if ctx == nil {
+		return nil, xerrors.New("ctx is nil")
+	}
 	if quotaCommitter == nil {
 		return nil, xerrors.New("quotaCommitter is nil")
 	}
@@ -153,6 +158,7 @@ func NewServer(
 		options.AcquireJobLongPollDur = DefaultAcquireJobLongPollDur
 	}
 	return &server{
+		ctx:                         ctx,
 		AccessURL:                   accessURL,
 		ID:                          id,
 		Logger:                      logger,
@@ -1184,21 +1190,24 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				}
 				go func() {
 					for _, wait := range updates {
-						// Wait for the next potential timeout to occur. Note that we
-						// can't listen on the context here because we will hang around
-						// after this function has returned. The s also doesn't
-						// have a shutdown signal we can listen to.
-						<-wait
-						if err := s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
-							// If the publish failed due to the context being canceled, there's nothing more for us
-							// to do here.
-							if errors.Is(err, context.Canceled) {
-								return
-							}
-							s.Logger.Error(context.Background(), "workspace notification after agent timeout failed",
+						select {
+						case <-s.ctx.Done():
+							// If the server is shutting down, we don't want to wait around.
+							s.Logger.Warn(context.Background(), "stopping notifications due to server shutdown",
 								slog.F("workspace_build_id", workspaceBuild.ID),
 								slog.Error(err),
 							)
+						case <-wait:
+							// Wait for the next potential timeout to occur. Note that we
+							// can't listen on the context here because we will hang around
+							// after this function has returned. The s also doesn't
+							// have a shutdown signal we can listen to.
+							if err := s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
+								s.Logger.Error(context.Background(), "workspace notification after agent timeout failed",
+									slog.F("workspace_build_id", workspaceBuild.ID),
+									slog.Error(err),
+								)
+							}
 						}
 					}
 				}()
