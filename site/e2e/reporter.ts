@@ -51,22 +51,25 @@ class CoderReporter implements Reporter {
       for (const [target, chunk] of output) {
         target.write(`${chunk.replace(/\n$/g, "")}\n`);
       }
-      testOutput.delete(test.id);
 
       if (result.errors.length > 0) {
         // eslint-disable-next-line no-console -- Debugging output
         console.log("==> Errors");
         for (const error of result.errors) {
           if (error.location) {
+            // eslint-disable-next-line no-console -- Debugging output
             console.log(`${error.location.file}:${error.location.line}:`);
           }
           if (error.snippet) {
+            // eslint-disable-next-line no-console -- Debugging output
             console.log(error.snippet);
           }
 
           if (error.message) {
+            // eslint-disable-next-line no-console -- Debugging output
             console.log(error.message);
           } else {
+            // eslint-disable-next-line no-console -- Debugging output
             console.log(error);
           }
         }
@@ -81,6 +84,7 @@ class CoderReporter implements Reporter {
         }
       }
     }
+    testOutput.delete(test.id);
     await exportDebugPprof(test.title);
   }
 
