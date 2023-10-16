@@ -107,15 +107,14 @@ func NewCleanupRunner(client *codersdk.Client, workspaceID uuid.UUID) *CleanupRu
 
 // Run implements Runnable.
 func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
-	_, _ = fmt.Fprintf(logs, "Deleting workspace: %s\n", r.workspaceID)
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-
-	logs = loadtestutil.NewSyncWriter(logs)
-	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
+	logger.Info(ctx, "deleting workspace", slog.F("workspace_id", r.workspaceID))
 	r.client.SetLogger(logger)
 	r.client.SetLogBodies(true)
 
@@ -123,7 +122,7 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 	if err != nil {
 		var sdkErr *codersdk.Error
 		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
-			_, _ = fmt.Fprintf(logs, "Workspace %s not found, skipping delete.\n", r.workspaceID)
+			logger.Info(ctx, "workspace not found, skipping delete", slog.F("workspace_id", r.workspaceID))
 			return nil
 		}
 		return err

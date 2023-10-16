@@ -181,7 +181,7 @@ func Test_Runner(t *testing.T) {
 		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 		cleanupLogsStr := cleanupLogs.String()
-		require.Contains(t, cleanupLogsStr, "Deleting workspace: "+workspaces.Workspaces[0].ID.String())
+		require.Contains(t, cleanupLogsStr, "deleting workspace")
 		require.NotContains(t, cleanupLogsStr, "canceling workspace build") // The build should have already completed.
 		require.Contains(t, cleanupLogsStr, "Build succeeded!")
 
@@ -276,7 +276,8 @@ func Test_Runner(t *testing.T) {
 			t.Logf("checking build: %s | %s", ws.LatestBuild.Transition, ws.LatestBuild.Job.Status)
 			// There should be only one build at present.
 			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
-				t.Fatalf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
+				t.Errorf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
+				return false
 			}
 			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning
 		}, testutil.WaitShort, testutil.IntervalMedium)
