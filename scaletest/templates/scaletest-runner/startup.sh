@@ -63,6 +63,28 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 } &
 pprof_pid=$!
 
+logs_gathered=0
+gather_logs() {
+	if ((logs_gathered == 1)); then
+		return
+	fi
+	logs_gathered=1
+
+	# Gather logs from all coderd and provisioner instances, and all workspaces.
+	annotate_grafana "logs" "Gather logs"
+	podsraw="$(
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder -o name
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-"
+	)"
+	mapfile -t pods <<<"${podsraw}"
+	for pod in "${pods[@]}"; do
+		pod_name="${pod#pod/}"
+		kubectl -n coder-big logs "${pod}" --since="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
+	done
+	annotate_grafana_end "logs" "Gather logs"
+}
+
 set_appearance "${appearance_json}" "${service_banner_color}" "${service_banner_message} | Scaletest running: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
 # Show failure in the UI if script exits with error.
@@ -79,6 +101,10 @@ on_exit() {
 		message_color="#D94A5D" # Red.
 		message_status=FAILED
 	fi
+
+	# In case the test failed before gathering logs, gather them before
+	# cleaning up, whilst the workspaces are still present.
+	gather_logs
 
 	case "${SCALETEST_PARAM_CLEANUP_STRATEGY}" in
 	on_stop)
@@ -129,5 +155,8 @@ annotate_grafana "" "Start scaletest: ${SCALETEST_COMMENT}"
 "${SCRIPTS_DIR}/prepare.sh"
 
 "${SCRIPTS_DIR}/run.sh"
+
+# Gather logs before ending the test.
+gather_logs
 
 "${SCRIPTS_DIR}/report.sh" completed
