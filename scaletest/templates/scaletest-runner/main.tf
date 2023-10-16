@@ -84,6 +84,16 @@ data "coder_parameter" "repo_branch" {
   mutable     = true
 }
 
+data "coder_parameter" "comment" {
+  order       = 4
+  type        = "string"
+  name        = "Comment"
+  default     = ""
+  description = "Describe **what** you're testing and **why** you're testing it."
+  mutable     = true
+  ephemeral   = true
+}
+
 data "coder_parameter" "create_concurrency" {
   order       = 10
   type        = "number"
@@ -364,6 +374,10 @@ resource "coder_agent" "main" {
     # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
+
+    # Comment is a scaletest param, but we want to surface it separately from
+    # the rest, so we use a different name.
+    SCALETEST_COMMENT : data.coder_parameter.comment.value != "" ? data.coder_parameter.comment.value : "No comment provided",
 
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
     SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,

@@ -18,6 +18,9 @@ if [[ ! -d "${HOME}/coder" ]]; then
 fi
 (cd "${HOME}/coder" && git fetch -a && git checkout "${SCALETEST_PARAM_REPO_BRANCH}" && git pull)
 
+# Store the input parameters (for debugging).
+env | grep "^SCALETEST_" | sort >"${SCALETEST_RUN_DIR}/environ.txt"
+
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"
 
@@ -101,7 +104,7 @@ on_exit() {
 
 	set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
-	annotate_grafana_end "" "Start scaletest"
+	annotate_grafana_end "" "Start scaletest: ${SCALETEST_COMMENT}"
 }
 trap on_exit EXIT
 
@@ -121,7 +124,7 @@ trap on_err ERR
 
 # Pass session token since `prepare.sh` has not yet run.
 CODER_SESSION_TOKEN=$CODER_USER_TOKEN "${SCRIPTS_DIR}/report.sh" started
-annotate_grafana "" "Start scaletest"
+annotate_grafana "" "Start scaletest: ${SCALETEST_COMMENT}"
 
 "${SCRIPTS_DIR}/prepare.sh"
 
