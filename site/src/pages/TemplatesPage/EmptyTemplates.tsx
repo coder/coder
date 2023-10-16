@@ -1,13 +1,13 @@
+import { type Interpolation, type Theme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
-import { TemplateExample } from "api/typesGenerated";
+import { Link as RouterLink } from "react-router-dom";
+import { type FC } from "react";
+import type { TemplateExample } from "api/typesGenerated";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "components/TemplateExampleCard/TemplateExampleCard";
-import { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
 import { docs } from "utils/docs";
 
 // Those are from https://github.com/coder/coder/tree/main/examples/templates
@@ -39,7 +39,6 @@ export const EmptyTemplates: FC<{
   canCreateTemplates: boolean;
   examples: TemplateExample[];
 }> = ({ canCreateTemplates, examples }) => {
-  const styles = useStyles();
   const featuredExamples = findFeaturedExamples(examples);
 
   if (canCreateTemplates) {
@@ -63,12 +62,12 @@ export const EmptyTemplates: FC<{
         }
         cta={
           <Stack alignItems="center" spacing={4}>
-            <div className={styles.featuredExamples}>
+            <div css={styles.featuredExamples}>
               {featuredExamples.map((example) => (
                 <TemplateExampleCard
                   example={example}
                   key={example.id}
-                  className={styles.template}
+                  css={styles.template}
                 />
               ))}
             </div>
@@ -77,7 +76,7 @@ export const EmptyTemplates: FC<{
               size="small"
               component={RouterLink}
               to="/starter-templates"
-              className={styles.viewAllButton}
+              css={styles.viewAllButton}
             >
               View all starter templates
             </Button>
@@ -89,12 +88,12 @@ export const EmptyTemplates: FC<{
 
   return (
     <TableEmpty
-      className={styles.withImage}
+      css={styles.withImage}
       message="Create a Template"
       description="Contact your Coder administrator to create a template. You can share the code below."
       cta={<CodeExample code="coder templates init" />}
       image={
-        <div className={styles.emptyImage}>
+        <div css={styles.emptyImage}>
           <img src="/featured/templates.webp" alt="" />
         </div>
       }
@@ -102,12 +101,12 @@ export const EmptyTemplates: FC<{
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   withImage: {
     paddingBottom: 0,
   },
 
-  emptyImage: {
+  emptyImage: (theme) => ({
     maxWidth: "50%",
     height: theme.spacing(40),
     overflow: "hidden",
@@ -116,25 +115,25 @@ const useStyles = makeStyles((theme) => ({
     "& img": {
       maxWidth: "100%",
     },
-  },
+  }),
 
-  featuredExamples: {
+  featuredExamples: (theme) => ({
     maxWidth: theme.spacing(100),
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
     gap: theme.spacing(2),
     gridAutoRows: "min-content",
-  },
+  }),
 
-  template: {
+  template: (theme) => ({
     backgroundColor: theme.palette.background.paperLight,
 
     "&:hover": {
       backgroundColor: theme.palette.divider,
     },
-  },
+  }),
 
   viewAllButton: {
     borderRadius: 9999,
   },
-}));
+} satisfies Record<string, Interpolation<Theme>>;

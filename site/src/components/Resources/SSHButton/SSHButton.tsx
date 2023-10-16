@@ -1,15 +1,16 @@
 import Popover from "@mui/material/Popover";
-import { makeStyles } from "@mui/styles";
-import { SecondaryAgentButton } from "components/Resources/AgentButton";
-import { useRef, useState } from "react";
-import { CodeExample } from "../../CodeExample/CodeExample";
-import { Stack } from "../../Stack/Stack";
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC, type PropsWithChildren, useRef, useState } from "react";
 import {
   HelpTooltipLink,
   HelpTooltipLinksGroup,
   HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
 import { docs } from "utils/docs";
+import { CodeExample } from "../../CodeExample/CodeExample";
+import { Stack } from "../../Stack/Stack";
+import { SecondaryAgentButton } from "../AgentButton";
 
 export interface SSHButtonProps {
   workspaceName: string;
@@ -18,16 +19,16 @@ export interface SSHButtonProps {
   sshPrefix?: string;
 }
 
-export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
+export const SSHButton: FC<PropsWithChildren<SSHButtonProps>> = ({
   workspaceName,
   agentName,
   defaultIsOpen = false,
   sshPrefix,
 }) => {
+  const theme = useTheme();
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(defaultIsOpen);
   const id = isOpen ? "schedule-popover" : undefined;
-  const styles = useStyles();
 
   const onClose = () => {
     setIsOpen(false);
@@ -45,7 +46,14 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
       </SecondaryAgentButton>
 
       <Popover
-        classes={{ paper: styles.popoverPaper }}
+        classes={{
+          paper: css`
+            padding: ${theme.spacing(2, 3, 3)};
+            width: ${theme.spacing(38)};
+            color: ${theme.palette.text.secondary};
+            margin-top: ${theme.spacing(0.25)};
+          `,
+        }}
         id={id}
         open={isOpen}
         anchorEl={anchorRef.current}
@@ -63,10 +71,10 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
           Run the following commands to connect with SSH:
         </HelpTooltipText>
 
-        <Stack spacing={0.5} className={styles.codeExamples}>
+        <Stack spacing={0.5} css={styles.codeExamples}>
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>
+              <strong css={styles.codeExampleLabel}>
                 Configure SSH hosts on machine:
               </strong>
             </HelpTooltipText>
@@ -75,7 +83,7 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
 
           <div>
             <HelpTooltipText>
-              <strong className={styles.codeExampleLabel}>
+              <strong css={styles.codeExampleLabel}>
                 Connect to the agent:
               </strong>
             </HelpTooltipText>
@@ -104,23 +112,12 @@ export const SSHButton: React.FC<React.PropsWithChildren<SSHButtonProps>> = ({
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  popoverPaper: {
-    padding: `${theme.spacing(2)} ${theme.spacing(3)} ${theme.spacing(3)}`,
-    width: theme.spacing(38),
-    color: theme.palette.text.secondary,
-    marginTop: theme.spacing(0.25),
-  },
-
-  codeExamples: {
+const styles = {
+  codeExamples: (theme) => ({
     marginTop: theme.spacing(1.5),
-  },
+  }),
 
   codeExampleLabel: {
     fontSize: 12,
   },
-
-  textHelper: {
-    fontWeight: 400,
-  },
-}));
+} satisfies Record<string, Interpolation<Theme>>;
