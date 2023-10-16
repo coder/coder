@@ -16,7 +16,7 @@ echo "Cloning coder/coder repo..."
 if [[ ! -d "${HOME}/coder" ]]; then
 	git clone https://github.com/coder/coder.git "${HOME}/coder"
 fi
-(cd "${HOME}/coder" && git pull)
+(cd "${HOME}/coder" && git fetch -a && git checkout "${SCALETEST_PARAM_REPO_BRANCH}" && git pull)
 
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"

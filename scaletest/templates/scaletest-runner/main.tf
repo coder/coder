@@ -75,6 +75,15 @@ data "coder_parameter" "dry_run" {
   ephemeral   = true
 }
 
+data "coder_parameter" "repo_branch" {
+  order       = 3
+  type        = "string"
+  name        = "Branch"
+  default     = "main"
+  description = "Branch of coder/coder repo to check out (only useful for developing the runner)."
+  mutable     = true
+}
+
 data "coder_parameter" "create_concurrency" {
   order       = 10
   type        = "number"
@@ -357,6 +366,7 @@ resource "coder_agent" "main" {
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
 
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
+    SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
