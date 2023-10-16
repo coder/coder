@@ -222,6 +222,11 @@
           "description": "Use devcontainers in workspaces",
           "path": "./templates/devcontainers.md",
           "state": "alpha"
+        },
+        {
+          "title": "Troubleshooting templates",
+          "description": "Fix common template problems",
+          "path": "./templates/troubleshooting.md"
         }
       ]
     },

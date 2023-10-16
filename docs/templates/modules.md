@@ -29,7 +29,7 @@ resource "coder_agent" "dev" {
 }
 ```
 
-> Learn more about [creating modules](https://developer.hashicorp.com/terraform/language/modules) and [module sources](https://developer.hashicorp.com/terraform/language/modules/sources) in the Terraform documentation.
+Learn more about [creating modules](https://developer.hashicorp.com/terraform/language/modules) and [module sources](https://developer.hashicorp.com/terraform/language/modules/sources) in the Terraform documentation.
 
 ## Git authentication
 

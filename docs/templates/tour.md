@@ -48,9 +48,6 @@ we'll create.
 On your local computer, create a directory for your template and
 create the `Dockerfile`.
 
-This is a simple `Dockerfile` that starts with the [official Ubuntu
-image](https://hub.docker.com/_/ubuntu/).
-
 ```shell
 mkdir template-tour
 cd template-tour
@@ -58,8 +55,9 @@ mkdir build
 nano build/Dockerfile
 ```
 
-In the editor, enter and save the following text in `Dockerfile` then
-exit the editor:
+You'll enter a simple `Dockerfile` that starts with the [official
+Ubuntu image](https://hub.docker.com/_/ubuntu/). In the editor, enter
+and save the following text in `Dockerfile` then exit the editor:
 
 ```dockerfile
 FROM ubuntu
@@ -134,11 +132,13 @@ Notice that the `provider` blocks for `coder` and `docker` are empty.
 In a more practical template, you would add arguments to these blocks
 to configure the providers, if needed.
 
-The `coder_workspace` data source provides details about the state of
-a workspace, such as its name, owner, and so on. It also lets us know
-when a workspace is being started or stopped. We'll use this
-information in later steps to make sure our workspace's home directory
-is persistent.
+The [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) data source provides details about the state of
+a workspace, such as its name, owner, and so on. The data source also
+lets us know when a workspace is being started or stopped. We'll take
+advantage of this information in later steps to do these things:
+
+- Set some environment variables based on the workspace owner.
+- Manage ephemeral and persistent storage.
 
 ## 3. coder_agent
 
@@ -152,11 +152,7 @@ You do not need to have any open ports on the compute aspect, but the
 agent needs `curl` access to the Coder server. Remember that we
 installed `curl` in `Dockerfile`, earlier.
 
-This snippet creates the agent and specifies a startup script. This
-script installs [code-server](https://coder.com/docs/code-server), a
-browser-based [VS Code](https://code.visualstudio.com/) app that runs
-in the workspace. We'll give users access to code-server through
-`coder_app`, later.
+This snippet creates the agent:
 
 ```hcl
 resource "coder_agent" "main" {
@@ -170,6 +166,13 @@ resource "coder_agent" "main" {
     curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server --version 4.11.0
     /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
   EOT
+
+  env = {
+    GIT_AUTHOR_NAME = "${data.coder_workspace.me.owner}"
+    GIT_COMMITTER_NAME = "${data.coder_workspace.me.owner}"
+    GIT_AUTHOR_EMAIL = "${data.coder_workspace.me.owner_email}"
+    GIT_COMMITTER_EMAIL = "${data.coder_workspace.me.owner_email}"
+  }
 
   metadata {
     display_name = "CPU Usage"
@@ -195,11 +198,26 @@ need to authenticate `coder_agent`. But if your `coder_agent` were
 running on a remote host, your template would need [authentication
 credentials](./authentication.md).
 
-Agents can also run startup scripts, set environment variables, and
-provide `metadata`.
+This template's agent also runs a startup script, sets environment
+variables, and provides metadata.
 
-Coder displays this metadata in the Coder dashboard. Our template has
-[`metadata`](./agent-metadata.md) blocks for CPU and RAM usage.
+The [`startup script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
+installs [code-server](https://coder.com/docs/code-server), a
+browser-based [VS Code](https://code.visualstudio.com/) app that runs
+in the workspace. We'll give users access to code-server through
+`coder_app`, later.
+
+The
+[`env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#env)
+block sets environments variables for the workspace. We use the data
+source from `coder_workspace` to set the environment variables based
+on the workspace's owner. This way, the owner can make git commits
+immediately without any manual configuration.
+
+Your template can use metadata to show information to the workspace
+owner. Coder displays this metadata in the Coder dashboard. Our
+template has [`metadata`](./agent-metadata.md) blocks for CPU and RAM
+usage.
 
 ## 4. coder_app
 
@@ -309,7 +327,7 @@ resource "docker_image" "main" {
 
 ```
 
-Our `docker_container` resource uses the `coder_workspace`
+Our `docker_container` resource uses `coder_workspace`
 `start_count` to start and stop the Docker container:
 
 ```hcl
@@ -342,8 +360,8 @@ resource "docker_container" "workspace" {
 
 Save `main.tf` and exit the editor.
 
-Now that we've created the files for our template. Now we can add them
-to our Coder deployment.
+Now that we've created the files for our template, we can add them to
+our Coder deployment.
 
 We can do this with the Coder CLI or the Coder dashboard. For this
 tour, we'll use the Coder CLI.
@@ -369,7 +387,7 @@ Copy the session token into the clipboard:
 
 And paste it into the CLI:
 
-```console
+```
 > Welcome to Coder, marc! You're authenticated.
 $
 ```
@@ -403,4 +421,4 @@ In your web browser, log in to your Coder dashboard, select
 
 - [Setting up templates](./best-practices.md)
 - [Customizing templates](./customizing.md)
-
+- [Troubleshooting template](./troubleshooting.md)

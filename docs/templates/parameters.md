@@ -6,7 +6,7 @@ creating workspaces with
 
 ![Parameters in Create Workspace screen](../images/parameters.png)
 
-The user can set parameters in the UI and CLI.
+The user can set parameters in the dashboard UI and CLI.
 
 You'll likely want to hardcode certain template properties for
 workspaces, such as security group. But you can let developers specify
@@ -62,7 +62,7 @@ A Coder parameter can have one of these types:
 - `list(string)`
 
 To specify a default value for a parameter with the `list(string)`
-type uses a JSON array, and the Terraform
+type, use a JSON array and the Terraform
 [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
 function. For example:
 
@@ -152,7 +152,7 @@ data "coder_parameter" "dotfiles_url" {
 
 ## Mutability
 
-Immutable parameters can be only be set in these situations:
+Immutable parameters can only be set in these situations:
 
 - Creating a workspace for the first time.
 - Updating a workspace to a new template version. This sets the

@@ -91,6 +91,3 @@ resource "docker_volume" "home_volume" {
 }
 ```
 
-## Up next
-
-- [Templates](../templates/index.md)
