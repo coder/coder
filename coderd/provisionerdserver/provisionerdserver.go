@@ -1197,6 +1197,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 								slog.F("workspace_build_id", workspaceBuild.ID),
 								slog.Error(err),
 							)
+							return
 						case <-wait:
 							// Wait for the next potential timeout to occur. Note that we
 							// can't listen on the context here because we will hang around
