@@ -87,7 +87,7 @@ end_phase() {
 	log "End phase ${phase_num}: ${phase}"
 	echo "$(date -Ins) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
 
-	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
+	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" GRAFANA_ADD_TAGS="${PHASE_ADD_TAGS:-}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
 }
 get_phase() {
 	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
@@ -183,11 +183,20 @@ annotate_grafana_end() {
 
 	log "Annotating Grafana (end=${end}): ${text} [${tags}]"
 
-	json="$(
-		jq \
-			--argjson timeEnd "${end}" \
-			'{timeEnd: $timeEnd}' <<<'{}'
-	)"
+	if [[ -n ${GRAFANA_ADD_TAGS:-} ]]; then
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				--argjson tags "${tags},${GRAFANA_ADD_TAGS}" \
+				'{timeEnd: $timeEnd, tags: $tags | split(",")}'
+		)"
+	else
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				'{timeEnd: $timeEnd}'
+		)"
+	fi
 	if [[ ${DRY_RUN} == 1 ]]; then
 		log "Would have patched Grafana annotation: id=${id}, data=${json}"
 		return 0

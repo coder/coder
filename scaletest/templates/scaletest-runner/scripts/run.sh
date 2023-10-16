@@ -26,8 +26,12 @@ end_phase
 
 wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 
+declare -A failed=()
 for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	start_phase "Load scenario: ${scenario}"
+
+	set +e
+	status=0
 	case "${scenario}" in
 	"SSH Traffic")
 		coder exp scaletest workspace-traffic \
@@ -37,6 +41,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_SSH_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
+		status=$?
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-ssh.json"
 		;;
 	"Web Terminal Traffic")
@@ -46,6 +51,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m" \
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_WEB_TERMINAL_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
+		status=$?
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-web-terminal.json"
 		;;
 	"Dashboard Traffic")
@@ -54,13 +60,39 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 			--job-timeout "${SCALETEST_PARAM_LOAD_SCENARIO_DASHBOARD_TRAFFIC_DURATION}m30s" \
 			--output json:"${SCALETEST_RESULTS_DIR}/traffic-dashboard.json" \
 			>"${SCALETEST_RESULTS_DIR}/traffic-dashboard-output.log"
+		status=$?
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
 		;;
+
+	# Debug scenarios, for testing the runner.
+	"debug:success")
+		maybedryrun "$DRY_RUN" sleep 10
+		status=0
+		;;
+	"debug:error")
+		maybedryrun "$DRY_RUN" sleep 10
+		status=1
+		;;
 	esac
-	end_phase
+	set -e
+	if ((status > 0)); then
+		log "Load scenario failed: ${scenario} (exit=${status})"
+		failed+=(["${scenario}"]="$status")
+		PHASE_ADD_TAGS=error end_phase
+	else
+		end_phase
+	fi
 
 	wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 done
+
+if ((${#failed[@]} > 0)); then
+	log "Load scenarios failed: ${!failed[*]}"
+	for scenario in "${!failed[@]}"; do
+		log "  ${scenario}: exit=${failed[$scenario]}"
+	done
+	exit 1
+fi
 
 log "Scaletest complete!"
 set_status Complete

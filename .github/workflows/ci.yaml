@@ -223,7 +223,7 @@ jobs:
           go-version: 1.20.10
 
       - name: Install shfmt
-        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.5.0
+        run: go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0
 
       - name: make fmt
         run: |
