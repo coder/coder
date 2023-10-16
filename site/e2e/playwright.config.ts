@@ -15,6 +15,7 @@ const localURL = (port: number, path: string): string => {
 };
 
 export default defineConfig({
+  preserveOutput: "failures-only",
   projects: [
     {
       name: "setup",
