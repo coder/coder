@@ -1733,6 +1733,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	}
 
 	srv, err := provisionerdserver.NewServer(
+		ctx,
 		&url.URL{},
 		srvID,
 		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),

@@ -1241,7 +1241,7 @@ func (r *runnableTraceWrapper) Run(ctx context.Context, id string, logs io.Write
 	return r.runner.Run(ctx2, id, logs)
 }
 
-func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
+func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	c, ok := r.runner.(harness.Cleanable)
 	if !ok {
 		return nil
@@ -1253,7 +1253,7 @@ func (r *runnableTraceWrapper) Cleanup(ctx context.Context, id string) error {
 	ctx, span := r.tracer.Start(ctx, r.spanName+" cleanup")
 	defer span.End()
 
-	return c.Cleanup(ctx, id)
+	return c.Cleanup(ctx, id, logs)
 }
 
 // newScaleTestUser returns a random username and email address that can be used

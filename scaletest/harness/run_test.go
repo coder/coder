@@ -16,7 +16,7 @@ import (
 type testFns struct {
 	RunFn func(ctx context.Context, id string, logs io.Writer) error
 	// CleanupFn is optional if no cleanup is required.
-	CleanupFn func(ctx context.Context, id string) error
+	CleanupFn func(ctx context.Context, id string, logs io.Writer) error
 }
 
 // Run implements Runnable.
@@ -25,12 +25,12 @@ func (fns testFns) Run(ctx context.Context, id string, logs io.Writer) error {
 }
 
 // Cleanup implements Cleanable.
-func (fns testFns) Cleanup(ctx context.Context, id string) error {
+func (fns testFns) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	if fns.CleanupFn == nil {
 		return nil
 	}
 
-	return fns.CleanupFn(ctx, id)
+	return fns.CleanupFn(ctx, id, logs)
 }
 
 func Test_TestRun(t *testing.T) {
@@ -49,7 +49,7 @@ func Test_TestRun(t *testing.T) {
 					atomic.AddInt64(&runCalled, 1)
 					return nil
 				},
-				CleanupFn: func(ctx context.Context, id string) error {
+				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
 					atomic.AddInt64(&cleanupCalled, 1)
 					return nil
 				},
@@ -93,7 +93,7 @@ func Test_TestRun(t *testing.T) {
 				RunFn: func(ctx context.Context, id string, logs io.Writer) error {
 					return nil
 				},
-				CleanupFn: func(ctx context.Context, id string) error {
+				CleanupFn: func(ctx context.Context, id string, logs io.Writer) error {
 					atomic.AddInt64(&cleanupCalled, 1)
 					return nil
 				},

@@ -75,6 +75,25 @@ data "coder_parameter" "dry_run" {
   ephemeral   = true
 }
 
+data "coder_parameter" "repo_branch" {
+  order       = 3
+  type        = "string"
+  name        = "Branch"
+  default     = "main"
+  description = "Branch of coder/coder repo to check out (only useful for developing the runner)."
+  mutable     = true
+}
+
+data "coder_parameter" "comment" {
+  order       = 4
+  type        = "string"
+  name        = "Comment"
+  default     = ""
+  description = "Describe **what** you're testing and **why** you're testing it."
+  mutable     = true
+  ephemeral   = true
+}
+
 data "coder_parameter" "create_concurrency" {
   order       = 10
   type        = "number"
@@ -356,7 +375,12 @@ resource "coder_agent" "main" {
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
 
+    # Comment is a scaletest param, but we want to surface it separately from
+    # the rest, so we use a different name.
+    SCALETEST_COMMENT : data.coder_parameter.comment.value != "" ? data.coder_parameter.comment.value : "No comment provided",
+
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
+    SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,
