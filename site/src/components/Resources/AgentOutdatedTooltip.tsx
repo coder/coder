@@ -1,5 +1,5 @@
-import { type ComponentProps, type FC } from "react";
-import { useTheme } from "@emotion/react";
+import { ComponentProps, FC } from "react";
+import { makeStyles } from "@mui/styles";
 import RefreshIcon from "@mui/icons-material/RefreshOutlined";
 import {
   HelpTooltipText,
@@ -9,7 +9,7 @@ import {
   HelpTooltipLinksGroup,
   HelpTooltipContext,
 } from "components/HelpTooltip/HelpTooltip";
-import type { WorkspaceAgent } from "api/typesGenerated";
+import { WorkspaceAgent } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 
 type AgentOutdatedTooltipProps = ComponentProps<typeof HelpPopover> & {
@@ -28,11 +28,7 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
   onClose,
   anchorEl,
 }) => {
-  const theme = useTheme();
-  const versionLabelStyles = {
-    fontWeight: 600,
-    color: theme.palette.text.primary,
-  };
+  const styles = useStyles();
 
   return (
     <HelpPopover
@@ -54,12 +50,12 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
           </div>
 
           <Stack spacing={0.5}>
-            <span css={versionLabelStyles}>Agent version</span>
+            <span className={styles.versionLabel}>Agent version</span>
             <span>{agent.version}</span>
           </Stack>
 
           <Stack spacing={0.5}>
-            <span css={versionLabelStyles}>Server version</span>
+            <span className={styles.versionLabel}>Server version</span>
             <span>{serverVersion}</span>
           </Stack>
 
@@ -77,3 +73,10 @@ export const AgentOutdatedTooltip: FC<AgentOutdatedTooltipProps> = ({
     </HelpPopover>
   );
 };
+
+const useStyles = makeStyles((theme) => ({
+  versionLabel: {
+    fontWeight: 600,
+    color: theme.palette.text.primary,
+  },
+}));
