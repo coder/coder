@@ -22,7 +22,9 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         The workspace{" "}
         <Link
           title="startup script has exited with an error"
-          href={docs("/templates/troubleshooting#startup-script-exited-with-an-error")}
+          href={docs(
+            "/templates/troubleshooting#startup-script-exited-with-an-error",
+          )}
           target="_blank"
           rel="noreferrer"
         >
@@ -40,7 +42,9 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         because{" "}
         <Link
           title="your workspace may be incomplete."
-          href={docs("/templates/troubleshooting#your-workspace-may-be-incomplete")}
+          href={docs(
+            "/templates/troubleshooting#your-workspace-may-be-incomplete",
+          )}
           target="_blank"
           rel="noreferrer"
         >
@@ -57,7 +61,9 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         but{" "}
         <Link
           title="your workspace may be incomplete."
-          href={docs("/templates/troubleshooting#your-workspace-may-be-incomplete")}
+          href={docs(
+            "/templates/troubleshooting#your-workspace-may-be-incomplete",
+          )}
           target="_blank"
           rel="noreferrer"
         >
@@ -75,7 +81,9 @@ const mapAlertTypeToText: MapAlertTypeToComponent = {
         this{" "}
         <Link
           title="session was started before the startup script finished"
-          href={docs("/templates/troubleshooting#your-workspace-may-be-incomplete")}
+          href={docs(
+            "/templates/troubleshooting#your-workspace-may-be-incomplete",
+          )}
           target="_blank"
           rel="noreferrer"
         >

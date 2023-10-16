@@ -124,10 +124,10 @@ Coder stores macOS and Linux logs at the following locations:
 
 ## Repairing workspaces
 
-There are a couple of ways you can repair a workspace if its state 
+There are a couple of ways you can repair a workspace if its state
 is out of sync with the template.
 
-First, try re-entering parameters from a workspace. 
+First, try re-entering parameters from a workspace.
 
 ![Re-entering template variables](./images/template-variables.png)
 
@@ -154,4 +154,3 @@ coder state push <username>/<workspace name>
 
 - Learn about how to personalize your workspace with [Dotfiles](./dotfiles.md)
 - Learn about using [IDEs](./ides.md)
-

@@ -42,7 +42,6 @@ we'll create.
 
 ![Template architecture](../images/templates/template-architecture.png)
 
-
 ## 1. Create template files
 
 On your local computer, create a directory for your template and
@@ -82,7 +81,6 @@ image, which your template needs later:
 
 - It installs the `sudo` and `curl` packages.
 - It adds a `coder` user, including a home directory.
-
 
 ## 2. Set up template providers
 
@@ -412,10 +410,9 @@ The template-tour template has been created! Developers can provision a workspac
 ```
 
 In your web browser, log in to your Coder dashboard, select
-***Templates**. Your template is ready to use for new workspaces.
+**\*Templates**. Your template is ready to use for new workspaces.
 
 ![Your new template, ready to use](../images/templates/template-tour.png)
-
 
 ## Next steps
 

@@ -104,5 +104,3 @@ This can be used to pre-fill the git repo URL, disk size, image, etc.
 ```
 
 ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
-
-
