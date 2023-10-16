@@ -1,10 +1,12 @@
 // Default port from the server
-export const defaultPort = 3000
+export const defaultPort = 3000;
+export const prometheusPort = 2114;
+export const pprofPort = 6061;
 
 // Credentials for the first user
-export const username = "admin"
-export const password = "SomeSecurePassword!"
-export const email = "admin@coder.com"
+export const username = "admin";
+export const password = "SomeSecurePassword!";
+export const email = "admin@coder.com";
 
 export const gitAuth = {
   deviceProvider: "device",
@@ -20,4 +22,4 @@ export const gitAuth = {
   codePath: "/code",
   validatePath: "/validate",
   installationsPath: "/installations",
-}
+};

@@ -13,6 +13,12 @@ for d in */; do
 		continue
 	fi
 
+	# This directory is used for a different purpose (quick workaround).
+	if [[ $name == "cleanup-stale-plugins" ]]; then
+		popd
+		continue
+	fi
+
 	terraform init -upgrade
 	terraform plan -out terraform.tfplan
 	terraform show -json ./terraform.tfplan | jq >"$name".tfplan.json

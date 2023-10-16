@@ -23,19 +23,19 @@ init)
 	echo "init"
 	exit 0
 	;;
-apply)
+plan)
 	trap 'json_print interrupt' INT
 
-	json_print apply_start
+	json_print plan_start
 	sleep 10 2>/dev/null >/dev/null
-	json_print apply_end
+	json_print plan_end
 
 	exit 0
 	;;
-plan)
-	echo "plan not supported"
+apply)
+	echo "apply not supported"
 	exit 1
 	;;
 esac
 
-exit 0
+exit 10

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 func TestApplicationURLString(t *testing.T) {
@@ -41,6 +41,17 @@ func TestApplicationURLString(t *testing.T) {
 				Username:      "user",
 			},
 			Expected: "8080--agent--workspace--user",
+		},
+		{
+			Name: "Prefix",
+			URL: httpapi.ApplicationURL{
+				Prefix:        "yolo---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
+			},
+			Expected: "yolo---app--agent--workspace--user",
 		},
 	}
 
@@ -121,6 +132,17 @@ func TestParseSubdomainAppURL(t *testing.T) {
 				AgentName:     "agent-name",
 				WorkspaceName: "workspace-name",
 				Username:      "user-name",
+			},
+		},
+		{
+			Name:      "Prefix",
+			Subdomain: "dean---was---here---app--agent--workspace--user",
+			Expected: httpapi.ApplicationURL{
+				Prefix:        "dean---was---here---",
+				AppSlugOrPort: "app",
+				AgentName:     "agent",
+				WorkspaceName: "workspace",
+				Username:      "user",
 			},
 		},
 	}

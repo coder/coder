@@ -221,13 +221,57 @@ incoming connections and publishes node updates.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get workspace agent Git auth
+## Get workspace agent external auth
 
 ### Code samples
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%3A%2F%2Fexample.com \
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?match=string&id=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/me/external-auth`
+
+### Parameters
+
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "access_token": "string",
+  "password": "string",
+  "token_extra": {},
+  "type": "string",
+  "url": "string",
+  "username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Removed: Get workspace agent git auth
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=string&id=string \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
@@ -236,10 +280,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ### Parameters
 
-| Name     | In    | Type        | Required | Description                       |
-| -------- | ----- | ----------- | -------- | --------------------------------- |
-| `url`    | query | string(uri) | true     | Git URL                           |
-| `listen` | query | boolean     | false    | Wait for a new token to be issued |
+| Name     | In    | Type    | Required | Description                       |
+| -------- | ----- | ------- | -------- | --------------------------------- |
+| `match`  | query | string  | true     | Match                             |
+| `id`     | query | string  | true     | Provider ID                       |
+| `listen` | query | boolean | false    | Wait for a new token to be issued |
 
 ### Example responses
 
@@ -247,7 +292,10 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ```json
 {
+  "access_token": "string",
   "password": "string",
+  "token_extra": {},
+  "type": "string",
   "url": "string",
   "username": "string"
 }
@@ -255,9 +303,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?url=http%
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                         |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitAuthResponse](schemas.md#agentsdkgitauthresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                   |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -290,6 +338,66 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 | Status | Meaning                                                 | Description | Schema                                             |
 | ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Patch workspace agent logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /workspaceagents/me/logs`
+
+> Body parameter
+
+```json
+{
+  "log_source_id": "string",
+  "logs": [
+    {
+      "created_at": "string",
+      "level": "trace",
+      "output": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                               | Required | Description |
+| ------ | ---- | -------------------------------------------------- | -------- | ----------- |
+| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -329,10 +437,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],
+  "derp_force_websockets": true,
   "derpmap": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -340,6 +456,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -363,6 +480,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -400,10 +518,18 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/manifest \
     }
   ],
   "motd_file": "string",
-  "shutdown_script": "string",
-  "shutdown_script_timeout": 0,
-  "startup_script": "string",
-  "startup_script_timeout": 0,
+  "scripts": [
+    {
+      "cron": "string",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "script": "string",
+      "start_blocks_login": true,
+      "timeout": 0
+    }
+  ],
   "vscode_port_proxy_uri": "string"
 }
 ```
@@ -488,7 +614,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/report-stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Patch workspace agent startup logs
+## Removed: Patch workspace agent logs
 
 ### Code samples
 
@@ -506,6 +632,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
 
 ```json
 {
+  "log_source_id": "string",
   "logs": [
     {
       "created_at": "string",
@@ -518,9 +645,9 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/startup-logs \
 
 ### Parameters
 
-| Name   | In   | Type                                                             | Required | Description  |
-| ------ | ---- | ---------------------------------------------------------------- | -------- | ------------ |
-| `body` | body | [agentsdk.PatchStartupLogs](schemas.md#agentsdkpatchstartuplogs) | true     | Startup logs |
+| Name   | In   | Type                                               | Required | Description |
+| ------ | ---- | -------------------------------------------------- | -------- | ----------- |
+| `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
 
 ### Example responses
 
@@ -588,6 +715,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
+      "subdomain_name": "string",
       "url": "string"
     }
   ],
@@ -596,6 +724,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
   "created_at": "2019-08-24T14:15:22Z",
   "directory": "string",
   "disconnected_at": "2019-08-24T14:15:22Z",
+  "display_apps": ["vscode"],
   "environment_variables": {
     "property1": "string",
     "property2": "string"
@@ -620,21 +749,37 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
     }
   },
   "lifecycle_state": "created",
-  "login_before_ready": true,
+  "log_sources": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+    }
+  ],
+  "logs_length": 0,
+  "logs_overflowed": true,
   "name": "string",
   "operating_system": "string",
   "ready_at": "2019-08-24T14:15:22Z",
   "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-  "shutdown_script": "string",
-  "shutdown_script_timeout_seconds": 0,
+  "scripts": [
+    {
+      "cron": "string",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "script": "string",
+      "start_blocks_login": true,
+      "timeout": 0
+    }
+  ],
   "started_at": "2019-08-24T14:15:22Z",
-  "startup_logs_length": 0,
-  "startup_logs_overflowed": true,
-  "startup_script": "string",
   "startup_script_behavior": "blocking",
-  "startup_script_timeout_seconds": 0,
   "status": "connecting",
-  "subsystem": "envbox",
+  "subsystems": ["envbox"],
   "troubleshooting_url": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "version": "string"
@@ -674,7 +819,14 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ```json
 {
+  "derp_force_websockets": true,
   "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
     "omitDefaultRegions": true,
     "regions": {
       "property1": {
@@ -682,6 +834,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -705,6 +858,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "embeddedRelay": true,
         "nodes": [
           {
+            "canPort80": true,
             "certName": "string",
             "derpport": 0,
             "forceHTTP": true,
@@ -806,6 +960,76 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get logs by workspace agent
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /workspaceagents/{workspaceagent}/logs`
+
+### Parameters
+
+| Name             | In    | Type         | Required | Description                                  |
+| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+| `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
+| `before`         | query | integer      | false    | Before log id                                |
+| `after`          | query | integer      | false    | After log id                                 |
+| `follow`         | query | boolean      | false    | Follow log stream                            |
+| `no_compression` | query | boolean      | false    | Disable compression for WebSocket connection |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "level": "trace",
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
+
+<h3 id="get-logs-by-workspace-agent-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type                                             | Required | Restrictions | Description |
+| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]` | array                                            | false    |              |             |
+| `» created_at` | string(date-time)                                | false    |              |             |
+| `» id`         | integer                                          | false    |              |             |
+| `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
+| `» output`     | string                                           | false    |              |             |
+| `» source_id`  | string(uuid)                                     | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value   |
+| -------- | ------- |
+| `level`  | `trace` |
+| `level`  | `debug` |
+| `level`  | `info`  |
+| `level`  | `warn`  |
+| `level`  | `error` |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Open PTY to workspace agent
 
 ### Code samples
@@ -832,7 +1056,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get startup logs by workspace agent
+## Removed: Get logs by workspace agent
 
 ### Code samples
 
@@ -865,18 +1089,19 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
     "created_at": "2019-08-24T14:15:22Z",
     "id": 0,
     "level": "trace",
-    "output": "string"
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
   }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                    |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentStartupLog](schemas.md#codersdkworkspaceagentstartuplog) |
+| Status | Meaning                                                 | Description | Schema                                                                      |
+| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
 
-<h3 id="get-startup-logs-by-workspace-agent-responseschema">Response Schema</h3>
+<h3 id="removed:-get-logs-by-workspace-agent-responseschema">Response Schema</h3>
 
 Status Code **200**
 
@@ -887,6 +1112,7 @@ Status Code **200**
 | `» id`         | integer                                          | false    |              |             |
 | `» level`      | [codersdk.LogLevel](schemas.md#codersdkloglevel) | false    |              |             |
 | `» output`     | string                                           | false    |              |             |
+| `» source_id`  | string(uuid)                                     | false    |              |             |
 
 #### Enumerated Values
 

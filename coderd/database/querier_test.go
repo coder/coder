@@ -13,10 +13,11 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
@@ -43,7 +44,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCountVSCode:        1,
 		})
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.Now().Add(-time.Hour))
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
@@ -62,7 +63,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 		db := database.New(sqlDB)
 		ctx := context.Background()
 		agentID := uuid.New()
-		insertTime := database.Now()
+		insertTime := dbtime.Now()
 		dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
 			CreatedAt:                 insertTime.Add(-time.Second),
 			AgentID:                   agentID,
@@ -80,7 +81,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 			ConnectionMedianLatencyMS: 2,
 			SessionCountVSCode:        1,
 		})
-		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, database.Now().Add(-time.Hour))
+		stats, err := db.GetDeploymentWorkspaceAgentStats(ctx, dbtime.Now().Add(-time.Hour))
 		require.NoError(t, err)
 
 		require.Equal(t, int64(2), stats.WorkspaceTxBytes)
@@ -91,7 +92,7 @@ func TestGetDeploymentWorkspaceAgentStats(t *testing.T) {
 	})
 }
 
-func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
+func TestInsertWorkspaceAgentLogs(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -102,7 +103,7 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 	require.NoError(t, err)
 	db := database.New(sqlDB)
 	org := dbgen.Organization(t, db, database.Organization{})
-	job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: org.ID,
 	})
 	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -111,25 +112,30 @@ func TestInsertWorkspaceAgentStartupLogs(t *testing.T) {
 	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 		ResourceID: resource.ID,
 	})
-	logs, err := db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
-		AgentID:   agent.ID,
-		CreatedAt: []time.Time{database.Now()},
-		Output:    []string{"first"},
-		Level:     []database.LogLevel{database.LogLevelInfo},
+	source := dbgen.WorkspaceAgentLogSource(t, db, database.WorkspaceAgentLogSource{
+		WorkspaceAgentID: agent.ID,
+	})
+	logs, err := db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
+		AgentID:     agent.ID,
+		CreatedAt:   dbtime.Now(),
+		Output:      []string{"first"},
+		Level:       []database.LogLevel{database.LogLevelInfo},
+		LogSourceID: source.ID,
 		// 1 MB is the max
 		OutputLength: 1 << 20,
 	})
 	require.NoError(t, err)
 	require.Equal(t, int64(1), logs[0].ID)
 
-	_, err = db.InsertWorkspaceAgentStartupLogs(ctx, database.InsertWorkspaceAgentStartupLogsParams{
+	_, err = db.InsertWorkspaceAgentLogs(ctx, database.InsertWorkspaceAgentLogsParams{
 		AgentID:      agent.ID,
-		CreatedAt:    []time.Time{database.Now()},
+		CreatedAt:    dbtime.Now(),
 		Output:       []string{"second"},
 		Level:        []database.LogLevel{database.LogLevelInfo},
+		LogSourceID:  source.ID,
 		OutputLength: 1,
 	})
-	require.True(t, database.IsStartupLogsLimitError(err))
+	require.True(t, database.IsWorkspaceAgentLogsLimitError(err))
 }
 
 func TestProxyByHostname(t *testing.T) {
@@ -332,7 +338,7 @@ func TestQueuePosition(t *testing.T) {
 	jobs := []database.ProvisionerJob{}
 	jobIDs := []uuid.UUID{}
 	for i := 0; i < jobCount; i++ {
-		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Tags:           database.StringMap{},
 		})
@@ -358,7 +364,7 @@ func TestQueuePosition(t *testing.T) {
 
 	job, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 		StartedAt: sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		},
 		Types: database.AllProvisionerTypeValues(),
@@ -400,7 +406,7 @@ func TestUserLastSeenFilter(t *testing.T) {
 		require.NoError(t, err)
 		db := database.New(sqlDB)
 		ctx := context.Background()
-		now := database.Now()
+		now := dbtime.Now()
 
 		yesterday := dbgen.User(t, db, database.User{
 			LastSeenAt: now.Add(time.Hour * -25),
@@ -486,6 +492,165 @@ func TestUserChangeLoginType(t *testing.T) {
 	bob, err = db.GetUserByID(ctx, bob.ID)
 	require.NoError(t, err)
 	require.Equal(t, bobExpPass, bob.HashedPassword, "hashed password should not change")
+}
+
+type tvArgs struct {
+	Status database.ProvisionerJobStatus
+	// CreateWorkspace is true if we should create a workspace for the template version
+	CreateWorkspace     bool
+	WorkspaceTransition database.WorkspaceTransition
+}
+
+// createTemplateVersion is a helper function to create a version with its dependencies.
+func createTemplateVersion(t testing.TB, db database.Store, tpl database.Template, args tvArgs) database.TemplateVersion {
+	t.Helper()
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID: uuid.NullUUID{
+			UUID:  tpl.ID,
+			Valid: true,
+		},
+		OrganizationID: tpl.OrganizationID,
+		CreatedAt:      dbtime.Now(),
+		UpdatedAt:      dbtime.Now(),
+		CreatedBy:      tpl.CreatedBy,
+	})
+
+	earlier := sql.NullTime{
+		Time:  dbtime.Now().Add(time.Second * -30),
+		Valid: true,
+	}
+	now := sql.NullTime{
+		Time:  dbtime.Now(),
+		Valid: true,
+	}
+	j := database.ProvisionerJob{
+		ID:             version.JobID,
+		CreatedAt:      earlier.Time,
+		UpdatedAt:      earlier.Time,
+		Error:          sql.NullString{},
+		OrganizationID: tpl.OrganizationID,
+		InitiatorID:    tpl.CreatedBy,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	}
+
+	switch args.Status {
+	case database.ProvisionerJobStatusRunning:
+		j.StartedAt = earlier
+	case database.ProvisionerJobStatusPending:
+	case database.ProvisionerJobStatusFailed:
+		j.StartedAt = earlier
+		j.CompletedAt = now
+		j.Error = sql.NullString{
+			String: "failed",
+			Valid:  true,
+		}
+		j.ErrorCode = sql.NullString{
+			String: "failed",
+			Valid:  true,
+		}
+	case database.ProvisionerJobStatusSucceeded:
+		j.StartedAt = earlier
+		j.CompletedAt = now
+	default:
+		t.Fatalf("invalid status: %s", args.Status)
+	}
+
+	dbgen.ProvisionerJob(t, db, nil, j)
+	if args.CreateWorkspace {
+		wrk := dbgen.Workspace(t, db, database.Workspace{
+			CreatedAt:      time.Time{},
+			UpdatedAt:      time.Time{},
+			OwnerID:        tpl.CreatedBy,
+			OrganizationID: tpl.OrganizationID,
+			TemplateID:     tpl.ID,
+		})
+		trans := database.WorkspaceTransitionStart
+		if args.WorkspaceTransition != "" {
+			trans = args.WorkspaceTransition
+		}
+		buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			CompletedAt:    now,
+			InitiatorID:    tpl.CreatedBy,
+			OrganizationID: tpl.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wrk.ID,
+			TemplateVersionID: version.ID,
+			BuildNumber:       1,
+			Transition:        trans,
+			InitiatorID:       tpl.CreatedBy,
+			JobID:             buildJob.ID,
+		})
+	}
+	return version
+}
+
+func TestArchiveVersions(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	t.Run("ArchiveFailedVersions", func(t *testing.T) {
+		t.Parallel()
+		sqlDB := testSQLDB(t)
+		err := migrations.Up(sqlDB)
+		require.NoError(t, err)
+		db := database.New(sqlDB)
+		ctx := context.Background()
+
+		org := dbgen.Organization(t, db, database.Organization{})
+		user := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		// Create some versions
+		failed := createTemplateVersion(t, db, tpl, tvArgs{
+			Status:          database.ProvisionerJobStatusFailed,
+			CreateWorkspace: false,
+		})
+		unused := createTemplateVersion(t, db, tpl, tvArgs{
+			Status:          database.ProvisionerJobStatusSucceeded,
+			CreateWorkspace: false,
+		})
+		createTemplateVersion(t, db, tpl, tvArgs{
+			Status:          database.ProvisionerJobStatusSucceeded,
+			CreateWorkspace: true,
+		})
+		deleted := createTemplateVersion(t, db, tpl, tvArgs{
+			Status:              database.ProvisionerJobStatusSucceeded,
+			CreateWorkspace:     true,
+			WorkspaceTransition: database.WorkspaceTransitionDelete,
+		})
+
+		// Now archive failed versions
+		archived, err := db.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
+			UpdatedAt:  dbtime.Now(),
+			TemplateID: tpl.ID,
+			// All versions
+			TemplateVersionID: uuid.Nil,
+			JobStatus: database.NullProvisionerJobStatus{
+				ProvisionerJobStatus: database.ProvisionerJobStatusFailed,
+				Valid:                true,
+			},
+		})
+		require.NoError(t, err, "archive failed versions")
+		require.Len(t, archived, 1, "should only archive one version")
+		require.Equal(t, failed.ID, archived[0], "should archive failed version")
+
+		// Archive all unused versions
+		archived, err = db.ArchiveUnusedTemplateVersions(ctx, database.ArchiveUnusedTemplateVersionsParams{
+			UpdatedAt:  dbtime.Now(),
+			TemplateID: tpl.ID,
+			// All versions
+			TemplateVersionID: uuid.Nil,
+		})
+		require.NoError(t, err, "archive failed versions")
+		require.Len(t, archived, 2)
+		require.ElementsMatch(t, []uuid.UUID{deleted.ID, unused.ID}, archived, "should archive unused versions")
+	})
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {

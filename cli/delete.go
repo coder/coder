@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // nolint
@@ -22,16 +22,19 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 			r.InitClient(client),
 		),
 		Handler: func(inv *clibase.Invocation) error {
-			_, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      "Confirm delete workspace?",
-				IsConfirm: true,
-				Default:   cliui.ConfirmNo,
-			})
+			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
 			if err != nil {
 				return err
 			}
 
-			workspace, err := namedWorkspace(inv.Context(), client, inv.Args[0])
+			sinceLastUsed := time.Since(workspace.LastUsedAt)
+			cliui.Infof(inv.Stderr, "%v was last used %.0f days ago", workspace.FullName(), sinceLastUsed.Hours()/24)
+
+			_, err = cliui.Prompt(inv, cliui.PromptOptions{
+				Text:      "Confirm delete workspace?",
+				IsConfirm: true,
+				Default:   cliui.ConfirmNo,
+			})
 			if err != nil {
 				return err
 			}
@@ -51,7 +54,11 @@ func (r *RootCmd) deleteWorkspace() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nThe %s workspace has been deleted at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(
+				inv.Stdout,
+				"\n%s has been deleted at %s!\n", cliui.Keyword(workspace.FullName()),
+				cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -12,13 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestWorkspaceAgent(t *testing.T) {
@@ -37,9 +38,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
@@ -74,9 +75,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
@@ -91,9 +92,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			}},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "azure-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -126,9 +127,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
@@ -143,9 +144,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			}},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, _ := clitest.New(t, "agent", "--auth", "aws-instance-identity", "--agent-url", client.URL.String())
 		inv = inv.WithContext(
@@ -175,12 +176,13 @@ func TestWorkspaceAgent(t *testing.T) {
 			GoogleTokenValidator:     validator,
 			IncludeProvisionerDaemon: true,
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+		owner := coderdtest.CreateFirstUser(t, client)
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
 						Resources: []*proto.Resource{{
 							Name: "somename",
 							Type: "someinstance",
@@ -194,14 +196,14 @@ func TestWorkspaceAgent(t *testing.T) {
 				},
 			}},
 		})
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, member, owner.OrganizationID, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		inv, cfg := clitest.New(t, "agent", "--auth", "google-instance-identity", "--agent-url", client.URL.String())
 		ptytest.New(t).Attach(inv)
-		clitest.SetupConfig(t, client, cfg)
+		clitest.SetupConfig(t, member, cfg)
 		clitest.Start(t,
 			inv.WithContext(
 				//nolint:revive,staticcheck
@@ -252,9 +254,9 @@ func TestWorkspaceAgent(t *testing.T) {
 			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		logDir := t.TempDir()
 		inv, _ := clitest.New(t,
@@ -264,8 +266,8 @@ func TestWorkspaceAgent(t *testing.T) {
 			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
 		)
-		// Set the subsystem for the agent.
-		inv.Environ.Set(agent.EnvAgentSubsystem, string(codersdk.AgentSubsystemEnvbox))
+		// Set the subsystems for the agent.
+		inv.Environ.Set(agent.EnvAgentSubsystem, fmt.Sprintf("%s,%s", codersdk.AgentSubsystemExectrace, codersdk.AgentSubsystemEnvbox))
 
 		pty := ptytest.New(t).Attach(inv)
 
@@ -275,6 +277,9 @@ func TestWorkspaceAgent(t *testing.T) {
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		require.Len(t, resources, 1)
 		require.Len(t, resources[0].Agents, 1)
-		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystem)
+		require.Len(t, resources[0].Agents[0].Subsystems, 2)
+		// Sorted
+		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystems[0])
+		require.Equal(t, codersdk.AgentSubsystemExectrace, resources[0].Agents[0].Subsystems[1])
 	})
 }

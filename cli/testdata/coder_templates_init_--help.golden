@@ -1,10 +1,13 @@
-Usage: coder templates init [flags] [directory]
+coder v0.0.0-devel
 
-Get started with a templated template.
+USAGE:
+  coder templates init [flags] [directory]
 
-[1mOptions[0m
-      --id aws-ecs-container|aws-linux|aws-windows|azure-linux|do-linux|docker|docker-with-dotfiles|fly-docker-image|gcp-linux|gcp-vm-container|gcp-windows|kubernetes
+  Get started with a templated template.
+
+OPTIONS:
+      --id aws-ecs-container|aws-linux|aws-windows|azure-linux|do-linux|docker|docker-with-dotfiles|gcp-linux|gcp-vm-container|gcp-windows|kubernetes|nomad-docker
           Specify a given example template by ID.
 
----
+———
 Run `coder --help` for a list of global options.

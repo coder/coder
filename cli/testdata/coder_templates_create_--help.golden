@@ -1,17 +1,24 @@
-Usage: coder templates create [flags] [name]
+coder v0.0.0-devel
 
-Create a template from the current directory or as specified by flag
+USAGE:
+  coder templates create [flags] [name]
 
-[1mOptions[0m
+  Create a template from the current directory or as specified by flag
+
+OPTIONS:
       --default-ttl duration (default: 24h)
-          Specify a default TTL for workspaces created from this template.
+          Specify a default TTL for workspaces created from this template. It is
+          the default time before shutdown - workspaces created from this
+          template default to this value. Maps to "Default autostop" in the UI.
 
   -d, --directory string (default: .)
           Specify the directory to create from, use '-' to read tar from stdin.
 
       --failure-ttl duration (default: 0h)
-          Specify a failure TTL for workspaces created from this template. This
-          licensed feature's default is 0h (off).
+          Specify a failure TTL for workspaces created from this template. It is
+          the amount of time after a failed "start" build before coder
+          automatically schedules a "stop" build to cleanup.This licensed
+          feature's default is 0h (off). Maps to "Failure cleanup"in the UI.
 
       --ignore-lockfile bool (default: false)
           Ignore warnings about not having a .terraform.lock.hcl file present in
@@ -19,7 +26,15 @@ Create a template from the current directory or as specified by flag
 
       --inactivity-ttl duration (default: 0h)
           Specify an inactivity TTL for workspaces created from this template.
-          This licensed feature's default is 0h (off).
+          It is the amount of time the workspace is not used before it is be
+          stopped and auto-locked. This includes across multiple builds (e.g.
+          auto-starts and stops). This licensed feature's default is 0h (off).
+          Maps to "Dormancy threshold" in the UI.
+
+      --max-ttl duration
+          Edit the template maximum time before shutdown - workspaces created
+          from this template must shutdown within the given duration after
+          starting. This is an enterprise-only feature.
 
   -m, --message string
           Specify a message describing the changes in this version of the
@@ -46,5 +61,5 @@ Create a template from the current directory or as specified by flag
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

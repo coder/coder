@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "0.11.0"
+      source = "coder/coder"
     }
     docker = {
-      source  = "kreuzwerker/docker"
-      version = "3.0.2"
+      source = "kreuzwerker/docker"
     }
   }
 }
@@ -206,7 +204,9 @@ data "coder_parameter" "custom_repo_url" {
 
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = "ghcr.io/coder/envbuilder:0.1.3"
+  # Find the latest version here:
+  # https://github.com/coder/envbuilder/tags
+  image = "ghcr.io/coder/envbuilder:0.2.1"
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$

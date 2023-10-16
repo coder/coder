@@ -20,8 +20,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // vscodeSSH is used by the Coder VS Code extension to establish
@@ -40,9 +40,9 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 	cmd := &clibase.Cmd{
 		// A SSH config entry is added by the VS Code extension that
 		// passes %h to ProxyCommand. The prefix of `coder-vscode--`
-		// is a magical string represented in our VS Cod extension.
+		// is a magical string represented in our VS Code extension.
 		// It's not important here, only the delimiter `--` is.
-		Use:        "vscodessh <coder-vscode--<owner>-<workspace>-<agent?>>",
+		Use:        "vscodessh <coder-vscode--<owner>--<workspace>--<agent?>>",
 		Hidden:     true,
 		Middleware: clibase.RequireNArgs(1),
 		Handler: func(inv *clibase.Invocation) error {
@@ -86,14 +86,14 @@ func (r *RootCmd) vscodeSSH() *clibase.Cmd {
 			client.SetSessionToken(string(sessionToken))
 
 			// This adds custom headers to the request!
-			err = r.setClient(client, serverURL)
+			err = r.setClient(ctx, client, serverURL)
 			if err != nil {
 				return xerrors.Errorf("set client: %w", err)
 			}
 
 			parts := strings.Split(inv.Args[0], "--")
 			if len(parts) < 3 {
-				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>-<name>-<agent?>")
+				return xerrors.Errorf("invalid argument format. must be: coder-vscode--<owner>--<name>--<agent?>")
 			}
 			owner := parts[1]
 			name := parts[2]
@@ -243,7 +243,7 @@ type sshNetworkStats struct {
 }
 
 func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgentConn, start, end time.Time, counts map[netlogtype.Connection]netlogtype.Counts) (*sshNetworkStats, error) {
-	latency, p2p, _, err := agentConn.Ping(ctx)
+	latency, p2p, pingResult, err := agentConn.Ping(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -284,10 +284,26 @@ func collectNetworkStats(ctx context.Context, agentConn *codersdk.WorkspaceAgent
 	uploadSecs := float64(totalTx) / dur.Seconds()
 	downloadSecs := float64(totalRx) / dur.Seconds()
 
+	// Sometimes the preferred DERP doesn't match the one we're actually
+	// connected with. Perhaps because the agent prefers a different DERP and
+	// we're using that server instead.
+	preferredDerpID := node.PreferredDERP
+	if pingResult.DERPRegionID != 0 {
+		preferredDerpID = pingResult.DERPRegionID
+	}
+	preferredDerp, ok := derpMap.Regions[preferredDerpID]
+	preferredDerpName := fmt.Sprintf("Unnamed %d", preferredDerpID)
+	if ok {
+		preferredDerpName = preferredDerp.RegionName
+	}
+	if _, ok := derpLatency[preferredDerpName]; !ok {
+		derpLatency[preferredDerpName] = 0
+	}
+
 	return &sshNetworkStats{
 		P2P:              p2p,
 		Latency:          float64(latency.Microseconds()) / 1000,
-		PreferredDERP:    derpMap.Regions[node.PreferredDERP].RegionName,
+		PreferredDERP:    preferredDerpName,
 		DERPLatency:      derpLatency,
 		UploadBytesSec:   int64(uploadSecs),
 		DownloadBytesSec: int64(downloadSecs),

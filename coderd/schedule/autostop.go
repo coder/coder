@@ -4,23 +4,26 @@ import (
 	"context"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 const (
-	// restartRequirementLeeway is the duration of time before a restart
+	// autostopRequirementLeeway is the duration of time before a autostop
 	// requirement where we skip the requirement and fall back to the next
-	// scheduled restart. This avoids workspaces being restarted too soon.
+	// scheduled stop. This avoids workspaces being stopped too soon.
 	//
 	// E.g. If the workspace is started within an hour of the quiet hours, we
-	//      will skip the restart requirement and use the next scheduled restart
-	//      requirement.
-	restartRequirementLeeway = 1 * time.Hour
+	//      will skip the autostop requirement and use the next scheduled
+	//      stop time instead.
+	autostopRequirementLeeway = 1 * time.Hour
 
-	// restartRequirementBuffer is the duration of time we subtract from the
-	// time when calculating the next scheduled restart time. This avoids issues
+	// autostopRequirementBuffer is the duration of time we subtract from the
+	// time when calculating the next scheduled stop time. This avoids issues
 	// where autostart happens on the hour and the scheduled quiet hours are
 	// also on the hour.
 	//
@@ -34,7 +37,7 @@ const (
 	//
 	//      This resolves that problem by subtracting 15 minutes from midnight
 	//      when we check the next cron time.
-	restartRequirementBuffer = -15 * time.Minute
+	autostopRequirementBuffer = -15 * time.Minute
 )
 
 type CalculateAutostopParams struct {
@@ -65,13 +68,20 @@ type AutostopTime struct {
 //
 // MaxDeadline is the maximum value for deadline. The deadline cannot be bumped
 // past this value, so it denotes the absolute deadline that the workspace build
-// must be stopped by. MaxDeadline is calculated using the template's "restart
+// must be stopped by. MaxDeadline is calculated using the template's "autostop
 // requirement" settings and the user's "quiet hours" settings to pick a time
 // outside of working hours.
 //
 // Deadline is a cost saving measure, while max deadline is a
 // compliance/updating measure.
 func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (AutostopTime, error) {
+	ctx, span := tracing.StartSpan(ctx,
+		trace.WithAttributes(attribute.String("coder.workspace_id", params.Workspace.ID.String())),
+		trace.WithAttributes(attribute.String("coder.template_id", params.Workspace.TemplateID.String())),
+	)
+	defer span.End()
+	defer span.End()
+
 	var (
 		db        = params.Database
 		workspace = params.Workspace
@@ -103,13 +113,13 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 	// Use the old algorithm for calculating max_deadline if the instance isn't
 	// configured or entitled to use the new feature flag yet.
 	// TODO(@dean): remove this once the feature flag is enabled for all
-	if !templateSchedule.UseRestartRequirement && templateSchedule.MaxTTL > 0 {
+	if !templateSchedule.UseAutostopRequirement && templateSchedule.MaxTTL > 0 {
 		autostop.MaxDeadline = now.Add(templateSchedule.MaxTTL)
 	}
 
 	// TODO(@dean): remove extra conditional
-	if templateSchedule.UseRestartRequirement && templateSchedule.RestartRequirement.DaysOfWeek != 0 {
-		// The template has a restart requirement, so determine the max deadline
+	if templateSchedule.UseAutostopRequirement && templateSchedule.AutostopRequirement.DaysOfWeek != 0 {
+		// The template has a autostop requirement, so determine the max deadline
 		// of this workspace build.
 
 		// First, get the user's quiet hours schedule (this will return the
@@ -127,13 +137,13 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			now := now.In(loc)
 			// Add the leeway here so we avoid checking today's quiet hours if
 			// the workspace was started <1h before midnight.
-			startOfStopDay := truncateMidnight(now.Add(restartRequirementLeeway))
+			startOfStopDay := truncateMidnight(now.Add(autostopRequirementLeeway))
 
-			// If the template schedule wants to only restart on n-th weeks then
-			// change the startOfDay to be the Monday of the next applicable
-			// week.
-			if templateSchedule.RestartRequirement.Weeks > 1 {
-				startOfStopDay, err = GetNextApplicableMondayOfNWeeks(startOfStopDay, templateSchedule.RestartRequirement.Weeks)
+			// If the template schedule wants to only autostop on n-th weeks
+			// then change the startOfDay to be the Monday of the next
+			// applicable week.
+			if templateSchedule.AutostopRequirement.Weeks > 1 {
+				startOfStopDay, err = GetNextApplicableMondayOfNWeeks(startOfStopDay, templateSchedule.AutostopRequirement.Weeks)
 				if err != nil {
 					return autostop, xerrors.Errorf("determine start of stop week: %w", err)
 				}
@@ -145,30 +155,30 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 			// Allow an hour of leeway (i.e. any workspaces started within an
 			// hour of the scheduled stop time will always bounce to the next
 			// stop window).
-			checkSchedule := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(restartRequirementBuffer))
-			if checkSchedule.Before(now.Add(restartRequirementLeeway)) {
+			checkSchedule := userQuietHoursSchedule.Schedule.Next(startOfStopDay.Add(autostopRequirementBuffer))
+			if checkSchedule.Before(now.Add(autostopRequirementLeeway)) {
 				// Set the first stop day we try to tomorrow because today's
 				// schedule is too close to now or has already passed.
 				startOfStopDay = nextDayMidnight(startOfStopDay)
 			}
 
 			// Iterate from 0 to 7, check if the current startOfDay is in the
-			// restart requirement. If it isn't then add a day and try again.
-			requirementDays := templateSchedule.RestartRequirement.DaysMap()
+			// autostop requirement. If it isn't then add a day and try again.
+			requirementDays := templateSchedule.AutostopRequirement.DaysMap()
 			for i := 0; i < len(DaysOfWeek)+1; i++ {
 				if i == len(DaysOfWeek) {
 					// We've wrapped, so somehow we couldn't find a day in the
-					// restart requirement in the next week.
+					// autostop requirement in the next week.
 					//
 					// This shouldn't be able to happen, as we've already
-					// checked that there is a day in the restart requirement
+					// checked that there is a day in the autostop requirement
 					// above with the
-					// `if templateSchedule.RestartRequirement.DaysOfWeek != 0`
+					// `if templateSchedule.AutoStopRequirement.DaysOfWeek != 0`
 					// check.
 					//
 					// The eighth bit shouldn't be set, as we validate the
 					// bitmap in the enterprise TemplateScheduleStore.
-					return autostop, xerrors.New("could not find suitable day for template restart requirement in the next 7 days")
+					return autostop, xerrors.New("could not find suitable day for template autostop requirement in the next 7 days")
 				}
 				if requirementDays[startOfStopDay.Weekday()] {
 					break
@@ -184,13 +194,13 @@ func CalculateAutostop(ctx context.Context, params CalculateAutostopParams) (Aut
 				// If it's not within an hour of now, subtract 15 minutes to
 				// give a little leeway. This prevents skipped stop events
 				// because autostart perfectly lines up with autostop.
-				checkTime = checkTime.Add(restartRequirementBuffer)
+				checkTime = checkTime.Add(autostopRequirementBuffer)
 			}
 
-			// Get the next occurrence of the restart schedule.
+			// Get the next occurrence of the schedule.
 			autostop.MaxDeadline = userQuietHoursSchedule.Schedule.Next(checkTime)
 			if autostop.MaxDeadline.IsZero() {
-				return autostop, xerrors.New("could not find next occurrence of template restart requirement in user quiet hours schedule")
+				return autostop, xerrors.Errorf("could not find next occurrence of template autostop requirement in user quiet hours schedule, checked from time %q", checkTime)
 			}
 		}
 	}
@@ -234,9 +244,9 @@ func nextDayMidnight(t time.Time) time.Time {
 //
 // The timezone embedded in the time object is used to determine the epoch.
 func WeeksSinceEpoch(now time.Time) (int64, error) {
-	epoch := TemplateRestartRequirementEpoch(now.Location())
+	epoch := TemplateAutostopRequirementEpoch(now.Location())
 	if now.Before(epoch) {
-		return 0, xerrors.New("coder server system clock is incorrect, cannot calculate template restart requirement")
+		return 0, xerrors.New("coder server system clock is incorrect, cannot calculate template autostop requirement")
 	}
 
 	// This calculation needs to be done using YearDay, as dividing by the
@@ -280,7 +290,7 @@ func GetMondayOfWeek(loc *time.Location, n int64) (time.Time, error) {
 	if n < 0 {
 		return time.Time{}, xerrors.New("weeks since epoch must be positive")
 	}
-	epoch := TemplateRestartRequirementEpoch(loc)
+	epoch := TemplateAutostopRequirementEpoch(loc)
 	monday := epoch.AddDate(0, 0, int(n*7))
 
 	y, m, d := monday.Date()

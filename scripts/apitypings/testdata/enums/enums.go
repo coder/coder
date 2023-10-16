@@ -1,4 +1,4 @@
-package enums
+package codersdk
 
 type (
 	Enum  string

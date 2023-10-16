@@ -1,5 +1,9 @@
 package slice
 
+import (
+	"golang.org/x/exp/constraints"
+)
+
 // SameElements returns true if the 2 lists have the same elements in any
 // order.
 func SameElements[T comparable](a []T, b []T) bool {
@@ -38,17 +42,19 @@ func Overlap[T comparable](a []T, b []T) bool {
 }
 
 // Unique returns a new slice with all duplicate elements removed.
-// This is a slow function on large lists.
-// TODO: Sort elements and implement a faster search algorithm if we
-// really start to use this.
 func Unique[T comparable](a []T) []T {
 	cpy := make([]T, 0, len(a))
+	seen := make(map[T]struct{}, len(a))
+
 	for _, v := range a {
-		v := v
-		if !Contains(cpy, v) {
-			cpy = append(cpy, v)
+		if _, ok := seen[v]; ok {
+			continue
 		}
+
+		seen[v] = struct{}{}
+		cpy = append(cpy, v)
 	}
+
 	return cpy
 }
 
@@ -66,4 +72,18 @@ func OverlapCompare[T any](a []T, b []T, equal func(a, b T) bool) bool {
 // New is a convenience method for creating []T.
 func New[T any](items ...T) []T {
 	return items
+}
+
+func Ascending[T constraints.Ordered](a, b T) int {
+	if a < b {
+		return -1
+	} else if a == b {
+		return 0
+	} else {
+		return 1
+	}
+}
+
+func Descending[T constraints.Ordered](a, b T) int {
+	return -Ascending[T](a, b)
 }

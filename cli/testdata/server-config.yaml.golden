@@ -111,11 +111,20 @@ networking:
     # Region name that for the embedded DERP server.
     # (default: Coder Embedded Relay, type: string)
     regionName: Coder Embedded Relay
-    # Addresses for STUN servers to establish P2P connections. Use special value
-    # 'disable' to turn off STUN.
-    # (default: stun.l.google.com:19302, type: string-array)
+    # Addresses for STUN servers to establish P2P connections. It's recommended to
+    # have at least two STUN servers to give users the best chance of connecting P2P
+    # to workspaces. Each STUN server will get it's own DERP region, with region IDs
+    # starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn
+    # off STUN completely.
+    # (default:
+    # stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302,
+    # type: string-array)
     stunAddresses:
       - stun.l.google.com:19302
+      - stun1.l.google.com:19302
+      - stun2.l.google.com:19302
+      - stun3.l.google.com:19302
+      - stun4.l.google.com:19302
     # An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
     # for high availability.
     # (default: <unset>, type: url)
@@ -127,6 +136,12 @@ networking:
     # this change has been made, but new connections will still be proxied regardless.
     # (default: <unset>, type: bool)
     blockDirect: false
+    # Force clients and agents to always use WebSocket to connect to DERP relay
+    # servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some
+    # reverse proxies. Clients may automatically fallback to WebSocket if they detect
+    # an issue with `Upgrade: derp`, but this does not work in all situations.
+    # (default: <unset>, type: bool)
+    forceWebSockets: false
     # URL to fetch a DERP mapping on startup. See:
     # https://tailscale.com/kb/1118/custom-derp-servers/.
     # (default: <unset>, type: string)
@@ -186,6 +201,9 @@ introspection:
     # which may incur significant costs.
     # (default: <unset>, type: bool)
     captureLogs: false
+    # Enables sending Go runtime traces to the local DataDog agent.
+    # (default: false, type: bool)
+    dataDog: false
   logging:
     # Output debug-level logs.
     # (default: <unset>, type: bool)
@@ -235,6 +253,15 @@ oidc:
   # Client ID to use for Login with OIDC.
   # (default: <unset>, type: string)
   clientID: ""
+  # Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
+  # used instead of oidc-client-secret if your IDP supports it.
+  # (default: <unset>, type: string)
+  oidcClientKeyFile: ""
+  # Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public
+  # certificate that accompanies oidc-client-key-file. A standard x509 certificate
+  # is expected.
+  # (default: <unset>, type: string)
+  oidcClientCertFile: ""
   # Email domains that clients logging in with OIDC must match.
   # (default: <unset>, type: string-array)
   emailDomain: []
@@ -271,6 +298,14 @@ oidc:
   # for when OIDC providers only return group IDs.
   # (default: {}, type: struct[map[string]string])
   groupMapping: {}
+  # Automatically creates missing groups from a user's groups claim.
+  # (default: false, type: bool)
+  enableGroupAutoCreate: false
+  # If provided any group name not matching the regex is ignored. This allows for
+  # filtering out groups that are not needed. This filter is applied after the group
+  # mapping.
+  # (default: .*, type: regexp)
+  groupRegexFilter: .*
   # This field must be set if using the user roles sync feature. Set this to the
   # name of the claim used to store the user's role. The roles should be sent as an
   # array of strings.
@@ -288,7 +323,7 @@ oidc:
   # The text to show on the OpenID Connect sign in button.
   # (default: OpenID Connect, type: string)
   signInText: OpenID Connect
-  # URL pointing to the icon to use on the OepnID Connect login button.
+  # URL pointing to the icon to use on the OpenID Connect login button.
   # (default: <unset>, type: url)
   iconURL:
 # Telemetry is critical to our ability to improve Coder. We strip all personal
@@ -299,11 +334,6 @@ telemetry:
   # help improve our product.
   # (default: false, type: bool)
   enable: false
-  # Whether Opentelemetry traces are sent to Coder. Coder collects anonymized
-  # application tracing to help improve our product. Disabling telemetry also
-  # disables this option.
-  # (default: false, type: bool)
-  trace: false
   # URL to send telemetry.
   # (default: https://telemetry.coder.com, type: url)
   url: https://telemetry.coder.com
@@ -318,15 +348,18 @@ provisioning:
   # tests.
   # (default: false, type: bool)
   daemonsEcho: false
-  # Time to wait before polling for a new job.
+  # Deprecated and ignored.
   # (default: 1s, type: duration)
   daemonPollInterval: 1s
-  # Random jitter added to the poll interval.
+  # Deprecated and ignored.
   # (default: 100ms, type: duration)
   daemonPollJitter: 100ms
   # Time to force cancel provisioning tasks that are stuck.
   # (default: 10m0s, type: duration)
   forceCancelInterval: 10m0s
+  # Pre-shared key to authenticate external provisioner daemons to Coder server.
+  # (default: <unset>, type: string)
+  daemonPSK: ""
 # Enable one or more experiments. These are not ready for production. Separate
 # multiple experiments with commas, or enter '*' to opt-in to all available
 # experiments.
@@ -378,6 +411,10 @@ client:
   # incorrectly can break SSH to your deployment, use cautiously.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
+  # The renderer to use when opening a web terminal. Valid values are 'canvas',
+  # 'webgl', or 'dom'.
+  # (default: canvas, type: string)
+  webTerminalRenderer: canvas
 # Support links to display in the top right drop down menu.
 # (default: <unset>, type: struct[[]codersdk.LinkConfig])
 supportLinks: []

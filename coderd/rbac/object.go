@@ -37,10 +37,10 @@ var (
 		Type: "workspace_build",
 	}
 
-	// ResourceWorkspaceLocked is returned if a workspace is locked.
+	// ResourceWorkspaceDormant is returned if a workspace is dormant.
 	// It grants restricted permissions on workspace builds.
-	ResourceWorkspaceLocked = Object{
-		Type: "workspace_locked",
+	ResourceWorkspaceDormant = Object{
+		Type: "workspace_dormant",
 	}
 
 	// ResourceWorkspaceProxy CRUD. Org

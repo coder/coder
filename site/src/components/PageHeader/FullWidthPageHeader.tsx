@@ -1,30 +1,36 @@
-import { makeStyles } from "@mui/styles"
-import { FC, PropsWithChildren } from "react"
+import { makeStyles } from "@mui/styles";
+import { FC, PropsWithChildren } from "react";
+import { combineClasses } from "utils/combineClasses";
 
-export const FullWidthPageHeader: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
+export const FullWidthPageHeader: FC<
+  PropsWithChildren & { sticky?: boolean }
+> = ({ children, sticky = true }) => {
+  const styles = useStyles();
 
   return (
-    <header className={styles.header} data-testid="header">
+    <header
+      className={combineClasses([styles.header, sticky ? styles.sticky : ""])}
+      data-testid="header"
+    >
       {children}
     </header>
-  )
-}
+  );
+};
 
 export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <div className={styles.actions}>{children}</div>
-}
+  const styles = useStyles();
+  return <div className={styles.actions}>{children}</div>;
+};
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <h1 className={styles.title}>{children}</h1>
-}
+  const styles = useStyles();
+  return <h1 className={styles.title}>{children}</h1>;
+};
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles()
-  return <span className={styles.subtitle}>{children}</span>
-}
+  const styles = useStyles();
+  return <span className={styles.subtitle}>{children}</span>;
+};
 
 const useStyles = makeStyles((theme) => ({
   header: {
@@ -35,8 +41,7 @@ const useStyles = makeStyles((theme) => ({
     display: "flex",
     alignItems: "center",
     gap: theme.spacing(6),
-    position: "sticky",
-    top: 0,
+
     zIndex: 10,
     flexWrap: "wrap",
 
@@ -47,6 +52,10 @@ const useStyles = makeStyles((theme) => ({
     [theme.breakpoints.down("md")]: {
       flexDirection: "column",
     },
+  },
+  sticky: {
+    position: "sticky",
+    top: 0,
   },
   actions: {
     marginLeft: "auto",
@@ -65,4 +74,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     display: "block",
   },
-}))
+}));

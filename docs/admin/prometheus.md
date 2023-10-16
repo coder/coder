@@ -1,16 +1,25 @@
 # Prometheus
 
-Coder exposes many metrics which can be consumed by a Prometheus server, and give insight into the current state of a live Coder deployment.
+Coder exposes many metrics which can be consumed by a Prometheus server, and
+give insight into the current state of a live Coder deployment.
 
-If you don't have an Prometheus server installed, you can follow the Prometheus [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
+If you don't have an Prometheus server installed, you can follow the Prometheus
+[Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/)
+guide.
 
 ## Enable Prometheus metrics
 
-Coder server exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
+Coder server exports metrics via the HTTP endpoint, which can be enabled using
+either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag
+`--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default. You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag ` --prometheus-address <network-interface>:<port>` to select a different listen address.
+The Prometheus endpoint address is `http://localhost:2112/` by default. You can
+use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag
+`--prometheus-address <network-interface>:<port>` to select a different listen
+address.
 
-If `coder server --prometheus-enable` is started locally, you can preview the metrics endpoint in your browser or by using curl: <!-- markdown-link-check-disable -->http://localhost:2112/<!-- markdown-link-check-enable -->.
+If `coder server --prometheus-enable` is started locally, you can preview the
+metrics endpoint in your browser or by using curl:
 
 ```console
 $ curl http://localhost:2112/
@@ -22,14 +31,17 @@ coderd_api_active_users_duration_hour 0
 
 ### Kubernetes deployment
 
-The Prometheus endpoint can be enabled in the [Helm chart's](https://github.com/coder/coder/tree/main/helm) `values.yml` by setting the environment variable `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`.
-The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled automatically.
+The Prometheus endpoint can be enabled in the
+[Helm chart's](https://github.com/coder/coder/tree/main/helm) `values.yml` by
+setting the environment variable `CODER_PROMETHEUS_ADDRESS` to `0.0.0.0:2112`.
+The environment variable `CODER_PROMETHEUS_ENABLE` will be enabled
+automatically.
 
 ### Prometheus configuration
 
-To allow Prometheus to scrape the Coder metrics, you will need to create a `scape_config`
-in your `prometheus.yml` file, or in the Prometheus Helm chart values. Below is an
-example `scrape_config`:
+To allow Prometheus to scrape the Coder metrics, you will need to create a
+`scape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart
+values. Below is an example `scrape_config`:
 
 ```yaml
 scrape_configs:

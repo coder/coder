@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/provisioner/terraform"
+	"github.com/coder/coder/v2/provisioner/terraform"
 )
 
 func TestInstall(t *testing.T) {

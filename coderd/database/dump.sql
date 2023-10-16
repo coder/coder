@@ -22,6 +22,11 @@ CREATE TYPE audit_action AS ENUM (
     'register'
 );
 
+CREATE TYPE automatic_updates AS ENUM (
+    'always',
+    'never'
+);
+
 CREATE TYPE build_reason AS ENUM (
     'initiator',
     'autostart',
@@ -29,6 +34,19 @@ CREATE TYPE build_reason AS ENUM (
     'autolock',
     'failedstop',
     'autodelete'
+);
+
+CREATE TYPE display_app AS ENUM (
+    'vscode',
+    'vscode_insiders',
+    'web_terminal',
+    'ssh_helper',
+    'port_forwarding_helper'
+);
+
+CREATE TYPE group_source AS ENUM (
+    'user',
+    'oidc'
 );
 
 CREATE TYPE log_level AS ENUM (
@@ -76,6 +94,18 @@ CREATE TYPE parameter_type_system AS ENUM (
     'hcl'
 );
 
+CREATE TYPE provisioner_job_status AS ENUM (
+    'pending',
+    'running',
+    'succeeded',
+    'canceling',
+    'canceled',
+    'failed',
+    'unknown'
+);
+
+COMMENT ON TYPE provisioner_job_status IS 'Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.';
+
 CREATE TYPE provisioner_job_type AS ENUM (
     'template_version_import',
     'workspace_build',
@@ -113,8 +143,11 @@ CREATE TYPE startup_script_behavior AS ENUM (
 
 CREATE TYPE user_status AS ENUM (
     'active',
-    'suspended'
+    'suspended',
+    'dormant'
 );
+
+COMMENT ON TYPE user_status IS 'Defines the user status: active, dormant, or suspended.';
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -131,7 +164,8 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
     'envbox',
-    'none'
+    'none',
+    'exectrace'
 );
 
 CREATE TYPE workspace_app_health AS ENUM (
@@ -193,13 +227,57 @@ $$;
 CREATE FUNCTION tailnet_notify_client_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
+DECLARE
+	var_client_id uuid;
+	var_coordinator_id uuid;
+	var_agent_ids uuid[];
+	var_agent_id uuid;
 BEGIN
-	IF (OLD IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', OLD.id || ',' || OLD.agent_id);
-		RETURN NULL;
+	IF (NEW.id IS NOT NULL) THEN
+		var_client_id = NEW.id;
+		var_coordinator_id = NEW.coordinator_id;
+	ELSIF (OLD.id IS NOT NULL) THEN
+		var_client_id = OLD.id;
+		var_coordinator_id = OLD.coordinator_id;
 	END IF;
+
+	-- Read all agents the client is subscribed to, so we can notify them.
+	SELECT
+		array_agg(agent_id)
+	INTO
+		var_agent_ids
+	FROM
+		tailnet_client_subscriptions subs
+	WHERE
+		subs.client_id = NEW.id AND
+		subs.coordinator_id = NEW.coordinator_id;
+
+	-- No agents to notify
+	if (var_agent_ids IS NULL) THEN
+		return NULL;
+	END IF;
+
+	-- pg_notify is limited to 8k bytes, which is approximately 221 UUIDs.
+	-- Instead of sending all agent ids in a single update, send one for each
+	-- agent id to prevent overflow.
+	FOREACH var_agent_id IN ARRAY var_agent_ids
+	LOOP
+		PERFORM pg_notify('tailnet_client_update', var_client_id || ',' || var_agent_id);
+	END LOOP;
+
+	return NULL;
+END;
+$$;
+
+CREATE FUNCTION tailnet_notify_client_subscription_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
 	IF (NEW IS NOT NULL) THEN
-		PERFORM pg_notify('tailnet_client_update', NEW.id || ',' || NEW.agent_id);
+		PERFORM pg_notify('tailnet_client_update', NEW.client_id || ',' || NEW.agent_id);
+		RETURN NULL;
+	ELSIF (OLD IS NOT NULL) THEN
+		PERFORM pg_notify('tailnet_client_update', OLD.client_id || ',' || OLD.agent_id);
 		RETURN NULL;
 	END IF;
 END;
@@ -249,6 +327,46 @@ CREATE TABLE audit_logs (
     resource_icon text NOT NULL
 );
 
+CREATE TABLE dbcrypt_keys (
+    number integer NOT NULL,
+    active_key_digest text,
+    revoked_key_digest text,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+    revoked_at timestamp with time zone,
+    test text NOT NULL
+);
+
+COMMENT ON TABLE dbcrypt_keys IS 'A table used to store the keys used to encrypt the database.';
+
+COMMENT ON COLUMN dbcrypt_keys.number IS 'An integer used to identify the key.';
+
+COMMENT ON COLUMN dbcrypt_keys.active_key_digest IS 'If the key is active, the digest of the active key.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_key_digest IS 'If the key has been revoked, the digest of the revoked key.';
+
+COMMENT ON COLUMN dbcrypt_keys.created_at IS 'The time at which the key was created.';
+
+COMMENT ON COLUMN dbcrypt_keys.revoked_at IS 'The time at which the key was revoked.';
+
+COMMENT ON COLUMN dbcrypt_keys.test IS 'A column used to test the encryption.';
+
+CREATE TABLE external_auth_links (
+    provider_id text NOT NULL,
+    user_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    oauth_access_token text NOT NULL,
+    oauth_refresh_token text NOT NULL,
+    oauth_expiry timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text,
+    oauth_extra jsonb
+);
+
+COMMENT ON COLUMN external_auth_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN external_auth_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
 CREATE TABLE files (
     hash character varying(64) NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -256,16 +374,6 @@ CREATE TABLE files (
     mimetype character varying(64) NOT NULL,
     data bytea NOT NULL,
     id uuid DEFAULT gen_random_uuid() NOT NULL
-);
-
-CREATE TABLE git_auth_links (
-    provider_id text NOT NULL,
-    user_id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    oauth_access_token text NOT NULL,
-    oauth_refresh_token text NOT NULL,
-    oauth_expiry timestamp with time zone NOT NULL
 );
 
 CREATE TABLE gitsshkeys (
@@ -286,8 +394,14 @@ CREATE TABLE groups (
     name text NOT NULL,
     organization_id uuid NOT NULL,
     avatar_url text DEFAULT ''::text NOT NULL,
-    quota_allowance integer DEFAULT 0 NOT NULL
+    quota_allowance integer DEFAULT 0 NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL,
+    source group_source DEFAULT 'user'::group_source NOT NULL
 );
+
+COMMENT ON COLUMN groups.display_name IS 'Display name is a custom, human-friendly group name that user can set. This is not required to be unique and can be the empty string.';
+
+COMMENT ON COLUMN groups.source IS 'Source indicates how the group was created. It can be created by a user manually, or through some system process like OIDC group sync.';
 
 CREATE TABLE licenses (
     id integer NOT NULL,
@@ -404,8 +518,26 @@ CREATE TABLE provisioner_jobs (
     file_id uuid NOT NULL,
     tags jsonb DEFAULT '{"scope": "organization"}'::jsonb NOT NULL,
     error_code text,
-    trace_metadata jsonb
+    trace_metadata jsonb,
+    job_status provisioner_job_status GENERATED ALWAYS AS (
+CASE
+    WHEN (completed_at IS NOT NULL) THEN
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceled'::provisioner_job_status
+        ELSE 'succeeded'::provisioner_job_status
+    END
+    ELSE
+    CASE
+        WHEN (error <> ''::text) THEN 'failed'::provisioner_job_status
+        WHEN (canceled_at IS NOT NULL) THEN 'canceling'::provisioner_job_status
+        WHEN (started_at IS NULL) THEN 'pending'::provisioner_job_status
+        ELSE 'running'::provisioner_job_status
+    END
+END) STORED NOT NULL
 );
+
+COMMENT ON COLUMN provisioner_jobs.job_status IS 'Computed column to track the status of the job.';
 
 CREATE TABLE replicas (
     id uuid NOT NULL,
@@ -434,10 +566,16 @@ CREATE TABLE tailnet_agents (
     node jsonb NOT NULL
 );
 
+CREATE TABLE tailnet_client_subscriptions (
+    client_id uuid NOT NULL,
+    coordinator_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE tailnet_clients (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
-    agent_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     node jsonb NOT NULL
 );
@@ -537,11 +675,12 @@ CREATE TABLE template_versions (
     readme character varying(1048576) NOT NULL,
     job_id uuid NOT NULL,
     created_by uuid NOT NULL,
-    git_auth_providers text[],
-    message character varying(1048576) DEFAULT ''::character varying NOT NULL
+    external_auth_providers text[],
+    message character varying(1048576) DEFAULT ''::character varying NOT NULL,
+    archived boolean DEFAULT false NOT NULL
 );
 
-COMMENT ON COLUMN template_versions.git_auth_providers IS 'IDs of Git auth providers for a specific template version';
+COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
 
 COMMENT ON COLUMN template_versions.message IS 'Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.';
 
@@ -552,7 +691,7 @@ CREATE TABLE users (
     hashed_password bytea NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
-    status user_status DEFAULT 'active'::user_status NOT NULL,
+    status user_status DEFAULT 'dormant'::user_status NOT NULL,
     rbac_roles text[] DEFAULT '{}'::text[] NOT NULL,
     login_type login_type DEFAULT 'password'::login_type NOT NULL,
     avatar_url text,
@@ -581,8 +720,9 @@ CREATE VIEW template_version_with_user AS
     template_versions.readme,
     template_versions.job_id,
     template_versions.created_by,
-    template_versions.git_auth_providers,
+    template_versions.external_auth_providers,
     template_versions.message,
+    template_versions.archived,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.template_versions
@@ -611,10 +751,11 @@ CREATE TABLE templates (
     allow_user_autostart boolean DEFAULT true NOT NULL,
     allow_user_autostop boolean DEFAULT true NOT NULL,
     failure_ttl bigint DEFAULT 0 NOT NULL,
-    inactivity_ttl bigint DEFAULT 0 NOT NULL,
-    locked_ttl bigint DEFAULT 0 NOT NULL,
-    restart_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
-    restart_requirement_weeks bigint DEFAULT 0 NOT NULL
+    time_til_dormant bigint DEFAULT 0 NOT NULL,
+    time_til_dormant_autodelete bigint DEFAULT 0 NOT NULL,
+    autostop_requirement_days_of_week smallint DEFAULT 0 NOT NULL,
+    autostop_requirement_weeks bigint DEFAULT 0 NOT NULL,
+    autostart_block_days_of_week smallint DEFAULT 0 NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -627,9 +768,11 @@ COMMENT ON COLUMN templates.allow_user_autostart IS 'Allow users to specify an a
 
 COMMENT ON COLUMN templates.allow_user_autostop IS 'Allow users to specify custom autostop values for workspaces (enterprise).';
 
-COMMENT ON COLUMN templates.restart_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
+COMMENT ON COLUMN templates.autostop_requirement_days_of_week IS 'A bitmap of days of week to restart the workspace on, starting with Monday as the 0th bit, and Sunday as the 6th bit. The 7th bit is unused.';
 
-COMMENT ON COLUMN templates.restart_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
+COMMENT ON COLUMN templates.autostop_requirement_weeks IS 'The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.';
+
+COMMENT ON COLUMN templates.autostart_block_days_of_week IS 'A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).';
 
 CREATE VIEW template_with_users AS
  SELECT templates.id,
@@ -652,10 +795,11 @@ CREATE VIEW template_with_users AS
     templates.allow_user_autostart,
     templates.allow_user_autostop,
     templates.failure_ttl,
-    templates.inactivity_ttl,
-    templates.locked_ttl,
-    templates.restart_requirement_days_of_week,
-    templates.restart_requirement_weeks,
+    templates.time_til_dormant,
+    templates.time_til_dormant_autodelete,
+    templates.autostop_requirement_days_of_week,
+    templates.autostop_requirement_weeks,
+    templates.autostart_block_days_of_week,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (public.templates
@@ -669,7 +813,30 @@ CREATE TABLE user_links (
     linked_id text DEFAULT ''::text NOT NULL,
     oauth_access_token text DEFAULT ''::text NOT NULL,
     oauth_refresh_token text DEFAULT ''::text NOT NULL,
-    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    oauth_access_token_key_id text,
+    oauth_refresh_token_key_id text
+);
+
+COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
+
+COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
+
+CREATE TABLE workspace_agent_log_sources (
+    workspace_agent_id uuid NOT NULL,
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    display_name character varying(127) NOT NULL,
+    icon text NOT NULL
+);
+
+CREATE UNLOGGED TABLE workspace_agent_logs (
+    agent_id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    output character varying(1024) NOT NULL,
+    id bigint NOT NULL,
+    level log_level DEFAULT 'info'::log_level NOT NULL,
+    log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -684,12 +851,17 @@ CREATE UNLOGGED TABLE workspace_agent_metadata (
     collected_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
-CREATE TABLE workspace_agent_startup_logs (
-    agent_id uuid NOT NULL,
+CREATE TABLE workspace_agent_scripts (
+    workspace_agent_id uuid NOT NULL,
+    log_source_id uuid NOT NULL,
+    log_path text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    output character varying(1024) NOT NULL,
-    id bigint NOT NULL,
-    level log_level DEFAULT 'info'::log_level NOT NULL
+    script text NOT NULL,
+    cron text NOT NULL,
+    start_blocks_login boolean NOT NULL,
+    run_on_start boolean NOT NULL,
+    run_on_stop boolean NOT NULL,
+    timeout_seconds integer NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -699,7 +871,7 @@ CREATE SEQUENCE workspace_agent_startup_logs_id_seq
     NO MAXVALUE
     CACHE 1;
 
-ALTER SEQUENCE workspace_agent_startup_logs_id_seq OWNED BY workspace_agent_startup_logs.id;
+ALTER SEQUENCE workspace_agent_startup_logs_id_seq OWNED BY workspace_agent_logs.id;
 
 CREATE TABLE workspace_agent_stats (
     id uuid NOT NULL,
@@ -735,7 +907,6 @@ CREATE TABLE workspace_agents (
     architecture character varying(64) NOT NULL,
     environment_variables jsonb,
     operating_system character varying(64) NOT NULL,
-    startup_script character varying(65534),
     instance_metadata jsonb,
     resource_metadata jsonb,
     directory character varying(4096) DEFAULT ''::character varying NOT NULL,
@@ -745,17 +916,15 @@ CREATE TABLE workspace_agents (
     troubleshooting_url text DEFAULT ''::text NOT NULL,
     motd_file text DEFAULT ''::text NOT NULL,
     lifecycle_state workspace_agent_lifecycle_state DEFAULT 'created'::workspace_agent_lifecycle_state NOT NULL,
-    startup_script_timeout_seconds integer DEFAULT 0 NOT NULL,
     expanded_directory character varying(4096) DEFAULT ''::character varying NOT NULL,
-    shutdown_script character varying(65534),
-    shutdown_script_timeout_seconds integer DEFAULT 0 NOT NULL,
-    startup_logs_length integer DEFAULT 0 NOT NULL,
-    startup_logs_overflowed boolean DEFAULT false NOT NULL,
-    subsystem workspace_agent_subsystem DEFAULT 'none'::workspace_agent_subsystem NOT NULL,
-    startup_script_behavior startup_script_behavior DEFAULT 'non-blocking'::startup_script_behavior NOT NULL,
+    logs_length integer DEFAULT 0 NOT NULL,
+    logs_overflowed boolean DEFAULT false NOT NULL,
     started_at timestamp with time zone,
     ready_at timestamp with time zone,
-    CONSTRAINT max_startup_logs_length CHECK ((startup_logs_length <= 1048576))
+    subsystems workspace_agent_subsystem[] DEFAULT '{}'::workspace_agent_subsystem[],
+    display_apps display_app[] DEFAULT '{vscode,vscode_insiders,web_terminal,ssh_helper,port_forwarding_helper}'::display_app[],
+    CONSTRAINT max_logs_length CHECK ((logs_length <= 1048576)),
+    CONSTRAINT subsystems_not_none CHECK ((NOT ('none'::workspace_agent_subsystem = ANY (subsystems))))
 );
 
 COMMENT ON COLUMN workspace_agents.version IS 'Version tracks the version of the currently running workspace agent. Workspace agents register their version upon start.';
@@ -768,23 +937,59 @@ COMMENT ON COLUMN workspace_agents.motd_file IS 'Path to file inside workspace c
 
 COMMENT ON COLUMN workspace_agents.lifecycle_state IS 'The current lifecycle state reported by the workspace agent.';
 
-COMMENT ON COLUMN workspace_agents.startup_script_timeout_seconds IS 'The number of seconds to wait for the startup script to complete. If the script does not complete within this time, the agent lifecycle will be marked as start_timeout.';
-
 COMMENT ON COLUMN workspace_agents.expanded_directory IS 'The resolved path of a user-specified directory. e.g. ~/coder -> /home/coder/coder';
 
-COMMENT ON COLUMN workspace_agents.shutdown_script IS 'Script that is executed before the agent is stopped.';
+COMMENT ON COLUMN workspace_agents.logs_length IS 'Total length of startup logs';
 
-COMMENT ON COLUMN workspace_agents.shutdown_script_timeout_seconds IS 'The number of seconds to wait for the shutdown script to complete. If the script does not complete within this time, the agent lifecycle will be marked as shutdown_timeout.';
-
-COMMENT ON COLUMN workspace_agents.startup_logs_length IS 'Total length of startup logs';
-
-COMMENT ON COLUMN workspace_agents.startup_logs_overflowed IS 'Whether the startup logs overflowed in length';
-
-COMMENT ON COLUMN workspace_agents.startup_script_behavior IS 'When startup script behavior is non-blocking, the workspace will be ready and accessible upon agent connection, when it is blocking, workspace will wait for the startup script to complete before becoming ready and accessible.';
+COMMENT ON COLUMN workspace_agents.logs_overflowed IS 'Whether the startup logs overflowed in length';
 
 COMMENT ON COLUMN workspace_agents.started_at IS 'The time the agent entered the starting lifecycle state';
 
 COMMENT ON COLUMN workspace_agents.ready_at IS 'The time the agent entered the ready or start_error lifecycle state';
+
+CREATE TABLE workspace_app_stats (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    agent_id uuid NOT NULL,
+    access_method text NOT NULL,
+    slug_or_port text NOT NULL,
+    session_id uuid NOT NULL,
+    session_started_at timestamp with time zone NOT NULL,
+    session_ended_at timestamp with time zone NOT NULL,
+    requests integer NOT NULL
+);
+
+COMMENT ON TABLE workspace_app_stats IS 'A record of workspace app usage statistics';
+
+COMMENT ON COLUMN workspace_app_stats.id IS 'The ID of the record';
+
+COMMENT ON COLUMN workspace_app_stats.user_id IS 'The user who used the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.workspace_id IS 'The workspace that the workspace app was used in';
+
+COMMENT ON COLUMN workspace_app_stats.agent_id IS 'The workspace agent that was used';
+
+COMMENT ON COLUMN workspace_app_stats.access_method IS 'The method used to access the workspace app';
+
+COMMENT ON COLUMN workspace_app_stats.slug_or_port IS 'The slug or port used to to identify the app';
+
+COMMENT ON COLUMN workspace_app_stats.session_id IS 'The unique identifier for the session';
+
+COMMENT ON COLUMN workspace_app_stats.session_started_at IS 'The time the session started';
+
+COMMENT ON COLUMN workspace_app_stats.session_ended_at IS 'The time the session ended';
+
+COMMENT ON COLUMN workspace_app_stats.requests IS 'The number of requests made during the session, a number larger than 1 indicates that multiple sessions were rolled up into one';
+
+CREATE SEQUENCE workspace_app_stats_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+ALTER SEQUENCE workspace_app_stats_id_seq OWNED BY workspace_app_stats.id;
 
 CREATE TABLE workspace_apps (
     id uuid NOT NULL,
@@ -865,7 +1070,8 @@ CREATE TABLE workspace_proxies (
     deleted boolean NOT NULL,
     token_hashed_secret bytea NOT NULL,
     region_id integer NOT NULL,
-    derp_enabled boolean DEFAULT true NOT NULL
+    derp_enabled boolean DEFAULT true NOT NULL,
+    derp_only boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN workspace_proxies.icon IS 'Expects an emoji character. (/emojis/1f1fa-1f1f8.png)';
@@ -877,6 +1083,8 @@ COMMENT ON COLUMN workspace_proxies.wildcard_hostname IS 'Hostname with the wild
 COMMENT ON COLUMN workspace_proxies.deleted IS 'Boolean indicator of a deleted workspace proxy. Proxies are soft-deleted.';
 
 COMMENT ON COLUMN workspace_proxies.token_hashed_secret IS 'Hashed secret is used to authenticate the workspace proxy using a session token.';
+
+COMMENT ON COLUMN workspace_proxies.derp_only IS 'Disables app/terminal proxying for this proxy and only acts as a DERP relay.';
 
 CREATE SEQUENCE workspace_proxies_region_id_seq
     AS integer
@@ -929,16 +1137,19 @@ CREATE TABLE workspaces (
     name character varying(64) NOT NULL,
     autostart_schedule text,
     ttl bigint,
-    last_used_at timestamp without time zone DEFAULT '0001-01-01 00:00:00'::timestamp without time zone NOT NULL,
-    locked_at timestamp with time zone,
-    deleting_at timestamp with time zone
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL
 );
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
 
-ALTER TABLE ONLY workspace_agent_startup_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+ALTER TABLE ONLY workspace_agent_logs ALTER COLUMN id SET DEFAULT nextval('workspace_agent_startup_logs_id_seq'::regclass);
+
+ALTER TABLE ONLY workspace_app_stats ALTER COLUMN id SET DEFAULT nextval('workspace_app_stats_id_seq'::regclass);
 
 ALTER TABLE ONLY workspace_proxies ALTER COLUMN region_id SET DEFAULT nextval('workspace_proxies_region_id_seq'::regclass);
 
@@ -953,13 +1164,22 @@ ALTER TABLE ONLY api_keys
 ALTER TABLE ONLY audit_logs
     ADD CONSTRAINT audit_logs_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_active_key_digest_key UNIQUE (active_key_digest);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_pkey PRIMARY KEY (number);
+
+ALTER TABLE ONLY dbcrypt_keys
+    ADD CONSTRAINT dbcrypt_keys_revoked_key_digest_key UNIQUE (revoked_key_digest);
+
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_hash_created_by_key UNIQUE (hash, created_by);
 
 ALTER TABLE ONLY files
     ADD CONSTRAINT files_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY git_auth_links
+ALTER TABLE ONLY external_auth_links
     ADD CONSTRAINT git_auth_links_provider_id_user_id_key UNIQUE (provider_id, user_id);
 
 ALTER TABLE ONLY gitsshkeys
@@ -1016,6 +1236,9 @@ ALTER TABLE ONLY site_configs
 ALTER TABLE ONLY tailnet_agents
     ADD CONSTRAINT tailnet_agents_pkey PRIMARY KEY (id, coordinator_id);
 
+ALTER TABLE ONLY tailnet_client_subscriptions
+    ADD CONSTRAINT tailnet_client_subscriptions_pkey PRIMARY KEY (client_id, coordinator_id, agent_id);
+
 ALTER TABLE ONLY tailnet_clients
     ADD CONSTRAINT tailnet_clients_pkey PRIMARY KEY (id, coordinator_id);
 
@@ -1043,14 +1266,23 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_log_sources
+    ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
 
-ALTER TABLE ONLY workspace_agent_startup_logs
+ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_agent_id_session_id_key UNIQUE (user_id, agent_id, session_id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_slug_idx UNIQUE (agent_id, slug);
@@ -1114,8 +1346,6 @@ CREATE UNIQUE INDEX idx_organization_name_lower ON organizations USING btree (lo
 
 CREATE INDEX idx_tailnet_agents_coordinator ON tailnet_agents USING btree (coordinator_id);
 
-CREATE INDEX idx_tailnet_clients_agent ON tailnet_clients USING btree (agent_id);
-
 CREATE INDEX idx_tailnet_clients_coordinator ON tailnet_clients USING btree (coordinator_id);
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
@@ -1132,11 +1362,17 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
-CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_startup_logs USING btree (agent_id, id);
+CREATE INDEX workspace_agent_startup_logs_id_agent_id_idx ON workspace_agent_logs USING btree (agent_id, id);
+
+CREATE INDEX workspace_agent_stats_template_id_created_at_user_id_idx ON workspace_agent_stats USING btree (template_id, created_at, user_id) INCLUDE (session_count_vscode, session_count_jetbrains, session_count_reconnecting_pty, session_count_ssh, connection_median_latency_ms) WHERE (connection_count > 0);
+
+COMMENT ON INDEX workspace_agent_stats_template_id_created_at_user_id_idx IS 'Support index for template insights endpoint to build interval reports faster.';
 
 CREATE INDEX workspace_agents_auth_token_idx ON workspace_agents USING btree (auth_token);
 
 CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (resource_id);
+
+CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
@@ -1148,6 +1384,8 @@ CREATE TRIGGER tailnet_notify_agent_change AFTER INSERT OR DELETE OR UPDATE ON t
 
 CREATE TRIGGER tailnet_notify_client_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_clients FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_change();
 
+CREATE TRIGGER tailnet_notify_client_subscription_change AFTER INSERT OR DELETE OR UPDATE ON tailnet_client_subscriptions FOR EACH ROW EXECUTE FUNCTION tailnet_notify_client_subscription_change();
+
 CREATE TRIGGER tailnet_notify_coordinator_heartbeat AFTER INSERT OR UPDATE ON tailnet_coordinators FOR EACH ROW EXECUTE FUNCTION tailnet_notify_coordinator_heartbeat();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
@@ -1156,6 +1394,12 @@ CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY external_auth_links
+    ADD CONSTRAINT git_auth_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
 ALTER TABLE ONLY gitsshkeys
     ADD CONSTRAINT gitsshkeys_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
@@ -1187,6 +1431,9 @@ ALTER TABLE ONLY provisioner_jobs
 ALTER TABLE ONLY tailnet_agents
     ADD CONSTRAINT tailnet_agents_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY tailnet_client_subscriptions
+    ADD CONSTRAINT tailnet_client_subscriptions_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY tailnet_clients
     ADD CONSTRAINT tailnet_clients_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES tailnet_coordinators(id) ON DELETE CASCADE;
 
@@ -1212,16 +1459,37 @@ ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_links
+    ADD CONSTRAINT user_links_oauth_refresh_token_key_id_fkey FOREIGN KEY (oauth_refresh_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
+
+ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_log_sources
+    ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY workspace_agent_startup_logs
+ALTER TABLE ONLY workspace_agent_scripts
+    ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
+ALTER TABLE ONLY workspace_app_stats
+    ADD CONSTRAINT workspace_app_stats_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id);
 
 ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

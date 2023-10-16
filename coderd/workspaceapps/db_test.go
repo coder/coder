@@ -17,16 +17,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_ResolveRequest(t *testing.T) {
@@ -94,10 +93,10 @@ func Test_ResolveRequest(t *testing.T) {
 	agentAuthToken := uuid.NewString()
 	version := coderdtest.CreateTemplateVersion(t, client, firstUser.OrganizationID, &echo.Responses{
 		Parse:         echo.ParseComplete,
-		ProvisionPlan: echo.ProvisionComplete,
-		ProvisionApply: []*proto.Provision_Response{{
-			Type: &proto.Provision_Response_Complete{
-				Complete: &proto.Provision_Complete{
+		ProvisionPlan: echo.PlanComplete,
+		ProvisionApply: []*proto.Response{{
+			Type: &proto.Response_Apply{
+				Apply: &proto.ApplyComplete{
 					Resources: []*proto.Resource{{
 						Name: "example",
 						Type: "aws_instance",
@@ -168,19 +167,11 @@ func Test_ResolveRequest(t *testing.T) {
 		}},
 	})
 	template := coderdtest.CreateTemplate(t, client, firstUser.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, firstUser.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(agentAuthToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
+	_ = agenttest.New(t, client.URL, agentAuthToken)
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID, agentName)
 
 	agentID := uuid.Nil
@@ -222,14 +213,14 @@ func Test_ResolveRequest(t *testing.T) {
 				// Try resolving a request for each app as the owner, without a
 				// token, then use the token to resolve each app.
 				for _, app := range allApps {
-					req := workspaceapps.Request{
+					req := (workspaceapps.Request{
 						AccessMethod:      workspaceapps.AccessMethodPath,
 						BasePath:          "/app",
 						UsernameOrID:      me.Username,
 						WorkspaceNameOrID: c.workspaceNameOrID,
 						AgentNameOrID:     c.agentNameOrID,
 						AppSlugOrPort:     app,
-					}
+					}).Normalize()
 
 					t.Log("app", app)
 					rw := httptest.NewRecorder()
@@ -268,7 +259,7 @@ func Test_ResolveRequest(t *testing.T) {
 					// Check that the token was set in the response and is valid.
 					require.Len(t, w.Cookies(), 1)
 					cookie := w.Cookies()[0]
-					require.Equal(t, codersdk.DevURLSignedAppTokenCookie, cookie.Name)
+					require.Equal(t, codersdk.SignedAppTokenCookie, cookie.Name)
 					require.Equal(t, req.BasePath, cookie.Path)
 
 					parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookie.Value)
@@ -305,14 +296,14 @@ func Test_ResolveRequest(t *testing.T) {
 		t.Parallel()
 
 		for _, app := range allApps {
-			req := workspaceapps.Request{
+			req := (workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
 				UsernameOrID:      me.Username,
 				WorkspaceNameOrID: workspace.Name,
 				AgentNameOrID:     agentName,
 				AppSlugOrPort:     app,
-			}
+			}).Normalize()
 
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
@@ -346,14 +337,14 @@ func Test_ResolveRequest(t *testing.T) {
 		t.Parallel()
 
 		for _, app := range allApps {
-			req := workspaceapps.Request{
+			req := (workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
 				UsernameOrID:      me.Username,
 				WorkspaceNameOrID: workspace.Name,
 				AgentNameOrID:     agentName,
 				AppSlugOrPort:     app,
-			}
+			}).Normalize()
 
 			t.Log("app", app)
 			rw := httptest.NewRecorder()
@@ -391,9 +382,9 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod: "invalid",
-		}
+		}).Normalize()
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		token, ok := workspaceapps.ResolveRequest(rw, r, workspaceapps.ResolveRequestOptions{
@@ -465,13 +456,13 @@ func Test_ResolveRequest(t *testing.T) {
 
 		for _, c := range cases {
 			t.Run(c.name, func(t *testing.T) {
-				req := workspaceapps.Request{
+				req := (workspaceapps.Request{
 					AccessMethod:      workspaceapps.AccessMethodPath,
 					BasePath:          "/app",
 					UsernameOrID:      me.Username,
 					WorkspaceAndAgent: c.workspaceAndAgent,
 					AppSlugOrPort:     appNamePublic,
-				}
+				}).Normalize()
 
 				rw := httptest.NewRecorder()
 				r := httptest.NewRequest("GET", "/app", nil)
@@ -510,7 +501,7 @@ func Test_ResolveRequest(t *testing.T) {
 		t.Parallel()
 
 		badToken := workspaceapps.SignedToken{
-			Request: workspaceapps.Request{
+			Request: (workspaceapps.Request{
 				AccessMethod:      workspaceapps.AccessMethodPath,
 				BasePath:          "/app",
 				UsernameOrID:      me.Username,
@@ -518,7 +509,7 @@ func Test_ResolveRequest(t *testing.T) {
 				AgentNameOrID:     agentName,
 				// App name differs
 				AppSlugOrPort: appNamePublic,
-			},
+			}).Normalize(),
 			Expiry:      time.Now().Add(time.Minute),
 			UserID:      me.ID,
 			WorkspaceID: workspace.ID,
@@ -528,7 +519,7 @@ func Test_ResolveRequest(t *testing.T) {
 		badTokenStr, err := api.AppSecurityKey.SignToken(badToken)
 		require.NoError(t, err)
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      me.Username,
@@ -536,13 +527,13 @@ func Test_ResolveRequest(t *testing.T) {
 			AgentNameOrID:     agentName,
 			// App name differs
 			AppSlugOrPort: appNameOwner,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
 		r.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 		r.AddCookie(&http.Cookie{
-			Name:  codersdk.DevURLSignedAppTokenCookie,
+			Name:  codersdk.SignedAppTokenCookie,
 			Value: badTokenStr,
 		})
 
@@ -566,7 +557,7 @@ func Test_ResolveRequest(t *testing.T) {
 		_ = w.Body.Close()
 		cookies := w.Cookies()
 		require.Len(t, cookies, 1)
-		require.Equal(t, cookies[0].Name, codersdk.DevURLSignedAppTokenCookie)
+		require.Equal(t, cookies[0].Name, codersdk.SignedAppTokenCookie)
 		require.NotEqual(t, cookies[0].Value, badTokenStr)
 		parsedToken, err := api.AppSecurityKey.VerifySignedToken(cookies[0].Value)
 		require.NoError(t, err)
@@ -576,14 +567,14 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("PortPathBlocked", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     "8080",
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -604,14 +595,14 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("PortSubdomain", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodSubdomain,
 			BasePath:          "/",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     "9090",
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/", nil)
@@ -633,11 +624,11 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("Terminal", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:  workspaceapps.AccessMethodTerminal,
 			BasePath:      "/app",
 			AgentNameOrID: agentID.String(),
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -664,14 +655,14 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("InsufficientPermissions", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     appNameOwner,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -691,14 +682,14 @@ func Test_ResolveRequest(t *testing.T) {
 
 	t.Run("UserNotFound", func(t *testing.T) {
 		t.Parallel()
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      "thisuserdoesnotexist",
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     appNameOwner,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -719,14 +710,14 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("RedirectSubdomainAuth", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodSubdomain,
 			BasePath:          "/",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     appNameOwner,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/some-path", nil)
@@ -760,8 +751,14 @@ func Test_ResolveRequest(t *testing.T) {
 		redirectURI, err := url.Parse(redirectURIStr)
 		require.NoError(t, err)
 
-		appHost := fmt.Sprintf("%s--%s--%s--%s", req.AppSlugOrPort, req.AgentNameOrID, req.WorkspaceNameOrID, req.UsernameOrID)
-		host := strings.Replace(api.AppHostname, "*", appHost, 1)
+		appHost := httpapi.ApplicationURL{
+			Prefix:        "",
+			AppSlugOrPort: req.AppSlugOrPort,
+			AgentName:     req.AgentNameOrID,
+			WorkspaceName: req.WorkspaceNameOrID,
+			Username:      req.UsernameOrID,
+		}
+		host := strings.Replace(api.AppHostname, "*", appHost.String(), 1)
 
 		require.Equal(t, "http", redirectURI.Scheme)
 		require.Equal(t, host, redirectURI.Host)
@@ -771,14 +768,14 @@ func Test_ResolveRequest(t *testing.T) {
 	t.Run("UnhealthyAgent", func(t *testing.T) {
 		t.Parallel()
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentNameUnhealthy,
 			AppSlugOrPort:     appNameAgentUnhealthy,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)
@@ -832,14 +829,14 @@ func Test_ResolveRequest(t *testing.T) {
 			return false
 		}, testutil.WaitLong, testutil.IntervalFast, "wait for app to become unhealthy")
 
-		req := workspaceapps.Request{
+		req := (workspaceapps.Request{
 			AccessMethod:      workspaceapps.AccessMethodPath,
 			BasePath:          "/app",
 			UsernameOrID:      me.Username,
 			WorkspaceNameOrID: workspace.Name,
 			AgentNameOrID:     agentName,
 			AppSlugOrPort:     appNameUnhealthy,
-		}
+		}).Normalize()
 
 		rw := httptest.NewRecorder()
 		r := httptest.NewRequest("GET", "/app", nil)

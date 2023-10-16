@@ -13,8 +13,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type fakeTracer struct {
@@ -59,7 +59,7 @@ func Test_Middleware(t *testing.T) {
 			{"/%40hi/hi/apps/hi", true},
 			{"/%40hi/hi/apps/hi/hi", true},
 			{"/%40hi/hi/apps/hi/hi", true},
-			{"/gitauth/hi/callback", true},
+			{"/external-auth/hi/callback", true},
 
 			// Other routes that should not be collected.
 			{"/index.html", false},

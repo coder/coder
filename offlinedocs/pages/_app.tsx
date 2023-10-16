@@ -1,6 +1,6 @@
-import { ChakraProvider, extendTheme } from "@chakra-ui/react"
-import type { AppProps } from "next/app"
-import Head from "next/head"
+import { ChakraProvider, extendTheme } from "@chakra-ui/react";
+import type { AppProps } from "next/app";
+import Head from "next/head";
 
 const theme = extendTheme({
   styles: {
@@ -10,7 +10,7 @@ const theme = extendTheme({
       },
     },
   },
-})
+});
 
 const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
   return (
@@ -23,7 +23,7 @@ const MyApp: React.FC<AppProps> = ({ Component, pageProps }) => {
         <Component {...pageProps} />
       </ChakraProvider>
     </>
-  )
-}
+  );
+};
 
-export default MyApp
+export default MyApp;

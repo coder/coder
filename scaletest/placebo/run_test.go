@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/scaletest/placebo"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/scaletest/placebo"
 )
 
 func Test_Runner(t *testing.T) {

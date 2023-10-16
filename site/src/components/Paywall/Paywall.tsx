@@ -1,19 +1,19 @@
-import Box from "@mui/material/Box"
-import Chip from "@mui/material/Chip"
-import { makeStyles } from "@mui/styles"
-import Typography from "@mui/material/Typography"
-import { Stack } from "components/Stack/Stack"
-import { FC, ReactNode } from "react"
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import { makeStyles } from "@mui/styles";
+import Typography from "@mui/material/Typography";
+import { Stack } from "components/Stack/Stack";
+import { FC, ReactNode } from "react";
 
 export interface PaywallProps {
-  message: string
-  description?: string | React.ReactNode
-  cta?: ReactNode
+  message: string;
+  description?: string | React.ReactNode;
+  cta?: ReactNode;
 }
 
 export const Paywall: FC<React.PropsWithChildren<PaywallProps>> = (props) => {
-  const { message, description, cta } = props
-  const styles = useStyles()
+  const { message, description, cta } = props;
+  const styles = useStyles();
 
   return (
     <Box className={styles.root}>
@@ -42,8 +42,8 @@ export const Paywall: FC<React.PropsWithChildren<PaywallProps>> = (props) => {
       </div>
       {cta}
     </Box>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
@@ -77,4 +77,4 @@ const useStyles = makeStyles((theme) => ({
     border: `1px solid ${theme.palette.success.light}`,
     fontSize: 13,
   },
-}))
+}));

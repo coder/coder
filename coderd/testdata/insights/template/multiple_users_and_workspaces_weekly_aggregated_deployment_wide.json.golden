@@ -1,0 +1,107 @@
+{
+  "report": {
+    "start_time": "2023-08-12T00:00:00Z",
+    "end_time": "2023-08-19T00:00:00Z",
+    "template_ids": [
+      "00000000-0000-0000-0000-000000000001",
+      "00000000-0000-0000-0000-000000000002",
+      "00000000-0000-0000-0000-000000000003"
+    ],
+    "active_users": 3,
+    "apps_usage": [
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "builtin",
+        "display_name": "Visual Studio Code",
+        "slug": "vscode",
+        "icon": "/icon/code.svg",
+        "seconds": 7200
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "builtin",
+        "display_name": "JetBrains",
+        "slug": "jetbrains",
+        "icon": "/icon/intellij.svg",
+        "seconds": 120
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "builtin",
+        "display_name": "Web Terminal",
+        "slug": "reconnecting-pty",
+        "icon": "/icon/terminal.svg",
+        "seconds": 3600
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002",
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "builtin",
+        "display_name": "SSH",
+        "slug": "ssh",
+        "icon": "/icon/terminal.svg",
+        "seconds": 15120
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001",
+          "00000000-0000-0000-0000-000000000002"
+        ],
+        "type": "app",
+        "display_name": "app1",
+        "slug": "app1",
+        "icon": "/icon1.png",
+        "seconds": 25380
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "type": "app",
+        "display_name": "app3",
+        "slug": "app3",
+        "icon": "/icon2.png",
+        "seconds": 3600
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000003"
+        ],
+        "type": "app",
+        "display_name": "otherapp1",
+        "slug": "otherapp1",
+        "icon": "/icon1.png",
+        "seconds": 300
+      }
+    ],
+    "parameters_usage": []
+  },
+  "interval_reports": [
+    {
+      "start_time": "2023-08-12T00:00:00Z",
+      "end_time": "2023-08-19T00:00:00Z",
+      "template_ids": [
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+        "00000000-0000-0000-0000-000000000003"
+      ],
+      "interval": "week",
+      "active_users": 3
+    }
+  ]
+}

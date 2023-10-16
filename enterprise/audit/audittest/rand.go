@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
-	"github.com/coder/coder/coderd/database"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 func RandomLog() database.AuditLog {
@@ -23,12 +23,13 @@ func RandomLog() database.AuditLog {
 			IPNet: *inet,
 			Valid: true,
 		},
-		UserAgent:      sql.NullString{String: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36", Valid: true},
-		ResourceType:   database.ResourceTypeOrganization,
-		ResourceID:     uuid.New(),
-		ResourceTarget: "colin's organization",
-		Action:         database.AuditActionDelete,
-		Diff:           []byte("{}"),
-		StatusCode:     http.StatusNoContent,
+		UserAgent:        sql.NullString{String: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36", Valid: true},
+		ResourceType:     database.ResourceTypeOrganization,
+		ResourceID:       uuid.New(),
+		ResourceTarget:   "colin's organization",
+		Action:           database.AuditActionDelete,
+		Diff:             []byte("{}"),
+		StatusCode:       http.StatusNoContent,
+		AdditionalFields: []byte("{}"),
 	}
 }

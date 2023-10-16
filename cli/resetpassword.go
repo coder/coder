@@ -1,3 +1,5 @@
+//go:build !slim
+
 package cli
 
 import (
@@ -6,11 +8,13 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
 func (*RootCmd) resetPassword() *clibase.Cmd {
@@ -47,7 +51,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 			}
 
 			password, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:   "Enter new " + cliui.DefaultStyles.Field.Render("password") + ":",
+				Text:   "Enter new " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
 				Secret: true,
 				Validate: func(s string) error {
 					return userpassword.Validate(s)
@@ -57,7 +61,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 				return xerrors.Errorf("password prompt: %w", err)
 			}
 			confirmedPassword, err := cliui.Prompt(inv, cliui.PromptOptions{
-				Text:     "Confirm " + cliui.DefaultStyles.Field.Render("password") + ":",
+				Text:     "Confirm " + pretty.Sprint(cliui.DefaultStyles.Field, "password") + ":",
 				Secret:   true,
 				Validate: cliui.ValidateNotEmpty,
 			})
@@ -81,7 +85,7 @@ func (*RootCmd) resetPassword() *clibase.Cmd {
 				return xerrors.Errorf("updating password: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", cliui.DefaultStyles.Keyword.Render(user.Username))
+			_, _ = fmt.Fprintf(inv.Stdout, "\nPassword has been reset for user %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, user.Username))
 			return nil
 		},
 	}

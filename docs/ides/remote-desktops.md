@@ -1,6 +1,7 @@
 # Remote Desktops
 
-> Built-in remote desktop is on the roadmap ([#2106](https://github.com/coder/coder/issues/2106)).
+> Built-in remote desktop is on the roadmap
+> ([#2106](https://github.com/coder/coder/issues/2106)).
 
 ## VNC Desktop
 
@@ -13,10 +14,13 @@ Workspace requirements:
 - VNC server (e.g. [tigervnc](https://tigervnc.org/))
 - VNC client (e.g. [novnc](https://novnc.com/info.html))
 
-Installation instructions vary depending on your workspace's operating
-system, platform, and build system.
+Installation instructions vary depending on your workspace's operating system,
+platform, and build system.
 
-As a starting point, see the [desktop-container](https://github.com/bpmct/coder-templates/tree/main/desktop-container) community template. It builds and provisions a Dockerized workspace with the following software:
+As a starting point, see the
+[desktop-container](https://github.com/bpmct/coder-templates/tree/main/desktop-container)
+community template. It builds and provisions a Dockerized workspace with the
+following software:
 
 - Ubuntu 20.04
 - TigerVNC server
@@ -25,9 +29,13 @@ As a starting point, see the [desktop-container](https://github.com/bpmct/coder-
 
 ## RDP Desktop
 
-To use RDP with Coder, you'll need to install an [RDP client](https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients) on your local machine, and enable RDP on your workspace.
+To use RDP with Coder, you'll need to install an
+[RDP client](https://docs.microsoft.com/en-us/windows-server/remote/remote-desktop-services/clients/remote-desktop-clients)
+on your local machine, and enable RDP on your workspace.
 
-As a starting point, see the [gcp-windows-rdp](https://github.com/matifali/coder-templates/tree/main/gcp-windows-rdp) community template. It builds and provisions a Windows Server workspace on GCP.
+As a starting point, see the
+[gcp-windows-rdp](https://github.com/matifali/coder-templates/tree/main/gcp-windows-rdp)
+community template. It builds and provisions a Windows Server workspace on GCP.
 
 Use the following command to forward the RDP port to your local machine:
 

@@ -1,16 +1,16 @@
-import { makeStyles } from "@mui/styles"
-import { FC, PropsWithChildren } from "react"
+import { makeStyles } from "@mui/styles";
+import { FC, PropsWithChildren } from "react";
 
 export const DividerWithText: FC<PropsWithChildren> = ({ children }) => {
-  const classes = useStyles()
+  const classes = useStyles();
   return (
     <div className={classes.container}>
       <div className={classes.border} />
       <span className={classes.content}>{children}</span>
       <div className={classes.border} />
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   container: {
@@ -29,4 +29,4 @@ const useStyles = makeStyles((theme) => ({
     fontSize: theme.typography.h5.fontSize,
     color: theme.palette.text.secondary,
   },
-}))
+}));

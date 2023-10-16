@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) groupList() *clibase.Cmd {
@@ -67,6 +67,7 @@ type groupTableRow struct {
 
 	// For table output:
 	Name           string    `json:"-" table:"name,default_sort"`
+	DisplayName    string    `json:"-" table:"display_name"`
 	OrganizationID uuid.UUID `json:"-" table:"organization_id"`
 	Members        []string  `json:"-" table:"members"`
 	AvatarURL      string    `json:"-" table:"avatar_url"`
@@ -81,6 +82,7 @@ func groupsToRows(groups ...codersdk.Group) []groupTableRow {
 		}
 		rows = append(rows, groupTableRow{
 			Name:           group.Name,
+			DisplayName:    group.DisplayName,
 			OrganizationID: group.OrganizationID,
 			AvatarURL:      group.AvatarURL,
 			Members:        members,

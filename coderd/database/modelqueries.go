@@ -9,8 +9,8 @@ import (
 	"github.com/lib/pq"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/rbac/regosql"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/regosql"
 )
 
 const (
@@ -81,10 +81,11 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.AllowUserAutostart,
 			&i.AllowUserAutostop,
 			&i.FailureTTL,
-			&i.InactivityTTL,
-			&i.LockedTTL,
-			&i.RestartRequirementDaysOfWeek,
-			&i.RestartRequirementWeeks,
+			&i.TimeTilDormant,
+			&i.TimeTilDormantAutoDelete,
+			&i.AutostopRequirementDaysOfWeek,
+			&i.AutostopRequirementWeeks,
+			&i.AutostartBlockDaysOfWeek,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -217,11 +218,14 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 		arg.Name,
 		arg.HasAgent,
 		arg.AgentInactiveDisconnectTimeoutSeconds,
+		arg.IsDormant,
+		arg.LastUsedBefore,
+		arg.LastUsedAfter,
 		arg.Offset,
 		arg.Limit,
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("get authorized workspaces: %w", err)
+		return nil, err
 	}
 	defer rows.Close()
 	var items []GetWorkspacesRow
@@ -239,8 +243,9 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.AutostartSchedule,
 			&i.Ttl,
 			&i.LastUsedAt,
-			&i.LockedAt,
+			&i.DormantAt,
 			&i.DeletingAt,
+			&i.AutomaticUpdates,
 			&i.TemplateName,
 			&i.TemplateVersionID,
 			&i.TemplateVersionName,

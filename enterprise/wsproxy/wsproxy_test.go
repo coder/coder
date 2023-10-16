@@ -9,24 +9,73 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps/apptest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
+
+func TestDERPOnly(t *testing.T) {
+	t.Parallel()
+
+	deploymentValues := coderdtest.DeploymentValues(t)
+	deploymentValues.Experiments = []string{
+		string(codersdk.ExperimentMoons),
+		"*",
+	}
+
+	client, closer, api, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			DeploymentValues:         deploymentValues,
+			AppHostname:              "*.primary.test.coder.com",
+			IncludeProvisionerDaemon: true,
+			RealIPConfig: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{{
+					IP:   net.ParseIP("127.0.0.1"),
+					Mask: net.CIDRMask(8, 32),
+				}},
+				TrustedHeaders: []string{
+					"CF-Connecting-IP",
+				},
+			},
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureWorkspaceProxy: 1,
+			},
+		},
+	})
+	t.Cleanup(func() {
+		_ = closer.Close()
+	})
+
+	// Create an external proxy.
+	_ = coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name:     "best-proxy",
+		DerpOnly: true,
+	})
+
+	// Should not show up in the regions list.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	regions, err := client.Regions(ctx)
+	require.NoError(t, err)
+	require.Len(t, regions, 1)
+	require.Equal(t, api.Options.AccessURL.String(), regions[0].PathAppURL)
+}
 
 func TestDERP(t *testing.T) {
 	t.Parallel()
@@ -70,6 +119,12 @@ func TestDERP(t *testing.T) {
 		Name: "worst-proxy",
 	})
 
+	// Create a running external proxy with DERP disabled.
+	proxyAPI3 := coderdenttest.NewWorkspaceProxy(t, api, client, &coderdenttest.ProxyOptions{
+		Name:         "no-derp-proxy",
+		DerpDisabled: true,
+	})
+
 	// Create a proxy that is never started.
 	createProxyCtx := testutil.Context(t, testutil.WaitLong)
 	_, err := client.CreateWorkspaceProxy(createProxyCtx, codersdk.CreateWorkspaceProxyRequest{
@@ -89,19 +144,19 @@ func TestDERP(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return false
 		}
-		if !assert.Len(t, regions, 4) {
+		if !assert.Len(t, regions, 5) {
 			return false
 		}
 
 		// The first 3 regions should be healthy.
-		for _, r := range regions[:3] {
+		for _, r := range regions[:4] {
 			if !r.Healthy {
 				return false
 			}
 		}
 
 		// The last region should never be healthy.
-		assert.False(t, regions[3].Healthy)
+		assert.False(t, regions[4].Healthy)
 		return true
 	}, testutil.WaitLong, testutil.IntervalMedium)
 
@@ -112,9 +167,9 @@ func TestDERP(t *testing.T) {
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
 	agentID := uuid.Nil
@@ -128,16 +183,8 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	t.Run("ReturnedInDERPMap", func(t *testing.T) {
 		t.Parallel()
@@ -146,10 +193,10 @@ resourceLoop:
 		connInfo, err := client.WorkspaceAgentConnectionInfo(ctx, agentID)
 		require.NoError(t, err)
 
-		// There should be three DERP servers in the map: the primary, and each
-		// of the two running proxies.
+		// There should be three DERP regions in the map: the primary, and each
+		// of the two running proxies. Also the STUN-only regions.
 		require.NotNil(t, connInfo.DERPMap)
-		require.Len(t, connInfo.DERPMap.Regions, 3)
+		require.Len(t, connInfo.DERPMap.Regions, 3+len(api.DeploymentValues.DERP.Server.STUNAddresses.Value()))
 
 		var (
 			primaryRegion *tailcfg.DERPRegion
@@ -167,6 +214,14 @@ resourceLoop:
 			}
 			if r.RegionName == "worst-proxy" {
 				proxy2Region = r
+				continue
+			}
+			// The no-derp-proxy shouldn't show up in the map.
+			// The last region is never started, which means it's never healthy,
+			// which means it's never added to the DERP map.
+
+			if len(r.Nodes) == 1 && r.Nodes[0].STUNOnly {
+				// Skip STUN-only regions.
 				continue
 			}
 
@@ -210,11 +265,15 @@ resourceLoop:
 		connInfo, err := client.WorkspaceAgentConnectionInfo(testutil.Context(t, testutil.WaitLong), agentID)
 		require.NoError(t, err)
 		require.NotNil(t, connInfo.DERPMap)
-		require.Len(t, connInfo.DERPMap.Regions, 3)
+		require.Len(t, connInfo.DERPMap.Regions, 3+len(api.DeploymentValues.DERP.Server.STUNAddresses.Value()))
 
 		// Connect to each region.
 		for _, r := range connInfo.DERPMap.Regions {
 			r := r
+			if len(r.Nodes) == 1 && r.Nodes[0].STUNOnly {
+				// Skip STUN-only regions.
+				continue
+			}
 
 			t.Run(r.RegionName, func(t *testing.T) {
 				t.Parallel()
@@ -227,8 +286,8 @@ resourceLoop:
 				}
 
 				ctx := testutil.Context(t, testutil.WaitLong)
-				report := healthcheck.DERPReport{}
-				report.Run(ctx, &healthcheck.DERPReportOptions{
+				report := derphealth.Report{}
+				report.Run(ctx, &derphealth.ReportOptions{
 					DERPMap: derpMap,
 				})
 
@@ -236,6 +295,18 @@ resourceLoop:
 				require.True(t, report.Healthy, "healthcheck failed, see report dump")
 			})
 		}
+	})
+
+	t.Run("DERPDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Try to connect to the DERP server on the no-derp-proxy region.
+		client, err := derphttp.NewClient(key.NewNode(), proxyAPI3.Options.AccessURL.String(), func(format string, args ...any) {})
+		require.NoError(t, err)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		err = client.Connect(ctx)
+		require.Error(t, err)
 	})
 }
 
@@ -321,9 +392,9 @@ func TestDERPEndToEnd(t *testing.T) {
 		ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
 	})
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-	coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	build := coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	workspace.LatestBuild = build
 
 	agentID := uuid.Nil
@@ -337,16 +408,8 @@ resourceLoop:
 	require.NotEqual(t, uuid.Nil, agentID)
 
 	// Connect an agent to the workspace
-	agentClient := agentsdk.New(client.URL)
-	agentClient.SetSessionToken(authToken)
-	agentCloser := agent.New(agent.Options{
-		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent").Leveled(slog.LevelDebug),
-	})
-	t.Cleanup(func() {
-		_ = agentCloser.Close()
-	})
-	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+	_ = agenttest.New(t, client.URL, authToken)
+	_ = coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 
 	// Connect to the workspace agent.
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -398,6 +461,7 @@ func TestWorkspaceProxyWorkspaceApps_Wsconncache(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -456,6 +520,7 @@ func TestWorkspaceProxyWorkspaceApps_SingleTailnet(t *testing.T) {
 						"CF-Connecting-IP",
 					},
 				},
+				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

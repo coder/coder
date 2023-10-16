@@ -13,14 +13,14 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/scaletest/workspacebuild"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_Runner(t *testing.T) {
@@ -45,10 +45,10 @@ func Test_Runner(t *testing.T) {
 		authToken3 := uuid.NewString()
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Log{
+					Type: &proto.Response_Log{
 						Log: &proto.Log{
 							Level:  proto.LogLevel_INFO,
 							Output: "hello from logs",
@@ -56,8 +56,8 @@ func Test_Runner(t *testing.T) {
 					},
 				},
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Resources: []*proto.Resource{
 								{
 									Name: "example1",
@@ -103,7 +103,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		// Since the runner creates the workspace on it's own, we have to keep
 		// listing workspaces until we find it, then wait for the build to
@@ -127,7 +127,7 @@ func Test_Runner(t *testing.T) {
 				time.Sleep(100 * time.Millisecond)
 			}
 
-			coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 			// Start the three agents.
 			for i, authToken := range []string{authToken1, authToken2, authToken3} {
@@ -177,10 +177,11 @@ func Test_Runner(t *testing.T) {
 		workspaces := res.Workspaces
 		require.Len(t, workspaces, 1)
 
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspaces[0].LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaces[0].LatestBuild.ID)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 	})
 
@@ -199,11 +200,11 @@ func Test_Runner(t *testing.T) {
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse:         echo.ParseComplete,
-			ProvisionPlan: echo.ProvisionComplete,
-			ProvisionApply: []*proto.Provision_Response{
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApply: []*proto.Response{
 				{
-					Type: &proto.Provision_Response_Complete{
-						Complete: &proto.Provision_Complete{
+					Type: &proto.Response_Apply{
+						Apply: &proto.ApplyComplete{
 							Error: "test error",
 						},
 					},
@@ -212,7 +213,7 @@ func Test_Runner(t *testing.T) {
 		})
 
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 
 		runner := workspacebuild.NewRunner(client, workspacebuild.Config{
 			OrganizationID: user.OrganizationID,

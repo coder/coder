@@ -19,9 +19,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/enterprise/derpmesh"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {

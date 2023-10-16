@@ -1,1 +1,1 @@
-declare module "eventsourcemock"
+declare module "eventsourcemock";

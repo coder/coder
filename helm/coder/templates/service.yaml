@@ -1,0 +1,41 @@
+{{- if .Values.coder.service.enable }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: coder
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  annotations:
+    {{- toYaml .Values.coder.service.annotations | nindent 4 }}
+spec:
+  type: {{ .Values.coder.service.type }}
+  sessionAffinity: {{ .Values.coder.service.sessionAffinity }}
+  ports:
+    - name: "http"
+      port: 80
+      targetPort: "http"
+      protocol: TCP
+      {{ if eq .Values.coder.service.type "NodePort" }}
+      nodePort: {{ .Values.coder.service.httpNodePort }}
+      {{ end }}
+    {{- if eq (include "coder.tlsEnabled" .) "true" }}
+    - name: "https"
+      port: 443
+      targetPort: "https"
+      protocol: TCP
+      {{ if eq .Values.coder.service.type "NodePort" }}
+      nodePort: {{ .Values.coder.service.httpsNodePort }}
+      {{ end }}
+    {{- end }}
+  {{- if eq "LoadBalancer" .Values.coder.service.type }}
+  {{- with .Values.coder.service.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.coder.service.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ . | quote }}
+  {{- end }}
+  {{- end }}
+  selector:
+    {{- include "coder.selectorLabels" . | nindent 4 }}
+{{- end }}

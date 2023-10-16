@@ -4,11 +4,6 @@
 
 Update a user's status to 'suspended'. A suspended user cannot log into the platform
 
-Aliases:
-
-- rm
-- delete
-
 ## Usage
 
 ```console
@@ -18,7 +13,7 @@ coder users suspend [flags] <username|user_id>
 ## Description
 
 ```console
-  $ coder users suspend example_user
+ $ coder users suspend example_user
 ```
 
 ## Options

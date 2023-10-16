@@ -1,32 +1,44 @@
-import { makeStyles } from "@mui/styles"
-import Table from "@mui/material/Table"
-import TableBody from "@mui/material/TableBody"
-import TableCell from "@mui/material/TableCell"
-import TableContainer from "@mui/material/TableContainer"
-import TableHead from "@mui/material/TableHead"
-import TableRow from "@mui/material/TableRow"
-import { DeploymentOption } from "api/types"
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import { type FC } from "react";
+import Box from "@mui/material/Box";
+import { css } from "@emotion/react";
+import type { ClibaseOption } from "api/typesGenerated";
 import {
+  OptionConfig,
+  OptionConfigFlag,
   OptionDescription,
   OptionName,
   OptionValue,
-} from "components/DeploySettingsLayout/Option"
-import { FC } from "react"
-import { DisabledBadge } from "./Badges"
-import { intervalToDuration, formatDuration } from "date-fns"
+} from "components/DeploySettingsLayout/Option";
+import { optionValue } from "./optionValue";
 
 const OptionsTable: FC<{
-  options: DeploymentOption[]
+  options: ClibaseOption[];
 }> = ({ options }) => {
-  const styles = useStyles()
-
   if (options.length === 0) {
-    return <DisabledBadge></DisabledBadge>
+    return <p>No options to configure</p>;
   }
 
   return (
     <TableContainer>
-      <Table className={styles.table}>
+      <Table
+        css={(theme) => css`
+          & td {
+            padding-top: ${theme.spacing(3)};
+            padding-bottom: ${theme.spacing(3)};
+          }
+
+          & td:last-child,
+          & th:last-child {
+            padding-left: ${theme.spacing(4)};
+          }
+        `}
+      >
         <TableHead>
           <TableRow>
             <TableCell width="50%">Option</TableCell>
@@ -40,61 +52,58 @@ const OptionsTable: FC<{
               option.value === "" ||
               option.value === undefined
             ) {
-              return null
+              return null;
             }
             return (
               <TableRow key={option.flag}>
                 <TableCell>
                   <OptionName>{option.name}</OptionName>
                   <OptionDescription>{option.description}</OptionDescription>
+                  <Box
+                    sx={{
+                      marginTop: 3,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 1,
+                    }}
+                  >
+                    {option.flag && (
+                      <OptionConfig source={option.value_source === "flag"}>
+                        <OptionConfigFlag>CLI</OptionConfigFlag>
+                        --{option.flag}
+                      </OptionConfig>
+                    )}
+                    {option.flag_shorthand && (
+                      <OptionConfig source={option.value_source === "flag"}>
+                        <OptionConfigFlag>CLI</OptionConfigFlag>-
+                        {option.flag_shorthand}
+                      </OptionConfig>
+                    )}
+                    {option.env && (
+                      <OptionConfig source={option.value_source === "env"}>
+                        <OptionConfigFlag>ENV</OptionConfigFlag>
+                        {option.env}
+                      </OptionConfig>
+                    )}
+                    {option.yaml && (
+                      <OptionConfig source={option.value_source === "yaml"}>
+                        <OptionConfigFlag>YAML</OptionConfigFlag>
+                        {option.yaml}
+                      </OptionConfig>
+                    )}
+                  </Box>
                 </TableCell>
 
                 <TableCell>
                   <OptionValue>{optionValue(option)}</OptionValue>
                 </TableCell>
               </TableRow>
-            )
+            );
           })}
         </TableBody>
       </Table>
     </TableContainer>
-  )
-}
+  );
+};
 
-// optionValue is a helper function to format the value of a specific deployment options
-export function optionValue(option: DeploymentOption) {
-  switch (option.name) {
-    case "Max Token Lifetime":
-    case "Session Duration":
-      // intervalToDuration takes ms, so convert nanoseconds to ms
-      return formatDuration(
-        intervalToDuration({ start: 0, end: (option.value as number) / 1e6 }),
-      )
-    case "Strict-Transport-Security":
-      if (option.value === 0) {
-        return "Disabled"
-      }
-      return (option.value as number).toString() + "s"
-    case "OIDC Group Mapping":
-      return Object.entries(option.value as Record<string, string>).map(
-        ([key, value]) => `"${key}"->"${value}"`,
-      )
-    default:
-      return option.value
-  }
-}
-
-const useStyles = makeStyles((theme) => ({
-  table: {
-    "& td": {
-      paddingTop: theme.spacing(3),
-      paddingBottom: theme.spacing(3),
-    },
-
-    "& td:last-child, & th:last-child": {
-      paddingLeft: theme.spacing(4),
-    },
-  },
-}))
-
-export default OptionsTable
+export default OptionsTable;

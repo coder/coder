@@ -1,34 +1,28 @@
-import { useMachine } from "@xstate/react"
-import { useAuth } from "components/AuthProvider/AuthProvider"
-import { FC, useEffect } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { setupMachine } from "xServices/setup/setupXService"
-import { SetupPageView } from "./SetupPageView"
+import { useAuth } from "components/AuthProvider/AuthProvider";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { SetupPageView } from "./SetupPageView";
+import { Navigate, useNavigate } from "react-router-dom";
+import { useMutation } from "react-query";
+import { createFirstUser } from "api/queries/users";
 
 export const SetupPage: FC = () => {
-  const [authState, authSend] = useAuth()
-  const [setupState, setupSend] = useMachine(setupMachine, {
-    actions: {
-      onCreateFirstUser: ({ firstUser }) => {
-        if (!firstUser) {
-          throw new Error("First user was not defined.")
-        }
-        authSend({
-          type: "SIGN_IN",
-          email: firstUser.email,
-          password: firstUser.password,
-        })
-      },
-    },
-  })
-  const { error } = setupState.context
+  const { signIn, isConfiguringTheFirstUser, isSignedIn, isSigningIn } =
+    useAuth();
+  const createFirstUserMutation = useMutation(createFirstUser());
+  const setupIsComplete = !isConfiguringTheFirstUser;
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    if (authState.matches("signedIn")) {
-      window.location.assign("/workspaces")
-    }
-  }, [authState])
+  // If the user is logged in, navigate to the app
+  if (isSignedIn) {
+    return <Navigate to="/" state={{ isRedirect: true }} replace />;
+  }
+
+  // If we've already completed setup, navigate to the login page
+  if (setupIsComplete) {
+    return <Navigate to="/login" state={{ isRedirect: true }} replace />;
+  }
 
   return (
     <>
@@ -36,12 +30,14 @@ export const SetupPage: FC = () => {
         <title>{pageTitle("Set up your account")}</title>
       </Helmet>
       <SetupPageView
-        isLoading={setupState.hasTag("loading")}
-        error={error}
-        onSubmit={(firstUser) => {
-          setupSend({ type: "CREATE_FIRST_USER", firstUser })
+        isLoading={createFirstUserMutation.isLoading || isSigningIn}
+        error={createFirstUserMutation.error}
+        onSubmit={async (firstUser) => {
+          await createFirstUserMutation.mutateAsync(firstUser);
+          await signIn(firstUser.email, firstUser.password);
+          navigate("/");
         }}
       />
     </>
-  )
-}
+  );
+};

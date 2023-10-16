@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/prometheusmetrics"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/testutil"
 )
 
 const (

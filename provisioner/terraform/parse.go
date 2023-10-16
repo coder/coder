@@ -11,19 +11,21 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 // Parse extracts Terraform variables from source-code.
-func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisioner_ParseStream) error {
-	_, span := s.startTrace(stream.Context(), tracing.FuncName())
+func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-chan struct{}) *proto.ParseComplete {
+	ctx := sess.Context()
+	_, span := s.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
 	// Load the module and print any parse errors.
-	module, diags := tfconfig.LoadModule(request.Directory)
+	module, diags := tfconfig.LoadModule(sess.WorkDirectory)
 	if diags.HasErrors() {
-		return xerrors.Errorf("load module: %s", formatDiagnostics(request.Directory, diags))
+		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
 	// Sort variables by (filename, line) to make the ordering consistent
@@ -40,17 +42,13 @@ func (s *server) Parse(request *proto.Parse_Request, stream proto.DRPCProvisione
 	for _, v := range variables {
 		mv, err := convertTerraformVariable(v)
 		if err != nil {
-			return xerrors.Errorf("can't convert the Terraform variable to a managed one: %w", err)
+			return provisionersdk.ParseErrorf("can't convert the Terraform variable to a managed one: %s", err)
 		}
 		templateVariables = append(templateVariables, mv)
 	}
-	return stream.Send(&proto.Parse_Response{
-		Type: &proto.Parse_Response_Complete{
-			Complete: &proto.Parse_Complete{
-				TemplateVariables: templateVariables,
-			},
-		},
-	})
+	return &proto.ParseComplete{
+		TemplateVariables: templateVariables,
+	}
 }
 
 // Converts a Terraform variable to a template-wide variable, processed by Coder.

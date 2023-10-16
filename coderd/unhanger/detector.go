@@ -13,11 +13,11 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
-	"github.com/coder/coder/provisionersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/provisionersdk"
 )
 
 const (
@@ -239,7 +239,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		}
 		if job.CompletedAt.Valid {
 			return jobInelligibleError{
-				Err: xerrors.Errorf("job is completed (status %s)", db2sdk.ProvisionerJobStatus(job)),
+				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
 		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
@@ -272,9 +272,14 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 
 		// Insert the messages into the build log.
 		insertParams := database.InsertProvisionerJobLogsParams{
-			JobID: job.ID,
+			JobID:     job.ID,
+			CreatedAt: nil,
+			Source:    nil,
+			Level:     nil,
+			Stage:     nil,
+			Output:    nil,
 		}
-		now := database.Now()
+		now := dbtime.Now()
 		for i, msg := range HungJobLogMessages {
 			// Set the created at in a way that ensures each message has
 			// a unique timestamp so they will be sorted correctly.
@@ -291,7 +296,7 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		lowestLogID = newLogs[0].ID
 
 		// Mark the job as failed.
-		now = database.Now()
+		now = dbtime.Now()
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        job.ID,
 			UpdatedAt: now,
@@ -332,12 +337,10 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 					return xerrors.Errorf("get previous workspace build: %w", err)
 				}
 				if err == nil {
-					err = db.UpdateWorkspaceBuildByID(ctx, database.UpdateWorkspaceBuildByIDParams{
+					err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 						ID:               build.ID,
-						UpdatedAt:        database.Now(),
+						UpdatedAt:        dbtime.Now(),
 						ProvisionerState: prevBuild.ProvisionerState,
-						Deadline:         time.Time{},
-						MaxDeadline:      time.Time{},
 					})
 					if err != nil {
 						return xerrors.Errorf("update workspace build by id: %w", err)

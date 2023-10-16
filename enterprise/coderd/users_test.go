@@ -7,12 +7,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUserQuietHours(t *testing.T) {
@@ -21,21 +21,21 @@ func TestUserQuietHours(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		defaultQuietHoursSchedule := "CRON_TZ=America/Chicago 0 0 * * *"
-		defaultScheduleParsed, err := schedule.Daily(defaultQuietHoursSchedule)
+		defaultQuietHoursSchedule := "CRON_TZ=America/Chicago 0 1 * * *"
+		defaultScheduleParsed, err := cron.Daily(defaultQuietHoursSchedule)
 		require.NoError(t, err)
 		nextTime := defaultScheduleParsed.Next(time.Now().In(defaultScheduleParsed.Location()))
 		if time.Until(nextTime) < time.Hour {
 			// Use a different default schedule instead, because we want to avoid
 			// the schedule "ticking over" during this test run.
-			defaultQuietHoursSchedule = "CRON_TZ=America/Chicago 0 12 * * *"
-			defaultScheduleParsed, err = schedule.Daily(defaultQuietHoursSchedule)
+			defaultQuietHoursSchedule = "CRON_TZ=America/Chicago 0 13 * * *"
+			defaultScheduleParsed, err = cron.Daily(defaultQuietHoursSchedule)
 			require.NoError(t, err)
 		}
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set(defaultQuietHoursSchedule)
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -43,8 +43,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -55,20 +55,20 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, defaultScheduleParsed.String(), sched1.RawSchedule)
 		require.False(t, sched1.UserSet)
-		require.Equal(t, defaultScheduleParsed.Time(), sched1.Time)
+		require.Equal(t, defaultScheduleParsed.TimeParsed().Format("15:40"), sched1.Time)
 		require.Equal(t, defaultScheduleParsed.Location().String(), sched1.Timezone)
 		require.WithinDuration(t, defaultScheduleParsed.Next(time.Now()), sched1.Next, 15*time.Second)
 
 		// Set their quiet hours.
 		customQuietHoursSchedule := "CRON_TZ=Australia/Sydney 0 0 * * *"
-		customScheduleParsed, err := schedule.Daily(customQuietHoursSchedule)
+		customScheduleParsed, err := cron.Daily(customQuietHoursSchedule)
 		require.NoError(t, err)
 		nextTime = customScheduleParsed.Next(time.Now().In(customScheduleParsed.Location()))
 		if time.Until(nextTime) < time.Hour {
 			// Use a different default schedule instead, because we want to avoid
 			// the schedule "ticking over" during this test run.
 			customQuietHoursSchedule = "CRON_TZ=Australia/Sydney 0 12 * * *"
-			customScheduleParsed, err = schedule.Daily(customQuietHoursSchedule)
+			customScheduleParsed, err = cron.Daily(customQuietHoursSchedule)
 			require.NoError(t, err)
 		}
 
@@ -78,7 +78,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched2.RawSchedule)
 		require.True(t, sched2.UserSet)
-		require.Equal(t, customScheduleParsed.Time(), sched2.Time)
+		require.Equal(t, customScheduleParsed.TimeParsed().Format("15:40"), sched2.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched2.Timezone)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched2.Next, 15*time.Second)
 
@@ -87,7 +87,7 @@ func TestUserQuietHours(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, customScheduleParsed.String(), sched3.RawSchedule)
 		require.True(t, sched3.UserSet)
-		require.Equal(t, customScheduleParsed.Time(), sched3.Time)
+		require.Equal(t, customScheduleParsed.TimeParsed().Format("15:40"), sched3.Time)
 		require.Equal(t, customScheduleParsed.Location().String(), sched3.Timezone)
 		require.WithinDuration(t, customScheduleParsed.Next(time.Now()), sched3.Next, 15*time.Second)
 
@@ -133,7 +133,7 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set("CRON_TZ=America/Chicago 0 0 * * *")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -143,7 +143,7 @@ func TestUserQuietHours(t *testing.T) {
 				Features: license.Features{
 					codersdk.FeatureAdvancedTemplateScheduling: 1,
 					// Not entitled.
-					// codersdk.FeatureTemplateRestartRequirement: 1,
+					// codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -161,7 +161,7 @@ func TestUserQuietHours(t *testing.T) {
 
 		dv := coderdtest.DeploymentValues(t)
 		dv.UserQuietHoursSchedule.DefaultSchedule.Set("")
-		dv.Experiments.Set(string(codersdk.ExperimentTemplateRestartRequirement))
+		dv.Experiments.Set(string(codersdk.ExperimentTemplateAutostopRequirement))
 
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			NoDefaultQuietHoursSchedule: true,
@@ -170,8 +170,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})
@@ -197,8 +197,8 @@ func TestUserQuietHours(t *testing.T) {
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureAdvancedTemplateScheduling: 1,
-					codersdk.FeatureTemplateRestartRequirement: 1,
+					codersdk.FeatureAdvancedTemplateScheduling:  1,
+					codersdk.FeatureTemplateAutostopRequirement: 1,
 				},
 			},
 		})

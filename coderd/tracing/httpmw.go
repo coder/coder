@@ -13,7 +13,7 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.14.0/netconv"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/coder/coder/coderd/httpmw/patternmatcher"
+	"github.com/coder/coder/v2/coderd/httpmw/patternmatcher"
 )
 
 // Middleware adds tracing to http routes.
@@ -26,7 +26,7 @@ func Middleware(tracerProvider trace.TracerProvider) func(http.Handler) http.Han
 		"/api/**",
 		"/@*/*/apps/**",
 		"/%40*/*/apps/**",
-		"/gitauth/*/callback",
+		"/external-auth/*/callback",
 	}.MustCompile()
 
 	var tracer trace.Tracer

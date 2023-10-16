@@ -4,8 +4,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 func main() {

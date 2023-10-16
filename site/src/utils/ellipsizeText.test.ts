@@ -1,5 +1,5 @@
-import { ellipsizeText } from "./ellipsizeText"
-import { Nullable } from "./nullable"
+import { ellipsizeText } from "./ellipsizeText";
+import { Nullable } from "./nullable";
 
 describe("ellipsizeText", () => {
   it.each([
@@ -15,7 +15,7 @@ describe("ellipsizeText", () => {
       maxLength: number | undefined,
       output: Nullable<string>,
     ) => {
-      expect(ellipsizeText(str, maxLength)).toBe(output)
+      expect(ellipsizeText(str, maxLength)).toBe(output);
     },
-  )
-})
+  );
+});

@@ -1,18 +1,18 @@
-import { defineConfig } from "@playwright/test"
-import path from "path"
-import { defaultPort, gitAuth } from "./constants"
+import { defineConfig } from "@playwright/test";
+import path from "path";
+import { defaultPort, gitAuth } from "./constants";
 
 export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
-  : defaultPort
+  : defaultPort;
 
-const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go")
+const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go");
 
-export const STORAGE_STATE = path.join(__dirname, ".auth.json")
+export const STORAGE_STATE = path.join(__dirname, ".auth.json");
 
 const localURL = (port: number, path: string): string => {
-  return `http://localhost:${port}${path}`
-}
+  return `http://localhost:${port}${path}`;
+};
 
 export default defineConfig({
   projects: [
@@ -27,22 +27,30 @@ export default defineConfig({
       use: {
         storageState: STORAGE_STATE,
       },
+      timeout: 60000,
     },
   ],
+  reporter: [["./reporter.ts"]],
   use: {
     baseURL: `http://localhost:${port}`,
     video: "retain-on-failure",
+    launchOptions: {
+      args: ["--disable-webgl"],
+    },
   },
   webServer: {
+    url: `http://localhost:${port}/api/v2/deployment/config`,
     command:
       `go run -tags embed ${coderMain} server ` +
       `--global-config $(mktemp -d -t e2e-XXXXXXXXXX) ` +
       `--access-url=http://localhost:${port} ` +
       `--http-address=localhost:${port} ` +
       `--in-memory --telemetry=false ` +
+      `--dangerous-disable-rate-limits ` +
       `--provisioner-daemons 10 ` +
       `--provisioner-daemons-echo ` +
-      `--provisioner-daemon-poll-interval 50ms`,
+      `--web-terminal-renderer=dom ` +
+      `--pprof-enable`,
     env: {
       ...process.env,
 
@@ -50,6 +58,7 @@ export default defineConfig({
       CODER_GITAUTH_0_ID: gitAuth.deviceProvider,
       CODER_GITAUTH_0_TYPE: "github",
       CODER_GITAUTH_0_CLIENT_ID: "client",
+      CODER_GITAUTH_0_CLIENT_SECRET: "secret",
       CODER_GITAUTH_0_DEVICE_FLOW: "true",
       CODER_GITAUTH_0_APP_INSTALL_URL:
         "https://github.com/apps/coder/installations/new",
@@ -85,7 +94,6 @@ export default defineConfig({
         gitAuth.validatePath,
       ),
     },
-    port,
     reuseExistingServer: false,
   },
-})
+});

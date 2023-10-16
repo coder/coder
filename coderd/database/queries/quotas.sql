@@ -2,11 +2,13 @@
 SELECT
 	coalesce(SUM(quota_allowance), 0)::BIGINT
 FROM
-	group_members gm
-JOIN groups g ON
+	groups g
+LEFT JOIN group_members gm ON
 	g.id = gm.group_id
 WHERE
-	user_id = $1;
+	user_id = $1
+OR
+    g.id = g.organization_id;
 
 -- name: GetQuotaConsumedForUser :one
 WITH latest_builds AS (

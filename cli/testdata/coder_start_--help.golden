@@ -1,13 +1,19 @@
-Usage: coder start [flags] <workspace>
+coder v0.0.0-devel
 
-Start a workspace
+USAGE:
+  coder start [flags] <workspace>
 
-[1mOptions[0m
+  Start a workspace
+
+OPTIONS:
+      --build-option string-array, $CODER_BUILD_OPTION
+          Build option value in the format "name=value".
+
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
 
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

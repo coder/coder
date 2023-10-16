@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_msgQueue_ListenerWithError(t *testing.T) {

@@ -1,26 +1,26 @@
-import IconButton from "@mui/material/IconButton"
-import { makeStyles } from "@mui/styles"
-import Tooltip from "@mui/material/Tooltip"
-import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined"
-import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined"
-import { CopyableValue } from "components/CopyableValue/CopyableValue"
-import { useState } from "react"
+import IconButton from "@mui/material/IconButton";
+import { makeStyles } from "@mui/styles";
+import Tooltip from "@mui/material/Tooltip";
+import VisibilityOffOutlined from "@mui/icons-material/VisibilityOffOutlined";
+import VisibilityOutlined from "@mui/icons-material/VisibilityOutlined";
+import { CopyableValue } from "components/CopyableValue/CopyableValue";
+import { useState } from "react";
 
 const Language = {
   showLabel: "Show value",
   hideLabel: "Hide value",
-}
+};
 
 export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
-  const [shouldDisplay, setShouldDisplay] = useState(false)
-  const styles = useStyles()
-  const displayValue = shouldDisplay ? value : "••••••••"
-  const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel
+  const [shouldDisplay, setShouldDisplay] = useState(false);
+  const styles = useStyles();
+  const displayValue = shouldDisplay ? value : "••••••••";
+  const buttonLabel = shouldDisplay ? Language.hideLabel : Language.showLabel;
   const icon = shouldDisplay ? (
     <VisibilityOffOutlined />
   ) : (
     <VisibilityOutlined />
-  )
+  );
 
   return (
     <div className={styles.sensitiveValue}>
@@ -31,7 +31,7 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
         <IconButton
           className={styles.button}
           onClick={() => {
-            setShouldDisplay((value) => !value)
+            setShouldDisplay((value) => !value);
           }}
           size="small"
           aria-label={buttonLabel}
@@ -40,8 +40,8 @@ export const SensitiveValue: React.FC<{ value: string }> = ({ value }) => {
         </IconButton>
       </Tooltip>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   value: {
@@ -66,4 +66,4 @@ const useStyles = makeStyles((theme) => ({
       height: 16,
     },
   },
-}))
+}));

@@ -17,15 +17,16 @@ encrypter = "encrypter"
 
 [files]
 extend-exclude = [
-    "**.svg",
-    "**.png",
-    "**.lock",
-    "go.sum",
-    "go.mod",
-    # These files contain base64 strings that confuse the detector
-    "**XService**.ts",
-    "**identity.go",
-    "scripts/ci-report/testdata/**",
-    "**/*_test.go",
-    "**/*.test.tsx"
+	"**.svg",
+	"**.png",
+	"**.lock",
+	"go.sum",
+	"go.mod",
+	# These files contain base64 strings that confuse the detector
+	"**XService**.ts",
+	"**identity.go",
+	"scripts/ci-report/testdata/**",
+	"**/*_test.go",
+	"**/*.test.tsx",
+	"**/pnpm-lock.yaml",
 ]

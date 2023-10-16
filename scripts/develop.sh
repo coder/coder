@@ -13,14 +13,19 @@ source "${SCRIPT_DIR}/lib.sh"
 [[ -n ${VERBOSE:-} ]] && set -x
 set -euo pipefail
 
+CODER_DEV_ACCESS_URL="${CODER_DEV_ACCESS_URL:-http://127.0.0.1:3000}"
 DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 
-args="$(getopt -o "" -l use-proxy,agpl,password: -- "$@")"
+args="$(getopt -o "" -l access-url:,use-proxy,agpl,password: -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
+	--access-url)
+		CODER_DEV_ACCESS_URL="$2"
+		shift 2
+		;;
 	--agpl)
 		export CODER_BUILD_AGPL=1
 		shift
@@ -48,7 +53,7 @@ if [ "${CODER_BUILD_AGPL:-0}" -gt "0" ] && [ "${use_proxy}" -gt "0" ]; then
 fi
 
 # Preflight checks: ensure we have our required dependencies, and make sure nothing is listening on port 3000 or 8080
-dependencies curl git go make yarn
+dependencies curl git go make pnpm
 curl --fail http://127.0.0.1:3000 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 3000. Kill it and re-run this script.' && exit 1
 curl --fail http://127.0.0.1:8080 >/dev/null 2>&1 && echo '== ERROR: something is listening on port 8080. Kill it and re-run this script.' && exit 1
 
@@ -131,7 +136,7 @@ fatal() {
 	trap 'fatal "Script encountered an error"' ERR
 
 	cdroot
-	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "http://127.0.0.1:3000" --dangerous-allow-cors-requests=true --experiments "*" "$@"
+	start_cmd API "" "${CODER_DEV_SHIM}" server --http-address 0.0.0.0:3000 --swagger-enable --access-url "${CODER_DEV_ACCESS_URL}" --dangerous-allow-cors-requests=true "$@"
 
 	echo '== Waiting for Coder to become ready'
 	# Start the timeout in the background so interrupting this script
@@ -181,7 +186,7 @@ fatal() {
 		log "Using external workspace proxy"
 		(
 			# Attempt to delete the proxy first, in case it already exists.
-			"${CODER_DEV_SHIM}" wsproxy delete local-proxy || true
+			"${CODER_DEV_SHIM}" wsproxy delete local-proxy --yes || true
 			# Create the proxy
 			proxy_session_token=$("${CODER_DEV_SHIM}" wsproxy create --name=local-proxy --display-name="Local Proxy" --icon="/emojis/1f4bb.png" --only-token)
 			# Start the proxy
@@ -190,7 +195,7 @@ fatal() {
 	fi
 
 	# Start the frontend once we have a template up and running
-	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date yarn --cwd=./site dev --host
+	CODER_HOST=http://127.0.0.1:3000 start_cmd SITE date pnpm --dir ./site dev --host
 
 	interfaces=(localhost)
 	if command -v ip >/dev/null; then

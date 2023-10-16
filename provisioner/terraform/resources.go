@@ -11,11 +11,12 @@ import (
 
 	"github.com/coder/terraform-provider-coder/provider"
 
-	"github.com/coder/coder/coderd/util/slice"
-	stringutil "github.com/coder/coder/coderd/util/strings"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner"
+	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 type agentMetadata struct {
@@ -28,24 +29,34 @@ type agentMetadata struct {
 
 // A mapping of attributes on the "coder_agent" resource.
 type agentAttributes struct {
-	Auth                     string            `mapstructure:"auth"`
-	OperatingSystem          string            `mapstructure:"os"`
-	Architecture             string            `mapstructure:"arch"`
-	Directory                string            `mapstructure:"dir"`
-	ID                       string            `mapstructure:"id"`
-	Token                    string            `mapstructure:"token"`
-	Env                      map[string]string `mapstructure:"env"`
-	StartupScript            string            `mapstructure:"startup_script"`
-	ConnectionTimeoutSeconds int32             `mapstructure:"connection_timeout"`
-	TroubleshootingURL       string            `mapstructure:"troubleshooting_url"`
-	MOTDFile                 string            `mapstructure:"motd_file"`
+	Auth            string            `mapstructure:"auth"`
+	OperatingSystem string            `mapstructure:"os"`
+	Architecture    string            `mapstructure:"arch"`
+	Directory       string            `mapstructure:"dir"`
+	ID              string            `mapstructure:"id"`
+	Token           string            `mapstructure:"token"`
+	Env             map[string]string `mapstructure:"env"`
 	// Deprecated, but remains here for backwards compatibility.
-	LoginBeforeReady             bool            `mapstructure:"login_before_ready"`
-	StartupScriptBehavior        string          `mapstructure:"startup_script_behavior"`
-	StartupScriptTimeoutSeconds  int32           `mapstructure:"startup_script_timeout"`
-	ShutdownScript               string          `mapstructure:"shutdown_script"`
-	ShutdownScriptTimeoutSeconds int32           `mapstructure:"shutdown_script_timeout"`
-	Metadata                     []agentMetadata `mapstructure:"metadata"`
+	StartupScript                string `mapstructure:"startup_script"`
+	StartupScriptBehavior        string `mapstructure:"startup_script_behavior"`
+	StartupScriptTimeoutSeconds  int32  `mapstructure:"startup_script_timeout"`
+	LoginBeforeReady             bool   `mapstructure:"login_before_ready"`
+	ShutdownScript               string `mapstructure:"shutdown_script"`
+	ShutdownScriptTimeoutSeconds int32  `mapstructure:"shutdown_script_timeout"`
+
+	ConnectionTimeoutSeconds int32                        `mapstructure:"connection_timeout"`
+	TroubleshootingURL       string                       `mapstructure:"troubleshooting_url"`
+	MOTDFile                 string                       `mapstructure:"motd_file"`
+	Metadata                 []agentMetadata              `mapstructure:"metadata"`
+	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
+}
+
+type agentDisplayAppsAttributes struct {
+	VSCode               bool `mapstructure:"vscode"`
+	VSCodeInsiders       bool `mapstructure:"vscode_insiders"`
+	WebTerminal          bool `mapstructure:"web_terminal"`
+	SSHHelper            bool `mapstructure:"ssh_helper"`
+	PortForwardingHelper bool `mapstructure:"port_forwarding_helper"`
 }
 
 // A mapping of attributes on the "coder_app" resource.
@@ -64,6 +75,19 @@ type agentAppAttributes struct {
 	Share       string                     `mapstructure:"share"`
 	Subdomain   bool                       `mapstructure:"subdomain"`
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
+}
+
+type agentScriptAttributes struct {
+	AgentID          string `mapstructure:"agent_id"`
+	DisplayName      string `mapstructure:"display_name"`
+	Icon             string `mapstructure:"icon"`
+	Script           string `mapstructure:"script"`
+	Cron             string `mapstructure:"cron"`
+	LogPath          string `mapstructure:"log_path"`
+	StartBlocksLogin bool   `mapstructure:"start_blocks_login"`
+	RunOnStart       bool   `mapstructure:"run_on_start"`
+	RunOnStop        bool   `mapstructure:"run_on_stop"`
+	TimeoutSeconds   int32  `mapstructure:"timeout"`
 }
 
 // A mapping of attributes on the "healthcheck" resource.
@@ -90,14 +114,14 @@ type resourceMetadataItem struct {
 }
 
 type State struct {
-	Resources        []*proto.Resource
-	Parameters       []*proto.RichParameter
-	GitAuthProviders []string
+	Resources             []*proto.Resource
+	Parameters            []*proto.RichParameter
+	ExternalAuthProviders []string
 }
 
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
-// nolint:gocyclo
+// nolint:gocognit // This function makes more sense being large for now, until refactored.
 func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
@@ -182,22 +206,54 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				})
 			}
 
+			// If a user doesn't specify 'display_apps' then they default
+			// into all apps except VSCode Insiders.
+			displayApps := provisionersdk.DefaultDisplayApps()
+
+			if len(attrs.DisplayApps) != 0 {
+				displayApps = &proto.DisplayApps{
+					Vscode:               attrs.DisplayApps[0].VSCode,
+					VscodeInsiders:       attrs.DisplayApps[0].VSCodeInsiders,
+					WebTerminal:          attrs.DisplayApps[0].WebTerminal,
+					PortForwardingHelper: attrs.DisplayApps[0].PortForwardingHelper,
+					SshHelper:            attrs.DisplayApps[0].SSHHelper,
+				}
+			}
+
 			agent := &proto.Agent{
-				Name:                         tfResource.Name,
-				Id:                           attrs.ID,
-				Env:                          attrs.Env,
-				StartupScript:                attrs.StartupScript,
-				OperatingSystem:              attrs.OperatingSystem,
-				Architecture:                 attrs.Architecture,
-				Directory:                    attrs.Directory,
-				ConnectionTimeoutSeconds:     attrs.ConnectionTimeoutSeconds,
-				TroubleshootingUrl:           attrs.TroubleshootingURL,
-				MotdFile:                     attrs.MOTDFile,
-				StartupScriptBehavior:        startupScriptBehavior,
-				StartupScriptTimeoutSeconds:  attrs.StartupScriptTimeoutSeconds,
-				ShutdownScript:               attrs.ShutdownScript,
-				ShutdownScriptTimeoutSeconds: attrs.ShutdownScriptTimeoutSeconds,
-				Metadata:                     metadata,
+				Name:                     tfResource.Name,
+				Id:                       attrs.ID,
+				Env:                      attrs.Env,
+				OperatingSystem:          attrs.OperatingSystem,
+				Architecture:             attrs.Architecture,
+				Directory:                attrs.Directory,
+				ConnectionTimeoutSeconds: attrs.ConnectionTimeoutSeconds,
+				TroubleshootingUrl:       attrs.TroubleshootingURL,
+				MotdFile:                 attrs.MOTDFile,
+				Metadata:                 metadata,
+				DisplayApps:              displayApps,
+			}
+			// Support the legacy script attributes in the agent!
+			if attrs.StartupScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ▶️
+					Icon:             "/emojis/25b6.png",
+					LogPath:          "coder-startup-script.log",
+					DisplayName:      "Startup Script",
+					Script:           attrs.StartupScript,
+					StartBlocksLogin: startupScriptBehavior == string(codersdk.WorkspaceAgentStartupScriptBehaviorBlocking),
+					RunOnStart:       true,
+				})
+			}
+			if attrs.ShutdownScript != "" {
+				agent.Scripts = append(agent.Scripts, &proto.Script{
+					// This is ◀️
+					Icon:        "/emojis/25c0.png",
+					LogPath:     "coder-shutdown-script.log",
+					DisplayName: "Shutdown Script",
+					Script:      attrs.ShutdownScript,
+					RunOnStop:   true,
+				})
 			}
 			switch attrs.Auth {
 			case "token":
@@ -379,6 +435,39 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 		}
 	}
 
+	// Associate scripts with agents.
+	for _, resources := range tfResourcesByLabel {
+		for _, resource := range resources {
+			if resource.Type != "coder_script" {
+				continue
+			}
+			var attrs agentScriptAttributes
+			err = mapstructure.Decode(resource.AttributeValues, &attrs)
+			if err != nil {
+				return nil, xerrors.Errorf("decode app attributes: %w", err)
+			}
+			for _, agents := range resourceAgents {
+				for _, agent := range agents {
+					// Find agents with the matching ID and associate them!
+					if agent.Id != attrs.AgentID {
+						continue
+					}
+					agent.Scripts = append(agent.Scripts, &proto.Script{
+						DisplayName:      attrs.DisplayName,
+						Icon:             attrs.Icon,
+						Script:           attrs.Script,
+						Cron:             attrs.Cron,
+						LogPath:          attrs.LogPath,
+						StartBlocksLogin: attrs.StartBlocksLogin,
+						RunOnStart:       attrs.RunOnStart,
+						RunOnStop:        attrs.RunOnStop,
+						TimeoutSeconds:   attrs.TimeoutSeconds,
+					})
+				}
+			}
+		}
+	}
+
 	// Associate metadata blocks with resources.
 	resourceMetadata := map[string][]*proto.Resource_Metadata{}
 	resourceHidden := map[string]bool{}
@@ -458,7 +547,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			if resource.Mode == tfjson.DataResourceMode {
 				continue
 			}
-			if resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
+			if resource.Type == "coder_script" || resource.Type == "coder_agent" || resource.Type == "coder_agent_instance" || resource.Type == "coder_app" || resource.Type == "coder_metadata" {
 				continue
 			}
 			label := convertAddressToLabel(resource.Address)
@@ -572,28 +661,29 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 	}
 
 	// A map is used to ensure we don't have duplicates!
-	gitAuthProvidersMap := map[string]struct{}{}
+	externalAuthProvidersMap := map[string]struct{}{}
 	for _, tfResources := range tfResourcesByLabel {
 		for _, resource := range tfResources {
-			if resource.Type != "coder_git_auth" {
+			// Checking for `coder_git_auth` is legacy!
+			if resource.Type != "coder_external_auth" && resource.Type != "coder_git_auth" {
 				continue
 			}
 			id, ok := resource.AttributeValues["id"].(string)
 			if !ok {
-				return nil, xerrors.Errorf("git auth id is not a string")
+				return nil, xerrors.Errorf("external auth id is not a string")
 			}
-			gitAuthProvidersMap[id] = struct{}{}
+			externalAuthProvidersMap[id] = struct{}{}
 		}
 	}
-	gitAuthProviders := make([]string, 0, len(gitAuthProvidersMap))
-	for id := range gitAuthProvidersMap {
-		gitAuthProviders = append(gitAuthProviders, id)
+	externalAuthProviders := make([]string, 0, len(externalAuthProvidersMap))
+	for id := range externalAuthProvidersMap {
+		externalAuthProviders = append(externalAuthProviders, id)
 	}
 
 	return &State{
-		Resources:        resources,
-		Parameters:       parameters,
-		GitAuthProviders: gitAuthProviders,
+		Resources:             resources,
+		Parameters:            parameters,
+		ExternalAuthProviders: externalAuthProviders,
 	}, nil
 }
 

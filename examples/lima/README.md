@@ -20,7 +20,7 @@ This will:
 
 - Start an Ubuntu 22.04 VM
 - Install Docker and Terraform from the official repos
-- Install Coder using the [installation script](https://coder.com/docs/coder-oss/latest/install#installsh)
+- Install Coder using the [installation script](../../docs/install/install.sh.md)
 - Generates an initial user account `admin@coder.com` with a randomly generated password (stored in the VM under `/home/${USER}.linux/.config/coderv2/password`)
 - Initializes a [sample Docker template](https://github.com/coder/coder/tree/main/examples/templates/docker) for creating workspaces
 

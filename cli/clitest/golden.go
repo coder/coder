@@ -11,16 +11,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // UpdateGoldenFiles indicates golden files should be updated.
@@ -28,7 +26,7 @@ import (
 // make update-golden-files
 var UpdateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
-var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?Z`)
+var timestampRegex = regexp.MustCompile(`(?i)\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d+)?(Z|[+-]\d+:\d+)`)
 
 type CommandHelpCase struct {
 	Name string
@@ -50,16 +48,8 @@ func DefaultCases() []CommandHelpCase {
 
 // TestCommandHelp will test the help output of the given commands
 // using golden files.
-//
-//nolint:tparallel,paralleltest
 func TestCommandHelp(t *testing.T, getRoot func(t *testing.T) *clibase.Cmd, cases []CommandHelpCase) {
-	ogColorProfile := lipgloss.ColorProfile()
-	// ANSI256 escape codes are far easier for humans to parse in a diff,
-	// but TrueColor is probably more popular with modern terminals.
-	lipgloss.SetColorProfile(termenv.ANSI)
-	t.Cleanup(func() {
-		lipgloss.SetColorProfile(ogColorProfile)
-	})
+	t.Parallel()
 	rootClient, replacements := prepareTestData(t)
 
 	root := getRoot(t)
@@ -192,14 +182,14 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	})
 	require.NoError(t, err)
 	version := coderdtest.CreateTemplateVersion(t, rootClient, firstUser.OrganizationID, nil)
-	version = coderdtest.AwaitTemplateVersionJob(t, rootClient, version.ID)
+	version = coderdtest.AwaitTemplateVersionJobCompleted(t, rootClient, version.ID)
 	template := coderdtest.CreateTemplate(t, rootClient, firstUser.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
 		req.Name = "test-template"
 	})
 	workspace := coderdtest.CreateWorkspace(t, rootClient, firstUser.OrganizationID, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
 		req.Name = "test-workspace"
 	})
-	workspaceBuild := coderdtest.AwaitWorkspaceBuildJob(t, rootClient, workspace.LatestBuild.ID)
+	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, rootClient, workspace.LatestBuild.ID)
 
 	replacements := map[string]string{
 		firstUser.UserID.String():            "[first user ID]",

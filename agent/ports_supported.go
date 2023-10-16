@@ -8,7 +8,7 @@ import (
 	"github.com/cakturk/go-netstat/netstat"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (lp *listeningPortsHandler) getListeningPorts() ([]codersdk.WorkspaceAgentListeningPort, error) {

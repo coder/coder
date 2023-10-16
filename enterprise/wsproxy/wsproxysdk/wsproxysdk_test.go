@@ -24,14 +24,14 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/enterprise/tailnet"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
-	agpl "github.com/coder/coder/tailnet"
-	"github.com/coder/coder/tailnet/tailnettest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/tailnet/tailnettest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func Test_IssueSignedAppTokenHTML(t *testing.T) {

@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"time"
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
-	agpl "github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	agpl "github.com/coder/coder/v2/tailnet"
 )
 
 func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentConn) error {
@@ -26,6 +27,9 @@ func ServeWorkspaceProxy(ctx context.Context, conn net.Conn, ma agpl.MultiAgentC
 		var msg wsproxysdk.CoordinateMessage
 		err := decoder.Decode(&msg)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				return nil
+			}
 			return xerrors.Errorf("read json: %w", err)
 		}
 

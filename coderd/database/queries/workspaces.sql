@@ -96,7 +96,8 @@ LEFT JOIN LATERAL (
 		provisioner_jobs.updated_at,
 		provisioner_jobs.canceled_at,
 		provisioner_jobs.completed_at,
-		provisioner_jobs.error
+		provisioner_jobs.error,
+		provisioner_jobs.job_status
 	FROM
 		workspace_builds
 	LEFT JOIN
@@ -128,63 +129,42 @@ WHERE
 	AND CASE
 		WHEN @status :: text != '' THEN
 			CASE
-				WHEN @status = 'pending' THEN
-					latest_build.started_at IS NULL
+			    -- Some workspace specific status refer to the transition
+			    -- type. By default, the standard provisioner job status
+			    -- search strings are supported.
+			    -- 'running' states
 				WHEN @status = 'starting' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+				    latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'start'::workspace_transition
-
-				WHEN @status = 'running' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'start'::workspace_transition
-
 				WHEN @status = 'stopping' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
+					latest_build.job_status = 'running'::provisioner_job_status AND
 					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN @status = 'stopped' THEN
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
-					latest_build.transition = 'stop'::workspace_transition
-
-				WHEN @status = 'failed' THEN
-					(latest_build.canceled_at IS NOT NULL AND
-						latest_build.error IS NOT NULL) OR
-					(latest_build.completed_at IS NOT NULL AND
-						latest_build.error IS NOT NULL)
-
-				WHEN @status = 'canceling' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NULL
-
-				WHEN @status = 'canceled' THEN
-					latest_build.canceled_at IS NOT NULL AND
-					latest_build.completed_at IS NOT NULL
-
-				WHEN @status = 'deleted' THEN
-					latest_build.started_at IS NOT NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.completed_at IS NOT NULL AND
-					latest_build.updated_at - INTERVAL '30 seconds' < NOW() AND
-					latest_build.transition = 'delete'::workspace_transition AND
-					-- If the error field is not null, the status is 'failed'
-					latest_build.error IS NULL
-
 				WHEN @status = 'deleting' THEN
-					latest_build.completed_at IS NULL AND
-					latest_build.canceled_at IS NULL AND
-					latest_build.error IS NULL AND
+					latest_build.job_status = 'running' AND
 					latest_build.transition = 'delete'::workspace_transition
 
+			    -- 'succeeded' states
+			    WHEN @status = 'deleted' THEN
+			    	latest_build.job_status = 'succeeded'::provisioner_job_status AND
+			    	latest_build.transition = 'delete'::workspace_transition
+				WHEN @status = 'stopped' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'stop'::workspace_transition
+				WHEN @status = 'started' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition
+
+			    -- Special case where the provisioner status and workspace status
+			    -- differ. A workspace is "running" if the job is "succeeded" and
+			    -- the transition is "start". This is because a workspace starts
+			    -- running when a job is complete.
+			    WHEN @status = 'running' THEN
+					latest_build.job_status = 'succeeded'::provisioner_job_status AND
+					latest_build.transition = 'start'::workspace_transition
+
+				WHEN @status != '' THEN
+				    -- By default just match the job status exactly
+			    	latest_build.job_status = @status::provisioner_job_status
 				ELSE
 					true
 			END
@@ -259,6 +239,25 @@ WHERE
 			) > 0
 		ELSE true
 	END
+	-- Filter by dormant workspaces. By default we do not return dormant
+	-- workspaces since they are considered soft-deleted.
+	AND CASE
+		WHEN @is_dormant :: text != '' THEN
+			dormant_at IS NOT NULL 
+		ELSE
+			dormant_at IS NULL
+	END
+	-- Filter by last_used
+	AND CASE
+		  WHEN @last_used_before :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at <= @last_used_before
+		  ELSE true
+	END
+	AND CASE
+		  WHEN @last_used_after :: timestamp with time zone > '0001-01-01 00:00:00Z' THEN
+				  workspaces.last_used_at >= @last_used_after
+		  ELSE true
+	END
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspaces
 	-- @authorize_filter
 ORDER BY
@@ -300,10 +299,11 @@ INSERT INTO
 		name,
 		autostart_schedule,
 		ttl,
-		last_used_at
+		last_used_at,
+		automatic_updates
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -460,44 +460,64 @@ WHERE
 		) OR
 
 		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for locking.
+		-- it may be eligible for dormancy.
 		(
-			templates.inactivity_ttl > 0 AND
-			workspaces.locked_at IS NULL
+			templates.time_til_dormant > 0 AND
+			workspaces.dormant_at IS NULL
 		) OR
 
-		-- If the workspace's template has a locked_ttl set
-		-- and the workspace is already locked
+		-- If the workspace's template has a time_til_dormant_autodelete set
+		-- and the workspace is already dormant.
 		(
-			templates.locked_ttl > 0 AND
-			workspaces.locked_at IS NOT NULL
+			templates.time_til_dormant_autodelete > 0 AND
+			workspaces.dormant_at IS NOT NULL
 		)
 	) AND workspaces.deleted = 'false';
 
--- name: UpdateWorkspaceLockedDeletingAt :exec
+-- name: UpdateWorkspaceDormantDeletingAt :one
 UPDATE
 	workspaces
 SET
-	locked_at = $2,
-	-- When a workspace is unlocked we want to update the last_used_at to avoid the workspace getting re-locked.
-	-- if we're locking the workspace then we leave it alone.
+	dormant_at = $2,
+	-- When a workspace is active we want to update the last_used_at to avoid the workspace going
+    -- immediately dormant. If we're transition the workspace to dormant then we leave it alone.
 	last_used_at = CASE WHEN $2::timestamptz IS NULL THEN now() at time zone 'utc' ELSE last_used_at END,
-	-- If locked_at is null (meaning unlocked) or the template-defined locked_ttl is 0 we should set
-	-- deleting_at to NULL else set it to the locked_at + locked_ttl duration.
-	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.locked_ttl = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.locked_ttl / 1000000 END
+	-- If dormant_at is null (meaning active) or the template-defined time_til_dormant_autodelete is 0 we should set
+	-- deleting_at to NULL else set it to the dormant_at + time_til_dormant_autodelete duration.
+	deleting_at = CASE WHEN $2::timestamptz IS NULL OR templates.time_til_dormant_autodelete = 0 THEN NULL ELSE $2::timestamptz + INTERVAL '1 milliseconds' * templates.time_til_dormant_autodelete / 1000000 END
 FROM
 	templates
 WHERE
 	workspaces.template_id = templates.id
 AND
-	workspaces.id = $1;
+	workspaces.id = $1
+RETURNING workspaces.*;
 
--- name: UpdateWorkspacesDeletingAtByTemplateID :exec
+-- name: UpdateWorkspacesDormantDeletingAtByTemplateID :exec
+UPDATE workspaces
+SET
+    deleting_at = CASE
+        WHEN @time_til_dormant_autodelete_ms::bigint = 0 THEN NULL
+        WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN  (@dormant_at::timestamptz) + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+        ELSE dormant_at + interval '1 milliseconds' * @time_til_dormant_autodelete_ms::bigint
+    END,
+    dormant_at = CASE WHEN @dormant_at::timestamptz > '0001-01-01 00:00:00+00'::timestamptz THEN @dormant_at::timestamptz ELSE dormant_at END
+WHERE
+    template_id = @template_id
+AND
+    dormant_at IS NOT NULL;
+
+-- name: UpdateTemplateWorkspacesLastUsedAt :exec
+UPDATE workspaces
+SET
+	last_used_at = @last_used_at::timestamptz
+WHERE
+	template_id = @template_id;
+
+-- name: UpdateWorkspaceAutomaticUpdates :exec
 UPDATE
 	workspaces
 SET
-	deleting_at = CASE WHEN @locked_ttl_ms::bigint = 0 THEN NULL ELSE locked_at + interval '1 milliseconds' * @locked_ttl_ms::bigint END
+	automatic_updates = $2
 WHERE
-	template_id = @template_id
-AND
-	locked_at IS NOT NULL;
+		id = $1;

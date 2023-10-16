@@ -1,6 +1,0 @@
-{
-  "title": "Template variables",
-  "sensitiveVariableHelperText": "This variable is sensitive. The previous value will be used if empty.",
-  "validationRequiredVariable": "Variable is required.",
-  "unusedVariablesNotice": "This template does not use managed variables."
-}

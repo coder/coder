@@ -9,6 +9,8 @@ import (
 	"github.com/open-policy-agent/opa/rego"
 	"github.com/open-policy-agent/opa/topdown"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/httpapi/httpapiconstraints"
 )
 
 const (
@@ -31,6 +33,14 @@ type UnauthorizedError struct {
 	object Object
 
 	output rego.ResultSet
+}
+
+// Ensure we implement the IsUnauthorized interface.
+var _ httpapiconstraints.IsUnauthorizedError = (*UnauthorizedError)(nil)
+
+// IsUnauthorized implements the IsUnauthorized interface.
+func (UnauthorizedError) IsUnauthorized() bool {
+	return true
 }
 
 // IsUnauthorizedError is a convenience function to check if err is UnauthorizedError.

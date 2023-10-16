@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.7.0"
+      source = "coder/coder"
     }
     google = {
-      source  = "hashicorp/google"
-      version = "~> 4.34.0"
+      source = "hashicorp/google"
     }
   }
 }

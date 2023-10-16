@@ -3,34 +3,34 @@ import {
   MockWorkspaceProxies,
   MockHealthyWildWorkspaceProxy,
   MockUnhealthyWildWorkspaceProxy,
-} from "testHelpers/entities"
+} from "testHelpers/entities";
 import {
   getPreferredProxy,
   ProxyProvider,
   saveUserSelectedProxy,
   useProxy,
-} from "./ProxyContext"
-import * as ProxyLatency from "./useProxyLatency"
+} from "./ProxyContext";
+import * as ProxyLatency from "./useProxyLatency";
 import {
   renderWithAuth,
   waitForLoaderToBeRemoved,
-} from "testHelpers/renderHelpers"
-import { screen } from "@testing-library/react"
-import { server } from "testHelpers/server"
-import { rest } from "msw"
-import { Region } from "api/typesGenerated"
-import "testHelpers/localstorage"
-import userEvent from "@testing-library/user-event"
+} from "testHelpers/renderHelpers";
+import { screen } from "@testing-library/react";
+import { server } from "testHelpers/server";
+import { rest } from "msw";
+import { Region } from "api/typesGenerated";
+import "testHelpers/localstorage";
+import userEvent from "@testing-library/user-event";
 
 // Mock useProxyLatency to use a hard-coded latency. 'jest.mock' must be called
 // here and not inside a unit test.
 jest.mock("contexts/useProxyLatency", () => ({
   useProxyLatency: () => {
-    return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() }
+    return { proxyLatencies: hardCodedLatencies, refetch: jest.fn() };
   },
-}))
+}));
 
-let hardCodedLatencies: Record<string, ProxyLatency.ProxyLatencyReport> = {}
+let hardCodedLatencies: Record<string, ProxyLatency.ProxyLatencyReport> = {};
 
 // fakeLatency is a helper function to make a Latency report from just a number.
 const fakeLatency = (ms: number): ProxyLatency.ProxyLatencyReport => {
@@ -38,8 +38,8 @@ const fakeLatency = (ms: number): ProxyLatency.ProxyLatencyReport => {
     latencyMS: ms,
     accurate: true,
     at: new Date(),
-  }
-}
+  };
+};
 
 describe("ProxyContextGetURLs", () => {
   it.each([
@@ -115,14 +115,14 @@ describe("ProxyContextGetURLs", () => {
       preferredPathAppURL,
       preferredWildcardHostname,
     ) => {
-      const preferred = getPreferredProxy(regions, selected, latencies)
-      expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL)
+      const preferred = getPreferredProxy(regions, selected, latencies);
+      expect(preferred.preferredPathAppURL).toBe(preferredPathAppURL);
       expect(preferred.preferredWildcardHostname).toBe(
         preferredWildcardHostname,
-      )
+      );
     },
-  )
-})
+  );
+});
 
 const TestingComponent = () => {
   return renderWithAuth(
@@ -133,13 +133,13 @@ const TestingComponent = () => {
       route: `/proxies`,
       path: "/proxies",
     },
-  )
-}
+  );
+};
 
 // TestingScreen just mounts some components that we can check in the unit test.
 const TestingScreen = () => {
   const { proxy, userProxy, isFetched, isLoading, clearProxy, setProxy } =
-    useProxy()
+    useProxy();
   return (
     <>
       <div data-testid="isFetched" title={isFetched.toString()}></div>
@@ -154,59 +154,59 @@ const TestingScreen = () => {
       <button
         data-testid="userSelectProxy"
         onClick={() => {
-          const data = screen.getByTestId("userSelectProxyData")
+          const data = screen.getByTestId("userSelectProxyData");
           if (data.innerText) {
-            setProxy(JSON.parse(data.innerText))
+            setProxy(JSON.parse(data.innerText));
           }
         }}
       ></button>
     </>
-  )
-}
+  );
+};
 
 interface ProxyContextSelectionTest {
   // Regions is the list of regions to return via the "api" response.
-  regions: Region[]
+  regions: Region[];
   // storageProxy should be the proxy stored in local storage before the
   // component is mounted and context is loaded. This simulates opening a
   // new window with a selection saved from before.
-  storageProxy: Region | undefined
+  storageProxy: Region | undefined;
   // latencies is the hard coded latencies to return. If empty, no latencies
   // are returned.
-  latencies?: Record<string, ProxyLatency.ProxyLatencyReport>
+  latencies?: Record<string, ProxyLatency.ProxyLatencyReport>;
   // afterLoad are actions to take after loading the component, but before
   // assertions. This is useful for simulating user actions.
-  afterLoad?: () => Promise<void>
+  afterLoad?: () => Promise<void>;
 
   // Assert these values.
   // expProxyID is the proxyID returned to be used.
-  expProxyID: string
+  expProxyID: string;
   // expUserProxyID is the user's stored selection.
-  expUserProxyID?: string
+  expUserProxyID?: string;
 }
 
 describe("ProxyContextSelection", () => {
   beforeEach(() => {
-    window.localStorage.clear()
-  })
+    window.localStorage.clear();
+  });
 
   // A way to simulate a user clearing the proxy selection.
   const clearProxyAction = async (): Promise<void> => {
-    const user = userEvent.setup()
-    const clearProxyButton = screen.getByTestId("clearProxy")
-    await user.click(clearProxyButton)
-  }
+    const user = userEvent.setup();
+    const clearProxyButton = screen.getByTestId("clearProxy");
+    await user.click(clearProxyButton);
+  };
 
   const userSelectProxy = (proxy: Region): (() => Promise<void>) => {
     return async (): Promise<void> => {
-      const user = userEvent.setup()
-      const selectData = screen.getByTestId("userSelectProxyData")
-      selectData.innerText = JSON.stringify(proxy)
+      const user = userEvent.setup();
+      const selectData = screen.getByTestId("userSelectProxyData");
+      selectData.innerText = JSON.stringify(proxy);
 
-      const selectProxyButton = screen.getByTestId("userSelectProxy")
-      await user.click(selectProxyButton)
-    }
-  }
+      const selectProxyButton = screen.getByTestId("userSelectProxy");
+      await user.click(selectProxyButton);
+    };
+  };
 
   it.each([
     // Not latency behavior
@@ -343,11 +343,11 @@ describe("ProxyContextSelection", () => {
       },
     ) => {
       // Mock the latencies
-      hardCodedLatencies = latencies
+      hardCodedLatencies = latencies;
 
       // Initial selection if present
       if (storageProxy) {
-        saveUserSelectedProxy(storageProxy)
+        saveUserSelectedProxy(storageProxy);
       }
 
       // Mock the API response
@@ -358,7 +358,7 @@ describe("ProxyContextSelection", () => {
             ctx.json({
               regions: regions,
             }),
-          )
+          );
         }),
         rest.get("/api/v2/workspaceproxies", async (req, res, ctx) => {
           return res(
@@ -366,29 +366,29 @@ describe("ProxyContextSelection", () => {
             ctx.json({
               regions: regions,
             }),
-          )
+          );
         }),
-      )
+      );
 
-      TestingComponent()
-      await waitForLoaderToBeRemoved()
+      TestingComponent();
+      await waitForLoaderToBeRemoved();
 
       if (afterLoad) {
-        await afterLoad()
+        await afterLoad();
       }
 
       await screen.findByTestId("isFetched").then((x) => {
-        expect(x.title).toBe("true")
-      })
+        expect(x.title).toBe("true");
+      });
       await screen.findByTestId("isLoading").then((x) => {
-        expect(x.title).toBe("false")
-      })
+        expect(x.title).toBe("false");
+      });
       await screen.findByTestId("preferredProxy").then((x) => {
-        expect(x.title).toBe(expSelectedProxyID)
-      })
+        expect(x.title).toBe(expSelectedProxyID);
+      });
       await screen.findByTestId("userProxy").then((x) => {
-        expect(x.title).toBe(expUserProxyID || "")
-      })
+        expect(x.title).toBe(expUserProxyID || "");
+      });
     },
-  )
-})
+  );
+});

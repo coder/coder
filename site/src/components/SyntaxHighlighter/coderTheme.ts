@@ -1,9 +1,9 @@
-import { useTheme } from "@mui/styles"
-import { useMonaco } from "@monaco-editor/react"
-import { useEffect, useState } from "react"
-import { hslToHex } from "utils/colors"
-import { editor } from "monaco-editor"
-import { Theme } from "@mui/material/styles"
+import { useTheme } from "@mui/styles";
+import { useMonaco } from "@monaco-editor/react";
+import { useEffect, useState } from "react";
+import { hslToHex } from "utils/colors";
+import { editor } from "monaco-editor";
+import { Theme } from "@mui/material/styles";
 
 // Theme based on https://github.com/brijeshb42/monaco-themes/blob/master/themes/Dracula.json
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- The theme is not typed
@@ -219,23 +219,23 @@ export const coderTheme = (theme: Theme): editor.IStandaloneThemeData => ({
     "editorIndentGuide.activeBackground": "#9D550FB0",
     "editor.selectionHighlightBorder": "#222218",
   },
-})
+});
 
 export const useCoderTheme = (): { isLoading: boolean; name: string } => {
-  const [isLoading, setIsLoading] = useState(true)
-  const monaco = useMonaco()
-  const theme = useTheme<Theme>()
-  const name = "coder"
+  const [isLoading, setIsLoading] = useState(true);
+  const monaco = useMonaco();
+  const theme = useTheme<Theme>();
+  const name = "coder";
 
   useEffect(() => {
     if (monaco) {
-      monaco.editor.defineTheme(name, coderTheme(theme))
-      setIsLoading(false)
+      monaco.editor.defineTheme(name, coderTheme(theme));
+      setIsLoading(false);
     }
-  }, [monaco, theme])
+  }, [monaco, theme]);
 
   return {
     isLoading,
     name,
-  }
-}
+  };
+};

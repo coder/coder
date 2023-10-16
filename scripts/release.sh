@@ -133,7 +133,7 @@ if ! [[ $continue_release =~ ^[Yy]$ ]]; then
 	exit 0
 fi
 
-release_notes="$(execrelative ./release/generate_release_notes.sh --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
+release_notes="$(execrelative ./release/generate_release_notes.sh --check-for-changelog --old-version "$old_version" --new-version "$new_version" --ref "$ref")"
 
 read -p "Preview release notes? (y/n) " -n 1 -r show_reply
 log

@@ -2,12 +2,16 @@ package harness
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"golang.org/x/exp/maps"
+
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 // Results is the full compiled results for a set of test runs.
@@ -31,6 +35,18 @@ type RunResult struct {
 	StartedAt  time.Time        `json:"started_at"`
 	Duration   httpapi.Duration `json:"duration"`
 	DurationMS int64            `json:"duration_ms"`
+}
+
+// MarshalJSON implements json.Marhshaler for RunResult.
+func (r RunResult) MarshalJSON() ([]byte, error) {
+	type alias RunResult
+	return json.Marshal(&struct {
+		alias
+		Error string `json:"error"`
+	}{
+		alias: alias(r),
+		Error: fmt.Sprintf("%+v", r.Error),
+	})
 }
 
 // Results returns the results of the test run. Panics if the test run is not
@@ -88,7 +104,10 @@ func (h *TestHarness) Results() Results {
 // PrintText prints the results as human-readable text to the given writer.
 func (r *Results) PrintText(w io.Writer) {
 	var totalDuration time.Duration
-	for _, run := range r.Runs {
+	keys := maps.Keys(r.Runs)
+	sort.Strings(keys)
+	for _, key := range keys {
+		run := r.Runs[key]
 		totalDuration += time.Duration(run.Duration)
 		if run.Error == nil {
 			continue
@@ -114,6 +133,10 @@ func (r *Results) PrintText(w io.Writer) {
 	}
 
 	_, _ = fmt.Fprintln(w, "\n\nTest results:")
+	if r.TotalRuns == 0 {
+		_, _ = fmt.Fprintln(w, "\tNo tests run")
+		return
+	}
 	_, _ = fmt.Fprintf(w, "\tPass:  %d\n", r.TotalPass)
 	_, _ = fmt.Fprintf(w, "\tFail:  %d\n", r.TotalFail)
 	_, _ = fmt.Fprintf(w, "\tTotal: %d\n", r.TotalRuns)

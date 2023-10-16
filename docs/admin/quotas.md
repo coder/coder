@@ -2,19 +2,19 @@
 
 Quotas are a mechanism for controlling spend by associating costs with workspace
 templates and assigning budgets to users. Users that exceed their budget will be
-blocked from launching more workspaces until they either delete their other workspaces
-or get their budget extended.
+blocked from launching more workspaces until they either delete their other
+workspaces or get their budget extended.
 
-For example: A template is configured with a cost of 5 credits per day,
-and the user is granted 15 credits, which can be consumed by both started and
-stopped workspaces. This budget limits the user to 3 concurrent workspaces.
+For example: A template is configured with a cost of 5 credits per day, and the
+user is granted 15 credits, which can be consumed by both started and stopped
+workspaces. This budget limits the user to 3 concurrent workspaces.
 
 Quotas are licensed with [Groups](./groups.md).
 
 ## Definitions
 
-- **Credits** is the fundamental unit representing cost in the quota system. This integer
-  can be arbitrary, or it can map to your preferred currency.
+- **Credits** is the fundamental unit representing cost in the quota system.
+  This integer can be arbitrary, or it can map to your preferred currency.
 - **Budget** is the per-user, enforced, upper limit to credit spend.
 - **Allowance** is a grant of credits to the budget.
 
@@ -22,10 +22,11 @@ Quotas are licensed with [Groups](./groups.md).
 
 Templates describe their cost through the `daily_cost` attribute in
 [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
-Since costs are associated with resources, an offline workspace may consume
-less quota than an online workspace.
+Since costs are associated with resources, an offline workspace may consume less
+quota than an online workspace.
 
-A common use case is separating costs for a persistent volume and ephemeral compute:
+A common use case is separating costs for a persistent volume and ephemeral
+compute:
 
 ```hcl
 resource "docker_volume" "home_volume" {
@@ -56,11 +57,11 @@ resource "coder_metadata" "workspace" {
 ```
 
 When the workspace above is shut down, the `docker_container` and
-`coder_metadata` both get deleted. This reduces the cost from 30 credits to
-10 credits.
+`coder_metadata` both get deleted. This reduces the cost from 30 credits to 10
+credits.
 
-Resources without a `daily_cost` value are considered to cost 0. If the cost
-was removed on the `docker_volume` above, the template would consume 0 credits when
+Resources without a `daily_cost` value are considered to cost 0. If the cost was
+removed on the `docker_volume` above, the template would consume 0 credits when
 it's offline. This technique is good for incentivizing users to shut down their
 unused workspaces and freeing up compute in the cluster.
 
@@ -92,10 +93,10 @@ By default, groups are assumed to have a default allowance of 0.
 
 ## Quota Enforcement
 
-Coder enforces Quota on workspace start and stop operations. The workspace
-build process dynamically calculates costs, so quota violation fails builds
-as opposed to failing the build-triggering operation. For example, the Workspace
-Create Form will never get held up by quota enforcement.
+Coder enforces Quota on workspace start and stop operations. The workspace build
+process dynamically calculates costs, so quota violation fails builds as opposed
+to failing the build-triggering operation. For example, the Workspace Create
+Form will never get held up by quota enforcement.
 
 ![build-log](../images/admin/quota-buildlog.png)
 

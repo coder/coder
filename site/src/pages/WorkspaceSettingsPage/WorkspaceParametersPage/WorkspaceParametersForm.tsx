@@ -3,34 +3,32 @@ import {
   FormFooter,
   FormSection,
   HorizontalForm,
-} from "components/Form/Form"
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
-import { useFormik } from "formik"
-import { FC } from "react"
-import { useTranslation } from "react-i18next"
+} from "components/Form/Form";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
+import { FC } from "react";
 import {
-  getInitialParameterValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
-import * as Yup from "yup"
-import { getFormHelpers } from "utils/formUtils"
+} from "utils/richParameters";
+import * as Yup from "yup";
+import { getFormHelpers } from "utils/formUtils";
 import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
-} from "api/typesGenerated"
+} from "api/typesGenerated";
 
 export type WorkspaceParametersFormValues = {
-  rich_parameter_values: WorkspaceBuildParameter[]
-}
+  rich_parameter_values: WorkspaceBuildParameter[];
+};
 
 export const WorkspaceParametersForm: FC<{
-  isSubmitting: boolean
-  templateVersionRichParameters: TemplateVersionParameter[]
-  buildParameters: WorkspaceBuildParameter[]
-  error: unknown
-  onCancel: () => void
-  onSubmit: (values: WorkspaceParametersFormValues) => void
+  isSubmitting: boolean;
+  templateVersionRichParameters: TemplateVersionParameter[];
+  buildParameters: WorkspaceBuildParameter[];
+  error: unknown;
+  onCancel: () => void;
+  onSubmit: (values: WorkspaceParametersFormValues) => void;
 }> = ({
   onCancel,
   onSubmit,
@@ -39,71 +37,61 @@ export const WorkspaceParametersForm: FC<{
   error,
   isSubmitting,
 }) => {
-  const { t } = useTranslation("workspaceSettingsPage")
-  const mutableParameters = templateVersionRichParameters.filter(
-    (param) => param.mutable === true,
-  )
-  const immutableParameters = templateVersionRichParameters.filter(
-    (param) => param.mutable === false,
-  )
   const form = useFormik<WorkspaceParametersFormValues>({
     onSubmit,
     initialValues: {
-      rich_parameter_values: getInitialParameterValues(
-        mutableParameters,
+      rich_parameter_values: getInitialRichParameterValues(
+        templateVersionRichParameters,
         buildParameters,
       ),
     },
     validationSchema: Yup.object({
       rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
         templateVersionRichParameters,
       ),
     }),
-  })
+  });
   const getFieldHelpers = getFormHelpers<WorkspaceParametersFormValues>(
     form,
     error,
-  )
-  const hasEphemeralParameters = mutableParameters.some(
+  );
+  const hasEphemeralParameters = templateVersionRichParameters.some(
     (parameter) => parameter.ephemeral,
-  )
-  const hasNonEphemeralParameters = mutableParameters.some(
+  );
+  const hasNonEphemeralParameters = templateVersionRichParameters.some(
     (parameter) => !parameter.ephemeral,
-  )
+  );
+  const hasImmutableParameters = templateVersionRichParameters.some(
+    (parameter) => !parameter.mutable,
+  );
 
   return (
     <HorizontalForm onSubmit={form.handleSubmit} data-testid="form">
       {hasNonEphemeralParameters && (
         <FormSection
-          title={t("parameters").toString()}
-          description={t("parametersDescription").toString()}
+          title="Parameters"
+          description="Settings used by your template"
         >
           <FormFields>
-            {mutableParameters.map((parameter, index) =>
+            {templateVersionRichParameters.map((parameter, index) =>
               // Since we are adding the values to the form based on the index
               // we can't filter them to not loose the right index position
-              parameter.ephemeral ? null : (
+              parameter.mutable && !parameter.ephemeral ? (
                 <RichParameterInput
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   )}
                   disabled={isSubmitting}
-                  index={index}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
-                    })
+                    });
                   }}
                   parameter={parameter}
-                  initialValue={workspaceBuildParameterValue(
-                    buildParameters,
-                    parameter,
-                  )}
                 />
-              ),
+              ) : null,
             )}
           </FormFields>
         </FormSection>
@@ -114,28 +102,23 @@ export const WorkspaceParametersForm: FC<{
           description="These parameters only apply for a single workspace start."
         >
           <FormFields>
-            {mutableParameters.map((parameter, index) =>
+            {templateVersionRichParameters.map((parameter, index) =>
               // Since we are adding the values to the form based on the index
               // we can't filter them to not loose the right index position
-              parameter.ephemeral ? (
+              parameter.mutable && parameter.ephemeral ? (
                 <RichParameterInput
                   {...getFieldHelpers(
                     "rich_parameter_values[" + index + "].value",
                   )}
                   disabled={isSubmitting}
-                  index={index}
                   key={parameter.name}
                   onChange={async (value) => {
                     await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
-                    })
+                    });
                   }}
                   parameter={parameter}
-                  initialValue={workspaceBuildParameterValue(
-                    buildParameters,
-                    parameter,
-                  )}
                 />
               ) : null,
             )}
@@ -143,42 +126,36 @@ export const WorkspaceParametersForm: FC<{
         </FormSection>
       )}
       {/* They are displayed here only for visibility purposes */}
-      {immutableParameters.length > 0 && (
+      {hasImmutableParameters && (
         <FormSection
           title="Immutable parameters"
           description={
             <>
-              These parameters are also provided by your Terraform configuration
-              but they{" "}
-              <strong>cannot be changed after creating the workspace.</strong>
+              These settings <strong>cannot be changed</strong> after creating
+              the workspace.
             </>
           }
         >
           <FormFields>
-            {immutableParameters.map((parameter, index) => (
-              <RichParameterInput
-                disabled
-                {...getFieldHelpers(
-                  "rich_parameter_values[" + index + "].value",
-                )}
-                index={index}
-                key={parameter.name}
-                onChange={async () => {
-                  throw new Error(
-                    "Cannot change immutable parameter after creation",
-                  )
-                }}
-                parameter={parameter}
-                initialValue={workspaceBuildParameterValue(
-                  buildParameters,
-                  parameter,
-                )}
-              />
-            ))}
+            {templateVersionRichParameters.map((parameter, index) =>
+              !parameter.mutable ? (
+                <RichParameterInput
+                  disabled
+                  {...getFieldHelpers(
+                    "rich_parameter_values[" + index + "].value",
+                  )}
+                  key={parameter.name}
+                  parameter={parameter}
+                  onChange={() => {
+                    throw new Error("Immutable parameters cannot be changed");
+                  }}
+                />
+              ) : null,
+            )}
           </FormFields>
         </FormSection>
       )}
       <FormFooter onCancel={onCancel} isLoading={isSubmitting} />
     </HorizontalForm>
-  )
-}
+  );
+};

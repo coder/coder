@@ -7,8 +7,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	agpl "github.com/coder/coder/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/database"
+	agpl "github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 // enterpriseUserQuietHoursScheduleStore provides an
@@ -29,7 +31,8 @@ func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string) (agpl.User
 		defaultSchedule: defaultSchedule,
 	}
 
-	_, err := s.parseSchedule(defaultSchedule)
+	// The context is only used for tracing so using a background ctx is fine.
+	_, err := s.parseSchedule(context.Background(), defaultSchedule)
 	if err != nil {
 		return nil, xerrors.Errorf("parse default schedule: %w", err)
 	}
@@ -37,14 +40,17 @@ func NewEnterpriseUserQuietHoursScheduleStore(defaultSchedule string) (agpl.User
 	return s, nil
 }
 
-func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
+func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(ctx context.Context, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
+	_, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	userSet := true
 	if strings.TrimSpace(rawSchedule) == "" {
 		userSet = false
 		rawSchedule = s.defaultSchedule
 	}
 
-	sched, err := agpl.Daily(rawSchedule)
+	sched, err := cron.Daily(rawSchedule)
 	if err != nil {
 		// This shouldn't get hit during Gets, only Sets.
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("parse daily schedule %q: %w", rawSchedule, err)
@@ -64,16 +70,22 @@ func (s *enterpriseUserQuietHoursScheduleStore) parseSchedule(rawSchedule string
 }
 
 func (s *enterpriseUserQuietHoursScheduleStore) Get(ctx context.Context, db database.Store, userID uuid.UUID) (agpl.UserQuietHoursScheduleOptions, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
 	user, err := db.GetUserByID(ctx, userID)
 	if err != nil {
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("get user by ID: %w", err)
 	}
 
-	return s.parseSchedule(user.QuietHoursSchedule)
+	return s.parseSchedule(ctx, user.QuietHoursSchedule)
 }
 
 func (s *enterpriseUserQuietHoursScheduleStore) Set(ctx context.Context, db database.Store, userID uuid.UUID, rawSchedule string) (agpl.UserQuietHoursScheduleOptions, error) {
-	opts, err := s.parseSchedule(rawSchedule)
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	opts, err := s.parseSchedule(ctx, rawSchedule)
 	if err != nil {
 		return opts, err
 	}
@@ -91,8 +103,12 @@ func (s *enterpriseUserQuietHoursScheduleStore) Set(ctx context.Context, db data
 		return agpl.UserQuietHoursScheduleOptions{}, xerrors.Errorf("update user quiet hours schedule: %w", err)
 	}
 
-	// TODO(@dean): update max_deadline for all active builds for this user to clamp to
-	// the new schedule.
+	// We don't update workspace build deadlines when the user changes their own
+	// quiet hours schedule, because they could potentially keep their workspace
+	// running forever.
+	//
+	// Workspace build deadlines are updated when the template admin changes the
+	// template's settings however.
 
 	return opts, nil
 }

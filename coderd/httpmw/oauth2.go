@@ -8,9 +8,9 @@ import (
 
 	"golang.org/x/oauth2"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 type oauth2StateKey struct{}

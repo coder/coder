@@ -1,22 +1,20 @@
-import { useRef, useState, FC } from "react"
-import { makeStyles } from "@mui/styles"
-import { WorkspaceAgent } from "api/typesGenerated"
-import { getDisplayVersionStatus } from "utils/workspace"
-import { AgentOutdatedTooltip } from "components/Tooltips/AgentOutdatedTooltip"
+import { type FC, useRef, useState } from "react";
+import type { WorkspaceAgent } from "api/typesGenerated";
+import { getDisplayVersionStatus } from "utils/workspace";
+import { AgentOutdatedTooltip } from "./AgentOutdatedTooltip";
 
 export const AgentVersion: FC<{
-  agent: WorkspaceAgent
-  serverVersion: string
-  onUpdate: () => void
+  agent: WorkspaceAgent;
+  serverVersion: string;
+  onUpdate: () => void;
 }> = ({ agent, serverVersion, onUpdate }) => {
-  const styles = useStyles()
-  const anchorRef = useRef<HTMLButtonElement>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const id = isOpen ? "version-outdated-popover" : undefined
-  const { outdated } = getDisplayVersionStatus(agent.version, serverVersion)
+  const anchorRef = useRef<HTMLButtonElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const id = isOpen ? "version-outdated-popover" : undefined;
+  const { outdated } = getDisplayVersionStatus(agent.version, serverVersion);
 
   if (!outdated) {
-    return <span>Updated</span>
+    return <span>Updated</span>;
   }
 
   return (
@@ -27,7 +25,7 @@ export const AgentVersion: FC<{
         ref={anchorRef}
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
-        className={styles.trigger}
+        css={{ cursor: "pointer" }}
       >
         Outdated
       </span>
@@ -42,11 +40,5 @@ export const AgentVersion: FC<{
         onUpdate={onUpdate}
       />
     </>
-  )
-}
-
-const useStyles = makeStyles(() => ({
-  trigger: {
-    cursor: "pointer",
-  },
-}))
+  );
+};

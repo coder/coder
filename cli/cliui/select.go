@@ -10,8 +10,8 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func init() {

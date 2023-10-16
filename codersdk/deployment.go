@@ -16,8 +16,8 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 // Entitlement represents whether a feature is licensed.
@@ -35,19 +35,21 @@ const (
 type FeatureName string
 
 const (
-	FeatureUserLimit                  FeatureName = "user_limit"
-	FeatureAuditLog                   FeatureName = "audit_log"
-	FeatureBrowserOnly                FeatureName = "browser_only"
-	FeatureSCIM                       FeatureName = "scim"
-	FeatureTemplateRBAC               FeatureName = "template_rbac"
-	FeatureUserRoleManagement         FeatureName = "user_role_management"
-	FeatureHighAvailability           FeatureName = "high_availability"
-	FeatureMultipleGitAuth            FeatureName = "multiple_git_auth"
-	FeatureExternalProvisionerDaemons FeatureName = "external_provisioner_daemons"
-	FeatureAppearance                 FeatureName = "appearance"
-	FeatureAdvancedTemplateScheduling FeatureName = "advanced_template_scheduling"
-	FeatureTemplateRestartRequirement FeatureName = "template_restart_requirement"
-	FeatureWorkspaceProxy             FeatureName = "workspace_proxy"
+	FeatureUserLimit                   FeatureName = "user_limit"
+	FeatureAuditLog                    FeatureName = "audit_log"
+	FeatureBrowserOnly                 FeatureName = "browser_only"
+	FeatureSCIM                        FeatureName = "scim"
+	FeatureTemplateRBAC                FeatureName = "template_rbac"
+	FeatureUserRoleManagement          FeatureName = "user_role_management"
+	FeatureHighAvailability            FeatureName = "high_availability"
+	FeatureMultipleExternalAuth        FeatureName = "multiple_external_auth"
+	FeatureExternalProvisionerDaemons  FeatureName = "external_provisioner_daemons"
+	FeatureAppearance                  FeatureName = "appearance"
+	FeatureAdvancedTemplateScheduling  FeatureName = "advanced_template_scheduling"
+	FeatureWorkspaceProxy              FeatureName = "workspace_proxy"
+	FeatureExternalTokenEncryption     FeatureName = "external_token_encryption"
+	FeatureTemplateAutostopRequirement FeatureName = "template_autostop_requirement"
+	FeatureWorkspaceBatchActions       FeatureName = "workspace_batch_actions"
 )
 
 // FeatureNames must be kept in-sync with the Feature enum above.
@@ -58,12 +60,16 @@ var FeatureNames = []FeatureName{
 	FeatureSCIM,
 	FeatureTemplateRBAC,
 	FeatureHighAvailability,
-	FeatureMultipleGitAuth,
+	FeatureMultipleExternalAuth,
 	FeatureExternalProvisionerDaemons,
 	FeatureAppearance,
 	FeatureAdvancedTemplateScheduling,
+	FeatureTemplateAutostopRequirement,
 	FeatureWorkspaceProxy,
 	FeatureUserRoleManagement,
+	FeatureExternalTokenEncryption,
+	FeatureTemplateAutostopRequirement,
+	FeatureWorkspaceBatchActions,
 }
 
 // Humanize returns the feature name in a human-readable format.
@@ -83,9 +89,10 @@ func (n FeatureName) Humanize() string {
 // This method may disappear at any time.
 func (n FeatureName) AlwaysEnable() bool {
 	return map[FeatureName]bool{
-		FeatureMultipleGitAuth:            true,
+		FeatureMultipleExternalAuth:       true,
 		FeatureExternalProvisionerDaemons: true,
 		FeatureAppearance:                 true,
+		FeatureWorkspaceBatchActions:      true,
 	}[n]
 }
 
@@ -103,6 +110,7 @@ type Entitlements struct {
 	HasLicense       bool                    `json:"has_license"`
 	Trial            bool                    `json:"trial"`
 	RequireTelemetry bool                    `json:"require_telemetry"`
+	RefreshedAt      time.Time               `json:"refreshed_at" format:"date-time"`
 }
 
 func (c *Client) Entitlements(ctx context.Context) (Entitlements, error) {
@@ -126,51 +134,53 @@ type DeploymentValues struct {
 	DocsURL             clibase.URL  `json:"docs_url,omitempty"`
 	RedirectToAccessURL clibase.Bool `json:"redirect_to_access_url,omitempty"`
 	// HTTPAddress is a string because it may be set to zero to disable.
-	HTTPAddress                     clibase.String                  `json:"http_address,omitempty" typescript:",notnull"`
-	AutobuildPollInterval           clibase.Duration                `json:"autobuild_poll_interval,omitempty"`
-	JobHangDetectorInterval         clibase.Duration                `json:"job_hang_detector_interval,omitempty"`
-	DERP                            DERP                            `json:"derp,omitempty" typescript:",notnull"`
-	Prometheus                      PrometheusConfig                `json:"prometheus,omitempty" typescript:",notnull"`
-	Pprof                           PprofConfig                     `json:"pprof,omitempty" typescript:",notnull"`
-	ProxyTrustedHeaders             clibase.StringArray             `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
-	ProxyTrustedOrigins             clibase.StringArray             `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
-	CacheDir                        clibase.String                  `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                clibase.Bool                    `json:"in_memory_database,omitempty" typescript:",notnull"`
-	PostgresURL                     clibase.String                  `json:"pg_connection_url,omitempty" typescript:",notnull"`
-	OAuth2                          OAuth2Config                    `json:"oauth2,omitempty" typescript:",notnull"`
-	OIDC                            OIDCConfig                      `json:"oidc,omitempty" typescript:",notnull"`
-	Telemetry                       TelemetryConfig                 `json:"telemetry,omitempty" typescript:",notnull"`
-	TLS                             TLSConfig                       `json:"tls,omitempty" typescript:",notnull"`
-	Trace                           TraceConfig                     `json:"trace,omitempty" typescript:",notnull"`
-	SecureAuthCookie                clibase.Bool                    `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
-	StrictTransportSecurity         clibase.Int64                   `json:"strict_transport_security,omitempty" typescript:",notnull"`
-	StrictTransportSecurityOptions  clibase.StringArray             `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
-	SSHKeygenAlgorithm              clibase.String                  `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
-	MetricsCacheRefreshInterval     clibase.Duration                `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
-	AgentStatRefreshInterval        clibase.Duration                `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
-	AgentFallbackTroubleshootingURL clibase.URL                     `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
-	BrowserOnly                     clibase.Bool                    `json:"browser_only,omitempty" typescript:",notnull"`
-	SCIMAPIKey                      clibase.String                  `json:"scim_api_key,omitempty" typescript:",notnull"`
-	Provisioner                     ProvisionerConfig               `json:"provisioner,omitempty" typescript:",notnull"`
-	RateLimit                       RateLimitConfig                 `json:"rate_limit,omitempty" typescript:",notnull"`
-	Experiments                     clibase.StringArray             `json:"experiments,omitempty" typescript:",notnull"`
-	UpdateCheck                     clibase.Bool                    `json:"update_check,omitempty" typescript:",notnull"`
-	MaxTokenLifetime                clibase.Duration                `json:"max_token_lifetime,omitempty" typescript:",notnull"`
-	Swagger                         SwaggerConfig                   `json:"swagger,omitempty" typescript:",notnull"`
-	Logging                         LoggingConfig                   `json:"logging,omitempty" typescript:",notnull"`
-	Dangerous                       DangerousConfig                 `json:"dangerous,omitempty" typescript:",notnull"`
-	DisablePathApps                 clibase.Bool                    `json:"disable_path_apps,omitempty" typescript:",notnull"`
-	SessionDuration                 clibase.Duration                `json:"max_session_expiry,omitempty" typescript:",notnull"`
-	DisableSessionExpiryRefresh     clibase.Bool                    `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
-	DisablePasswordAuth             clibase.Bool                    `json:"disable_password_auth,omitempty" typescript:",notnull"`
-	Support                         SupportConfig                   `json:"support,omitempty" typescript:",notnull"`
-	GitAuthProviders                clibase.Struct[[]GitAuthConfig] `json:"git_auth,omitempty" typescript:",notnull"`
-	SSHConfig                       SSHConfig                       `json:"config_ssh,omitempty" typescript:",notnull"`
-	WgtunnelHost                    clibase.String                  `json:"wgtunnel_host,omitempty" typescript:",notnull"`
-	DisableOwnerWorkspaceExec       clibase.Bool                    `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
-	ProxyHealthStatusInterval       clibase.Duration                `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
-	EnableTerraformDebugMode        clibase.Bool                    `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
-	UserQuietHoursSchedule          UserQuietHoursScheduleConfig    `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
+	HTTPAddress                     clibase.String                       `json:"http_address,omitempty" typescript:",notnull"`
+	AutobuildPollInterval           clibase.Duration                     `json:"autobuild_poll_interval,omitempty"`
+	JobHangDetectorInterval         clibase.Duration                     `json:"job_hang_detector_interval,omitempty"`
+	DERP                            DERP                                 `json:"derp,omitempty" typescript:",notnull"`
+	Prometheus                      PrometheusConfig                     `json:"prometheus,omitempty" typescript:",notnull"`
+	Pprof                           PprofConfig                          `json:"pprof,omitempty" typescript:",notnull"`
+	ProxyTrustedHeaders             clibase.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
+	ProxyTrustedOrigins             clibase.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
+	CacheDir                        clibase.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
+	InMemoryDatabase                clibase.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
+	PostgresURL                     clibase.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
+	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
+	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
+	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
+	TLS                             TLSConfig                            `json:"tls,omitempty" typescript:",notnull"`
+	Trace                           TraceConfig                          `json:"trace,omitempty" typescript:",notnull"`
+	SecureAuthCookie                clibase.Bool                         `json:"secure_auth_cookie,omitempty" typescript:",notnull"`
+	StrictTransportSecurity         clibase.Int64                        `json:"strict_transport_security,omitempty" typescript:",notnull"`
+	StrictTransportSecurityOptions  clibase.StringArray                  `json:"strict_transport_security_options,omitempty" typescript:",notnull"`
+	SSHKeygenAlgorithm              clibase.String                       `json:"ssh_keygen_algorithm,omitempty" typescript:",notnull"`
+	MetricsCacheRefreshInterval     clibase.Duration                     `json:"metrics_cache_refresh_interval,omitempty" typescript:",notnull"`
+	AgentStatRefreshInterval        clibase.Duration                     `json:"agent_stat_refresh_interval,omitempty" typescript:",notnull"`
+	AgentFallbackTroubleshootingURL clibase.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
+	BrowserOnly                     clibase.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
+	SCIMAPIKey                      clibase.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	ExternalTokenEncryptionKeys     clibase.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
+	Provisioner                     ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
+	RateLimit                       RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
+	Experiments                     clibase.StringArray                  `json:"experiments,omitempty" typescript:",notnull"`
+	UpdateCheck                     clibase.Bool                         `json:"update_check,omitempty" typescript:",notnull"`
+	MaxTokenLifetime                clibase.Duration                     `json:"max_token_lifetime,omitempty" typescript:",notnull"`
+	Swagger                         SwaggerConfig                        `json:"swagger,omitempty" typescript:",notnull"`
+	Logging                         LoggingConfig                        `json:"logging,omitempty" typescript:",notnull"`
+	Dangerous                       DangerousConfig                      `json:"dangerous,omitempty" typescript:",notnull"`
+	DisablePathApps                 clibase.Bool                         `json:"disable_path_apps,omitempty" typescript:",notnull"`
+	SessionDuration                 clibase.Duration                     `json:"max_session_expiry,omitempty" typescript:",notnull"`
+	DisableSessionExpiryRefresh     clibase.Bool                         `json:"disable_session_expiry_refresh,omitempty" typescript:",notnull"`
+	DisablePasswordAuth             clibase.Bool                         `json:"disable_password_auth,omitempty" typescript:",notnull"`
+	Support                         SupportConfig                        `json:"support,omitempty" typescript:",notnull"`
+	ExternalAuthConfigs             clibase.Struct[[]ExternalAuthConfig] `json:"external_auth,omitempty" typescript:",notnull"`
+	SSHConfig                       SSHConfig                            `json:"config_ssh,omitempty" typescript:",notnull"`
+	WgtunnelHost                    clibase.String                       `json:"wgtunnel_host,omitempty" typescript:",notnull"`
+	DisableOwnerWorkspaceExec       clibase.Bool                         `json:"disable_owner_workspace_exec,omitempty" typescript:",notnull"`
+	ProxyHealthStatusInterval       clibase.Duration                     `json:"proxy_health_status_interval,omitempty" typescript:",notnull"`
+	EnableTerraformDebugMode        clibase.Bool                         `json:"enable_terraform_debug_mode,omitempty" typescript:",notnull"`
+	UserQuietHoursSchedule          UserQuietHoursScheduleConfig         `json:"user_quiet_hours_schedule,omitempty" typescript:",notnull"`
+	WebTerminalRenderer             clibase.String                       `json:"web_terminal_renderer,omitempty" typescript:",notnull"`
 
 	Config      clibase.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig clibase.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -228,9 +238,10 @@ type DERPServerConfig struct {
 }
 
 type DERPConfig struct {
-	BlockDirect clibase.Bool   `json:"block_direct" typescript:",notnull"`
-	URL         clibase.String `json:"url" typescript:",notnull"`
-	Path        clibase.String `json:"path" typescript:",notnull"`
+	BlockDirect     clibase.Bool   `json:"block_direct" typescript:",notnull"`
+	ForceWebSockets clibase.Bool   `json:"force_websockets" typescript:",notnull"`
+	URL             clibase.String `json:"url" typescript:",notnull"`
+	Path            clibase.String `json:"path" typescript:",notnull"`
 }
 
 type PrometheusConfig struct {
@@ -260,9 +271,12 @@ type OAuth2GithubConfig struct {
 }
 
 type OIDCConfig struct {
-	AllowSignups        clibase.Bool                        `json:"allow_signups" typescript:",notnull"`
-	ClientID            clibase.String                      `json:"client_id" typescript:",notnull"`
-	ClientSecret        clibase.String                      `json:"client_secret" typescript:",notnull"`
+	AllowSignups clibase.Bool   `json:"allow_signups" typescript:",notnull"`
+	ClientID     clibase.String `json:"client_id" typescript:",notnull"`
+	ClientSecret clibase.String `json:"client_secret" typescript:",notnull"`
+	// ClientKeyFile & ClientCertFile are used in place of ClientSecret for PKI auth.
+	ClientKeyFile       clibase.String                      `json:"client_key_file" typescript:",notnull"`
+	ClientCertFile      clibase.String                      `json:"client_cert_file" typescript:",notnull"`
 	EmailDomain         clibase.StringArray                 `json:"email_domain" typescript:",notnull"`
 	IssuerURL           clibase.String                      `json:"issuer_url" typescript:",notnull"`
 	Scopes              clibase.StringArray                 `json:"scopes" typescript:",notnull"`
@@ -271,6 +285,8 @@ type OIDCConfig struct {
 	EmailField          clibase.String                      `json:"email_field" typescript:",notnull"`
 	AuthURLParams       clibase.Struct[map[string]string]   `json:"auth_url_params" typescript:",notnull"`
 	IgnoreUserInfo      clibase.Bool                        `json:"ignore_user_info" typescript:",notnull"`
+	GroupAutoCreate     clibase.Bool                        `json:"group_auto_create" typescript:",notnull"`
+	GroupRegexFilter    clibase.Regexp                      `json:"group_regex_filter" typescript:",notnull"`
 	GroupField          clibase.String                      `json:"groups_field" typescript:",notnull"`
 	GroupMapping        clibase.Struct[map[string]string]   `json:"group_mapping" typescript:",notnull"`
 	UserRoleField       clibase.String                      `json:"user_role_field" typescript:",notnull"`
@@ -303,23 +319,38 @@ type TraceConfig struct {
 	Enable          clibase.Bool   `json:"enable" typescript:",notnull"`
 	HoneycombAPIKey clibase.String `json:"honeycomb_api_key" typescript:",notnull"`
 	CaptureLogs     clibase.Bool   `json:"capture_logs" typescript:",notnull"`
+	DataDog         clibase.Bool   `json:"data_dog" typescript:",notnull"`
 }
 
-type GitAuthConfig struct {
+type ExternalAuthConfig struct {
+	// Type is the type of external auth config.
+	Type         string `json:"type"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"-" yaml:"client_secret"`
+	// ID is a unique identifier for the auth config.
+	// It defaults to `type` when not provided.
 	ID                  string   `json:"id"`
-	Type                string   `json:"type"`
-	ClientID            string   `json:"client_id"`
-	ClientSecret        string   `json:"-" yaml:"client_secret"`
 	AuthURL             string   `json:"auth_url"`
 	TokenURL            string   `json:"token_url"`
 	ValidateURL         string   `json:"validate_url"`
 	AppInstallURL       string   `json:"app_install_url"`
 	AppInstallationsURL string   `json:"app_installations_url"`
-	Regex               string   `json:"regex"`
 	NoRefresh           bool     `json:"no_refresh"`
 	Scopes              []string `json:"scopes"`
+	ExtraTokenKeys      []string `json:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url"`
+	// Regex allows API requesters to match an auth config by
+	// a string (e.g. coder.com) instead of by it's type.
+	//
+	// Git clone makes use of this by parsing the URL from:
+	// 'Username for "https://github.com":'
+	// And sending it to the Coder server to match against the Regex.
+	Regex string `json:"regex"`
+	// DisplayName is shown in the UI to identify the auth config.
+	DisplayName string `json:"display_name"`
+	// DisplayIcon is a URL to an icon to display in the UI.
+	DisplayIcon string `json:"display_icon"`
 }
 
 type ProvisionerConfig struct {
@@ -328,6 +359,7 @@ type ProvisionerConfig struct {
 	DaemonPollInterval  clibase.Duration `json:"daemon_poll_interval" typescript:",notnull"`
 	DaemonPollJitter    clibase.Duration `json:"daemon_poll_jitter" typescript:",notnull"`
 	ForceCancelInterval clibase.Duration `json:"force_cancel_interval" typescript:",notnull"`
+	DaemonPSK           clibase.String   `json:"daemon_psk" typescript:",notnull"`
 }
 
 type RateLimitConfig struct {
@@ -394,9 +426,6 @@ func DefaultCacheDir() string {
 }
 
 // DeploymentConfig contains both the deployment values and how they're set.
-//
-// @typescript-ignore DeploymentConfig
-// apitypings doesn't know how to generate the OptionSet... yet.
 type DeploymentConfig struct {
 	Values  *DeploymentValues `json:"config,omitempty"`
 	Options clibase.OptionSet `json:"options,omitempty"`
@@ -730,6 +759,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionID,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionID",
+			Hidden:      true,
 			// Does not apply to external proxies as this value is generated.
 		},
 		{
@@ -741,6 +771,7 @@ when required by your organization's security policy.`,
 			Value:       &c.DERP.Server.RegionCode,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "regionCode",
+			Hidden:      true,
 			// Does not apply to external proxies as we use the proxy name.
 		},
 		{
@@ -756,10 +787,10 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Server STUN Addresses",
-			Description: "Addresses for STUN servers to establish P2P connections. Use special value 'disable' to turn off STUN.",
+			Description: "Addresses for STUN servers to establish P2P connections. It's recommended to have at least two STUN servers to give users the best chance of connecting P2P to workspaces. Each STUN server will get it's own DERP region, with region IDs starting at `--derp-server-region-id + 1`. Use special value 'disable' to turn off STUN completely.",
 			Flag:        "derp-server-stun-addresses",
 			Env:         "CODER_DERP_SERVER_STUN_ADDRESSES",
-			Default:     "stun.l.google.com:19302",
+			Default:     "stun.l.google.com:19302,stun1.l.google.com:19302,stun2.l.google.com:19302,stun3.l.google.com:19302,stun4.l.google.com:19302",
 			Value:       &c.DERP.Server.STUNAddresses,
 			Group:       &deploymentGroupNetworkingDERP,
 			YAML:        "stunAddresses",
@@ -787,6 +818,15 @@ when required by your organization's security policy.`,
 			Value: &c.DERP.Config.BlockDirect,
 			Group: &deploymentGroupNetworkingDERP,
 			YAML:  "blockDirect",
+		},
+		{
+			Name:        "DERP Force WebSockets",
+			Description: "Force clients and agents to always use WebSocket to connect to DERP relay servers. By default, DERP uses `Upgrade: derp`, which may cause issues with some reverse proxies. Clients may automatically fallback to WebSocket if they detect an issue with `Upgrade: derp`, but this does not work in all situations.",
+			Flag:        "derp-force-websockets",
+			Env:         "CODER_DERP_FORCE_WEBSOCKETS",
+			Value:       &c.DERP.Config.ForceWebSockets,
+			Group:       &deploymentGroupNetworkingDERP,
+			YAML:        "forceWebSockets",
 		},
 		{
 			Name:        "DERP Config URL",
@@ -964,6 +1004,26 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupOIDC,
 		},
 		{
+			Name: "OIDC Client Key File",
+			Description: "Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. " +
+				"This can be used instead of oidc-client-secret if your IDP supports it.",
+			Flag:  "oidc-client-key-file",
+			Env:   "CODER_OIDC_CLIENT_KEY_FILE",
+			YAML:  "oidcClientKeyFile",
+			Value: &c.OIDC.ClientKeyFile,
+			Group: &deploymentGroupOIDC,
+		},
+		{
+			Name: "OIDC Client Cert File",
+			Description: "Pem encoded certificate file to use for oauth2 PKI/JWT authorization. " +
+				"The public certificate that accompanies oidc-client-key-file. A standard x509 certificate is expected.",
+			Flag:  "oidc-client-cert-file",
+			Env:   "CODER_OIDC_CLIENT_CERT_FILE",
+			YAML:  "oidcClientCertFile",
+			Value: &c.OIDC.ClientCertFile,
+			Group: &deploymentGroupOIDC,
+		},
+		{
 			Name:        "OIDC Email Domain",
 			Description: "Email domains that clients logging in with OIDC must match.",
 			Flag:        "oidc-email-domain",
@@ -1066,6 +1126,26 @@ when required by your organization's security policy.`,
 			YAML:        "groupMapping",
 		},
 		{
+			Name:        "Enable OIDC Group Auto Create",
+			Description: "Automatically creates missing groups from a user's groups claim.",
+			Flag:        "oidc-group-auto-create",
+			Env:         "CODER_OIDC_GROUP_AUTO_CREATE",
+			Default:     "false",
+			Value:       &c.OIDC.GroupAutoCreate,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "enableGroupAutoCreate",
+		},
+		{
+			Name:        "OIDC Regex Group Filter",
+			Description: "If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.",
+			Flag:        "oidc-group-regex-filter",
+			Env:         "CODER_OIDC_GROUP_REGEX_FILTER",
+			Default:     ".*",
+			Value:       &c.OIDC.GroupRegexFilter,
+			Group:       &deploymentGroupOIDC,
+			YAML:        "groupRegexFilter",
+		},
+		{
 			Name:        "OIDC User Role Field",
 			Description: "This field must be set if using the user roles sync feature. Set this to the name of the claim used to store the user's role. The roles should be sent as an array of strings.",
 			Flag:        "oidc-user-role-field",
@@ -1109,7 +1189,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "OpenID connect icon URL",
-			Description: "URL pointing to the icon to use on the OepnID Connect login button.",
+			Description: "URL pointing to the icon to use on the OpenID Connect login button.",
 			Flag:        "oidc-icon-url",
 			Env:         "CODER_OIDC_ICON_URL",
 			Value:       &c.OIDC.IconURL,
@@ -1126,16 +1206,6 @@ when required by your organization's security policy.`,
 			Value:       &c.Telemetry.Enable,
 			Group:       &deploymentGroupTelemetry,
 			YAML:        "enable",
-		},
-		{
-			Name:        "Telemetry Trace",
-			Description: "Whether Opentelemetry traces are sent to Coder. Coder collects anonymized application tracing to help improve our product. Disabling telemetry also disables this option.",
-			Flag:        "telemetry-trace",
-			Env:         "CODER_TELEMETRY_TRACE",
-			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
-			Value:       &c.Telemetry.Trace,
-			Group:       &deploymentGroupTelemetry,
-			YAML:        "trace",
 		},
 		{
 			Name:        "Telemetry URL",
@@ -1178,6 +1248,22 @@ when required by your organization's security policy.`,
 			YAML:        "captureLogs",
 			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
 		},
+		{
+			Name:        "Send Go runtime traces to DataDog",
+			Description: "Enables sending Go runtime traces to the local DataDog agent.",
+			Flag:        "trace-datadog",
+			Env:         "CODER_TRACE_DATADOG",
+			Value:       &c.Trace.DataDog,
+			Group:       &deploymentGroupIntrospectionTracing,
+			YAML:        "dataDog",
+			// Hidden until an external user asks for it. For the time being,
+			// it's used to detect leaks in dogfood.
+			Hidden: true,
+			// Default is false because datadog creates a bunch of goroutines that
+			// don't get cleaned up and trip the leak detector.
+			Default:     "false",
+			Annotations: clibase.Annotations{}.Mark(annotationExternalProxies, "true"),
+		},
 		// Provisioner settings
 		{
 			Name:        "Provisioner Daemons",
@@ -1202,7 +1288,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Poll Interval",
-			Description: "Time to wait before polling for a new job.",
+			Description: "Deprecated and ignored.",
 			Flag:        "provisioner-daemon-poll-interval",
 			Env:         "CODER_PROVISIONER_DAEMON_POLL_INTERVAL",
 			Default:     time.Second.String(),
@@ -1212,7 +1298,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Poll Jitter",
-			Description: "Random jitter added to the poll interval.",
+			Description: "Deprecated and ignored.",
 			Flag:        "provisioner-daemon-poll-jitter",
 			Env:         "CODER_PROVISIONER_DAEMON_POLL_JITTER",
 			Default:     (100 * time.Millisecond).String(),
@@ -1229,6 +1315,15 @@ when required by your organization's security policy.`,
 			Value:       &c.Provisioner.ForceCancelInterval,
 			Group:       &deploymentGroupProvisioning,
 			YAML:        "forceCancelInterval",
+		},
+		{
+			Name:        "Provisioner Daemon Pre-shared Key (PSK)",
+			Description: "Pre-shared key to authenticate external provisioner daemons to Coder server.",
+			Flag:        "provisioner-daemon-psk",
+			Env:         "CODER_PROVISIONER_DAEMON_PSK",
+			Value:       &c.Provisioner.DaemonPSK,
+			Group:       &deploymentGroupProvisioning,
+			YAML:        "daemonPSK",
 		},
 		// RateLimit settings
 		{
@@ -1518,7 +1613,14 @@ when required by your organization's security policy.`,
 			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
 			Value:       &c.SCIMAPIKey,
 		},
-
+		{
+			Name:        "External Token Encryption Keys",
+			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
+			Flag:        "external-token-encryption-keys",
+			Env:         "CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS",
+			Annotations: clibase.Annotations{}.Mark(annotationEnterpriseKey, "true").Mark(annotationSecretKey, "true"),
+			Value:       &c.ExternalTokenEncryptionKeys,
+		},
 		{
 			Name:        "Disable Path Apps",
 			Description: "Disable workspace apps that are not served from subdomains. Path-based apps can make requests to the Coder API and pose a security risk when the workspace serves malicious JavaScript. This is recommended for security purposes if a --wildcard-access-url is configured.",
@@ -1623,12 +1725,12 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			// Env handling is done in cli.ReadGitAuthFromEnvironment
-			Name:        "Git Auth Providers",
-			Description: "Git Authentication providers.",
+			Name:        "External Auth Providers",
+			Description: "External Authentication providers.",
 			// We need extra scrutiny to ensure this works, is documented, and
 			// tested before enabling.
 			// YAML:        "gitAuthProviders",
-			Value:  &c.GitAuthProviders,
+			Value:  &c.ExternalAuthConfigs,
 			Hidden: true,
 		},
 		{
@@ -1661,7 +1763,18 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupUserQuietHoursSchedule,
 			YAML:        "defaultQuietHoursSchedule",
 		},
+		{
+			Name:        "Web Terminal Renderer",
+			Description: "The renderer to use when opening a web terminal. Valid values are 'canvas', 'webgl', or 'dom'.",
+			Flag:        "web-terminal-renderer",
+			Env:         "CODER_WEB_TERMINAL_RENDERER",
+			Default:     "canvas",
+			Value:       &c.WebTerminalRenderer,
+			Group:       &deploymentGroupClient,
+			YAML:        "webTerminalRenderer",
+		},
 	}
+
 	return opts
 }
 
@@ -1673,6 +1786,19 @@ type LinkConfig struct {
 	Name   string `json:"name" yaml:"name"`
 	Target string `json:"target" yaml:"target"`
 	Icon   string `json:"icon" yaml:"icon"`
+}
+
+// DeploymentOptionsWithoutSecrets returns a copy of the OptionSet with secret values omitted.
+func DeploymentOptionsWithoutSecrets(set clibase.OptionSet) clibase.OptionSet {
+	cpy := make(clibase.OptionSet, 0, len(set))
+	for _, opt := range set {
+		cpyOpt := opt
+		if IsSecretDeploymentOption(cpyOpt) {
+			cpyOpt.Value = nil
+		}
+		cpy = append(cpy, cpyOpt)
+	}
+	return cpy
 }
 
 // WithoutSecrets returns a copy of the config without secret values.
@@ -1696,7 +1822,7 @@ func (c *DeploymentValues) WithoutSecrets() (*DeploymentValues, error) {
 
 		// This only works with string values for now.
 		switch v := opt.Value.(type) {
-		case *clibase.String:
+		case *clibase.String, *clibase.StringArray:
 			err := v.Set("")
 			if err != nil {
 				panic(err)
@@ -1745,14 +1871,16 @@ func (c *Client) DeploymentStats(ctx context.Context) (DeploymentStats, error) {
 }
 
 type AppearanceConfig struct {
-	LogoURL       string              `json:"logo_url"`
-	ServiceBanner ServiceBannerConfig `json:"service_banner"`
-	SupportLinks  []LinkConfig        `json:"support_links,omitempty"`
+	ApplicationName string              `json:"application_name"`
+	LogoURL         string              `json:"logo_url"`
+	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
+	SupportLinks    []LinkConfig        `json:"support_links,omitempty"`
 }
 
 type UpdateAppearanceConfig struct {
-	LogoURL       string              `json:"logo_url"`
-	ServiceBanner ServiceBannerConfig `json:"service_banner"`
+	ApplicationName string              `json:"application_name"`
+	LogoURL         string              `json:"logo_url"`
+	ServiceBanner   ServiceBannerConfig `json:"service_banner"`
 }
 
 type ServiceBannerConfig struct {
@@ -1843,38 +1971,34 @@ const (
 	// feature is not yet complete in functionality.
 	ExperimentMoons Experiment = "moons"
 
-	// https://github.com/coder/coder/milestone/19
-	ExperimentWorkspaceActions Experiment = "workspace_actions"
-
-	// ExperimentTailnetHACoordinator downgrades to the haCoordinator instead
-	// of PGCoord.  Should only be used if we see issues in prod with PGCoord
-	// which is now the default.
-	ExperimentTailnetHACoordinator Experiment = "tailnet_ha_coordinator"
-
-	// ExperimentConvertToOIDC enables users to convert from password to
-	// oidc.
-	ExperimentConvertToOIDC Experiment = "convert-to-oidc"
+	// ExperimentTailnetPGCoordinator enables the PGCoord in favor of the pubsub-
+	// only Coordinator
+	ExperimentTailnetPGCoordinator Experiment = "tailnet_pg_coordinator"
 
 	// ExperimentSingleTailnet replaces workspace connections inside coderd to
 	// all use a single tailnet, instead of the previous behavior of creating a
 	// single tailnet for each agent.
-	// WARNING: This cannot be enabled when using HA.
 	ExperimentSingleTailnet Experiment = "single_tailnet"
 
-	// ExperimentTemplateRestartRequirement allows template admins to have more
+	// ExperimentTemplateAutostopRequirement allows template admins to have more
 	// control over when workspaces created on a template are required to
-	// restart, and allows users to ensure these restarts never happen during
-	// their business hours.
+	// stop, and allows users to ensure these restarts never happen during their
+	// business hours.
+	//
+	// This will replace the MaxTTL setting on templates.
 	//
 	// Enables:
 	// - User quiet hours schedule settings
-	// - Template restart requirement settings
-	// - Changes the max_deadline algorithm to use restart requirement and user
+	// - Template autostop requirement settings
+	// - Changes the max_deadline algorithm to use autostop requirement and user
 	//   quiet hours instead of max_ttl.
-	ExperimentTemplateRestartRequirement Experiment = "template_restart_requirement"
+	ExperimentTemplateAutostopRequirement Experiment = "template_autostop_requirement"
 
-	// Insights page
-	ExperimentTemplateInsightsPage Experiment = "template_insights_page"
+	// Deployment health page
+	ExperimentDeploymentHealthPage Experiment = "deployment_health_page"
+
+	// ExperimentDashboardTheme mutates the dashboard to use a new, dark color scheme.
+	ExperimentDashboardTheme Experiment = "dashboard_theme"
 
 	// Add new experiments here!
 	// ExperimentExample Experiment = "example"
@@ -1885,7 +2009,8 @@ const (
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
 var ExperimentsAll = Experiments{
-	ExperimentTemplateInsightsPage,
+	ExperimentDeploymentHealthPage,
+	ExperimentSingleTailnet,
 }
 
 // Experiments is a list of experiments that are enabled for the deployment.

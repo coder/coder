@@ -12,14 +12,15 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/userpassword"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
@@ -51,7 +52,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 			defer cancel()
 
 			if newUserDBURL == "" {
-				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)\n", cfg.PostgresPath())
+				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", cfg.PostgresPath())
 				url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
 				if err != nil {
 					return err
@@ -62,7 +63,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				newUserDBURL = url
 			}
 
-			sqlDB, err := connectToPostgres(ctx, logger, "postgres", newUserDBURL)
+			sqlDB, err := ConnectToPostgres(ctx, logger, "postgres", newUserDBURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}
@@ -180,8 +181,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 					Email:          newUserEmail,
 					Username:       newUserUsername,
 					HashedPassword: []byte(hashedPassword),
-					CreatedAt:      database.Now(),
-					UpdatedAt:      database.Now(),
+					CreatedAt:      dbtime.Now(),
+					UpdatedAt:      dbtime.Now(),
 					RBACRoles:      []string{rbac.RoleOwner()},
 					LoginType:      database.LoginTypePassword,
 				})
@@ -196,8 +197,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 					UserID:     newUser.ID,
-					CreatedAt:  database.Now(),
-					UpdatedAt:  database.Now(),
+					CreatedAt:  dbtime.Now(),
+					UpdatedAt:  dbtime.Now(),
 					PrivateKey: privateKey,
 					PublicKey:  publicKey,
 				})
@@ -210,8 +211,8 @@ func (r *RootCmd) newCreateAdminUserCommand() *clibase.Cmd {
 					_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 						OrganizationID: org.ID,
 						UserID:         newUser.ID,
-						CreatedAt:      database.Now(),
-						UpdatedAt:      database.Now(),
+						CreatedAt:      dbtime.Now(),
+						UpdatedAt:      dbtime.Now(),
 						Roles:          []string{rbac.RoleOrgAdmin(org.ID)},
 					})
 					if err != nil {

@@ -1,18 +1,17 @@
-import Button from "@mui/material/Button"
-import { makeStyles, useTheme } from "@mui/styles"
-import useMediaQuery from "@mui/material/useMediaQuery"
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft"
-import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight"
-import { ChooseOne, Cond } from "components/Conditionals/ChooseOne"
-import { PageButton } from "./PageButton"
-import { buildPagedList } from "./utils"
+import Button from "@mui/material/Button";
+import { makeStyles, useTheme } from "@mui/styles";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
+import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { PageButton } from "./PageButton";
+import { buildPagedList } from "./utils";
 
 export type PaginationWidgetBaseProps = {
-  count: number
-  page: number
-  limit: number
-  onChange: (page: number) => void
-}
+  count: number;
+  page: number;
+  limit: number;
+  onChange: (page: number) => void;
+};
 
 export const PaginationWidgetBase = ({
   count,
@@ -20,15 +19,15 @@ export const PaginationWidgetBase = ({
   limit,
   onChange,
 }: PaginationWidgetBaseProps): JSX.Element | null => {
-  const theme = useTheme()
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"))
-  const styles = useStyles()
-  const numPages = Math.ceil(count / limit)
-  const isFirstPage = page === 0
-  const isLastPage = page === numPages - 1
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const styles = useStyles();
+  const numPages = Math.ceil(count / limit);
+  const isFirstPage = page === 0;
+  const isLastPage = page === numPages - 1;
 
   if (numPages < 2) {
-    return null
+    return null;
   }
 
   return (
@@ -39,55 +38,52 @@ export const PaginationWidgetBase = ({
         disabled={isFirstPage}
         onClick={() => {
           if (!isFirstPage) {
-            onChange(page - 1)
+            onChange(page - 1);
           }
         }}
       >
         <KeyboardArrowLeft />
       </Button>
-      <ChooseOne>
-        <Cond condition={isMobile}>
-          <PageButton activePage={page} page={page} numPages={numPages} />
-        </Cond>
-        <Cond>
-          {buildPagedList(numPages, page).map((pageItem) => {
-            if (pageItem === "left" || pageItem === "right") {
-              return (
-                <PageButton
-                  key={pageItem}
-                  activePage={page}
-                  placeholder="..."
-                  disabled
-                />
-              )
-            }
-
+      {isMobile ? (
+        <PageButton activePage={page} page={page} numPages={numPages} />
+      ) : (
+        buildPagedList(numPages, page).map((pageItem) => {
+          if (pageItem === "left" || pageItem === "right") {
             return (
               <PageButton
                 key={pageItem}
-                page={pageItem}
                 activePage={page}
-                numPages={numPages}
-                onPageClick={() => onChange(pageItem)}
+                placeholder="..."
+                disabled
               />
-            )
-          })}
-        </Cond>
-      </ChooseOne>
+            );
+          }
+
+          return (
+            <PageButton
+              key={pageItem}
+              page={pageItem}
+              activePage={page}
+              numPages={numPages}
+              onPageClick={() => onChange(pageItem)}
+            />
+          );
+        })
+      )}
       <Button
         aria-label="Next page"
         disabled={isLastPage}
         onClick={() => {
           if (!isLastPage) {
-            onChange(page + 1)
+            onChange(page + 1);
           }
         }}
       >
         <KeyboardArrowRight />
       </Button>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   defaultContainerStyles: {
@@ -101,4 +97,4 @@ const useStyles = makeStyles((theme) => ({
   prevLabelStyles: {
     marginRight: theme.spacing(0.5),
   },
-}))
+}));

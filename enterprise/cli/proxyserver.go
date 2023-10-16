@@ -22,14 +22,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/wsproxy"
+	"github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/wsproxy"
 )
 
 type closers []func()
@@ -56,6 +56,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 		}
 		proxySessionToken clibase.String
 		primaryAccessURL  clibase.URL
+		derpOnly          clibase.Bool
 	)
 	opts.Add(
 		// Options only for external workspace proxies
@@ -87,6 +88,17 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			}),
 			Group:  &externalProxyOptionGroup,
 			Hidden: false,
+		},
+		clibase.Option{
+			Name:        "DERP-only proxy",
+			Description: "Run a proxy server that only supports DERP connections and does not proxy workspace app/terminal traffic.",
+			Flag:        "derp-only",
+			Env:         "CODER_PROXY_DERP_ONLY",
+			YAML:        "derpOnly",
+			Required:    false,
+			Value:       &derpOnly,
+			Group:       &externalProxyOptionGroup,
+			Hidden:      false,
 		},
 	)
 
@@ -139,7 +151,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			defer http.DefaultClient.CloseIdleConnections()
 			closers.Add(http.DefaultClient.CloseIdleConnections)
 
-			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, inv, cfg)
+			tracer, _, closeTracing := cli.ConfigureTraceProvider(ctx, logger, cfg)
 			defer func() {
 				logger.Debug(ctx, "closing tracing")
 				traceCloseErr := shutdownWithTimeout(closeTracing, 5*time.Second)
@@ -161,6 +173,10 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				} else if httpServers.HTTPUrl != nil {
 					cfg.AccessURL = clibase.URL(*httpServers.HTTPUrl)
 				}
+			}
+
+			if derpOnly.Value() && !cfg.DERP.Server.Enable.Value() {
+				return xerrors.Errorf("cannot use --derp-only with DERP server disabled")
 			}
 
 			// TODO: @emyrk I find this strange that we add this to the context
@@ -236,6 +252,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 				ProxySessionToken:      proxySessionToken.Value(),
 				AllowAllCors:           cfg.Dangerous.AllowAllCors.Value(),
 				DERPEnabled:            cfg.DERP.Server.Enable.Value(),
+				DERPOnly:               derpOnly.Value(),
 				DERPServerRelayAddress: cfg.DERP.Server.RelayURL.String(),
 			})
 			if err != nil {
@@ -288,7 +305,7 @@ func (*RootCmd) proxyServer() *clibase.Cmd {
 			case exitErr = <-errCh:
 			case <-notifyCtx.Done():
 				exitErr = notifyCtx.Err()
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Bold.Render(
+				_, _ = fmt.Fprintln(inv.Stdout, cliui.Bold(
 					"Interrupt caught, gracefully exiting. Use ctrl+\\ to force quit",
 				))
 			}

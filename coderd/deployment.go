@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get deployment config
@@ -33,7 +33,7 @@ func (api *API) deploymentValues(rw http.ResponseWriter, r *http.Request) {
 		r.Context(), rw, http.StatusOK,
 		codersdk.DeploymentConfig{
 			Values:  values,
-			Options: values.Options(),
+			Options: api.DeploymentOptions,
 		},
 	)
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/provisioner"
+	"github.com/coder/coder/v2/provisioner"
 )
 
 func TestValidAppSlugRegex(t *testing.T) {

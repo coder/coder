@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -21,21 +22,22 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
+	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/coderd/wsconncache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/derpmesh"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
-	"github.com/coder/coder/site"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/wsconncache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/derpmesh"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/site"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 type Options struct {
@@ -70,12 +72,17 @@ type Options struct {
 	DisablePathApps        bool
 	DERPEnabled            bool
 	DERPServerRelayAddress string
+	// DERPOnly determines whether this proxy only provides DERP and does not
+	// provide access to workspace apps/terminal.
+	DERPOnly bool
 
 	ProxySessionToken string
 	// AllowAllCors will set all CORs headers to '*'.
 	// By default, CORs is set to accept external requests
 	// from the dashboardURL. This should only be used in development.
 	AllowAllCors bool
+
+	StatsCollectorOptions workspaceapps.StatsCollectorOptions
 }
 
 func (o *Options) Validate() error {
@@ -114,7 +121,8 @@ type Server struct {
 	SDKClient *wsproxysdk.Client
 
 	// DERP
-	derpMesh *derpmesh.Mesh
+	derpMesh      *derpmesh.Mesh
+	latestDERPMap atomic.Pointer[tailcfg.DERPMap]
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
@@ -208,6 +216,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			AccessURL:           opts.AccessURL.String(),
 			WildcardHostname:    opts.AppHostname,
 			DerpEnabled:         opts.DERPEnabled,
+			DerpOnly:            opts.DERPOnly,
 			ReplicaID:           replicaID,
 			ReplicaHostname:     osHostname,
 			ReplicaError:        "",
@@ -233,19 +242,18 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
-	connInfo, err := client.SDKClient.WorkspaceAgentConnectionInfoGeneric(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get derpmap: %w", err)
-	}
-
 	var agentProvider workspaceapps.AgentProvider
 	if opts.Experiments.Enabled(codersdk.ExperimentSingleTailnet) {
 		stn, err := coderd.NewServerTailnet(ctx,
 			s.Logger,
 			nil,
-			connInfo.DERPMap,
+			func() *tailcfg.DERPMap {
+				return s.latestDERPMap.Load()
+			},
+			regResp.DERPForceWebSockets,
 			s.DialCoordinator,
 			wsconncache.New(s.DialWorkspaceAgent, 0),
+			s.TracerProvider,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("create server tailnet: %w", err)
@@ -257,8 +265,17 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		}
 	}
 
+	workspaceAppsLogger := opts.Logger.Named("workspaceapps")
+	if opts.StatsCollectorOptions.Logger == nil {
+		named := workspaceAppsLogger.Named("stats_collector")
+		opts.StatsCollectorOptions.Logger = &named
+	}
+	if opts.StatsCollectorOptions.Reporter == nil {
+		opts.StatsCollectorOptions.Reporter = &appStatsReporter{Client: client}
+	}
+
 	s.AppServer = &workspaceapps.Server{
-		Logger:        opts.Logger.Named("workspaceapps"),
+		Logger:        workspaceAppsLogger,
 		DashboardURL:  opts.DashboardURL,
 		AccessURL:     opts.AccessURL,
 		Hostname:      opts.AppHostname,
@@ -274,9 +291,11 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		},
 		AppSecurityKey: secKey,
 
-		AgentProvider:    agentProvider,
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
+
+		AgentProvider:  agentProvider,
+		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 	}
 
 	derpHandler := derphttp.Handler(derpServer)
@@ -327,18 +346,51 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	)
 
 	// Attach workspace apps routes.
-	r.Group(func(r chi.Router) {
-		r.Use(apiRateLimiter)
-		s.AppServer.Attach(r)
-	})
-
-	r.Route("/derp", func(r chi.Router) {
-		r.Get("/", derpHandler.ServeHTTP)
-		// This is used when UDP is blocked, and latency must be checked via HTTP(s).
-		r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
+	if !opts.DERPOnly {
+		r.Group(func(r chi.Router) {
+			r.Use(apiRateLimiter)
+			s.AppServer.Attach(r)
 		})
-	})
+	} else {
+		r.Group(func(r chi.Router) {
+			derpOnlyHandler := func(rw http.ResponseWriter, r *http.Request) {
+				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+					Title:      "Head to the Dashboard",
+					Status:     http.StatusBadRequest,
+					HideStatus: true,
+					Description: "This workspace proxy is DERP-only and cannot be used for browser connections. " +
+						"Please use a different region directly from the dashboard. Click to be redirected!",
+					RetryEnabled: false,
+					DashboardURL: opts.DashboardURL.String(),
+				})
+			}
+			serveDerpOnlyHandler := func(r chi.Router) {
+				r.HandleFunc("/*", derpOnlyHandler)
+			}
+
+			r.Route("/%40{user}/{workspace_and_agent}/apps/{workspaceapp}", serveDerpOnlyHandler)
+			r.Route("/@{user}/{workspace_and_agent}/apps/{workspaceapp}", serveDerpOnlyHandler)
+			r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", derpOnlyHandler)
+		})
+	}
+
+	if opts.DERPEnabled {
+		r.Route("/derp", func(r chi.Router) {
+			r.Get("/", derpHandler.ServeHTTP)
+			// This is used when UDP is blocked, and latency must be checked via HTTP(s).
+			r.Get("/latency-check", func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+		})
+	} else {
+		r.Route("/derp", func(r chi.Router) {
+			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "DERP is disabled on this proxy.",
+				})
+			})
+		})
+	}
 
 	r.Get("/api/v2/buildinfo", s.buildInfo)
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("OK")) })
@@ -404,6 +456,8 @@ func (s *Server) handleRegister(_ context.Context, res wsproxysdk.RegisterWorksp
 		addresses[i] = replica.RelayAddress
 	}
 	s.derpMesh.SetAddresses(addresses, false)
+
+	s.latestDERPMap.Store(res.DERPMap)
 
 	return nil
 }

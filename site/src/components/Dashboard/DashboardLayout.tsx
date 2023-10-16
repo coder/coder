@@ -1,42 +1,53 @@
-import { makeStyles } from "@mui/styles"
-import { useMachine } from "@xstate/react"
-import { DeploymentBanner } from "components/DeploymentBanner/DeploymentBanner"
-import { LicenseBanner } from "components/LicenseBanner/LicenseBanner"
-import { Loader } from "components/Loader/Loader"
-import { ServiceBanner } from "components/ServiceBanner/ServiceBanner"
-import { usePermissions } from "hooks/usePermissions"
-import { FC, Suspense } from "react"
-import { Outlet } from "react-router-dom"
-import { dashboardContentBottomPadding } from "theme/constants"
-import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService"
-import { Navbar } from "../Navbar/Navbar"
-import Snackbar from "@mui/material/Snackbar"
-import Link from "@mui/material/Link"
-import Box from "@mui/material/Box"
-import InfoOutlined from "@mui/icons-material/InfoOutlined"
-import Button from "@mui/material/Button"
-import { docs } from "utils/docs"
+import { useMachine } from "@xstate/react";
+import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
+import { LicenseBanner } from "components/Dashboard/LicenseBanner/LicenseBanner";
+import { Loader } from "components/Loader/Loader";
+import { ServiceBanner } from "components/Dashboard/ServiceBanner/ServiceBanner";
+import { usePermissions } from "hooks/usePermissions";
+import { FC, Suspense } from "react";
+import { Outlet } from "react-router-dom";
+import { dashboardContentBottomPadding } from "theme/constants";
+import { updateCheckMachine } from "xServices/updateCheck/updateCheckXService";
+import { Navbar } from "./Navbar/Navbar";
+import Snackbar from "@mui/material/Snackbar";
+import Link from "@mui/material/Link";
+import Box, { BoxProps } from "@mui/material/Box";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import Button from "@mui/material/Button";
+import { docs } from "utils/docs";
 
 export const DashboardLayout: FC = () => {
-  const styles = useStyles()
-  const permissions = usePermissions()
+  const permissions = usePermissions();
   const [updateCheckState, updateCheckSend] = useMachine(updateCheckMachine, {
     context: {
       permissions,
     },
-  })
-  const { updateCheck } = updateCheckState.context
-  const canViewDeployment = Boolean(permissions.viewDeploymentValues)
+  });
+  const { updateCheck } = updateCheckState.context;
+  const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 
   return (
     <>
       <ServiceBanner />
       {canViewDeployment && <LicenseBanner />}
 
-      <div className={styles.site}>
+      <div
+        css={{
+          display: "flex",
+          minHeight: "100%",
+          flexDirection: "column",
+        }}
+      >
         <Navbar />
 
-        <div className={styles.siteContent}>
+        <div
+          css={{
+            flex: 1,
+            paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
           <Suspense fallback={<Loader />}>
             <Outlet />
           </Suspense>
@@ -97,19 +108,22 @@ export const DashboardLayout: FC = () => {
         />
       </div>
     </>
-  )
-}
+  );
+};
 
-const useStyles = makeStyles({
-  site: {
-    display: "flex",
-    minHeight: "100vh",
-    flexDirection: "column",
-  },
-  siteContent: {
-    flex: 1,
-    paddingBottom: dashboardContentBottomPadding, // Add bottom space since we don't use a footer
-    display: "flex",
-    flexDirection: "column",
-  },
-})
+export const DashboardFullPage = (props: BoxProps) => {
+  return (
+    <Box
+      {...props}
+      sx={{
+        ...props.sx,
+        marginBottom: `-${dashboardContentBottomPadding}px`,
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        flexBasis: 0,
+        minHeight: "100%",
+      }}
+    />
+  );
+};

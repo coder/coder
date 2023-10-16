@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 var errAgentShuttingDown = xerrors.New("agent is shutting down")
@@ -16,7 +16,7 @@ var errAgentShuttingDown = xerrors.New("agent is shutting down")
 type AgentOptions struct {
 	FetchInterval time.Duration
 	Fetch         func(ctx context.Context, agentID uuid.UUID) (codersdk.WorkspaceAgent, error)
-	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error)
+	FetchLogs     func(ctx context.Context, agentID uuid.UUID, after int64, follow bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error)
 	Wait          bool // If true, wait for the agent to be ready (startup script).
 }
 
@@ -29,8 +29,8 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 		opts.FetchInterval = 500 * time.Millisecond
 	}
 	if opts.FetchLogs == nil {
-		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentStartupLog, io.Closer, error) {
-			c := make(chan []codersdk.WorkspaceAgentStartupLog)
+		opts.FetchLogs = func(_ context.Context, _ uuid.UUID, _ int64, _ bool) (<-chan []codersdk.WorkspaceAgentLog, io.Closer, error) {
+			c := make(chan []codersdk.WorkspaceAgentLog)
 			close(c)
 			return c, closeFunc(func() error { return nil }), nil
 		}
@@ -80,6 +80,10 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 	if err != nil {
 		return xerrors.Errorf("fetch: %w", err)
 	}
+	logSources := map[uuid.UUID]codersdk.WorkspaceAgentLogSource{}
+	for _, source := range agent.LogSources {
+		logSources[source.ID] = source
+	}
 
 	sw := &stageWriter{w: writer}
 
@@ -123,7 +127,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				return nil
 			}
 
-			stage := "Running workspace agent startup script"
+			stage := "Running workspace agent startup scripts"
 			follow := opts.Wait
 			if !follow {
 				stage += " (non-blocking)"
@@ -137,7 +141,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				}
 				defer logsCloser.Close()
 
-				var lastLog codersdk.WorkspaceAgentStartupLog
+				var lastLog codersdk.WorkspaceAgentLog
 				fetchedAgentWhileFollowing := fetchedAgent
 				if !follow {
 					fetchedAgentWhileFollowing = nil
@@ -173,7 +177,12 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 							return nil
 						}
 						for _, log := range logs {
-							sw.Log(log.CreatedAt, log.Level, log.Output)
+							source, hasSource := logSources[log.SourceID]
+							output := log.Output
+							if hasSource && source.DisplayName != "" {
+								output = source.DisplayName + ": " + output
+							}
+							sw.Log(log.CreatedAt, log.Level, output)
 							lastLog = log
 						}
 					}
@@ -192,16 +201,19 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			switch agent.LifecycleState {
 			case codersdk.WorkspaceAgentLifecycleReady:
 				sw.Complete(stage, agent.ReadyAt.Sub(*agent.StartedAt))
+			case codersdk.WorkspaceAgentLifecycleStartTimeout:
+				sw.Fail(stage, 0)
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script timed out and your workspace may be incomplete.")
 			case codersdk.WorkspaceAgentLifecycleStartError:
 				sw.Fail(stage, agent.ReadyAt.Sub(*agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
-				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: The startup script exited with an error and your workspace may be incomplete.")
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#startup-script-exited-with-an-error"))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
-					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup script is still running and your workspace may be incomplete.")
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#your-workspace-may-be-incomplete"))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't
@@ -225,12 +237,14 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
 			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, "https://coder.com/docs/v2/latest/templates#agent-connection-issues"))
+
+			disconnectedAt := *agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
 				if agent, err = fetch(); err != nil {
 					return xerrors.Errorf("fetch: %w", err)
 				}
 			}
-			sw.Complete(stage, agent.LastConnectedAt.Sub(*agent.DisconnectedAt))
+			sw.Complete(stage, agent.LastConnectedAt.Sub(disconnectedAt))
 		}
 	}
 }

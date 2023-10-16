@@ -10,12 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/metricscache"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/metricscache"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func dateH(year, month, day, hour int) time.Time {
@@ -444,7 +445,7 @@ func TestCache_DeploymentStats(t *testing.T) {
 	_, err := db.InsertWorkspaceAgentStat(context.Background(), database.InsertWorkspaceAgentStatParams{
 		ID:                 uuid.New(),
 		AgentID:            uuid.New(),
-		CreatedAt:          database.Now(),
+		CreatedAt:          dbtime.Now(),
 		ConnectionCount:    1,
 		RxBytes:            1,
 		TxBytes:            1,

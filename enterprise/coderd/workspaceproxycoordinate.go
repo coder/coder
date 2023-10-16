@@ -6,11 +6,11 @@ import (
 	"github.com/google/uuid"
 	"nhooyr.io/websocket"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/tailnet"
-	"github.com/coder/coder/enterprise/wsproxy/wsproxysdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/tailnet"
+	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
 
 // @Summary Agent is legacy
@@ -68,7 +68,8 @@ func (api *API) workspaceProxyCoordinate(rw http.ResponseWriter, r *http.Request
 
 	id := uuid.New()
 	sub := (*api.AGPL.TailnetCoordinator.Load()).ServeMultiAgent(id)
-	nc := websocket.NetConn(ctx, conn, websocket.MessageText)
+
+	ctx, nc := websocketNetConn(ctx, conn, websocket.MessageText)
 	defer nc.Close()
 
 	err = tailnet.ServeWorkspaceProxy(ctx, nc, sub)

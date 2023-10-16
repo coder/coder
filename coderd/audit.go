@@ -15,14 +15,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/searchquery"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get audit logs
@@ -154,6 +154,9 @@ func (api *API) generateFakeAuditLog(rw http.ResponseWriter, r *http.Request) {
 		Diff:             diff,
 		StatusCode:       http.StatusOK,
 		AdditionalFields: params.AdditionalFields,
+		RequestID:        uuid.Nil, // no request ID to attach this to
+		ResourceIcon:     "",
+		OrganizationID:   uuid.New(),
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)

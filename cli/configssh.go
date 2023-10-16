@@ -22,9 +22,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 const (
@@ -189,7 +190,6 @@ func sshPrepareWorkspaceConfigs(ctx context.Context, client *codersdk.Client) (r
 	}
 }
 
-//nolint:gocyclo
 func (r *RootCmd) configSSH() *clibase.Cmd {
 	var (
 		sshConfigFile       string
@@ -367,8 +367,8 @@ func (r *RootCmd) configSSH() *clibase.Cmd {
 			}
 
 			// Ensure stable sorting of output.
-			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) bool {
-				return a.Name < b.Name
+			slices.SortFunc(workspaceConfigs, func(a, b sshWorkspaceConfig) int {
+				return slice.Ascending(a.Name, b.Name)
 			})
 			for _, wc := range workspaceConfigs {
 				sort.Strings(wc.Hosts)

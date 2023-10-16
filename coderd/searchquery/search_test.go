@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/searchquery"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestSearchWorkspace(t *testing.T) {
@@ -142,7 +141,7 @@ func TestSearchWorkspace(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 	}
 
@@ -150,7 +149,7 @@ func TestSearchWorkspace(t *testing.T) {
 		c := c
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
-			values, postFilter, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
+			values, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
 			if c.ExpectedErrorContains != "" {
 				assert.True(t, len(errs) > 0, "expect some errors")
 				var s strings.Builder
@@ -159,7 +158,6 @@ func TestSearchWorkspace(t *testing.T) {
 				}
 				assert.Contains(t, s.String(), c.ExpectedErrorContains)
 			} else {
-				assert.Empty(t, postFilter)
 				assert.Len(t, errs, 0, "expected no error")
 				assert.Equal(t, c.Expected, values, "expected values")
 			}
@@ -170,50 +168,9 @@ func TestSearchWorkspace(t *testing.T) {
 
 		query := ``
 		timeout := 1337 * time.Second
-		values, _, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
+		values, errs := searchquery.Workspaces(query, codersdk.Pagination{}, timeout)
 		require.Empty(t, errs)
 		require.Equal(t, int64(timeout.Seconds()), values.AgentInactiveDisconnectTimeoutSeconds)
-	})
-
-	t.Run("TestSearchWorkspacePostFilter", func(t *testing.T) {
-		t.Parallel()
-		testCases := []struct {
-			Name     string
-			Query    string
-			Expected searchquery.PostFilter
-		}{
-			{
-				Name:     "Empty",
-				Query:    "",
-				Expected: searchquery.PostFilter{},
-			},
-			{
-				Name:  "DeletingBy",
-				Query: "deleting_by:2023-06-09",
-				Expected: searchquery.PostFilter{
-					DeletingBy: ptr.Ref(time.Date(
-						2023, 6, 9, 0, 0, 0, 0, time.UTC)),
-				},
-			},
-			{
-				Name:  "MultipleParams",
-				Query: "deleting_by:2023-06-09 name:workspace-name",
-				Expected: searchquery.PostFilter{
-					DeletingBy: ptr.Ref(time.Date(
-						2023, 6, 9, 0, 0, 0, 0, time.UTC)),
-				},
-			},
-		}
-
-		for _, c := range testCases {
-			c := c
-			t.Run(c.Name, func(t *testing.T) {
-				t.Parallel()
-				_, postFilter, errs := searchquery.Workspaces(c.Query, codersdk.Pagination{}, 0)
-				assert.Len(t, errs, 0, "expected no error")
-				assert.Equal(t, c.Expected, postFilter, "expected values")
-			})
-		}
 	})
 }
 
@@ -239,7 +196,7 @@ func TestSearchAudit(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 		{
 			Name:                  "Dates",
@@ -370,7 +327,7 @@ func TestSearchUsers(t *testing.T) {
 		{
 			Name:                  "ExtraKeys",
 			Query:                 `foo:bar`,
-			ExpectedErrorContains: `Query param "foo" is not a valid query param`,
+			ExpectedErrorContains: `"foo" is not a valid query param`,
 		},
 	}
 

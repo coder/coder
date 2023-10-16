@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "0.11.0"
+      source = "coder/coder"
     }
     kubernetes = {
-      source  = "hashicorp/kubernetes"
-      version = "~> 2.3.2"
+      source = "hashicorp/kubernetes"
     }
   }
 }
@@ -187,8 +185,10 @@ resource "kubernetes_deployment" "workspace" {
       }
       spec {
         container {
-          name  = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
-          image = "ghcr.io/coder/envbuilder:0.1.3"
+          name = "coder-${data.coder_workspace.me.owner}-${lower(data.coder_workspace.me.name)}"
+          # Find the latest version here:
+          # https://github.com/coder/envbuilder/tags
+          image = "ghcr.io/coder/envbuilder:0.2.1"
           env {
             name  = "CODER_AGENT_TOKEN"
             value = coder_agent.main.token

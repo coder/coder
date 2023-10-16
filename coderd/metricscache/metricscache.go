@@ -15,9 +15,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
@@ -146,8 +147,14 @@ func convertDAUResponse[T dauRow](rows []T, tzOffset int) codersdk.DAUsResponse 
 	}
 
 	dates := maps.Keys(respMap)
-	slices.SortFunc(dates, func(a, b time.Time) bool {
-		return a.Before(b)
+	slices.SortFunc(dates, func(a, b time.Time) int {
+		if a.Before(b) {
+			return -1
+		} else if a.Equal(b) {
+			return 0
+		} else {
+			return 1
+		}
 	})
 
 	var resp codersdk.DAUsResponse
@@ -233,7 +240,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 				Valid: true,
 			},
 			StartTime: sql.NullTime{
-				Time:  database.Time(time.Now().AddDate(0, -30, 0)),
+				Time:  dbtime.Time(time.Now().AddDate(0, -30, 0)),
 				Valid: true,
 			},
 		})
@@ -250,7 +257,7 @@ func (c *Cache) refreshTemplateDAUs(ctx context.Context) error {
 }
 
 func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
-	from := database.Now().Add(-15 * time.Minute)
+	from := dbtime.Now().Add(-15 * time.Minute)
 	agentStats, err := c.database.GetDeploymentWorkspaceAgentStats(ctx, from)
 	if err != nil {
 		return err
@@ -261,8 +268,8 @@ func (c *Cache) refreshDeploymentStats(ctx context.Context) error {
 	}
 	c.deploymentStatsResponse.Store(&codersdk.DeploymentStats{
 		AggregatedFrom: from,
-		CollectedAt:    database.Now(),
-		NextUpdateAt:   database.Now().Add(c.intervals.DeploymentStats),
+		CollectedAt:    dbtime.Now(),
+		NextUpdateAt:   dbtime.Now().Add(c.intervals.DeploymentStats),
 		Workspaces: codersdk.WorkspaceDeploymentStats{
 			Pending:  workspaceStats.PendingWorkspaces,
 			Building: workspaceStats.BuildingWorkspaces,

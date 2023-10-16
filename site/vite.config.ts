@@ -1,22 +1,22 @@
-import react from "@vitejs/plugin-react"
-import path from "path"
-import { defineConfig, PluginOption } from "vite"
-import { visualizer } from "rollup-plugin-visualizer"
-import checker from "vite-plugin-checker"
+import react from "@vitejs/plugin-react";
+import path from "path";
+import { defineConfig, PluginOption } from "vite";
+import { visualizer } from "rollup-plugin-visualizer";
+import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [
   react(),
   checker({
     typescript: true,
   }),
-]
+];
 
 if (process.env.STATS !== undefined) {
   plugins.push(
     visualizer({
       filename: "./stats/index.html",
     }),
-  )
+  );
 }
 
 export default defineConfig({
@@ -46,20 +46,20 @@ export default defineConfig({
         secure: process.env.NODE_ENV === "production",
         configure: (proxy) => {
           // Vite does not catch socket errors, and stops the webserver.
-          // As /startup-logs endpoint can return HTTP 4xx status, we need to embrace
+          // As /logs endpoint can return HTTP 4xx status, we need to embrace
           // Vite with a custom error handler to prevent from quitting.
           proxy.on("proxyReqWs", (proxyReq, req, socket) => {
             if (process.env.NODE_ENV === "development") {
               proxyReq.setHeader(
                 "origin",
                 process.env.CODER_HOST || "http://localhost:3000",
-              )
+              );
             }
 
             socket.on("error", (error) => {
-              console.error(error)
-            })
-          })
+              console.error(error);
+            });
+          });
         },
       },
       "/swagger": {
@@ -82,4 +82,4 @@ export default defineConfig({
       xServices: path.resolve(__dirname, "./src/xServices"),
     },
   },
-})
+});

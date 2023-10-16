@@ -1,19 +1,25 @@
-Usage: coder provisionerd start [flags]
+coder v0.0.0-devel
 
-Run a provisioner daemon
+USAGE:
+  coder provisionerd start [flags]
 
-[1mOptions[0m
+  Run a provisioner daemon
+
+OPTIONS:
   -c, --cache-dir string, $CODER_CACHE_DIRECTORY (default: [cache dir])
           Directory to store cached data.
 
       --poll-interval duration, $CODER_PROVISIONERD_POLL_INTERVAL (default: 1s)
-          How often to poll for provisioner jobs.
+          Deprecated and ignored.
 
       --poll-jitter duration, $CODER_PROVISIONERD_POLL_JITTER (default: 100ms)
-          How much to jitter the poll interval by.
+          Deprecated and ignored.
+
+      --psk string, $CODER_PROVISIONER_DAEMON_PSK
+          Pre-shared key to authenticate with Coder server.
 
   -t, --tag string-array, $CODER_PROVISIONERD_TAGS
           Tags to filter provisioner jobs by.
 
----
+———
 Run `coder --help` for a list of global options.

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/prometheusmetrics"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 )
 
 func TestCollector_Add(t *testing.T) {
@@ -115,11 +115,11 @@ func TestCollector_Set_Add(t *testing.T) {
 	assert.Equal(t, 6, int(metrics[1].Gauge.GetValue()))              // Metric value
 }
 
-func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count int) []dto.Metric {
+func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count int) []*dto.Metric {
 	ch := make(chan prometheus.Metric, count)
 	defer close(ch)
 
-	var metrics []dto.Metric
+	var metrics []*dto.Metric
 
 	collector.Collect(ch)
 	for i := 0; i < count; i++ {
@@ -129,7 +129,7 @@ func collectAndSortMetrics(t *testing.T, collector prometheus.Collector, count i
 		err := m.Write(&metric)
 		require.NoError(t, err)
 
-		metrics = append(metrics, metric)
+		metrics = append(metrics, &metric)
 	}
 
 	// Ensure always the same order of metrics

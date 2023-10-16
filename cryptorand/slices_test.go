@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 func TestRandomElement(t *testing.T) {

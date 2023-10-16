@@ -1,7 +1,7 @@
-import { makeStyles } from "@mui/styles"
-import Typography from "@mui/material/Typography"
-import { FC, PropsWithChildren } from "react"
-import { CoderIcon } from "../Icons/CoderIcon"
+import { makeStyles } from "@mui/styles";
+import Typography from "@mui/material/Typography";
+import { FC, PropsWithChildren } from "react";
+import { CoderIcon } from "../Icons/CoderIcon";
 
 const Language = {
   defaultMessage: (
@@ -9,12 +9,12 @@ const Language = {
       Welcome to <strong>Coder</strong>
     </>
   ),
-}
+};
 
 export const Welcome: FC<
   PropsWithChildren<{ message?: JSX.Element | string }>
 > = ({ message = Language.defaultMessage }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div>
@@ -25,8 +25,8 @@ export const Welcome: FC<
         {message}
       </Typography>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   logoBox: {
@@ -50,4 +50,4 @@ const useStyles = makeStyles((theme) => ({
       fontWeight: 600,
     },
   },
-}))
+}));

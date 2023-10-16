@@ -14,18 +14,18 @@ of [install](../install).
 
 ## Via install.sh
 
-If you installed Coder using the `install.sh` script, re-run the below
-command on the host:
+If you installed Coder using the `install.sh` script, re-run the below command
+on the host:
 
-```console
+```shell
 curl -L https://coder.com/install.sh | sh
 ```
 
-The script will unpack the new `coder` binary version over the one currently installed.
-Next, you can restart Coder with the following commands (if running it as a system
-service):
+The script will unpack the new `coder` binary version over the one currently
+installed. Next, you can restart Coder with the following commands (if running
+it as a system service):
 
-```console
+```shell
 systemctl daemon-reload
 systemctl restart coder
 ```
@@ -35,19 +35,22 @@ systemctl restart coder
 If you installed using `docker-compose`, run the below command to upgrade the
 Coder container:
 
-```console
-docker-compose pull coder && docker-compose up coder -d
+```shell
+docker-compose pull coder && docker-compose up -d coder
 ```
 
 ## Via Kubernetes
 
-See [Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
+See
+[Upgrading Coder via Helm](../install/kubernetes.md#upgrading-coder-via-helm).
 
 ## Via Windows
 
-Download the latest Windows installer or binary from [GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade from Winget.
+Download the latest Windows installer or binary from
+[GitHub releases](https://github.com/coder/coder/releases/latest), or upgrade
+from Winget.
 
-```sh
+```pwsh
 winget install Coder.Coder
 ```
 

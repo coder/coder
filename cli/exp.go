@@ -1,6 +1,6 @@
 package cli
 
-import "github.com/coder/coder/cli/clibase"
+import "github.com/coder/coder/v2/cli/clibase"
 
 func (r *RootCmd) expCmd() *clibase.Cmd {
 	cmd := &clibase.Cmd{
@@ -12,6 +12,7 @@ func (r *RootCmd) expCmd() *clibase.Cmd {
 		Hidden: true,
 		Children: []*clibase.Cmd{
 			r.scaletestCmd(),
+			r.errorExample(),
 		},
 	}
 	return cmd

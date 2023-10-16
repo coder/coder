@@ -12,16 +12,17 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/armon/circbuf"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/afero"
@@ -34,14 +35,16 @@ import (
 	"tailscale.com/types/netlogtype"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/gitauth"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentscripts"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/gitauth"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/retry"
 )
 
@@ -50,6 +53,10 @@ const (
 	ProtocolSSH             = "ssh"
 	ProtocolDial            = "dial"
 )
+
+// EnvProcPrioMgmt determines whether we attempt to manage
+// process CPU and OOM Killer priority.
+const EnvProcPrioMgmt = "CODER_PROC_PRIO_MGMT"
 
 type Options struct {
 	Filesystem                   afero.Fs
@@ -63,11 +70,16 @@ type Options struct {
 	IgnorePorts                  map[int]string
 	SSHMaxTimeout                time.Duration
 	TailnetListenPort            uint16
-	Subsystem                    codersdk.AgentSubsystem
+	Subsystems                   []codersdk.AgentSubsystem
 	Addresses                    []netip.Prefix
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
+	Syscaller                    agentproc.Syscaller
+	// ModifiedProcesses is used for testing process priority management.
+	ModifiedProcesses chan []*agentproc.Process
+	// ProcessManagementTick is used for testing process priority management.
+	ProcessManagementTick <-chan time.Time
 }
 
 type Client interface {
@@ -78,20 +90,19 @@ type Client interface {
 	PostLifecycle(ctx context.Context, state agentsdk.PostLifecycleRequest) error
 	PostAppHealth(ctx context.Context, req agentsdk.PostAppHealthsRequest) error
 	PostStartup(ctx context.Context, req agentsdk.PostStartupRequest) error
-	PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error
-	PatchStartupLogs(ctx context.Context, req agentsdk.PatchStartupLogs) error
+	PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error
+	PatchLogs(ctx context.Context, req agentsdk.PatchLogs) error
 	GetServiceBanner(ctx context.Context) (codersdk.ServiceBannerConfig, error)
 }
 
 type Agent interface {
 	HTTPDebug() http.Handler
+	// TailnetConn may be nil.
+	TailnetConn() *tailnet.Conn
 	io.Closer
 }
 
 func New(options Options) Agent {
-	if options.ReconnectingPTYTimeout == 0 {
-		options.ReconnectingPTYTimeout = 5 * time.Minute
-	}
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
 	}
@@ -121,6 +132,10 @@ func New(options Options) Agent {
 		prometheusRegistry = prometheus.NewRegistry()
 	}
 
+	if options.Syscaller == nil {
+		options.Syscaller = agentproc.NewSyscaller()
+	}
+
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	a := &agent{
 		tailnetListenPort:            options.TailnetListenPort,
@@ -142,8 +157,11 @@ func New(options Options) Agent {
 		reportMetadataInterval:       options.ReportMetadataInterval,
 		serviceBannerRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                options.SSHMaxTimeout,
-		subsystem:                    options.Subsystem,
+		subsystems:                   options.Subsystems,
 		addresses:                    options.Addresses,
+		syscaller:                    options.Syscaller,
+		modifiedProcs:                options.ModifiedProcesses,
+		processManagementTick:        options.ProcessManagementTick,
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
@@ -164,7 +182,7 @@ type agent struct {
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
 	ignorePorts map[int]string
-	subsystem   codersdk.AgentSubsystem
+	subsystems  []codersdk.AgentSubsystem
 
 	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
@@ -178,6 +196,7 @@ type agent struct {
 
 	manifest                     atomic.Pointer[agentsdk.Manifest] // manifest is atomic because values can change after reconnection.
 	reportMetadataInterval       time.Duration
+	scriptRunner                 *agentscripts.Runner
 	serviceBanner                atomic.Pointer[codersdk.ServiceBannerConfig] // serviceBanner is atomic because it is periodically updated.
 	serviceBannerRefreshInterval time.Duration
 	sessionToken                 atomic.Pointer[string]
@@ -198,6 +217,16 @@ type agent struct {
 
 	prometheusRegistry *prometheus.Registry
 	metrics            *agentMetrics
+	syscaller          agentproc.Syscaller
+
+	// modifiedProcs is used for testing process priority management.
+	modifiedProcs chan []*agentproc.Process
+	// processManagementTick is used for testing process priority management.
+	processManagementTick <-chan time.Time
+}
+
+func (a *agent) TailnetConn() *tailnet.Conn {
+	return a.network
 }
 
 func (a *agent) init(ctx context.Context) {
@@ -210,7 +239,13 @@ func (a *agent) init(ctx context.Context) {
 	sshSrv.Manifest = &a.manifest
 	sshSrv.ServiceBanner = &a.serviceBanner
 	a.sshServer = sshSrv
-
+	a.scriptRunner = agentscripts.New(agentscripts.Options{
+		LogDir:     a.logDir,
+		Logger:     a.logger,
+		SSHServer:  sshSrv,
+		Filesystem: a.filesystem,
+		PatchLogs:  a.client.PatchLogs,
+	})
 	go a.runLoop(ctx)
 }
 
@@ -222,6 +257,7 @@ func (a *agent) runLoop(ctx context.Context) {
 	go a.reportLifecycleLoop(ctx)
 	go a.reportMetadataLoop(ctx)
 	go a.fetchServiceBannerLoop(ctx)
+	go a.manageProcessPriorityLoop(ctx)
 
 	for retrier := retry.New(100*time.Millisecond, 10*time.Second); retrier.Wait(ctx); {
 		a.logger.Info(ctx, "connecting to coderd")
@@ -230,7 +266,9 @@ func (a *agent) runLoop(ctx context.Context) {
 		if err == nil {
 			continue
 		}
-		if errors.Is(err, context.Canceled) {
+		if ctx.Err() != nil {
+			// Context canceled errors may come from websocket pings, so we
+			// don't want to use `errors.Is(err, context.Canceled)` here.
 			return
 		}
 		if a.isClosed() {
@@ -324,140 +362,210 @@ func (t *trySingleflight) Do(key string, fn func()) {
 }
 
 func (a *agent) reportMetadataLoop(ctx context.Context) {
-	const metadataLimit = 128
+	tickerDone := make(chan struct{})
+	collectDone := make(chan struct{})
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		cancel()
+		<-collectDone
+		<-tickerDone
+	}()
 
 	var (
-		baseTicker        = time.NewTicker(a.reportMetadataInterval)
-		lastCollectedAtMu sync.RWMutex
-		lastCollectedAts  = make(map[string]time.Time)
-		metadataResults   = make(chan metadataResultAndKey, metadataLimit)
-		logger            = a.logger.Named("metadata")
+		logger          = a.logger.Named("metadata")
+		report          = make(chan struct{}, 1)
+		collect         = make(chan struct{}, 1)
+		metadataResults = make(chan metadataResultAndKey, 1)
 	)
-	defer baseTicker.Stop()
 
-	// We use a custom singleflight that immediately returns if there is already
-	// a goroutine running for a given key. This is to prevent a build-up of
-	// goroutines waiting on Do when the script takes many multiples of
-	// baseInterval to run.
-	flight := trySingleflight{m: map[string]struct{}{}}
-
-	postMetadata := func(mr metadataResultAndKey) {
-		err := a.client.PostMetadata(ctx, mr.key, *mr.result)
-		if err != nil {
-			a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+	// Set up collect and report as a single ticker with two channels,
+	// this is to allow collection and reporting to be triggered
+	// independently of each other.
+	go func() {
+		t := time.NewTicker(a.reportMetadataInterval)
+		defer func() {
+			t.Stop()
+			close(report)
+			close(collect)
+			close(tickerDone)
+		}()
+		wake := func(c chan<- struct{}) {
+			select {
+			case c <- struct{}{}:
+			default:
+			}
 		}
-	}
+		wake(collect) // Start immediately.
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				wake(report)
+				wake(collect)
+			}
+		}
+	}()
+
+	go func() {
+		defer close(collectDone)
+
+		var (
+			// We use a custom singleflight that immediately returns if there is already
+			// a goroutine running for a given key. This is to prevent a build-up of
+			// goroutines waiting on Do when the script takes many multiples of
+			// baseInterval to run.
+			flight            = trySingleflight{m: map[string]struct{}{}}
+			lastCollectedAtMu sync.RWMutex
+			lastCollectedAts  = make(map[string]time.Time)
+		)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-collect:
+			}
+
+			manifest := a.manifest.Load()
+			if manifest == nil {
+				continue
+			}
+
+			// If the manifest changes (e.g. on agent reconnect) we need to
+			// purge old cache values to prevent lastCollectedAt from growing
+			// boundlessly.
+			lastCollectedAtMu.Lock()
+			for key := range lastCollectedAts {
+				if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
+					return md.Key == key
+				}) < 0 {
+					logger.Debug(ctx, "deleting lastCollected key, missing from manifest",
+						slog.F("key", key),
+					)
+					delete(lastCollectedAts, key)
+				}
+			}
+			lastCollectedAtMu.Unlock()
+
+			// Spawn a goroutine for each metadata collection, and use a
+			// channel to synchronize the results and avoid both messy
+			// mutex logic and overloading the API.
+			for _, md := range manifest.Metadata {
+				md := md
+				// We send the result to the channel in the goroutine to avoid
+				// sending the same result multiple times. So, we don't care about
+				// the return values.
+				go flight.Do(md.Key, func() {
+					ctx := slog.With(ctx, slog.F("key", md.Key))
+					lastCollectedAtMu.RLock()
+					collectedAt, ok := lastCollectedAts[md.Key]
+					lastCollectedAtMu.RUnlock()
+					if ok {
+						// If the interval is zero, we assume the user just wants
+						// a single collection at startup, not a spinning loop.
+						if md.Interval == 0 {
+							return
+						}
+						intervalUnit := time.Second
+						// reportMetadataInterval is only less than a second in tests,
+						// so adjust the interval unit for them.
+						if a.reportMetadataInterval < time.Second {
+							intervalUnit = 100 * time.Millisecond
+						}
+						// The last collected value isn't quite stale yet, so we skip it.
+						if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
+							return
+						}
+					}
+
+					timeout := md.Timeout
+					if timeout == 0 {
+						if md.Interval != 0 {
+							timeout = md.Interval
+						} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
+							// Fallback to the report interval
+							timeout = interval * 3
+						} else {
+							// If the interval is still 0 (possible if the interval
+							// is less than a second), default to 5. This was
+							// randomly picked.
+							timeout = 5
+						}
+					}
+					ctxTimeout := time.Duration(timeout) * time.Second
+					ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
+					defer cancel()
+
+					now := time.Now()
+					select {
+					case <-ctx.Done():
+						logger.Warn(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
+					case metadataResults <- metadataResultAndKey{
+						key:    md.Key,
+						result: a.collectMetadata(ctx, md, now),
+					}:
+						lastCollectedAtMu.Lock()
+						lastCollectedAts[md.Key] = now
+						lastCollectedAtMu.Unlock()
+					}
+				})
+			}
+		}
+	}()
+
+	// Gather metadata updates and report them once every interval. If a
+	// previous report is in flight, wait for it to complete before
+	// sending a new one. If the network conditions are bad, we won't
+	// benefit from canceling the previous send and starting a new one.
+	var (
+		updatedMetadata = make(map[string]*codersdk.WorkspaceAgentMetadataResult)
+		reportTimeout   = 30 * time.Second
+		reportSemaphore = make(chan struct{}, 1)
+	)
+	reportSemaphore <- struct{}{}
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case mr := <-metadataResults:
-			postMetadata(mr)
+			// This can overwrite unsent values, but that's fine because
+			// we're only interested about up-to-date values.
+			updatedMetadata[mr.key] = mr.result
 			continue
-		case <-baseTicker.C:
-		}
-
-		if len(metadataResults) > 0 {
-			// The inner collection loop expects the channel is empty before spinning up
-			// all the collection goroutines.
-			logger.Debug(ctx, "metadata collection backpressured",
-				slog.F("queue_len", len(metadataResults)),
-			)
-			continue
-		}
-
-		manifest := a.manifest.Load()
-		if manifest == nil {
-			continue
-		}
-
-		if len(manifest.Metadata) > metadataLimit {
-			logger.Error(
-				ctx, "metadata limit exceeded",
-				slog.F("limit", metadataLimit), slog.F("got", len(manifest.Metadata)),
-			)
-			continue
-		}
-
-		// If the manifest changes (e.g. on agent reconnect) we need to
-		// purge old cache values to prevent lastCollectedAt from growing
-		// boundlessly.
-		lastCollectedAtMu.Lock()
-		for key := range lastCollectedAts {
-			if slices.IndexFunc(manifest.Metadata, func(md codersdk.WorkspaceAgentMetadataDescription) bool {
-				return md.Key == key
-			}) < 0 {
-				logger.Debug(ctx, "deleting lastCollected key, missing from manifest",
-					slog.F("key", key),
-				)
-				delete(lastCollectedAts, key)
-			}
-		}
-		lastCollectedAtMu.Unlock()
-
-		// Spawn a goroutine for each metadata collection, and use a
-		// channel to synchronize the results and avoid both messy
-		// mutex logic and overloading the API.
-		for _, md := range manifest.Metadata {
-			md := md
-			// We send the result to the channel in the goroutine to avoid
-			// sending the same result multiple times. So, we don't care about
-			// the return values.
-			go flight.Do(md.Key, func() {
-				ctx := slog.With(ctx, slog.F("key", md.Key))
-				lastCollectedAtMu.RLock()
-				collectedAt, ok := lastCollectedAts[md.Key]
-				lastCollectedAtMu.RUnlock()
-				if ok {
-					// If the interval is zero, we assume the user just wants
-					// a single collection at startup, not a spinning loop.
-					if md.Interval == 0 {
-						return
-					}
-					intervalUnit := time.Second
-					// reportMetadataInterval is only less than a second in tests,
-					// so adjust the interval unit for them.
-					if a.reportMetadataInterval < time.Second {
-						intervalUnit = 100 * time.Millisecond
-					}
-					// The last collected value isn't quite stale yet, so we skip it.
-					if collectedAt.Add(time.Duration(md.Interval) * intervalUnit).After(time.Now()) {
-						return
-					}
+		case <-report:
+			if len(updatedMetadata) > 0 {
+				metadata := make([]agentsdk.Metadata, 0, len(updatedMetadata))
+				for key, result := range updatedMetadata {
+					metadata = append(metadata, agentsdk.Metadata{
+						Key:                          key,
+						WorkspaceAgentMetadataResult: *result,
+					})
+					delete(updatedMetadata, key)
 				}
 
-				timeout := md.Timeout
-				if timeout == 0 {
-					if md.Interval != 0 {
-						timeout = md.Interval
-					} else if interval := int64(a.reportMetadataInterval.Seconds()); interval != 0 {
-						// Fallback to the report interval
-						timeout = interval * 3
-					} else {
-						// If the interval is still 0 (possible if the interval
-						// is less than a second), default to 5. This was
-						// randomly picked.
-						timeout = 5
-					}
-				}
-				ctxTimeout := time.Duration(timeout) * time.Second
-				ctx, cancel := context.WithTimeout(ctx, ctxTimeout)
-				defer cancel()
-
-				now := time.Now()
 				select {
-				case <-ctx.Done():
-					logger.Warn(ctx, "metadata collection timed out", slog.F("timeout", ctxTimeout))
-				case metadataResults <- metadataResultAndKey{
-					key:    md.Key,
-					result: a.collectMetadata(ctx, md, now),
-				}:
-					lastCollectedAtMu.Lock()
-					lastCollectedAts[md.Key] = now
-					lastCollectedAtMu.Unlock()
+				case <-reportSemaphore:
+				default:
+					// If there's already a report in flight, don't send
+					// another one, wait for next tick instead.
+					continue
 				}
-			})
+
+				go func() {
+					ctx, cancel := context.WithTimeout(ctx, reportTimeout)
+					defer func() {
+						cancel()
+						reportSemaphore <- struct{}{}
+					}()
+
+					err := a.client.PostMetadata(ctx, agentsdk.PostMetadataRequest{Metadata: metadata})
+					if err != nil {
+						a.logger.Error(ctx, "agent failed to report metadata", slog.Error(err))
+					}
+				}()
+			}
 		}
 	}
 }
@@ -518,7 +626,7 @@ func (a *agent) reportLifecycleLoop(ctx context.Context) {
 func (a *agent) setLifecycle(ctx context.Context, state codersdk.WorkspaceAgentLifecycle) {
 	report := agentsdk.PostLifecycleRequest{
 		State:     state,
-		ChangedAt: database.Now(),
+		ChangedAt: dbtime.Now(),
 	}
 
 	a.lifecycleMu.Lock()
@@ -600,7 +708,7 @@ func (a *agent) run(ctx context.Context) error {
 	err = a.client.PostStartup(ctx, agentsdk.PostStartupRequest{
 		Version:           buildinfo.Version(),
 		ExpandedDirectory: manifest.Directory,
-		Subsystem:         a.subsystem,
+		Subsystems:        a.subsystems,
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace agent version: %w", err)
@@ -626,41 +734,29 @@ func (a *agent) run(ctx context.Context) error {
 			}
 		}
 
-		lifecycleState := codersdk.WorkspaceAgentLifecycleReady
-		scriptDone := make(chan error, 1)
+		err = a.scriptRunner.Init(manifest.Scripts)
+		if err != nil {
+			return xerrors.Errorf("init script runner: %w", err)
+		}
 		err = a.trackConnGoroutine(func() {
-			defer close(scriptDone)
-			scriptDone <- a.runStartupScript(ctx, manifest.StartupScript)
+			err := a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
+				return script.RunOnStart
+			})
+			if err != nil {
+				a.logger.Warn(ctx, "startup script failed", slog.Error(err))
+				if errors.Is(err, agentscripts.ErrTimeout) {
+					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
+				} else {
+					a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartError)
+				}
+			} else {
+				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleReady)
+			}
+			a.scriptRunner.StartCron()
 		})
 		if err != nil {
-			return xerrors.Errorf("track startup script: %w", err)
+			return xerrors.Errorf("track conn goroutine: %w", err)
 		}
-		go func() {
-			var timeout <-chan time.Time
-			// If timeout is zero, an older version of the coder
-			// provider was used. Otherwise a timeout is always > 0.
-			if manifest.StartupScriptTimeout > 0 {
-				t := time.NewTimer(manifest.StartupScriptTimeout)
-				defer t.Stop()
-				timeout = t.C
-			}
-
-			var err error
-			select {
-			case err = <-scriptDone:
-			case <-timeout:
-				a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "startup"), slog.F("timeout", manifest.ShutdownScriptTimeout))
-				a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleStartTimeout)
-				err = <-scriptDone // The script can still complete after a timeout.
-			}
-			if err != nil {
-				if errors.Is(err, context.Canceled) {
-					return
-				}
-				lifecycleState = codersdk.WorkspaceAgentLifecycleStartError
-			}
-			a.setLifecycle(ctx, lifecycleState)
-		}()
 	}
 
 	// This automatically closes when the context ends!
@@ -673,7 +769,7 @@ func (a *agent) run(ctx context.Context) error {
 	network := a.network
 	a.closeMutex.Unlock()
 	if network == nil {
-		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DisableDirectConnections)
+		network, err = a.createTailnet(ctx, manifest.AgentID, manifest.DERPMap, manifest.DERPForceWebSockets, manifest.DisableDirectConnections)
 		if err != nil {
 			return xerrors.Errorf("create tailnet: %w", err)
 		}
@@ -696,8 +792,10 @@ func (a *agent) run(ctx context.Context) error {
 		if err != nil {
 			a.logger.Error(ctx, "update tailnet addresses", slog.Error(err))
 		}
-		// Update the DERP map and allow/disallow direct connections.
+		// Update the DERP map, force WebSocket setting and allow/disallow
+		// direct connections.
 		network.SetDERPMap(manifest.DERPMap)
+		network.SetDERPForceWebSockets(manifest.DERPForceWebSockets)
 		network.SetBlockEndpoints(manifest.DisableDirectConnections)
 	}
 
@@ -751,13 +849,15 @@ func (a *agent) trackConnGoroutine(fn func()) error {
 	return nil
 }
 
-func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
 	network, err := tailnet.NewConn(&tailnet.Options{
-		Addresses:      a.wireguardAddresses(agentID),
-		DERPMap:        derpMap,
-		Logger:         a.logger.Named("net.tailnet"),
-		ListenPort:     a.tailnetListenPort,
-		BlockEndpoints: disableDirectConnections,
+		ID:                  agentID,
+		Addresses:           a.wireguardAddresses(agentID),
+		DERPMap:             derpMap,
+		DERPForceWebSockets: derpForceWebSockets,
+		Logger:              a.logger.Named("net.tailnet"),
+		ListenPort:          a.tailnetListenPort,
+		BlockEndpoints:      disableDirectConnections,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create tailnet: %w", err)
@@ -803,7 +903,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				}
 				break
 			}
-			logger.Debug(ctx, "accepted conn", slog.F("remote", conn.RemoteAddr().String()))
+			clog := logger.With(
+				slog.F("remote", conn.RemoteAddr().String()),
+				slog.F("local", conn.LocalAddr().String()))
+			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -835,7 +938,7 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
 					return
 				}
-				_ = a.handleReconnectingPTY(ctx, logger, msg, conn)
+				_ = a.handleReconnectingPTY(ctx, clog, msg, conn)
 			}()
 		}
 		wg.Wait()
@@ -862,6 +965,10 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 				}
 				break
 			}
+			clog := a.logger.Named("speedtest").With(
+				slog.F("remote", conn.RemoteAddr().String()),
+				slog.F("local", conn.LocalAddr().String()))
+			clog.Info(ctx, "accepted conn")
 			wg.Add(1)
 			closed := make(chan struct{})
 			go func() {
@@ -874,7 +981,12 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 			}()
 			go func() {
 				defer close(closed)
-				_ = speedtest.ServeConn(conn)
+				sErr := speedtest.ServeConn(conn)
+				if sErr != nil {
+					clog.Error(ctx, "test ended with error", slog.Error(sErr))
+					return
+				}
+				clog.Info(ctx, "test ended")
 			}()
 		}
 		wg.Wait()
@@ -971,93 +1083,6 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, network *tailnet.Conn)
 	}
 }
 
-func (a *agent) runStartupScript(ctx context.Context, script string) error {
-	return a.runScript(ctx, "startup", script)
-}
-
-func (a *agent) runShutdownScript(ctx context.Context, script string) error {
-	return a.runScript(ctx, "shutdown", script)
-}
-
-func (a *agent) runScript(ctx context.Context, lifecycle, script string) (err error) {
-	if script == "" {
-		return nil
-	}
-
-	logger := a.logger.With(slog.F("lifecycle", lifecycle))
-
-	logger.Info(ctx, fmt.Sprintf("running %s script", lifecycle), slog.F("script", script))
-	fileWriter, err := a.filesystem.OpenFile(filepath.Join(a.logDir, fmt.Sprintf("coder-%s-script.log", lifecycle)), os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return xerrors.Errorf("open %s script log file: %w", lifecycle, err)
-	}
-	defer func() {
-		err := fileWriter.Close()
-		if err != nil {
-			logger.Warn(ctx, fmt.Sprintf("close %s script log file", lifecycle), slog.Error(err))
-		}
-	}()
-
-	cmdPty, err := a.sshServer.CreateCommand(ctx, script, nil)
-	if err != nil {
-		return xerrors.Errorf("%s script: create command: %w", lifecycle, err)
-	}
-	cmd := cmdPty.AsExec()
-
-	var stdout, stderr io.Writer = fileWriter, fileWriter
-	if lifecycle == "startup" {
-		send, flushAndClose := agentsdk.StartupLogsSender(a.client.PatchStartupLogs, logger)
-		// If ctx is canceled here (or in a writer below), we may be
-		// discarding logs, but that's okay because we're shutting down
-		// anyway. We could consider creating a new context here if we
-		// want better control over flush during shutdown.
-		defer func() {
-			if err := flushAndClose(ctx); err != nil {
-				logger.Warn(ctx, "flush startup logs failed", slog.Error(err))
-			}
-		}()
-
-		infoW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelInfo)
-		defer infoW.Close()
-		errW := agentsdk.StartupLogsWriter(ctx, send, codersdk.LogLevelError)
-		defer errW.Close()
-
-		stdout = io.MultiWriter(fileWriter, infoW)
-		stderr = io.MultiWriter(fileWriter, errW)
-	}
-
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-
-	start := time.Now()
-	defer func() {
-		end := time.Now()
-		execTime := end.Sub(start)
-		exitCode := 0
-		if err != nil {
-			exitCode = 255 // Unknown status.
-			var exitError *exec.ExitError
-			if xerrors.As(err, &exitError) {
-				exitCode = exitError.ExitCode()
-			}
-			logger.Warn(ctx, fmt.Sprintf("%s script failed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode), slog.Error(err))
-		} else {
-			logger.Info(ctx, fmt.Sprintf("%s script completed", lifecycle), slog.F("execution_time", execTime), slog.F("exit_code", exitCode))
-		}
-	}()
-
-	err = cmd.Run()
-	if err != nil {
-		// cmd.Run does not return a context canceled error, it returns "signal: killed".
-		if ctx.Err() != nil {
-			return ctx.Err()
-		}
-
-		return xerrors.Errorf("%s script: run: %w", lifecycle, err)
-	}
-	return nil
-}
-
 func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg codersdk.WorkspaceAgentReconnectingPTYInit, conn net.Conn) (retErr error) {
 	defer conn.Close()
 	a.metrics.connectionsTotal.Add(1)
@@ -1066,8 +1091,8 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 	defer a.connCountReconnectingPTY.Add(-1)
 
 	connectionID := uuid.NewString()
-	logger = logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
-	logger.Debug(ctx, "starting handler")
+	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
+	connLogger.Debug(ctx, "starting handler")
 
 	defer func() {
 		if err := retErr; err != nil {
@@ -1078,22 +1103,22 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			// If the agent is closed, we don't want to
 			// log this as an error since it's expected.
 			if closed {
-				logger.Debug(ctx, "reconnecting PTY failed with session error (agent closed)", slog.Error(err))
+				connLogger.Info(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
 			} else {
-				logger.Error(ctx, "reconnecting PTY failed with session error", slog.Error(err))
+				connLogger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
 			}
 		}
-		logger.Debug(ctx, "session closed")
+		connLogger.Info(ctx, "reconnecting pty connection closed")
 	}()
 
-	var rpty *reconnectingPTY
-	sendConnected := make(chan *reconnectingPTY, 1)
+	var rpty reconnectingpty.ReconnectingPTY
+	sendConnected := make(chan reconnectingpty.ReconnectingPTY, 1)
 	// On store, reserve this ID to prevent multiple concurrent new connections.
 	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
 	if ok {
 		close(sendConnected) // Unused.
-		logger.Debug(ctx, "connecting to existing session")
-		c, ok := waitReady.(chan *reconnectingPTY)
+		connLogger.Debug(ctx, "connecting to existing reconnecting pty")
+		c, ok := waitReady.(chan reconnectingpty.ReconnectingPTY)
 		if !ok {
 			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
 		}
@@ -1103,7 +1128,7 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 		}
 		c <- rpty // Put it back for the next reconnect.
 	} else {
-		logger.Debug(ctx, "creating new session")
+		connLogger.Debug(ctx, "creating new reconnecting pty")
 
 		connected := false
 		defer func() {
@@ -1119,169 +1144,24 @@ func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, m
 			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
 			return xerrors.Errorf("create command: %w", err)
 		}
-		cmd.Env = append(cmd.Env, "TERM=xterm-256color")
 
-		// Default to buffer 64KiB.
-		circularBuffer, err := circbuf.NewBuffer(64 << 10)
-		if err != nil {
-			return xerrors.Errorf("create circular buffer: %w", err)
-		}
+		rpty = reconnectingpty.New(ctx, cmd, &reconnectingpty.Options{
+			Timeout: a.reconnectingPTYTimeout,
+			Metrics: a.metrics.reconnectingPTYErrors,
+		}, logger.With(slog.F("message_id", msg.ID)))
 
-		ptty, process, err := pty.Start(cmd)
-		if err != nil {
-			a.metrics.reconnectingPTYErrors.WithLabelValues("start_command").Add(1)
-			return xerrors.Errorf("start command: %w", err)
-		}
-
-		ctx, cancel := context.WithCancel(ctx)
-		rpty = &reconnectingPTY{
-			activeConns: map[string]net.Conn{
-				// We have to put the connection in the map instantly otherwise
-				// the connection won't be closed if the process instantly dies.
-				connectionID: conn,
-			},
-			ptty: ptty,
-			// Timeouts created with an after func can be reset!
-			timeout:        time.AfterFunc(a.reconnectingPTYTimeout, cancel),
-			circularBuffer: circularBuffer,
-		}
-		// We don't need to separately monitor for the process exiting.
-		// When it exits, our ptty.OutputReader() will return EOF after
-		// reading all process output.
 		if err = a.trackConnGoroutine(func() {
-			buffer := make([]byte, 1024)
-			for {
-				read, err := rpty.ptty.OutputReader().Read(buffer)
-				if err != nil {
-					// When the PTY is closed, this is triggered.
-					// Error is typically a benign EOF, so only log for debugging.
-					if errors.Is(err, io.EOF) {
-						logger.Debug(ctx, "unable to read pty output, command might have exited", slog.Error(err))
-					} else {
-						logger.Warn(ctx, "unable to read pty output, command might have exited", slog.Error(err))
-						a.metrics.reconnectingPTYErrors.WithLabelValues("output_reader").Add(1)
-					}
-					break
-				}
-				part := buffer[:read]
-				rpty.circularBufferMutex.Lock()
-				_, err = rpty.circularBuffer.Write(part)
-				rpty.circularBufferMutex.Unlock()
-				if err != nil {
-					logger.Error(ctx, "write to circular buffer", slog.Error(err))
-					break
-				}
-				rpty.activeConnsMutex.Lock()
-				for cid, conn := range rpty.activeConns {
-					_, err = conn.Write(part)
-					if err != nil {
-						logger.Warn(ctx,
-							"error writing to active conn",
-							slog.F("other_conn_id", cid),
-							slog.Error(err),
-						)
-						a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
-					}
-				}
-				rpty.activeConnsMutex.Unlock()
-			}
-
-			// Cleanup the process, PTY, and delete it's
-			// ID from memory.
-			_ = process.Kill()
-			rpty.Close()
+			rpty.Wait()
 			a.reconnectingPTYs.Delete(msg.ID)
 		}); err != nil {
-			_ = process.Kill()
-			_ = ptty.Close()
+			rpty.Close(err)
 			return xerrors.Errorf("start routine: %w", err)
 		}
+
 		connected = true
 		sendConnected <- rpty
 	}
-	// Resize the PTY to initial height + width.
-	err := rpty.ptty.Resize(msg.Height, msg.Width)
-	if err != nil {
-		// We can continue after this, it's not fatal!
-		logger.Error(ctx, "reconnecting PTY initial resize failed, but will continue", slog.Error(err))
-		a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
-	}
-	// Write any previously stored data for the TTY.
-	rpty.circularBufferMutex.RLock()
-	prevBuf := slices.Clone(rpty.circularBuffer.Bytes())
-	rpty.circularBufferMutex.RUnlock()
-	// Note that there is a small race here between writing buffered
-	// data and storing conn in activeConns. This is likely a very minor
-	// edge case, but we should look into ways to avoid it. Holding
-	// activeConnsMutex would be one option, but holding this mutex
-	// while also holding circularBufferMutex seems dangerous.
-	_, err = conn.Write(prevBuf)
-	if err != nil {
-		a.metrics.reconnectingPTYErrors.WithLabelValues("write").Add(1)
-		return xerrors.Errorf("write buffer to conn: %w", err)
-	}
-	// Multiple connections to the same TTY are permitted.
-	// This could easily be used for terminal sharing, but
-	// we do it because it's a nice user experience to
-	// copy/paste a terminal URL and have it _just work_.
-	rpty.activeConnsMutex.Lock()
-	rpty.activeConns[connectionID] = conn
-	rpty.activeConnsMutex.Unlock()
-	// Resetting this timeout prevents the PTY from exiting.
-	rpty.timeout.Reset(a.reconnectingPTYTimeout)
-
-	ctx, cancelFunc := context.WithCancel(ctx)
-	defer cancelFunc()
-	heartbeat := time.NewTicker(a.reconnectingPTYTimeout / 2)
-	defer heartbeat.Stop()
-	go func() {
-		// Keep updating the activity while this
-		// connection is alive!
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-heartbeat.C:
-			}
-			rpty.timeout.Reset(a.reconnectingPTYTimeout)
-		}
-	}()
-	defer func() {
-		// After this connection ends, remove it from
-		// the PTYs active connections. If it isn't
-		// removed, all PTY data will be sent to it.
-		rpty.activeConnsMutex.Lock()
-		delete(rpty.activeConns, connectionID)
-		rpty.activeConnsMutex.Unlock()
-	}()
-	decoder := json.NewDecoder(conn)
-	var req codersdk.ReconnectingPTYRequest
-	for {
-		err = decoder.Decode(&req)
-		if xerrors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			logger.Warn(ctx, "reconnecting PTY failed with read error", slog.Error(err))
-			return nil
-		}
-		_, err = rpty.ptty.InputWriter().Write([]byte(req.Data))
-		if err != nil {
-			logger.Warn(ctx, "reconnecting PTY failed with write error", slog.Error(err))
-			a.metrics.reconnectingPTYErrors.WithLabelValues("input_writer").Add(1)
-			return nil
-		}
-		// Check if a resize needs to happen!
-		if req.Height == 0 || req.Width == 0 {
-			continue
-		}
-		err = rpty.ptty.Resize(req.Height, req.Width)
-		if err != nil {
-			// We can continue after this, it's not fatal!
-			logger.Error(ctx, "reconnecting PTY resize failed, but will continue", slog.Error(err))
-			a.metrics.reconnectingPTYErrors.WithLabelValues("resize").Add(1)
-		}
-	}
+	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
 }
 
 // startReportingConnectionStats runs the connection stats reporting goroutine.
@@ -1389,6 +1269,115 @@ func (a *agent) startReportingConnectionStats(ctx context.Context) {
 	}
 }
 
+var prioritizedProcs = []string{"coder agent"}
+
+func (a *agent) manageProcessPriorityLoop(ctx context.Context) {
+	defer func() {
+		if r := recover(); r != nil {
+			a.logger.Critical(ctx, "recovered from panic",
+				slog.F("panic", r),
+				slog.F("stack", string(debug.Stack())),
+			)
+		}
+	}()
+
+	if val := a.envVars[EnvProcPrioMgmt]; val == "" || runtime.GOOS != "linux" {
+		a.logger.Debug(ctx, "process priority not enabled, agent will not manage process niceness/oom_score_adj ",
+			slog.F("env_var", EnvProcPrioMgmt),
+			slog.F("value", val),
+			slog.F("goos", runtime.GOOS),
+		)
+		return
+	}
+
+	if a.processManagementTick == nil {
+		ticker := time.NewTicker(time.Second)
+		defer ticker.Stop()
+		a.processManagementTick = ticker.C
+	}
+
+	for {
+		procs, err := a.manageProcessPriority(ctx)
+		if err != nil {
+			a.logger.Error(ctx, "manage process priority",
+				slog.Error(err),
+			)
+		}
+		if a.modifiedProcs != nil {
+			a.modifiedProcs <- procs
+		}
+
+		select {
+		case <-a.processManagementTick:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+func (a *agent) manageProcessPriority(ctx context.Context) ([]*agentproc.Process, error) {
+	const (
+		niceness = 10
+	)
+
+	procs, err := agentproc.List(a.filesystem, a.syscaller)
+	if err != nil {
+		return nil, xerrors.Errorf("list: %w", err)
+	}
+
+	var (
+		modProcs = []*agentproc.Process{}
+		logger   slog.Logger
+	)
+
+	for _, proc := range procs {
+		logger = a.logger.With(
+			slog.F("cmd", proc.Cmd()),
+			slog.F("pid", proc.PID),
+		)
+
+		containsFn := func(e string) bool {
+			contains := strings.Contains(proc.Cmd(), e)
+			return contains
+		}
+
+		// If the process is prioritized we should adjust
+		// it's oom_score_adj and avoid lowering its niceness.
+		if slices.ContainsFunc[[]string, string](prioritizedProcs, containsFn) {
+			continue
+		}
+
+		score, err := proc.Niceness(a.syscaller)
+		if err != nil {
+			logger.Warn(ctx, "unable to get proc niceness",
+				slog.Error(err),
+			)
+			continue
+		}
+
+		// We only want processes that don't have a nice value set
+		// so we don't override user nice values.
+		// Getpriority actually returns priority for the nice value
+		// which is niceness + 20, so here 20 = a niceness of 0 (aka unset).
+		if score != 20 {
+			// We don't log here since it can get spammy
+			continue
+		}
+
+		err = proc.SetNiceness(a.syscaller, niceness)
+		if err != nil {
+			logger.Warn(ctx, "unable to set proc niceness",
+				slog.F("niceness", niceness),
+				slog.Error(err),
+			)
+			continue
+		}
+
+		modProcs = append(modProcs, proc)
+	}
+	return modProcs, nil
+}
+
 // isClosed returns whether the API is closed or not.
 func (a *agent) isClosed() bool {
 	select {
@@ -1400,24 +1389,57 @@ func (a *agent) isClosed() bool {
 }
 
 func (a *agent) HTTPDebug() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	r := chi.NewRouter()
+
+	requireNetwork := func(w http.ResponseWriter) (*tailnet.Conn, bool) {
 		a.closeMutex.Lock()
 		network := a.network
 		a.closeMutex.Unlock()
 
 		if network == nil {
-			w.WriteHeader(http.StatusOK)
+			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte("network is not ready yet"))
+			return nil, false
+		}
+
+		return network, true
+	}
+
+	r.Get("/debug/magicsock", func(w http.ResponseWriter, r *http.Request) {
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
+		}
+		network.MagicsockServeHTTPDebug(w, r)
+	})
+
+	r.Get("/debug/magicsock/debug-logging/{state}", func(w http.ResponseWriter, r *http.Request) {
+		state := chi.URLParam(r, "state")
+		stateBool, err := strconv.ParseBool(state)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprintf(w, "invalid state %q, must be a boolean", state)
 			return
 		}
 
-		if r.URL.Path == "/debug/magicsock" {
-			network.MagicsockServeHTTPDebug(w, r)
-		} else {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte("404 not found"))
+		network, ok := requireNetwork(w)
+		if !ok {
+			return
 		}
+
+		network.MagicsockSetDebugLoggingEnabled(stateBool)
+		a.logger.Info(r.Context(), "updated magicsock debug logging due to debug request", slog.F("new_state", stateBool))
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = fmt.Fprintf(w, "updated magicsock debug logging to %v", stateBool)
 	})
+
+	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("404 not found"))
+	})
+
+	return r
 }
 
 func (a *agent) Close() error {
@@ -1439,38 +1461,22 @@ func (a *agent) Close() error {
 	}
 
 	lifecycleState := codersdk.WorkspaceAgentLifecycleOff
-	if manifest := a.manifest.Load(); manifest != nil && manifest.ShutdownScript != "" {
-		scriptDone := make(chan error, 1)
-		go func() {
-			defer close(scriptDone)
-			scriptDone <- a.runShutdownScript(ctx, manifest.ShutdownScript)
-		}()
-
-		var timeout <-chan time.Time
-		// If timeout is zero, an older version of the coder
-		// provider was used. Otherwise a timeout is always > 0.
-		if manifest.ShutdownScriptTimeout > 0 {
-			t := time.NewTimer(manifest.ShutdownScriptTimeout)
-			defer t.Stop()
-			timeout = t.C
-		}
-
-		var err error
-		select {
-		case err = <-scriptDone:
-		case <-timeout:
-			a.logger.Warn(ctx, "script timed out", slog.F("lifecycle", "shutdown"), slog.F("timeout", manifest.ShutdownScriptTimeout))
-			a.setLifecycle(ctx, codersdk.WorkspaceAgentLifecycleShutdownTimeout)
-			err = <-scriptDone // The script can still complete after a timeout.
-		}
-		if err != nil {
+	err = a.scriptRunner.Execute(ctx, func(script codersdk.WorkspaceAgentScript) bool {
+		return script.RunOnStop
+	})
+	if err != nil {
+		if errors.Is(err, agentscripts.ErrTimeout) {
+			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownTimeout
+		} else {
 			lifecycleState = codersdk.WorkspaceAgentLifecycleShutdownError
 		}
 	}
-
-	// Set final state and wait for it to be reported because context
-	// cancellation will stop the report loop.
 	a.setLifecycle(ctx, lifecycleState)
+
+	err = a.scriptRunner.Close()
+	if err != nil {
+		a.logger.Error(ctx, "script runner close", slog.Error(err))
+	}
 
 	// Wait for the lifecycle to be reported, but don't wait forever so
 	// that we don't break user expectations.
@@ -1497,31 +1503,6 @@ lifecycleWaitLoop:
 	a.connCloseWait.Wait()
 
 	return nil
-}
-
-type reconnectingPTY struct {
-	activeConnsMutex sync.Mutex
-	activeConns      map[string]net.Conn
-
-	circularBuffer      *circbuf.Buffer
-	circularBufferMutex sync.RWMutex
-	timeout             *time.Timer
-	ptty                pty.PTYCmd
-}
-
-// Close ends all connections to the reconnecting
-// PTY and clear the circular buffer.
-func (r *reconnectingPTY) Close() {
-	r.activeConnsMutex.Lock()
-	defer r.activeConnsMutex.Unlock()
-	for _, conn := range r.activeConns {
-		_ = conn.Close()
-	}
-	_ = r.ptty.Close()
-	r.circularBufferMutex.Lock()
-	r.circularBuffer.Reset()
-	r.circularBufferMutex.Unlock()
-	r.timeout.Stop()
 }
 
 // userHomeDir returns the home directory of the current user, giving

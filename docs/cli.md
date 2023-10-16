@@ -14,11 +14,11 @@ coder [global-flags] <subcommand>
 Coder — A tool for provisioning self-hosted development environments with Terraform.
   - Start a Coder server:
 
-      $ coder server
+     $ coder server
 
   - Get started by creating a template from an example:
 
-      $ coder templates init
+     $ coder templates init
 ```
 
 ## Subcommands
@@ -29,6 +29,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>create</code>](./cli/create.md)                 | Create a workspace                                                                                    |
 | [<code>delete</code>](./cli/delete.md)                 | Delete a workspace                                                                                    |
 | [<code>dotfiles</code>](./cli/dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
+| [<code>external-auth</code>](./cli/external-auth.md)   | Manage external authentication                                                                        |
 | [<code>features</code>](./cli/features.md)             | List Enterprise features                                                                              |
 | [<code>groups</code>](./cli/groups.md)                 | Manage groups                                                                                         |
 | [<code>licenses</code>](./cli/licenses.md)             | Add, delete, and list licenses                                                                        |
@@ -94,7 +95,18 @@ Path to the global `coder` config directory.
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
 
-Additional HTTP headers added to all requests. Provide as key=value. Can be specified multiple times.
+Additional HTTP headers added to all requests. Provide as key=value. Can be
+specified multiple times.
+
+### --header-command
+
+|             |                                    |
+| ----------- | ---------------------------------- |
+| Type        | <code>string</code>                |
+| Environment | <code>$CODER_HEADER_COMMAND</code> |
+
+An external command that outputs additional HTTP headers added to all requests.
+The command must output each header as `key=value` on its own line.
 
 ### --no-feature-warning
 
@@ -121,7 +133,8 @@ Suppress warning when client and server versions do not match.
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
 
-Specify an authentication token. For security reasons setting CODER_SESSION_TOKEN is preferred.
+Specify an authentication token. For security reasons setting
+CODER_SESSION_TOKEN is preferred.
 
 ### --url
 

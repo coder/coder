@@ -4,15 +4,20 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestProvisionerJobStatus(t *testing.T) {
@@ -27,7 +32,7 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceling",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 			},
@@ -37,11 +42,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceled",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 			},
@@ -51,11 +56,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "canceled_failed",
 			job: database.ProvisionerJob{
 				CanceledAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 				Error: sql.NullString{String: "badness", Valid: true},
@@ -71,11 +76,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "succeeded",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 			},
@@ -85,11 +90,11 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "completed_failed",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
 				CompletedAt: sql.NullTime{
-					Time:  database.Now().Add(-30 * time.Second),
+					Time:  dbtime.Now().Add(-30 * time.Second),
 					Valid: true,
 				},
 				Error: sql.NullString{String: "badness", Valid: true},
@@ -100,20 +105,45 @@ func TestProvisionerJobStatus(t *testing.T) {
 			name: "updated",
 			job: database.ProvisionerJob{
 				StartedAt: sql.NullTime{
-					Time:  database.Now().Add(-time.Minute),
+					Time:  dbtime.Now().Add(-time.Minute),
 					Valid: true,
 				},
-				UpdatedAt: database.Now(),
+				UpdatedAt: dbtime.Now(),
 			},
 			status: codersdk.ProvisionerJobRunning,
 		},
 	}
 
-	for _, tc := range cases {
+	// Share db for all job inserts.
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+
+	for i, tc := range cases {
 		tc := tc
+		i := i
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			actual := db2sdk.ProvisionerJobStatus(tc.job)
+			// Populate standard fields
+			now := dbtime.Now().Round(time.Minute)
+			tc.job.ID = uuid.New()
+			tc.job.CreatedAt = now
+			tc.job.UpdatedAt = now
+			tc.job.InitiatorID = org.ID
+			tc.job.OrganizationID = org.ID
+			tc.job.Input = []byte("{}")
+			tc.job.Provisioner = database.ProvisionerTypeEcho
+			// Unique tags for each job.
+			tc.job.Tags = map[string]string{fmt.Sprintf("%d", i): "true"}
+
+			inserted := dbgen.ProvisionerJob(t, db, nil, tc.job)
+			// Make sure the inserted job has the right values.
+			require.Equal(t, tc.job.StartedAt.Time.UTC(), inserted.StartedAt.Time.UTC(), "started at")
+			require.Equal(t, tc.job.CompletedAt.Time.UTC(), inserted.CompletedAt.Time.UTC(), "completed at")
+			require.Equal(t, tc.job.CanceledAt.Time.UTC(), inserted.CanceledAt.Time.UTC(), "canceled at")
+			require.Equal(t, tc.job.Error, inserted.Error, "error")
+			require.Equal(t, tc.job.ErrorCode, inserted.ErrorCode, "error code")
+
+			actual := codersdk.ProvisionerJobStatus(inserted.JobStatus)
 			require.Equal(t, tc.status, actual)
 		})
 	}

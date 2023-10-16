@@ -7,21 +7,21 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestUserStatus(t *testing.T) {
 	t.Parallel()
-	client := coderdtest.New(t, nil)
-	admin := coderdtest.CreateFirstUser(t, client)
-	other, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
-	otherUser, err := other.User(context.Background(), codersdk.Me)
-	require.NoError(t, err, "fetch user")
 
 	t.Run("StatusSelf", func(t *testing.T) {
 		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		coderdtest.CreateFirstUser(t, client)
+
 		inv, root := clitest.New(t, "users", "suspend", "me")
 		clitest.SetupConfig(t, client, root)
 		// Yes to the prompt
@@ -34,13 +34,19 @@ func TestUserStatus(t *testing.T) {
 
 	t.Run("StatusOther", func(t *testing.T) {
 		t.Parallel()
-		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "start as active")
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		other, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		otherUser, err := other.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch user")
 
 		inv, root := clitest.New(t, "users", "suspend", otherUser.Username)
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		// Yes to the prompt
 		inv.Stdin = bytes.NewReader([]byte("yes\n"))
-		err := inv.Run()
+		err = inv.Run()
 		require.NoError(t, err, "suspend user")
 
 		// Check the user status
@@ -50,7 +56,7 @@ func TestUserStatus(t *testing.T) {
 
 		// Set back to active. Try using a uuid as well
 		inv, root = clitest.New(t, "users", "activate", otherUser.ID.String())
-		clitest.SetupConfig(t, client, root)
+		clitest.SetupConfig(t, userAdmin, root)
 		// Yes to the prompt
 		inv.Stdin = bytes.NewReader([]byte("yes\n"))
 		err = inv.Run()

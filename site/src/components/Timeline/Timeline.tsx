@@ -1,31 +1,31 @@
-import { TimelineDateRow } from "components/Timeline/TimelineDateRow"
-import { Fragment } from "react"
+import { TimelineDateRow } from "components/Timeline/TimelineDateRow";
+import { Fragment } from "react";
 
-type GetDateFn<TData> = (data: TData) => Date
+type GetDateFn<TData> = (data: TData) => Date;
 
 const groupByDate = <TData,>(
   items: TData[],
   getDate: GetDateFn<TData>,
 ): Record<string, TData[]> => {
-  const itemsByDate: Record<string, TData[]> = {}
+  const itemsByDate: Record<string, TData[]> = {};
 
   items.forEach((item) => {
-    const dateKey = getDate(item).toDateString()
+    const dateKey = getDate(item).toDateString();
 
     if (dateKey in itemsByDate) {
-      itemsByDate[dateKey].push(item)
+      itemsByDate[dateKey].push(item);
     } else {
-      itemsByDate[dateKey] = [item]
+      itemsByDate[dateKey] = [item];
     }
-  })
+  });
 
-  return itemsByDate
-}
+  return itemsByDate;
+};
 
 export interface TimelineProps<TData> {
-  items: TData[]
-  getDate: GetDateFn<TData>
-  row: (item: TData) => JSX.Element
+  items: TData[];
+  getDate: GetDateFn<TData>;
+  row: (item: TData) => JSX.Element;
 }
 
 export const Timeline = <TData,>({
@@ -33,20 +33,20 @@ export const Timeline = <TData,>({
   getDate,
   row,
 }: TimelineProps<TData>): JSX.Element => {
-  const itemsByDate = groupByDate(items, getDate)
+  const itemsByDate = groupByDate(items, getDate);
 
   return (
     <>
       {Object.keys(itemsByDate).map((dateStr) => {
-        const items = itemsByDate[dateStr]
+        const items = itemsByDate[dateStr];
 
         return (
           <Fragment key={dateStr}>
             <TimelineDateRow date={new Date(dateStr)} />
             {items.map(row)}
           </Fragment>
-        )
+        );
       })}
     </>
-  )
-}
+  );
+};

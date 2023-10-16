@@ -2,13 +2,14 @@ package coderd
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Debug Info Wireguard Coordinator
@@ -37,7 +38,7 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 	// Get cached report if it exists.
 	if report := api.healthCheckCache.Load(); report != nil {
 		if time.Since(report.Time) < api.HealthcheckRefresh {
-			httpapi.WriteIndent(ctx, rw, http.StatusOK, report)
+			formatHealthcheck(ctx, rw, r, report)
 			return
 		}
 	}
@@ -59,8 +60,33 @@ func (api *API) debugDeploymentHealth(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	case res := <-resChan:
-		httpapi.WriteIndent(ctx, rw, http.StatusOK, res.Val)
+		formatHealthcheck(ctx, rw, r, res.Val)
 		return
+	}
+}
+
+func formatHealthcheck(ctx context.Context, rw http.ResponseWriter, r *http.Request, hc *healthcheck.Report) {
+	format := r.URL.Query().Get("format")
+	switch format {
+	case "text":
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		rw.WriteHeader(http.StatusOK)
+
+		_, _ = fmt.Fprintln(rw, "time:", hc.Time.Format(time.RFC3339))
+		_, _ = fmt.Fprintln(rw, "healthy:", hc.Healthy)
+		_, _ = fmt.Fprintln(rw, "derp:", hc.DERP.Healthy)
+		_, _ = fmt.Fprintln(rw, "access_url:", hc.AccessURL.Healthy)
+		_, _ = fmt.Fprintln(rw, "websocket:", hc.Websocket.Healthy)
+		_, _ = fmt.Fprintln(rw, "database:", hc.Database.Healthy)
+
+	case "", "json":
+		httpapi.WriteIndent(ctx, rw, http.StatusOK, hc)
+
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid format option %q.", format),
+			Detail:  "Allowed values are: \"json\", \"simple\".",
+		})
 	}
 }
 

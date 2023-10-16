@@ -1,28 +1,38 @@
 # Enterprise Features
 
-Coder is free to use and includes some features that are only accessible with a paid license.
-[Contact Sales](https://coder.com/contact) for pricing or [get a free
-trial](https://coder.com/trial).
+Coder is free to use and includes some features that are only accessible with a
+paid license. [Contact Sales](https://coder.com/contact) for pricing or
+[get a free trial](https://coder.com/trial).
 
-| Category        | Feature                                                                              | Open Source | Enterprise |
-| --------------- | ------------------------------------------------------------------------------------ | :---------: | :--------: |
-| User Management | [Groups](./admin/groups.md)                                                          |     ❌      |     ✅     |
-| User Management | [SCIM](./admin/auth.md#scim)                                                         |     ❌      |     ✅     |
-| Governance      | [Audit Logging](./admin/audit-logs.md)                                               |     ❌      |     ✅     |
-| Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)        |     ❌      |     ✅     |
-| Governance      | [Template Access Control](./admin/rbac.md)                                           |     ❌      |     ✅     |
-| Cost Control    | [Quotas](./admin/quotas.md)                                                          |     ❌      |     ✅     |
-| Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)              |     ❌      |     ✅     |
-| Deployment      | [High Availability](./admin/high-availability.md)                                    |     ❌      |     ✅     |
-| Deployment      | [Multiple Git Providers](./admin/git-providers.md#multiple-git-providers-enterprise) |     ❌      |     ✅     |
-| Deployment      | [Appearance](./admin/appearance.md)                                                  |     ❌      |     ✅     |
-| Deployment      | [Isolated Terraform Runners](./admin/provisioners.md)                                |     ❌      |     ✅     |
-| Deployment      | [Workspace Proxies](./admin/workspace-proxies.md)                                    |     ❌      |     ✅     |
-
-> Previous plans to restrict OIDC and Git Auth features in OSS have been removed
-> as of 2023-01-11
+| Category        | Feature                                                                                             | Open Source | Enterprise |
+| --------------- | --------------------------------------------------------------------------------------------------- | :---------: | :--------: |
+| Support         | Email, Phone, Prioritization                                                                        |     ❌      |     ✅     |
+| Scale           | [High Availability](./admin/high-availability.md)                                                   |     ❌      |     ✅     |
+| Scale           | [Multiple External Auth Providers](./admin/external-auth.md#multiple-external-providers-enterprise) |     ❌      |     ✅     |
+| Scale           | [Isolated Terraform Runners](./admin/provisioners.md)                                               |     ❌      |     ✅     |
+| Scale           | [Workspace Proxies](./admin/workspace-proxies.md)                                                   |     ❌      |     ✅     |
+| Governance      | [Audit Logging](./admin/audit-logs.md)                                                              |     ❌      |     ✅     |
+| Governance      | [Browser Only Connections](./networking/#browser-only-connections-enterprise)                       |     ❌      |     ✅     |
+| Governance      | [Groups & Template RBAC](./admin/rbac.md)                                                           |     ❌      |     ✅     |
+| Cost Control    | [Quotas](./admin/quotas.md)                                                                         |     ❌      |     ✅     |
+| Cost Control    | [Max Workspace Autostop](./templates/#configure-max-workspace-autostop)                             |     ❌      |     ✅     |
+| User Management | [Groups](./admin/groups.md)                                                                         |     ❌      |     ✅     |
+| User Management | [Group & role sync](./admin/auth.md#group-sync-enterprise)                                          |     ❌      |     ✅     |
+| User Management | [SCIM](./admin/auth.md#scim)                                                                        |     ❌      |     ✅     |
 
 ## Adding your license key
+
+There are two ways to add an enterprise license to a Coder deployment: In the
+Coder UI or with the Coder CLI.
+
+### Coder UI
+
+Click Deployment, Licenses, Add a license then drag or select the license file
+with the `jwt` extension.
+
+![Add License UI](./images/add-license-ui.png)
+
+### Coder CLI
 
 ### Requirements
 

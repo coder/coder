@@ -7,7 +7,7 @@ import (
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func loadVariableValuesFromFile(variablesFile string) ([]codersdk.VariableValue, error) {

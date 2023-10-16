@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.5.1",
+  "terraform_version": "1.5.5",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -424,5 +424,5 @@
       ]
     }
   ],
-  "timestamp": "2023-07-05T10:28:42Z"
+  "timestamp": "2023-08-30T19:25:27Z"
 }

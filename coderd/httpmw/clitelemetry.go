@@ -11,8 +11,9 @@ import (
 	"tailscale.com/tstime/rate"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/codersdk"
+	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handler) http.Handler {
@@ -30,7 +31,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 		//
 		// This approach just helps us reduce storage and ingest fees, and doesn't
 		// change the correctness.
-		queue = make(map[string]telemetry.CLIInvocation)
+		queue = make(map[string]clitelemetry.Invocation)
 	)
 
 	log = log.Named("cli-telemetry")
@@ -55,7 +56,7 @@ func ReportCLITelemetry(log slog.Logger, rep telemetry.Reporter) func(http.Handl
 				return
 			}
 
-			var inv telemetry.CLIInvocation
+			var inv clitelemetry.Invocation
 			err = json.Unmarshal(byt, &inv)
 			if err != nil {
 				log.Error(

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,11 +13,11 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/scaletest/harness"
-	"github.com/coder/coder/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
 )
 
 type Runner struct {
@@ -106,13 +107,42 @@ func NewCleanupRunner(client *codersdk.Client, workspaceID uuid.UUID) *CleanupRu
 
 // Run implements Runnable.
 func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	logs = loadtestutil.NewSyncWriter(logs)
+	logger := slog.Make(sloghuman.Sink(logs)).Leveled(slog.LevelDebug)
 	if r.workspaceID == uuid.Nil {
 		return nil
 	}
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
+	logger.Info(ctx, "deleting workspace", slog.F("workspace_id", r.workspaceID))
+	r.client.SetLogger(logger)
+	r.client.SetLogBodies(true)
 
-	build, err := r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
+	ws, err := r.client.Workspace(ctx, r.workspaceID)
+	if err != nil {
+		var sdkErr *codersdk.Error
+		if xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound {
+			logger.Info(ctx, "workspace not found, skipping delete", slog.F("workspace_id", r.workspaceID))
+			return nil
+		}
+		return err
+	}
+
+	build, err := r.client.WorkspaceBuild(ctx, ws.LatestBuild.ID)
+	if err == nil && build.Job.Status.Active() {
+		// mark the build as canceled
+		logger.Info(ctx, "canceling workspace build", slog.F("build_id", build.ID), slog.F("workspace_id", r.workspaceID))
+		if err = r.client.CancelWorkspaceBuild(ctx, build.ID); err == nil {
+			// Wait for the job to cancel before we delete it
+			_ = waitForBuild(ctx, logs, r.client, build.ID) // it will return a "build canceled" error
+		} else {
+			logger.Warn(ctx, "failed to cancel workspace build, attempting to delete anyway", slog.Error(err))
+		}
+	} else {
+		logger.Warn(ctx, "unable to lookup latest workspace build, attempting to delete anyway", slog.Error(err))
+	}
+
+	build, err = r.client.CreateWorkspaceBuild(ctx, r.workspaceID, codersdk.CreateWorkspaceBuildRequest{
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	if err != nil {
@@ -128,12 +158,11 @@ func (r *CleanupRunner) Run(ctx context.Context, _ string, logs io.Writer) error
 }
 
 // Cleanup implements Cleanable by wrapping CleanupRunner.
-func (r *Runner) Cleanup(ctx context.Context, id string) error {
-	// TODO: capture these logs
+func (r *Runner) Cleanup(ctx context.Context, id string, w io.Writer) error {
 	return (&CleanupRunner{
 		client:      r.client,
 		workspaceID: r.workspaceID,
-	}).Run(ctx, id, io.Discard)
+	}).Run(ctx, id, w)
 }
 
 func waitForBuild(ctx context.Context, w io.Writer, client *codersdk.Client, buildID uuid.UUID) error {

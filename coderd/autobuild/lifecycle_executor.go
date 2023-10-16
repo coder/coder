@@ -3,6 +3,9 @@ package autobuild
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"net/http"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -12,19 +15,24 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/schedule"
-	"github.com/coder/coder/coderd/wsbuilder"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/schedule"
+	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 )
 
 // Executor automatically starts or stops workspaces.
 type Executor struct {
 	ctx                   context.Context
 	db                    database.Store
+	ps                    pubsub.Pubsub
 	templateScheduleStore *atomic.Pointer[schedule.TemplateScheduleStore]
+	auditor               *atomic.Pointer[audit.Auditor]
 	log                   slog.Logger
 	tick                  <-chan time.Time
 	statsCh               chan<- Stats
@@ -38,14 +46,16 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, tss *atomic.Pointer[schedule.TemplateScheduleStore], log slog.Logger, tick <-chan time.Time) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], log slog.Logger, tick <-chan time.Time) *Executor {
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
 		db:                    db,
+		ps:                    ps,
 		templateScheduleStore: tss,
 		tick:                  tick,
 		log:                   log.Named("autobuild"),
+		auditor:               auditor,
 	}
 	return le
 }
@@ -127,6 +137,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 		log := e.log.With(slog.F("workspace_id", wsID))
 
 		eg.Go(func() error {
+			var job *database.ProvisionerJob
 			err := e.db.InTx(func(tx database.Store) error {
 				// Re-check eligibility since the first check was outside the
 				// transaction and the workspace settings may have changed.
@@ -160,13 +171,21 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					return nil
 				}
 
+				var build *database.WorkspaceBuild
 				if nextTransition != "" {
 					builder := wsbuilder.New(ws, nextTransition).
 						SetLastWorkspaceBuildInTx(&latestBuild).
 						SetLastWorkspaceBuildJobInTx(&latestJob).
 						Reason(reason)
+					log.Debug(e.ctx, "auto building workspace", slog.F("transition", nextTransition))
+					if nextTransition == database.WorkspaceTransitionStart &&
+						ws.AutomaticUpdates == database.AutomaticUpdatesAlways {
+						log.Debug(e.ctx, "autostarting with active version")
+						builder = builder.ActiveVersion()
+					}
 
-					if _, _, err := builder.Build(e.ctx, tx, nil); err != nil {
+					build, job, err = builder.Build(e.ctx, tx, nil)
+					if err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
 							slog.Error(err),
@@ -175,35 +194,46 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 
-				// Lock the workspace if it has breached the template's
+				//  Transition the workspace to dormant if it has breached the template's
 				// threshold for inactivity.
 				if reason == database.BuildReasonAutolock {
-					err = tx.UpdateWorkspaceLockedDeletingAt(e.ctx, database.UpdateWorkspaceLockedDeletingAtParams{
+					wsOld := ws
+					ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 						ID: ws.ID,
-						LockedAt: sql.NullTime{
-							Time:  database.Now(),
+						DormantAt: sql.NullTime{
+							Time:  dbtime.Now(),
 							Valid: true,
 						},
 					})
+
+					auditBuild(e.ctx, e.log, *e.auditor.Load(), auditParams{
+						Build:   build,
+						Job:     latestJob,
+						Reason:  reason,
+						Old:     wsOld,
+						New:     ws,
+						Success: err == nil,
+					})
+
 					if err != nil {
-						log.Error(e.ctx, "unable to lock workspace",
+						log.Error(e.ctx, "unable to transition workspace to dormant",
 							slog.F("transition", nextTransition),
 							slog.Error(err),
 						)
 						return nil
 					}
 
-					log.Info(e.ctx, "locked workspace",
+					log.Info(e.ctx, "dormant workspace",
 						slog.F("last_used_at", ws.LastUsedAt),
-						slog.F("inactivity_ttl", templateSchedule.InactivityTTL),
+						slog.F("time_til_dormant", templateSchedule.TimeTilDormant),
 						slog.F("since_last_used_at", time.Since(ws.LastUsedAt)),
 					)
 				}
 
 				if reason == database.BuildReasonAutodelete {
 					log.Info(e.ctx, "deleted workspace",
-						slog.F("locked_at", ws.LockedAt.Time),
-						slog.F("locked_ttl", templateSchedule.LockedTTL),
+						slog.F("dormant_at", ws.DormantAt.Time),
+						slog.F("time_til_dormant_autodelete", templateSchedule.TimeTilDormantAutoDelete),
 					)
 				}
 
@@ -228,6 +258,17 @@ func (e *Executor) runOnce(t time.Time) Stats {
 			if err != nil {
 				log.Error(e.ctx, "workspace scheduling failed", slog.Error(err))
 			}
+			if job != nil && err == nil {
+				// Note that we can't refactor such that posting the job happens inside wsbuilder because it's called
+				// with an outer transaction like this, and we need to make sure the outer transaction commits before
+				// posting the job.  If we post before the transaction commits, provisionerd might try to acquire the
+				// job, fail, and then sit idle instead of picking up the job.
+				err = provisionerjobs.PostJob(e.ps, *job)
+				if err != nil {
+					// Client probably doesn't care about this error, so just log it.
+					log.Error(e.ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+				}
+			}
 			return nil
 		})
 	}
@@ -246,7 +287,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // for this function to return a nil error as well as an empty transition.
 // In such cases it means no provisioning should occur but the workspace
 // may be "transitioning" to a new state (such as an inactive, stopped
-// workspace transitioning to the locked state).
+// workspace transitioning to the dormant state).
 func getNextTransition(
 	ws database.Workspace,
 	latestBuild database.WorkspaceBuild,
@@ -265,16 +306,16 @@ func getNextTransition(
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
 	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
-	case isEligibleForLockedStop(ws, templateSchedule, currentTick):
+	case isEligibleForDormantStop(ws, templateSchedule, currentTick):
 		// Only stop started workspaces.
 		if latestBuild.Transition == database.WorkspaceTransitionStart {
 			return database.WorkspaceTransitionStop, database.BuildReasonAutolock, nil
 		}
 		// We shouldn't transition the workspace but we should still
-		// lock it.
+		// make it dormant.
 		return "", database.BuildReasonAutolock, nil
 
-	case isEligibleForDelete(ws, templateSchedule, currentTick):
+	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
 	default:
 		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
@@ -284,12 +325,12 @@ func getNextTransition(
 // isEligibleForAutostart returns true if the workspace should be autostarted.
 func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	// Don't attempt to autostart failed workspaces.
-	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
 
-	// If the workspace is locked we should not autostart it.
-	if ws.LockedAt.Valid {
+	// If the workspace is dormant we should not autostart it.
+	if ws.DormantAt.Valid {
 		return false
 	}
 
@@ -305,7 +346,7 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 		return false
 	}
 
-	sched, err := schedule.Weekly(ws.AutostartSchedule.String)
+	sched, err := cron.Weekly(ws.AutostartSchedule.String)
 	if err != nil {
 		return false
 	}
@@ -313,17 +354,28 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 	// Truncate is probably not necessary here, but doing it anyway to be sure.
 	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
 
+	// The nextTransition is when the auto start should kick off. If it lands on a
+	// forbidden day, do not allow the auto start. We use the time location of the
+	// schedule to determine the weekday. So if "Saturday" is disallowed, the
+	// definition of "Saturday" depends on the location of the schedule.
+	zonedTransition := nextTransition.In(sched.Location())
+	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
+	if !allowed {
+		return false
+	}
+
+	// Must used '.Before' vs '.After' so equal times are considered "valid for autostart".
 	return !currentTick.Before(nextTransition)
 }
 
 // isEligibleForAutostart returns true if the workspace should be autostopped.
 func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild, job database.ProvisionerJob, currentTick time.Time) bool {
-	if db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed {
+	if job.JobStatus == database.ProvisionerJobStatusFailed {
 		return false
 	}
 
-	// If the workspace is locked we should not autostop it.
-	if ws.LockedAt.Valid {
+	// If the workspace is dormant we should not autostop it.
+	if ws.DormantAt.Valid {
 		return false
 	}
 
@@ -334,24 +386,32 @@ func isEligibleForAutostop(ws database.Workspace, build database.WorkspaceBuild,
 		!currentTick.Before(build.Deadline)
 }
 
-// isEligibleForLockedStop returns true if the workspace should be locked
+// isEligibleForDormantStop returns true if the workspace should be dormant
 // for breaching the inactivity threshold of the template.
-func isEligibleForLockedStop(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// Only attempt to lock workspaces not already locked.
-	return !ws.LockedAt.Valid &&
-		// The template must specify an inactivity TTL.
-		templateSchedule.InactivityTTL > 0 &&
-		// The workspace must breach the inactivity TTL.
-		currentTick.Sub(ws.LastUsedAt) > templateSchedule.InactivityTTL
+func isEligibleForDormantStop(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// Only attempt against workspaces not already dormant.
+	return !ws.DormantAt.Valid &&
+		// The template must specify an time_til_dormant value.
+		templateSchedule.TimeTilDormant > 0 &&
+		// The workspace must breach the time_til_dormant value.
+		currentTick.Sub(ws.LastUsedAt) > templateSchedule.TimeTilDormant
 }
 
-func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// Only attempt to delete locked workspaces.
-	return ws.LockedAt.Valid && ws.DeletingAt.Valid &&
-		// Locked workspaces should only be deleted if a locked_ttl is specified.
-		templateSchedule.LockedTTL > 0 &&
-		// The workspace must breach the locked_ttl.
+func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.TemplateScheduleOptions, lastBuild database.WorkspaceBuild, lastJob database.ProvisionerJob, currentTick time.Time) bool {
+	eligible := ws.DormantAt.Valid && ws.DeletingAt.Valid &&
+		// Dormant workspaces should only be deleted if a time_til_dormant_autodelete value is specified.
+		templateSchedule.TimeTilDormantAutoDelete > 0 &&
+		// The workspace must breach the time_til_dormant_autodelete value.
 		currentTick.After(ws.DeletingAt.Time)
+
+	// If the last delete job failed we should wait 24 hours before trying again.
+	// Builds are resource-intensive so retrying every minute is not productive
+	// and will hold compute hostage.
+	if lastBuild.Transition == database.WorkspaceTransitionDelete && lastJob.JobStatus == database.ProvisionerJobStatusFailed {
+		return eligible && lastJob.Finished() && currentTick.Sub(lastJob.FinishedAt()) > time.Hour*24
+	}
+
+	return eligible
 }
 
 // isEligibleForFailedStop returns true if the workspace is eligible to be stopped
@@ -360,9 +420,52 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 	// If the template has specified a failure TLL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
-		db2sdk.ProvisionerJobStatus(job) == codersdk.ProvisionerJobFailed &&
+		job.JobStatus == database.ProvisionerJobStatusFailed &&
 		build.Transition == database.WorkspaceTransitionStart &&
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
 		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
+}
+
+type auditParams struct {
+	Build   *database.WorkspaceBuild
+	Job     database.ProvisionerJob
+	Reason  database.BuildReason
+	Old     database.Workspace
+	New     database.Workspace
+	Success bool
+}
+
+func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, params auditParams) {
+	fields := audit.AdditionalFields{
+		WorkspaceName: params.New.Name,
+		BuildReason:   params.Reason,
+	}
+
+	if params.Build != nil {
+		fields.BuildNumber = strconv.FormatInt(int64(params.Build.BuildNumber), 10)
+	}
+
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		log.Error(ctx, "marshal resource info for successful job", slog.Error(err))
+	}
+
+	status := http.StatusInternalServerError
+	if params.Success {
+		status = http.StatusOK
+	}
+
+	audit.WorkspaceBuildAudit(ctx, &audit.BuildAuditParams[database.Workspace]{
+		Audit:            auditor,
+		Log:              log,
+		UserID:           params.Job.InitiatorID,
+		OrganizationID:   params.New.OrganizationID,
+		JobID:            params.Job.ID,
+		Action:           database.AuditActionWrite,
+		Old:              params.Old,
+		New:              params.New,
+		Status:           status,
+		AdditionalFields: raw,
+	})
 }

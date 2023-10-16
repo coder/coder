@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 type ServerSentEvent struct {

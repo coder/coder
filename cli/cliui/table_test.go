@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 type stringWrapper struct {

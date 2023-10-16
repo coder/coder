@@ -7,12 +7,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/enterprise/coderd/license"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestCheckACLPermissions(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCheckACLPermissions(t *testing.T) {
 	require.NoError(t, err)
 
 	version := coderdtest.CreateTemplateVersion(t, adminClient, adminUser.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJob(t, adminClient, version.ID)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
 	template := coderdtest.CreateTemplate(t, adminClient, adminUser.OrganizationID, version.ID)
 
 	err = adminClient.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{

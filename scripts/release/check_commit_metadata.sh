@@ -82,16 +82,20 @@ main() {
 			--json mergeCommit,labels,author \
 			--jq '.[] | "\( .mergeCommit.oid ) author:\( .author.login ) labels:\(["label:\( .labels[].name )"] | join(" "))"'
 	)"
-	mapfile -t pr_metadata_raw <<<"$pr_list_out"
+
 	declare -A authors labels
-	for entry in "${pr_metadata_raw[@]}"; do
-		commit_sha_long=${entry%% *}
-		commit_author=${entry#* author:}
-		commit_author=${commit_author%% *}
-		authors[$commit_sha_long]=$commit_author
-		all_labels=${entry#* labels:}
-		labels[$commit_sha_long]=$all_labels
-	done
+	if [[ -n $pr_list_out ]]; then
+		mapfile -t pr_metadata_raw <<<"$pr_list_out"
+
+		for entry in "${pr_metadata_raw[@]}"; do
+			commit_sha_long=${entry%% *}
+			commit_author=${entry#* author:}
+			commit_author=${commit_author%% *}
+			authors[$commit_sha_long]=$commit_author
+			all_labels=${entry#* labels:}
+			labels[$commit_sha_long]=$all_labels
+		done
+	fi
 
 	for commit in "${commits[@]}"; do
 		mapfile -d ' ' -t parts <<<"$commit"

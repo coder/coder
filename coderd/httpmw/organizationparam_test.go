@@ -10,11 +10,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestOrganizationParam(t *testing.T) {
@@ -113,8 +114,8 @@ func TestOrganizationParam(t *testing.T) {
 		organization, err := db.InsertOrganization(r.Context(), database.InsertOrganizationParams{
 			ID:        uuid.New(),
 			Name:      "test",
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			CreatedAt: dbtime.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		chi.RouteContext(r.Context()).URLParams.Add("organization", organization.ID.String())
@@ -124,7 +125,7 @@ func TestOrganizationParam(t *testing.T) {
 				DB:              db,
 				RedirectToLogin: false,
 			}),
-			httpmw.ExtractUserParam(db, false),
+			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
 		)
@@ -156,7 +157,7 @@ func TestOrganizationParam(t *testing.T) {
 				RedirectToLogin: false,
 			}),
 			httpmw.ExtractOrganizationParam(db),
-			httpmw.ExtractUserParam(db, false),
+			httpmw.ExtractUserParam(db),
 			httpmw.ExtractOrganizationMemberParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {

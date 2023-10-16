@@ -1,54 +1,50 @@
-import { makeStyles } from "@mui/styles"
-import Dialog from "@mui/material/Dialog"
-import DialogContent from "@mui/material/DialogContent"
-import DialogContentText from "@mui/material/DialogContentText"
-import DialogTitle from "@mui/material/DialogTitle"
-import { DialogProps } from "components/Dialogs/Dialog"
-import { FC } from "react"
-import { getFormHelpers } from "utils/formUtils"
-import { FormFields, VerticalForm } from "components/Form/Form"
+import { makeStyles } from "@mui/styles";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogContentText from "@mui/material/DialogContentText";
+import DialogTitle from "@mui/material/DialogTitle";
+import { DialogProps } from "components/Dialogs/Dialog";
+import { FC } from "react";
+import { getFormHelpers } from "utils/formUtils";
+import { FormFields, VerticalForm } from "components/Form/Form";
 import {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
-} from "api/typesGenerated"
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput"
-import { useFormik } from "formik"
+} from "api/typesGenerated";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+import { useFormik } from "formik";
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-} from "utils/richParameters"
-import * as Yup from "yup"
-import DialogActions from "@mui/material/DialogActions"
-import Button from "@mui/material/Button"
-import { useTranslation } from "react-i18next"
+} from "utils/richParameters";
+import * as Yup from "yup";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
-  onClose: () => void
-  onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void
-  missedParameters?: TemplateVersionParameter[]
-}
+  onClose: () => void;
+  onUpdate: (buildParameters: WorkspaceBuildParameter[]) => void;
+  missedParameters: TemplateVersionParameter[];
+};
 
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const styles = useStyles()
+  const styles = useStyles();
   const form = useFormik({
     initialValues: {
-      rich_parameter_values:
-        selectInitialRichParametersValues(missedParameters),
+      rich_parameter_values: getInitialRichParameterValues(missedParameters),
     },
     validationSchema: Yup.object({
-      rich_parameter_values: useValidationSchemaForRichParameters(
-        "createWorkspacePage",
-        missedParameters,
-      ),
+      rich_parameter_values:
+        useValidationSchemaForRichParameters(missedParameters),
     }),
     onSubmit: (values) => {
-      onUpdate(values.rich_parameter_values)
+      onUpdate(values.rich_parameter_values);
     },
-  })
-  const getFieldHelpers = getFormHelpers(form)
-  const { t } = useTranslation("workspacePage")
+    enableReinitialize: true,
+  });
+  const getFieldHelpers = getFormHelpers(form);
 
   return (
     <Dialog
@@ -66,7 +62,8 @@ export const UpdateBuildParametersDialog: FC<
       </DialogTitle>
       <DialogContent className={styles.content}>
         <DialogContentText className={styles.info}>
-          {t("askParametersDialog.message")}
+          This template has new parameters that must be configured to complete
+          the update
         </DialogContentText>
         <VerticalForm
           className={styles.form}
@@ -83,8 +80,6 @@ export const UpdateBuildParametersDialog: FC<
                     )}
                     key={parameter.name}
                     parameter={parameter}
-                    initialValue=""
-                    index={index}
                     onChange={async (value) => {
                       await form.setFieldValue(
                         "rich_parameter_values." + index,
@@ -92,10 +87,10 @@ export const UpdateBuildParametersDialog: FC<
                           name: parameter.name,
                           value: value,
                         },
-                      )
+                      );
                     }}
                   />
-                )
+                );
               })}
             </FormFields>
           )}
@@ -105,13 +100,19 @@ export const UpdateBuildParametersDialog: FC<
         <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
-        <Button color="primary" fullWidth type="submit" form="updateParameters">
+        <Button
+          color="primary"
+          fullWidth
+          type="submit"
+          form="updateParameters"
+          data-testid="form-submit"
+        >
           Update
         </Button>
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   title: {
@@ -157,4 +158,4 @@ const useStyles = makeStyles((theme) => ({
     flexDirection: "column",
     gap: theme.spacing(1),
   },
-}))
+}));

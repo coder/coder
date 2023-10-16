@@ -14,6 +14,8 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"gopkg.in/yaml.v3"
+
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // Cmd describes an executable command.
@@ -102,11 +104,11 @@ func (c *Cmd) PrepareAll() error {
 		}
 	}
 
-	slices.SortFunc(c.Options, func(a, b Option) bool {
-		return a.Name < b.Name
+	slices.SortFunc(c.Options, func(a, b Option) int {
+		return slice.Ascending(a.Name, b.Name)
 	})
-	slices.SortFunc(c.Children, func(a, b *Cmd) bool {
-		return a.Name() < b.Name()
+	slices.SortFunc(c.Children, func(a, b *Cmd) int {
+		return slice.Ascending(a.Name(), b.Name())
 	})
 	for _, child := range c.Children {
 		child.Parent = c

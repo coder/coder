@@ -12,14 +12,15 @@ import (
 	"github.com/moby/moby/pkg/namesgenerator"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/apikey"
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Creates a new token API key that effectively doesn't expire.
@@ -84,13 +85,13 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		UserID:           user.ID,
 		LoginType:        database.LoginTypeToken,
 		DeploymentValues: api.DeploymentValues,
-		ExpiresAt:        database.Now().Add(lifeTime),
+		ExpiresAt:        dbtime.Now().Add(lifeTime),
 		Scope:            scope,
 		LifetimeSeconds:  int64(lifeTime.Seconds()),
 		TokenName:        tokenName,
 	})
 	if err != nil {
-		if database.IsUniqueViolation(err, database.UniqueIndexApiKeyName) {
+		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
 				Validations: []codersdk.ValidationError{{
@@ -132,7 +133,7 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		RemoteAddr:       r.RemoteAddr,
 		// All api generated keys will last 1 week. Browser login tokens have
 		// a shorter life.
-		ExpiresAt:       database.Now().Add(lifeTime),
+		ExpiresAt:       dbtime.Now().Add(lifeTime),
 		LifetimeSeconds: int64(lifeTime.Seconds()),
 	})
 	if err != nil {

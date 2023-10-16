@@ -4,9 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"golang.org/x/xerrors"
+
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) restart() *clibase.Cmd {
@@ -21,7 +25,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 			clibase.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: append(parameterFlags.options(), cliui.SkipPromptOption()),
+		Options: append(parameterFlags.cliBuildOptions(), cliui.SkipPromptOption()),
 		Handler: func(inv *clibase.Invocation) error {
 			ctx := inv.Context()
 			out := inv.Stdout
@@ -31,14 +35,29 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
+			lastBuildParameters, err := client.WorkspaceBuildParameters(inv.Context(), workspace.LatestBuild.ID)
+			if err != nil {
+				return err
+			}
+
 			template, err := client.Template(inv.Context(), workspace.TemplateID)
 			if err != nil {
 				return err
 			}
 
-			buildParams, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
-				Template:     template,
-				BuildOptions: parameterFlags.buildOptions,
+			buildOptions, err := asWorkspaceBuildParameters(parameterFlags.buildOptions)
+			if err != nil {
+				return xerrors.Errorf("can't parse build options: %w", err)
+			}
+
+			buildParameters, err := prepStartWorkspace(inv, client, prepStartWorkspaceArgs{
+				Action:   WorkspaceRestart,
+				Template: template,
+
+				LastBuildParameters: lastBuildParameters,
+
+				PromptBuildOptions: parameterFlags.promptBuildOptions,
+				BuildOptions:       buildOptions,
 			})
 			if err != nil {
 				return err
@@ -65,7 +84,7 @@ func (r *RootCmd) restart() *clibase.Cmd {
 
 			build, err = client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
 				Transition:          codersdk.WorkspaceTransitionStart,
-				RichParameterValues: buildParams.richParameters,
+				RichParameterValues: buildParameters,
 			})
 			if err != nil {
 				return err
@@ -75,7 +94,10 @@ func (r *RootCmd) restart() *clibase.Cmd {
 				return err
 			}
 
-			_, _ = fmt.Fprintf(out, "\nThe %s workspace has been restarted at %s!\n", cliui.DefaultStyles.Keyword.Render(workspace.Name), cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(out,
+				"\nThe %s workspace has been restarted at %s!\n",
+				pretty.Sprint(cliui.DefaultStyles.Keyword, workspace.Name), cliui.Timestamp(time.Now()),
+			)
 			return nil
 		},
 	}

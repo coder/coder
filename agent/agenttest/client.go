@@ -13,10 +13,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/tailnet"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func NewClient(t testing.TB,
@@ -45,7 +45,7 @@ type Client struct {
 	logger               slog.Logger
 	agentID              uuid.UUID
 	manifest             agentsdk.Manifest
-	metadata             map[string]agentsdk.PostMetadataRequest
+	metadata             map[string]agentsdk.Metadata
 	statsChan            chan *agentsdk.Stats
 	coordinator          tailnet.Coordinator
 	LastWorkspaceAgent   func()
@@ -55,7 +55,7 @@ type Client struct {
 	mu              sync.Mutex // Protects following.
 	lifecycleStates []codersdk.WorkspaceAgentLifecycle
 	startup         agentsdk.PostStartupRequest
-	logs            []agentsdk.StartupLog
+	logs            []agentsdk.Log
 	derpMapUpdates  chan agentsdk.DERPMapUpdate
 }
 
@@ -136,20 +136,22 @@ func (c *Client) GetStartup() agentsdk.PostStartupRequest {
 	return c.startup
 }
 
-func (c *Client) GetMetadata() map[string]agentsdk.PostMetadataRequest {
+func (c *Client) GetMetadata() map[string]agentsdk.Metadata {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return maps.Clone(c.metadata)
 }
 
-func (c *Client) PostMetadata(ctx context.Context, key string, req agentsdk.PostMetadataRequest) error {
+func (c *Client) PostMetadata(ctx context.Context, req agentsdk.PostMetadataRequest) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.metadata == nil {
-		c.metadata = make(map[string]agentsdk.PostMetadataRequest)
+		c.metadata = make(map[string]agentsdk.Metadata)
 	}
-	c.metadata[key] = req
-	c.logger.Debug(ctx, "post metadata", slog.F("key", key), slog.F("req", req))
+	for _, md := range req.Metadata {
+		c.metadata[md.Key] = md
+		c.logger.Debug(ctx, "post metadata", slog.F("key", md.Key), slog.F("md", md))
+	}
 	return nil
 }
 
@@ -161,13 +163,13 @@ func (c *Client) PostStartup(ctx context.Context, startup agentsdk.PostStartupRe
 	return nil
 }
 
-func (c *Client) GetStartupLogs() []agentsdk.StartupLog {
+func (c *Client) GetStartupLogs() []agentsdk.Log {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.logs
 }
 
-func (c *Client) PatchStartupLogs(ctx context.Context, logs agentsdk.PatchStartupLogs) error {
+func (c *Client) PatchLogs(ctx context.Context, logs agentsdk.PatchLogs) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.PatchWorkspaceLogs != nil {

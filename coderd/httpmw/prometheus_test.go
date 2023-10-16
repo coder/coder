@@ -10,8 +10,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 func TestPrometheus(t *testing.T) {

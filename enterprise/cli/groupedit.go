@@ -7,18 +7,21 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	agpl "github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/pretty"
+
+	agpl "github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) groupEdit() *clibase.Cmd {
 	var (
-		avatarURL string
-		name      string
-		addUsers  []string
-		rmUsers   []string
+		avatarURL   string
+		name        string
+		displayName string
+		addUsers    []string
+		rmUsers     []string
 	)
 	client := new(codersdk.Client)
 	cmd := &clibase.Cmd{
@@ -52,6 +55,10 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 				req.AvatarURL = &avatarURL
 			}
 
+			if inv.ParsedFlags().Lookup("display-name").Changed {
+				req.DisplayName = &displayName
+			}
+
 			userRes, err := client.Users(ctx, codersdk.UsersRequest{})
 			if err != nil {
 				return xerrors.Errorf("get users: %w", err)
@@ -72,7 +79,7 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 				return xerrors.Errorf("patch group: %w", err)
 			}
 
-			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", cliui.DefaultStyles.Keyword.Render(group.Name))
+			_, _ = fmt.Fprintf(inv.Stdout, "Successfully patched group %s!\n", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name))
 			return nil
 		},
 	}
@@ -89,6 +96,12 @@ func (r *RootCmd) groupEdit() *clibase.Cmd {
 			FlagShorthand: "u",
 			Description:   "Update the group avatar.",
 			Value:         clibase.StringOf(&avatarURL),
+		},
+		{
+			Flag:        "display-name",
+			Description: `Optional human friendly name for the group.`,
+			Env:         "CODER_DISPLAY_NAME",
+			Value:       clibase.StringOf(&displayName),
 		},
 		{
 			Flag:          "add-users",

@@ -8,26 +8,29 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templateEdit() *clibase.Cmd {
 	var (
-		name                         string
-		displayName                  string
-		description                  string
-		icon                         string
-		defaultTTL                   time.Duration
-		maxTTL                       time.Duration
-		restartRequirementDaysOfWeek []string
-		restartRequirementWeeks      int64
-		failureTTL                   time.Duration
-		inactivityTTL                time.Duration
-		allowUserCancelWorkspaceJobs bool
-		allowUserAutostart           bool
-		allowUserAutostop            bool
+		name                           string
+		displayName                    string
+		description                    string
+		icon                           string
+		defaultTTL                     time.Duration
+		maxTTL                         time.Duration
+		autostopRequirementDaysOfWeek  []string
+		autostopRequirementWeeks       int64
+		autostartRequirementDaysOfWeek []string
+		failureTTL                     time.Duration
+		inactivityTTL                  time.Duration
+		allowUserCancelWorkspaceJobs   bool
+		allowUserAutostart             bool
+		allowUserAutostop              bool
 	)
 	client := new(codersdk.Client)
 
@@ -39,26 +42,16 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		),
 		Short: "Edit the metadata of a template by name.",
 		Handler: func(inv *clibase.Invocation) error {
-			// This clause can be removed when workspace_actions is no longer experimental
-			if failureTTL != 0 || inactivityTTL != 0 {
-				experiments, exErr := client.Experiments(inv.Context())
-				if exErr != nil {
-					return xerrors.Errorf("get experiments: %w", exErr)
-				}
-
-				if !experiments.Enabled(codersdk.ExperimentWorkspaceActions) {
-					return xerrors.Errorf("--failure-ttl and --inactivityTTL are experimental features. Use the workspace_actions CODER_EXPERIMENTS flag to set these configuration values.")
-				}
-			}
-
-			unsetRestartRequirementDaysOfWeek := len(restartRequirementDaysOfWeek) == 1 && restartRequirementDaysOfWeek[0] == "none"
-			requiresEntitlement := (len(restartRequirementDaysOfWeek) > 0 && !unsetRestartRequirementDaysOfWeek) ||
-				restartRequirementWeeks > 0 ||
+			unsetAutostopRequirementDaysOfWeek := len(autostopRequirementDaysOfWeek) == 1 && autostopRequirementDaysOfWeek[0] == "none"
+			requiresEntitlement := (len(autostopRequirementDaysOfWeek) > 0 && !unsetAutostopRequirementDaysOfWeek) ||
+				autostopRequirementWeeks > 0 ||
 				!allowUserAutostart ||
 				!allowUserAutostop ||
 				maxTTL != 0 ||
 				failureTTL != 0 ||
-				inactivityTTL != 0
+				inactivityTTL != 0 ||
+				len(autostartRequirementDaysOfWeek) > 0
+
 			if requiresEntitlement {
 				entitlements, err := client.Entitlements(inv.Context())
 				var sdkErr *codersdk.Error
@@ -84,11 +77,17 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 
 			// Copy the default value if the list is empty, or if the user
 			// specified the "none" value clear the list.
-			if len(restartRequirementDaysOfWeek) == 0 {
-				restartRequirementDaysOfWeek = template.RestartRequirement.DaysOfWeek
+			if len(autostopRequirementDaysOfWeek) == 0 {
+				autostopRequirementDaysOfWeek = template.AutostopRequirement.DaysOfWeek
 			}
-			if unsetRestartRequirementDaysOfWeek {
-				restartRequirementDaysOfWeek = []string{}
+			if len(autostartRequirementDaysOfWeek) == 1 && autostartRequirementDaysOfWeek[0] == "all" {
+				// Set it to every day of the week
+				autostartRequirementDaysOfWeek = []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+			} else if len(autostartRequirementDaysOfWeek) == 0 {
+				autostartRequirementDaysOfWeek = template.AutostartRequirement.DaysOfWeek
+			}
+			if unsetAutostopRequirementDaysOfWeek {
+				autostopRequirementDaysOfWeek = []string{}
 			}
 
 			// NOTE: coderd will ignore empty fields.
@@ -99,12 +98,15 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 				Icon:             icon,
 				DefaultTTLMillis: defaultTTL.Milliseconds(),
 				MaxTTLMillis:     maxTTL.Milliseconds(),
-				RestartRequirement: &codersdk.TemplateRestartRequirement{
-					DaysOfWeek: restartRequirementDaysOfWeek,
-					Weeks:      restartRequirementWeeks,
+				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
+					DaysOfWeek: autostopRequirementDaysOfWeek,
+					Weeks:      autostopRequirementWeeks,
+				},
+				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
 				FailureTTLMillis:             failureTTL.Milliseconds(),
-				InactivityTTLMillis:          inactivityTTL.Milliseconds(),
+				TimeTilDormantMillis:         inactivityTTL.Milliseconds(),
 				AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 				AllowUserAutostart:           allowUserAutostart,
 				AllowUserAutostop:            allowUserAutostop,
@@ -114,7 +116,7 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 			if err != nil {
 				return xerrors.Errorf("update template metadata: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", cliui.DefaultStyles.DateTimeStamp.Render(time.Now().Format(time.Stamp)))
+			_, _ = fmt.Fprintf(inv.Stdout, "Updated template metadata at %s!\n", pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp)))
 			return nil
 		},
 	}
@@ -142,47 +144,63 @@ func (r *RootCmd) templateEdit() *clibase.Cmd {
 		},
 		{
 			Flag:        "default-ttl",
-			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value.",
+			Description: "Edit the template default time before shutdown - workspaces created from this template default to this value. Maps to \"Default autostop\" in the UI.",
 			Value:       clibase.DurationOf(&defaultTTL),
 		},
 		{
 			Flag:        "max-ttl",
-			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting. This is an enterprise-only feature.",
+			Description: "Edit the template maximum time before shutdown - workspaces created from this template must shutdown within the given duration after starting, regardless of user activity. This is an enterprise-only feature. Maps to \"Max lifetime\" in the UI.",
 			Value:       clibase.DurationOf(&maxTTL),
 		},
 		{
-			Flag:        "restart-requirement-weekdays",
-			Description: "Edit the template restart requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the restart requirement for the template), pass 'none'.",
+			Flag: "autostart-requirement-weekdays",
+			// workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.
+			Description: "Edit the template autostart requirement weekdays - workspaces created from this template can only autostart on the given weekdays. To unset this value for the template (and allow autostart on all days), pass 'all'.",
+			Value: clibase.Validate(clibase.StringArrayOf(&autostartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+				v := value.GetSlice()
+				if len(v) == 1 && v[0] == "all" {
+					return nil
+				}
+				_, err := codersdk.WeekdaysToBitmap(v)
+				if err != nil {
+					return xerrors.Errorf("invalid autostart requirement days of week %q: %w", strings.Join(v, ","), err)
+				}
+				return nil
+			}),
+		},
+		{
+			Flag:        "autostop-requirement-weekdays",
+			Description: "Edit the template autostop requirement weekdays - workspaces created from this template must be restarted on the given weekdays. To unset this value for the template (and disable the autostop requirement for the template), pass 'none'.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
-			Value: clibase.Validate(clibase.StringArrayOf(&restartRequirementDaysOfWeek), func(value *clibase.StringArray) error {
+			Value: clibase.Validate(clibase.StringArrayOf(&autostopRequirementDaysOfWeek), func(value *clibase.StringArray) error {
 				v := value.GetSlice()
 				if len(v) == 1 && v[0] == "none" {
 					return nil
 				}
 				_, err := codersdk.WeekdaysToBitmap(v)
 				if err != nil {
-					return xerrors.Errorf("invalid restart requirement days of week %q: %w", strings.Join(v, ","), err)
+					return xerrors.Errorf("invalid autostop requirement days of week %q: %w", strings.Join(v, ","), err)
 				}
 				return nil
 			}),
 		},
 		{
-			Flag:        "restart-requirement-weeks",
-			Description: "Edit the template restart requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
+			Flag:        "autostop-requirement-weeks",
+			Description: "Edit the template autostop requirement weeks - workspaces created from this template must be restarted on an n-weekly basis.",
 			// TODO(@dean): unhide when we delete max_ttl
 			Hidden: true,
-			Value:  clibase.Int64Of(&restartRequirementWeeks),
+			Value:  clibase.Int64Of(&autostopRequirementWeeks),
 		},
 		{
 			Flag:        "failure-ttl",
-			Description: "Specify a failure TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify a failure TTL for workspaces created from this template. It is the amount of time after a failed \"start\" build before coder automatically schedules a \"stop\" build to cleanup.This licensed feature's default is 0h (off). Maps to \"Failure cleanup\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&failureTTL),
 		},
 		{
 			Flag:        "inactivity-ttl",
-			Description: "Specify an inactivity TTL for workspaces created from this template. This licensed feature's default is 0h (off).",
+			Description: "Specify an inactivity TTL for workspaces created from this template. It is the amount of time the workspace is not used before it is be stopped and auto-locked. This includes across multiple builds (e.g. auto-starts and stops). This licensed feature's default is 0h (off). Maps to \"Dormancy threshold\" in the UI.",
 			Default:     "0h",
 			Value:       clibase.DurationOf(&inactivityTTL),
 		},

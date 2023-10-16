@@ -1,13 +1,13 @@
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { pageTitle } from "utils/page"
-import { SecuritySettingsPageView } from "./SecuritySettingsPageView"
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { useDeploySettings } from "components/DeploySettingsLayout/DeploySettingsLayout";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { pageTitle } from "utils/page";
+import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
 
 const SecuritySettingsPage: FC = () => {
-  const { deploymentValues: deploymentValues } = useDeploySettings()
-  const { entitlements } = useDashboard()
+  const { deploymentValues: deploymentValues } = useDeploySettings();
+  const { entitlements } = useDashboard();
 
   return (
     <>
@@ -23,7 +23,7 @@ const SecuritySettingsPage: FC = () => {
         }
       />
     </>
-  )
-}
+  );
+};
 
-export default SecuritySettingsPage
+export default SecuritySettingsPage;

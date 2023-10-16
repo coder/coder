@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/tools/go/packages"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 // TestAuditableResources ensures that all auditable resources are included in
@@ -48,7 +48,7 @@ func TestAuditableResources(t *testing.T) {
 	expectedList := make([]string, 0)
 	// Now we check we have all the resources in the AuditableResources
 	for i := 0; i < unionType.Len(); i++ {
-		// All types come across like 'github.com/coder/coder/coderd/database.<type>'
+		// All types come across like 'github.com/coder/coder/v2/coderd/database.<type>'
 		typeName := unionType.Term(i).Type().String()
 		_, ok := AuditableResources[typeName]
 		assert.True(t, ok, "missing resource %q from AuditableResources", typeName)

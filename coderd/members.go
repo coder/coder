@@ -8,13 +8,13 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/rbac"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Assign role to organization member
@@ -31,7 +31,6 @@ import (
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
-		user         = httpmw.UserParam(r)
 		organization = httpmw.OrganizationParam(r)
 		member       = httpmw.OrganizationMemberParam(r)
 		apiKey       = httpmw.APIKey(r)
@@ -51,7 +50,7 @@ func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 
 	updatedUser, err := api.updateOrganizationMemberRoles(ctx, database.UpdateMemberRolesParams{
 		GrantedRoles: params.Roles,
-		UserID:       user.ID,
+		UserID:       member.UserID,
 		OrgID:        organization.ID,
 	})
 	if err != nil {

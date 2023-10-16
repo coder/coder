@@ -3,7 +3,7 @@ package coderd
 import (
 	"net/http"
 
-	"github.com/coder/coder/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpapi"
 )
 
 // @Summary Get experiments

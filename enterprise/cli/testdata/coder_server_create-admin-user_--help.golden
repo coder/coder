@@ -1,9 +1,12 @@
-Usage: coder server create-admin-user [flags]
+coder v0.0.0-devel
 
-Create a new admin user with the given username, email and password and adds it
-to every organization.
+USAGE:
+  coder server create-admin-user [flags]
 
-[1mOptions[0m
+  Create a new admin user with the given username, email and password and adds
+  it to every organization.
+
+OPTIONS:
       --email string, $CODER_EMAIL
           The email of the new user. If not specified, you will be prompted via
           stdin.
@@ -28,5 +31,5 @@ to every organization.
           The username of the new user. If not specified, you will be prompted
           via stdin.
 
----
+———
 Run `coder --help` for a list of global options.

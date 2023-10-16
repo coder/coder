@@ -168,6 +168,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "derp": {
       "config": {
         "block_direct": true,
+        "force_websockets": true,
         "path": "string",
         "url": "string"
       },
@@ -211,7 +212,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "enable_terraform_debug_mode": true,
     "experiments": ["string"],
-    "git_auth": {
+    "external_auth": {
       "value": [
         {
           "app_install_url": "string",
@@ -220,6 +221,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "client_id": "string",
           "device_code_url": "string",
           "device_flow": true,
+          "display_icon": "string",
+          "display_name": "string",
+          "extra_token_keys": ["string"],
           "id": "string",
           "no_refresh": true,
           "regex": "string",
@@ -230,6 +234,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         }
       ]
     },
+    "external_token_encryption_keys": ["string"],
     "http_address": "string",
     "in_memory_database": true,
     "job_hang_detector_interval": 0,
@@ -256,11 +261,15 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "client_cert_file": "string",
       "client_id": "string",
+      "client_key_file": "string",
       "client_secret": "string",
       "email_domain": ["string"],
       "email_field": "string",
+      "group_auto_create": true,
       "group_mapping": {},
+      "group_regex_filter": {},
       "groups_field": "string",
       "icon_url": {
         "forceQuery": true,
@@ -305,6 +314,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "provisioner": {
       "daemon_poll_interval": 0,
       "daemon_poll_jitter": 0,
+      "daemon_psk": "string",
       "daemons": 0,
       "daemons_echo": true,
       "force_cancel_interval": 0
@@ -370,6 +380,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     },
     "trace": {
       "capture_logs": true,
+      "data_dog": true,
       "enable": true,
       "honeycomb_api_key": "string"
     },
@@ -378,6 +389,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "default_schedule": "string"
     },
     "verbose": true,
+    "web_terminal_renderer": "string",
     "wgtunnel_host": "string",
     "wildcard_access_url": {
       "forceQuery": true,

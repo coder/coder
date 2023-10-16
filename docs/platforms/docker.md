@@ -6,8 +6,8 @@ Coder with Docker has the following advantages:
 - Workspace images are easily configured
 - Workspaces share resources for burst operations
 
-> Note that the below steps are only supported on a Linux distribution.
-> If on macOS, please [run Coder via the standalone binary](../install//binary.md).
+> Note that the below steps are only supported on a Linux distribution. If on
+> macOS, please [run Coder via the standalone binary](../install//binary.md).
 
 ## Requirements
 
@@ -29,18 +29,23 @@ Coder with Docker has the following advantages:
        ghcr.io/coder/coder:latest
    ```
 
-   > This will use Coder's tunnel and built-in database. See our [Docker documentation](../install/docker.md) for other configuration options such as running on localhost, using docker-compose, and external PostgreSQL.
+   > This will use Coder's tunnel and built-in database. See our
+   > [Docker documentation](../install/docker.md) for other configuration
+   > options such as running on localhost, using docker-compose, and external
+   > PostgreSQL.
 
-1. In new terminal, [install Coder](../install/) in order to connect to your deployment through the CLI.
+1. In new terminal, [install Coder](../install/) in order to connect to your
+   deployment through the CLI.
 
    ```console
    curl -L https://coder.com/install.sh | sh
    ```
 
-1. Run `coder login <access url>` and follow the
-   interactive instructions to create your user.
+1. Run `coder login <access url>` and follow the interactive instructions to
+   create your user.
 
-1. Pull the "Docker" example template using the interactive `coder templates init`:
+1. Pull the "Docker" example template using the interactive
+   `coder templates init`:
 
    ```console
    coder templates init
@@ -49,8 +54,7 @@ Coder with Docker has the following advantages:
 
 1. Push up the template with `coder templates create`
 
-1. Open the dashboard in your browser to create your
-   first workspace:
+1. Open the dashboard in your browser to create your first workspace:
 
    <img src="../images/platforms/docker/login.png">
 
@@ -74,18 +78,25 @@ Coder with Docker has the following advantages:
 
 You can use a remote Docker host in 2 ways.
 
-1. Over SSH. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts) for details.
-2. Over TCP. See [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#certificate-information) for details.
+1. Over SSH. See
+   [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts)
+   for details.
+2. Over TCP. See
+   [here](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#certificate-information)
+   for details.
 
 ## Troubleshooting
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See [troubleshooting templates](../templates/index.md#Troubleshooting) for more steps.
+Ensure you have an externally-reachable `CODER_ACCESS_URL` set. See
+[troubleshooting templates](../templates/index.md#Troubleshooting) for more
+steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
-See Docker's official documentation to [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
+See Docker's official documentation to
+[Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
 
 ## Next Steps
 

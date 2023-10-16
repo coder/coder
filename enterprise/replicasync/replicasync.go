@@ -17,10 +17,11 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
 var PubsubEvent = "replica"
@@ -66,9 +67,9 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 	// nolint:gocritic // Inserting a replica is a system function.
 	replica, err := db.InsertReplica(dbauthz.AsSystemRestricted(ctx), database.InsertReplicaParams{
 		ID:              options.ID,
-		CreatedAt:       database.Now(),
-		StartedAt:       database.Now(),
-		UpdatedAt:       database.Now(),
+		CreatedAt:       dbtime.Now(),
+		StartedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
 		Hostname:        hostname,
 		RegionID:        options.RegionID,
 		RelayAddress:    options.RelayAddress,
@@ -144,7 +145,7 @@ func (m *Manager) PublishUpdate() error {
 // If the replica was updated > the time, it's considered healthy.
 // If the replica was updated < the time, it's considered stale.
 func (m *Manager) updateInterval() time.Time {
-	return database.Now().Add(-3 * m.options.UpdateInterval)
+	return dbtime.Now().Add(-3 * m.options.UpdateInterval)
 }
 
 // loop runs the replica update sequence on an update interval.
@@ -305,7 +306,7 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 	// nolint:gocritic // Updating a replica is a system function.
 	replica, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:              m.self.ID,
-		UpdatedAt:       database.Now(),
+		UpdatedAt:       dbtime.Now(),
 		StartedAt:       m.self.StartedAt,
 		StoppedAt:       m.self.StoppedAt,
 		RelayAddress:    m.self.RelayAddress,
@@ -375,7 +376,13 @@ func (m *Manager) InRegion(regionID int32) []database.Replica {
 
 // Regional returns all replicas in the same region excluding itself.
 func (m *Manager) Regional() []database.Replica {
-	return m.InRegion(m.self.RegionID)
+	return m.InRegion(m.regionID())
+}
+
+func (m *Manager) regionID() int32 {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.self.RegionID
 }
 
 // SetCallback sets a function to execute whenever new peers
@@ -407,17 +414,19 @@ func (m *Manager) Close() error {
 	// nolint:gocritic // Updating a replica is a system function.
 	_, err := m.db.UpdateReplica(dbauthz.AsSystemRestricted(ctx), database.UpdateReplicaParams{
 		ID:        m.self.ID,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 		StartedAt: m.self.StartedAt,
 		StoppedAt: sql.NullTime{
-			Time:  database.Now(),
+			Time:  dbtime.Now(),
 			Valid: true,
 		},
-		RelayAddress: m.self.RelayAddress,
-		RegionID:     m.self.RegionID,
-		Hostname:     m.self.Hostname,
-		Version:      m.self.Version,
-		Error:        m.self.Error,
+		RelayAddress:    m.self.RelayAddress,
+		RegionID:        m.self.RegionID,
+		Hostname:        m.self.Hostname,
+		Version:         m.self.Version,
+		Error:           m.self.Error,
+		DatabaseLatency: 0,     // A stopped replica has no latency.
+		Primary:         false, // A stopped replica cannot be primary.
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

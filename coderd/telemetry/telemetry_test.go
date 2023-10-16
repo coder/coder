@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,12 +16,13 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -39,7 +40,7 @@ func TestTelemetry(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
-		_ = dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		_ = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Provisioner:   database.ProvisionerTypeTerraform,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
@@ -54,15 +55,16 @@ func TestTelemetry(t *testing.T) {
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
 		})
-		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			Subsystem: database.WorkspaceAgentSubsystemEnvbox,
-		})
+		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 			ID:                wsagent.ID,
 			Version:           wsagent.Version,
 			ExpandedDirectory: wsagent.ExpandedDirectory,
-			Subsystem:         database.WorkspaceAgentSubsystemEnvbox,
+			Subsystems: []database.WorkspaceAgentSubsystem{
+				database.WorkspaceAgentSubsystemEnvbox,
+				database.WorkspaceAgentSubsystemExectrace,
+			},
 		})
 		require.NoError(t, err)
 
@@ -75,12 +77,14 @@ func TestTelemetry(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
-			UploadedAt: database.Now(),
+			UploadedAt: dbtime.Now(),
 			JWT:        "",
-			Exp:        database.Now().Add(time.Hour),
+			Exp:        dbtime.Now().Add(time.Hour),
 			UUID:       uuid.New(),
 		})
 		assert.NoError(t, err)
+		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
+
 		_, snapshot := collectSnapshot(t, db)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -93,9 +97,12 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceBuilds, 1)
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
+		require.Len(t, snapshot.WorkspaceProxies, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
-		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystem)
+		require.Len(t, wsa.Subsystems, 2)
+		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
+		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

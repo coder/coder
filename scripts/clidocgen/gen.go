@@ -12,8 +12,8 @@ import (
 
 	"github.com/acarl005/stripansi"
 
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
 	"github.com/coder/flog"
 )
 

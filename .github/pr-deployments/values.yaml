@@ -1,0 +1,38 @@
+coder:
+  image:
+    repo: "${REPO}"
+    tag: "pr${PR_NUMBER}"
+    pullPolicy: Always
+  service:
+    type: ClusterIP
+  ingress:
+    enable: true
+    className: traefik
+    host: "${PR_HOSTNAME}"
+    wildcardHost: "*.${PR_HOSTNAME}"
+    tls:
+      enable: true
+      secretName: "pr${PR_NUMBER}-tls"
+      wildcardSecretName: "pr${PR_NUMBER}-tls"
+  env:
+    - name: "CODER_ACCESS_URL"
+      value: "https://${PR_HOSTNAME}"
+    - name: "CODER_WILDCARD_ACCESS_URL"
+      value: "*.${PR_HOSTNAME}"
+    - name: "CODER_EXPERIMENTS"
+      value: "${EXPERIMENTS}"
+    - name: CODER_PG_CONNECTION_URL
+      valueFrom:
+        secretKeyRef:
+          name: coder-db-url
+          key: url
+    - name: "CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS"
+      value: "true"
+    - name: "CODER_OAUTH2_GITHUB_CLIENT_ID"
+      value: "${PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_ID}"
+    - name: "CODER_OAUTH2_GITHUB_CLIENT_SECRET"
+      value: "${PR_DEPLOYMENTS_GITHUB_OAUTH_CLIENT_SECRET}"
+    - name: "CODER_OAUTH2_GITHUB_ALLOWED_ORGS"
+      value: "coder"
+    - name: "CODER_DERP_CONFIG_URL"
+      value: "https://controlplane.tailscale.com/derpmap/default"

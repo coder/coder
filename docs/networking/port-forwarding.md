@@ -1,8 +1,8 @@
 # Port Forwarding
 
 Port forwarding lets developers securely access processes on their Coder
-workspace from a local machine. A common use case is testing web
-applications in a browser.
+workspace from a local machine. A common use case is testing web applications in
+a browser.
 
 There are three ways to forward ports in Coder:
 
@@ -10,13 +10,17 @@ There are three ways to forward ports in Coder:
 - Dashboard
 - SSH
 
-The `coder port-forward` command is generally more performant.
+The `coder port-forward` command is generally more performant than:
+
+1. The Dashboard which proxies traffic through the Coder control plane versus
+   peer-to-peer which is possible with the Coder CLI
+1. `sshd` which does double encryption of traffic with both Wireguard and SSH
 
 ## The `coder port-forward` command
 
-This command can be used to forward TCP or UDP ports from the remote
-workspace so they can be accessed locally. Both the TCP and UDP command
-line flags (`--tcp` and `--udp`) can be given once or multiple times.
+This command can be used to forward TCP or UDP ports from the remote workspace
+so they can be accessed locally. Both the TCP and UDP command line flags
+(`--tcp` and `--udp`) can be given once or multiple times.
 
 The supported syntax variations for the `--tcp` and `--udp` flag are:
 
@@ -33,8 +37,8 @@ Forward the remote TCP port `8080` to local port `8000`:
 coder port-forward myworkspace --tcp 8000:8080
 ```
 
-Forward the remote TCP port `3000` and all ports from `9990` to `9999`
-to their respective local ports.
+Forward the remote TCP port `3000` and all ports from `9990` to `9999` to their
+respective local ports.
 
 ```console
 coder port-forward myworkspace --tcp 3000,9990-9999
@@ -46,20 +50,27 @@ For more examples, see `coder port-forward --help`.
 
 > To enable port forwarding via the dashboard, Coder must be configured with a
 > [wildcard access URL](../admin/configure.md#wildcard-access-url). If an access
-> URL is not specified, Coder will create [a publicly accessible URL](../admin/configure.md#tunnel)
-> to reverse proxy the deployment, and port forwarding will work. There is a
-> known limitation where if the port forwarding URL length is greater than 63
-> characters, port forwarding will not work.
+> URL is not specified, Coder will create
+> [a publicly accessible URL](../admin/configure.md#tunnel) to reverse proxy the
+> deployment, and port forwarding will work. There is a known limitation where
+> if the port forwarding URL length is greater than 63 characters, port
+> forwarding will not work.
 
 ### From an arbitrary port
 
-One way to port forward in the dashboard is to use the "Port forward" button to specify an arbitrary port. Coder will also detect if processes are running, and will list them below the port picklist to click an open the running processes in the browser.
+One way to port forward in the dashboard is to use the "Port forward" button to
+specify an arbitrary port. Coder will also detect if processes are running, and
+will list them below the port picklist to click an open the running processes in
+the browser.
 
 ![Port forwarding in the UI](../images/port-forward-dashboard.png)
 
 ### From an coder_app resource
 
-Another way to port forward is to configure a `coder_app` resource in the workspace's template. This approach shows a visual application icon in the dashboard. See the following `coder_app` example for a Node React app and note the `subdomain` and `share` settings:
+Another way to port forward is to configure a `coder_app` resource in the
+workspace's template. This approach shows a visual application icon in the
+dashboard. See the following `coder_app` example for a Node React app and note
+the `subdomain` and `share` settings:
 
 ```hcl
 # node app
@@ -80,7 +91,9 @@ resource "coder_app" "node-react-app" {
 }
 ```
 
-Valid `share` values include `owner` - private to the user, `authenticated` - accessible by any user authenticated to the Coder deployment, and `public` - accessible by users outside of the Coder deployment.
+Valid `share` values include `owner` - private to the user, `authenticated` -
+accessible by any user authenticated to the Coder deployment, and `public` -
+accessible by users outside of the Coder deployment.
 
 ![Port forwarding from an app in the UI](../images/coderapp-port-forward.png)
 
@@ -100,7 +113,12 @@ must include credentials (set `credentials: "include"` if using `fetch`) or the
 requests cannot be authenticated and you will see an error resembling the
 following:
 
-> Access to fetch at 'https://coder.example.com/api/v2/applications/auth-redirect' from origin 'https://8000--dev--user--apps.coder.example.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.
+> Access to fetch at
+> 'https://coder.example.com/api/v2/applications/auth-redirect' from origin
+> 'https://8000--dev--user--apps.coder.example.com' has been blocked by CORS
+> policy: No 'Access-Control-Allow-Origin' header is present on the requested
+> resource. If an opaque response serves your needs, set the request's mode to
+> 'no-cors' to fetch the resource with CORS disabled.
 
 #### Headers
 
@@ -197,11 +215,12 @@ configurable by either admins or users.
 
 ## SSH
 
-First, [configure SSH](../ides.md#ssh-configuration) on your
-local machine. Then, use `ssh` to forward like so:
+First, [configure SSH](../ides.md#ssh-configuration) on your local machine.
+Then, use `ssh` to forward like so:
 
 ```console
 ssh -L 8080:localhost:8000 coder.myworkspace
 ```
 
-You can read more on SSH port forwarding [here](https://www.ssh.com/academy/ssh/tunneling/example).
+You can read more on SSH port forwarding
+[here](https://www.ssh.com/academy/ssh/tunneling/example).

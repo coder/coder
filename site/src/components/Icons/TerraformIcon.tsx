@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const TerraformIcon = (props: SvgIconProps): JSX.Element => (
   <SvgIcon {...props} viewBox="0 0 32 32">
@@ -19,4 +19,4 @@ export const TerraformIcon = (props: SvgIconProps): JSX.Element => (
       style={{ fill: "#813cf3" }}
     />
   </SvgIcon>
-)
+);

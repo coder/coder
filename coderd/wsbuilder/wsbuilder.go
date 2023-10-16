@@ -8,19 +8,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/provisionerdserver"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Builder encapsulates the business logic of inserting a new workspace build into the database.
@@ -300,7 +302,7 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 	}
 	tags := provisionerdserver.MutateTags(b.workspace.OwnerID, templateVersionJob.Tags)
 
-	now := database.Now()
+	now := dbtime.Now()
 	provisionerJob, err := b.store.InsertProvisionerJob(b.ctx, database.InsertProvisionerJobParams{
 		ID:             uuid.New(),
 		CreatedAt:      now,
@@ -349,6 +351,8 @@ func (b *Builder) buildTx(authFunc func(action rbac.Action, object rbac.Objecter
 			Transition:        b.trans,
 			JobID:             provisionerJob.ID,
 			Reason:            b.reason,
+			Deadline:          time.Time{}, // set by provisioner upon completion
+			MaxDeadline:       time.Time{}, // set by provisioner upon completion
 		})
 		if err != nil {
 			return BuildError{http.StatusInternalServerError, "insert workspace build", err}
@@ -525,7 +529,7 @@ func (b *Builder) getParameters() (names, values []string, err error) {
 			// At this point, we've queried all the data we need from the database,
 			// so the only errors are problems with the request (missing data, failed
 			// validation, immutable parameters, etc.)
-			return nil, nil, BuildError{http.StatusBadRequest, err.Error(), err}
+			return nil, nil, BuildError{http.StatusBadRequest, fmt.Sprintf("Unable to validate parameter %q", templateVersionParameter.Name), err}
 		}
 		names = append(names, templateVersionParameter.Name)
 		values = append(values, value)
@@ -714,7 +718,7 @@ func (b *Builder) checkTemplateJobStatus() error {
 		}
 	}
 
-	templateVersionJobStatus := db2sdk.ProvisionerJobStatus(*templateVersionJob)
+	templateVersionJobStatus := codersdk.ProvisionerJobStatus(templateVersionJob.JobStatus)
 	switch templateVersionJobStatus {
 	case codersdk.ProvisionerJobPending, codersdk.ProvisionerJobRunning:
 		msg := fmt.Sprintf("The provided template version is %s. Wait for it to complete importing!", templateVersionJobStatus)
@@ -751,7 +755,7 @@ func (b *Builder) checkRunningBuild() error {
 	if err != nil {
 		return BuildError{http.StatusInternalServerError, "failed to fetch prior build", err}
 	}
-	if db2sdk.ProvisionerJobStatus(*job).Active() {
+	if codersdk.ProvisionerJobStatus(job.JobStatus).Active() {
 		msg := "A workspace build is already active."
 		return BuildError{
 			http.StatusConflict,

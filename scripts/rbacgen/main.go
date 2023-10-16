@@ -81,7 +81,7 @@ func allResources(pkg *packages.Package) []string {
 	names := pkg.Types.Scope().Names()
 	for _, name := range names {
 		obj, ok := pkg.Types.Scope().Lookup(name).(*types.Var)
-		if ok && obj.Type().String() == "github.com/coder/coder/coderd/rbac.Object" {
+		if ok && obj.Type().String() == "github.com/coder/coder/v2/coderd/rbac.Object" {
 			resources = append(resources, obj.Name())
 		}
 	}

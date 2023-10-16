@@ -1,29 +1,30 @@
 # Networking
 
-Coder's network topology has three types of nodes:
-workspaces, coder servers, and users.
+Coder's network topology has three types of nodes: workspaces, coder servers,
+and users.
 
 The coder server must have an inbound address reachable by users and workspaces,
 but otherwise, all topologies _just work_ with Coder.
 
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
-When NAT traversal fails, connections are relayed through the coder server.
-All user <-> workspace connections are end-to-end encrypted.
+When NAT traversal fails, connections are relayed through the coder server. All
+user <-> workspace connections are end-to-end encrypted.
 
 [Tailscale's open source](https://tailscale.com) backs our networking logic.
 
 ## coder server
 
-Workspaces connect to the coder server via the server's external address,
-set via [`ACCESS_URL`](../admin/configure.md#access-url). There must not be a
-NAT between workspaces and coder server.
+Workspaces connect to the coder server via the server's external address, set
+via [`ACCESS_URL`](../admin/configure.md#access-url). There must not be a NAT
+between workspaces and coder server.
 
 Users connect to the coder server's dashboard and API through its `ACCESS_URL`
 as well. There must not be a NAT between users and the coder server.
 
 Template admins can overwrite the site-wide access URL at the template level by
-leveraging the `url` argument when [defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
+leveraging the `url` argument when
+[defining the Coder provider](https://registry.terraform.io/providers/coder/coder/latest/docs#url):
 
 ```terraform
 provider "coder" {
@@ -31,16 +32,17 @@ provider "coder" {
 }
 ```
 
-This is useful when debugging connectivity issues between the workspace agent and
-the Coder server.
+This is useful when debugging connectivity issues between the workspace agent
+and the Coder server.
 
 ## Web Apps
 
 The coder servers relays dashboard-initiated connections between the user and
-the workspace. Web terminal <-> workspace connections are an exception and may be direct.
+the workspace. Web terminal <-> workspace connections are an exception and may
+be direct.
 
-In general, [port forwarded](./port-forwarding.md) web apps are
-faster than dashboard-accessed web apps.
+In general, [port forwarded](./port-forwarding.md) web apps are faster than
+dashboard-accessed web apps.
 
 ## 🌎 Geo-distribution
 
@@ -50,16 +52,20 @@ Direct connections are a straight line between the user and workspace, so there
 is no special geo-distribution configuration. To speed up direct connections,
 move the user and workspace closer together.
 
-If a direct connection is not available (e.g. client or server is behind NAT), Coder
-will use a relayed connection. By default, [Coder uses Google's public STUN server](../cli/server.md#--derp-server-stun-addresses), but
-this can be disabled or changed for [offline deployments](../install/offline.md).
+If a direct connection is not available (e.g. client or server is behind NAT),
+Coder will use a relayed connection. By default,
+[Coder uses Google's public STUN server](../cli/server.md#--derp-server-stun-addresses),
+but this can be disabled or changed for
+[offline deployments](../install/offline.md).
 
 ### Relayed connections
 
-By default, your Coder server also runs a built-in DERP relay which can be used for both public and [offline deployments](../install/offline.md).
+By default, your Coder server also runs a built-in DERP relay which can be used
+for both public and [offline deployments](../install/offline.md).
 
 However, Tailscale has graciously allowed us to use
-[their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers). You can launch `coder server` with Tailscale's DERPs like so:
+[their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers).
+You can launch `coder server` with Tailscale's DERPs like so:
 
 ```bash
 $ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
@@ -67,7 +73,9 @@ $ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/defa
 
 #### Custom Relays
 
-If you want lower latency than what Tailscale offers or want additional DERP relays for offline deployments, you may run custom DERP servers. Refer to [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
+If you want lower latency than what Tailscale offers or want additional DERP
+relays for offline deployments, you may run custom DERP servers. Refer to
+[Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server)
 to learn how to set them up.
 
 After you have custom DERP servers, you can launch Coder with them like so:
@@ -109,7 +117,8 @@ Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to
 `coder server` or set `CODER_BROWSER_ONLY=true`.
 
-With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../ides/web-ides.md).
+With browser-only connections, developers can only connect to their workspaces
+via the web terminal and [web IDEs](../ides/web-ides.md).
 
 ## Troubleshooting
 
@@ -128,8 +137,8 @@ pong from my-workspace proxied via DERP(Denver) in 90ms
 2023-06-21 17:50:22.504 [debu] wgengine: wg: [v2] Device closed
 ```
 
-The `coder speedtest <workspace>` command measures user <-> workspace throughput.
-E.g.:
+The `coder speedtest <workspace>` command measures user <-> workspace
+throughput. E.g.:
 
 ```
 $ coder speedtest dev

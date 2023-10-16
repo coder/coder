@@ -1,17 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader"
-import { ComponentProps, FC } from "react"
-import { useTranslation } from "react-i18next"
-import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm"
-import { Workspace } from "api/typesGenerated"
+import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
+import { ComponentProps, FC } from "react";
+import { WorkspaceSettingsForm } from "./WorkspaceSettingsForm";
+import { Workspace } from "api/typesGenerated";
 
 export type WorkspaceSettingsPageViewProps = {
-  error: unknown
-  isSubmitting: boolean
-  workspace: Workspace
-  onCancel: () => void
-  onSubmit: ComponentProps<typeof WorkspaceSettingsForm>["onSubmit"]
-}
+  error: unknown;
+  isSubmitting: boolean;
+  workspace: Workspace;
+  onCancel: () => void;
+  onSubmit: ComponentProps<typeof WorkspaceSettingsForm>["onSubmit"];
+};
 
 export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   onCancel,
@@ -20,13 +18,14 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
   error,
   workspace,
 }) => {
-  const { t } = useTranslation("workspaceSettingsPage")
-  const styles = useStyles()
-
   return (
     <>
-      <PageHeader className={styles.pageHeader}>
-        <PageHeaderTitle>{t("title")}</PageHeaderTitle>
+      <PageHeader
+        css={{
+          paddingTop: 0,
+        }}
+      >
+        <PageHeaderTitle>Workspace Settings</PageHeaderTitle>
       </PageHeader>
 
       <WorkspaceSettingsForm
@@ -37,11 +36,5 @@ export const WorkspaceSettingsPageView: FC<WorkspaceSettingsPageViewProps> = ({
         onSubmit={onSubmit}
       />
     </>
-  )
-}
-
-const useStyles = makeStyles(() => ({
-  pageHeader: {
-    paddingTop: 0,
-  },
-}))
+  );
+};

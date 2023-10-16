@@ -19,17 +19,17 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/cli"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/config"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // New creates a CLI instance with a configuration pointed to a
 // temporary testing directory.
-func New(t *testing.T, args ...string) (*clibase.Invocation, config.Root) {
+func New(t testing.TB, args ...string) (*clibase.Invocation, config.Root) {
 	var root cli.RootCmd
 
 	cmd, err := root.Command(root.AGPL())
@@ -56,7 +56,7 @@ func (l *logWriter) Write(p []byte) (n int, err error) {
 }
 
 func NewWithCommand(
-	t *testing.T, cmd *clibase.Cmd, args ...string,
+	t testing.TB, cmd *clibase.Cmd, args ...string,
 ) (*clibase.Invocation, config.Root) {
 	configDir := config.Root(t.TempDir())
 	logger := slogtest.Make(t, nil)

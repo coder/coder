@@ -1,16 +1,15 @@
-import { FC } from "react"
-import { Section } from "../../../components/SettingsLayout/Section"
-import { AccountForm } from "../../../components/SettingsAccountForm/SettingsAccountForm"
-import { useAuth } from "components/AuthProvider/AuthProvider"
-import { useMe } from "hooks/useMe"
-import { usePermissions } from "hooks/usePermissions"
+import { FC } from "react";
+import { Section } from "components/SettingsLayout/Section";
+import { AccountForm } from "./AccountForm";
+import { useAuth } from "components/AuthProvider/AuthProvider";
+import { useMe } from "hooks/useMe";
+import { usePermissions } from "hooks/usePermissions";
 
 export const AccountPage: FC = () => {
-  const [authState, authSend] = useAuth()
-  const me = useMe()
-  const permissions = usePermissions()
-  const { updateProfileError } = authState.context
-  const canEditUsers = permissions && permissions.updateUsers
+  const { updateProfile, updateProfileError, isUpdatingProfile } = useAuth();
+  const me = useMe();
+  const permissions = usePermissions();
+  const canEditUsers = permissions && permissions.updateUsers;
 
   return (
     <Section title="Account" description="Update your account info">
@@ -18,19 +17,14 @@ export const AccountPage: FC = () => {
         editable={Boolean(canEditUsers)}
         email={me.email}
         updateProfileError={updateProfileError}
-        isLoading={authState.matches("signedIn.profile.updatingProfile")}
+        isLoading={isUpdatingProfile}
         initialValues={{
           username: me.username,
         }}
-        onSubmit={(data) => {
-          authSend({
-            type: "UPDATE_PROFILE",
-            data,
-          })
-        }}
+        onSubmit={updateProfile}
       />
     </Section>
-  )
-}
+  );
+};
 
-export default AccountPage
+export default AccountPage;

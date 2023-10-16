@@ -1,32 +1,23 @@
-import { useMachine } from "@xstate/react"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import { editGroupMachine } from "xServices/groups/editGroupXService"
-import SettingsGroupPageView from "./SettingsGroupPageView"
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import SettingsGroupPageView from "./SettingsGroupPageView";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { group, patchGroup } from "api/queries/groups";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { getErrorMessage } from "api/errors";
 
 export const SettingsGroupPage: FC = () => {
-  const { groupId } = useParams()
-  if (!groupId) {
-    throw new Error("Group ID not defined.")
-  }
-
-  const navigate = useNavigate()
+  const { groupId } = useParams() as { groupId: string };
+  const queryClient = useQueryClient();
+  const groupQuery = useQuery(group(groupId));
+  const patchGroupMutation = useMutation(patchGroup(queryClient));
+  const navigate = useNavigate();
 
   const navigateToGroup = () => {
-    navigate(`/groups/${groupId}`)
-  }
-
-  const [editState, sendEditEvent] = useMachine(editGroupMachine, {
-    context: {
-      groupId,
-    },
-    actions: {
-      onUpdate: navigateToGroup,
-    },
-  })
-  const { error, group } = editState.context
+    navigate(`/groups/${groupId}`);
+  };
 
   return (
     <>
@@ -36,15 +27,25 @@ export const SettingsGroupPage: FC = () => {
 
       <SettingsGroupPageView
         onCancel={navigateToGroup}
-        onSubmit={(data) => {
-          sendEditEvent({ type: "UPDATE", data })
+        onSubmit={async (data) => {
+          try {
+            await patchGroupMutation.mutateAsync({
+              groupId,
+              ...data,
+              add_users: [],
+              remove_users: [],
+            });
+            navigateToGroup();
+          } catch (error) {
+            displayError(getErrorMessage(error, "Failed to update group"));
+          }
         }}
-        group={group}
-        formErrors={error}
-        isLoading={editState.matches("loading")}
-        isUpdating={editState.matches("updating")}
+        group={groupQuery.data}
+        formErrors={groupQuery.error}
+        isLoading={groupQuery.isLoading}
+        isUpdating={patchGroupMutation.isLoading}
       />
     </>
-  )
-}
-export default SettingsGroupPage
+  );
+};
+export default SettingsGroupPage;

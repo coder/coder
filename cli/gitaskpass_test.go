@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestGitAskpass(t *testing.T) {
@@ -23,7 +23,7 @@ func TestGitAskpass(t *testing.T) {
 	t.Run("UsernameAndPassword", func(t *testing.T) {
 		t.Parallel()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.GitAuthResponse{
+			httpapi.Write(context.Background(), w, http.StatusOK, agentsdk.ExternalAuthResponse{
 				Username: "something",
 				Password: "bananas",
 			})
@@ -65,8 +65,8 @@ func TestGitAskpass(t *testing.T) {
 
 	t.Run("Poll", func(t *testing.T) {
 		t.Parallel()
-		resp := atomic.Pointer[agentsdk.GitAuthResponse]{}
-		resp.Store(&agentsdk.GitAuthResponse{
+		resp := atomic.Pointer[agentsdk.ExternalAuthResponse]{}
+		resp.Store(&agentsdk.ExternalAuthResponse{
 			URL: "https://something.org",
 		})
 		poll := make(chan struct{}, 10)
@@ -96,7 +96,7 @@ func TestGitAskpass(t *testing.T) {
 		}()
 		<-poll
 		stderr.ExpectMatch("Open the following URL to authenticate")
-		resp.Store(&agentsdk.GitAuthResponse{
+		resp.Store(&agentsdk.ExternalAuthResponse{
 			Username: "username",
 			Password: "password",
 		})

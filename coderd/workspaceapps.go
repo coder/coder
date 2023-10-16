@@ -11,14 +11,15 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/apikey"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/workspaceapps"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // @Summary Get applications host
@@ -107,7 +108,7 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 	exp := apiKey.ExpiresAt
 	lifetimeSeconds := apiKey.LifetimeSeconds
 	if exp.IsZero() || time.Until(exp) > api.DeploymentValues.SessionDuration.Value() {
-		exp = database.Now().Add(api.DeploymentValues.SessionDuration.Value())
+		exp = dbtime.Now().Add(api.DeploymentValues.SessionDuration.Value())
 		lifetimeSeconds = int64(api.DeploymentValues.SessionDuration.Value().Seconds())
 	}
 	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{

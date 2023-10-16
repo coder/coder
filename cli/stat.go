@@ -7,36 +7,48 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/clistat"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
-func (r *RootCmd) stat() *clibase.Cmd {
-	fs := afero.NewReadOnlyFs(afero.NewOsFs())
-	defaultCols := []string{
-		"host_cpu",
-		"host_memory",
-		"home_disk",
-		"container_cpu",
-		"container_memory",
+func initStatterMW(tgt **clistat.Statter, fs afero.Fs) clibase.MiddlewareFunc {
+	return func(next clibase.HandlerFunc) clibase.HandlerFunc {
+		return func(i *clibase.Invocation) error {
+			var err error
+			stat, err := clistat.New(clistat.WithFS(fs))
+			if err != nil {
+				return xerrors.Errorf("initialize workspace stats collector: %w", err)
+			}
+			*tgt = stat
+			return next(i)
+		}
 	}
-	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]statsRow{}, defaultCols),
-		cliui.JSONFormat(),
-	)
-	st, err := clistat.New(clistat.WithFS(fs))
-	if err != nil {
-		panic(xerrors.Errorf("initialize workspace stats collector: %w", err))
-	}
+}
 
+func (r *RootCmd) stat() *clibase.Cmd {
+	var (
+		st        *clistat.Statter
+		fs        = afero.NewReadOnlyFs(afero.NewOsFs())
+		formatter = cliui.NewOutputFormatter(
+			cliui.TableFormat([]statsRow{}, []string{
+				"host_cpu",
+				"host_memory",
+				"home_disk",
+				"container_cpu",
+				"container_memory",
+			}),
+			cliui.JSONFormat(),
+		)
+	)
 	cmd := &clibase.Cmd{
-		Use:   "stat",
-		Short: "Show resource usage for the current workspace.",
+		Use:        "stat",
+		Short:      "Show resource usage for the current workspace.",
+		Middleware: initStatterMW(&st, fs),
 		Children: []*clibase.Cmd{
-			r.statCPU(st, fs),
-			r.statMem(st, fs),
-			r.statDisk(st),
+			r.statCPU(fs),
+			r.statMem(fs),
+			r.statDisk(fs),
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			var sr statsRow
@@ -118,12 +130,16 @@ func (r *RootCmd) stat() *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
-	var hostArg bool
-	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+func (*RootCmd) statCPU(fs afero.Fs) *clibase.Cmd {
+	var (
+		hostArg   bool
+		st        *clistat.Statter
+		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+	)
 	cmd := &clibase.Cmd{
-		Use:   "cpu",
-		Short: "Show CPU usage, in cores.",
+		Use:        "cpu",
+		Short:      "Show CPU usage, in cores.",
+		Middleware: initStatterMW(&st, fs),
 		Options: clibase.OptionSet{
 			{
 				Flag:        "host",
@@ -135,9 +151,9 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 			var cs *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
-				cs, err = s.ContainerCPU()
+				cs, err = st.ContainerCPU()
 			} else {
-				cs, err = s.HostCPU()
+				cs, err = st.HostCPU()
 			}
 			if err != nil {
 				return err
@@ -155,13 +171,17 @@ func (*RootCmd) statCPU(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
-	var hostArg bool
-	var prefixArg string
-	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+func (*RootCmd) statMem(fs afero.Fs) *clibase.Cmd {
+	var (
+		hostArg   bool
+		prefixArg string
+		st        *clistat.Statter
+		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+	)
 	cmd := &clibase.Cmd{
-		Use:   "mem",
-		Short: "Show memory usage, in gigabytes.",
+		Use:        "mem",
+		Short:      "Show memory usage, in gigabytes.",
+		Middleware: initStatterMW(&st, fs),
 		Options: clibase.OptionSet{
 			{
 				Flag:        "host",
@@ -185,9 +205,9 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 			var ms *clistat.Result
 			var err error
 			if ok, _ := clistat.IsContainerized(fs); ok && !hostArg {
-				ms, err = s.ContainerMemory(pfx)
+				ms, err = st.ContainerMemory(pfx)
 			} else {
-				ms, err = s.HostMemory(pfx)
+				ms, err = st.HostMemory(pfx)
 			}
 			if err != nil {
 				return err
@@ -205,13 +225,17 @@ func (*RootCmd) statMem(s *clistat.Statter, fs afero.Fs) *clibase.Cmd {
 	return cmd
 }
 
-func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
-	var pathArg string
-	var prefixArg string
-	formatter := cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+func (*RootCmd) statDisk(fs afero.Fs) *clibase.Cmd {
+	var (
+		pathArg   string
+		prefixArg string
+		st        *clistat.Statter
+		formatter = cliui.NewOutputFormatter(cliui.TextFormat(), cliui.JSONFormat())
+	)
 	cmd := &clibase.Cmd{
-		Use:   "disk",
-		Short: "Show disk usage, in gigabytes.",
+		Use:        "disk",
+		Short:      "Show disk usage, in gigabytes.",
+		Middleware: initStatterMW(&st, fs),
 		Options: clibase.OptionSet{
 			{
 				Flag:        "path",
@@ -233,8 +257,16 @@ func (*RootCmd) statDisk(s *clistat.Statter) *clibase.Cmd {
 		},
 		Handler: func(inv *clibase.Invocation) error {
 			pfx := clistat.ParsePrefix(prefixArg)
-			ds, err := s.Disk(pfx, pathArg)
+			// Users may also call `coder stat disk <path>`.
+			if len(inv.Args) > 0 {
+				pathArg = inv.Args[0]
+			}
+			ds, err := st.Disk(pfx, pathArg)
 			if err != nil {
+				if os.IsNotExist(err) {
+					//nolint:gocritic // fmt.Errorf produces a more concise error.
+					return fmt.Errorf("not found: %q", pathArg)
+				}
 				return err
 			}
 

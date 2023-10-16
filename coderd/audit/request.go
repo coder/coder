@@ -13,9 +13,10 @@ import (
 	"github.com/sqlc-dev/pqtype"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/tracing"
 )
 
 type RequestParams struct {
@@ -33,12 +34,14 @@ type Request[T Auditable] struct {
 	Old T
 	New T
 
-	// This optional field can be passed in when the userID cannot be determined from the API Key
-	// such as in the case of login, when the audit log is created prior the API Key's existence.
+	// UserID is an optional field can be passed in when the userID cannot be
+	// determined from the API Key such as in the case of login, when the audit
+	// log is created prior the API Key's existence.
 	UserID uuid.UUID
 
-	// This optional field can be passed in if the AuditAction must be overridden
-	// such as in the case of new user authentication when the Audit Action is 'register', not 'login'.
+	// Action is an optional field can be passed in if the AuditAction must be
+	// overridden such as in the case of new user authentication when the Audit
+	// Action is 'register', not 'login'.
 	Action database.AuditAction
 }
 
@@ -50,6 +53,7 @@ type BuildAuditParams[T Auditable] struct {
 	JobID            uuid.UUID
 	Status           int
 	Action           database.AuditAction
+	OrganizationID   uuid.UUID
 	AdditionalFields json.RawMessage
 
 	New T
@@ -217,7 +221,7 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 		ip := parseIP(p.Request.RemoteAddr)
 		auditLog := database.AuditLog{
 			ID:               uuid.New(),
-			Time:             database.Now(),
+			Time:             dbtime.Now(),
 			UserID:           userID,
 			Ip:               ip,
 			UserAgent:        sql.NullString{String: p.Request.UserAgent(), Valid: true},
@@ -241,9 +245,9 @@ func InitRequest[T Auditable](w http.ResponseWriter, p *RequestParams) (*Request
 	}
 }
 
-// BuildAudit creates an audit log for a workspace build.
+// WorkspaceBuildAudit creates an audit log for a workspace build.
 // The audit log is committed upon invocation.
-func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
+func WorkspaceBuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 	// As the audit request has not been initiated directly by a user, we omit
 	// certain user details.
 	ip := parseIP("")
@@ -262,8 +266,9 @@ func BuildAudit[T Auditable](ctx context.Context, p *BuildAuditParams[T]) {
 
 	auditLog := database.AuditLog{
 		ID:               uuid.New(),
-		Time:             database.Now(),
+		Time:             dbtime.Now(),
 		UserID:           p.UserID,
+		OrganizationID:   p.OrganizationID,
 		Ip:               ip,
 		UserAgent:        sql.NullString{},
 		ResourceType:     either(p.Old, p.New, ResourceType[T], p.Action),

@@ -3,8 +3,8 @@ package rbac_test
 import (
 	"testing"
 
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/slice"
 )
 
 func TestObjectEqual(t *testing.T) {

@@ -18,9 +18,9 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func New(t *testing.T, opts ...pty.Option) *PTY {
@@ -350,22 +350,28 @@ func (e *outExpecter) fatalf(reason string, format string, args ...interface{}) 
 type PTY struct {
 	outExpecter
 	pty.PTY
+	closeOnce sync.Once
+	closeErr  error
 }
 
 func (p *PTY) Close() error {
 	p.t.Helper()
-	pErr := p.PTY.Close()
-	if pErr != nil {
-		p.logf("PTY: Close failed: %v", pErr)
-	}
-	eErr := p.outExpecter.close("PTY close")
-	if eErr != nil {
-		p.logf("PTY: close expecter failed: %v", eErr)
-	}
-	if pErr != nil {
-		return pErr
-	}
-	return eErr
+	p.closeOnce.Do(func() {
+		pErr := p.PTY.Close()
+		if pErr != nil {
+			p.logf("PTY: Close failed: %v", pErr)
+		}
+		eErr := p.outExpecter.close("PTY close")
+		if eErr != nil {
+			p.logf("PTY: close expecter failed: %v", eErr)
+		}
+		if pErr != nil {
+			p.closeErr = pErr
+			return
+		}
+		p.closeErr = eErr
+	})
+	return p.closeErr
 }
 
 func (p *PTY) Attach(inv *clibase.Invocation) *PTY {

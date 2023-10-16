@@ -1,15 +1,19 @@
 # Additional clusters
 
-With Coder, you can deploy workspaces in additional Kubernetes clusters using different [authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication) in the Terraform provider.
+With Coder, you can deploy workspaces in additional Kubernetes clusters using
+different
+[authentication methods](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs#authentication)
+in the Terraform provider.
 
 ![Region picker in "Create Workspace" screen](../../images/platforms/kubernetes/region-picker.png)
 
 ## Option 1) Kubernetes contexts and kubeconfig
 
-First, create a kubeconfig file with [multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
+First, create a kubeconfig file with
+[multiple contexts](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
-```sh
-$ kubectl config get-contexts
+```shell
+kubectl config get-contexts
 
 CURRENT   NAME                        CLUSTER
           workspaces-europe-west2-c   workspaces-europe-west2-c
@@ -20,9 +24,10 @@ CURRENT   NAME                        CLUSTER
 
 If you deployed Coder on Kubernetes, you can attach a kubeconfig as a secret.
 
-This assumes Coder is deployed on the `coder` namespace and your kubeconfig file is in ~/.kube/config.
+This assumes Coder is deployed on the `coder` namespace and your kubeconfig file
+is in ~/.kube/config.
 
-```sh
+```shell
 kubectl create secret generic kubeconfig-secret -n coder --from-file=~/.kube/config
 ```
 
@@ -41,15 +46,20 @@ coder:
       readOnly: true
 ```
 
-[Upgrade Coder](../../install/kubernetes.md#upgrading-coder-via-helm) with these new values.
+[Upgrade Coder](../../install/kubernetes.md#upgrading-coder-via-helm) with these
+new values.
 
 ### VM control plane
 
-If you deployed Coder on a VM, copy the kubeconfig file to `/home/coder/.kube/config`.
+If you deployed Coder on a VM, copy the kubeconfig file to
+`/home/coder/.kube/config`.
 
 ### Create a Coder template
 
-You can start from our [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes). From there, add [template parameters](../../templates/parameters.md) to allow developers to pick their desired cluster.
+You can start from our
+[example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+From there, add [template parameters](../../templates/parameters.md) to allow
+developers to pick their desired cluster.
 
 ```hcl
 # main.tf
@@ -79,17 +89,22 @@ provider "kubernetes" {
 
 ## Option 2) Kubernetes ServiceAccounts
 
-Alternatively, you can authenticate with remote clusters with ServiceAccount tokens. Coder can store these secrets on your behalf with [managed Terraform variables](../../templates/parameters.md#managed-terraform-variables).
+Alternatively, you can authenticate with remote clusters with ServiceAccount
+tokens. Coder can store these secrets on your behalf with
+[managed Terraform variables](../../templates/parameters.md#managed-terraform-variables).
 
-Alternatively, these could also be fetched from Kubernetes secrets or even [Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
+Alternatively, these could also be fetched from Kubernetes secrets or even
+[Hashicorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
-This guide assumes you have a `coder-workspaces` namespace on your remote cluster. Change the namespace accordingly.
+This guide assumes you have a `coder-workspaces` namespace on your remote
+cluster. Change the namespace accordingly.
 
 ### Create a ServiceAccount
 
-Run this command against your remote cluster to create a ServiceAccount, Role, RoleBinding, and token:
+Run this command against your remote cluster to create a ServiceAccount, Role,
+RoleBinding, and token:
 
-```sh
+```shell
 kubectl apply -n coder-workspaces -f - <<EOF
 apiVersion: v1
 kind: ServiceAccount
@@ -141,7 +156,8 @@ rolebinding.rbac.authorization.k8s.io/coder created
 
 ### 2. Modify the Kubernetes template
 
-You can start from our [example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
+You can start from our
+[example template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes).
 
 ```hcl
 variable "host" {
@@ -172,20 +188,21 @@ provider "kubernetes" {
 
 ### Create Coder template with managed variables
 
-Fetch the values from the secret and pass them to Coder. This should work on macOS and Linux.
+Fetch the values from the secret and pass them to Coder. This should work on
+macOS and Linux.
 
 To get the cluster address:
 
-```sh
-$ kubectl cluster-info
+```shell
+kubectl cluster-info
 Kubernetes control plane is running at https://example.domain:6443
 
-$ export CLUSTER_ADDRESS=https://example.domain:6443
+export CLUSTER_ADDRESS=https://example.domain:6443
 ```
 
 To fetch the CA certificate and token:
 
-```sh
+```shell
 export CLUSTER_CA_CERTIFICATE=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.ca\.crt}")
 
 export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-service-account-token -n coder-workspaces -o jsonpath="{.data.token}")
@@ -193,7 +210,7 @@ export CLUSTER_SERVICEACCOUNT_TOKEN=$(kubectl get secrets coder-service-account-
 
 Create the template with these values:
 
-```sh
+```shell
 coder templates create \
     --variable host=$CLUSTER_ADDRESS \
     --variable cluster_ca_certificate=$CLUSTER_CA_CERTIFICATE \
@@ -201,9 +218,10 @@ coder templates create \
     --variable namespace=coder-workspaces
 ```
 
-If you're on a Windows machine (or if one of the commands fail), try grabbing the values manually:
+If you're on a Windows machine (or if one of the commands fail), try grabbing
+the values manually:
 
-```sh
+```shell
 # Get cluster API address
 kubectl cluster-info
 

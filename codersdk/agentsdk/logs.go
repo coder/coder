@@ -10,16 +10,19 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/google/uuid"
+
 	"cdr.dev/slog"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/retry"
 )
 
 type startupLogsWriter struct {
-	buf   bytes.Buffer // Buffer to track partial lines.
-	ctx   context.Context
-	send  func(ctx context.Context, log ...StartupLog) error
-	level codersdk.LogLevel
+	buf    bytes.Buffer // Buffer to track partial lines.
+	ctx    context.Context
+	send   func(ctx context.Context, log ...Log) error
+	level  codersdk.LogLevel
+	source uuid.UUID
 }
 
 func (w *startupLogsWriter) Write(p []byte) (int, error) {
@@ -39,8 +42,8 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 			partial = w.buf.Bytes()
 			w.buf.Reset()
 		}
-		err := w.send(w.ctx, StartupLog{
-			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
+		err := w.send(w.ctx, Log{
+			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    string(partial) + string(p[:nl-cr]),
 		})
@@ -61,8 +64,8 @@ func (w *startupLogsWriter) Write(p []byte) (int, error) {
 func (w *startupLogsWriter) Close() error {
 	if w.buf.Len() > 0 {
 		defer w.buf.Reset()
-		return w.send(w.ctx, StartupLog{
-			CreatedAt: time.Now().UTC(), // UTC, like database.Now().
+		return w.send(w.ctx, Log{
+			CreatedAt: time.Now().UTC(), // UTC, like dbtime.Now().
 			Level:     w.level,
 			Output:    w.buf.String(),
 		})
@@ -70,28 +73,48 @@ func (w *startupLogsWriter) Close() error {
 	return nil
 }
 
-// StartupLogsWriter returns an io.WriteCloser that sends logs via the
+// LogsWriter returns an io.WriteCloser that sends logs via the
 // provided sender. The sender is expected to be non-blocking. Calling
 // Close flushes any remaining partially written log lines but is
-// otherwise no-op. If the context passed to StartupLogsWriter is
+// otherwise no-op. If the context passed to LogsWriter is
 // canceled, any remaining logs will be discarded.
 //
 // Neither Write nor Close is safe for concurrent use and must be used
 // by a single goroutine.
-func StartupLogsWriter(ctx context.Context, sender func(ctx context.Context, log ...StartupLog) error, level codersdk.LogLevel) io.WriteCloser {
+func LogsWriter(ctx context.Context, sender func(ctx context.Context, log ...Log) error, source uuid.UUID, level codersdk.LogLevel) io.WriteCloser {
 	return &startupLogsWriter{
-		ctx:   ctx,
-		send:  sender,
-		level: level,
+		ctx:    ctx,
+		send:   sender,
+		level:  level,
+		source: source,
 	}
 }
 
-// SendStartupLogs will send agent startup logs to the server. Calls to
+// LogsSenderFlushTimeout changes the default flush timeout (250ms),
+// this is mostly useful for tests.
+func LogsSenderFlushTimeout(timeout time.Duration) func(*logsSenderOptions) {
+	return func(o *logsSenderOptions) {
+		o.flushTimeout = timeout
+	}
+}
+
+type logsSenderOptions struct {
+	flushTimeout time.Duration
+}
+
+// LogsSender will send agent startup logs to the server. Calls to
 // sendLog are non-blocking and will return an error if flushAndClose
 // has been called. Calling sendLog concurrently is not supported. If
 // the context passed to flushAndClose is canceled, any remaining logs
 // will be discarded.
-func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStartupLogs) error, logger slog.Logger) (sendLog func(ctx context.Context, log ...StartupLog) error, flushAndClose func(context.Context) error) {
+func LogsSender(sourceID uuid.UUID, patchLogs func(ctx context.Context, req PatchLogs) error, logger slog.Logger, opts ...func(*logsSenderOptions)) (sendLog func(ctx context.Context, log ...Log) error, flushAndClose func(context.Context) error) {
+	o := logsSenderOptions{
+		flushTimeout: 250 * time.Millisecond,
+	}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	// The main context is used to close the sender goroutine and cancel
 	// any outbound requests to the API. The shutdown context is used to
 	// signal the sender goroutine to flush logs and then exit.
@@ -100,17 +123,16 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 
 	// Synchronous sender, there can only be one outbound send at a time.
 	sendDone := make(chan struct{})
-	send := make(chan []StartupLog, 1)
+	send := make(chan []Log, 1)
 	go func() {
 		// Set flushTimeout and backlogLimit so that logs are uploaded
 		// once every 250ms or when 100 logs have been added to the
 		// backlog, whichever comes first.
-		flushTimeout := 250 * time.Millisecond
 		backlogLimit := 100
 
-		flush := time.NewTicker(flushTimeout)
+		flush := time.NewTicker(o.flushTimeout)
 
-		var backlog []StartupLog
+		var backlog []Log
 		defer func() {
 			flush.Stop()
 			if len(backlog) > 0 {
@@ -149,16 +171,18 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 				// error occurs. Note that we use the main context here,
 				// meaning these requests won't be interrupted by
 				// shutdown.
+				var err error
 				for r := retry.New(time.Second, 5*time.Second); r.Wait(ctx); {
-					err := patchStartupLogs(ctx, PatchStartupLogs{
-						Logs: backlog,
+					err = patchLogs(ctx, PatchLogs{
+						Logs:        backlog,
+						LogSourceID: sourceID,
 					})
 					if err == nil {
 						break
 					}
 
 					if errors.Is(err, context.Canceled) {
-						return
+						break
 					}
 					// This error is expected to be codersdk.Error, but it has
 					// private fields so we can't fake it in tests.
@@ -166,18 +190,19 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 					if errors.As(err, &statusErr) {
 						if statusErr.StatusCode() == http.StatusRequestEntityTooLarge {
 							logger.Warn(ctx, "startup logs too large, discarding logs", slog.F("discarded_logs_count", len(backlog)), slog.Error(err))
+							err = nil
 							break
 						}
 					}
 					logger.Error(ctx, "startup logs sender failed to upload logs, retrying later", slog.F("logs_count", len(backlog)), slog.Error(err))
 				}
-				if ctx.Err() != nil {
+				if err != nil {
 					return
 				}
 				backlog = nil
 
 				// Anchor flush to the last log upload.
-				flush.Reset(flushTimeout)
+				flush.Reset(o.flushTimeout)
 			}
 			if done {
 				return
@@ -185,8 +210,8 @@ func StartupLogsSender(patchStartupLogs func(ctx context.Context, req PatchStart
 		}
 	}()
 
-	var queue []StartupLog
-	sendLog = func(callCtx context.Context, log ...StartupLog) error {
+	var queue []Log
+	sendLog = func(callCtx context.Context, log ...Log) error {
 		select {
 		case <-shutdownCtx.Done():
 			return xerrors.Errorf("closed: %w", shutdownCtx.Err())

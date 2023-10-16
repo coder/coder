@@ -1,12 +1,10 @@
 terraform {
   required_providers {
     coder = {
-      source  = "coder/coder"
-      version = "~> 0.8.3"
+      source = "coder/coder"
     }
     docker = {
-      source  = "kreuzwerker/docker"
-      version = "~> 3.0.1"
+      source = "kreuzwerker/docker"
     }
   }
 }
@@ -189,6 +187,7 @@ resource "docker_container" "workspace" {
     volume_name    = docker_volume.home_volume.name
     read_only      = false
   }
+
   # Add labels in Docker to keep track of orphan resources.
   labels {
     label = "coder.owner"

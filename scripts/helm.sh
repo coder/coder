@@ -4,15 +4,14 @@
 # .tgz file at the specified path, and may optionally push it to the Coder OSS
 # repo.
 #
-# ./helm.sh [--version 1.2.3] [--output path/to/coder.tgz] [--push]
+# ./helm.sh [--version 1.2.3] [--chart coder|provisioner] [--output path/to/coder.tgz]
 #
 # If no version is specified, defaults to the version from ./version.sh.
 #
-# If no output path is specified, defaults to
-# "$repo_root/build/coder_helm_$version.tgz".
+# If no chart is specified, defaults to 'coder'
 #
-# If the --push parameter is specified, the resulting artifact will be published
-# to the Coder OSS repo. This requires `gsutil` to be installed and configured.
+# If no output path is specified, defaults to
+# "$repo_root/build/$chart_helm_$version.tgz".
 
 set -euo pipefail
 # shellcheck source=scripts/lib.sh
@@ -20,9 +19,9 @@ source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 version=""
 output_path=""
-push=0
+chart=""
 
-args="$(getopt -o "" -l version:,output:,push -- "$@")"
+args="$(getopt -o "" -l version:,chart:,output:,push -- "$@")"
 eval set -- "$args"
 while true; do
 	case "$1" in
@@ -30,13 +29,13 @@ while true; do
 		version="$2"
 		shift 2
 		;;
+	--chart)
+		chart="$2"
+		shift 2
+		;;
 	--output)
 		output_path="$(realpath "$2")"
 		shift 2
-		;;
-	--push)
-		push="1"
-		shift
 		;;
 	--)
 		shift
@@ -54,10 +53,17 @@ if [[ "$version" == "" ]]; then
 	version="$(execrelative ./version.sh)"
 fi
 
+if [[ "$chart" == "" ]]; then
+	chart="coder"
+fi
+if ! [[ "$chart" =~ ^(coder|provisioner)$ ]]; then
+	error "--chart value must be one of (coder, provisioner)"
+fi
+
 if [[ "$output_path" == "" ]]; then
 	cdroot
 	mkdir -p build
-	output_path="$(realpath "build/coder_helm_$version.tgz")"
+	output_path="$(realpath "build/${chart}_helm_${version}.tgz")"
 fi
 
 # Check dependencies
@@ -69,8 +75,10 @@ cdroot
 temp_dir="$(mktemp -d)"
 
 cdroot
-cd ./helm
-log "--- Packaging helm chart for version $version ($output_path)"
+cd "./helm/${chart}"
+log "--- Updating dependencies"
+helm dependency update .
+log "--- Packaging helm chart $chart for version $version ($output_path)"
 helm package \
 	--version "$version" \
 	--app-version "$version" \
@@ -80,8 +88,3 @@ helm package \
 log "Moving helm chart to $output_path"
 cp "$temp_dir"/*.tgz "$output_path"
 rm -rf "$temp_dir"
-
-if [[ "$push" == 1 ]]; then
-	log "--- Publishing helm chart..."
-	# TODO: figure out how/where we want to publish the helm chart
-fi

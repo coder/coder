@@ -9,8 +9,8 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 const (
@@ -40,7 +40,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store) io.Closer {
 
 			var eg errgroup.Group
 			eg.Go(func() error {
-				return db.DeleteOldWorkspaceAgentStartupLogs(ctx)
+				return db.DeleteOldWorkspaceAgentLogs(ctx)
 			})
 			eg.Go(func() error {
 				return db.DeleteOldWorkspaceAgentStats(ctx)

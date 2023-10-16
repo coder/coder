@@ -10,17 +10,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd"
-	"github.com/coder/coder/enterprise/coderd/license"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 )
 
 const (
@@ -56,6 +57,8 @@ type Options struct {
 	DontAddLicense              bool
 	DontAddFirstUser            bool
 	ReplicaSyncUpdateInterval   time.Duration
+	ExternalTokenEncryption     []dbcrypt.Cipher
+	ProvisionerDaemonPSK        string
 }
 
 // New constructs a codersdk client connected to an in-memory Enterprise API instance.
@@ -91,9 +94,11 @@ func NewWithAPI(t *testing.T, options *Options) (
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		Options:                    oop,
 		EntitlementsUpdateInterval: options.EntitlementsUpdateInterval,
-		Keys:                       Keys,
+		LicenseKeys:                Keys,
 		ProxyHealthInterval:        options.ProxyHealthInterval,
 		DefaultQuietHoursSchedule:  oop.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
+		ProvisionerDaemonPSK:       options.ProvisionerDaemonPSK,
+		ExternalTokenEncryption:    options.ExternalTokenEncryption,
 	})
 	require.NoError(t, err)
 	setHandler(coderAPI.AGPL.RootHandler)

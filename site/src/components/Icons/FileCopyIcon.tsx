@@ -1,4 +1,4 @@
-import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon"
+import SvgIcon, { SvgIconProps } from "@mui/material/SvgIcon";
 
 export const FileCopyIcon = (props: SvgIconProps) => (
   <SvgIcon {...props} viewBox="0 0 20 20">
@@ -7,4 +7,4 @@ export const FileCopyIcon = (props: SvgIconProps) => (
       fill="currentColor"
     />
   </SvgIcon>
-)
+);

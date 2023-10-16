@@ -10,10 +10,9 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func AuditLogs(query string) (database.GetAuditLogsOffsetParams, []codersdk.ValidationError) {
@@ -70,11 +69,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 	return filter, parser.Errors
 }
 
-type PostFilter struct {
-	DeletingBy *time.Time `json:"deleting_by" format:"date-time"`
-}
-
-func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, PostFilter, []codersdk.ValidationError) {
+func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -82,10 +77,8 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		Limit:  int32(page.Limit),
 	}
 
-	var postFilter PostFilter
-
 	if query == "" {
-		return filter, postFilter, nil
+		return filter, nil
 	}
 
 	// Always lowercase for all searches.
@@ -105,7 +98,7 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 		return nil
 	})
 	if len(errors) > 0 {
-		return filter, postFilter, errors
+		return filter, errors
 	}
 
 	parser := httpapi.NewQueryParamParser()
@@ -114,13 +107,12 @@ func Workspaces(query string, page codersdk.Pagination, agentInactiveDisconnectT
 	filter.Name = parser.String(values, "", "name")
 	filter.Status = string(httpapi.ParseCustom(parser, values, "", "status", httpapi.ParseEnum[database.WorkspaceStatus]))
 	filter.HasAgent = parser.String(values, "", "has-agent")
-
-	if _, ok := values["deleting_by"]; ok {
-		postFilter.DeletingBy = ptr.Ref(parser.Time(values, time.Time{}, "deleting_by", "2006-01-02"))
-	}
+	filter.IsDormant = parser.String(values, "", "is-dormant")
+	filter.LastUsedAfter = parser.Time3339Nano(values, time.Time{}, "last_used_after")
+	filter.LastUsedBefore = parser.Time3339Nano(values, time.Time{}, "last_used_before")
 
 	parser.ErrorExcessParams(values)
-	return filter, postFilter, parser.Errors
+	return filter, parser.Errors
 }
 
 func searchTerms(query string, defaultKey func(term string, values url.Values) error) (url.Values, []codersdk.ValidationError) {

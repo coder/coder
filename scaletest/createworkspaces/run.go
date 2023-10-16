@@ -12,14 +12,14 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/coderd/tracing"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/scaletest/agentconn"
-	"github.com/coder/coder/scaletest/harness"
-	"github.com/coder/coder/scaletest/loadtestutil"
-	"github.com/coder/coder/scaletest/reconnectingpty"
-	"github.com/coder/coder/scaletest/workspacebuild"
+	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/scaletest/agentconn"
+	"github.com/coder/coder/v2/scaletest/harness"
+	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/scaletest/reconnectingpty"
+	"github.com/coder/coder/v2/scaletest/workspacebuild"
 )
 
 type Runner struct {
@@ -176,13 +176,14 @@ resourceLoop:
 }
 
 // Cleanup implements Cleanable.
-func (r *Runner) Cleanup(ctx context.Context, id string) error {
+func (r *Runner) Cleanup(ctx context.Context, id string, logs io.Writer) error {
 	if r.cfg.NoCleanup {
+		_, _ = fmt.Fprintln(logs, "skipping cleanup")
 		return nil
 	}
 
 	if r.workspacebuildRunner != nil {
-		err := r.workspacebuildRunner.Cleanup(ctx, id)
+		err := r.workspacebuildRunner.Cleanup(ctx, id, logs)
 		if err != nil {
 			return xerrors.Errorf("cleanup workspace: %w", err)
 		}
@@ -191,6 +192,7 @@ func (r *Runner) Cleanup(ctx context.Context, id string) error {
 	if r.userID != uuid.Nil {
 		err := r.client.DeleteUser(ctx, r.userID)
 		if err != nil {
+			_, _ = fmt.Fprintf(logs, "failed to delete user %q: %v\n", r.userID.String(), err)
 			return xerrors.Errorf("delete user: %w", err)
 		}
 	}

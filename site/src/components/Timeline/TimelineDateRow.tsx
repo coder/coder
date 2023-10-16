@@ -1,20 +1,15 @@
-import { makeStyles } from "@mui/styles"
-import TableCell from "@mui/material/TableCell"
-import TableRow from "@mui/material/TableRow"
-import formatRelative from "date-fns/formatRelative"
-import { FC } from "react"
+import { makeStyles } from "@mui/styles";
+import TableCell from "@mui/material/TableCell";
+import TableRow from "@mui/material/TableRow";
+import { FC } from "react";
+import { createDisplayDate } from "./utils";
 
 export interface TimelineDateRow {
-  date: Date
+  date: Date;
 }
 
-// We only want the message related to the date since the time is displayed
-// inside of the build row
-export const createDisplayDate = (date: Date, base = new Date()): string =>
-  formatRelative(date, base).split(" at ")[0]
-
 export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <TableRow className={styles.dateRow}>
@@ -22,8 +17,8 @@ export const TimelineDateRow: FC<TimelineDateRow> = ({ date }) => {
         {createDisplayDate(date)}
       </TableCell>
     </TableRow>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   dateRow: {
@@ -42,4 +37,4 @@ const useStyles = makeStyles((theme) => ({
     color: theme.palette.text.secondary,
     textTransform: "capitalize",
   },
-}))
+}));

@@ -5,14 +5,16 @@ By default, Coder workspaces allow connections via:
 - Web terminal
 - SSH (plus any [SSH-compatible IDE](../ides.md))
 
-It's common to also let developers to connect via web IDEs.
+It's common to also let developers to connect via web IDEs for uses cases like
+zero trust networks, data science, contractors, and infrequent code
+contributors.
 
 ![Row of IDEs](../images/ide-row.png)
 
 In Coder, web IDEs are defined as
 [coder_app](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-resources in the template. With our generic model, any web application can
-be used as a Coder application. For example:
+resources in the template. With our generic model, any web application can be
+used as a Coder application. For example:
 
 ```hcl
 # Add button to open Portainer in the workspace dashboard
@@ -32,11 +34,38 @@ resource "coder_app" "portainer" {
 }
 ```
 
+## External URLs
+
+Any URL external to the Coder deployment is accessible as a `coder_app`. e.g.,
+Dropbox, Slack, Discord, GitHub
+
+```hcl
+resource "coder_app" "pubslack" {
+  agent_id     = coder_agent.coder.id
+  display_name = "Coder Public Slack"
+  slug         = "pubslack"
+  url          = "https://coder-com.slack.com/"
+  icon         = "https://cdn2.hubspot.net/hubfs/521324/slack-logo.png"
+  external     = true
+}
+
+resource "coder_app" "discord" {
+  agent_id     = coder_agent.coder.id
+  display_name = "Coder Discord"
+  slug         = "discord"
+  url          = "https://discord.com/invite/coder"
+  icon         = "https://logodix.com/logo/573024.png"
+  external     = true
+}
+```
+
+![External URLs](../images/external-apps.png)
+
 ## code-server
 
-![code-server in a workspace](../images/code-server-ide.png)
-
-[code-server](https://github.com/coder/coder) is our supported method of running VS Code in the web browser. A simple way to install code-server in Linux/macOS workspaces is via the Coder agent in your template:
+[code-server](https://github.com/coder/coder) is our supported method of running
+VS Code in the web browser. A simple way to install code-server in Linux/macOS
+workspaces is via the Coder agent in your template:
 
 ```console
 # edit your template
@@ -62,7 +91,9 @@ resource "coder_agent" "main" {
 }
 ```
 
-For advanced use, we recommend installing code-server in your VM snapshot or container image. Here's a Dockerfile which leverages some special [code-server features](https://coder.com/docs/code-server/):
+For advanced use, we recommend installing code-server in your VM snapshot or
+container image. Here's a Dockerfile which leverages some special
+[code-server features](https://coder.com/docs/code-server/):
 
 ```Dockerfile
 FROM codercom/enterprise-base:ubuntu
@@ -79,7 +110,8 @@ RUN code-server --install-extension eamodio.gitlens
 # or use a process manager like supervisord
 ```
 
-You'll also need to specify a `coder_app` resource related to the agent. This is how code-server is displayed on the workspace page.
+You'll also need to specify a `coder_app` resource related to the agent. This is
+how code-server is displayed on the workspace page.
 
 ```hcl
 resource "coder_app" "code-server" {
@@ -88,7 +120,7 @@ resource "coder_app" "code-server" {
   display_name = "code-server"
   url          = "http://localhost:13337/?folder=/home/coder"
   icon         = "/icon/code.svg"
-  subdomain    = true
+  subdomain    = false
 
   healthcheck {
     url       = "http://localhost:13337/healthz"
@@ -99,9 +131,13 @@ resource "coder_app" "code-server" {
 }
 ```
 
-## Microsoft VS Code Server
+![code-server in a workspace](../images/code-server-ide.png)
 
-Microsoft has a VS Code in a browser IDE as well called [VS Code Server](https://code.visualstudio.com/docs/remote/vscode-server) which can be added to a Coder template.
+## VS Code Server
+
+VS Code supports launching a local web client using the `code serve-web`
+command. To add VS Code web as a web IDE, Install and start this in your
+`startup_script` and create a corresponding `coder_app`
 
 ```hcl
 resource "coder_agent" "main" {
@@ -109,34 +145,29 @@ resource "coder_agent" "main" {
     os             = "linux"
     startup_script = <<EOF
     #!/bin/sh
-
-    # install vs code server
-    # alternatively install in a container image Dockerfile
-    wget -O- https://aka.ms/install-vscode-server/setup.sh | sh
-
-    # start vs code server
-    code-server --accept-server-license-terms serve-local --without-connection-token --quality stable --telemetry-level off >/dev/null 2>&1 &
-
+    # install VS Code
+    curl -L "https://update.code.visualstudio.com/1.82.0/linux-deb-x64/stable" -o /tmp/code.deb
+    sudo dpkg -i /tmp/code.deb && sudo apt-get install -f -y
+    # start the web server on a specific port
+    code serve-web --port 13338 --without-connection-token  --accept-server-license-terms >/tmp/vscode-web.log 2>&1 &
     EOF
 }
 ```
 
-```hcl
-# microsoft vs code server
-resource "coder_app" "msft-code-server" {
-  agent_id      = coder_agent.main.id
-  slug          = "msft-code-server"
-  display_name  = "VS Code Server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:8000?folder=/home/coder"
-  subdomain     = true
-  share         = "owner"
+> `code serve-web` was introduced in version 1.82.0 (August 2023).
 
-  healthcheck {
-    url       = "http://localhost:8000/healthz"
-    interval  = 5
-    threshold = 15
-  }
+You also need to add a `coder_app` resource for this.
+
+```hcl
+# VS Code Web
+resource "coder_app" "vscode-web" {
+  agent_id     = coder_agent.coder.id
+  slug         = "vscode-web"
+  display_name = "VS Code Web"
+  icon         = "/icon/code.svg"
+  url          = "http://localhost:13338?folder=/home/coder"
+  subdomain    = true  # VS Code Web does currently does not work with a subpath https://github.com/microsoft/vscode/issues/192947
+  share        = "owner"
 }
 ```
 
@@ -175,7 +206,7 @@ resource "coder_app" "jupyter" {
 }
 ```
 
-![JupyterLab in Coder](../images/jupyter-on-docker.png)
+![JupyterLab in Coder](../images/jupyter.png)
 
 ## RStudio
 
@@ -250,6 +281,43 @@ resource "coder_app" "airflow" {
 ```
 
 ![Airflow in Coder](../images/airflow-port-forward.png)
+
+## File Browser
+
+Show and manipulate the contents of the `/home/coder` directory in a browser.
+
+```hcl
+resource "coder_agent" "coder" {
+  os   = "linux"
+  arch = "amd64"
+  dir  = "/home/coder"
+  startup_script = <<EOT
+#!/bin/bash
+
+curl -fsSL https://raw.githubusercontent.com/filebrowser/get/master/get.sh | bash
+filebrowser --noauth --root /home/coder --port 13339 >/tmp/filebrowser.log 2>&1 &
+
+EOT
+}
+
+resource "coder_app" "filebrowser" {
+  agent_id     = coder_agent.coder.id
+  display_name = "file browser"
+  slug         = "filebrowser"
+  url          = "http://localhost:13339"
+  icon         = "https://raw.githubusercontent.com/matifali/logos/main/database.svg"
+  subdomain    = true
+  share        = "owner"
+
+  healthcheck {
+    url       = "http://localhost:13339/healthz"
+    interval  = 3
+    threshold = 10
+  }
+}
+```
+
+![File Browser](../images/file-browser.png)
 
 ## SSH Fallback
 

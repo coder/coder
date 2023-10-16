@@ -11,13 +11,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/enterprise/coderd/proxyhealth"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func insertProxy(t *testing.T, db database.Store, url string) database.WorkspaceProxy {

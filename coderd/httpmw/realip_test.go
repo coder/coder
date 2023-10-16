@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 // TestExtractAddress checks the ExtractAddress function.

@@ -1,27 +1,31 @@
-import { useMutation } from "@tanstack/react-query"
-import { updateTemplateMeta } from "api/api"
-import { UpdateTemplateMeta } from "api/typesGenerated"
-import { useDashboard } from "components/Dashboard/DashboardProvider"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useNavigate, useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
-import { TemplateSchedulePageView } from "./TemplateSchedulePageView"
-import { useLocalStorage } from "hooks"
+import { useMutation, useQueryClient } from "react-query";
+import { updateTemplateMeta } from "api/api";
+import { UpdateTemplateMeta } from "api/typesGenerated";
+import { useDashboard } from "components/Dashboard/DashboardProvider";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
+import { TemplateSchedulePageView } from "./TemplateSchedulePageView";
+import { useLocalStorage, useOrganizationId } from "hooks";
+import { templateByNameKey } from "api/queries/templates";
 
 const TemplateSchedulePage: FC = () => {
-  const { template: templateName } = useParams() as { template: string }
-  const navigate = useNavigate()
-  const { template } = useTemplateSettingsContext()
-  const { entitlements, experiments } = useDashboard()
+  const { template: templateName } = useParams() as { template: string };
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
+  const { entitlements } = useDashboard();
   const allowAdvancedScheduling =
-    entitlements.features["advanced_template_scheduling"].enabled
+    entitlements.features["advanced_template_scheduling"].enabled;
   // This check can be removed when https://github.com/coder/coder/milestone/19
   // is merged up
-  const allowWorkspaceActions = experiments.includes("workspace_actions")
-  const { clearLocal } = useLocalStorage()
+  const allowAutostopRequirement =
+    entitlements.features["template_autostop_requirement"].enabled;
+  const { clearLocal } = useLocalStorage();
 
   const {
     mutate: updateTemplate,
@@ -30,14 +34,17 @@ const TemplateSchedulePage: FC = () => {
   } = useMutation(
     (data: UpdateTemplateMeta) => updateTemplateMeta(template.id, data),
     {
-      onSuccess: () => {
-        displaySuccess("Template updated successfully")
+      onSuccess: async () => {
+        await queryClient.invalidateQueries(
+          templateByNameKey(orgId, templateName),
+        );
+        displaySuccess("Template updated successfully");
         // clear browser storage of workspaces impending deletion
-        clearLocal("dismissedWorkspaceList") // workspaces page
-        clearLocal("dismissedWorkspace") // workspace page
+        clearLocal("dismissedWorkspaceList"); // workspaces page
+        clearLocal("dismissedWorkspace"); // workspace page
       },
     },
-  )
+  );
 
   return (
     <>
@@ -46,22 +53,22 @@ const TemplateSchedulePage: FC = () => {
       </Helmet>
       <TemplateSchedulePageView
         allowAdvancedScheduling={allowAdvancedScheduling}
-        allowWorkspaceActions={allowWorkspaceActions}
+        allowAutostopRequirement={allowAutostopRequirement}
         isSubmitting={isSubmitting}
         template={template}
         submitError={submitError}
         onCancel={() => {
-          navigate(`/templates/${templateName}`)
+          navigate(`/templates/${templateName}`);
         }}
         onSubmit={(templateScheduleSettings) => {
           updateTemplate({
             ...template,
             ...templateScheduleSettings,
-          })
+          });
         }}
       />
     </>
-  )
-}
+  );
+};
 
-export default TemplateSchedulePage
+export default TemplateSchedulePage;

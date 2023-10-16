@@ -14,6 +14,9 @@ FROM
 WHERE
 	user_id = $1 AND login_type = $2;
 
+-- name: GetUserLinksByUserID :many
+SELECT * FROM user_links WHERE user_id = $1;
+
 -- name: InsertUserLink :one
 INSERT INTO
 	user_links (
@@ -21,11 +24,13 @@ INSERT INTO
 		login_type,
 		linked_id,
 		oauth_access_token,
+		oauth_access_token_key_id,
 		oauth_refresh_token,
+		oauth_refresh_token_key_id,
 		oauth_expiry
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6 ) RETURNING *;
+	( $1, $2, $3, $4, $5, $6, $7, $8 ) RETURNING *;
 
 -- name: UpdateUserLinkedID :one
 UPDATE
@@ -40,7 +45,9 @@ UPDATE
 	user_links
 SET
 	oauth_access_token = $1,
-	oauth_refresh_token = $2,
-	oauth_expiry = $3
+	oauth_access_token_key_id = $2,
+	oauth_refresh_token = $3,
+	oauth_refresh_token_key_id = $4,
+	oauth_expiry = $5
 WHERE
-	user_id = $4 AND login_type = $5 RETURNING *;
+	user_id = $6 AND login_type = $7 RETURNING *;

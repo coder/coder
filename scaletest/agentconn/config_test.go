@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/scaletest/agentconn"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/scaletest/agentconn"
 )
 
 func Test_Config(t *testing.T) {

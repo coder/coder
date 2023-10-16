@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/cli/clistat"
-	"github.com/coder/coder/cli/clitest"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/cli/clistat"
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // This just tests that the stat command is recognized and does not output
@@ -74,7 +74,7 @@ func TestStatCPUCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "cpu", "--output=text")
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=text", "--host")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -87,7 +87,7 @@ func TestStatCPUCmd(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
-		inv, _ := clitest.New(t, "stat", "cpu", "--output=json")
+		inv, _ := clitest.New(t, "stat", "cpu", "--output=json", "--host")
 		buf := new(bytes.Buffer)
 		inv.Stdout = buf
 		err := inv.WithContext(ctx).Run()
@@ -169,5 +169,17 @@ func TestStatDiskCmd(t *testing.T) {
 		require.NotNil(t, tmp.Total)
 		require.NotZero(t, *tmp.Total)
 		require.Equal(t, "B", tmp.Unit)
+	})
+
+	t.Run("PosArg", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+		inv, _ := clitest.New(t, "stat", "disk", "/this/path/does/not/exist", "--output=text")
+		buf := new(bytes.Buffer)
+		inv.Stdout = buf
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `not found: "/this/path/does/not/exist"`)
 	})
 }

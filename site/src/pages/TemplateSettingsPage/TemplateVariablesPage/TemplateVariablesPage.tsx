@@ -1,108 +1,145 @@
-import { useMachine } from "@xstate/react"
 import {
   CreateTemplateVersionRequest,
   TemplateVersionVariable,
   VariableValue,
-} from "api/typesGenerated"
-import { displaySuccess } from "components/GlobalSnackbar/utils"
-import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useTranslation } from "react-i18next"
-import { useNavigate, useParams } from "react-router-dom"
-import { templateVariablesMachine } from "xServices/template/templateVariablesXService"
-import { pageTitle } from "../../../utils/page"
-import { useTemplateSettingsContext } from "../TemplateSettingsLayout"
-import { TemplateVariablesPageView } from "./TemplateVariablesPageView"
+} from "api/typesGenerated";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { useCallback, type FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useNavigate, useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { useTemplateSettings } from "../TemplateSettingsLayout";
+import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
+import {
+  createAndBuildTemplateVersion,
+  templateVersion,
+  templateVersionVariables,
+  updateActiveTemplateVersion,
+} from "api/queries/templates";
+import { useMutation, useQuery, useQueryClient } from "react-query";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Loader } from "components/Loader/Loader";
 
 export const TemplateVariablesPage: FC = () => {
   const { template: templateName } = useParams() as {
-    organization: string
-    template: string
-  }
-  const organizationId = useOrganizationId()
-  const { template } = useTemplateSettingsContext()
-  const navigate = useNavigate()
-  const [state, send] = useMachine(templateVariablesMachine, {
-    context: {
-      organizationId,
-      template,
-    },
-    actions: {
-      onUpdateTemplate: () => {
-        displaySuccess("Template updated successfully")
-      },
-    },
-  })
-  const {
-    activeTemplateVersion,
-    templateVariables,
-    getTemplateDataError,
-    updateTemplateError,
-    jobError,
-  } = state.context
+    organization: string;
+    template: string;
+  };
+  const orgId = useOrganizationId();
+  const { template } = useTemplateSettings();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const versionId = template.active_version_id;
 
-  const { t } = useTranslation("templateVariablesPage")
+  const {
+    data: version,
+    error: versionError,
+    isLoading: isVersionLoading,
+  } = useQuery({ ...templateVersion(versionId), keepPreviousData: true });
+  const {
+    data: variables,
+    error: variablesError,
+    isLoading: isVariablesLoading,
+  } = useQuery({
+    ...templateVersionVariables(versionId),
+    keepPreviousData: true,
+  });
+
+  const {
+    mutateAsync: sendCreateAndBuildTemplateVersion,
+    error: buildError,
+    isLoading: isBuilding,
+  } = useMutation(createAndBuildTemplateVersion(orgId));
+  const {
+    mutateAsync: sendUpdateActiveTemplateVersion,
+    error: publishError,
+    isLoading: isPublishing,
+  } = useMutation(updateActiveTemplateVersion(template, queryClient));
+
+  const publishVersion = useCallback(
+    async (versionId: string) => {
+      await sendUpdateActiveTemplateVersion(versionId);
+      displaySuccess("Template updated successfully");
+    },
+    [sendUpdateActiveTemplateVersion],
+  );
+
+  const buildVersion = useCallback(
+    async (req: CreateTemplateVersionRequest) => {
+      const newVersion = await sendCreateAndBuildTemplateVersion(req);
+      await publishVersion(newVersion.id);
+    },
+    [sendCreateAndBuildTemplateVersion, publishVersion],
+  );
+
+  const isSubmitting = Boolean(isBuilding || isPublishing);
+
+  const error = versionError ?? variablesError;
+  if (error) {
+    return <ErrorAlert error={error} />;
+  }
+
+  if (isVersionLoading || isVariablesLoading) {
+    return <Loader />;
+  }
+
   return (
     <>
       <Helmet>
-        <title>{pageTitle([template.name, t("title")])}</title>
+        <title>{pageTitle([template.name, "Template variables"])}</title>
       </Helmet>
 
       <TemplateVariablesPageView
-        isSubmitting={state.hasTag("submitting")}
-        templateVersion={activeTemplateVersion}
-        templateVariables={templateVariables}
+        isSubmitting={isSubmitting}
+        templateVersion={version}
+        templateVariables={variables}
         errors={{
-          getTemplateDataError,
-          updateTemplateError,
-          jobError,
+          buildError,
+          publishError,
         }}
         onCancel={() => {
-          navigate(`/templates/${templateName}`)
+          navigate(`/templates/${templateName}`);
         }}
-        onSubmit={(formData) => {
-          const request = filterEmptySensitiveVariables(
-            formData,
-            templateVariables,
-          )
-          send({ type: "UPDATE_TEMPLATE_EVENT", request: request })
+        onSubmit={async (formData) => {
+          const request = filterEmptySensitiveVariables(formData, variables);
+          await buildVersion(request);
         }}
       />
     </>
-  )
-}
+  );
+};
 
 const filterEmptySensitiveVariables = (
   request: CreateTemplateVersionRequest,
   templateVariables?: TemplateVersionVariable[],
 ): CreateTemplateVersionRequest => {
-  const filtered: VariableValue[] = []
+  const filtered: VariableValue[] = [];
 
   if (!templateVariables) {
-    return request
+    return request;
   }
 
   if (request.user_variable_values) {
     request.user_variable_values.forEach((variableValue) => {
       const templateVariable = templateVariables.find(
         (t) => t.name === variableValue.name,
-      )
+      );
       if (
         templateVariable &&
         templateVariable.sensitive &&
         variableValue.value === ""
       ) {
-        return
+        return;
       }
-      filtered.push(variableValue)
-    })
+      filtered.push(variableValue);
+    });
   }
 
   return {
     ...request,
     user_variable_values: filtered,
-  }
-}
+  };
+};
 
-export default TemplateVariablesPage
+export default TemplateVariablesPage;

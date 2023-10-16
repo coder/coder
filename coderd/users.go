@@ -12,19 +12,20 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/audit"
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/db2sdk"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/httpmw"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/coderd/searchquery"
-	"github.com/coder/coder/coderd/telemetry"
-	"github.com/coder/coder/coderd/userpassword"
-	"github.com/coder/coder/coderd/util/slice"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/searchquery"
+	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Returns whether the initial user has been created or not.
@@ -287,11 +288,27 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.UserLoginType == "" && req.DisableLogin {
+		// Handle the deprecated field
+		req.UserLoginType = codersdk.LoginTypeNone
+	}
+	if req.UserLoginType == "" {
+		// Default to password auth
+		req.UserLoginType = codersdk.LoginTypePassword
+	}
+
+	if req.UserLoginType != codersdk.LoginTypePassword && req.Password != "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Password cannot be set for non-password (%q) authentication.", req.UserLoginType),
+		})
+		return
+	}
+
 	// If password auth is disabled, don't allow new users to be
 	// created with a password!
-	if api.DeploymentValues.DisablePasswordAuth {
+	if api.DeploymentValues.DisablePasswordAuth && req.UserLoginType == codersdk.LoginTypePassword {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "You cannot manually provision new users with password authentication disabled!",
+			Message: "Password based authentication is disabled! Unable to provision new users with password authentication.",
 		})
 		return
 	}
@@ -353,17 +370,11 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if req.DisableLogin && req.Password != "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Cannot set password when disabling login.",
-		})
-		return
-	}
-
 	var loginType database.LoginType
-	if req.DisableLogin {
+	switch req.UserLoginType {
+	case codersdk.LoginTypeNone:
 		loginType = database.LoginTypeNone
-	} else {
+	case codersdk.LoginTypePassword:
 		err = userpassword.Validate(req.Password)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -376,6 +387,14 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		loginType = database.LoginTypePassword
+	case codersdk.LoginTypeOIDC:
+		loginType = database.LoginTypeOIDC
+	case codersdk.LoginTypeGithub:
+		loginType = database.LoginTypeGithub
+	default:
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Unsupported login type %q for manually creating new users.", req.UserLoginType),
+		})
 	}
 
 	user, _, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
@@ -482,7 +501,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Users
-// @Param user path string true "User ID, name, or me"
+// @Param user path string true "User ID, username, or me"
 // @Success 200 {object} codersdk.User
 // @Router /users/{user} [get]
 func (api *API) userByName(rw http.ResponseWriter, r *http.Request) {
@@ -592,7 +611,7 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		Email:     user.Email,
 		AvatarURL: user.AvatarURL,
 		Username:  params.Username,
-		UpdatedAt: database.Now(),
+		UpdatedAt: dbtime.Now(),
 	})
 	aReq.New = updatedUserProfile
 
@@ -680,7 +699,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		suspendedUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
-			UpdatedAt: database.Now(),
+			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -730,6 +749,13 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	aReq.Old = user
 
 	if !httpapi.Read(ctx, rw, r, &params) {
+		return
+	}
+
+	if user.LoginType != database.LoginTypePassword {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Users without password login type cannot change their password.",
+		})
 		return
 	}
 
@@ -1053,10 +1079,11 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			}
 
 			organization, err := tx.InsertOrganization(ctx, database.InsertOrganizationParams{
-				ID:        uuid.New(),
-				Name:      req.Username,
-				CreatedAt: database.Now(),
-				UpdatedAt: database.Now(),
+				ID:          uuid.New(),
+				Name:        req.Username,
+				CreatedAt:   dbtime.Now(),
+				UpdatedAt:   dbtime.Now(),
+				Description: "",
 			})
 			if err != nil {
 				return xerrors.Errorf("create organization: %w", err)
@@ -1070,16 +1097,17 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 
 			_, err = tx.InsertAllUsersGroup(ctx, organization.ID)
 			if err != nil {
-				return xerrors.Errorf("create %q group: %w", database.AllUsersGroup, err)
+				return xerrors.Errorf("create %q group: %w", database.EveryoneGroup, err)
 			}
 		}
 
 		params := database.InsertUserParams{
-			ID:        uuid.New(),
-			Email:     req.Email,
-			Username:  req.Username,
-			CreatedAt: database.Now(),
-			UpdatedAt: database.Now(),
+			ID:             uuid.New(),
+			Email:          req.Email,
+			Username:       req.Username,
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
+			HashedPassword: []byte{},
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
@@ -1105,8 +1133,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
 			UserID:     user.ID,
-			CreatedAt:  database.Now(),
-			UpdatedAt:  database.Now(),
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
 			PrivateKey: privateKey,
 			PublicKey:  publicKey,
 		})
@@ -1116,8 +1144,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 		_, err = tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: req.OrganizationID,
 			UserID:         user.ID,
-			CreatedAt:      database.Now(),
-			UpdatedAt:      database.Now(),
+			CreatedAt:      dbtime.Now(),
+			UpdatedAt:      dbtime.Now(),
 			// By default give them membership to the organization.
 			Roles: orgRoles,
 		})
@@ -1139,23 +1167,23 @@ func convertUsers(users []database.User, organizationIDsByUserID map[uuid.UUID][
 
 func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]uuid.UUID, error) {
 	organizationIDsByMemberIDsRows, err := api.Database.GetOrganizationIDsByMemberIDs(ctx, []uuid.UUID{user.ID})
-	if errors.Is(err, sql.ErrNoRows) || len(organizationIDsByMemberIDsRows) == 0 {
-		return []uuid.UUID{}, nil
-	}
 	if err != nil {
 		return []uuid.UUID{}, err
+	}
+	if len(organizationIDsByMemberIDsRows) == 0 {
+		return []uuid.UUID{}, xerrors.Errorf("user %q must be a member of at least one organization", user.Email)
 	}
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
 }
 
-func findUser(id uuid.UUID, users []database.User) *database.User {
-	for _, u := range users {
-		if u.ID == id {
-			return &u
+func usernameWithID(id uuid.UUID, users []database.User) (string, bool) {
+	for _, user := range users {
+		if id == user.ID {
+			return user.Username, true
 		}
 	}
-	return nil
+	return "", false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

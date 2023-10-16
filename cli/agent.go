@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,12 +28,13 @@ import (
 	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
-	"github.com/coder/coder/agent"
-	"github.com/coder/coder/agent/reaper"
-	"github.com/coder/coder/buildinfo"
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/reaper"
+	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 func (r *RootCmd) workspaceAgent() *clibase.Cmd {
@@ -197,9 +199,19 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			var exchangeToken func(context.Context) (agentsdk.AuthenticateResponse, error)
 			switch auth {
 			case "token":
-				token, err := inv.ParsedFlags().GetString(varAgentToken)
-				if err != nil {
-					return xerrors.Errorf("CODER_AGENT_TOKEN must be set for token auth: %w", err)
+				token, _ := inv.ParsedFlags().GetString(varAgentToken)
+				if token == "" {
+					tokenFile, _ := inv.ParsedFlags().GetString(varAgentTokenFile)
+					if tokenFile != "" {
+						tokenBytes, err := os.ReadFile(tokenFile)
+						if err != nil {
+							return xerrors.Errorf("read token file %q: %w", tokenFile, err)
+						}
+						token = strings.TrimSpace(string(tokenBytes))
+					}
+				}
+				if token == "" {
+					return xerrors.Errorf("CODER_AGENT_TOKEN or CODER_AGENT_TOKEN_FILE must be set for token auth")
 				}
 				client.SetSessionToken(token)
 			case "google-instance-identity":
@@ -253,7 +265,21 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 			}
 
 			prometheusRegistry := prometheus.NewRegistry()
-			subsystem := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystemsRaw := inv.Environ.Get(agent.EnvAgentSubsystem)
+			subsystems := []codersdk.AgentSubsystem{}
+			for _, s := range strings.Split(subsystemsRaw, ",") {
+				subsystem := codersdk.AgentSubsystem(strings.TrimSpace(s))
+				if subsystem == "" {
+					continue
+				}
+				if !subsystem.Valid() {
+					return xerrors.Errorf("invalid subsystem %q", subsystem)
+				}
+				subsystems = append(subsystems, subsystem)
+			}
+
+			procTicker := time.NewTicker(time.Second)
+			defer procTicker.Stop()
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -271,13 +297,18 @@ func (r *RootCmd) workspaceAgent() *clibase.Cmd {
 					return resp.SessionToken, nil
 				},
 				EnvironmentVariables: map[string]string{
-					"GIT_ASKPASS": executablePath,
+					"GIT_ASKPASS":         executablePath,
+					agent.EnvProcPrioMgmt: os.Getenv(agent.EnvProcPrioMgmt),
 				},
 				IgnorePorts:   ignorePorts,
 				SSHMaxTimeout: sshMaxTimeout,
-				Subsystem:     codersdk.AgentSubsystem(subsystem),
+				Subsystems:    subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
+				Syscaller:          agentproc.NewSyscaller(),
+				// Intentionally set this to nil. It's mainly used
+				// for testing.
+				ModifiedProcesses: nil,
 			})
 
 			prometheusSrvClose := ServeHandler(ctx, logger, prometheusMetricsHandler(prometheusRegistry, logger), prometheusAddress, "prometheus")

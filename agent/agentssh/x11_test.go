@@ -19,9 +19,9 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/agent/agentssh"
-	"github.com/coder/coder/codersdk/agentsdk"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestServer_X11(t *testing.T) {

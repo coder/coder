@@ -6,10 +6,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/enterprise/audit/audittest"
-	"github.com/coder/coder/enterprise/audit/backends"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/enterprise/audit"
+	"github.com/coder/coder/v2/enterprise/audit/audittest"
+	"github.com/coder/coder/v2/enterprise/audit/backends"
 )
 
 func TestPostgresBackend(t *testing.T) {
@@ -25,7 +26,7 @@ func TestPostgresBackend(t *testing.T) {
 		)
 		defer cancel()
 
-		err := pgb.Export(ctx, alog)
+		err := pgb.Export(ctx, alog, audit.BackendDetails{})
 		require.NoError(t, err)
 
 		got, err := db.GetAuditLogsOffset(ctx, database.GetAuditLogsOffsetParams{

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +21,13 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbtestutil"
-	"github.com/coder/coder/enterprise/tailnet"
-	agpl "github.com/coder/coder/tailnet"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/enterprise/tailnet"
+	agpl "github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestMain(m *testing.M) {
@@ -36,11 +39,11 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -75,15 +78,15 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "agent")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 	require.Eventually(t, func() bool {
@@ -112,15 +115,15 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "original")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 
@@ -148,7 +151,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	agent.waitForClose(ctx, t)
 
 	// Create a new agent connection. This is to simulate a reconnect!
-	agent = newTestAgent(t, coordinator, agent.id)
+	agent = newTestAgent(t, coordinator, "reconnection", agent.id)
 	// Ensure the existing listening connIO sends its node immediately!
 	clientNodes = agent.recvNodes(ctx, t)
 	require.Len(t, clientNodes, 1)
@@ -189,15 +192,15 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
-	agent := newTestAgent(t, coordinator)
+	agent := newTestAgent(t, coordinator, "agent")
 	defer agent.close()
 	agent.sendNode(&agpl.Node{PreferredDERP: 10})
 
@@ -276,14 +279,14 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	mu := sync.Mutex{}
 	heartbeats := []time.Time{}
-	unsub, err := pubsub.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, msg []byte, err error) {
+	unsub, err := ps.SubscribeWithErr(tailnet.EventHeartbeats, func(_ context.Context, msg []byte, err error) {
 		assert.NoError(t, err)
 		mu.Lock()
 		defer mu.Unlock()
@@ -293,7 +296,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	defer unsub()
 
 	start := time.Now()
-	coordinator, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
 
@@ -326,20 +329,20 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coord1, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
 	require.NoError(t, err)
 	defer coord2.Close()
 
-	agent1 := newTestAgent(t, coord1)
+	agent1 := newTestAgent(t, coord1, "agent1")
 	defer agent1.close()
-	agent2 := newTestAgent(t, coord2)
+	agent2 := newTestAgent(t, coord2, "agent2")
 	defer agent2.close()
 
 	client11 := newTestClient(t, coord1, agent1.id)
@@ -435,7 +438,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent2.id)
 }
 
-// TestPGCoordinator_MultiAgent tests when a single agent connects to multiple coordinators.
+// TestPGCoordinator_MultiCoordinatorAgent tests when a single agent connects to multiple coordinators.
 // We use two agent connections, but they share the same AgentID.  This could happen due to a reconnection,
 // or an infrastructure problem where an old workspace is not fully cleaned up before a new one started.
 //
@@ -448,28 +451,28 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 //	            +---------+
 //	            | coord3  | <--- client
 //	            +---------+
-func TestPGCoordinator_MultiAgent(t *testing.T) {
+func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	t.Parallel()
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
 	}
-	store, pubsub := dbtestutil.NewDB(t)
+	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	coord1, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
-	coord2, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coord2, err := tailnet.NewPGCoord(ctx, logger.Named("coord2"), ps, store)
 	require.NoError(t, err)
 	defer coord2.Close()
-	coord3, err := tailnet.NewPGCoord(ctx, logger, pubsub, store)
+	coord3, err := tailnet.NewPGCoord(ctx, logger.Named("coord3"), ps, store)
 	require.NoError(t, err)
 	defer coord3.Close()
 
-	agent1 := newTestAgent(t, coord1)
+	agent1 := newTestAgent(t, coord1, "agent1")
 	defer agent1.close()
-	agent2 := newTestAgent(t, coord2, agent1.id)
+	agent2 := newTestAgent(t, coord2, "agent2", agent1.id)
 	defer agent2.close()
 
 	client := newTestClient(t, coord3, agent1.id)
@@ -516,6 +519,76 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	assertEventuallyNoAgents(ctx, t, store, agent1.id)
 }
 
+func TestPGCoordinator_Unhealthy(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	ctrl := gomock.NewController(t)
+	mStore := dbmock.NewMockStore(ctrl)
+	ps := pubsub.NewInMemory()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+	calls := make(chan struct{})
+	threeMissed := mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		Times(3).
+		Do(func(_ context.Context, _ uuid.UUID) { <-calls }).
+		Return(database.TailnetCoordinator{}, xerrors.New("test disconnect"))
+	mStore.EXPECT().UpsertTailnetCoordinator(gomock.Any(), gomock.Any()).
+		MinTimes(1).
+		After(threeMissed).
+		Do(func(_ context.Context, _ uuid.UUID) { <-calls }).
+		Return(database.TailnetCoordinator{}, nil)
+	// extra calls we don't particularly care about for this test
+	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().GetTailnetClientsForAgent(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
+	mStore.EXPECT().DeleteTailnetAgent(gomock.Any(), gomock.Any()).
+		AnyTimes().Return(database.DeleteTailnetAgentRow{}, nil)
+	mStore.EXPECT().DeleteCoordinator(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+
+	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
+	require.NoError(t, err)
+	defer func() {
+		err := uut.Close()
+		require.NoError(t, err)
+	}()
+	agent1 := newTestAgent(t, uut, "agent1")
+	defer agent1.close()
+	for i := 0; i < 3; i++ {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timeout")
+		case calls <- struct{}{}:
+			// OK
+		}
+	}
+	// connected agent should be disconnected
+	agent1.waitForClose(ctx, t)
+
+	// new agent should immediately disconnect
+	agent2 := newTestAgent(t, uut, "agent2")
+	defer agent2.close()
+	agent2.waitForClose(ctx, t)
+
+	// next heartbeats succeed, so we are healthy
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timeout")
+		case calls <- struct{}{}:
+			// OK
+		}
+	}
+	agent3 := newTestAgent(t, uut, "agent3")
+	defer agent3.close()
+	select {
+	case <-agent3.closeChan:
+		t.Fatal("agent conn closed after we are healthy")
+	case <-time.After(time.Second):
+		// OK
+	}
+}
+
 type testConn struct {
 	ws, serverWS net.Conn
 	nodeChan     chan []*agpl.Node
@@ -545,10 +618,10 @@ func newTestConn(ids []uuid.UUID) *testConn {
 	return a
 }
 
-func newTestAgent(t *testing.T, coord agpl.Coordinator, id ...uuid.UUID) *testConn {
+func newTestAgent(t *testing.T, coord agpl.Coordinator, name string, id ...uuid.UUID) *testConn {
 	a := newTestConn(id)
 	go func() {
-		err := coord.ServeAgent(a.serverWS, a.id, "")
+		err := coord.ServeAgent(a.serverWS, a.id, name)
 		assert.NoError(t, err)
 		close(a.closeChan)
 	}()
@@ -563,7 +636,7 @@ func (c *testConn) recvNodes(ctx context.Context, t *testing.T) []*agpl.Node {
 	t.Helper()
 	select {
 	case <-ctx.Done():
-		t.Fatal("timeout receiving nodes")
+		t.Fatalf("testConn id %s: timeout receiving nodes ", c.id)
 		return nil
 	case nodes := <-c.nodeChan:
 		return nodes
@@ -572,12 +645,20 @@ func (c *testConn) recvNodes(ctx context.Context, t *testing.T) []*agpl.Node {
 
 func (c *testConn) recvErr(ctx context.Context, t *testing.T) error {
 	t.Helper()
-	select {
-	case <-ctx.Done():
-		t.Fatal("timeout receiving error")
-		return ctx.Err()
-	case err := <-c.errChan:
-		return err
+	// pgCoord works on eventual consistency, so it sometimes sends extra node
+	// updates, and these block errors if not read from the nodes channel.
+	for {
+		select {
+		case nodes := <-c.nodeChan:
+			t.Logf("ignoring nodes update while waiting for error; id=%s, nodes=%+v",
+				c.id.String(), nodes)
+			continue
+		case <-ctx.Done():
+			t.Fatal("timeout receiving error")
+			return ctx.Err()
+		case err := <-c.errChan:
+			return err
+		}
 	}
 }
 
@@ -620,8 +701,79 @@ func assertEventuallyHasDERPs(ctx context.Context, t *testing.T, c *testConn, ex
 				t.Logf("expected DERP %d to be in %v", e, derps)
 				continue
 			}
+			return
 		}
-		return
+	}
+}
+
+func assertNeverHasDERPs(ctx context.Context, t *testing.T, c *testConn, expected ...int) {
+	t.Helper()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case nodes := <-c.nodeChan:
+			derps := make([]int, 0, len(nodes))
+			for _, n := range nodes {
+				derps = append(derps, n.PreferredDERP)
+			}
+			for _, e := range expected {
+				if slices.Contains(derps, e) {
+					t.Fatalf("expected not to get DERP %d, but received it", e)
+					return
+				}
+			}
+		}
+	}
+}
+
+func assertMultiAgentEventuallyHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
+	t.Helper()
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		require.True(t, ok)
+		if len(nodes) != len(expected) {
+			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
+	}
+}
+
+func assertMultiAgentNeverHasDERPs(ctx context.Context, t *testing.T, ma agpl.MultiAgentConn, expected ...int) {
+	t.Helper()
+	for {
+		nodes, ok := ma.NextUpdate(ctx)
+		if !ok {
+			return
+		}
+		if len(nodes) != len(expected) {
+			t.Logf("expected %d, got %d nodes", len(expected), len(nodes))
+			continue
+		}
+
+		derps := make([]int, 0, len(nodes))
+		for _, n := range nodes {
+			derps = append(derps, n.PreferredDERP)
+		}
+		for _, e := range expected {
+			if !slices.Contains(derps, e) {
+				t.Logf("expected DERP %d to be in %v", e, derps)
+				continue
+			}
+			return
+		}
 	}
 }
 
@@ -639,6 +791,7 @@ func assertEventuallyNoAgents(ctx context.Context, t *testing.T, store database.
 }
 
 func assertEventuallyNoClientsForAgent(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID) {
+	t.Helper()
 	assert.Eventually(t, func() bool {
 		clients, err := store.GetTailnetClientsForAgent(ctx, agentID)
 		if xerrors.Is(err, sql.ErrNoRows) {

@@ -1,33 +1,32 @@
-import { useMachine } from "@xstate/react"
-import { useOrganizationId } from "hooks/useOrganizationId"
-import { FC } from "react"
-import { Helmet } from "react-helmet-async"
-import { useParams } from "react-router-dom"
-import { pageTitle } from "utils/page"
-import { starterTemplateMachine } from "xServices/starterTemplates/starterTemplateXService"
-import { StarterTemplatePageView } from "./StarterTemplatePageView"
+import { useOrganizationId } from "hooks/useOrganizationId";
+import { FC } from "react";
+import { Helmet } from "react-helmet-async";
+import { useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
+import { StarterTemplatePageView } from "./StarterTemplatePageView";
+import { useQuery } from "react-query";
+import { templateExamples } from "api/queries/templates";
 
 const StarterTemplatePage: FC = () => {
-  const { exampleId } = useParams() as { exampleId: string }
-  const organizationId = useOrganizationId()
-  const [state] = useMachine(starterTemplateMachine, {
-    context: {
-      organizationId,
-      exampleId,
-    },
-  })
+  const { exampleId } = useParams() as { exampleId: string };
+  const organizationId = useOrganizationId();
+  const templateExamplesQuery = useQuery(templateExamples(organizationId));
+  const starterTemplate = templateExamplesQuery.data?.find(
+    (example) => example.id === exampleId,
+  );
 
   return (
     <>
       <Helmet>
-        <title>
-          {pageTitle(state.context.starterTemplate?.name ?? exampleId)}
-        </title>
+        <title>{pageTitle(starterTemplate?.name ?? exampleId)}</title>
       </Helmet>
 
-      <StarterTemplatePageView context={state.context} />
+      <StarterTemplatePageView
+        starterTemplate={starterTemplate}
+        error={templateExamplesQuery.error}
+      />
     </>
-  )
-}
+  );
+};
 
-export default StarterTemplatePage
+export default StarterTemplatePage;

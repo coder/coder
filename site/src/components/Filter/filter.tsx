@@ -1,114 +1,122 @@
-import { ReactNode, forwardRef, useEffect, useRef, useState } from "react"
-import Box from "@mui/material/Box"
-import TextField from "@mui/material/TextField"
-import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown"
-import Button, { ButtonProps } from "@mui/material/Button"
-import Menu, { MenuProps } from "@mui/material/Menu"
-import MenuItem from "@mui/material/MenuItem"
-import SearchOutlined from "@mui/icons-material/SearchOutlined"
-import InputAdornment from "@mui/material/InputAdornment"
-import IconButton from "@mui/material/IconButton"
-import Tooltip from "@mui/material/Tooltip"
-import CloseOutlined from "@mui/icons-material/CloseOutlined"
-import { useSearchParams } from "react-router-dom"
-import Skeleton, { SkeletonProps } from "@mui/material/Skeleton"
-import CheckOutlined from "@mui/icons-material/CheckOutlined"
+import { ReactNode, forwardRef, useEffect, useRef, useState } from "react";
+import Box from "@mui/material/Box";
+import TextField from "@mui/material/TextField";
+import KeyboardArrowDown from "@mui/icons-material/KeyboardArrowDown";
+import Button, { ButtonProps } from "@mui/material/Button";
+import Menu, { MenuProps } from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
+import SearchOutlined from "@mui/icons-material/SearchOutlined";
+import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import CloseOutlined from "@mui/icons-material/CloseOutlined";
+import { useSearchParams } from "react-router-dom";
+import Skeleton, { SkeletonProps } from "@mui/material/Skeleton";
+import CheckOutlined from "@mui/icons-material/CheckOutlined";
 import {
   getValidationErrorMessage,
   hasError,
   isApiValidationError,
-} from "api/errors"
-import { useFilterMenu } from "./menu"
-import { BaseOption } from "./options"
-import debounce from "just-debounce-it"
-import MenuList from "@mui/material/MenuList"
-import { Loader } from "components/Loader/Loader"
-import Divider from "@mui/material/Divider"
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined"
+} from "api/errors";
+import { useFilterMenu } from "./menu";
+import { BaseOption } from "./options";
+import MenuList from "@mui/material/MenuList";
+import { Loader } from "components/Loader/Loader";
+import Divider from "@mui/material/Divider";
+import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+
+import { useDebouncedFunction } from "hooks/debounce";
 
 export type PresetFilter = {
-  name: string
-  query: string
-}
+  name: string;
+  query: string;
+};
 
-type FilterValues = Record<string, string | undefined>
+type FilterValues = Record<string, string | undefined>;
+
+type UseFilterConfig = {
+  /**
+   * The fallback value to use in the event that no filter params can be parsed
+   * from the search params object. This value is allowed to change on
+   * re-renders.
+   */
+  fallbackFilter?: string;
+  searchParamsResult: ReturnType<typeof useSearchParams>;
+  onUpdate?: (newValue: string) => void;
+};
+
+const useFilterParamsKey = "filter";
 
 export const useFilter = ({
-  initialValue = "",
-  onUpdate,
+  fallbackFilter = "",
   searchParamsResult,
-}: {
-  initialValue?: string
-  searchParamsResult: ReturnType<typeof useSearchParams>
-  onUpdate?: () => void
-}) => {
-  const [searchParams, setSearchParams] = searchParamsResult
-  const query = searchParams.get("filter") ?? initialValue
-  const values = parseFilterQuery(query)
+  onUpdate,
+}: UseFilterConfig) => {
+  const [searchParams, setSearchParams] = searchParamsResult;
+  const query = searchParams.get(useFilterParamsKey) ?? fallbackFilter;
 
-  const update = (values: string | FilterValues) => {
-    if (typeof values === "string") {
-      searchParams.set("filter", values)
-    } else {
-      searchParams.set("filter", stringifyFilter(values))
-    }
-    setSearchParams(searchParams)
-    if (onUpdate) {
-      onUpdate()
-    }
-  }
+  const update = (newValues: string | FilterValues) => {
+    const serialized =
+      typeof newValues === "string" ? newValues : stringifyFilter(newValues);
 
-  const debounceUpdate = debounce(
-    (values: string | FilterValues) => update(values),
+    searchParams.set(useFilterParamsKey, serialized);
+    setSearchParams(searchParams);
+
+    if (onUpdate !== undefined) {
+      onUpdate(serialized);
+    }
+  };
+
+  const { debounced: debounceUpdate, cancelDebounce } = useDebouncedFunction(
+    update,
     500,
-  )
-
-  const used = query !== "" && query !== initialValue
+  );
 
   return {
     query,
     update,
     debounceUpdate,
-    values,
-    used,
-  }
-}
+    cancelDebounce,
+    values: parseFilterQuery(query),
+    used: query !== "" && query !== fallbackFilter,
+  };
+};
 
-export type UseFilterResult = ReturnType<typeof useFilter>
+export type UseFilterResult = ReturnType<typeof useFilter>;
 
 const parseFilterQuery = (filterQuery: string): FilterValues => {
   if (filterQuery === "") {
-    return {}
+    return {};
   }
 
-  const pairs = filterQuery.split(" ")
-  const result: FilterValues = {}
+  const pairs = filterQuery.split(" ");
+  const result: FilterValues = {};
 
   for (const pair of pairs) {
     const [key, value] = pair.split(":") as [
       keyof FilterValues,
       string | undefined,
-    ]
+    ];
     if (value) {
-      result[key] = value
+      result[key] = value;
     }
   }
 
-  return result
-}
+  return result;
+};
 
 const stringifyFilter = (filterValue: FilterValues): string => {
-  let result = ""
+  let result = "";
 
   for (const key in filterValue) {
-    const value = filterValue[key]
+    const value = filterValue[key];
     if (value) {
-      result += `${key}:${value} `
+      result += `${key}:${value} `;
     }
   }
 
-  return result.trim()
-}
+  return result.trim();
+};
 
 const BaseSkeleton = (props: SkeletonProps) => {
   return (
@@ -122,13 +130,25 @@ const BaseSkeleton = (props: SkeletonProps) => {
         ...props.sx,
       }}
     />
-  )
-}
+  );
+};
 
-export const SearchFieldSkeleton = () => <BaseSkeleton width="100%" />
+export const SearchFieldSkeleton = () => <BaseSkeleton width="100%" />;
 export const MenuSkeleton = () => (
   <BaseSkeleton sx={{ minWidth: 200, flexShrink: 0 }} />
-)
+);
+
+type FilterProps = {
+  filter: ReturnType<typeof useFilter>;
+  skeleton: ReactNode;
+  isLoading: boolean;
+  learnMoreLink: string;
+  learnMoreLabel2?: string;
+  learnMoreLink2?: string;
+  error?: unknown;
+  options?: ReactNode;
+  presets: PresetFilter[];
+};
 
 export const Filter = ({
   filter,
@@ -137,28 +157,32 @@ export const Filter = ({
   skeleton,
   options,
   learnMoreLink,
+  learnMoreLabel2,
+  learnMoreLink2,
   presets,
-}: {
-  filter: ReturnType<typeof useFilter>
-  skeleton: ReactNode
-  isLoading: boolean
-  learnMoreLink: string
-  error?: unknown
-  options?: ReactNode
-  presets: PresetFilter[]
-}) => {
-  const shouldDisplayError = hasError(error) && isApiValidationError(error)
-  const hasFilterQuery = filter.query !== ""
-  const [searchQuery, setSearchQuery] = useState(filter.query)
-  const inputRef = useRef<HTMLInputElement>(null)
+}: FilterProps) => {
+  // Storing local copy of the filter query so that it can be updated more
+  // aggressively without re-renders rippling out to the rest of the app every
+  // single time. Exists for performance reasons - not really a good way to
+  // remove this; render keys would cause the component to remount too often
+  const [queryCopy, setQueryCopy] = useState(filter.query);
+  const textboxInputRef = useRef<HTMLInputElement>(null);
 
+  // Conditionally re-syncs the parent and local filter queries
   useEffect(() => {
-    // We don't want to update this while the user is typing something or has the focus in the input
-    const isFocused = document.activeElement === inputRef.current
-    if (!isFocused) {
-      setSearchQuery(filter.query)
+    const hasSelfOrInnerFocus =
+      textboxInputRef.current?.contains(document.activeElement) ?? false;
+
+    // This doesn't address all state sync issues - namely, what happens if the
+    // user removes focus just after this synchronizing effect fires. Also need
+    // to rely on onBlur behavior as an extra safety measure
+    if (!hasSelfOrInnerFocus) {
+      setQueryCopy(filter.query);
     }
-  }, [filter.query])
+  }, [filter.query]);
+
+  const shouldDisplayError = hasError(error) && isApiValidationError(error);
+  const hasFilterQuery = filter.query !== "";
 
   return (
     <Box
@@ -178,6 +202,8 @@ export const Filter = ({
               onSelect={(query) => filter.update(query)}
               presets={presets}
               learnMoreLink={learnMoreLink}
+              learnMoreLabel2={learnMoreLabel2}
+              learnMoreLink2={learnMoreLink2}
             />
             <TextField
               fullWidth
@@ -192,11 +218,16 @@ export const Filter = ({
                 "aria-label": "Filter",
                 name: "query",
                 placeholder: "Search...",
-                value: searchQuery,
-                ref: inputRef,
+                value: queryCopy,
+                ref: textboxInputRef,
                 onChange: (e) => {
-                  setSearchQuery(e.target.value)
-                  filter.debounceUpdate(e.target.value)
+                  setQueryCopy(e.target.value);
+                  filter.debounceUpdate(e.target.value);
+                },
+                onBlur: () => {
+                  if (queryCopy !== filter.query) {
+                    setQueryCopy(filter.query);
+                  }
                 },
                 sx: {
                   borderRadius: "6px",
@@ -232,7 +263,7 @@ export const Filter = ({
                       <IconButton
                         size="small"
                         onClick={() => {
-                          filter.update("")
+                          filter.update("");
                         }}
                       >
                         <CloseOutlined sx={{ fontSize: 14 }} />
@@ -247,20 +278,24 @@ export const Filter = ({
         </>
       )}
     </Box>
-  )
-}
+  );
+};
 
 const PresetMenu = ({
   presets,
   learnMoreLink,
+  learnMoreLabel2,
+  learnMoreLink2,
   onSelect,
 }: {
-  presets: PresetFilter[]
-  learnMoreLink: string
-  onSelect: (query: string) => void
+  presets: PresetFilter[];
+  learnMoreLink: string;
+  learnMoreLabel2?: string;
+  learnMoreLink2?: string;
+  onSelect: (query: string) => void;
 }) => {
-  const [isOpen, setIsOpen] = useState(false)
-  const anchorRef = useRef<HTMLButtonElement>(null)
+  const [isOpen, setIsOpen] = useState(false);
+  const anchorRef = useRef<HTMLButtonElement>(null);
 
   return (
     <>
@@ -297,8 +332,8 @@ const PresetMenu = ({
             sx={{ fontSize: 14 }}
             key={presetFilter.name}
             onClick={() => {
-              onSelect(presetFilter.query)
-              setIsOpen(false)
+              onSelect(presetFilter.query);
+              setIsOpen(false);
             }}
           >
             {presetFilter.name}
@@ -311,16 +346,30 @@ const PresetMenu = ({
           target="_blank"
           sx={{ fontSize: 13, fontWeight: 500 }}
           onClick={() => {
-            setIsOpen(false)
+            setIsOpen(false);
           }}
         >
           <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
           View advanced filtering
         </MenuItem>
+        {learnMoreLink2 && learnMoreLabel2 && (
+          <MenuItem
+            component="a"
+            href={learnMoreLink2}
+            target="_blank"
+            sx={{ fontSize: 13, fontWeight: 500 }}
+            onClick={() => {
+              setIsOpen(false);
+            }}
+          >
+            <OpenInNewOutlined sx={{ fontSize: "14px !important" }} />
+            {learnMoreLabel2}
+          </MenuItem>
+        )}
       </Menu>
     </>
-  )
-}
+  );
+};
 
 export const FilterMenu = <TOption extends BaseOption>({
   id,
@@ -328,17 +377,17 @@ export const FilterMenu = <TOption extends BaseOption>({
   label,
   children,
 }: {
-  menu: ReturnType<typeof useFilterMenu<TOption>>
-  label: ReactNode
-  id: string
-  children: (values: { option: TOption; isSelected: boolean }) => ReactNode
+  menu: ReturnType<typeof useFilterMenu<TOption>>;
+  label: ReactNode;
+  id: string;
+  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
 }) => {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleClose = () => {
-    setIsMenuOpen(false)
-  }
+    setIsMenuOpen(false);
+  };
 
   return (
     <div>
@@ -368,8 +417,8 @@ export const FilterMenu = <TOption extends BaseOption>({
             key={option.label}
             selected={option.value === menu.selectedOption?.value}
             onClick={() => {
-              menu.selectOption(option)
-              handleClose()
+              menu.selectOption(option);
+              handleClose();
             }}
           >
             {children({
@@ -380,8 +429,8 @@ export const FilterMenu = <TOption extends BaseOption>({
         ))}
       </Menu>
     </div>
-  )
-}
+  );
+};
 
 export const FilterSearchMenu = <TOption extends BaseOption>({
   id,
@@ -389,17 +438,17 @@ export const FilterSearchMenu = <TOption extends BaseOption>({
   label,
   children,
 }: {
-  menu: ReturnType<typeof useFilterMenu<TOption>>
-  label: ReactNode
-  id: string
-  children: (values: { option: TOption; isSelected: boolean }) => ReactNode
+  menu: ReturnType<typeof useFilterMenu<TOption>>;
+  label: ReactNode;
+  id: string;
+  children: (values: { option: TOption; isSelected: boolean }) => ReactNode;
 }) => {
-  const buttonRef = useRef<HTMLButtonElement>(null)
-  const [isMenuOpen, setIsMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const handleClose = () => {
-    setIsMenuOpen(false)
-  }
+    setIsMenuOpen(false);
+  };
 
   return (
     <div>
@@ -423,8 +472,8 @@ export const FilterSearchMenu = <TOption extends BaseOption>({
             key={option.label}
             selected={option.value === menu.selectedOption?.value}
             onClick={() => {
-              menu.selectOption(option)
-              handleClose()
+              menu.selectOption(option);
+              handleClose();
             }}
           >
             {children({
@@ -435,14 +484,14 @@ export const FilterSearchMenu = <TOption extends BaseOption>({
         )}
       />
     </div>
-  )
-}
+  );
+};
 
 type OptionItemProps = {
-  option: BaseOption
-  left?: ReactNode
-  isSelected?: boolean
-}
+  option: BaseOption;
+  left?: ReactNode;
+  isSelected?: boolean;
+};
 
 export const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
   return (
@@ -462,8 +511,8 @@ export const OptionItem = ({ option, left, isSelected }: OptionItemProps) => {
         <CheckOutlined sx={{ width: 16, height: 16, marginLeft: "auto" }} />
       )}
     </Box>
-  )
-}
+  );
+};
 
 const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
   return (
@@ -478,8 +527,8 @@ const MenuButton = forwardRef<HTMLButtonElement, ButtonProps>((props, ref) => {
         ...props.sx,
       }}
     />
-  )
-})
+  );
+});
 
 function SearchMenu<TOption extends { label: string; value: string }>({
   options,
@@ -488,20 +537,20 @@ function SearchMenu<TOption extends { label: string; value: string }>({
   onQueryChange,
   ...menuProps
 }: Pick<MenuProps, "anchorEl" | "open" | "onClose" | "id"> & {
-  options?: TOption[]
-  renderOption: (option: TOption) => ReactNode
-  query: string
-  onQueryChange: (query: string) => void
+  options?: TOption[];
+  renderOption: (option: TOption) => ReactNode;
+  query: string;
+  onQueryChange: (query: string) => void;
 }) {
-  const menuListRef = useRef<HTMLUListElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
+  const menuListRef = useRef<HTMLUListElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <Menu
       {...menuProps}
       onClose={(event, reason) => {
-        menuProps.onClose && menuProps.onClose(event, reason)
-        onQueryChange("")
+        menuProps.onClose && menuProps.onClose(event, reason);
+        onQueryChange("");
       }}
       sx={{
         "& .MuiPaper-root": {
@@ -527,10 +576,10 @@ function SearchMenu<TOption extends { label: string; value: string }>({
           borderBottom: (theme) => `1px solid ${theme.palette.divider}`,
         }}
         onKeyDown={(e) => {
-          e.stopPropagation()
+          e.stopPropagation();
           if (e.key === "ArrowDown" && menuListRef.current) {
-            const firstItem = menuListRef.current.firstChild as HTMLElement
-            firstItem.focus()
+            const firstItem = menuListRef.current.firstChild as HTMLElement;
+            firstItem.focus();
           }
         }}
       >
@@ -549,7 +598,7 @@ function SearchMenu<TOption extends { label: string; value: string }>({
           value={query}
           ref={searchInputRef}
           onChange={(e) => {
-            onQueryChange(e.target.value)
+            onQueryChange(e.target.value);
           }}
           sx={{
             height: "100%",
@@ -570,9 +619,9 @@ function SearchMenu<TOption extends { label: string; value: string }>({
           ref={menuListRef}
           onKeyDown={(e) => {
             if (e.shiftKey && e.code === "Tab") {
-              e.preventDefault()
-              e.stopPropagation()
-              searchInputRef.current?.focus()
+              e.preventDefault();
+              e.stopPropagation();
+              searchInputRef.current?.focus();
             }
           }}
         >
@@ -597,5 +646,5 @@ function SearchMenu<TOption extends { label: string; value: string }>({
         </MenuList>
       </Box>
     </Menu>
-  )
+  );
 }

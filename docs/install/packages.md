@@ -1,4 +1,5 @@
-1. Download and install one of the following system packages from [GitHub releases](https://github.com/coder/coder/releases/latest):
+1. Download and install one of the following system packages from
+   [GitHub releases](https://github.com/coder/coder/releases/latest):
 
    - .deb (Debian, Ubuntu)
    - .rpm (Fedora, CentOS, RHEL, SUSE)
@@ -17,9 +18,9 @@
    journalctl -u coder.service -b
    ```
 
-   > Set `CODER_ACCESS_URL` to the external URL that users and workspaces will use to
-   > connect to Coder. This is not required if you are using the tunnel. Learn more
-   > about Coder's [configuration options](../admin/configure.md).
+   > Set `CODER_ACCESS_URL` to the external URL that users and workspaces will
+   > use to connect to Coder. This is not required if you are using the tunnel.
+   > Learn more about Coder's [configuration options](../admin/configure.md).
 
 1. Visit the Coder URL in the logs to set up your first account, or use the CLI:
 

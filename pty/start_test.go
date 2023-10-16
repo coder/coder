@@ -5,16 +5,14 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/hinshun/vt10x"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // Test_Start_copy tests that we can use io.Copy() on command output
@@ -69,11 +67,11 @@ func Test_Start_truncation(t *testing.T) {
 	readDone := make(chan struct{})
 	go func() {
 		defer close(readDone)
-		// avoid buffered IO so that we can precisely control how many bytes to read.
+		terminalReader := testutil.NewTerminalReader(t, pc.OutputReader())
 		n := 1
 		for n <= countEnd {
 			want := fmt.Sprintf("%d", n)
-			err := readUntil(ctx, t, want, pc.OutputReader())
+			err := terminalReader.ReadUntilString(ctx, want)
 			assert.NoError(t, err, "want: %s", want)
 			if err != nil {
 				return
@@ -139,38 +137,5 @@ func Test_Start_cancel_context(t *testing.T) {
 		// OK!
 	case <-ctx.Done():
 		t.Error("cmd.Wait() timed out")
-	}
-}
-
-// readUntil reads one byte at a time until we either see the string we want, or the context expires
-func readUntil(ctx context.Context, t *testing.T, want string, r io.Reader) error {
-	// output can contain virtual terminal sequences, so we need to parse these
-	// to correctly interpret getting what we want.
-	term := vt10x.New(vt10x.WithSize(80, 80))
-	readErrs := make(chan error, 1)
-	for {
-		b := make([]byte, 1)
-		go func() {
-			_, err := r.Read(b)
-			readErrs <- err
-		}()
-		select {
-		case err := <-readErrs:
-			if err != nil {
-				t.Logf("err: %v\ngot: %v", err, term)
-				return err
-			}
-			term.Write(b)
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-		got := term.String()
-		lines := strings.Split(got, "\n")
-		for _, line := range lines {
-			if strings.TrimSpace(line) == want {
-				t.Logf("want: %v\n got:%v", want, line)
-				return nil
-			}
-		}
 	}
 }

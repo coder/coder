@@ -1,4 +1,4 @@
-import { Meta, StoryObj } from "@storybook/react"
+import { Meta, StoryObj } from "@storybook/react";
 import {
   mockApiError,
   MockTemplate,
@@ -6,11 +6,11 @@ import {
   MockTemplateVersionParameter2,
   MockTemplateVersionParameter3,
   MockUser,
-} from "../../testHelpers/entities"
-import { CreateWorkspacePageView } from "./CreateWorkspacePageView"
+} from "testHelpers/entities";
+import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
 
 const meta: Meta<typeof CreateWorkspacePageView> = {
-  title: "components/Alert",
+  title: "pages/CreateWorkspacePage",
   component: CreateWorkspacePageView,
   args: {
     defaultName: "",
@@ -18,17 +18,17 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
     defaultBuildParameters: [],
     template: MockTemplate,
     parameters: [],
-    gitAuth: [],
+    externalAuth: [],
     permissions: {
       createWorkspaceForUser: true,
     },
   },
-}
+};
 
-export default meta
-type Story = StoryObj<typeof CreateWorkspacePageView>
+export default meta;
+type Story = StoryObj<typeof CreateWorkspacePageView>;
 
-export const NoParameters: Story = {}
+export const NoParameters: Story = {};
 
 export const CreateWorkspaceError: Story = {
   args: {
@@ -43,7 +43,7 @@ export const CreateWorkspaceError: Story = {
       ],
     }),
   },
-}
+};
 
 export const Parameters: Story = {
   args: {
@@ -84,23 +84,27 @@ export const Parameters: Story = {
       },
     ],
   },
-}
+};
 
-export const GitAuth: Story = {
+export const ExternalAuth: Story = {
   args: {
-    gitAuth: [
+    externalAuth: [
       {
         id: "github",
         type: "github",
         authenticated: false,
         authenticate_url: "",
+        display_icon: "/icon/github.svg",
+        display_name: "GitHub",
       },
       {
         id: "gitlab",
         type: "gitlab",
         authenticated: true,
         authenticate_url: "",
+        display_icon: "/icon/gitlab.svg",
+        display_name: "GitLab",
       },
     ],
   },
-}
+};

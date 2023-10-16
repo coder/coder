@@ -1,6 +1,6 @@
-import { FC } from "react"
-import Box from "@mui/material/Box"
-import { Palette, PaletteColor } from "@mui/material/styles"
+import { FC } from "react";
+import Box from "@mui/material/Box";
+import { Palette, PaletteColor } from "@mui/material/styles";
 import {
   Filter,
   FilterMenu,
@@ -8,15 +8,15 @@ import {
   OptionItem,
   SearchFieldSkeleton,
   useFilter,
-} from "components/Filter/filter"
-import { BaseOption } from "components/Filter/options"
-import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu"
-import { userFilterQuery } from "utils/filters"
-import { docs } from "utils/docs"
+} from "components/Filter/filter";
+import { BaseOption } from "components/Filter/options";
+import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
+import { userFilterQuery } from "utils/filters";
+import { docs } from "utils/docs";
 
 type StatusOption = BaseOption & {
-  color: string
-}
+  color: string;
+};
 
 export const useStatusFilterMenu = ({
   value,
@@ -24,8 +24,9 @@ export const useStatusFilterMenu = ({
 }: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
   const statusOptions: StatusOption[] = [
     { value: "active", label: "Active", color: "success" },
-    { value: "suspended", label: "Suspended", color: "secondary" },
-  ]
+    { value: "dormant", label: "Dormant", color: "secondary" },
+    { value: "suspended", label: "Suspended", color: "warning" },
+  ];
   return useFilterMenu({
     onChange,
     value,
@@ -33,31 +34,33 @@ export const useStatusFilterMenu = ({
     getSelectedOption: async () =>
       statusOptions.find((option) => option.value === value) ?? null,
     getOptions: async () => statusOptions,
-  })
-}
+  });
+};
 
-export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>
+export type StatusFilterMenu = ReturnType<typeof useStatusFilterMenu>;
 
 const PRESET_FILTERS = [
   { query: userFilterQuery.active, name: "Active users" },
   { query: userFilterQuery.all, name: "All users" },
-]
+];
 
 export const UsersFilter = ({
   filter,
   error,
   menus,
 }: {
-  filter: ReturnType<typeof useFilter>
-  error?: unknown
+  filter: ReturnType<typeof useFilter>;
+  error?: unknown;
   menus: {
-    status: StatusFilterMenu
-  }
+    status: StatusFilterMenu;
+  };
 }) => {
   return (
     <Filter
       presets={PRESET_FILTERS}
       learnMoreLink={docs("/admin/users#user-filtering")}
+      learnMoreLabel2="User status"
+      learnMoreLink2={docs("/admin/users#user-status")}
       isLoading={menus.status.isInitializing}
       filter={filter}
       error={error}
@@ -69,8 +72,8 @@ export const UsersFilter = ({
         </>
       }
     />
-  )
-}
+  );
+};
 
 const StatusMenu = (menu: StatusFilterMenu) => {
   return (
@@ -87,15 +90,15 @@ const StatusMenu = (menu: StatusFilterMenu) => {
     >
       {(itemProps) => <StatusOptionItem {...itemProps} />}
     </FilterMenu>
-  )
-}
+  );
+};
 
 const StatusOptionItem = ({
   option,
   isSelected,
 }: {
-  option: StatusOption
-  isSelected?: boolean
+  option: StatusOption;
+  isSelected?: boolean;
 }) => {
   return (
     <OptionItem
@@ -103,8 +106,8 @@ const StatusOptionItem = ({
       left={<StatusIndicator option={option} />}
       isSelected={isSelected}
     />
-  )
-}
+  );
+};
 
 const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
   return (
@@ -117,5 +120,5 @@ const StatusIndicator: FC<{ option: StatusOption }> = ({ option }) => {
           (theme.palette[option.color as keyof Palette] as PaletteColor).light,
       }}
     />
-  )
-}
+  );
+};

@@ -1,16 +1,16 @@
-import DialogActions from "@mui/material/DialogActions"
-import { makeStyles } from "@mui/styles"
-import { ReactNode, FC, PropsWithChildren } from "react"
+import DialogActions from "@mui/material/DialogActions";
+import { type Interpolation, type Theme } from "@emotion/react";
+import { type FC, type PropsWithChildren, type ReactNode } from "react";
 import {
   Dialog,
   DialogActionButtons,
   DialogActionButtonsProps,
-} from "../Dialog"
-import { ConfirmDialogType } from "../types"
+} from "../Dialog";
+import type { ConfirmDialogType } from "../types";
 
 interface ConfirmDialogTypeConfig {
-  confirmText: ReactNode
-  hideCancel: boolean
+  confirmText: ReactNode;
+  hideCancel: boolean;
 }
 
 const CONFIRM_DIALOG_DEFAULTS: Record<
@@ -29,34 +29,34 @@ const CONFIRM_DIALOG_DEFAULTS: Record<
     confirmText: "OK",
     hideCancel: true,
   },
-}
+};
 
 export interface ConfirmDialogProps
   extends Omit<
     DialogActionButtonsProps,
     "color" | "confirmDialog" | "onCancel"
   > {
-  readonly description?: ReactNode
+  readonly description?: ReactNode;
   /**
    * hideCancel hides the cancel button when set true, and shows the cancel
    * button when set to false. When undefined:
    *   - cancel is not displayed for "info" dialogs
    *   - cancel is displayed for "delete" dialogs
    */
-  readonly hideCancel?: boolean
+  readonly hideCancel?: boolean;
   /**
    * onClose is called when canceling (if cancel is showing).
    *
    * Additionally, if onConfirm is not defined onClose will be used in its place
    * when confirming.
    */
-  readonly onClose: () => void
-  readonly open: boolean
-  readonly title: string
+  readonly onClose: () => void;
+  readonly open: boolean;
+  readonly title: string;
 }
 
-const useStyles = makeStyles((theme) => ({
-  dialogWrapper: {
+const styles = {
+  dialogWrapper: (theme) => ({
     "& .MuiPaper-root": {
       background: theme.palette.background.paper,
       border: `1px solid ${theme.palette.divider}`,
@@ -66,19 +66,19 @@ const useStyles = makeStyles((theme) => ({
     "& .MuiDialogActions-spacing": {
       padding: `0 ${theme.spacing(5)} ${theme.spacing(5)}`,
     },
-  },
-  dialogContent: {
+  }),
+  dialogContent: (theme) => ({
     color: theme.palette.text.secondary,
     padding: theme.spacing(5),
-  },
-  dialogTitle: {
+  }),
+  dialogTitle: (theme) => ({
     margin: 0,
     marginBottom: theme.spacing(2),
     color: theme.palette.text.primary,
     fontWeight: 400,
     fontSize: theme.spacing(2.5),
-  },
-  dialogDescription: {
+  }),
+  dialogDescription: (theme) => ({
     color: theme.palette.text.secondary,
     lineHeight: "160%",
     fontSize: 16,
@@ -94,8 +94,8 @@ const useStyles = makeStyles((theme) => ({
     "& > p": {
       margin: theme.spacing(1, 0),
     },
-  },
-}))
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
 
 /**
  * Quick-use version of the Dialog component with slightly alternative styles,
@@ -114,26 +114,22 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
   title,
   type = "info",
 }) => {
-  const styles = useStyles({ type })
-
-  const defaults = CONFIRM_DIALOG_DEFAULTS[type]
+  const defaults = CONFIRM_DIALOG_DEFAULTS[type];
 
   if (typeof hideCancel === "undefined") {
-    hideCancel = defaults.hideCancel
+    hideCancel = defaults.hideCancel;
   }
 
   return (
     <Dialog
-      className={styles.dialogWrapper}
+      css={styles.dialogWrapper}
       onClose={onClose}
       open={open}
       data-testid="dialog"
     >
-      <div className={styles.dialogContent}>
-        <h3 className={styles.dialogTitle}>{title}</h3>
-        {description && (
-          <div className={styles.dialogDescription}>{description}</div>
-        )}
+      <div css={styles.dialogContent}>
+        <h3 css={styles.dialogTitle}>{title}</h3>
+        {description && <div css={styles.dialogDescription}>{description}</div>}
       </div>
 
       <DialogActions>
@@ -149,5 +145,5 @@ export const ConfirmDialog: FC<PropsWithChildren<ConfirmDialogProps>> = ({
         />
       </DialogActions>
     </Dialog>
-  )
-}
+  );
+};

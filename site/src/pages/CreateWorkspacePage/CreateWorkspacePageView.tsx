@@ -1,45 +1,56 @@
-import TextField from "@mui/material/TextField"
-import * as TypesGen from "api/typesGenerated"
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete"
-import { FormikContextType, useFormik } from "formik"
-import { FC, useEffect, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { getFormHelpers, nameValidator, onChangeTrimmed } from "utils/formUtils"
-import * as Yup from "yup"
-import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm"
-import { SelectedTemplate } from "./SelectedTemplate"
+import TextField from "@mui/material/TextField";
+import * as TypesGen from "api/typesGenerated";
+import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
+import { FormikContextType, useFormik } from "formik";
+import { FC, useEffect, useState } from "react";
+import {
+  getFormHelpers,
+  nameValidator,
+  onChangeTrimmed,
+} from "utils/formUtils";
+import * as Yup from "yup";
+import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
+import { SelectedTemplate } from "./SelectedTemplate";
 import {
   FormFields,
   FormSection,
   FormFooter,
   HorizontalForm,
-} from "components/Form/Form"
-import { makeStyles } from "@mui/styles"
+} from "components/Form/Form";
+import { makeStyles } from "@mui/styles";
 import {
-  selectInitialRichParametersValues,
+  getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
-  workspaceBuildParameterValue,
-} from "utils/richParameters"
+} from "utils/richParameters";
 import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
-} from "components/TemplateParameters/TemplateParameters"
-import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService"
-import { GitAuth } from "components/GitAuth/GitAuth"
-import { ErrorAlert } from "components/Alert/ErrorAlert"
+} from "components/TemplateParameters/TemplateParameters";
+import { ExternalAuth } from "./ExternalAuth";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Stack } from "components/Stack/Stack";
+import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
+import { useSearchParams } from "react-router-dom";
+import { CreateWSPermissions } from "./permissions";
 
 export interface CreateWorkspacePageViewProps {
-  error: unknown
-  defaultName: string
-  defaultOwner: TypesGen.User
-  template: TypesGen.Template
-  gitAuth: TypesGen.TemplateVersionGitAuth[]
-  parameters: TypesGen.TemplateVersionParameter[]
-  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[]
-  permissions: CreateWSPermissions
-  creatingWorkspace: boolean
-  onCancel: () => void
-  onSubmit: (req: TypesGen.CreateWorkspaceRequest, owner: TypesGen.User) => void
+  error: unknown;
+  defaultName: string;
+  defaultOwner: TypesGen.User;
+  template: TypesGen.Template;
+  versionId?: string;
+  externalAuth: TypesGen.TemplateVersionExternalAuth[];
+  externalAuthPollingState: ExternalAuthPollingState;
+  startPollingExternalAuth: () => void;
+  parameters: TypesGen.TemplateVersionParameter[];
+  defaultBuildParameters: TypesGen.WorkspaceBuildParameter[];
+  permissions: CreateWSPermissions;
+  creatingWorkspace: boolean;
+  onCancel: () => void;
+  onSubmit: (
+    req: TypesGen.CreateWorkspaceRequest,
+    owner: TypesGen.User,
+  ) => void;
 }
 
 export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
@@ -47,7 +58,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   defaultName,
   defaultOwner,
   template,
-  gitAuth,
+  versionId,
+  externalAuth,
+  externalAuthPollingState,
+  startPollingExternalAuth,
   parameters,
   defaultBuildParameters,
   permissions,
@@ -55,49 +69,47 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
   onSubmit,
   onCancel,
 }) => {
-  const initialRichParameterValues = selectInitialRichParametersValues(
-    parameters,
-    defaultBuildParameters,
-  )
-  const { t } = useTranslation("createWorkspacePage")
-  const styles = useStyles()
-  const [owner, setOwner] = useState(defaultOwner)
-  const { verifyGitAuth, gitAuthErrors } = useGitAuthVerification(gitAuth)
+  const styles = useStyles();
+  const [owner, setOwner] = useState(defaultOwner);
+  const { verifyExternalAuth, externalAuthErrors } =
+    useExternalAuthVerification(externalAuth);
+  const [searchParams] = useSearchParams();
+  const disabledParamsList = searchParams?.get("disable_params")?.split(",");
+
   const form: FormikContextType<TypesGen.CreateWorkspaceRequest> =
     useFormik<TypesGen.CreateWorkspaceRequest>({
       initialValues: {
         name: defaultName,
         template_id: template.id,
-        rich_parameter_values: initialRichParameterValues,
+        rich_parameter_values: getInitialRichParameterValues(
+          parameters,
+          defaultBuildParameters,
+        ),
       },
       validationSchema: Yup.object({
-        name: nameValidator(t("nameLabel", { ns: "createWorkspacePage" })),
-        rich_parameter_values: useValidationSchemaForRichParameters(
-          "createWorkspacePage",
-          parameters,
-        ),
+        name: nameValidator("Workspace Name"),
+        rich_parameter_values: useValidationSchemaForRichParameters(parameters),
       }),
       enableReinitialize: true,
       onSubmit: (request) => {
-        if (!verifyGitAuth()) {
-          form.setSubmitting(false)
-          return
+        if (!verifyExternalAuth()) {
+          return;
         }
 
-        onSubmit(request, owner)
+        onSubmit(request, owner);
       },
-    })
+    });
 
   useEffect(() => {
     if (error) {
-      window.scrollTo(0, 0)
+      window.scrollTo(0, 0);
     }
-  }, [error])
+  }, [error]);
 
   const getFieldHelpers = getFormHelpers<TypesGen.CreateWorkspaceRequest>(
     form,
     error,
-  )
+  );
 
   return (
     <FullPageHorizontalForm title="New workspace" onCancel={onCancel}>
@@ -110,13 +122,26 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         >
           <FormFields>
             <SelectedTemplate template={template} />
+            {versionId && versionId !== template.active_version_id && (
+              <Stack spacing={1} className={styles.hasDescription}>
+                <TextField
+                  disabled
+                  fullWidth
+                  value={versionId}
+                  label="Version ID"
+                />
+                <span className={styles.description}>
+                  This parameter has been preset, and cannot be modified.
+                </span>
+              </Stack>
+            )}
             <TextField
               {...getFieldHelpers("name")}
-              disabled={form.isSubmitting}
+              disabled={creatingWorkspace}
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
-              label={t("nameLabel")}
+              label="Workspace Name"
             />
           </FormFields>
         </FormSection>
@@ -130,28 +155,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
               <UserAutocomplete
                 value={owner}
                 onChange={(user) => {
-                  setOwner(user ?? defaultOwner)
+                  setOwner(user ?? defaultOwner);
                 }}
-                label={t("ownerLabel").toString()}
+                label="Owner"
                 size="medium"
               />
             </FormFields>
           </FormSection>
         )}
 
-        {gitAuth && gitAuth.length > 0 && (
+        {externalAuth && externalAuth.length > 0 && (
           <FormSection
-            title="Git Authentication"
-            description="This template requires authentication to automatically perform Git operations on create."
+            title="External Authentication"
+            description="This template requires authentication to external services."
           >
             <FormFields>
-              {gitAuth.map((auth, index) => (
-                <GitAuth
-                  key={index}
+              {externalAuth.map((auth) => (
+                <ExternalAuth
+                  key={auth.id}
                   authenticateURL={auth.authenticate_url}
                   authenticated={auth.authenticated}
-                  type={auth.type}
-                  error={gitAuthErrors[auth.id]}
+                  externalAuthPollingState={externalAuthPollingState}
+                  startPollingExternalAuth={startPollingExternalAuth}
+                  displayName={auth.display_name}
+                  displayIcon={auth.display_icon}
+                  error={externalAuthErrors[auth.id]}
                 />
               ))}
             </FormFields>
@@ -171,14 +199,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                     await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
-                    })
+                    });
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
-                  disabled: form.isSubmitting,
-                }
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || creatingWorkspace,
+                };
               }}
             />
             <ImmutableTemplateParametersSection
@@ -193,14 +220,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                     await form.setFieldValue("rich_parameter_values." + index, {
                       name: parameter.name,
                       value: value,
-                    })
+                    });
                   },
-                  initialValue: workspaceBuildParameterValue(
-                    initialRichParameterValues,
-                    parameter,
-                  ),
-                  disabled: form.isSubmitting,
-                }
+                  disabled:
+                    disabledParamsList?.includes(
+                      parameter.name.toLowerCase().replace(/ /g, "_"),
+                    ) || creatingWorkspace,
+                };
               }}
             />
           </>
@@ -209,52 +235,58 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
         <FormFooter
           onCancel={onCancel}
           isLoading={creatingWorkspace}
-          submitLabel={t("createWorkspace").toString()}
+          submitLabel="Create Workspace"
         />
       </HorizontalForm>
     </FullPageHorizontalForm>
-  )
-}
+  );
+};
 
-type GitAuthErrors = Record<string, string>
+type ExternalAuthErrors = Record<string, string>;
 
-const useGitAuthVerification = (gitAuth: TypesGen.TemplateVersionGitAuth[]) => {
-  const [gitAuthErrors, setGitAuthErrors] = useState<GitAuthErrors>({})
+const useExternalAuthVerification = (
+  externalAuth: TypesGen.TemplateVersionExternalAuth[],
+) => {
+  const [externalAuthErrors, setExternalAuthErrors] =
+    useState<ExternalAuthErrors>({});
 
+  // Clear errors when externalAuth is refreshed
   useEffect(() => {
-    // templateGitAuth is refreshed automatically using a BroadcastChannel
-    // which may change the `authenticated` property.
-    //
-    // If the provider becomes authenticated, we want the error message
-    // to disappear.
-    setGitAuthErrors({})
-  }, [gitAuth])
+    setExternalAuthErrors({});
+  }, [externalAuth]);
 
-  const verifyGitAuth = () => {
-    const errors: GitAuthErrors = {}
+  const verifyExternalAuth = () => {
+    const errors: ExternalAuthErrors = {};
 
-    for (let i = 0; i < gitAuth.length; i++) {
-      const auth = gitAuth.at(i)
+    for (let i = 0; i < externalAuth.length; i++) {
+      const auth = externalAuth.at(i);
       if (!auth) {
-        continue
+        continue;
       }
       if (!auth.authenticated) {
-        errors[auth.id] = "You must authenticate to create a workspace!"
+        errors[auth.id] = "You must authenticate to create a workspace!";
       }
     }
 
-    setGitAuthErrors(errors)
-    const isValid = Object.keys(errors).length === 0
-    return isValid
-  }
+    setExternalAuthErrors(errors);
+    const isValid = Object.keys(errors).length === 0;
+    return isValid;
+  };
 
   return {
-    gitAuthErrors,
-    verifyGitAuth,
-  }
-}
+    externalAuthErrors,
+    verifyExternalAuth,
+  };
+};
 
 const useStyles = makeStyles((theme) => ({
+  hasDescription: {
+    paddingBottom: theme.spacing(2),
+  },
+  description: {
+    fontSize: 13,
+    color: theme.palette.text.secondary,
+  },
   warningText: {
     color: theme.palette.warning.light,
   },
@@ -266,4 +298,4 @@ const useStyles = makeStyles((theme) => ({
     marginLeft: theme.spacing(-10),
     marginRight: theme.spacing(-10),
   },
-}))
+}));

@@ -26,12 +26,12 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/coderd/autobuild/notify"
-	"github.com/coder/coder/coderd/util/ptr"
-	"github.com/coder/coder/codersdk"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/autobuild/notify"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/retry"
 )
 
@@ -40,7 +40,6 @@ var (
 	autostopNotifyCountdown = []time.Duration{30 * time.Minute}
 )
 
-//nolint:gocyclo
 func (r *RootCmd) ssh() *clibase.Cmd {
 	var (
 		stdio          bool
@@ -144,13 +143,11 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			case "no":
 				wait = false
 			case "auto":
-				switch workspaceAgent.StartupScriptBehavior {
-				case codersdk.WorkspaceAgentStartupScriptBehaviorBlocking:
-					wait = true
-				case codersdk.WorkspaceAgentStartupScriptBehaviorNonBlocking:
-					wait = false
-				default:
-					return xerrors.Errorf("unknown startup script behavior %q", workspaceAgent.StartupScriptBehavior)
+				for _, script := range workspaceAgent.Scripts {
+					if script.StartBlocksLogin {
+						wait = true
+						break
+					}
 				}
 			default:
 				return xerrors.Errorf("unknown wait value %q", waitEnum)
@@ -186,7 +183,7 @@ func (r *RootCmd) ssh() *clibase.Cmd {
 			// This is required in "stdio" mode so a connecting indicator can be displayed.
 			err = cliui.Agent(ctx, inv.Stderr, workspaceAgent.ID, cliui.AgentOptions{
 				Fetch:     client.WorkspaceAgent,
-				FetchLogs: client.WorkspaceAgentStartupLogsAfter,
+				FetchLogs: client.WorkspaceAgentLogsAfter,
 				Wait:      wait,
 			})
 			if err != nil {

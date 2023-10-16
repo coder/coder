@@ -11,8 +11,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coder/coder/coderd/database/migrations"
-	"github.com/coder/coder/coderd/database/postgres"
+	"github.com/coder/coder/v2/coderd/database/migrations"
+	"github.com/coder/coder/v2/coderd/database/postgres"
 )
 
 const minimumPostgreSQLVersion = 13

@@ -1,9 +1,9 @@
-import { makeStyles } from "@mui/styles"
-import Typography from "@mui/material/Typography"
-import { FC } from "react"
+import { makeStyles } from "@mui/styles";
+import Typography from "@mui/material/Typography";
+import { FC } from "react";
 
 export const NotFoundPage: FC = () => {
-  const styles = useStyles()
+  const styles = useStyles();
 
   return (
     <div className={styles.root}>
@@ -12,13 +12,13 @@ export const NotFoundPage: FC = () => {
       </div>
       <Typography variant="body2">This page could not be found.</Typography>
     </div>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   root: {
-    width: "100vw",
-    height: "100vh",
+    width: "100%",
+    height: "100%",
     display: "flex",
     flexDirection: "row",
     justifyContent: "center",
@@ -29,6 +29,6 @@ const useStyles = makeStyles((theme) => ({
     padding: theme.spacing(1),
     borderRight: theme.palette.divider,
   },
-}))
+}));
 
-export default NotFoundPage
+export default NotFoundPage;

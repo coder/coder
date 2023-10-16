@@ -7,9 +7,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 )
 
 func TestGenerator(t *testing.T) {
@@ -47,8 +47,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("GitAuthLink", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.GitAuthLink(t, db, database.GitAuthLink{})
-		require.Equal(t, exp, must(db.GetGitAuthLink(context.Background(), database.GetGitAuthLinkParams{
+		exp := dbgen.ExternalAuthLink(t, db, database.ExternalAuthLink{})
+		require.Equal(t, exp, must(db.GetExternalAuthLink(context.Background(), database.GetExternalAuthLinkParams{
 			ProviderID: exp.ProviderID,
 			UserID:     exp.UserID,
 		})))
@@ -86,7 +86,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("Job", func(t *testing.T) {
 		t.Parallel()
 		db := dbfake.New()
-		exp := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{})
+		exp := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 		require.Equal(t, exp, must(db.GetProvisionerJobByID(context.Background(), exp.ID)))
 	})
 

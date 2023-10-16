@@ -10,7 +10,7 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/codersdk/agentsdk"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 const (

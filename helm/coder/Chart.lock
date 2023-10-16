@@ -1,0 +1,6 @@
+dependencies:
+- name: libcoder
+  repository: file://../libcoder
+  version: 0.1.0
+digest: sha256:5c9a99109258073b590a9f98268490ef387fde24c0c7c7ade9c1a8c7ef5e6e10
+generated: "2023-08-08T07:27:19.677972411Z"

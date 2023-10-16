@@ -3,11 +3,13 @@ package cli
 import (
 	"time"
 
+	"github.com/coder/pretty"
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func (r *RootCmd) templates() *clibase.Cmd {
@@ -37,15 +39,47 @@ func (r *RootCmd) templates() *clibase.Cmd {
 			r.templateEdit(),
 			r.templateInit(),
 			r.templateList(),
-			r.templatePlan(),
 			r.templatePush(),
 			r.templateVersions(),
 			r.templateDelete(),
 			r.templatePull(),
+			r.archiveTemplateVersions(),
 		},
 	}
 
 	return cmd
+}
+
+func selectTemplate(inv *clibase.Invocation, client *codersdk.Client, organization codersdk.Organization) (codersdk.Template, error) {
+	var empty codersdk.Template
+	ctx := inv.Context()
+	allTemplates, err := client.TemplatesByOrganization(ctx, organization.ID)
+	if err != nil {
+		return empty, xerrors.Errorf("get templates by organization: %w", err)
+	}
+
+	if len(allTemplates) == 0 {
+		return empty, xerrors.Errorf("no templates exist in the current organization %q", organization.Name)
+	}
+
+	opts := make([]string, 0, len(allTemplates))
+	for _, template := range allTemplates {
+		opts = append(opts, template.Name)
+	}
+
+	selection, err := cliui.Select(inv, cliui.SelectOptions{
+		Options: opts,
+	})
+	if err != nil {
+		return empty, xerrors.Errorf("select template: %w", err)
+	}
+
+	for _, template := range allTemplates {
+		if template.Name == selection {
+			return template, nil
+		}
+	}
+	return empty, xerrors.Errorf("no template selected")
 }
 
 type templateTableRow struct {
@@ -76,7 +110,7 @@ func templatesToRows(templates ...codersdk.Template) []templateTableRow {
 			OrganizationID:  template.OrganizationID,
 			Provisioner:     template.Provisioner,
 			ActiveVersionID: template.ActiveVersionID,
-			UsedBy:          cliui.DefaultStyles.Fuchsia.Render(formatActiveDevelopers(template.ActiveUserCount)),
+			UsedBy:          pretty.Sprint(cliui.DefaultStyles.Fuchsia, formatActiveDevelopers(template.ActiveUserCount)),
 			DefaultTTL:      (time.Duration(template.DefaultTTLMillis) * time.Millisecond),
 		}
 	}

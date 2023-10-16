@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/userpassword"
 )
 
 func TestUserPassword(t *testing.T) {

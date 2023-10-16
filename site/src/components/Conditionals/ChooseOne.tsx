@@ -1,7 +1,7 @@
-import { Children, PropsWithChildren } from "react"
+import { Children, PropsWithChildren } from "react";
 
 export interface CondProps {
-  condition?: boolean
+  condition?: boolean;
 }
 
 /**
@@ -14,8 +14,8 @@ export interface CondProps {
 export const Cond = ({
   children,
 }: PropsWithChildren<CondProps>): JSX.Element => {
-  return <>{children}</>
-}
+  return <>{children}</>;
+};
 
 /**
  * Wrapper component for rendering exactly one of its children. Wrap each child in Cond to associate it
@@ -27,22 +27,22 @@ export const Cond = ({
 export const ChooseOne = ({
   children,
 }: PropsWithChildren): JSX.Element | null => {
-  const childArray = Children.toArray(children) as JSX.Element[]
+  const childArray = Children.toArray(children) as JSX.Element[];
   if (childArray.length === 0) {
-    return null
+    return null;
   }
-  const conditionedOptions = childArray.slice(0, childArray.length - 1)
-  const defaultCase = childArray[childArray.length - 1]
+  const conditionedOptions = childArray.slice(0, childArray.length - 1);
+  const defaultCase = childArray[childArray.length - 1];
   if (defaultCase.props.condition !== undefined) {
     throw new Error(
       "The last Cond in a ChooseOne was given a condition prop, but it is the default case.",
-    )
+    );
   }
   if (conditionedOptions.some((cond) => cond.props.condition === undefined)) {
     throw new Error(
       "A non-final Cond in a ChooseOne does not have a condition prop or the prop is undefined.",
-    )
+    );
   }
-  const chosen = conditionedOptions.find((child) => child.props.condition)
-  return chosen ?? defaultCase
-}
+  const chosen = conditionedOptions.find((child) => child.props.condition);
+  return chosen ?? defaultCase;
+};

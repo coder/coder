@@ -9,11 +9,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbauthz"
-	"github.com/coder/coder/coderd/httpapi"
-	"github.com/coder/coder/coderd/rbac"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type workspaceAgentContextKey struct{}
@@ -74,8 +74,9 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				})
 				return
 			}
+
 			//nolint:gocritic // System needs to be able to get workspace agents.
-			agent, err := opts.DB.GetWorkspaceAgentByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
+			row, err := opts.DB.GetWorkspaceAgentAndOwnerByAuthToken(dbauthz.AsSystemRestricted(ctx), token)
 			if err != nil {
 				if errors.Is(err, sql.ErrNoRows) {
 					optionalWrite(http.StatusUnauthorized, codersdk.Response{
@@ -86,56 +87,23 @@ func ExtractWorkspaceAgent(opts ExtractWorkspaceAgentConfig) func(http.Handler) 
 				}
 
 				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
+					Message: "Internal error checking workspace agent authorization.",
 					Detail:  err.Error(),
 				})
 				return
 			}
 
-			//nolint:gocritic // System needs to be able to get workspace agents.
-			subject, err := getAgentSubject(dbauthz.AsSystemRestricted(ctx), opts.DB, agent)
-			if err != nil {
-				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-					Message: "Internal error fetching workspace agent.",
-					Detail:  err.Error(),
-				})
-				return
-			}
+			subject := rbac.Subject{
+				ID:     row.OwnerID.String(),
+				Roles:  rbac.RoleNames(row.OwnerRoles),
+				Groups: row.OwnerGroups,
+				Scope:  rbac.WorkspaceAgentScope(row.WorkspaceID, row.OwnerID),
+			}.WithCachedASTValue()
 
-			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, agent)
+			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
 			// Also set the dbauthz actor for the request.
 			ctx = dbauthz.As(ctx, subject)
 			next.ServeHTTP(rw, r.WithContext(ctx))
 		})
 	}
-}
-
-func getAgentSubject(ctx context.Context, db database.Store, agent database.WorkspaceAgent) (rbac.Subject, error) {
-	// TODO: make a different query that gets the workspace owner and roles along with the agent.
-	workspace, err := db.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	user, err := db.GetUserByID(ctx, workspace.OwnerID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	roles, err := db.GetAuthorizationUserRoles(ctx, user.ID)
-	if err != nil {
-		return rbac.Subject{}, err
-	}
-
-	// A user that creates a workspace can use this agent auth token and
-	// impersonate the workspace. So to prevent privilege escalation, the
-	// subject inherits the roles of the user that owns the workspace.
-	// We then add a workspace-agent scope to limit the permissions
-	// to only what the workspace agent needs.
-	return rbac.Subject{
-		ID:     user.ID.String(),
-		Roles:  rbac.RoleNames(roles.Roles),
-		Groups: roles.Groups,
-		Scope:  rbac.WorkspaceAgentScope(workspace.ID, user.ID),
-	}.WithCachedASTValue(), nil
 }

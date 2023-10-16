@@ -1,10 +1,10 @@
-import { combineClasses } from "./combineClasses"
+import { combineClasses } from "./combineClasses";
 
 const staticStyles = {
   text: "MuiText",
   success: "MuiText-Green",
   warning: "MuiText-Red",
-}
+};
 
 describe("combineClasses", () => {
   it.each([
@@ -26,6 +26,6 @@ describe("combineClasses", () => {
     [{ [staticStyles.text]: true, [staticStyles.success]: false }, "MuiText"],
     [[staticStyles.text, staticStyles.success], "MuiText  MuiText-Green"],
   ])(`classNames(%p) returns %p`, (staticClasses, result) => {
-    expect(combineClasses(staticClasses)).toBe(result)
-  })
-})
+    expect(combineClasses(staticClasses)).toBe(result);
+  });
+});

@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/coderdtest"
-	"github.com/coder/coder/provisioner/echo"
-	"github.com/coder/coder/provisionersdk/proto"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestProvisionerJobLogs(t *testing.T) {
@@ -20,23 +20,23 @@ func TestProvisionerJobLogs(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
 						Output: "log-output",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{},
 				},
 			}},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-		coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -59,21 +59,21 @@ func TestProvisionerJobLogs(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
-			ProvisionApply: []*proto.Provision_Response{{
-				Type: &proto.Provision_Response_Log{
+			ProvisionApply: []*proto.Response{{
+				Type: &proto.Response_Log{
 					Log: &proto.Log{
 						Level:  proto.LogLevel_INFO,
 						Output: "log-output",
 					},
 				},
 			}, {
-				Type: &proto.Provision_Response_Complete{
-					Complete: &proto.Provision_Complete{},
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{},
 				},
 			}},
 		})
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

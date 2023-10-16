@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/coderd/database/dbfake"
-	"github.com/coder/coder/coderd/database/dbgen"
-	"github.com/coder/coder/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/httpmw"
 )
 
 func TestWorkspaceResourceParam(t *testing.T) {
@@ -21,7 +21,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	setup := func(t *testing.T, db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		job := dbgen.ProvisionerJob(t, db, database.ProvisionerJob{
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,

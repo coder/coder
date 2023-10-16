@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
-	"github.com/coder/coder/cryptorand"
-	"github.com/coder/coder/provisioner/terraform"
-	"github.com/coder/coder/provisionersdk/proto"
+	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestConvertResources(t *testing.T) {
@@ -27,6 +27,17 @@ func TestConvertResources(t *testing.T) {
 		parameters       []*proto.RichParameter
 		gitAuthProviders []string
 	}
+
+	// If a user doesn't specify 'display_apps' then they default
+	// into all apps except VSCode Insiders.
+	displayApps := proto.DisplayApps{
+		Vscode:               true,
+		VscodeInsiders:       false,
+		WebTerminal:          true,
+		PortForwardingHelper: true,
+		SshHelper:            true,
+	}
+
 	// nolint:paralleltest
 	for folderName, expected := range map[string]testCase{
 		// When a resource depends on another, the shortest route
@@ -43,8 +54,8 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -60,8 +71,8 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}, {
 				Name: "second",
@@ -78,8 +89,8 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_InstanceId{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -94,8 +105,8 @@ func TestConvertResources(t *testing.T) {
 					OperatingSystem:          "linux",
 					Architecture:             "amd64",
 					Auth:                     &proto.Agent_Token{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -106,44 +117,42 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                         "dev1",
-					OperatingSystem:              "linux",
-					Architecture:                 "amd64",
-					Auth:                         &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:     120,
-					StartupScriptBehavior:        "non-blocking",
-					StartupScriptTimeoutSeconds:  300,
-					ShutdownScriptTimeoutSeconds: 300,
+					Name:                     "dev1",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}, {
-					Name:                         "dev2",
-					OperatingSystem:              "darwin",
-					Architecture:                 "amd64",
-					Auth:                         &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:     1,
-					MotdFile:                     "/etc/motd",
-					StartupScriptBehavior:        "non-blocking",
-					StartupScriptTimeoutSeconds:  30,
-					ShutdownScript:               "echo bye bye",
-					ShutdownScriptTimeoutSeconds: 30,
+					Name:                     "dev2",
+					OperatingSystem:          "darwin",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 1,
+					MotdFile:                 "/etc/motd",
+					DisplayApps:              &displayApps,
+					Scripts: []*proto.Script{{
+						Icon:        "/emojis/25c0.png",
+						DisplayName: "Shutdown Script",
+						RunOnStop:   true,
+						LogPath:     "coder-shutdown-script.log",
+						Script:      "echo bye bye",
+					}},
 				}, {
-					Name:                         "dev3",
-					OperatingSystem:              "windows",
-					Architecture:                 "arm64",
-					Auth:                         &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:     120,
-					TroubleshootingUrl:           "https://coder.com/troubleshoot",
-					StartupScriptBehavior:        "blocking",
-					StartupScriptTimeoutSeconds:  300,
-					ShutdownScriptTimeoutSeconds: 300,
+					Name:                     "dev3",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					TroubleshootingUrl:       "https://coder.com/troubleshoot",
+					DisplayApps:              &displayApps,
 				}, {
-					Name:                         "dev4",
-					OperatingSystem:              "linux",
-					Architecture:                 "amd64",
-					Auth:                         &proto.Agent_Token{},
-					ConnectionTimeoutSeconds:     120,
-					StartupScriptBehavior:        "blocking",
-					StartupScriptTimeoutSeconds:  300,
-					ShutdownScriptTimeoutSeconds: 300,
+					Name:                     "dev4",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -180,8 +189,8 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -204,8 +213,8 @@ func TestConvertResources(t *testing.T) {
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
-					StartupScriptBehavior:    "non-blocking",
 					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -242,10 +251,8 @@ func TestConvertResources(t *testing.T) {
 						Interval:    5,
 						Timeout:     1,
 					}},
-					ShutdownScriptTimeoutSeconds: 300,
-					StartupScriptTimeoutSeconds:  300,
-					StartupScriptBehavior:        "non-blocking",
-					ConnectionTimeoutSeconds:     120,
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 		},
@@ -285,7 +292,6 @@ func TestConvertResources(t *testing.T) {
 						Name:            "main",
 						OperatingSystem: "linux",
 						Architecture:    "amd64",
-						StartupScript:   "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
 						Apps: []*proto.App{
 							{
 								Icon:        "/icon/code.svg",
@@ -295,8 +301,15 @@ func TestConvertResources(t *testing.T) {
 							},
 						},
 						Auth:                     &proto.Agent_Token{},
-						StartupScriptBehavior:    "non-blocking",
 						ConnectionTimeoutSeconds: 120,
+						DisplayApps:              &displayApps,
+						Scripts: []*proto.Script{{
+							DisplayName: "Startup Script",
+							RunOnStart:  true,
+							LogPath:     "coder-startup-script.log",
+							Icon:        "/emojis/25b6.png",
+							Script:      "    #!/bin/bash\n    # home folder can be empty, so copying default bash settings\n    if [ ! -f ~/.profile ]; then\n      cp /etc/skel/.profile $HOME\n    fi\n    if [ ! -f ~/.bashrc ]; then\n      cp /etc/skel/.bashrc $HOME\n    fi\n    # install and start code-server\n    curl -fsSL https://code-server.dev/install.sh | sh  | tee code-server-install.log\n    code-server --auth none --port 13337 | tee code-server-install.log &\n",
+						}},
 					}},
 				},
 			},
@@ -306,14 +319,12 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                         "dev",
-					OperatingSystem:              "windows",
-					ShutdownScriptTimeoutSeconds: 300,
-					StartupScriptTimeoutSeconds:  300,
-					Architecture:                 "arm64",
-					Auth:                         &proto.Agent_Token{},
-					StartupScriptBehavior:        "non-blocking",
-					ConnectionTimeoutSeconds:     120,
+					Name:                     "dev",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -387,14 +398,12 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                         "dev",
-					OperatingSystem:              "windows",
-					ShutdownScriptTimeoutSeconds: 300,
-					StartupScriptTimeoutSeconds:  300,
-					Architecture:                 "arm64",
-					Auth:                         &proto.Agent_Token{},
-					StartupScriptBehavior:        "non-blocking",
-					ConnectionTimeoutSeconds:     120,
+					Name:                     "dev",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -415,14 +424,12 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                         "dev",
-					OperatingSystem:              "windows",
-					ShutdownScriptTimeoutSeconds: 300,
-					StartupScriptTimeoutSeconds:  300,
-					Architecture:                 "arm64",
-					Auth:                         &proto.Agent_Token{},
-					StartupScriptBehavior:        "non-blocking",
-					ConnectionTimeoutSeconds:     120,
+					Name:                     "dev",
+					OperatingSystem:          "windows",
+					Architecture:             "arm64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
@@ -470,17 +477,46 @@ func TestConvertResources(t *testing.T) {
 				Name: "dev",
 				Type: "null_resource",
 				Agents: []*proto.Agent{{
-					Name:                         "main",
-					OperatingSystem:              "linux",
-					Architecture:                 "amd64",
-					Auth:                         &proto.Agent_Token{},
-					StartupScriptBehavior:        "non-blocking",
-					ConnectionTimeoutSeconds:     120,
-					StartupScriptTimeoutSeconds:  300,
-					ShutdownScriptTimeoutSeconds: 300,
+					Name:                     "main",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &displayApps,
 				}},
 			}},
 			gitAuthProviders: []string{"github", "gitlab"},
+		},
+		"display-apps": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "main",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps: &proto.DisplayApps{
+						VscodeInsiders: true,
+						WebTerminal:    true,
+					},
+				}},
+			}},
+		},
+		"display-apps-disabled": {
+			resources: []*proto.Resource{{
+				Name: "dev",
+				Type: "null_resource",
+				Agents: []*proto.Agent{{
+					Name:                     "main",
+					OperatingSystem:          "linux",
+					Architecture:             "amd64",
+					Auth:                     &proto.Agent_Token{},
+					ConnectionTimeoutSeconds: 120,
+					DisplayApps:              &proto.DisplayApps{},
+				}},
+			}},
 		},
 	} {
 		folderName := folderName
@@ -510,7 +546,7 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sort.Strings(state.GitAuthProviders)
+				sort.Strings(state.ExternalAuthProviders)
 
 				expectedNoMetadata := make([]*proto.Resource, 0)
 				for _, resource := range expected.resources {
@@ -548,7 +584,7 @@ func TestConvertResources(t *testing.T) {
 				require.Equal(t, string(parametersWant), string(parametersGot))
 				require.Equal(t, expectedNoMetadataMap, resourcesMap)
 
-				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
+				require.ElementsMatch(t, expected.gitAuthProviders, state.ExternalAuthProviders)
 			})
 
 			t.Run("Provision", func(t *testing.T) {
@@ -564,7 +600,7 @@ func TestConvertResources(t *testing.T) {
 				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
 				require.NoError(t, err)
 				sortResources(state.Resources)
-				sort.Strings(state.GitAuthProviders)
+				sort.Strings(state.ExternalAuthProviders)
 				for _, resource := range state.Resources {
 					for _, agent := range resource.Agents {
 						agent.Id = ""
@@ -591,7 +627,7 @@ func TestConvertResources(t *testing.T) {
 				require.NoError(t, err)
 
 				require.Equal(t, expectedMap, resourcesMap)
-				require.ElementsMatch(t, expected.gitAuthProviders, state.GitAuthProviders)
+				require.ElementsMatch(t, expected.gitAuthProviders, state.ExternalAuthProviders)
 			})
 		})
 	}

@@ -1,13 +1,13 @@
-import { AddNewLicensePageView } from "./AddNewLicensePageView"
+import { AddNewLicensePageView } from "./AddNewLicensePageView";
 
 export default {
-  title: "pages/AddNewLicensePageView",
+  title: "pages/DeploySettingsPage/AddNewLicensePageView",
   component: AddNewLicensePageView,
-}
+};
 
 export const Default = {
   args: {
     isSavingLicense: false,
     didSavingFailed: false,
   },
-}
+};

@@ -12,8 +12,8 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/pty"
-	"github.com/coder/coder/pty/ptytest"
+	"github.com/coder/coder/v2/pty"
+	"github.com/coder/coder/v2/pty/ptytest"
 )
 
 func TestMain(m *testing.M) {
@@ -54,7 +54,7 @@ func TestStart(t *testing.T) {
 				Height: 24,
 			},
 		}))
-		pty, ps := ptytest.Start(t, pty.Command("env"), opts)
+		pty, ps := ptytest.Start(t, pty.Command(`/bin/sh`, `-c`, `env | grep SSH_TTY`), opts)
 		pty.ExpectMatch("SSH_TTY=/dev/")
 		err := ps.Wait()
 		require.NoError(t, err)

@@ -121,7 +121,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		opts = &RoleOptions{}
 	}
 
-	ownerAndAdminExceptions := []Object{ResourceWorkspaceLocked}
+	ownerAndAdminExceptions := []Object{ResourceWorkspaceDormant}
 	if opts.NoOwnerWorkspaceExec {
 		ownerAndAdminExceptions = append(ownerAndAdminExceptions,
 			ResourceWorkspaceExecution,
@@ -143,14 +143,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 
 	memberRole := Role{
 		Name:        member,
-		DisplayName: "",
+		DisplayName: "Member",
 		Site: Permissions(map[string][]Action{
 			ResourceRoleAssignment.Type: {ActionRead},
 			// All users can see the provisioner daemons.
 			ResourceProvisionerDaemon.Type: {ActionRead},
 		}),
 		Org: map[string][]Permission{},
-		User: append(allPermsExcept(ResourceWorkspaceLocked, ResourceUser, ResourceOrganizationMember),
+		User: append(allPermsExcept(ResourceWorkspaceDormant, ResourceUser, ResourceOrganizationMember),
 			Permissions(map[string][]Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -169,6 +169,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceAuditLog.Type: {ActionRead},
 			ResourceUser.Type:     {ActionRead},
 			ResourceGroup.Type:    {ActionRead},
+			// Allow auditors to query deployment stats and insights.
+			ResourceDeploymentStats.Type:  {ActionRead},
+			ResourceDeploymentValues.Type: {ActionRead},
 			// Org roles are not really used yet, so grant the perm at the site level.
 			ResourceOrganizationMember.Type: {ActionRead},
 		}),
@@ -246,7 +249,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					// Org admins should not have workspace exec perms.
-					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceLocked),
+					organizationID: allPermsExcept(ResourceWorkspaceExecution, ResourceWorkspaceDormant),
 				},
 				User: []Permission{},
 			}

@@ -1,0 +1,59 @@
+{{- define "libcoder.rbac.tpl" -}}
+{{- if .Values.coder.serviceAccount.workspacePerms }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+{{- if .Values.coder.serviceAccount.enableDeployments }}
+  - apiGroups:
+    - apps
+    resources:
+    - deployments
+    verbs:
+    - create
+    - delete
+    - deletecollection
+    - get
+    - list
+    - patch
+    - update
+    - watch
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.coder.serviceAccount.name | quote }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.coder.serviceAccount.name | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.coder.serviceAccount.name }}-workspace-perms
+{{- end }}
+{{- end -}}

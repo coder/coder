@@ -1,0 +1,9 @@
+coder:
+  image:
+    tag: latest
+
+  env:
+    - name: "SOME_ENV"
+      value: "some value"
+
+  envUseClusterAccessURL: false

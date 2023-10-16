@@ -9,9 +9,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 )
 
+// @typescript-generate AccessURLReport
 type AccessURLReport struct {
 	AccessURL       string  `json:"access_url"`
 	Healthy         bool    `json:"healthy"`

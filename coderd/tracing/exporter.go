@@ -8,11 +8,14 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.14.0"
+	ddotel "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/opentelemetry"
+	ddtracer "gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+	ddprofiler "gopkg.in/DataDog/dd-trace-go.v1/profiler"
+
 	"golang.org/x/xerrors"
 	"google.golang.org/grpc/credentials"
 )
@@ -22,9 +25,8 @@ type TracerOpts struct {
 	// Default exports to a backend configured by environment variables. See:
 	// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
 	Default bool
-	// Coder exports traces to Coder's public tracing ingest service and is used
-	// to improve the product. It is disabled when opting out of telemetry.
-	Coder bool
+	// DataDog exports traces and profiles to the local DataDog daemon.
+	DataDog bool
 	// Exports traces to Honeycomb.io with the provided API key.
 	Honeycomb string
 }
@@ -45,18 +47,39 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 		closers = []func(context.Context) error{}
 	)
 
+	if opts.DataDog {
+		// See more:
+		// https://docs.datadoghq.com/tracing/metrics/runtime_metrics/go/
+		dd := ddotel.NewTracerProvider(ddtracer.WithRuntimeMetrics())
+		closers = append(closers, func(_ context.Context) error {
+			// For some reason, this doesn't appear to actually wind down
+			// the goroutines.
+			return dd.Shutdown()
+		})
+
+		// See https://docs.datadoghq.com/profiler/enabling/go/
+		_ = ddprofiler.Start(
+			ddprofiler.WithService("coderd"),
+			ddprofiler.WithProfileTypes(
+				ddprofiler.CPUProfile,
+				ddprofiler.HeapProfile,
+				ddprofiler.GoroutineProfile,
+
+				// In the future, we may want to enable:
+				// ddprofiler.BlockProfile,
+				// ddprofiler.MutexProfile,
+			),
+		)
+		closers = append(closers, func(_ context.Context) error {
+			ddprofiler.Stop()
+			return nil
+		})
+	}
+
 	if opts.Default {
 		exporter, err := DefaultExporter(ctx)
 		if err != nil {
 			return nil, nil, xerrors.Errorf("default exporter: %w", err)
-		}
-		closers = append(closers, exporter.Shutdown)
-		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
-	}
-	if opts.Coder {
-		exporter, err := CoderExporter(ctx)
-		if err != nil {
-			return nil, nil, xerrors.Errorf("coder exporter: %w", err)
 		}
 		closers = append(closers, exporter.Shutdown)
 		tracerOpts = append(tracerOpts, sdktrace.WithBatcher(exporter))
@@ -105,20 +128,6 @@ func TracerProvider(ctx context.Context, service string, opts TracerOpts) (*sdkt
 
 func DefaultExporter(ctx context.Context) (*otlptrace.Exporter, error) {
 	exporter, err := otlptrace.New(ctx, otlptracegrpc.NewClient(otlptracegrpc.WithInsecure()))
-	if err != nil {
-		return nil, xerrors.Errorf("create otlp exporter: %w", err)
-	}
-
-	return exporter, nil
-}
-
-func CoderExporter(ctx context.Context) (*otlptrace.Exporter, error) {
-	opts := []otlptracehttp.Option{
-		otlptracehttp.WithEndpoint("oss-otel-ingest-http.coder.app:443"),
-		otlptracehttp.WithCompression(otlptracehttp.GzipCompression),
-	}
-
-	exporter, err := otlptrace.New(ctx, otlptracehttp.NewClient(opts...))
 	if err != nil {
 		return nil, xerrors.Errorf("create otlp exporter: %w", err)
 	}

@@ -5,12 +5,12 @@ import (
 	"io"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"github.com/coder/pretty"
 )
 
 // cliMessage provides a human-readable message for CLI errors and messages.
 type cliMessage struct {
-	Style  lipgloss.Style
+	Style  pretty.Style
 	Header string
 	Prefix string
 	Lines  []string
@@ -21,13 +21,13 @@ func (m cliMessage) String() string {
 	var str strings.Builder
 
 	if m.Prefix != "" {
-		_, _ = str.WriteString(m.Style.Bold(true).Render(m.Prefix))
+		_, _ = str.WriteString(Bold(m.Prefix))
 	}
 
-	_, _ = str.WriteString(m.Style.Bold(false).Render(m.Header))
+	pretty.Fprint(&str, m.Style, m.Header)
 	_, _ = str.WriteString("\r\n")
 	for _, line := range m.Lines {
-		_, _ = fmt.Fprintf(&str, "  %s %s\r\n", m.Style.Render("|"), line)
+		_, _ = fmt.Fprintf(&str, "  %s %s\r\n", pretty.Sprint(m.Style, "|"), line)
 	}
 	return str.String()
 }
@@ -35,7 +35,7 @@ func (m cliMessage) String() string {
 // Warn writes a log to the writer provided.
 func Warn(wtr io.Writer, header string, lines ...string) {
 	_, _ = fmt.Fprint(wtr, cliMessage{
-		Style:  DefaultStyles.Warn.Copy(),
+		Style:  DefaultStyles.Warn,
 		Prefix: "WARN: ",
 		Header: header,
 		Lines:  lines,
@@ -63,7 +63,7 @@ func Infof(wtr io.Writer, fmtStr string, args ...interface{}) {
 // Error writes a log to the writer provided.
 func Error(wtr io.Writer, header string, lines ...string) {
 	_, _ = fmt.Fprint(wtr, cliMessage{
-		Style:  DefaultStyles.Error.Copy(),
+		Style:  DefaultStyles.Error,
 		Prefix: "ERROR: ",
 		Header: header,
 		Lines:  lines,

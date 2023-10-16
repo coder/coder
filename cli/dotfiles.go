@@ -13,8 +13,10 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/cli/clibase"
-	"github.com/coder/coder/cli/cliui"
+	"github.com/coder/pretty"
+
+	"github.com/coder/coder/v2/cli/clibase"
+	"github.com/coder/coder/v2/cli/cliui"
 )
 
 func (r *RootCmd) dotfiles() *clibase.Cmd {
@@ -143,7 +145,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 					return err
 				}
 				// if the repo exists we soft fail the update operation and try to continue
-				_, _ = fmt.Fprintln(inv.Stdout, cliui.DefaultStyles.Error.Render("Failed to update repo, continuing..."))
+				_, _ = fmt.Fprintln(inv.Stdout, pretty.Sprint(cliui.DefaultStyles.Error, "Failed to update repo, continuing..."))
 			}
 
 			if dotfilesExists && gitbranch != "" {
@@ -159,7 +161,7 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 				if err != nil {
 					// Do not block on this error, just log it and continue
 					_, _ = fmt.Fprintln(inv.Stdout,
-						cliui.DefaultStyles.Error.Render(fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
+						pretty.Sprint(cliui.DefaultStyles.Error, fmt.Sprintf("Failed to use branch %q (%s), continuing...", err.Error(), gitbranch)))
 				}
 			}
 
@@ -176,8 +178,8 @@ func (r *RootCmd) dotfiles() *clibase.Cmd {
 
 			var dotfiles []string
 			for _, f := range files {
-				// make sure we do not copy `.git*` files
-				if strings.HasPrefix(f.Name(), ".") && !strings.HasPrefix(f.Name(), ".git") {
+				// make sure we do not copy `.git*` files except `.gitconfig`
+				if strings.HasPrefix(f.Name(), ".") && (!strings.HasPrefix(f.Name(), ".git") || f.Name() == ".gitconfig") {
 					dotfiles = append(dotfiles, f.Name())
 				}
 			}

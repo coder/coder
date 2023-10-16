@@ -17,27 +17,27 @@ coder port-forward [flags] <workspace>
 ## Description
 
 ```console
-  - Port forward a single TCP port from 1234 in the workspace to port 5678 on
-    your local machine:
+  - Port forward a single TCP port from 1234 in the workspace to port 5678 on your
+local machine:
 
-      $ coder port-forward <workspace> --tcp 5678:1234
+     $ coder port-forward <workspace> --tcp 5678:1234
 
   - Port forward a single UDP port from port 9000 to port 9000 on your local
-    machine:
+machine:
 
-      $ coder port-forward <workspace> --udp 9000
+     $ coder port-forward <workspace> --udp 9000
 
   - Port forward multiple TCP ports and a UDP port:
 
-      $ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53
+     $ coder port-forward <workspace> --tcp 8080:8080 --tcp 9000:3000 --udp 5353:53
 
   - Port forward multiple ports (TCP or UDP) in condensed syntax:
 
-      $ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012
+     $ coder port-forward <workspace> --tcp 8080,9000:3000,9090-9092,10000-10002:10010-10012
 
   - Port forward specifying the local address to bind to:
 
-      $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
+     $ coder port-forward <workspace> --tcp 1.2.3.4:8080:8080
 ```
 
 ## Options

@@ -1,13 +1,13 @@
-import Button from "@mui/material/Button"
-import { makeStyles } from "@mui/styles"
+import Button from "@mui/material/Button";
+import { makeStyles } from "@mui/styles";
 
 interface PageButtonProps {
-  activePage?: number
-  page?: number
-  placeholder?: string
-  numPages?: number
-  onPageClick?: (page: number) => void
-  disabled?: boolean
+  activePage?: number;
+  page?: number;
+  placeholder?: string;
+  numPages?: number;
+  onPageClick?: (page: number) => void;
+  disabled?: boolean;
 }
 
 export const PageButton = ({
@@ -18,7 +18,7 @@ export const PageButton = ({
   onPageClick,
   disabled = false,
 }: PageButtonProps): JSX.Element => {
-  const styles = useStyles()
+  const styles = useStyles();
   return (
     <Button
       className={
@@ -35,8 +35,8 @@ export const PageButton = ({
     >
       <div>{page ?? placeholder}</div>
     </Button>
-  )
-}
+  );
+};
 
 const useStyles = makeStyles((theme) => ({
   pageButton: {
@@ -49,4 +49,4 @@ const useStyles = makeStyles((theme) => ({
     borderColor: `${theme.palette.info.main}`,
     backgroundColor: `${theme.palette.info.dark}`,
   },
-}))
+}));

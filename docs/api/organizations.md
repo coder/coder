@@ -49,6 +49,44 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update license entitlements
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /licenses/refresh-entitlements`
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                           |
+| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------ |
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Create organization
 
 ### Code samples

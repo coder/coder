@@ -1,8 +1,11 @@
-Usage: coder templates push [flags] [template]
+coder v0.0.0-devel
 
-Push a new template version from the current directory or as specified by flag
+USAGE:
+  coder templates push [flags] [template]
 
-[1mOptions[0m
+  Push a new template version from the current directory or as specified by flag
+
+OPTIONS:
       --activate bool (default: true)
           Whether the new template will be marked active.
 
@@ -44,5 +47,5 @@ Push a new template version from the current directory or as specified by flag
   -y, --yes bool
           Bypass prompts.
 
----
+———
 Run `coder --help` for a list of global options.

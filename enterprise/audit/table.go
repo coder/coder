@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"runtime"
 
-	"github.com/coder/coder/coderd/database"
-	"github.com/coder/coder/codersdk"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // This mapping creates a relationship between an Auditable Resource
@@ -58,47 +58,49 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"public_key":  ActionTrack,  // Public keys are ok to expose in a diff.
 	},
 	&database.Template{}: {
-		"id":                               ActionTrack,
-		"created_at":                       ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":                       ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"organization_id":                  ActionIgnore, /// Never changes.
-		"deleted":                          ActionIgnore, // Changes, but is implicit when a delete event is fired.
-		"name":                             ActionTrack,
-		"display_name":                     ActionTrack,
-		"provisioner":                      ActionTrack,
-		"active_version_id":                ActionTrack,
-		"description":                      ActionTrack,
-		"icon":                             ActionTrack,
-		"default_ttl":                      ActionTrack,
-		"max_ttl":                          ActionTrack,
-		"restart_requirement_days_of_week": ActionTrack,
-		"restart_requirement_weeks":        ActionTrack,
-		"created_by":                       ActionTrack,
-		"created_by_username":              ActionIgnore,
-		"created_by_avatar_url":            ActionIgnore,
-		"group_acl":                        ActionTrack,
-		"user_acl":                         ActionTrack,
-		"allow_user_autostart":             ActionTrack,
-		"allow_user_autostop":              ActionTrack,
-		"allow_user_cancel_workspace_jobs": ActionTrack,
-		"failure_ttl":                      ActionTrack,
-		"inactivity_ttl":                   ActionTrack,
-		"locked_ttl":                       ActionTrack,
+		"id":                                ActionTrack,
+		"created_at":                        ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":                        ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"organization_id":                   ActionIgnore, /// Never changes.
+		"deleted":                           ActionIgnore, // Changes, but is implicit when a delete event is fired.
+		"name":                              ActionTrack,
+		"display_name":                      ActionTrack,
+		"provisioner":                       ActionTrack,
+		"active_version_id":                 ActionTrack,
+		"description":                       ActionTrack,
+		"icon":                              ActionTrack,
+		"default_ttl":                       ActionTrack,
+		"max_ttl":                           ActionTrack,
+		"autostart_block_days_of_week":      ActionTrack,
+		"autostop_requirement_days_of_week": ActionTrack,
+		"autostop_requirement_weeks":        ActionTrack,
+		"created_by":                        ActionTrack,
+		"created_by_username":               ActionIgnore,
+		"created_by_avatar_url":             ActionIgnore,
+		"group_acl":                         ActionTrack,
+		"user_acl":                          ActionTrack,
+		"allow_user_autostart":              ActionTrack,
+		"allow_user_autostop":               ActionTrack,
+		"allow_user_cancel_workspace_jobs":  ActionTrack,
+		"failure_ttl":                       ActionTrack,
+		"time_til_dormant":                  ActionTrack,
+		"time_til_dormant_autodelete":       ActionTrack,
 	},
 	&database.TemplateVersion{}: {
-		"id":                    ActionTrack,
-		"template_id":           ActionTrack,
-		"organization_id":       ActionIgnore, // Never changes.
-		"created_at":            ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
-		"updated_at":            ActionIgnore, // Changes, but is implicit and not helpful in a diff.
-		"name":                  ActionTrack,
-		"message":               ActionIgnore, // Never changes after creation.
-		"readme":                ActionTrack,
-		"job_id":                ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
-		"created_by":            ActionTrack,
-		"git_auth_providers":    ActionIgnore, // Not helpful because this can only change when new versions are added.
-		"created_by_avatar_url": ActionIgnore,
-		"created_by_username":   ActionIgnore,
+		"id":                      ActionTrack,
+		"template_id":             ActionTrack,
+		"organization_id":         ActionIgnore, // Never changes.
+		"created_at":              ActionIgnore, // Never changes, but is implicit and not helpful in a diff.
+		"updated_at":              ActionIgnore, // Changes, but is implicit and not helpful in a diff.
+		"name":                    ActionTrack,
+		"message":                 ActionIgnore, // Never changes after creation.
+		"readme":                  ActionTrack,
+		"job_id":                  ActionIgnore, // Not helpful in a diff because jobs aren't tracked in audit logs.
+		"created_by":              ActionTrack,
+		"external_auth_providers": ActionIgnore, // Not helpful because this can only change when new versions are added.
+		"created_by_avatar_url":   ActionIgnore,
+		"created_by_username":     ActionIgnore,
+		"archived":                ActionTrack,
 	},
 	&database.User{}: {
 		"id":                   ActionTrack,
@@ -127,8 +129,9 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"autostart_schedule": ActionTrack,
 		"ttl":                ActionTrack,
 		"last_used_at":       ActionIgnore,
-		"locked_at":          ActionTrack,
+		"dormant_at":         ActionTrack,
 		"deleting_at":        ActionTrack,
+		"automatic_updates":  ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,
@@ -151,10 +154,12 @@ var auditableResourcesTypes = map[any]map[string]Action{
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
 		"name":            ActionTrack,
+		"display_name":    ActionTrack,
 		"organization_id": ActionIgnore, // Never changes.
 		"avatar_url":      ActionTrack,
 		"quota_allowance": ActionTrack,
 		"members":         ActionTrack,
+		"source":          ActionIgnore,
 	},
 	&database.APIKey{}: {
 		"id":               ActionIgnore,
@@ -198,6 +203,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleted":             ActionIgnore,
 		"token_hashed_secret": ActionSecret,
 		"derp_enabled":        ActionTrack,
+		"derp_only":           ActionTrack,
 		"region_id":           ActionTrack,
 	},
 }

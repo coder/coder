@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/database/dbmock"
-	"github.com/coder/coder/coderd/healthcheck"
-	"github.com/coder/coder/testutil"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/healthcheck"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestDatabase(t *testing.T) {
@@ -35,7 +35,8 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
-		assert.Equal(t, ping, report.Latency)
+		assert.Equal(t, ping.String(), report.Latency)
+		assert.Equal(t, int(ping.Milliseconds()), report.LatencyMs)
 		assert.Nil(t, report.Error)
 	})
 
@@ -81,7 +82,8 @@ func TestDatabase(t *testing.T) {
 
 		assert.True(t, report.Healthy)
 		assert.True(t, report.Reachable)
-		assert.Equal(t, time.Millisecond, report.Latency)
+		assert.Equal(t, time.Millisecond.String(), report.Latency)
+		assert.Equal(t, 1, report.LatencyMs)
 		assert.Nil(t, report.Error)
 	})
 }

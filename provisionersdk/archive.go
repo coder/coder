@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/coderd/util/xio"
+	"github.com/coder/coder/v2/coderd/util/xio"
 )
 
 const (

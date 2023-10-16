@@ -29,7 +29,7 @@ import (
 // explaining why it's ok and a nolint.
 func dbauthzAuthorizationContext(m dsl.Matcher) {
 	m.Import("context")
-	m.Import("github.com/coder/coder/coderd/database/dbauthz")
+	m.Import("github.com/coder/coder/v2/coderd/database/dbauthz")
 
 	m.Match(
 		`dbauthz.$f($c)`,
@@ -43,6 +43,28 @@ func dbauthzAuthorizationContext(m dsl.Matcher) {
 		Report("Using '$f' is dangerous and should be accompanied by a comment explaining why it's ok and a nolint.")
 }
 
+// testingWithOwnerUser is a lint rule that detects potential permission bugs.
+// Calling clitest.SetupConfig with a client authenticated as the Owner user
+// can be a problem, since the CLI will be operating as that user and we may
+// miss permission bugs.
+//
+//nolint:unused,deadcode,varnamelen
+func testingWithOwnerUser(m dsl.Matcher) {
+	m.Import("testing")
+	m.Import("github.com/coder/coder/v2/cli/clitest")
+
+	m.Match(`
+	$_ := coderdtest.CreateFirstUser($t, $client)
+	$*_
+	clitest.$SetupConfig($t, $client, $_)
+	`).
+		Where(m["t"].Type.Implements("testing.TB") &&
+			m["SetupConfig"].Text.Matches("^SetupConfig$") &&
+			m.File().Name.Matches(`_test\.go$`)).
+		At(m["SetupConfig"]).
+		Report(`The CLI will be operating as the owner user, which has unrestricted permissions. Consider creating a different user.`)
+}
+
 // Use xerrors everywhere! It provides additional stacktrace info!
 //
 //nolint:unused,deadcode,varnamelen
@@ -51,8 +73,12 @@ func xerrors(m dsl.Matcher) {
 	m.Import("fmt")
 	m.Import("golang.org/x/xerrors")
 
-	m.Match("fmt.Errorf($*args)").
-		Suggest("xerrors.New($args)").
+	m.Match("fmt.Errorf($arg)").
+		Suggest("xerrors.New($arg)").
+		Report("Use xerrors to provide additional stacktrace information!")
+
+	m.Match("fmt.Errorf($arg1, $*args)").
+		Suggest("xerrors.Errorf($arg1, $args)").
 		Report("Use xerrors to provide additional stacktrace information!")
 
 	m.Match("errors.$_($msg)").
@@ -65,10 +91,10 @@ func xerrors(m dsl.Matcher) {
 //
 //nolint:unused,deadcode,varnamelen
 func databaseImport(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/database")
+	m.Import("github.com/coder/coder/v2/coderd/database")
 	m.Match("database.$_").
 		Report("Do not import any database types into codersdk").
-		Where(m.File().PkgPath.Matches("github.com/coder/coder/codersdk"))
+		Where(m.File().PkgPath.Matches("github.com/coder/coder/v2/codersdk"))
 }
 
 // doNotCallTFailNowInsideGoroutine enforces not calling t.FailNow or
@@ -118,7 +144,7 @@ func doNotCallTFailNowInsideGoroutine(m dsl.Matcher) {
 func useStandardTimeoutsAndDelaysInTests(m dsl.Matcher) {
 	m.Import("github.com/stretchr/testify/require")
 	m.Import("github.com/stretchr/testify/assert")
-	m.Import("github.com/coder/coder/testutil")
+	m.Import("github.com/coder/coder/v2/testutil")
 
 	m.Match(`context.WithTimeout($ctx, $duration)`).
 		Where(m.File().Imports("testing") && !m.File().PkgPath.Matches("testutil$") && !m["duration"].Text.Matches("^testutil\\.")).
@@ -199,7 +225,7 @@ func InTx(m dsl.Matcher) {
 // and ends with punctuation.
 // There are ways around the linter, but this should work in the common cases.
 func HttpAPIErrorMessage(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/httpapi")
+	m.Import("github.com/coder/coder/v2/coderd/httpapi")
 
 	isNotProperError := func(v dsl.Var) bool {
 		return v.Type.Is("string") &&
@@ -232,7 +258,7 @@ func HttpAPIErrorMessage(m dsl.Matcher) {
 // HttpAPIReturn will report a linter violation if the http function is not
 // returned after writing a response to the client.
 func HttpAPIReturn(m dsl.Matcher) {
-	m.Import("github.com/coder/coder/coderd/httpapi")
+	m.Import("github.com/coder/coder/v2/coderd/httpapi")
 
 	// Manually enumerate the httpapi function rather then a 'Where' condition
 	// as this is a bit more efficient.
@@ -390,4 +416,17 @@ func slogError(m dsl.Matcher) {
 	).
 		Where(m["name"].Const && m["value"].Type.Is("error") && !m["name"].Text.Matches(`^"internal_error"$`)).
 		Report(`Error should be logged using "slog.Error" instead.`)
+}
+
+// withTimezoneUTC ensures that we don't just sprinkle dbtestutil.WithTimezone("UTC") about
+// to work around real timezone bugs in our code.
+//
+//nolint:unused,deadcode,varnamelen
+func withTimezoneUTC(m dsl.Matcher) {
+	m.Match(
+		`dbtestutil.WithTimezone($tz)`,
+	).Where(
+		m["tz"].Text.Matches(`[uU][tT][cC]"$`),
+	).Report(`Setting database timezone to UTC may mask timezone-related bugs.`).
+		At(m["tz"])
 }

@@ -12,7 +12,7 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
-	"github.com/coder/coder/tailnet"
+	"github.com/coder/coder/v2/tailnet"
 
 	"cdr.dev/slog"
 )

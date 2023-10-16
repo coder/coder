@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/coder/coder/coderd/gitsshkey"
-	"github.com/coder/coder/cryptorand"
+	"github.com/coder/coder/v2/coderd/gitsshkey"
+	"github.com/coder/coder/v2/cryptorand"
 )
 
 func TestGitSSHKeys(t *testing.T) {

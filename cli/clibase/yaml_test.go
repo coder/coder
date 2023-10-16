@@ -8,7 +8,7 @@ import (
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
-	"github.com/coder/coder/cli/clibase"
+	"github.com/coder/coder/v2/cli/clibase"
 )
 
 func TestOptionSet_YAML(t *testing.T) {

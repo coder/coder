@@ -5,7 +5,7 @@ import (
 
 	"go.uber.org/goleak"
 
-	"github.com/coder/coder/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 )
 
 func TestMain(m *testing.M) {
@@ -19,10 +19,10 @@ func TestNew(t *testing.T) {
 	})
 	user := coderdtest.CreateFirstUser(t, client)
 	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-	_ = coderdtest.AwaitTemplateVersionJob(t, client, version.ID)
+	_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, user.OrganizationID, template.ID)
-	coderdtest.AwaitWorkspaceBuildJob(t, client, workspace.LatestBuild.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	_, _ = coderdtest.NewGoogleInstanceIdentity(t, "example", false)
 	_, _ = coderdtest.NewAWSInstanceIdentity(t, "an-instance")
