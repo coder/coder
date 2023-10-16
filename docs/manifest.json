@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -229,11 +231,11 @@
           "state": "alpha"
         },
         {
-<<<<<<< HEAD
           "title": "Troubleshooting templates",
           "description": "Fix common template problems",
           "path": "./templates/troubleshooting.md"
-=======
+        },
+        {
           "title": "Terraform Modules",
           "description": "Reuse code across Coder templates",
           "path": "./templates/modules.md"
@@ -248,7 +250,6 @@
           "title": "Icons",
           "description": "Coder includes icons for popular cloud providers and programming languages for you to use",
           "path": "./templates/icons.md"
->>>>>>> main
         }
       ]
     },
