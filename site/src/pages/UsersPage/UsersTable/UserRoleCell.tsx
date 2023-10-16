@@ -93,30 +93,63 @@ export function UserRoleCell({
 }: Props) {
   const theme = useTheme();
 
+  // Unless the user happens to be an owner, it is physically impossible for
+  // React to know how many pills should be omitted for space reasons each time
+  // a new set of roles comes in. Have to do a smoke-and-mirrors routine to help
+  // mask that and avoid UI flickering
   const cellRef = useRef<HTMLDivElement>(null);
   const pillContainerRef = useRef<HTMLDivElement>(null);
   const overflowButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Unless the user happens to be an owner, it is physically impossible for
-  // React to know how many pills should be omitted for space reasons on the
-  // first render, because that info comes from real DOM nodes, which can't
-  // exist until the first render pass. Have to do a smoke-and-mirrors routine
-  // to help mask that and avoid UI flickering
+  /**
+   * @todo – The logic only works properly on the first render - the
+   * moment you update a user's permissions, the UI doesn't do anything, even
+   * with the gnarly manual state sync in place. The cached update is
+   * triggering, but not the
+   *
+   * Likely causes:
+   * 1. Mutation logic isn't getting applied properly
+   * 2. Trace through the parent component logic and see if I need to update
+   *    things to reference the roles prop instead of user.roles
+   */
+
   const roleDisplayInfo = getRoleDisplayInfo(user.roles);
+
+  // Have to do manual state syncs to make sure that cells change as roles get
+  // updated; there isn't a good render key to use to simplify this, and the
+  // MutationObserver API doesn't work with React's order of operations well
+  // enough to avoid flickering - it's just not fast enough in the right ways
+  const [cachedUser, setCachedUser] = useState(user);
   const [rolesToTruncate, setRolesToTruncate] = useState(
     roleDisplayInfo.hasOwner
       ? user.roles.length - roleDisplayInfo.roles.length
       : null,
   );
 
+  if (user !== cachedUser) {
+    const needTruncationSync =
+      !roleDisplayInfo.hasOwner &&
+      (user.roles.length !== cachedUser.roles.length ||
+        user.roles.every((role, index) => role === cachedUser.roles[index]));
+
+    setCachedUser(user);
+    console.log("huh");
+
+    // This isn't ever triggering, even if you update the permissions for a
+    // user
+    if (needTruncationSync) {
+      setRolesToTruncate(null);
+    }
+  }
+
   // Mutates the contents of the pill container to hide overflowing content on
   // the first render, and then updates rolesToTruncate so that these overflow
   // calculations can be done with 100% pure state/props calculations for all
-  // re-renders
+  // re-renders (at least until the roles list changes by content again)
   useLayoutEffect(() => {
     const cell = cellRef.current;
     const pillContainer = pillContainerRef.current;
-    if (roleDisplayInfo.hasOwner || cell === null || pillContainer === null) {
+    if (rolesToTruncate !== null || cell === null || pillContainer === null) {
       return;
     }
 
@@ -140,7 +173,7 @@ export function UserRoleCell({
       const mutationText = getOverflowButtonText(nodesRemoved);
       overflowButtonRef.current.innerText = mutationText;
     }
-  }, [roleDisplayInfo.hasOwner]);
+  }, [rolesToTruncate]);
 
   const finalRoleList = roleDisplayInfo.roles;
 
@@ -169,7 +202,6 @@ export function UserRoleCell({
           <Stack direction="row" spacing={1} ref={pillContainerRef}>
             {finalRoleList.map((role) => {
               const isOwnerRole = role.name === "owner";
-              const { palette } = theme;
 
               return (
                 <Pill
@@ -177,21 +209,29 @@ export function UserRoleCell({
                   text={role.display_name}
                   css={{
                     backgroundColor: isOwnerRole
-                      ? palette.info.dark
-                      : palette.background.paperLight,
+                      ? theme.palette.info.dark
+                      : theme.palette.background.paperLight,
                     borderColor: isOwnerRole
-                      ? palette.info.light
-                      : palette.divider,
+                      ? theme.palette.info.light
+                      : theme.palette.divider,
                   }}
                 />
               );
             })}
           </Stack>
 
+          {/*
+           * Have to render this, even when rolesToTruncate is null, in order
+           * for the layoutEffect trick to work properly
+           */}
           {rolesToTruncate !== 0 && (
-            <button ref={overflowButtonRef}>
-              {getOverflowButtonText(rolesToTruncate ?? 0)}
-            </button>
+            <Pill
+              text={getOverflowButtonText(rolesToTruncate ?? 0)}
+              css={{
+                backgroundColor: theme.palette.background.paperLight,
+                borderColor: theme.palette.divider,
+              }}
+            />
           )}
         </Stack>
       </Stack>
