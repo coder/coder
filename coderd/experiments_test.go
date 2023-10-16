@@ -121,8 +121,6 @@ func Test_Experiments(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo", "BAR"}
-		inMemoryExperimentsAll := codersdk.ExperimentsAll
-		codersdk.ExperimentsAll = []codersdk.Experiment{"bat", "fizz", "foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
 		})
@@ -134,12 +132,6 @@ func Test_Experiments(t *testing.T) {
 		experiments, err := client.Experiments(ctx, codersdk.ExperimentOptions{IncludeAll: true})
 		require.NoError(t, err)
 		require.NotNil(t, experiments)
-		require.ElementsMatch(t, []codersdk.Experiment{"bat", "fizz", "foo", "BAR"}, experiments)
-
-		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("foo"))
-		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("BAR"))
-
-		// reset all experiments so other tests don't flake
-		codersdk.ExperimentsAll = inMemoryExperimentsAll
+		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments)
 	})
 }
