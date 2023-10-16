@@ -128,15 +128,10 @@ export function UserRoleCell({
 
   if (user !== cachedUser) {
     const needTruncationSync =
-      !roleDisplayInfo.hasOwner &&
-      (user.roles.length !== cachedUser.roles.length ||
-        user.roles.every((role, index) => role === cachedUser.roles[index]));
+      user.roles.length !== cachedUser.roles.length ||
+      user.roles.every((role, index) => role === cachedUser.roles[index]);
 
     setCachedUser(user);
-    console.log("huh");
-
-    // This isn't ever triggering, even if you update the permissions for a
-    // user
     if (needTruncationSync) {
       setRolesToTruncate(null);
     }
