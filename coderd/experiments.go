@@ -7,22 +7,28 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get experiments
-// @ID get-experiments
+// @Summary Get enabled experiments
+// @ID get-enabled-experiments
 // @Security CoderSessionToken
 // @Produce json
 // @Tags General
-// @Param include_all query bool false "All available experiments"
 // @Success 200 {array} codersdk.Experiment
 // @Router /experiments [get]
 func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	all := r.URL.Query().Has("include_all")
+	httpapi.Write(ctx, rw, http.StatusOK, api.Experiments)
+}
 
-	if !all {
-		httpapi.Write(ctx, rw, http.StatusOK, api.Experiments)
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ExperimentsAll)
+// @Summary Get safe experiments
+// @ID get-safe-experiments
+// @Security CoderSessionToken
+// @Produce json
+// @Tags General
+// @Success 200 {array} codersdk.Experiment
+// @Router /experiments/available [get]
+func (api *API) handleExperimentsSafe(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AvailableExperiments{
+		Safe: codersdk.ExperimentsAll,
+	})
 }
