@@ -1,52 +1,8 @@
 # Templates
 
-Templates define the underlying infrastructure that workspaces run on. All Coder workspaces are created from a
-template.
+Templates define the underlying infrastructure that Coder
+[workspaces](../workspaces.md) run on. All workspaces are created from
+templates.
 
-## Who creates templates?
-
-The [Template Admin](../admin/users.md) role (and above) can create templates. End users (developers) create workspaces from them. However, templates can also be [managed via git](./change-management.md), allowing any developer to propose changes to a template.
-
-> [Template RBAC](../admin/rbac.md) allows you to give different users & groups access to templates.
-
-## Starter templates
-
-We provide starter templates for common cloud providers (e.g. AWS) and orchestrators (e.g. Kubernetes). From there, you can modify them with [Terraform](https://terraform.io) to use your own images, VPC, cloud credentials, etc. All Terraform resources and properties are supported, so fear not if your favorite cloud isn't here!
-
-![Starter templates](https://user-images.githubusercontent.com/22407953/256705348-e6fb2963-27f5-414f-9f5c-345cd3b7ee28.png)
-
-If you'd prefer to use the CLI, use `coder templates init`.
-
-> The Terraform code for our starter templates are avalible on our [GitHub](https://github.com/coder/coder/tree/main/examples/templates).
-
-## Editing templates
-
-Our starter templates are meant to me modified work for your use cases! You can edit the Terraform code for a template directly in the UI.
-
-![Editing a template](https://user-images.githubusercontent.com/22407953/256706060-71fb48f4-9a1b-42ad-9380-0ecc02db3218.gif)
-
-
-If you'd prefer to use the CLI, use `coder templates pull` and `coder templates push`.
-
-> Even if you are a Terraform expert, we suggest reading our full guide on [writing Coder templates](./managing.md).
-
-## Template updates
-
-Templates are versioned, keeping all developer workspaces up-to-date. When a new version is published, developers are notified to get the latest infrastructure, software, or security patches.
-
-![Template update screen](https://user-images.githubusercontent.com/22407953/256712740-96121f81-a3c8-4be0-90dc-c1c4cabed634.png)
-
-## Template parameters
-
-You'll likely want to hardcode certain properties for workspaces (e.g. "security group, VPC"). Others can be exposed via parameters to give developers flexibility (e.g. instance size, GitHub repo URL).
-
-Paramaters let users customize their individual workspaces:
-
-![Parameters in templates](https://user-images.githubusercontent.com/22407953/256707889-18baf2be-2dae-4eb2-ae89-71e5b00248f8.png)
-
-> Paramaters are defined via the template's Terraform code. [Learn more](./parameters.md)
-
-## Next steps
-
-- [Template structure](./structure.md)
-- [Template structure](./structure.md)
+<children>
+</children>
