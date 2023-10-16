@@ -85,7 +85,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 	wait_baseline "${SCALETEST_PARAM_LOAD_SCENARIO_BASELINE_DURATION}"
 done
 
-if ((${#failed} > 0)); then
+if ((${#failed[@]} > 0)); then
 	log "Load scenarios failed: ${!failed[*]}"
 	for scenario in "${!failed[@]}"; do
 		log "  ${scenario}: exit=${failed[$scenario]}"
