@@ -2,10 +2,10 @@ import IconButton from "@mui/material/IconButton";
 import Snackbar, {
   SnackbarProps as MuiSnackbarProps,
 } from "@mui/material/Snackbar";
-import { makeStyles } from "@mui/styles";
 import CloseIcon from "@mui/icons-material/Close";
-import { FC } from "react";
-import { combineClasses } from "utils/combineClasses";
+import { type FC } from "react";
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 
 type EnterpriseSnackbarVariant = "error" | "info" | "success";
 
@@ -30,7 +30,18 @@ export interface EnterpriseSnackbarProps extends MuiSnackbarProps {
 export const EnterpriseSnackbar: FC<
   React.PropsWithChildren<EnterpriseSnackbarProps>
 > = ({ onClose, variant = "info", ContentProps = {}, action, ...rest }) => {
-  const styles = useStyles();
+  const theme = useTheme();
+
+  const snackbarContentStyles = css`
+    border: 1px solid ${theme.palette.divider};
+    border-left: 4px solid ${variantColor(variant, theme)};
+    border-radius: ${theme.shape.borderRadius}px;
+    padding: ${theme.spacing(1, 3, 1, 2)};
+    box-shadow: ${theme.shadows[6]};
+    align-items: inherit;
+    background-color: ${theme.palette.background.paper};
+    color: ${theme.palette.text.secondary};
+  `;
 
   return (
     <Snackbar
@@ -40,67 +51,41 @@ export const EnterpriseSnackbar: FC<
       }}
       {...rest}
       action={
-        <div className={styles.actionWrapper}>
+        <div css={styles.actionWrapper}>
           {action}
-          <IconButton
-            onClick={onClose}
-            className={styles.iconButton}
-            size="large"
-          >
-            <CloseIcon className={styles.closeIcon} aria-label="close" />
+          <IconButton onClick={onClose} css={{ padding: 0 }} size="large">
+            <CloseIcon css={styles.closeIcon} aria-label="close" />
           </IconButton>
         </div>
       }
       ContentProps={{
         ...ContentProps,
-        className: combineClasses({
-          [styles.snackbarContent]: true,
-          [styles.snackbarContentInfo]: variant === "info",
-          [styles.snackbarContentError]: variant === "error",
-          [styles.snackbarContentSuccess]: variant === "success",
-        }),
+        className: snackbarContentStyles,
       }}
       onClose={onClose}
     />
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const variantColor = (variant: EnterpriseSnackbarVariant, theme: Theme) => {
+  switch (variant) {
+    case "error":
+      return theme.palette.error.main;
+    case "info":
+      return theme.palette.info.main;
+    case "success":
+      return theme.palette.success.main;
+  }
+};
+
+const styles = {
   actionWrapper: {
     display: "flex",
     alignItems: "center",
   },
-  iconButton: {
-    padding: 0,
-  },
-  closeIcon: {
+  closeIcon: (theme) => ({
     width: 25,
     height: 25,
     color: theme.palette.primary.contrastText,
-  },
-  snackbarContent: {
-    border: `1px solid ${theme.palette.divider}`,
-    borderLeft: `4px solid ${theme.palette.primary.main}`,
-    borderRadius: theme.shape.borderRadius,
-    padding: `
-      ${theme.spacing(1)}px
-      ${theme.spacing(3)}px
-      ${theme.spacing(1)}px
-      ${theme.spacing(2)}px
-    `,
-    boxShadow: theme.shadows[6],
-    alignItems: "inherit",
-    backgroundColor: theme.palette.background.paper,
-    color: theme.palette.text.secondary,
-  },
-  snackbarContentInfo: {
-    // Use success color as a highlight
-    borderLeftColor: theme.palette.primary.main,
-  },
-  snackbarContentError: {
-    borderLeftColor: theme.palette.error.main,
-  },
-  snackbarContentSuccess: {
-    borderLeftColor: theme.palette.success.main,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;
