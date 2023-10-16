@@ -1,6 +1,6 @@
 import { StatusOption, TemplateOption } from "./options";
 import { getTemplates } from "api/api";
-import { WorkspaceStatuses } from "api/typesGenerated";
+import { WorkspaceStatus } from "api/typesGenerated";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 import { UseFilterMenuOptions, useFilterMenu } from "components/Filter/menu";
 
@@ -54,7 +54,13 @@ export const useStatusFilterMenu = ({
   value,
   onChange,
 }: Pick<UseFilterMenuOptions<StatusOption>, "value" | "onChange">) => {
-  const statusOptions = WorkspaceStatuses.map((status) => {
+  const statusesToFilter: WorkspaceStatus[] = [
+    "running",
+    "stopped",
+    "failed",
+    "pending",
+  ];
+  const statusOptions = statusesToFilter.map((status) => {
     const display = getDisplayWorkspaceStatus(status);
     return {
       label: display.text,
