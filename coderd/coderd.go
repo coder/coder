@@ -1108,7 +1108,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
-		ctx,
+		api.ctx,
 		api.AccessURL,
 		uuid.New(),
 		logger,

@@ -1196,18 +1196,14 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 						select {
 						case <-s.lifecycleCtx.Done():
 							// If the server is shutting down, we don't want to wait around.
-							s.Logger.Warn(context.Background(), "stopping notifications due to server shutdown",
+							s.Logger.Debug(ctx, "stopping notifications due to server shutdown",
 								slog.F("workspace_build_id", workspaceBuild.ID),
-								slog.Error(err),
 							)
 							return
 						case <-wait:
-							// Wait for the next potential timeout to occur. Note that we
-							// can't listen on the context here because we will hang around
-							// after this function has returned. The s also doesn't
-							// have a shutdown signal we can listen to.
+							// Wait for the next potential timeout to occur.
 							if err := s.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceBuild.WorkspaceID), []byte{}); err != nil {
-								s.Logger.Error(context.Background(), "workspace notification after agent timeout failed",
+								s.Logger.Error(ctx, "workspace notification after agent timeout failed",
 									slog.F("workspace_build_id", workspaceBuild.ID),
 									slog.Error(err),
 								)
