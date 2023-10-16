@@ -218,9 +218,6 @@ func (*agplTemplateScheduleStore) Set(ctx context.Context, db database.Store, tp
 
 	var template database.Template
 	err := db.InTx(func(db database.Store) error {
-		// TODO (JonA): This seems ripe for a bug. Should we not
-		// be reading the template as part of the tx and then also
-		// setting our isolation level to repeatable read?
 		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
 			ID:         tpl.ID,
 			UpdatedAt:  dbtime.Now(),
