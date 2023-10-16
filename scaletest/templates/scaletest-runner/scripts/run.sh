@@ -63,6 +63,7 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		status=$?
 		show_json "${SCALETEST_RESULTS_DIR}/traffic-dashboard.json"
 		;;
+
 	# Debug scenarios, for testing the runner.
 	"debug:success")
 		maybedryrun "$DRY_RUN" sleep 10
