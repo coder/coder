@@ -121,6 +121,7 @@ func Test_Experiments(t *testing.T) {
 		t.Parallel()
 		cfg := coderdtest.DeploymentValues(t)
 		cfg.Experiments = []string{"foo", "BAR"}
+		inMemoryExperimentsAll := codersdk.ExperimentsAll
 		codersdk.ExperimentsAll = []codersdk.Experiment{"bat", "fizz", "foo", "BAR"}
 		client := coderdtest.New(t, &coderdtest.Options{
 			DeploymentValues: cfg,
@@ -137,5 +138,8 @@ func Test_Experiments(t *testing.T) {
 
 		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("foo"))
 		require.True(t, codersdk.Experiments{"foo", "BAR"}.Enabled("BAR"))
+
+		// reset all experiments so other tests don't flake
+		codersdk.ExperimentsAll = inMemoryExperimentsAll
 	})
 }
