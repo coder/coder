@@ -26,6 +26,15 @@ const validFormValues: TemplateScheduleFormValues = {
   failure_cleanup_enabled: false,
   inactivity_cleanup_enabled: false,
   dormant_autodeletion_cleanup_enabled: false,
+  autostart_requirement_days_of_week: [
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ],
 };
 
 const renderTemplateSchedulePage = async () => {

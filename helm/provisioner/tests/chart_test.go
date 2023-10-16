@@ -52,6 +52,10 @@ var testCases = []testCase{
 		name:          "provisionerd_psk",
 		expectedError: "",
 	},
+	{
+		name:          "extra_templates",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

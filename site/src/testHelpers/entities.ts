@@ -447,6 +447,17 @@ export const MockTemplate: TypesGen.Template = {
     days_of_week: [],
     weeks: 1,
   },
+  autostart_requirement: {
+    days_of_week: [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+      "saturday",
+      "sunday",
+    ],
+  },
   created_by_id: "test-creator-id",
   created_by_name: "test_creator",
   icon: "/icon/code.svg",

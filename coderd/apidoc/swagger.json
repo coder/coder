@@ -6889,6 +6889,14 @@
           "description": "Allow users to cancel in-progress workspace jobs.\n*bool as the default value is \"true\".",
           "type": "boolean"
         },
+        "autostart_requirement": {
+          "description": "AutostartRequirement allows optionally specifying the autostart allowed days\nfor workspaces created from this template. This is an enterprise feature.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
+            }
+          ]
+        },
         "autostop_requirement": {
           "description": "AutostopRequirement allows optionally specifying the autostop requirement\nfor workspaces created from this template. This is an enterprise feature.",
           "allOf": [
@@ -8936,8 +8944,11 @@
         "allow_user_cancel_workspace_jobs": {
           "type": "boolean"
         },
+        "autostart_requirement": {
+          "$ref": "#/definitions/codersdk.TemplateAutostartRequirement"
+        },
         "autostop_requirement": {
-          "description": "AutostopRequirement is an enterprise feature. Its value is only used if\nyour license is entitled to use the advanced template scheduling feature.",
+          "description": "AutostopRequirement and AutostartRequirement are enterprise features. Its\nvalue is only used if your license is entitled to use the advanced template\nscheduling feature.",
           "allOf": [
             {
               "$ref": "#/definitions/codersdk.TemplateAutostopRequirement"
@@ -9044,6 +9055,27 @@
       "type": "string",
       "enum": ["builtin", "app"],
       "x-enum-varnames": ["TemplateAppsTypeBuiltin", "TemplateAppsTypeApp"]
+    },
+    "codersdk.TemplateAutostartRequirement": {
+      "type": "object",
+      "properties": {
+        "days_of_week": {
+          "description": "DaysOfWeek is a list of days of the week in which autostart is allowed\nto happen. If no days are specified, autostart is not allowed.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "monday",
+              "tuesday",
+              "wednesday",
+              "thursday",
+              "friday",
+              "saturday",
+              "sunday"
+            ]
+          }
+        }
+      }
     },
     "codersdk.TemplateAutostopRequirement": {
       "type": "object",
