@@ -4,8 +4,7 @@ Expose key workspace information to your users with
 [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata)
 resources in your template code.
 
-You can use `coder_metadata` to show Terraform resource attributes
-like these:
+You can use `coder_metadata` to show Terraform resource attributes like these:
 
 - Compute resources
 - IP addresses
@@ -23,8 +22,8 @@ You can also present automatically updating, dynamic values with
 
 ## Example
 
-Expose the disk size, deployment name, and persistent directory in a
-Kubernetes template with:
+Expose the disk size, deployment name, and persistent directory in a Kubernetes
+template with:
 
 ```hcl
 resource "kubernetes_persistent_volume_claim" "root" {
@@ -61,9 +60,9 @@ resource "coder_metadata" "deployment" {
 
 ## Hiding resources in the dashboard
 
-Some resources don't need to be exposed in the dashboard's UI. This
-helps keep the workspace view clean for developers. To hide a
-resource, use the `hide` attribute:
+Some resources don't need to be exposed in the dashboard's UI. This helps keep
+the workspace view clean for developers. To hide a resource, use the `hide`
+attribute:
 
 ```hcl
 resource "coder_metadata" "hide_serviceaccount" {
@@ -79,8 +78,8 @@ resource "coder_metadata" "hide_serviceaccount" {
 
 ## Using a custom resource icon
 
-To use custom icons for your resource metadata, use the `icon`
-attribute. It must be a valid path or URL.
+To use custom icons for your resource metadata, use the `icon` attribute. It
+must be a valid path or URL.
 
 ```hcl
 resource "coder_metadata" "resource_with_icon" {
@@ -94,8 +93,8 @@ resource "coder_metadata" "resource_with_icon" {
 }
 ```
 
-To make it easier for you to customize your resource we added some
-built-in icons:
+To make it easier for you to customize your resource we added some built-in
+icons:
 
 - Folder `/icon/folder.svg`
 - Memory `/icon/memory.svg`
@@ -103,7 +102,8 @@ built-in icons:
 - Widgets `/icon/widgets.svg`
 - Database `/icon/database.svg`
 
-We also have other icons related to the IDEs. You can see all the icons [here](https://github.com/coder/coder/tree/main/site/static/icon).
+We also have other icons related to the IDEs. You can see all the icons
+[here](https://github.com/coder/coder/tree/main/site/static/icon).
 
 ## Up next
 

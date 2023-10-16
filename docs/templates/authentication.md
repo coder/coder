@@ -9,31 +9,31 @@
 
 The Coder server's
 [provisioner](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/provisioner)
-process needs to authenticate with other provider APIs to provision
-workspaces. There are two approaches to do this:
+process needs to authenticate with other provider APIs to provision workspaces.
+There are two approaches to do this:
 
 - Pass credentials to the provisioner as parameters.
-- Preferred: Execute the Coder server in an environment that is
-  authenticated with the provider.
+- Preferred: Execute the Coder server in an environment that is authenticated
+  with the provider.
 
 We encourage the latter approach where supported:
 
 - Simplifies the template.
-- Keeps provider credentials out of Coder's database, making it
-  a less valuable target for attackers.
-- Compatible with agent-based authentication schemes, which handle
-  credential rotation or ensure the credentials are not written to disk.
+- Keeps provider credentials out of Coder's database, making it a less valuable
+  target for attackers.
+- Compatible with agent-based authentication schemes, which handle credential
+  rotation or ensure the credentials are not written to disk.
 
-Generally, you can set up an environment to provide credentials to
-Coder in these ways:
+Generally, you can set up an environment to provide credentials to Coder in
+these ways:
 
-- A well-known location on disk. For example, `~/.aws/credentials` for
-  AWS on POSIX systems.
+- A well-known location on disk. For example, `~/.aws/credentials` for AWS on
+  POSIX systems.
 - Environment variables.
 
-It is usually sufficient to authenticate using the CLI or SDK for the
-provider before running Coder, but check the Terraform provider's
-documentation for details.
+It is usually sufficient to authenticate using the CLI or SDK for the provider
+before running Coder, but check the Terraform provider's documentation for
+details.
 
 These platforms have Terraform providers that support authenticated
 environments:
@@ -43,6 +43,6 @@ environments:
 - [Microsoft Azure](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 - [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
 
-Other providers might also support authenticated environments. Check
-the [documentation of the Terraform
-provider](https://registry.terraform.io/browse/providers) for details.
+Other providers might also support authenticated environments. Check the
+[documentation of the Terraform provider](https://registry.terraform.io/browse/providers)
+for details.

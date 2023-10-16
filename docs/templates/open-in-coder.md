@@ -1,7 +1,7 @@
 # Open in Coder
 
-You can embed an "Open in Coder" button into your git repos or
-internal wikis to let developers quickly launch a new workspace.
+You can embed an "Open in Coder" button into your git repos or internal wikis to
+let developers quickly launch a new workspace.
 
 <video autoplay playsinline loop>
   <source src="https://github.com/coder/coder/blob/main/docs/images/templates/open-in-coder.mp4?raw=true" type="video/mp4">
@@ -10,17 +10,19 @@ Your browser does not support the video tag.
 
 ## How it works
 
-To support any infrastructure and software stack, Coder provides a generic approach for "Open in Coder" flows.
+To support any infrastructure and software stack, Coder provides a generic
+approach for "Open in Coder" flows.
 
 ### 1. Set up git authentication
 
-See [Git
-Authentication](../admin/git-providers.md#require-git-authentication-in-templates)
+See
+[Git Authentication](../admin/git-providers.md#require-git-authentication-in-templates)
 in your Coder deployment
 
 ### 2. Modify your template to auto-clone repos:
 
-The id in the template's `coder_git_auth` data source must match the `CODER_GITAUTH_0_ID` in the Coder deployment configuration.
+The id in the template's `coder_git_auth` data source must match the
+`CODER_GITAUTH_0_ID` in the Coder deployment configuration.
 
 If you want the template to clone a specific git repo:
 
@@ -51,7 +53,8 @@ resource "coder_agent" "dev" {
 > - `/home/coder/coder`
 > - `coder` (relative to the home directory)
 
-If you want the template to support any repository via [parameters](./parameters.md)
+If you want the template to support any repository via
+[parameters](./parameters.md)
 
 ```hcl
 # Require git authentication to use this template
@@ -92,8 +95,7 @@ resource "coder_agent" "dev" {
 ```
 
 Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
-https://coder.example.com) and `YOUR_TEMPLATE` with the name of your
-template.
+https://coder.example.com) and `YOUR_TEMPLATE` with the name of your template.
 
 ### 4. Optional: pre-fill parameter values in the "Create Workspace" page
 

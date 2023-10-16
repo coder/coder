@@ -1,26 +1,28 @@
 # Resource persistence
 
-By default, all Coder resources are persistent, but production
-templates **must** use the practices laid out in this document to
-prevent accidental deletion.
+By default, all Coder resources are persistent, but production templates
+**must** use the practices laid out in this document to prevent accidental
+deletion.
 
-Coder templates have full control over workspace ephemerality. In a
-completely ephemeral workspace, there are zero resources in the Off
-state. In a completely persistent workspace, there is no difference
-between the Off and On states.
+Coder templates have full control over workspace ephemerality. In a completely
+ephemeral workspace, there are zero resources in the Off state. In a completely
+persistent workspace, there is no difference between the Off and On states.
 
-The needs of most workspaces fall somewhere in the middle, persisting
-user data like filesystem volumes, but deleting expensive,
-reproducible resources such as compute instances.
+The needs of most workspaces fall somewhere in the middle, persisting user data
+like filesystem volumes, but deleting expensive, reproducible resources such as
+compute instances.
 
 ## Disabling persistence
 
-The Terraform [`coder_workspace` data
-source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
-exposes the `start_count = [0 | 1]` attribute. To make a resource ephemeral, you can assign the `start_count` attribute to resource's [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count) meta-argument.
+The Terraform
+[`coder_workspace` data source](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace)
+exposes the `start_count = [0 | 1]` attribute. To make a resource ephemeral, you
+can assign the `start_count` attribute to resource's
+[`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
+meta-argument.
 
-In this example, Coder will provision or tear down the
-`docker_container` resource:
+In this example, Coder will provision or tear down the `docker_container`
+resource:
 
 ```hcl
 data "coder_workspace" "me" {
@@ -46,9 +48,9 @@ resource "docker_volume" "home_volume" {
 }
 ```
 
-Because we depend on `coder_workspace.me.owner`, if the owner changes
-their username, Terraform will recreate the volume (wiping its data!)
-the next time that Coder starts the workspace.
+Because we depend on `coder_workspace.me.owner`, if the owner changes their
+username, Terraform will recreate the volume (wiping its data!) the next time
+that Coder starts the workspace.
 
 To prevent this, use immutable IDs:
 
@@ -68,14 +70,13 @@ resource "docker_volume" "home_volume" {
 
 ## 🛡 Bulletproofing
 
-Even if your persistent resource depends exclusively on immutable IDs,
-a change to the `name` format or other attributes would cause
-Terraform to rebuild the resource.
+Even if your persistent resource depends exclusively on immutable IDs, a change
+to the `name` format or other attributes would cause Terraform to rebuild the
+resource.
 
-You can prevent Terraform from recreating a resource under any
-circumstance by setting the [`ignore_changes = all` directive in the
-`lifecycle`
-block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
+You can prevent Terraform from recreating a resource under any circumstance by
+setting the
+[`ignore_changes = all` directive in the `lifecycle` block](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle#ignore_changes).
 
 ```hcl
 data "coder_workspace" "me" {

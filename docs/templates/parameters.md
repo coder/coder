@@ -1,20 +1,18 @@
 # Parameters
 
-A template can prompt the user for additional information when
-creating workspaces with
+A template can prompt the user for additional information when creating
+workspaces with
 [_parameters_](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter).
 
 ![Parameters in Create Workspace screen](../images/parameters.png)
 
 The user can set parameters in the dashboard UI and CLI.
 
-You'll likely want to hardcode certain template properties for
-workspaces, such as security group. But you can let developers specify
-other properties with parameters like instance size, geographical
-location, repository URL, etc.
+You'll likely want to hardcode certain template properties for workspaces, such
+as security group. But you can let developers specify other properties with
+parameters like instance size, geographical location, repository URL, etc.
 
-This example lets a developer choose a Docker host for the
-workspace:
+This example lets a developer choose a Docker host for the workspace:
 
 ```hcl
 data "coder_parameter" "docker_host" {
@@ -61,8 +59,8 @@ A Coder parameter can have one of these types:
 - `number`.
 - `list(string)`
 
-To specify a default value for a parameter with the `list(string)`
-type, use a JSON array and the Terraform
+To specify a default value for a parameter with the `list(string)` type, use a
+JSON array and the Terraform
 [jsonencode](https://developer.hashicorp.com/terraform/language/functions/jsonencode)
 function. For example:
 
@@ -83,8 +81,7 @@ data "coder_parameter" "security_groups" {
 
 ## Options
 
-A `string` parameter can provide a set of options to limit the user's
-choices:
+A `string` parameter can provide a set of options to limit the user's choices:
 
 ```hcl
 data "coder_parameter" "docker_host" {
@@ -115,9 +112,8 @@ data "coder_parameter" "docker_host" {
 
 ## Required and optional parameters
 
-A parameter is _required_ if it doesn't have the `default` property.
-The user **must** provide a value to this parameter before creating a
-workspace:
+A parameter is _required_ if it doesn't have the `default` property. The user
+**must** provide a value to this parameter before creating a workspace:
 
 ```hcl
 data "coder_parameter" "account_name" {
@@ -127,8 +123,8 @@ data "coder_parameter" "account_name" {
 }
 ```
 
-If a parameter contains the `default` property, Coder will use this
-value if the user does not specify any:
+If a parameter contains the `default` property, Coder will use this value if the
+user does not specify any:
 
 ```hcl
 data "coder_parameter" "base_image" {
@@ -138,8 +134,8 @@ data "coder_parameter" "base_image" {
 }
 ```
 
-Admins can also set the `default` property to an empty value so that
-the parameter field can remain empty:
+Admins can also set the `default` property to an empty value so that the
+parameter field can remain empty:
 
 ```hcl
 data "coder_parameter" "dotfiles_url" {
@@ -155,11 +151,11 @@ data "coder_parameter" "dotfiles_url" {
 Immutable parameters can only be set in these situations:
 
 - Creating a workspace for the first time.
-- Updating a workspace to a new template version. This sets the
-  initial value for required parameters.
+- Updating a workspace to a new template version. This sets the initial value
+  for required parameters.
 
-The idea is to prevent users from modifying fragile or
-persistent workspace resources like volumes, regions, and so on.
+The idea is to prevent users from modifying fragile or persistent workspace
+resources like volumes, regions, and so on.
 
 Example:
 
@@ -172,20 +168,19 @@ data "coder_parameter" "region" {
 }
 ```
 
-You can modify a parameter's `mutable` attribute state anytime. In
-case of emergency, you can temporarily allow for changing immutable
-parameters to fix an operational issue, but it is not advised to
-overuse this opportunity.
+You can modify a parameter's `mutable` attribute state anytime. In case of
+emergency, you can temporarily allow for changing immutable parameters to fix an
+operational issue, but it is not advised to overuse this opportunity.
 
 ## Ephemeral parameters
 
-Ephemeral parameters are introduced to users in the form of "build
-options." Use ephemeral parameters to model specific behaviors in a
-Coder workspace, such as reverting to a previous image, restoring from
-a volume snapshot, or building a project without using cache.
+Ephemeral parameters are introduced to users in the form of "build options." Use
+ephemeral parameters to model specific behaviors in a Coder workspace, such as
+reverting to a previous image, restoring from a volume snapshot, or building a
+project without using cache.
 
-Since these parameters are ephemeral in nature, subsequent builds
-proceed in the standard manner:
+Since these parameters are ephemeral in nature, subsequent builds proceed in the
+standard manner:
 
 ```hcl
 data "coder_parameter" "force_rebuild" {
@@ -200,17 +195,16 @@ data "coder_parameter" "force_rebuild" {
 
 ## Validating parameters
 
-Coder supports rich parameters with multiple validation modes: min,
-max, monotonic numbers, and regular expressions.
+Coder supports rich parameters with multiple validation modes: min, max,
+monotonic numbers, and regular expressions.
 
 ### Number
 
 You can limit a `number` parameter to `min` and `max` boundaries.
 
-You can also specify its monotonicity as `increasing` or `decreasing`
-to verify the current and new values. Use the `monotonic` aatribute
-for resources that can't be shrunk or grown without implications, like
-disk volume size.
+You can also specify its monotonicity as `increasing` or `decreasing` to verify
+the current and new values. Use the `monotonic` aatribute for resources that
+can't be shrunk or grown without implications, like disk volume size.
 
 ```hcl
 data "coder_parameter" "instances" {
@@ -227,8 +221,8 @@ data "coder_parameter" "instances" {
 
 ### String
 
-You can validate a `string` parameter to match a regular expression.
-The `regex` property requires a corresponding `error` property.
+You can validate a `string` parameter to match a regular expression. The `regex`
+property requires a corresponding `error` property.
 
 ```hcl
 data "coder_parameter" "project_id" {
@@ -243,7 +237,6 @@ data "coder_parameter" "project_id" {
 
 ## Terraform template-wide variables
 
-As parameters are intended to be used only for workspace customization
-purposes, Terraform variables can be freely managed by the template
-author to build templates. Workspace users are not able to modify
-template variables.
+As parameters are intended to be used only for workspace customization purposes,
+Terraform variables can be freely managed by the template author to build
+templates. Workspace users are not able to modify template variables.
