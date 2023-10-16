@@ -42,8 +42,9 @@ locals {
   cpu                                            = 16
   memory                                         = 64
   home_disk_size                                 = 10
-  scaletest_run_id                               = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
+  scaletest_run_start_time                       = time_static.start_time.rfc3339
   grafana_url                                    = "https://stats.dev.c8s.io"
   grafana_dashboard_uid                          = "qLVSTR-Vz"
   grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
@@ -364,6 +365,7 @@ resource "coder_agent" "main" {
     # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
+    SCALETEST_RUN_START_TIME : local.scaletest_run_start_time,
 
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
     SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
