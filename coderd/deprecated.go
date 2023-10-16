@@ -3,7 +3,12 @@ package coderd
 import (
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
 
 // @Summary Removed: Get parameters by template version
@@ -69,4 +74,43 @@ func (api *API) workspaceAgentLogsDeprecated(rw http.ResponseWriter, r *http.Req
 // @Router /workspaceagents/me/gitauth [get]
 func (api *API) workspaceAgentsGitAuth(rw http.ResponseWriter, r *http.Request) {
 	api.workspaceAgentsExternalAuth(rw, r)
+}
+
+// @Summary Removed: Submit workspace agent metadata
+// @ID removed-submit-workspace-agent-metadata
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param request body agentsdk.PostMetadataRequestDeprecated true "Workspace agent metadata request"
+// @Param key path string true "metadata key" format(string)
+// @Success 204 "Success"
+// @Router /workspaceagents/me/metadata/{key} [post]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentPostMetadataDeprecated(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req agentsdk.PostMetadataRequestDeprecated
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	key := chi.URLParam(r, "key")
+
+	err := api.workspaceAgentUpdateMetadata(ctx, workspaceAgent, agentsdk.PostMetadataRequest{
+		Metadata: []agentsdk.Metadata{
+			{
+				Key:                          key,
+				WorkspaceAgentMetadataResult: req,
+			},
+		},
+	})
+	if err != nil {
+		api.Logger.Error(ctx, "failed to handle metadata request", slog.Error(err))
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }

@@ -76,6 +76,10 @@ var testCases = []testCase{
 		name:          "env_from",
 		expectedError: "",
 	},
+	{
+		name:          "extra_templates",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

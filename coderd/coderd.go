@@ -821,7 +821,8 @@ func New(options *Options) *API {
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
-				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
+				r.Post("/metadata", api.workspaceAgentPostMetadata)
+				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(

@@ -1,9 +1,14 @@
-import { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
-import { FC, useMemo, useEffect, useState } from "react";
+import type { Health } from "api/api";
+import type { DeploymentStats, WorkspaceStatus } from "api/typesGenerated";
+import {
+  type FC,
+  useMemo,
+  useEffect,
+  useState,
+  PropsWithChildren,
+} from "react";
 import prettyBytes from "pretty-bytes";
 import BuildingIcon from "@mui/icons-material/Build";
-import { RocketIcon } from "components/Icons/RocketIcon";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import Tooltip from "@mui/material/Tooltip";
 import { Link as RouterLink } from "react-router-dom";
 import Link from "@mui/material/Link";
@@ -12,13 +17,26 @@ import DownloadIcon from "@mui/icons-material/CloudDownload";
 import UploadIcon from "@mui/icons-material/CloudUpload";
 import LatencyIcon from "@mui/icons-material/SettingsEthernet";
 import WebTerminalIcon from "@mui/icons-material/WebAsset";
-import { TerminalIcon } from "components/Icons/TerminalIcon";
-import dayjs from "dayjs";
 import CollectedIcon from "@mui/icons-material/Compare";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import Button from "@mui/material/Button";
+import { css as className } from "@emotion/css";
+import {
+  css,
+  type CSSObject,
+  type Theme,
+  type Interpolation,
+  useTheme,
+} from "@emotion/react";
+import dayjs from "dayjs";
+import { TerminalIcon } from "components/Icons/TerminalIcon";
+import { RocketIcon } from "components/Icons/RocketIcon";
+import ErrorIcon from "@mui/icons-material/ErrorOutline";
+import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
-import { css, type Theme, type Interpolation, useTheme } from "@emotion/react";
+import { colors } from "theme/colors";
+import { HelpTooltipTitle } from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
 
 export const bannerHeight = 36;
 
@@ -49,14 +67,13 @@ const styles = {
 } satisfies Record<string, Interpolation<Theme>>;
 
 export interface DeploymentBannerViewProps {
-  fetchStats?: () => void;
+  health?: Health;
   stats?: DeploymentStats;
+  fetchStats?: () => void;
 }
 
-export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
-  stats,
-  fetchStats,
-}) => {
+export const DeploymentBannerView: FC<DeploymentBannerViewProps> = (props) => {
+  const { health, stats, fetchStats } = props;
   const theme = useTheme();
   const aggregatedMinutes = useMemo(() => {
     if (!stats) {
@@ -105,6 +122,35 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- We want this to periodically update!
   }, [timeUntilRefresh, stats]);
 
+  const unhealthy = health && !health.healthy;
+
+  const statusBadgeStyle = css`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: ${unhealthy ? colors.red[10] : undefined};
+    padding: ${theme.spacing(0, 1.5)};
+    height: ${bannerHeight}px;
+    color: #fff;
+
+    & svg {
+      width: 16px;
+      height: 16px;
+    }
+  `;
+
+  const statusSummaryStyle = className`
+    ${theme.typography.body2 as CSSObject}
+
+    margin: ${theme.spacing(0, 0, 0.5, 1.5)};
+    width: ${theme.spacing(50)};
+    padding: ${theme.spacing(2)};
+    color: ${theme.palette.text.primary};
+    background-color: ${theme.palette.background.paper};
+    border: 1px solid ${theme.palette.divider};
+    pointer-events: none;
+  `;
+
   return (
     <div
       css={{
@@ -112,7 +158,7 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         height: bannerHeight,
         bottom: 0,
         zIndex: 1,
-        padding: theme.spacing(0, 2),
+        paddingRight: theme.spacing(2),
         backgroundColor: theme.palette.background.paper,
         display: "flex",
         alignItems: "center",
@@ -124,24 +170,51 @@ export const DeploymentBannerView: FC<DeploymentBannerViewProps> = ({
         whiteSpace: "nowrap",
       }}
     >
-      <Tooltip title="Status of your Coder deployment. Only visible for admins!">
-        <div
-          css={css`
-            display: flex;
-            align-items: center;
-
-            & svg {
-              width: 16px;
-              height: 16px;
-            }
-
-            ${theme.breakpoints.down("lg")} {
-              display: none;
-            }
-          `}
-        >
-          <RocketIcon />
-        </div>
+      <Tooltip
+        classes={{ tooltip: statusSummaryStyle }}
+        title={
+          unhealthy ? (
+            <>
+              <HelpTooltipTitle>
+                We have detected problems with your Coder deployment.
+              </HelpTooltipTitle>
+              <Stack spacing={1}>
+                {health.access_url && (
+                  <HealthIssue>
+                    Your access URL may be configured incorrectly.
+                  </HealthIssue>
+                )}
+                {health.database && (
+                  <HealthIssue>Your database is unhealthy.</HealthIssue>
+                )}
+                {health.derp && (
+                  <HealthIssue>
+                    We&apos;re noticing DERP proxy issues.
+                  </HealthIssue>
+                )}
+                {health.websocket && (
+                  <HealthIssue>
+                    We&apos;re noticing websocket issues.
+                  </HealthIssue>
+                )}
+              </Stack>
+            </>
+          ) : (
+            <>Status of your Coder deployment. Only visible for admins!</>
+          )
+        }
+        open={process.env.STORYBOOK === "true" ? true : undefined}
+        css={{ marginRight: theme.spacing(-2) }}
+      >
+        {unhealthy ? (
+          <Link component={RouterLink} to="/health" css={statusBadgeStyle}>
+            <ErrorIcon />
+          </Link>
+        ) : (
+          <div css={statusBadgeStyle}>
+            <RocketIcon />
+          </div>
+        )}
       </Tooltip>
       <div css={styles.group}>
         <div css={styles.category}>Workspaces</div>
@@ -328,5 +401,14 @@ const WorkspaceBuildValue: FC<{
         </div>
       </Link>
     </Tooltip>
+  );
+};
+
+const HealthIssue: FC<PropsWithChildren> = ({ children }) => {
+  return (
+    <Stack direction="row" spacing={1}>
+      <ErrorIcon fontSize="small" htmlColor={colors.red[10]} />
+      {children}
+    </Stack>
   );
 };

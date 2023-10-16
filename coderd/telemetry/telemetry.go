@@ -673,9 +673,13 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	return snapVersion
 }
 
-// ConvertLicense anonymizes a license.
 func ConvertLicense(license database.License) License {
+	// License is intentionally not anonymized because it's
+	// deployment-wide, and we already have an index of all issued
+	// licenses.
 	return License{
+		JWT:        license.JWT,
+		Exp:        license.Exp,
 		UploadedAt: license.UploadedAt,
 		UUID:       license.UUID,
 	}
@@ -877,15 +881,10 @@ type ProvisionerJob struct {
 	Type           database.ProvisionerJobType `json:"type"`
 }
 
-type ParameterSchema struct {
-	ID                  uuid.UUID `json:"id"`
-	JobID               uuid.UUID `json:"job_id"`
-	Name                string    `json:"name"`
-	ValidationCondition string    `json:"validation_condition"`
-}
-
 type License struct {
+	JWT        string    `json:"jwt"`
 	UploadedAt time.Time `json:"uploaded_at"`
+	Exp        time.Time `json:"exp"`
 	UUID       uuid.UUID `json:"uuid"`
 }
 

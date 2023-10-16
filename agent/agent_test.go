@@ -1066,34 +1066,43 @@ func TestAgent_Metadata(t *testing.T) {
 
 	t.Run("Once", func(t *testing.T) {
 		t.Parallel()
+
 		//nolint:dogsled
 		_, client, _, _, _ := setupAgent(t, agentsdk.Manifest{
 			Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 				{
-					Key:      "greeting",
+					Key:      "greeting1",
 					Interval: 0,
+					Script:   echoHello,
+				},
+				{
+					Key:      "greeting2",
+					Interval: 1,
 					Script:   echoHello,
 				},
 			},
 		}, 0, func(_ *agenttest.Client, opts *agent.Options) {
-			opts.ReportMetadataInterval = 100 * time.Millisecond
+			opts.ReportMetadataInterval = testutil.IntervalFast
 		})
 
-		var gotMd map[string]agentsdk.PostMetadataRequest
+		var gotMd map[string]agentsdk.Metadata
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
-			return len(gotMd) == 1
-		}, testutil.WaitShort, testutil.IntervalMedium)
+			return len(gotMd) == 2
+		}, testutil.WaitShort, testutil.IntervalFast/2)
 
-		collectedAt := gotMd["greeting"].CollectedAt
+		collectedAt1 := gotMd["greeting1"].CollectedAt
+		collectedAt2 := gotMd["greeting2"].CollectedAt
 
-		require.Never(t, func() bool {
+		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
-			if len(gotMd) != 1 {
+			if len(gotMd) != 2 {
 				panic("unexpected number of metadata")
 			}
-			return !gotMd["greeting"].CollectedAt.Equal(collectedAt)
-		}, testutil.WaitShort, testutil.IntervalMedium)
+			return !gotMd["greeting2"].CollectedAt.Equal(collectedAt2)
+		}, testutil.WaitShort, testutil.IntervalFast/2)
+
+		require.Equal(t, gotMd["greeting1"].CollectedAt, collectedAt1, "metadata should not be collected again")
 	})
 
 	t.Run("Many", func(t *testing.T) {
@@ -1112,7 +1121,7 @@ func TestAgent_Metadata(t *testing.T) {
 			opts.ReportMetadataInterval = testutil.IntervalFast
 		})
 
-		var gotMd map[string]agentsdk.PostMetadataRequest
+		var gotMd map[string]agentsdk.Metadata
 		require.Eventually(t, func() bool {
 			gotMd = client.GetMetadata()
 			return len(gotMd) == 1
@@ -1544,11 +1553,13 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 	_, err := exec.LookPath("screen")
 	hasScreen := err == nil
 
+	// Make sure UTF-8 works even with LANG set to something like C.
+	t.Setenv("LANG", "C")
+
 	for _, backendType := range backends {
 		backendType := backendType
 		t.Run(backendType, func(t *testing.T) {
 			if backendType == "Screen" {
-				t.Parallel()
 				if runtime.GOOS != "linux" {
 					t.Skipf("`screen` is not supported on %s", runtime.GOOS)
 				} else if !hasScreen {
@@ -1563,8 +1574,6 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 				err = os.Symlink(bashPath, filepath.Join(dir, "bash"))
 				require.NoError(t, err, "symlink bash into reconnecting pty PATH")
 				t.Setenv("PATH", dir)
-			} else {
-				t.Parallel()
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1656,6 +1665,17 @@ func TestAgent_ReconnectingPTY(t *testing.T) {
 			tr4 := testutil.NewTerminalReader(t, netConn4)
 			require.NoError(t, tr4.ReadUntil(ctx, matchEchoOutput), "find echo output")
 			require.ErrorIs(t, tr4.ReadUntil(ctx, nil), io.EOF)
+
+			// Ensure that UTF-8 is supported.  Avoid the terminal emulator because it
+			// does not appear to support UTF-8, just make sure the bytes that come
+			// back have the character in it.
+			netConn5, err := conn.ReconnectingPTY(ctx, uuid.New(), 80, 80, "echo ❯")
+			require.NoError(t, err)
+			defer netConn5.Close()
+
+			bytes, err := io.ReadAll(netConn5)
+			require.NoError(t, err)
+			require.Contains(t, string(bytes), "❯")
 		})
 	}
 }

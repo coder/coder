@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MockDeploymentStats } from "testHelpers/entities";
+import {
+  DeploymentHealthUnhealthy,
+  MockDeploymentStats,
+} from "testHelpers/entities";
 import { DeploymentBannerView } from "./DeploymentBannerView";
 
 const meta: Meta<typeof DeploymentBannerView> = {
@@ -13,4 +16,10 @@ const meta: Meta<typeof DeploymentBannerView> = {
 export default meta;
 type Story = StoryObj<typeof DeploymentBannerView>;
 
-export const Preview: Story = {};
+export const Example: Story = {};
+
+export const WithHealthIssues: Story = {
+  args: {
+    health: DeploymentHealthUnhealthy,
+  },
+};
