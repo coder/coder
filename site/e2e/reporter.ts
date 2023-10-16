@@ -1,3 +1,4 @@
+/* eslint-disable no-console -- Logging is sort of the whole point here */
 import * as fs from "fs";
 import type {
   FullConfig,
@@ -20,13 +21,11 @@ class CoderReporter implements Reporter {
 
   onBegin(config: FullConfig, suite: Suite) {
     this.config = config;
-    // eslint-disable-next-line no-console -- Helpful for debugging
     console.log(`==> Running ${suite.allTests().length} tests`);
   }
 
   onTestBegin(test: TestCase) {
     this.testOutput.set(test.id, []);
-    // eslint-disable-next-line no-console -- Helpful for debugging
     console.log(`==> Starting test ${test.title}`);
   }
 
@@ -53,7 +52,7 @@ class CoderReporter implements Reporter {
   }
 
   async onTestEnd(test: TestCase, result: TestResult) {
-    console.log(`==> Finished test ${test.title}: ${result.status}`); // eslint-disable-line no-console -- Helpful for debugging
+    console.log(`==> Finished test ${test.title}: ${result.status}`);
 
     if (result.status === "passed") {
       this.passedCount++;
@@ -72,24 +71,22 @@ class CoderReporter implements Reporter {
       preserve === "always" ||
       (result.status !== "passed" && preserve !== "never");
     if (logOutput) {
-      console.log("==> Output"); // eslint-disable-line no-console -- Debugging output
+      console.log("==> Output");
       const output = this.testOutput.get(test.id)!;
       for (const [target, chunk] of output) {
         target.write(`${chunk.replace(/\n$/g, "")}\n`);
       }
 
       if (result.errors.length > 0) {
-        console.log("==> Errors"); // eslint-disable-line no-console -- Debugging output
+        console.log("==> Errors");
         for (const error of result.errors) {
           reportError(error);
         }
       }
 
       if (result.attachments.length > 0) {
-        // eslint-disable-next-line no-console -- Debugging output
         console.log("==> Attachments");
         for (const attachment of result.attachments) {
-          // eslint-disable-next-line no-console -- Debugging output
           console.log(attachment);
         }
       }
@@ -100,7 +97,6 @@ class CoderReporter implements Reporter {
   }
 
   onEnd(result: FullResult) {
-    // eslint-disable-next-line no-console -- Helpful for debugging
     console.log(`==> Tests ${result.status}`);
     console.log(`${this.passedCount} passed`);
     if (this.failedTests.length > 0) {
@@ -133,7 +129,6 @@ const exportDebugPprof = async (testName: string) => {
         if (err) {
           throw new Error(`Error writing to ${outputFile}: ${err.message}`);
         } else {
-          // eslint-disable-next-line no-console -- Helpful for debugging
           console.log(`Data from ${url} has been saved to ${outputFile}`);
         }
       });
@@ -145,19 +140,15 @@ const exportDebugPprof = async (testName: string) => {
 
 const reportError = (error: TestError) => {
   if (error.location) {
-    // eslint-disable-next-line no-console -- Debugging output
     console.log(`${error.location.file}:${error.location.line}:`);
   }
   if (error.snippet) {
-    // eslint-disable-next-line no-console -- Debugging output
     console.log(error.snippet);
   }
 
   if (error.message) {
-    // eslint-disable-next-line no-console -- Debugging output
     console.log(error.message);
   } else {
-    // eslint-disable-next-line no-console -- Debugging output
     console.log(error);
   }
 };
