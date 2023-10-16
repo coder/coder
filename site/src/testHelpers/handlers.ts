@@ -71,6 +71,12 @@ export const handlers = [
       return res(ctx.status(200), ctx.json([M.MockTemplate]));
     },
   ),
+  rest.post(
+    "/api/v2/organizations/:organizationId/members/:userId/workspaces",
+    async (req, res, ctx) => {
+      return res(ctx.status(200), ctx.json(M.MockWorkspace));
+    },
+  ),
 
   // templates
   rest.get("/api/v2/templates/:templateId", async (req, res, ctx) => {
