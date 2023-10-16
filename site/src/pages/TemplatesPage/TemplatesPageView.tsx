@@ -120,6 +120,7 @@ const TemplateRow: FC<{ template: Template }> = ({ template }) => {
 
       <TableCell className={styles.actionCell}>
         <Button
+          type="button"
           size="small"
           className={styles.actionButton}
           startIcon={<ArrowForwardOutlined />}
