@@ -1,4 +1,4 @@
-import fs from "fs";
+import * as fs from "fs";
 import type {
   FullConfig,
   Suite,
@@ -8,52 +8,85 @@ import type {
   Reporter,
 } from "@playwright/test/reporter";
 import axios from "axios";
+import type { Writable } from "stream";
+
+const testOutput = new Map<string, Array<[Writable, string]>>();
 
 class CoderReporter implements Reporter {
   onBegin(config: FullConfig, suite: Suite) {
     // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Starting the run with ${suite.allTests().length} tests`);
+    console.log(`==> Running ${suite.allTests().length} tests`);
   }
 
   onTestBegin(test: TestCase) {
+    testOutput.set(test.id, []);
     // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Starting test ${test.title}`);
+    console.log(`==> Starting test ${test.title}`);
   }
 
-  onStdOut(chunk: string, test: TestCase, _: TestResult): void {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(
-      `[stdout] [${test ? test.title : "unknown"}]: ${chunk.replace(
-        /\n$/g,
-        "",
-      )}`,
-    );
+  onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
+    if (!test) {
+      // console.log(`[stdout] [unknown] ${chunk.replace(/\n$/g, "")}`);
+      return;
+    }
+    testOutput.get(test.id)!.push([process.stdout, chunk]);
   }
 
-  onStdErr(chunk: string, test: TestCase, _: TestResult): void {
-    // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(
-      `[stderr] [${test ? test.title : "unknown"}]: ${chunk.replace(
-        /\n$/g,
-        "",
-      )}`,
-    );
+  onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
+    if (!test) {
+      // console.error(`[stderr] [unknown] ${chunk.replace(/\n$/g, "")}`);
+      return;
+    }
+    testOutput.get(test.id)!.push([process.stderr, chunk]);
   }
 
   async onTestEnd(test: TestCase, result: TestResult) {
     // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Finished test ${test.title}: ${result.status}`);
+    console.log(`==> Finished test ${test.title}: ${result.status}`);
 
     if (result.status !== "passed") {
-      // eslint-disable-next-line no-console -- Helpful for debugging
-      console.log("errors", result.errors, "attachments", result.attachments);
+      // eslint-disable-next-line no-console -- Debugging output
+      console.log("==> Output");
+      const output = testOutput.get(test.id)!;
+      for (const [target, chunk] of output) {
+        target.write(`${chunk.replace(/\n$/g, "")}\n`);
+      }
+      testOutput.delete(test.id);
+
+      if (result.errors.length > 0) {
+        // eslint-disable-next-line no-console -- Debugging output
+        console.log("==> Errors");
+        for (const error of result.errors) {
+          if (error.location) {
+            console.log(`${error.location.file}:${error.location.line}:`);
+          }
+          if (error.snippet) {
+            console.log(error.snippet);
+          }
+
+          if (error.message) {
+            console.log(error.message);
+          } else {
+            console.log(error);
+          }
+        }
+      }
+
+      if (result.attachments.length > 0) {
+        // eslint-disable-next-line no-console -- Debugging output
+        console.log("==> Attachments");
+        for (const attachment of result.attachments) {
+          // eslint-disable-next-line no-console -- Debugging output
+          console.log(attachment);
+        }
+      }
     }
     await exportDebugPprof(test.title);
   }
 
   onEnd(result: FullResult) {
     // eslint-disable-next-line no-console -- Helpful for debugging
-    console.log(`Finished the run: ${result.status}`);
+    console.log(`==> Tests ${result.status}`);
   }
 }
 
