@@ -119,8 +119,3 @@ specified in your template in the `disable_params` search params list
 
 For a full example of the Open in Coder flow in Kubernetes, check out
 [this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
-
-## Devcontainer support
-
-Devcontainer support is on the roadmap.
-[Follow along here](https://github.com/coder/coder/issues/5559)
