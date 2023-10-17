@@ -2013,12 +2013,13 @@ var ExperimentsAll = Experiments{
 	ExperimentSingleTailnet,
 }
 
-// Experiments is a list of experiments that are enabled for the deployment.
+// Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
 // Experiments are not safe for production use, and are not guaranteed to
 // be backwards compatible. They may be removed or renamed at any time.
 type Experiments []Experiment
 
+// Returns a list of experiments that are enabled for the deployment.
 func (e Experiments) Enabled(ex Experiment) bool {
 	for _, v := range e {
 		if v == ex {
@@ -2038,6 +2039,25 @@ func (c *Client) Experiments(ctx context.Context) (Experiments, error) {
 		return nil, ReadBodyAsError(res)
 	}
 	var exp []Experiment
+	return exp, json.NewDecoder(res.Body).Decode(&exp)
+}
+
+// AvailableExperiments is an expandable type that returns all safe experiments
+// available to be used with a deployment.
+type AvailableExperiments struct {
+	Safe []Experiment `json:"safe"`
+}
+
+func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments/available", nil)
+	if err != nil {
+		return AvailableExperiments{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return AvailableExperiments{}, ReadBodyAsError(res)
+	}
+	var exp AvailableExperiments
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 

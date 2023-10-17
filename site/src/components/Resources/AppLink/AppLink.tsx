@@ -1,18 +1,17 @@
 import CircularProgress from "@mui/material/CircularProgress";
 import Link from "@mui/material/Link";
-import { makeStyles } from "@mui/styles";
 import Tooltip from "@mui/material/Tooltip";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import { type FC, useState } from "react";
+import { useTheme } from "@emotion/react";
+import { getApiKey } from "api/api";
+import type * as TypesGen from "api/typesGenerated";
+import { useProxy } from "contexts/ProxyContext";
 import { PrimaryAgentButton } from "components/Resources/AgentButton";
-import { FC, useState } from "react";
-import { combineClasses } from "utils/combineClasses";
-import * as TypesGen from "api/typesGenerated";
+import { createAppLinkHref } from "utils/apps";
 import { generateRandomString } from "utils/random";
 import { BaseIcon } from "./BaseIcon";
 import { ShareIcon } from "./ShareIcon";
-import { useProxy } from "contexts/ProxyContext";
-import { createAppLinkHref } from "utils/apps";
-import { getApiKey } from "api/api";
 
 const Language = {
   appTitle: (appName: string, identifier: string): string =>
@@ -31,7 +30,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   const appsHost = proxy.preferredWildcardHostname;
   const [fetchingSessionToken, setFetchingSessionToken] = useState(false);
 
-  const styles = useStyles();
+  const theme = useTheme();
   const username = workspace.owner_name;
 
   let appSlug = app.slug;
@@ -65,12 +64,18 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
   }
   if (app.health === "unhealthy") {
     canClick = false;
-    icon = <ErrorOutlineIcon className={styles.unhealthyIcon} />;
+    icon = <ErrorOutlineIcon css={{ color: theme.palette.warning.light }} />;
     primaryTooltip = "Unhealthy";
   }
   if (!appsHost && app.subdomain) {
     canClick = false;
-    icon = <ErrorOutlineIcon className={styles.notConfiguredIcon} />;
+    icon = (
+      <ErrorOutlineIcon
+        css={{
+          color: theme.palette.grey[300],
+        }}
+      />
+    );
     primaryTooltip =
       "Your admin has not configured subdomain application access";
   }
@@ -86,7 +91,13 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
       endIcon={isPrivateApp ? undefined : <ShareIcon app={app} />}
       disabled={!canClick}
     >
-      <span className={combineClasses({ [styles.appName]: !isPrivateApp })}>
+      <span
+        css={
+          !isPrivateApp && {
+            marginRight: theme.spacing(1),
+          }
+        }
+      >
         {appDisplayName}
       </span>
     </PrimaryAgentButton>
@@ -98,7 +109,10 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
         <Link
           href={href}
           target="_blank"
-          className={canClick ? styles.link : styles.disabledLink}
+          css={{
+            pointerEvents: canClick ? undefined : "none",
+            textDecoration: "none !important",
+          }}
           onClick={
             canClick
               ? async (event) => {
@@ -143,26 +157,3 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
     </Tooltip>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  link: {
-    textDecoration: "none !important",
-  },
-
-  disabledLink: {
-    pointerEvents: "none",
-    textDecoration: "none !important",
-  },
-
-  unhealthyIcon: {
-    color: theme.palette.warning.light,
-  },
-
-  notConfiguredIcon: {
-    color: theme.palette.grey[300],
-  },
-
-  appName: {
-    marginRight: theme.spacing(1),
-  },
-}));

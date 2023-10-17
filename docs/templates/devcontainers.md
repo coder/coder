@@ -2,31 +2,31 @@
 
 [Devcontainers](https://containers.dev) are an open source specification for
 defining development environments.
+
 [envbuilder](https://github.com/coder/envbuilder) is an open source project by
 Coder that runs devcontainers via Coder templates and your underlying
-infrastructure.
+infrastructure. It can run on Docker or Kubernetes.
 
 There are several benefits to adding a devcontainer-compatible template to
 Coder:
 
 - Drop-in migration from Codespaces (or any existing repositories that use
   devcontainers)
-- Easier to start projects from Coder (new workspace, pick starter devcontainer)
+- Easier to start projects from Coder. Just create a new workspace then pick a
+  starter devcontainer.
 - Developer teams can "bring their own image." No need for platform teams to
   manage complex images, registries, and CI pipelines.
 
 ## How it works
 
-- Coder admins add a devcontainer-compatible template to Coder (envbuilder can
-  run on Docker or Kubernetes)
+A Coder admin adds a devcontainer-compatible template to Coder (envbuilder).
+Then developers enter their repository URL as a [parameter](./parameters.md)
+when they create their workspace.
+[envbuilder](https://github.com/coder/envbuilder) clones the repo and builds a
+container from the `devcontainer.json` specified in the repo.
 
-- Developers enter their repository URL as a [parameter](./parameters.md) when
-  they create their workspace. [envbuilder](https://github.com/coder/envbuilder)
-  clones the repo and builds a container from the `devcontainer.json` specified
-  in the repo.
-
-- Developers can edit the `devcontainer.json` in their workspace to rebuild to
-  iterate on their development environments.
+Developers can edit the `devcontainer.json` in their workspace to rebuild to
+iterate on their development environments.
 
 ## Example templates
 
@@ -35,13 +35,13 @@ Coder:
 
 ![Devcontainer parameter screen](../images/templates/devcontainers.png)
 
-[Parameters](./parameters.md) can be used to prompt the user for a repo URL when
-they are creating a workspace.
+Your template can prompt the user for a repo URL with
+[Parameters](./parameters.md).
 
 ## Authentication
 
-You may need to authenticate to your container registry (e.g. Artifactory) or
-git provider (e.g. GitLab) to use envbuilder. Refer to the
+You may need to authenticate to your container registry, such as Artifactory, or
+git provider such as GitLab, to use envbuilder. See the
 [envbuilder documentation](https://github.com/coder/envbuilder/) for more
 information.
 
