@@ -1,6 +1,5 @@
 import { usePermissions } from "hooks/usePermissions";
 import { useOrganizationId } from "hooks/useOrganizationId";
-import { useTab } from "hooks/useTab";
 import { type FC, useMemo } from "react";
 import { Helmet } from "react-helmet-async";
 import { useParams } from "react-router-dom";
@@ -8,7 +7,7 @@ import { pageTitle } from "utils/page";
 import TemplateVersionPageView from "./TemplateVersionPageView";
 import { useQuery } from "react-query";
 import { templateVersionByName } from "api/queries/templates";
-import { getTemplateFilesWithDiff } from "utils/templateVersion";
+import { useFileTab, useTemplateFiles } from "components/TemplateFiles/hooks";
 
 type Params = {
   version: string;
@@ -22,19 +21,12 @@ export const TemplateVersionPage: FC = () => {
   const templateVersionQuery = useQuery(
     templateVersionByName(orgId, templateName, versionName),
   );
-  const filesQuery = useQuery({
-    queryKey: ["templateFiles", templateName],
-    queryFn: () => {
-      if (!templateVersionQuery.data) {
-        return;
-      }
-      return getTemplateFilesWithDiff(templateName, templateVersionQuery.data);
-    },
-    enabled: templateVersionQuery.isSuccess,
-  });
-  const tab = useTab("file", "0");
+  const { data: templateFiles, error: templateFilesError } = useTemplateFiles(
+    templateName,
+    templateVersionQuery.data,
+  );
+  const tab = useFileTab(templateFiles?.currentFiles);
   const permissions = usePermissions();
-
   const versionId = templateVersionQuery.data?.id;
   const createWorkspaceUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -52,10 +44,10 @@ export const TemplateVersionPage: FC = () => {
       </Helmet>
 
       <TemplateVersionPageView
-        error={templateVersionQuery.error || filesQuery.error}
+        error={templateVersionQuery.error || templateFilesError}
         currentVersion={templateVersionQuery.data}
-        currentFiles={filesQuery.data?.currentFiles}
-        previousFiles={filesQuery.data?.previousFiles}
+        currentFiles={{ data: templateFiles }.data?.currentFiles}
+        previousFiles={{ data: templateFiles }.data?.previousFiles}
         versionName={versionName}
         templateName={templateName}
         tab={tab}
