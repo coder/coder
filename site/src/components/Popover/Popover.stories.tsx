@@ -1,5 +1,5 @@
 import { Meta, StoryObj } from "@storybook/react";
-import { PopoverContainer } from "./PopoverContainer";
+import { PopoverContainer } from "./Popover";
 import Button from "@mui/material/Button";
 
 const meta: Meta<typeof PopoverContainer> = {
