@@ -47,7 +47,7 @@ const SidebarNavItem: FC<
         font-size: 14px;
         text-decoration: none;
         padding: ${theme.spacing(1.5, 1.5, 1.5, 2)};
-        border-radius: ${theme.shape.borderRadius / 2};
+        border-radius: ${theme.shape.borderRadius / 2}px;
         transition: background-color 0.15s ease-in-out;
         margin-bottom: 1;
         position: relative;

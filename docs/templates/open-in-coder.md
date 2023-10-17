@@ -14,7 +14,7 @@ To support any infrastructure and software stack, Coder provides a generic
 approach for "Open in Coder" flows.
 
 1. Set up
-   [Git Authentication](../admin/git-providers.md#require-git-authentication-in-templates)
+   [Git Authentication](../admin/external-auth.md#require-git-authentication-in-templates)
    in your Coder deployment
 
 1. Modify your template to auto-clone repos:

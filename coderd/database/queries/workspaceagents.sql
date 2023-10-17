@@ -108,15 +108,24 @@ VALUES
 	($1, $2, $3, $4, $5, $6);
 
 -- name: UpdateWorkspaceAgentMetadata :exec
+WITH metadata AS (
+	SELECT
+		unnest(sqlc.arg('key')::text[]) AS key,
+		unnest(sqlc.arg('value')::text[]) AS value,
+		unnest(sqlc.arg('error')::text[]) AS error,
+		unnest(sqlc.arg('collected_at')::timestamptz[]) AS collected_at
+)
 UPDATE
-	workspace_agent_metadata
+	workspace_agent_metadata wam
 SET
-	value = $3,
-	error = $4,
-	collected_at = $5
+	value = m.value,
+	error = m.error,
+	collected_at = m.collected_at
+FROM
+	metadata m
 WHERE
-	workspace_agent_id = $1
-	AND key = $2;
+	wam.workspace_agent_id = $1
+	AND wam.key = m.key;
 
 -- name: GetWorkspaceAgentMetadata :many
 SELECT
@@ -124,7 +133,8 @@ SELECT
 FROM
 	workspace_agent_metadata
 WHERE
-	workspace_agent_id = $1;
+	workspace_agent_id = $1
+	AND CASE WHEN COALESCE(array_length(sqlc.arg('keys')::text[], 1), 0) > 0 THEN key = ANY(sqlc.arg('keys')::text[]) ELSE TRUE END;
 
 -- name: UpdateWorkspaceAgentLogOverflowByID :exec
 UPDATE

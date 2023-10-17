@@ -1,8 +1,8 @@
 import Button from "@mui/material/Button";
-import { makeStyles, useTheme } from "@mui/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
+import { useTheme } from "@emotion/react";
 import { PageButton } from "./PageButton";
 import { buildPagedList } from "./utils";
 
@@ -21,7 +21,6 @@ export const PaginationWidgetBase = ({
 }: PaginationWidgetBaseProps): JSX.Element | null => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const styles = useStyles();
   const numPages = Math.ceil(count / limit);
   const isFirstPage = page === 0;
   const isLastPage = page === numPages - 1;
@@ -31,9 +30,19 @@ export const PaginationWidgetBase = ({
   }
 
   return (
-    <div className={styles.defaultContainerStyles}>
+    <div
+      css={{
+        justifyContent: "center",
+        alignItems: "center",
+        display: "flex",
+        flexDirection: "row",
+        padding: "20px",
+      }}
+    >
       <Button
-        className={styles.prevLabelStyles}
+        css={{
+          marginRight: theme.spacing(0.5),
+        }}
         aria-label="Previous page"
         disabled={isFirstPage}
         onClick={() => {
@@ -84,17 +93,3 @@ export const PaginationWidgetBase = ({
     </div>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  defaultContainerStyles: {
-    justifyContent: "center",
-    alignItems: "center",
-    display: "flex",
-    flexDirection: "row",
-    padding: "20px",
-  },
-
-  prevLabelStyles: {
-    marginRight: theme.spacing(0.5),
-  },
-}));

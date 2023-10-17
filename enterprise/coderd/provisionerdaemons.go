@@ -243,6 +243,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	logger := api.Logger.Named(fmt.Sprintf("ext-provisionerd-%s", name))
 	logger.Info(ctx, "starting external provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
+		api.ctx,
 		api.AccessURL,
 		uuid.New(),
 		logger,

@@ -17,6 +17,7 @@ export const newTemplate = (formData: CreateTemplateData) => {
     max_ttl_hours,
     parameter_values_by_name,
     allow_everyone_group_access,
+    autostart_requirement_days_of_week,
     autostop_requirement_days_of_week,
     autostop_requirement_weeks,
     ...safeTemplateData
@@ -32,6 +33,9 @@ export const newTemplate = (formData: CreateTemplateData) => {
         formData.autostop_requirement_days_of_week,
       ),
       weeks: formData.autostop_requirement_weeks,
+    },
+    autostart_requirement: {
+      days_of_week: autostart_requirement_days_of_week,
     },
   };
 };

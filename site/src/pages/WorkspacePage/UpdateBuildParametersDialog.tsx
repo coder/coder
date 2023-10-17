@@ -1,25 +1,26 @@
-import { makeStyles } from "@mui/styles";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
-import { DialogProps } from "components/Dialogs/Dialog";
-import { FC } from "react";
+import DialogActions from "@mui/material/DialogActions";
+import Button from "@mui/material/Button";
+import { useFormik } from "formik";
+import * as Yup from "yup";
+import { type FC } from "react";
+import { css } from "@emotion/css";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import { getFormHelpers } from "utils/formUtils";
+import type { DialogProps } from "components/Dialogs/Dialog";
 import { FormFields, VerticalForm } from "components/Form/Form";
-import {
+import type {
   TemplateVersionParameter,
   WorkspaceBuildParameter,
 } from "api/typesGenerated";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
-import { useFormik } from "formik";
 import {
   getInitialRichParameterValues,
   useValidationSchemaForRichParameters,
 } from "utils/richParameters";
-import * as Yup from "yup";
-import DialogActions from "@mui/material/DialogActions";
-import Button from "@mui/material/Button";
 
 export type UpdateBuildParametersDialogProps = DialogProps & {
   onClose: () => void;
@@ -30,7 +31,7 @@ export type UpdateBuildParametersDialogProps = DialogProps & {
 export const UpdateBuildParametersDialog: FC<
   UpdateBuildParametersDialogProps
 > = ({ missedParameters, onUpdate, ...dialogProps }) => {
-  const styles = useStyles();
+  const theme = useTheme();
   const form = useFormik({
     initialValues: {
       rich_parameter_values: getInitialRichParameterValues(missedParameters),
@@ -56,17 +57,26 @@ export const UpdateBuildParametersDialog: FC<
     >
       <DialogTitle
         id="update-build-parameters-title"
-        classes={{ root: styles.title }}
+        classes={{
+          root: css`
+            padding: ${theme.spacing(3, 5)};
+
+            & h2 {
+              font-size: ${theme.spacing(2.5)};
+              font-weight: 400;
+            }
+          `,
+        }}
       >
         Workspace parameters
       </DialogTitle>
-      <DialogContent className={styles.content}>
-        <DialogContentText className={styles.info}>
+      <DialogContent css={styles.content}>
+        <DialogContentText css={{ margin: 0 }}>
           This template has new parameters that must be configured to complete
           the update
         </DialogContentText>
         <VerticalForm
-          className={styles.form}
+          css={styles.form}
           onSubmit={form.handleSubmit}
           id="updateParameters"
         >
@@ -96,7 +106,7 @@ export const UpdateBuildParametersDialog: FC<
           )}
         </VerticalForm>
       </DialogContent>
-      <DialogActions disableSpacing className={styles.dialogActions}>
+      <DialogActions disableSpacing css={styles.dialogActions}>
         <Button fullWidth type="button" onClick={dialogProps.onClose}>
           Cancel
         </Button>
@@ -114,48 +124,18 @@ export const UpdateBuildParametersDialog: FC<
   );
 };
 
-const useStyles = makeStyles((theme) => ({
-  title: {
-    padding: theme.spacing(3, 5),
-
-    "& h2": {
-      fontSize: theme.spacing(2.5),
-      fontWeight: 400,
-    },
-  },
-
-  content: {
+const styles = {
+  content: (theme) => ({
     padding: theme.spacing(0, 5, 0, 5),
-  },
+  }),
 
-  info: {
-    margin: 0,
-  },
-
-  form: {
+  form: (theme) => ({
     paddingTop: theme.spacing(4),
-  },
+  }),
 
-  infoTitle: {
-    fontSize: theme.spacing(2),
-    fontWeight: 600,
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(1),
-  },
-
-  warningIcon: {
-    color: theme.palette.warning.light,
-    fontSize: theme.spacing(1.5),
-  },
-
-  formFooter: {
-    flexDirection: "column",
-  },
-
-  dialogActions: {
+  dialogActions: (theme) => ({
     padding: theme.spacing(5),
     flexDirection: "column",
     gap: theme.spacing(1),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

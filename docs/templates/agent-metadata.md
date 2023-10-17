@@ -123,19 +123,23 @@ usr sys idl wai stl| read  writ| recv  send|  in   out | int   csw
 
 Agent metadata can generate a significant write load and overwhelm your database
 if you're not careful. The approximate writes per second can be calculated using
-the formula:
+the following formula (applied once for each unique metadata interval):
 
 ```text
-(metadata_count * num_running_agents * 2) / metadata_avg_interval
+num_running_agents * write_multiplier / metadata_interval
 ```
 
-For example, let's say you have
+For example, let's say you have:
 
 - 10 running agents
-- each with 6 metadata snippets
-- with an average interval of 4 seconds
+- each with 4 metadata snippets
+- where two have an interval of 4 seconds, and the other two 6 seconds
 
-You can expect `(10 * 6 * 2) / 4` or 30 writes per second.
+You can expect at most `(10 * 2 / 4) + (10 * 2 / 6)` or ~8 writes per second.
+The actual writes per second may be a bit lower due to batching of metadata.
+Adding more metadata with the same interval will not increase writes per second,
+but it may still increase database load slightly.
 
-One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the
-other to the `NOTIFY` query that enables live stats streaming in the UI.
+We use a `write_multiplier` of `2` because each metadata write generates two
+writes. One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table
+and the other to the `NOTIFY` query that enables live stats streaming in the UI.

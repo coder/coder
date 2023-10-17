@@ -159,9 +159,7 @@ export const HelpTooltip: FC<PropsWithChildren<HelpTooltipProps>> = ({
   );
 };
 
-export const HelpTooltipTitle: FC<PropsWithChildren<unknown>> = ({
-  children,
-}) => {
+export const HelpTooltipTitle: FC<PropsWithChildren> = ({ children }) => {
   return <h4 css={styles.title}>{children}</h4>;
 };
 
@@ -242,7 +240,7 @@ const styles = {
     marginBottom: theme.spacing(1),
     color: theme.palette.text.primary,
     fontSize: 14,
-    lineHeight: "120%",
+    lineHeight: "150%",
     fontWeight: 600,
   }),
 

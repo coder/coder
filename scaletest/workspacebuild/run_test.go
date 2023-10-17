@@ -180,7 +180,8 @@ func Test_Runner(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaces[0].LatestBuild.ID)
 		coderdtest.AwaitWorkspaceAgents(t, client, workspaces[0].ID)
 
-		err = runner.Cleanup(ctx, "1")
+		cleanupLogs := bytes.NewBuffer(nil)
+		err = runner.Cleanup(ctx, "1", cleanupLogs)
 		require.NoError(t, err)
 	})
 

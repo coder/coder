@@ -208,6 +208,7 @@ export interface CreateTemplateRequest {
   readonly default_ttl_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
+  readonly autostart_requirement?: TemplateAutostartRequirement;
   readonly allow_user_cancel_workspace_jobs?: boolean;
   readonly allow_user_autostart?: boolean;
   readonly allow_user_autostop?: boolean;
@@ -901,6 +902,7 @@ export interface Template {
   readonly default_ttl_ms: number;
   readonly max_ttl_ms: number;
   readonly autostop_requirement: TemplateAutostopRequirement;
+  readonly autostart_requirement: TemplateAutostartRequirement;
   readonly created_by_id: string;
   readonly created_by_name: string;
   readonly allow_user_autostart: boolean;
@@ -925,6 +927,11 @@ export interface TemplateAppUsage {
   readonly slug: string;
   readonly icon: string;
   readonly seconds: number;
+}
+
+// From codersdk/templates.go
+export interface TemplateAutostartRequirement {
+  readonly days_of_week: string[];
 }
 
 // From codersdk/templates.go
@@ -1145,6 +1152,7 @@ export interface UpdateTemplateMeta {
   readonly default_ttl_ms?: number;
   readonly max_ttl_ms?: number;
   readonly autostop_requirement?: TemplateAutostopRequirement;
+  readonly autostart_requirement?: TemplateAutostartRequirement;
   readonly allow_user_autostart?: boolean;
   readonly allow_user_autostop?: boolean;
   readonly allow_user_cancel_workspace_jobs?: boolean;

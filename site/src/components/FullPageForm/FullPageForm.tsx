@@ -1,11 +1,11 @@
 import { Margins } from "components/Margins/Margins";
-import { FC, ReactNode } from "react";
+import { type FC, type ReactNode } from "react";
 import {
   PageHeader,
   PageHeaderTitle,
   PageHeaderSubtitle,
 } from "components/PageHeader/PageHeader";
-import { makeStyles } from "@mui/styles";
+import { useTheme } from "@emotion/react";
 
 export interface FullPageFormProps {
   title: string;
@@ -17,11 +17,11 @@ export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
   detail,
   children,
 }) => {
-  const styles = useStyles();
+  const theme = useTheme();
 
   return (
     <Margins size="small">
-      <PageHeader className={styles.pageHeader}>
+      <PageHeader css={{ paddingBottom: theme.spacing(3) }}>
         <PageHeaderTitle>{title}</PageHeaderTitle>
         {detail && <PageHeaderSubtitle>{detail}</PageHeaderSubtitle>}
       </PageHeader>
@@ -30,9 +30,3 @@ export const FullPageForm: FC<React.PropsWithChildren<FullPageFormProps>> = ({
     </Margins>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  pageHeader: {
-    paddingBottom: theme.spacing(3),
-  },
-}));
