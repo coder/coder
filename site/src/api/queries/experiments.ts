@@ -1,11 +1,21 @@
 import * as API from "api/api";
-import { Experiments } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
+import { type Experiments } from "api/typesGenerated";
+import { QueryClient, type UseQueryOptions } from "react-query";
 
-export const experiments = () => {
+const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
+const experimentsKey = ["experiments"] as const;
+
+export const experiments = (queryClient: QueryClient) => {
   return {
-    queryKey: ["experiments"],
-    queryFn: async () =>
-      getMetadataAsJSON<Experiments>("experiments") ?? API.getExperiments(),
-  };
+    queryKey: experimentsKey,
+    queryFn: async () => {
+      const cachedData = queryClient.getQueryData(experimentsKey);
+      if (cachedData === undefined && initialExperimentsData !== undefined) {
+        return initialExperimentsData;
+      }
+
+      return API.getExperiments();
+    },
+  } satisfies UseQueryOptions<Experiments>;
 };
