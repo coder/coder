@@ -60,7 +60,6 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   const listStyles = css`
     margin: 0,
     padding: 0,
-    listStylePosition: "inside",
     display: "flex",
     flexDirection: "column",
     gap: theme.spacing(0.5),
@@ -84,18 +83,26 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (typeof children === "object" && !Array.isArray(children)) {
     return (
-      <ul css={listStyles}>
+      <ul css={listStyles && { listStyle: "none" }}>
         {Object.entries(children)
           .sort((a, b) => a[0].localeCompare(b[0]))
           .map(([option, isEnabled]) => (
-            <li key={option} css={optionStyles}>
+            <li
+              key={option}
+              css={
+                optionStyles &&
+                !isEnabled && {
+                  marginLeft: "32px",
+                  color: theme.palette.text.disabled,
+                }
+              }
+            >
               <Box
                 sx={{
                   display: "inline-flex",
                   alignItems: "center",
                 }}
               >
-                {option}
                 {isEnabled && (
                   <CheckCircleOutlined
                     sx={{
@@ -106,6 +113,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
                     }}
                   />
                 )}
+                {option}
               </Box>
             </li>
           ))}
@@ -115,7 +123,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
 
   if (Array.isArray(children)) {
     return (
-      <ul css={listStyles}>
+      <ul css={listStyles && { listStylePosition: "inside" }}>
         {children.map((item) => (
           <li key={item} css={optionStyles}>
             {item}

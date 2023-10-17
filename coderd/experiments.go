@@ -26,7 +26,7 @@ func (api *API) handleExperimentsGet(rw http.ResponseWriter, r *http.Request) {
 // @Tags General
 // @Success 200 {array} codersdk.Experiment
 // @Router /experiments/available [get]
-func (api *API) handleExperimentsSafe(rw http.ResponseWriter, r *http.Request) {
+func handleExperimentsSafe(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AvailableExperiments{
 		Safe: codersdk.ExperimentsAll,
