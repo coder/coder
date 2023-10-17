@@ -315,12 +315,4 @@ const styles = {
   suspended: (theme) => ({
     color: theme.palette.text.secondary,
   }),
-  rolePill: (theme) => ({
-    backgroundColor: theme.palette.background.paperLight,
-    borderColor: theme.palette.divider,
-  }),
-  rolePillOwner: (theme) => ({
-    backgroundColor: theme.palette.info.dark,
-    borderColor: theme.palette.info.light,
-  }),
 } satisfies Record<string, Interpolation<Theme>>;
