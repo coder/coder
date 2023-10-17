@@ -11,6 +11,7 @@ import TableRow from "@mui/material/TableRow";
 import { Stack } from "components/Stack/Stack";
 import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
+import { GroupsHelpTooltip } from "./GroupsHelpTooltip";
 
 export const Language = {
   usernameLabel: "User",
@@ -79,7 +80,13 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
               </Stack>
             </TableCell>
 
-            <TableCell width="14%">{Language.groupsLabel}</TableCell>
+            <TableCell width="14%">
+              <Stack direction="row" spacing={1} alignItems="center">
+                <span>{Language.groupsLabel}</span>
+                <GroupsHelpTooltip />
+              </Stack>
+            </TableCell>
+
             <TableCell width="14%">{Language.loginTypeLabel}</TableCell>
             <TableCell width="14%">{Language.statusLabel}</TableCell>
 
