@@ -203,7 +203,7 @@ Before using Podman, please review the following documentation:
    [smart-device-manager](https://gitlab.com/arm-research/smarter/smarter-device-manager#enabling-access)
    to securely expose a FUSE devices to pods.
 
-   ```sh
+   ```shell
    cat <<EOF | kubectl create -f -
    apiVersion: apps/v1
    kind: DaemonSet
@@ -241,7 +241,7 @@ Before using Podman, please review the following documentation:
 
 2. Be sure to label your nodes to enable smarter-device-manager:
 
-   ```sh
+   ```shell
    kubectl get nodes
    kubectl label nodes --all smarter-device-manager=enabled
    ```
@@ -257,7 +257,7 @@ Before using Podman, please review the following documentation:
    [kubernetes-with-podman](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-with-podman)
    example template, or make your own.
 
-   ```sh
+   ```shell
    echo "kubernetes-with-podman" | coder templates init
    cd ./kubernetes-with-podman
    coder templates create
