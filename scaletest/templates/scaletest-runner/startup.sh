@@ -47,7 +47,11 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 	trap 'trap - EXIT; kill -INT "${pids[@]}"; exit 1' INT EXIT
 
 	while :; do
-		sleep 285 # ~300 when accounting for profile and trace.
+		# Sleep for short periods of time so that we can exit quickly.
+		# This adds up to ~300 when accounting for profile and trace.
+		for ((i = 0; i < 285; i++)); do
+			sleep 1
+		done
 		log "Grabbing pprof dumps"
 		start="$(date +%s)"
 		annotate_grafana "pprof" "Grab pprof dumps (start=${start})"
@@ -132,6 +136,7 @@ on_exit() {
 
 	annotate_grafana_end "" "Start scaletest: ${SCALETEST_COMMENT}"
 
+	wait "${pprof_pid}"
 	exit "${code}"
 }
 trap on_exit EXIT
