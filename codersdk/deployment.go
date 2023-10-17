@@ -2048,16 +2048,16 @@ type AvailableExperiments struct {
 	Safe []Experiment `json:"safe"`
 }
 
-func (c *Client) SafeExperiments(ctx context.Context) (Experiments, error) {
+func (c *Client) SafeExperiments(ctx context.Context) (AvailableExperiments, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/experiments/available", nil)
 	if err != nil {
-		return nil, err
+		return AvailableExperiments{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return AvailableExperiments{}, ReadBodyAsError(res)
 	}
-	var exp []Experiment
+	var exp AvailableExperiments
 	return exp, json.NewDecoder(res.Body).Decode(&exp)
 }
 
