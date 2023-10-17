@@ -74,13 +74,13 @@ gather_logs() {
 	annotate_grafana "logs" "Gather logs"
 	podsraw="$(
 		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder -o name
-		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name
-		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-"
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name || true
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-" || true
 	)"
 	mapfile -t pods <<<"${podsraw}"
 	for pod in "${pods[@]}"; do
 		pod_name="${pod#pod/}"
-		kubectl -n coder-big logs "${pod}" --since="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
+		kubectl -n coder-big logs "${pod}" --since-time="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
 	done
 	annotate_grafana_end "logs" "Gather logs"
 }
