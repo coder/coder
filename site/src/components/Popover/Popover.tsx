@@ -82,7 +82,7 @@ export const PopoverContent = (
       css={(theme) => ({
         marginTop: theme.spacing(1),
         "& .MuiPaper-root": {
-          width: theme.spacing(40),
+          minWidth: theme.spacing(40),
           fontSize: 14,
         },
       })}
@@ -108,4 +108,11 @@ const horizontalProps = (horizontal: Horizontal) => {
       },
     } as const;
   }
+
+  return {
+    anchorOrigin: {
+      vertical: "bottom",
+      horizontal: "left",
+    },
+  } as const;
 };
