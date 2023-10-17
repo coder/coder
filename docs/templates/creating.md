@@ -1,6 +1,6 @@
 # Working with templates
 
-You create and edit Coder templates as [Terraform](./concepts.md) configuration
+You create and edit Coder templates as [Terraform](./tour.md) configuration
 files (`.tf`) and any supporting files, like a README or configuration files for
 other services.
 

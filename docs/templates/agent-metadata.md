@@ -3,7 +3,7 @@
 ![agent-metadata](../images/agent-metadata.png)
 
 You can show live operational metrics to workspace users with agent metadata. It
-is the dynamic complement of [Resource Metadata](./resource-metadata.md).
+is the dynamic complement of [resource metadata](./resource-metadata.md).
 
 You specify agent metadata in the
 [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).

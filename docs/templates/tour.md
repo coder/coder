@@ -276,7 +276,7 @@ so that a developer can continue their work when they start the workspace again.
 
 We do this in 2 parts:
 
-- Our `docker_volume` resource uses the `lifecycle` block with
+- Our `docker_volume` resource uses the `lifecycle` block with the
   `ignore_changes = all` argument to prevent accidental deletions.
 - To prevent Terraform from destroying persistent Docker volumes in case of a
   workspace name change, we use an immutable parameter, like
@@ -406,7 +406,7 @@ The template-tour template has been created! Developers can provision a workspac
    coder create --template="template-tour" [workspace name]
 ```
 
-In your web browser, log in to your Coder dashboard, select **\*Templates**.
+In your web browser, log in to your Coder dashboard, select **Templates**.
 Your template is ready to use for new workspaces.
 
 ![Your new template, ready to use](../images/templates/template-tour.png)

@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -373,7 +375,7 @@
           "icon_path": "./images/icons/scale.svg"
         },
         {
-          "title": "Provisioners",
+          "title": "External Provisioners",
           "description": "Run provisioners isolated from the Coder server",
           "path": "./admin/provisioners.md",
           "icon_path": "./images/icons/queue.svg",

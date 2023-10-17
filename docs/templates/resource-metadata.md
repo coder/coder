@@ -105,26 +105,6 @@ icons:
 We also have other icons related to the IDEs. You can see more information on
 how to use the builtin icons [here](./icons.md).
 
-## Agent Metadata
-
-In cases where you want to present automatically updating, dynamic values. You
-can use the `metadata` block in the `coder_agent` resource. For example:
-
-```hcl
-resource "coder_agent" "dev" {
-  os   = "linux"
-  arch = "amd64"
-  dir  = "/workspace"
-  metadata {
-    name = "Process Count"
-    script = "ps aux | wc -l"
-    interval = 1
-    timeout = 3
-  }
-}
-```
-
-Read more [here](./agent-metadata.md).
 
 ## Up next
 
