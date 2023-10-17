@@ -1,11 +1,21 @@
+import { QueryClient, type UseQueryOptions } from "react-query";
+import { type BuildInfoResponse } from "api/typesGenerated";
 import * as API from "api/api";
-import { BuildInfoResponse } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
 
-export const buildInfo = () => {
+const initialBuildInfoData = getMetadataAsJSON<BuildInfoResponse>("build-info");
+const buildInfoKey = ["buildInfo"] as const;
+
+export const buildInfo = (queryClient: QueryClient) => {
   return {
-    queryKey: ["buildInfo"],
-    queryFn: async () =>
-      getMetadataAsJSON<BuildInfoResponse>("build-info") ?? API.getBuildInfo(),
-  };
+    queryKey: buildInfoKey,
+    queryFn: async () => {
+      const cachedData = queryClient.getQueryData(buildInfoKey);
+      if (cachedData === undefined && initialBuildInfoData !== undefined) {
+        return initialBuildInfoData;
+      }
+
+      return API.getBuildInfo();
+    },
+  } satisfies UseQueryOptions<BuildInfoResponse>;
 };

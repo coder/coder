@@ -89,12 +89,21 @@ export const authMethods = () => {
   };
 };
 
-export const me = () => {
+const initialMeData = getMetadataAsJSON<User>("user");
+const meKey = ["me"] as const;
+
+export const me = (queryClient: QueryClient) => {
   return {
-    queryKey: ["me"],
-    queryFn: async () =>
-      getMetadataAsJSON<User>("user") ?? API.getAuthenticatedUser(),
-  };
+    queryKey: meKey,
+    queryFn: async () => {
+      const cachedData = queryClient.getQueryData(meKey);
+      if (cachedData === undefined && initialMeData !== undefined) {
+        return initialMeData;
+      }
+
+      return API.getAuthenticatedUser();
+    },
+  } satisfies QueryOptions<User>;
 };
 
 export const hasFirstUser = () => {
