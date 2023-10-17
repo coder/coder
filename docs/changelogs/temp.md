@@ -1,0 +1,29 @@
+## Changelog
+
+### Important Features
+
+- Expose user seat limits in Prometheus metrics (#10169) (@mtojek)
+- Template admins can pick which days can be used for autostart (#10226, #10263) (@Emyrk)
+- Add ExtraTemplates in provisioners Helm chart (#10256) (@johnstcn)
+- Limit workspace filtering to `Running`, `Stopped`, `Failed`, `Pending` states (#10283) (@BrunoQuaresma)
+
+### Documentation
+
+- **Docs**: [Icons Documentation](https://coder.com/docs/v2/latest/templates/icons)
+
+### Important Bug Fixes
+
+- Fixes an issue with web terminal rendering by using UTF-8 (#10190) (@code-asher)
+- Display template names even if no display name is set (#10233) (@Parkreiner)
+
+### Container Image
+
+- `docker pull ghcr.io/coder/coder:v2.3.1`
+
+### Install/Upgrade
+
+- **Docs**: [Install](https://coder.com/docs/v2/latest/install) | [Upgrade](https://coder.com/docs/v2/latest/admin/upgrade)
+
+---
+
+**Compare**: [`v2.3.0...v2.3.1`](https://github.com/coder/coder/compare/v2.3.0...v2.3.1)
