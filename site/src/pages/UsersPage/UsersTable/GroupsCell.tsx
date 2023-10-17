@@ -24,9 +24,10 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
           onPointerLeave={() => setIsHovering(false)}
           css={{
             border: "none",
+            fontWeight: 400,
             textAlign: "left",
             padding: 0,
-            lineHeight: "1.4",
+            lineHeight: theme.typography.body2.lineHeight,
             "&:hover": {
               border: "none",
               backgroundColor: "transparent",
@@ -34,7 +35,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
           }}
         >
           <Stack spacing={0}>
-            <span>
+            <span css={{ fontSize: "1rem" }}>
               {userGroups.length} Group{userGroups.length !== 1 && "s"}
             </span>
 
