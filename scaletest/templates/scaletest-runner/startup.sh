@@ -131,6 +131,8 @@ on_exit() {
 	set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
 	annotate_grafana_end "" "Start scaletest: ${SCALETEST_COMMENT}"
+
+	exit "${code}"
 }
 trap on_exit EXIT
 
