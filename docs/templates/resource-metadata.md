@@ -102,8 +102,8 @@ icons:
 - Widgets `/icon/widgets.svg`
 - Database `/icon/database.svg`
 
-We also have other icons related to the IDEs. You can see all the icons
-[here](./icons.md).
+We also have other icons related to the IDEs. You can see more information on
+how to use the builtin icons [here](./icons.md).
 
 ## Agent Metadata
 
