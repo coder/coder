@@ -535,7 +535,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/stats \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get experiments
+## Get enabled experiments
 
 ### Code samples
 
@@ -562,7 +562,44 @@ curl -X GET http://coder-server:8080/api/v2/experiments \
 | ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Experiment](schemas.md#codersdkexperiment) |
 
-<h3 id="get-experiments-responseschema">Response Schema</h3>
+<h3 id="get-enabled-experiments-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type  | Required | Restrictions | Description |
+| -------------- | ----- | -------- | ------------ | ----------- |
+| `[array item]` | array | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get safe experiments
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/experiments/available \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /experiments/available`
+
+### Example responses
+
+> 200 Response
+
+```json
+["moons"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                        |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Experiment](schemas.md#codersdkexperiment) |
+
+<h3 id="get-safe-experiments-responseschema">Response Schema</h3>
 
 Status Code **200**
 

@@ -19,3 +19,10 @@ export const experiments = (queryClient: QueryClient) => {
     },
   } satisfies UseQueryOptions<Experiments>;
 };
+
+export const availableExperiments = () => {
+  return {
+    queryKey: ["availableExperiments"],
+    queryFn: async () => API.getAvailableExperiments(),
+  };
+};
