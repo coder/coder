@@ -1,5 +1,7 @@
 {
-  "versions": ["main"],
+  "versions": [
+    "main"
+  ],
   "routes": [
     {
       "title": "About",
@@ -232,11 +234,6 @@
           "title": "Troubleshooting templates",
           "description": "Fix common template problems",
           "path": "./templates/troubleshooting.md"
-        },
-        {
-          "title": "Terraform Modules",
-          "description": "Reuse code across Coder templates",
-          "path": "./templates/modules.md"
         },
         {
           "title": "Process Logging",
