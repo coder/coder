@@ -158,3 +158,4 @@ Learn more about
   [here](https://jfrog.com/help/r/jfrog-artifactory-documentation/terraform-registry).
 - Configuring the JFrog toolchain inside a workspace
   [here](../platforms/jfrog.md).
+- Coder Module Registry [here](https://registry.coder.com/modules)
