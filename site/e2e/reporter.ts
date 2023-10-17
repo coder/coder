@@ -31,10 +31,7 @@ class CoderReporter implements Reporter {
 
   onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
     if (!test) {
-      const preserve = this.config?.preserveOutput === "always";
-      if (preserve) {
-        console.log(`[stdout] ${chunk.replace(/\n$/g, "")}`);
-      }
+      console.log(`[stdout] ${chunk.replace(/\n$/g, "")}`);
       return;
     }
     this.testOutput.get(test.id)!.push([process.stdout, chunk]);
@@ -42,10 +39,7 @@ class CoderReporter implements Reporter {
 
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
     if (!test) {
-      const preserve = this.config?.preserveOutput === "always";
-      if (preserve) {
-        console.error(`[stderr] ${chunk.replace(/\n$/g, "")}`);
-      }
+      console.error(`[stderr] ${chunk.replace(/\n$/g, "")}`);
       return;
     }
     this.testOutput.get(test.id)!.push([process.stderr, chunk]);
@@ -66,14 +60,11 @@ class CoderReporter implements Reporter {
       this.timedOutTests.push(test);
     }
 
-    const outputFile = `test-results/debug-pprof-goroutine-${test.title}.txt`;
+    const fsTestTitle = test.title.replaceAll(" ", "-");
+    const outputFile = `test-results/debug-pprof-goroutine-${fsTestTitle}.txt`;
     await exportDebugPprof(outputFile);
 
-    const preserve = this.config?.preserveOutput;
-    const logOutput =
-      preserve === "always" ||
-      (result.status !== "passed" && preserve !== "never");
-    if (logOutput) {
+    if (result.status !== "passed") {
       console.log(`Data from pprof has been saved to ${outputFile}`);
       console.log("==> Output");
       const output = this.testOutput.get(test.id)!;

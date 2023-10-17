@@ -6,7 +6,7 @@ export const port = process.env.CODER_E2E_PORT
   ? Number(process.env.CODER_E2E_PORT)
   : defaultPort;
 
-const coderMain = path.join(__dirname, "../../enterprise/cmd/coder/main.go");
+const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
 export const STORAGE_STATE = path.join(__dirname, ".auth.json");
 
@@ -15,7 +15,6 @@ const localURL = (port: number, path: string): string => {
 };
 
 export default defineConfig({
-  preserveOutput: "failures-only",
   projects: [
     {
       name: "setup",
