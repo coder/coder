@@ -1,32 +1,30 @@
-import Box, { BoxProps } from "@mui/material/Box";
-import { makeStyles, useTheme } from "@mui/styles";
+import Box, { type BoxProps } from "@mui/material/Box";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
+import Skeleton from "@mui/material/Skeleton";
+import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import { type FC } from "react";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import type * as TypesGen from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { Pill } from "components/Pill/Pill";
-import { type FC } from "react";
-import * as TypesGen from "api/typesGenerated";
-import { combineClasses } from "utils/combineClasses";
 import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
   TableLoaderSkeleton,
   TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { TableRowMenu } from "components/TableRowMenu/TableRowMenu";
-import { EditRolesButton } from "./EditRolesButton";
 import { Stack } from "components/Stack/Stack";
 import { EnterpriseBadge } from "components/DeploySettingsLayout/Badges";
-import dayjs from "dayjs";
-import { SxProps, Theme } from "@mui/material/styles";
+import { EditRolesButton } from "./EditRolesButton";
 import HideSourceOutlined from "@mui/icons-material/HideSourceOutlined";
 import KeyOutlined from "@mui/icons-material/KeyOutlined";
 import GitHub from "@mui/icons-material/GitHub";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
-import relativeTime from "dayjs/plugin/relativeTime";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
-import Skeleton from "@mui/material/Skeleton";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 
 dayjs.extend(relativeTime);
 
@@ -89,8 +87,6 @@ export const UsersTableBody: FC<
   actorID,
   oidcRoleSyncEnabled,
 }) => {
-  const styles = useStyles();
-
   return (
     <ChooseOne>
       <Cond condition={Boolean(isLoading)}>
@@ -185,10 +181,10 @@ export const UsersTableBody: FC<
                         <Pill
                           key={role.name}
                           text={role.display_name}
-                          className={combineClasses({
-                            [styles.rolePill]: true,
-                            [styles.rolePillOwner]: isOwnerRole(role),
-                          })}
+                          css={[
+                            styles.rolePill,
+                            isOwnerRole(role) && styles.rolePillOwner,
+                          ]}
                         />
                       ))}
                     </Stack>
@@ -200,12 +196,10 @@ export const UsersTableBody: FC<
                     />
                   </TableCell>
                   <TableCell
-                    className={combineClasses([
+                    css={[
                       styles.status,
-                      user.status === "suspended"
-                        ? styles.suspended
-                        : undefined,
-                    ])}
+                      user.status === "suspended" && styles.suspended,
+                    ]}
                   >
                     <Box>{user.status}</Box>
                     <LastSeen value={user.last_seen_at} sx={{ fontSize: 12 }} />
@@ -273,9 +267,9 @@ const LoginType = ({
   authMethods: TypesGen.AuthMethods;
   value: TypesGen.LoginType;
 }) => {
-  let displayName = value as string;
+  let displayName: string = value;
   let icon = <></>;
-  const iconStyles: SxProps = { width: 14, height: 14 };
+  const iconStyles = { width: 14, height: 14 };
 
   if (value === "password") {
     displayName = "Password";
@@ -314,7 +308,7 @@ const LoginType = ({
 };
 
 const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
-  const theme: Theme = useTheme();
+  const theme = useTheme();
   const t = dayjs(value);
   const now = dayjs();
 
@@ -348,19 +342,19 @@ const LastSeen = ({ value, ...boxProps }: { value: string } & BoxProps) => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   status: {
     textTransform: "capitalize",
   },
-  suspended: {
+  suspended: (theme) => ({
     color: theme.palette.text.secondary,
-  },
-  rolePill: {
+  }),
+  rolePill: (theme) => ({
     backgroundColor: theme.palette.background.paperLight,
     borderColor: theme.palette.divider,
-  },
-  rolePillOwner: {
+  }),
+  rolePillOwner: (theme) => ({
     backgroundColor: theme.palette.info.dark,
     borderColor: theme.palette.info.light,
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

@@ -1,16 +1,39 @@
-import { makeStyles } from "@mui/styles";
-import { FC, PropsWithChildren } from "react";
-import { combineClasses } from "utils/combineClasses";
+import { type CSSObject, useTheme } from "@emotion/react";
+import { type FC, type PropsWithChildren } from "react";
 
 export const FullWidthPageHeader: FC<
   PropsWithChildren & { sticky?: boolean }
 > = ({ children, sticky = true }) => {
-  const styles = useStyles();
-
+  const theme = useTheme();
   return (
     <header
-      className={combineClasses([styles.header, sticky ? styles.sticky : ""])}
       data-testid="header"
+      css={[
+        {
+          ...(theme.typography.body2 as CSSObject),
+          padding: theme.spacing(3),
+          background: theme.palette.background.paper,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          display: "flex",
+          alignItems: "center",
+          gap: theme.spacing(6),
+
+          zIndex: 10,
+          flexWrap: "wrap",
+
+          [theme.breakpoints.down("lg")]: {
+            position: "unset",
+            alignItems: "flex-start",
+          },
+          [theme.breakpoints.down("md")]: {
+            flexDirection: "column",
+          },
+        },
+        sticky && {
+          position: "sticky",
+          top: 0,
+        },
+      ]}
     >
       {children}
     </header>
@@ -18,60 +41,47 @@ export const FullWidthPageHeader: FC<
 };
 
 export const PageHeaderActions: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return <div className={styles.actions}>{children}</div>;
+  const theme = useTheme();
+  return (
+    <div
+      css={{
+        marginLeft: "auto",
+        [theme.breakpoints.down("md")]: {
+          marginLeft: "unset",
+        },
+      }}
+    >
+      {children}
+    </div>
+  );
 };
 
 export const PageHeaderTitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return <h1 className={styles.title}>{children}</h1>;
+  return (
+    <h1
+      css={{
+        fontSize: 18,
+        fontWeight: 500,
+        margin: 0,
+        lineHeight: "24px",
+      }}
+    >
+      {children}
+    </h1>
+  );
 };
 
 export const PageHeaderSubtitle: FC<PropsWithChildren> = ({ children }) => {
-  const styles = useStyles();
-  return <span className={styles.subtitle}>{children}</span>;
+  const theme = useTheme();
+  return (
+    <span
+      css={{
+        fontSize: 14,
+        color: theme.palette.text.secondary,
+        display: "block",
+      }}
+    >
+      {children}
+    </span>
+  );
 };
-
-const useStyles = makeStyles((theme) => ({
-  header: {
-    ...theme.typography.body2,
-    padding: theme.spacing(3),
-    background: theme.palette.background.paper,
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    display: "flex",
-    alignItems: "center",
-    gap: theme.spacing(6),
-
-    zIndex: 10,
-    flexWrap: "wrap",
-
-    [theme.breakpoints.down("lg")]: {
-      position: "unset",
-      alignItems: "flex-start",
-    },
-    [theme.breakpoints.down("md")]: {
-      flexDirection: "column",
-    },
-  },
-  sticky: {
-    position: "sticky",
-    top: 0,
-  },
-  actions: {
-    marginLeft: "auto",
-    [theme.breakpoints.down("md")]: {
-      marginLeft: "unset",
-    },
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 500,
-    margin: 0,
-    lineHeight: "24px",
-  },
-  subtitle: {
-    fontSize: 14,
-    color: theme.palette.text.secondary,
-    display: "block",
-  },
-}));

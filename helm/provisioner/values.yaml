@@ -207,3 +207,15 @@ provisionerDaemon:
   # terminating the provisioner daemon.  You should set this to be longer than your longest expected build time so that
   # redeployments do not interrupt builds in progress.
   terminationGracePeriodSeconds: 600
+
+# extraTemplates -- Array of extra objects to deploy with the release. Strings
+# are evaluated as a template and can use template expansions and functions. All
+# other objects are used as yaml.
+extraTemplates:
+  #- |
+  #    apiVersion: v1
+  #    kind: ConfigMap
+  #    metadata:
+  #      name: my-configmap
+  #    data:
+  #      key: {{ .Values.myCustomValue | quote }}

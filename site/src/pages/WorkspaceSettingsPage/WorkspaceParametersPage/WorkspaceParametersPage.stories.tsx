@@ -39,4 +39,13 @@ type Story = StoryObj<typeof WorkspaceParametersPageView>;
 
 const Example: Story = {};
 
+export const Empty: Story = {
+  args: {
+    data: {
+      buildParameters: [],
+      templateVersionRichParameters: [],
+    },
+  },
+};
+
 export { Example as WorkspaceParametersPage };
