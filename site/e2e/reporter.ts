@@ -31,7 +31,9 @@ class CoderReporter implements Reporter {
 
   onStdOut(chunk: string, test?: TestCase, _?: TestResult): void {
     if (!test) {
-      console.log(`[stdout] ${chunk.replace(/\n$/g, "")}`);
+      for (const line of filteredServerLogLines(chunk)) {
+        console.log(`[stdout] ${line}`);
+      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stdout, chunk]);
@@ -39,7 +41,9 @@ class CoderReporter implements Reporter {
 
   onStdErr(chunk: string, test?: TestCase, _?: TestResult): void {
     if (!test) {
-      console.error(`[stderr] ${chunk.replace(/\n$/g, "")}`);
+      for (const line of filteredServerLogLines(chunk)) {
+        console.error(`[stderr] ${line}`);
+      }
       return;
     }
     this.testOutput.get(test.id)!.push([process.stderr, chunk]);
@@ -106,6 +110,12 @@ class CoderReporter implements Reporter {
     }
   }
 }
+
+const shouldPrintLine = (line: string) =>
+  ["  error=EOF", "coderd: audit_log"].every((noise) => !line.includes(noise));
+
+const filteredServerLogLines = (chunk: string): string[] =>
+  chunk.trimEnd().split("\n").filter(shouldPrintLine);
 
 const exportDebugPprof = async (outputFile: string) => {
   const response = await axios.get(
