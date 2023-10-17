@@ -1,50 +1,24 @@
 import { useQuery } from "react-query";
-import { getPreviousTemplateVersionByName } from "api/api";
 import { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { TemplateFiles } from "components/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
-import { useOrganizationId } from "hooks/useOrganizationId";
 import { useTab } from "hooks/useTab";
 import { FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import {
-  getTemplateVersionFiles,
+  getTemplateFilesWithDiff,
   TemplateVersionFiles,
 } from "utils/templateVersion";
 import { getTemplatePageTitle } from "../utils";
 
-const fetchTemplateFiles = async (
-  organizationId: string,
-  templateName: string,
-  activeVersion: TemplateVersion,
-) => {
-  const previousVersion = await getPreviousTemplateVersionByName(
-    organizationId,
-    templateName,
-    activeVersion.name,
-  );
-  const loadFilesPromises: ReturnType<typeof getTemplateVersionFiles>[] = [];
-  loadFilesPromises.push(getTemplateVersionFiles(activeVersion));
-  if (previousVersion) {
-    loadFilesPromises.push(getTemplateVersionFiles(previousVersion));
-  }
-  const [currentFiles, previousFiles] = await Promise.all(loadFilesPromises);
-  return {
-    currentFiles,
-    previousFiles,
-  };
-};
-
 const useTemplateFiles = (
-  organizationId: string,
   templateName: string,
   activeVersion: TemplateVersion,
 ) =>
   useQuery({
     queryKey: ["templateFiles", templateName],
-    queryFn: () =>
-      fetchTemplateFiles(organizationId, templateName, activeVersion),
+    queryFn: () => getTemplateFilesWithDiff(templateName, activeVersion),
   });
 
 const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
@@ -69,9 +43,7 @@ const useFileTab = (templateFiles: TemplateVersionFiles | undefined) => {
 
 const TemplateFilesPage: FC = () => {
   const { template, activeVersion } = useTemplateLayoutContext();
-  const orgId = useOrganizationId();
   const { data: templateFiles } = useTemplateFiles(
-    orgId,
     template.name,
     activeVersion,
   );

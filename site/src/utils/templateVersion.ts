@@ -1,18 +1,39 @@
 import * as API from "api/api";
-import { TemplateVersion } from "api/typesGenerated";
 import { FileTree, createFile } from "./filetree";
 import { TarReader } from "./tar";
+import { TemplateVersion } from "api/typesGenerated";
 
-/**
- * Content by filename
- */
+export const getTemplateFilesWithDiff = async (
+  templateName: string,
+  version: TemplateVersion,
+) => {
+  const previousVersion = await API.getPreviousTemplateVersionByName(
+    version.organization_id!,
+    templateName,
+    version.name,
+  );
+  const loadFilesPromises: ReturnType<typeof getTemplateVersionFiles>[] = [];
+  loadFilesPromises.push(getTemplateVersionFiles(version.job.file_id));
+  if (previousVersion) {
+    loadFilesPromises.push(
+      getTemplateVersionFiles(previousVersion.job.file_id),
+    );
+  }
+  const [currentFiles, previousFiles] = await Promise.all(loadFilesPromises);
+  return {
+    currentFiles,
+    previousFiles,
+  };
+};
+
+// Content by filename
 export type TemplateVersionFiles = Record<string, string>;
 
 export const getTemplateVersionFiles = async (
-  version: TemplateVersion,
+  fileId: string,
 ): Promise<TemplateVersionFiles> => {
   const files: TemplateVersionFiles = {};
-  const tarFile = await API.getFile(version.job.file_id);
+  const tarFile = await API.getFile(fileId);
   const tarReader = new TarReader();
   await tarReader.readFile(tarFile);
   for (const file of tarReader.fileInfo) {
