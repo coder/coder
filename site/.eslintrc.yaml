@@ -91,6 +91,9 @@ rules:
     - allowSingleExtends: true
   "brace-style": "off"
   "curly": ["error", "all"]
+  "eslint-comments/disable-enable-pair":
+    - error
+    - allowWholeFile: true
   "eslint-comments/require-description": "error"
   eqeqeq: error
   import/default: "off"
