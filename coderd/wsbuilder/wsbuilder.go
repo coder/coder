@@ -218,7 +218,7 @@ func (b *Builder) Build(
 		return err
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("too many errors; last error: %w", err)
+		return nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
 	return workspaceBuild, provisionerJob, nil
 }

@@ -588,14 +588,24 @@ func TestTemplates(t *testing.T) {
 		})
 
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.RequireActiveVersion = true
+		})
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		require.False(t, template.RequireActiveVersion)
+		require.True(t, template.RequireActiveVersion)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		// Update the field and assert it persists.
 		updatedTemplate, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			RequireActiveVersion: false,
+		})
+		require.NoError(t, err)
+		require.False(t, updatedTemplate.RequireActiveVersion)
+
+		// Flip it back to ensure we aren't hardcoding to a default value.
+		updatedTemplate, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
 			RequireActiveVersion: true,
 		})
 		require.NoError(t, err)

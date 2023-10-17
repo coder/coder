@@ -370,6 +370,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			FailureTTL:               failureTTL,
 			TimeTilDormant:           dormantTTL,
 			TimeTilDormantAutoDelete: dormantAutoDeletionTTL,
+			RequireActiveVersion:     createTemplate.RequireActiveVersion,
 		})
 		if err != nil {
 			return xerrors.Errorf("set template schedule options: %s", err)

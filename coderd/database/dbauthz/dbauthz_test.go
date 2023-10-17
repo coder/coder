@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestAsNoActor(t *testing.T) {
@@ -1222,6 +1223,59 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 		}).Asserts(w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), rbac.ActionUpdate)
+	}))
+	s.Run("Start/RequireActiveVersion/VersionMismatch/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
+		t := dbgen.Template(s.T(), db, database.Template{})
+
+		ctx := testutil.Context(s.T(), testutil.WaitShort)
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                   t.ID,
+			RequireActiveVersion: true,
+		})
+		require.NoError(s.T(), err)
+
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID: uuid.NullUUID{UUID: t.ID},
+		})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: t.ID,
+		})
+		check.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID:       w.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+			TemplateVersionID: v.ID,
+		}).Asserts(
+			w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), rbac.ActionUpdate,
+			t, rbac.ActionUpdate,
+		)
+	}))
+	s.Run("Start/RequireActiveVersion/VersionsMatch/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
+		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{})
+		t := dbgen.Template(s.T(), db, database.Template{
+			ActiveVersionID: v.ID,
+		})
+
+		ctx := testutil.Context(s.T(), testutil.WaitShort)
+		err := db.UpdateTemplateScheduleByID(ctx, database.UpdateTemplateScheduleByIDParams{
+			ID:                   t.ID,
+			RequireActiveVersion: true,
+		})
+		require.NoError(s.T(), err)
+
+		w := dbgen.Workspace(s.T(), db, database.Workspace{
+			TemplateID: t.ID,
+		})
+		// Assert that we do not check for template update permissions
+		// if versions match.
+		check.Args(database.InsertWorkspaceBuildParams{
+			WorkspaceID:       w.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+			TemplateVersionID: v.ID,
+		}).Asserts(
+			w.WorkspaceBuildRBAC(database.WorkspaceTransitionStart), rbac.ActionUpdate,
+		)
 	}))
 	s.Run("Delete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		w := dbgen.Workspace(s.T(), db, database.Workspace{})
