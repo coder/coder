@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
@@ -58,7 +59,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		// TODO collect iteration time
 
-		var templateInsights database.GetTemplateInsightsRow
+		var userActivity []database.GetUserActivityInsightsRow
 		var appInsights []database.GetTemplateAppInsightsRow
 		var parameterInsights []database.GetTemplateParameterInsightsRow
 
@@ -68,7 +69,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		eg.Go(func() error {
 			var err error
-			templateInsights, err = mc.database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
+			userActivity, err = mc.database.GetUserActivityInsights(egCtx, database.GetUserActivityInsightsParams{
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
@@ -105,9 +106,17 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			return
 		}
 
-		// Phase 2: Collect resource IDs (templates, applications, parameters), and fetch relevant details
+		// Phase 2: Collect template IDs, and fetch relevant details
+		templateIDs := uniqueTemplateIDs(userActivity, appInsights, parameterInsights)
+		templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
+			IDs: templateIDs,
+		})
+		if err != nil {
+			mc.logger.Error(ctx, "unable to fetch template details from database", slog.Error(err))
+			return
+		}
 
-		// TODO
+		templateNames := onlyTemplateNames(templates)
 	}
 
 	go func() {
@@ -138,4 +147,42 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// Phase 3: Collect metrics
 
 	// TODO
+}
+
+// Helper functions below.
+
+func uniqueTemplateIDs(userActivity []database.GetUserActivityInsightsRow, appInsights []database.GetTemplateAppInsightsRow, parameterInsights []database.GetTemplateParameterInsightsRow) []uuid.UUID {
+	tids := map[uuid.UUID]bool{}
+	for _, t := range userActivity {
+		for _, tid := range t.TemplateIDs {
+			tids[tid] = true
+		}
+	}
+
+	for _, a := range appInsights {
+		for _, tid := range a.TemplateIDs {
+			tids[tid] = true
+		}
+	}
+
+	for _, p := range parameterInsights {
+		for _, tid := range p.TemplateIDs {
+			tids[tid] = true
+		}
+	}
+
+	uniqueUUIDs := make([]uuid.UUID, len(tids))
+	var i int
+	for t := range tids {
+		uniqueUUIDs[i] = t
+	}
+	return uniqueUUIDs
+}
+
+func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
+	m := map[uuid.UUID]string{}
+	for _, t := range templates {
+		m[t.ID] = t.Name
+	}
+	return m
 }
