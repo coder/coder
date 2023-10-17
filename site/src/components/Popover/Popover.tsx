@@ -80,6 +80,7 @@ export const PopoverContent = (
         marginTop: theme.spacing(1),
         "& .MuiPaper-root": {
           width: theme.spacing(40),
+          fontSize: 14,
         },
       })}
       {...horizontalProps(horizontal)}
