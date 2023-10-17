@@ -73,6 +73,10 @@ for scenario in "${SCALETEST_PARAM_LOAD_SCENARIOS[@]}"; do
 		maybedryrun "$DRY_RUN" sleep 10
 		status=1
 		;;
+
+	*)
+		log "WARNING: Unknown load scenario: ${scenario}, skipping..."
+		;;
 	esac
 	set -e
 	if ((status > 0)); then
