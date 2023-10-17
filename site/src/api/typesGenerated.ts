@@ -216,6 +216,7 @@ export interface CreateTemplateRequest {
   readonly dormant_ttl_ms?: number;
   readonly delete_ttl_ms?: number;
   readonly disable_everyone_group_access: boolean;
+  readonly require_active_version: boolean;
 }
 
 // From codersdk/templateversions.go
