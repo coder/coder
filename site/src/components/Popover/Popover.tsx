@@ -42,7 +42,7 @@ export const Popover = (props: {
   );
 };
 
-const usePopover = () => {
+export const usePopover = () => {
   const context = useContext(PopoverContext);
   if (!context) {
     throw new Error(
