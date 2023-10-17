@@ -29,15 +29,18 @@ const PopoverContext = createContext<PopoverContextValue | undefined>(
 );
 
 export const Popover = (props: {
-  children: ReactNode;
+  children: ReactNode | ((popover: PopoverContextValue) => ReactNode); // Allows inline usage
   defaultOpen?: boolean;
 }) => {
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const triggerRef = useRef<HTMLElement>(null);
+  const value = { open, setOpen, triggerRef };
 
   return (
-    <PopoverContext.Provider value={{ open, setOpen, triggerRef }}>
-      {props.children}
+    <PopoverContext.Provider value={value}>
+      {typeof props.children === "function"
+        ? props.children(value)
+        : props.children}
     </PopoverContext.Provider>
   );
 };
