@@ -141,3 +141,8 @@ You can expect `(10 * 6 * 2) / 4`, or 30 writes per second.
 
 One of the writes is to the `UNLOGGED` `workspace_agent_metadata` table and the
 other to the `NOTIFY` query that enables live stats streaming in the UI.
+
+## Next Steps
+
+- [Resource metadata](./resource-metadata.md)
+- [Parameters](./parameters.md)
