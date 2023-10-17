@@ -20,6 +20,7 @@ come bundled with your Coder deployment.
     [`option`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/parameter#nested-schema-for-option)
     blocks
   - [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script#icon)
+  - [`coder_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata#icon)
 
   These can all be configured to use an icon by setting the `icon` field.
 

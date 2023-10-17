@@ -1,9 +1,25 @@
 # Workspaces
 
-Workspaces contain the IDEs, dependencies, and configuration information needed
-for software development.
+A workspace is the environment that a developer works in. Developers in a team
+each work from their own workspace and can use [multiple IDEs](./ides.md).
 
-## Create workspaces
+A developer creates a workspace from a [shared template](./templates/index.md).
+This lets an entire team work in environments that are identically configured
+and provisioned with the same resources.
+
+## Creating workspaces
+
+You can create a workspace in the UI. Log in to your Coder instance, go to the
+**Templates** tab, find the template you need, and select **Create Workspace**.
+
+![Creating a workspace in the UI](./images/creating-workspace-ui.png)
+
+When you create a workspace, you will be prompted to give it a name. You might
+also be prompted to set some parameters that the template provides.
+
+You can manage your existing templates in the **Workspaces** tab.
+
+You can also create a workspace from the command line:
 
 Each Coder user has their own workspaces created from
 [shared templates](./templates/index.md):
@@ -16,11 +32,72 @@ coder create --template="<templateName>" <workspaceName>
 coder show <workspace-name>
 ```
 
-## IDEs
+## Workspace filtering
 
-Coder [supports multiple IDEs](./ides.md) for use with your workspaces.
+In the Coder UI, you can filter your workspaces using pre-defined filters or
+Coder's filter query. For example, you can find the workspaces that you own or
+that are currently running.
 
-## Workspace lifecycle
+The following filters are supported:
+
+- `owner` - Represents the `username` of the owner. You can also use `me` as a
+  convenient alias for the logged-in user.
+- `template` - Specifies the name of the template.
+- `status` - Indicates the status of the workspace. For a list of supported
+  statuses, see
+  [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/codersdk#WorkspaceStatus).
+
+## Starting and stopping workspaces
+
+By default, you manually start and stop workspaces as you need. You can also
+schedule a workspace to start and stop automatically.
+
+To set a workspace's schedule, go to the workspace, then **Settings** >
+**Schedule**.
+
+![Scheduling UI](./images/schedule.png)
+
+Coder might also stop a workspace automatically if there is a
+[template update](./templates/index.md#Start/stop) available.
+
+### Autostart and autostop
+
+Use autostart to start a workspace at a specified time and which days of the
+week. Also, you can choose your preferred timezone.
+
+![Autostart UI](./images/autostart.png)
+
+Use autostop to stop a workspace after a number of hours. Autostop won't stop a
+workspace if you're still using it. It waits for another hour before checking
+again. Coder checks for active connections in the IDE, SSH, Port Forwarding, and
+coder_app.
+
+![Autostop UI](./images/autostop.png)
+
+### Max lifetime
+
+Max lifetime is a template setting that determines the number of hours a
+workspace will run before Coder automatically stops it, regardless of any active
+connections. Use this setting to ensure that workspaces do not run in perpetuity
+when connections are left open inadvertently.
+
+## Updating workspaces
+
+After updating the default version of the template that a workspace was created
+from, you can update the workspace.
+
+![Updating a workspace](./images/workspace-update.png)
+
+If the workspace is running, Coder stops it, updates it, then starts the
+workspace again.
+
+On the command line:
+
+```shell
+coder update <workspace-name>
+```
+
+## Workspace resources
 
 Workspaces in Coder are started and stopped, often based on whether there was
 any activity or if there was a
@@ -33,52 +110,12 @@ though the exact behavior depends on the template. For more information, see
 > ⚠️ To avoid data loss, refer to your template documentation for information on
 > where to store files, install software, etc., so that they persist. Default
 > templates are documented in
-> [../examples/templates](https://github.com/coder/coder/tree/c6b1daabc5a7aa67bfbb6c89966d728919ba7f80/examples/templates).
+> [../examples/templates](https://github.com/coder/coder/tree/main/examples/templates).
 >
 > You can use `coder show <workspace-name>` to see which resources are
 > persistent and which are ephemeral.
 
 When a workspace is deleted, all of the workspace's resources are deleted.
-
-## Workspace scheduling
-
-By default, workspaces are manually turned on/off by the user. However, a
-schedule can be defined on a per-workspace basis to automate the workspace
-start/stop.
-
-![Scheduling UI](./images/schedule.png)
-
-### Autostart
-
-The autostart feature automates the workspace build at a user-specified time and
-day(s) of the week. In addition, users can select their preferred timezone.
-
-![Autostart UI](./images/autostart.png)
-
-### Autostop
-
-The autostop feature shuts off workspaces after given number of hours in the
-"on" state. If Coder detects workspace connection activity, the autostop timer
-is bumped up one hour. IDE, SSH, Port Forwarding, and coder_app activity trigger
-this bump.
-
-![autostop UI](./images/autostop.png)
-
-### Max lifetime
-
-Max lifetime is a template-level setting that determines the number of hours a
-workspace can run before it is automatically shutdown, regardless of any active
-connections. This setting ensures workspaces do not run in perpetuity when
-connections are left open inadvertently.
-
-## Updating workspaces
-
-Use the following command to update a workspace to the latest template version.
-The workspace will be stopped and started:
-
-```shell
-coder update <workspace-name>
-```
 
 ## Repairing workspaces
 
@@ -88,6 +125,33 @@ state is out of sync with the template.
 
 ```shell
 coder update <your workspace name> --always-prompt
+```
+
+First, try re-entering parameters from a workspace. In the Coder UI, you can
+filter your workspaces using pre-defined filters or employing the Coder's filter
+query. Take a look at the following examples to understand how to use the
+Coder's filter query:
+
+- To find the workspaces that you own, use the filter `owner:me`.
+- To find workspaces that are currently running, use the filter
+  `status:running`.
+
+![Re-entering template variables](./images/template-variables.png)
+
+You can also do this in the CLI with the following command:
+
+```shell
+coder update <your workspace name> --always-prompt
+```
+
+If that does not work, a Coder admin can manually push and pull the Terraform
+state for a given workspace. This can lead to state corruption or deleted
+resources if you do not know what you are doing.
+
+```shell
+coder state pull <username>/<workspace name>
+# Make changes
+coder state push <username>/<workspace name>
 ```
 
 ## Logging
@@ -101,27 +165,6 @@ Coder stores macOS and Linux logs at the following locations:
 | Agent             | `/tmp/coder-agent.log`           |
 
 > Note: Logs are truncated once they reach 5MB in size.
-
-## Workspace filtering
-
-In the Coder UI, you can filter your workspaces using pre-defined filters or
-employing the Coder's filter query. Take a look at the following examples to
-understand how to use the Coder's filter query:
-
-- To find the workspaces that you own, use the filter `owner:me`.
-- To find workspaces that are currently running, use the filter
-  `status:running`.
-
-The following filters are supported:
-
-- `owner` - Represents the `username` of the owner. You can also use `me` as a
-  convenient alias for the logged-in user.
-- `template` - Specifies the name of the template.
-- `status` - Indicates the status of the workspace. For a list of supported
-  statuses, please refer to the
-  [WorkspaceStatus documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#WorkspaceStatus).
-
----
 
 ## Up next
 
