@@ -4,7 +4,7 @@ There are a few ways to run Docker within container-based Coder workspaces.
 
 | Method                                                     | Description                                                                                                                                                        | Limitations                                                                                                                                                                                                                                        |
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Sysbox container runtime](#sysbox-container-runtime)      | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.                                   | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements).                                                                                                                                                                 |
+| [Sysbox container runtime](#sysbox-container-runtime)      | Install the sysbox runtime on your Kubernetes nodes for secure docker-in-docker and systemd-in-docker. Works with GKE, EKS, AKS.                                   | Requires [compatible nodes](https://github.com/nestybox/sysbox#host-requirements). [Limitations](https://github.com/nestybox/sysbox/blob/master/docs/user-guide/limitations.md)                                                                    |
 | [Envbox](#envbox)                                          | A container image with all the packages necessary to run an inner sysbox container. Removes the need to setup sysbox-runc on your nodes. Works with GKE, EKS, AKS. | Requires running the outer container as privileged (the inner container that acts as the workspace is locked down). Requires compatible [nodes](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md#sysbox-distro-compatibility). |
 | [Rootless Podman](#rootless-podman)                        | Run podman inside Coder workspaces. Does not require a custom runtime or privileged containers. Works with GKE, EKS, AKS, RKE, OpenShift                           | Requires smarter-device-manager for FUSE mounts. [See all](https://github.com/containers/podman/blob/main/rootless.md#shortcomings-of-rootless-podman)                                                                                             |
 | [Privileged docker sidecar](#privileged-sidecar-container) | Run docker as a privileged sidecar container.                                                                                                                      | Requires a privileged container. Workspaces can break out to root on the host machine.                                                                                                                                                             |
@@ -17,10 +17,6 @@ from the workspace containers. Sysbox requires a
 [compatible Linux distribution](https://github.com/nestybox/sysbox/blob/master/docs/distro-compat.md)
 to implement these security features. Sysbox can also be used to run systemd
 inside Coder workspaces. See [Systemd in Docker](#systemd-in-docker).
-
-The Sysbox container runtime is not compatible with our
-[workspace process logging](./process-logging.md) feature. Envbox is compatible
-with process logging, however.
 
 ### Use Sysbox in Docker-based templates
 
@@ -197,8 +193,7 @@ env {
 compatible with OCI containers specification. which can run rootless inside
 Kubernetes pods. No custom RuntimeClass is required.
 
-Prior to completing the steps below, please review the following Podman
-documentation:
+Before using Podman, please review the following documentation:
 
 - [Basic setup and use of Podman in a rootless environment](https://github.com/containers/podman/blob/main/docs/tutorials/rootless_tutorial.md)
 
@@ -256,7 +251,7 @@ documentation:
    > Otherwise, your nodes may drop the labels and break podman functionality.
 
 3. For systems running SELinux (typically Fedora-, CentOS-, and Red Hat-based
-   systems), you may need to disable SELinux or set it to permissive mode.
+   systems), you might need to disable SELinux or set it to permissive mode.
 
 4. Import our
    [kubernetes-with-podman](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-with-podman)
