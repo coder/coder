@@ -127,6 +127,20 @@ const createTemplateFn = async (options: {
   });
 };
 
+export const templateVersionLogs = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "logs"],
+    queryFn: () => API.getTemplateVersionLogs(versionId),
+  };
+};
+
+export const richParameters = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "richParameters"],
+    queryFn: () => API.getTemplateVersionRichParameters(versionId),
+  };
+};
+
 const waitBuildToBeFinished = async (version: TemplateVersion) => {
   let data: TemplateVersion;
   let jobStatus: ProvisionerJobStatus;
