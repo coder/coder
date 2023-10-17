@@ -26,6 +26,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
             border: "none",
             textAlign: "left",
             padding: 0,
+            lineHeight: "1.4",
             "&:hover": {
               border: "none",
               backgroundColor: "transparent",
