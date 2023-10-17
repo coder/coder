@@ -610,6 +610,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
 			req.MaxTTLMillis == time.Duration(template.MaxTTL).Milliseconds() &&
 			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
+			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
 			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
 			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
 			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&

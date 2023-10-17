@@ -13,6 +13,7 @@ const defaultOption: ClibaseOption = {
 describe("optionValue", () => {
   it.each<{
     option: ClibaseOption;
+    additionalValues?: string[];
     expected: unknown;
   }>([
     {
@@ -67,7 +68,46 @@ describe("optionValue", () => {
       },
       expected: [`"123"->"foo"`, `"456"->"bar"`, `"789"->"baz"`],
     },
-  ])(`[$option.name]optionValue($option.value)`, ({ option, expected }) => {
-    expect(optionValue(option)).toEqual(expected);
-  });
+    {
+      option: {
+        ...defaultOption,
+        name: "Experiments",
+        value: ["single_tailnet"],
+      },
+      additionalValues: ["single_tailnet", "deployment_health_page"],
+      expected: { single_tailnet: true, deployment_health_page: false },
+    },
+    {
+      option: {
+        ...defaultOption,
+        name: "Experiments",
+        value: [],
+      },
+      additionalValues: ["single_tailnet", "deployment_health_page"],
+      expected: { single_tailnet: false, deployment_health_page: false },
+    },
+    {
+      option: {
+        ...defaultOption,
+        name: "Experiments",
+        value: ["moons"],
+      },
+      additionalValues: ["single_tailnet", "deployment_health_page"],
+      expected: { single_tailnet: false, deployment_health_page: false },
+    },
+    {
+      option: {
+        ...defaultOption,
+        name: "Experiments",
+        value: ["*"],
+      },
+      additionalValues: ["single_tailnet", "deployment_health_page"],
+      expected: { single_tailnet: true, deployment_health_page: true },
+    },
+  ])(
+    `[$option.name]optionValue($option.value)`,
+    ({ option, expected, additionalValues }) => {
+      expect(optionValue(option, additionalValues)).toEqual(expected);
+    },
+  );
 });

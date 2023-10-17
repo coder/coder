@@ -19,11 +19,12 @@ SCALETEST_STATE_DIR="${SCALETEST_RUN_DIR}/state"
 SCALETEST_PHASE_FILE="${SCALETEST_STATE_DIR}/phase"
 # shellcheck disable=SC2034
 SCALETEST_RESULTS_DIR="${SCALETEST_RUN_DIR}/results"
+SCALETEST_LOGS_DIR="${SCALETEST_RUN_DIR}/logs"
 SCALETEST_PPROF_DIR="${SCALETEST_RUN_DIR}/pprof"
 # https://github.com/kubernetes/kubernetes/issues/72501 :-(
-SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID//:/-}"
+SCALETEST_CODER_BINARY="/tmp/coder-full-${SCALETEST_RUN_ID}"
 
-mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_PPROF_DIR}"
+mkdir -p "${SCALETEST_STATE_DIR}" "${SCALETEST_RESULTS_DIR}" "${SCALETEST_LOGS_DIR}" "${SCALETEST_PPROF_DIR}"
 
 coder() {
 	if [[ ! -x "${SCALETEST_CODER_BINARY}" ]]; then
@@ -81,12 +82,12 @@ end_phase() {
 	phase=$(tail -n 1 "${SCALETEST_PHASE_FILE}" | grep "START:${phase_num}:" | cut -d' ' -f3-)
 	if [[ -z ${phase} ]]; then
 		log "BUG: Could not find start phase ${phase_num} in ${SCALETEST_PHASE_FILE}"
-		exit 1
+		return 1
 	fi
 	log "End phase ${phase_num}: ${phase}"
 	echo "$(date -Ins) END:${phase_num}: ${phase}" >>"${SCALETEST_PHASE_FILE}"
 
-	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
+	GRAFANA_EXTRA_TAGS="${PHASE_TYPE:-phase-default}" GRAFANA_ADD_TAGS="${PHASE_ADD_TAGS:-}" annotate_grafana_end "phase" "Phase ${phase_num}: ${phase}"
 }
 get_phase() {
 	if [[ -f "${SCALETEST_PHASE_FILE}" ]]; then
@@ -131,6 +132,7 @@ annotate_grafana() {
 			'{time: $time, tags: $tags | split(","), text: $text}' <<<'{}'
 	)"
 	if [[ ${DRY_RUN} == 1 ]]; then
+		echo "FAKEID:${tags}:${text}:${start}" >>"${SCALETEST_STATE_DIR}/grafana-annotations"
 		log "Would have annotated Grafana, data=${json}"
 		return 0
 	fi
@@ -170,23 +172,27 @@ annotate_grafana_end() {
 		tags="${tags},${GRAFANA_EXTRA_TAGS}"
 	fi
 
-	if [[ ${DRY_RUN} == 1 ]]; then
-		log "Would have updated Grafana annotation (end=${end}): ${text} [${tags}]"
-		return 0
-	fi
-
 	if ! id=$(grep ":${tags}:${text}:${start}" "${SCALETEST_STATE_DIR}/grafana-annotations" | sort -n | tail -n1 | cut -d: -f1); then
 		log "NOTICE: Could not find Grafana annotation to end: '${tags}:${text}:${start}', skipping..."
 		return 0
 	fi
 
-	log "Annotating Grafana (end=${end}): ${text} [${tags}]"
+	log "Updating Grafana annotation (end=${end}): ${text} [${tags}, add=${GRAFANA_ADD_TAGS:-}]"
 
-	json="$(
-		jq \
-			--argjson timeEnd "${end}" \
-			'{timeEnd: $timeEnd}' <<<'{}'
-	)"
+	if [[ -n ${GRAFANA_ADD_TAGS:-} ]]; then
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				--arg tags "${tags},${GRAFANA_ADD_TAGS}" \
+				'{timeEnd: $timeEnd, tags: $tags | split(",")}'
+		)"
+	else
+		json="$(
+			jq -n \
+				--argjson timeEnd "${end}" \
+				'{timeEnd: $timeEnd}'
+		)"
+	fi
 	if [[ ${DRY_RUN} == 1 ]]; then
 		log "Would have patched Grafana annotation: id=${id}, data=${json}"
 		return 0
@@ -265,7 +271,7 @@ coder_pods() {
 fetch_coder_full() {
 	if [[ -x "${SCALETEST_CODER_BINARY}" ]]; then
 		log "Full Coder binary already exists at ${SCALETEST_CODER_BINARY}"
-		return
+		return 0
 	fi
 	ns=$(namespace)
 	if [[ -z "${ns}" ]]; then
@@ -276,12 +282,12 @@ fetch_coder_full() {
 	pods=$(coder_pods)
 	if [[ -z ${pods} ]]; then
 		log "Could not find coder pods!"
-		return
+		return 1
 	fi
 	pod=$(cut -d ' ' -f 1 <<<"${pods}")
 	if [[ -z ${pod} ]]; then
 		log "Could not find coder pod!"
-		return
+		return 1
 	fi
 	log "Fetching full Coder binary from ${pod}"
 	# We need --retries due to https://github.com/kubernetes/kubernetes/issues/60140 :(
@@ -299,8 +305,8 @@ fetch_coder_full() {
 # com.coder.scaletest.status. It will overwrite the previous status.
 set_pod_status_annotation() {
 	if [[ $# -ne 1 ]]; then
-		log "must specify an annotation value"
-		return
+		log "BUG: Must specify an annotation value"
+		return 1
 	else
 		maybedryrun "${DRY_RUN}" kubectl --namespace "$(namespace)" annotate pod "$(hostname)" "com.coder.scaletest.status=$1" --overwrite
 	fi

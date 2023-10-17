@@ -1,0 +1,12 @@
+coder:
+  image:
+    tag: latest
+extraTemplates:
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: some-config
+      namespace: {{ .Release.Namespace }}
+    data:
+      key: some-value

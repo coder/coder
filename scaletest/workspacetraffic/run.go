@@ -169,7 +169,7 @@ func (r *Runner) Run(ctx context.Context, _ string, logs io.Writer) error {
 }
 
 // Cleanup does nothing, successfully.
-func (*Runner) Cleanup(context.Context, string) error {
+func (*Runner) Cleanup(context.Context, string, io.Writer) error {
 	return nil
 }
 

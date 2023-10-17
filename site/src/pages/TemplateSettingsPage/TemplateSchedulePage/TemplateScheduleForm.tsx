@@ -9,7 +9,10 @@ import { FC, ChangeEvent, useState, useEffect } from "react";
 import { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { getFormHelpers } from "utils/formUtils";
 import { docs } from "utils/docs";
-import { calculateAutostopRequirementDaysValue } from "utils/schedule";
+import {
+  TemplateAutostartRequirementDaysValue,
+  calculateAutostopRequirementDaysValue,
+} from "utils/schedule";
 import {
   FormSection,
   HorizontalForm,
@@ -36,6 +39,7 @@ import {
   convertAutostopRequirementDaysValue,
 } from "./AutostopRequirementHelperText";
 import { useTheme } from "@emotion/react";
+import { TemplateScheduleAutostart } from "components/TemplateScheduleAutostart/TemplateScheduleAutostart";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -95,6 +99,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           ? template.autostop_requirement.weeks
           : 1
         : 1,
+      autostart_requirement_days_of_week: template.autostart_requirement
+        .days_of_week as TemplateAutostartRequirementDaysValue[],
 
       allow_user_autostart: template.allow_user_autostart,
       allow_user_autostop: template.allow_user_autostop,
@@ -214,6 +220,9 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
           form.values.autostop_requirement_days_of_week,
         ),
         weeks: autostop_requirement_weeks,
+      },
+      autostart_requirement: {
+        days_of_week: form.values.autostart_requirement_days_of_week,
       },
 
       allow_user_autostart: form.values.allow_user_autostart,
@@ -430,6 +439,24 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
               </strong>
             </Stack>
           </Stack>
+          {allowAdvancedScheduling && (
+            <TemplateScheduleAutostart
+              allow_user_autostart={form.values.allow_user_autostart}
+              autostart_requirement_days_of_week={
+                form.values.autostart_requirement_days_of_week
+              }
+              isSubmitting={isSubmitting}
+              onChange={async (
+                newDaysOfWeek: TemplateAutostartRequirementDaysValue[],
+              ) => {
+                await form.setFieldValue(
+                  "autostart_requirement_days_of_week",
+                  newDaysOfWeek,
+                );
+              }}
+            />
+          )}
+
           <Stack direction="row" alignItems="center">
             <Checkbox
               id="allow-user-autostop"
@@ -622,5 +649,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 const styles = {
   ttlFields: {
     width: "100%",
+  },
+  dayButtons: {
+    borderRadius: "0px",
   },
 };

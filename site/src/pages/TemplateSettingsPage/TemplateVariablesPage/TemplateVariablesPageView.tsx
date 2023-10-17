@@ -1,15 +1,14 @@
-import {
+import { type ComponentProps, type FC } from "react";
+import type {
   CreateTemplateVersionRequest,
   TemplateVersion,
   TemplateVersionVariable,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { ComponentProps, FC } from "react";
-import { TemplateVariablesForm } from "./TemplateVariablesForm";
-import { makeStyles } from "@mui/styles";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
+import { TemplateVariablesForm } from "./TemplateVariablesForm";
 
 export interface TemplateVariablesPageViewProps {
   templateVersion?: TemplateVersion;
@@ -41,16 +40,15 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
   errors = {},
   initialTouched,
 }) => {
-  const classes = useStyles();
   const hasError = Object.values(errors).some((error) => Boolean(error));
 
   return (
     <>
-      <PageHeader className={classes.pageHeader}>
+      <PageHeader css={{ paddingTop: 0 }}>
         <PageHeaderTitle>Template variables</PageHeaderTitle>
       </PageHeader>
       {hasError && (
-        <Stack className={classes.errorContainer}>
+        <Stack css={(theme) => ({ marginBottom: theme.spacing(8) })}>
           {Boolean(errors.buildError) && (
             <ErrorAlert error={errors.buildError} />
           )}
@@ -78,17 +76,3 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
     </>
   );
 };
-
-const useStyles = makeStyles((theme) => ({
-  errorContainer: {
-    marginBottom: theme.spacing(8),
-  },
-  goBackSection: {
-    display: "flex",
-    width: "100%",
-    marginTop: 32,
-  },
-  pageHeader: {
-    paddingTop: 0,
-  },
-}));

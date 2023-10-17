@@ -21,6 +21,29 @@ export const LoginPage: FC = () => {
   const navigate = useNavigate();
 
   if (isSignedIn) {
+    // If the redirect is going to a workspace application, and we
+    // are missing authentication, then we need to change the href location
+    // to trigger a HTTP request. This allows the BE to generate the auth
+    // cookie required.
+    // If no redirect is present, then ignore this branched logic.
+    if (redirectTo !== "" && redirectTo !== "/") {
+      try {
+        // This catches any absolute redirects. Relative redirects
+        // will fail the try/catch. Subdomain apps are absolute redirects.
+        const redirectURL = new URL(redirectTo);
+        if (redirectURL.host !== window.location.host) {
+          window.location.href = redirectTo;
+          return <></>;
+        }
+      } catch {
+        // Do nothing
+      }
+      // Path based apps.
+      if (redirectTo.includes("/apps/")) {
+        window.location.href = redirectTo;
+        return <></>;
+      }
+    }
     return <Navigate to={redirectTo} replace />;
   } else if (isConfiguringTheFirstUser) {
     return <Navigate to="/setup" replace />;

@@ -597,6 +597,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Get("/available", handleExperimentsSafe)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -1108,6 +1109,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
+		api.ctx,
 		api.AccessURL,
 		uuid.New(),
 		logger,
