@@ -61,7 +61,7 @@ After a few seconds, your workspace is ready to use.
 
 ![Workspace is ready](../images/templates/workspace-ready.png)
 
-## 6. Try out your new workspace
+## 5. Try out your new workspace
 
 This starter template lets you connect to your workspace in a few ways:
 
@@ -81,7 +81,7 @@ This starter template lets you connect to your workspace in a few ways:
 
 When you're done, you can stop the workspace.
 
-## 7. Modify your template
+## 6. Modify your template
 
 Now you can modify your template to suit your team's needs.
 
