@@ -157,7 +157,7 @@ export const UsersTableBody: FC<
               onUserRolesUpdate={onUpdateUserRoles}
             />
 
-            <GroupsCell groupsByUserId={groupsByUserId} user={user} />
+            <GroupsCell groups={groupsByUserId?.get(user.id)} />
 
             <TableCell>
               <LoginType authMethods={authMethods!} value={user.login_type} />

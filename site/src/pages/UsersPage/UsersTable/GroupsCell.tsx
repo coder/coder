@@ -1,12 +1,23 @@
 import TableCell from "@mui/material/TableCell";
-import { GroupsByUserId } from "api/queries/groups";
-import { User } from "api/typesGenerated";
+import { Stack } from "components/Stack/Stack";
+import { type Group } from "api/typesGenerated";
 
 type GroupsCellProps = {
-  user: User;
-  groupsByUserId: GroupsByUserId | undefined;
+  groups: readonly Group[] | undefined;
 };
 
-export function GroupsCell({ user, groupsByUserId }: GroupsCellProps) {
-  return <TableCell>5 Groups</TableCell>;
+export function GroupsCell({ groups }: GroupsCellProps) {
+  return (
+    <TableCell>
+      {groups === undefined ? (
+        <em>N/A</em>
+      ) : (
+        <Stack>
+          <div>
+            {groups.length} Group{groups.length !== 1 && "s"}
+          </div>
+        </Stack>
+      )}
+    </TableCell>
+  );
 }
