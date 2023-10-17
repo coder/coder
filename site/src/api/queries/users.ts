@@ -1,4 +1,4 @@
-import { QueryClient, QueryOptions } from "react-query";
+import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import {
   AuthorizationRequest,
@@ -11,7 +11,7 @@ import {
 import { getMetadataAsJSON } from "utils/metadata";
 import { getAuthorizationKey } from "./authCheck";
 
-export const users = (req: UsersRequest): QueryOptions<GetUsersResponse> => {
+export const users = (req: UsersRequest): UseQueryOptions<GetUsersResponse> => {
   return {
     queryKey: ["users", req],
     queryFn: ({ signal }) => API.getUsers(req, signal),
@@ -103,7 +103,7 @@ export const me = (queryClient: QueryClient) => {
 
       return API.getAuthenticatedUser();
     },
-  } satisfies QueryOptions<User>;
+  } satisfies UseQueryOptions<User>;
 };
 
 export const hasFirstUser = () => {

@@ -1,7 +1,7 @@
 import * as API from "api/api";
 import { getMetadataAsJSON } from "utils/metadata";
 import { type Experiments } from "api/typesGenerated";
-import { QueryClient, type QueryOptions } from "react-query";
+import { QueryClient, type UseQueryOptions } from "react-query";
 
 const initialExperimentsData = getMetadataAsJSON<Experiments>("experiments");
 const experimentsKey = ["experiments"] as const;
@@ -17,5 +17,5 @@ export const experiments = (queryClient: QueryClient) => {
 
       return API.getExperiments();
     },
-  } satisfies QueryOptions<Experiments>;
+  } satisfies UseQueryOptions<Experiments>;
 };

@@ -1,4 +1,4 @@
-import { QueryClient, type QueryOptions } from "react-query";
+import { QueryClient, type UseQueryOptions } from "react-query";
 import * as API from "api/api";
 import { type AppearanceConfig } from "api/typesGenerated";
 import { getMetadataAsJSON } from "utils/metadata";
@@ -17,7 +17,7 @@ export const appearance = (queryClient: QueryClient) => {
 
       return API.getAppearance();
     },
-  } satisfies QueryOptions<AppearanceConfig>;
+  } satisfies UseQueryOptions<AppearanceConfig>;
 };
 
 export const updateAppearance = (queryClient: QueryClient) => {
