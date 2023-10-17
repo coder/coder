@@ -85,28 +85,30 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
   if (typeof children === "object" && !Array.isArray(children)) {
     return (
       <ul css={listStyles}>
-        {Object.entries(children).map(([option, isEnabled]) => (
-          <li key={option} css={optionStyles}>
-            <Box
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-              }}
-            >
-              {option}
-              {isEnabled && (
-                <CheckCircleOutlined
-                  sx={{
-                    width: 16,
-                    height: 16,
-                    color: (theme) => theme.palette.success.light,
-                    margin: (theme) => theme.spacing(0, 1),
-                  }}
-                />
-              )}
-            </Box>
-          </li>
-        ))}
+        {Object.entries(children)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([option, isEnabled]) => (
+            <li key={option} css={optionStyles}>
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                {option}
+                {isEnabled && (
+                  <CheckCircleOutlined
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      color: (theme) => theme.palette.success.light,
+                      margin: (theme) => theme.spacing(0, 1),
+                    }}
+                  />
+                )}
+              </Box>
+            </li>
+          ))}
       </ul>
     );
   }

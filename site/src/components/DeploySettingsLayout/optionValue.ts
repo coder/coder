@@ -31,11 +31,12 @@ export function optionValue(
           {} as Record<string, boolean>,
         );
 
+      if (!experimentMap) {
+        break;
+      }
+
       for (const v of option.value) {
-        if (
-          experimentMap &&
-          Object.prototype.hasOwnProperty.call(experimentMap, v)
-        ) {
+        if (Object.hasOwn(experimentMap, v)) {
           experimentMap[v] = true;
         }
       }
