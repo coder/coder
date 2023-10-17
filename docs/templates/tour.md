@@ -406,8 +406,8 @@ The template-tour template has been created! Developers can provision a workspac
    coder create --template="template-tour" [workspace name]
 ```
 
-In your web browser, log in to your Coder dashboard, select **Templates**.
-Your template is ready to use for new workspaces.
+In your web browser, log in to your Coder dashboard, select **Templates**. Your
+template is ready to use for new workspaces.
 
 ![Your new template, ready to use](../images/templates/template-tour.png)
 

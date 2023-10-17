@@ -105,7 +105,6 @@ icons:
 We also have other icons related to the IDEs. You can see more information on
 how to use the builtin icons [here](./icons.md).
 
-
 ## Up next
 
 - [Secrets](../secrets.md)
