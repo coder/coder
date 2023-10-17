@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -52,19 +53,61 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		defer ticker.Reset(mc.duration)
 
 		now := time.Now()
+		startTime := now.Add(-mc.duration)
+		endTime := now
 
 		// TODO collect iteration time
 
-		parameterRows, err := mc.database.GetTemplateInsights(ctx, database.GetTemplateInsightsParams{
-			StartTime: now.Add(-mc.duration),
-			EndTime:   now,
+		var templateInsights database.GetTemplateInsightsRow
+		var appInsights []database.GetTemplateAppInsightsRow
+		var parameterInsights []database.GetTemplateParameterInsightsRow
+
+		// Phase I: Fetch insights from database
+		eg, egCtx := errgroup.WithContext(ctx)
+		eg.SetLimit(3)
+
+		eg.Go(func() error {
+			var err error
+			templateInsights, err = mc.database.GetTemplateInsights(egCtx, database.GetTemplateInsightsParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
+			}
+			return err
 		})
+		eg.Go(func() error {
+			var err error
+			appInsights, err = mc.database.GetTemplateAppInsights(ctx, database.GetTemplateAppInsightsParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch app insights from database", slog.Error(err))
+			}
+			return err
+		})
+		eg.Go(func() error {
+			var err error
+			parameterInsights, err = mc.database.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+				StartTime: startTime,
+				EndTime:   endTime,
+			})
+			if err != nil {
+				mc.logger.Error(ctx, "unable to fetch parameter insights from database", slog.Error(err))
+			}
+			return err
+		})
+
+		err := eg.Wait()
 		if err != nil {
-			mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
 			return
 		}
 
-		mc.logger.Info(ctx, "debug", slog.F("parameter_rows", parameterRows))
+		// Phase 2: Collect resource IDs (templates, applications, parameters), and fetch relevant details
+
+		// TODO
 	}
 
 	go func() {
@@ -92,4 +135,7 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
+	// Phase 3: Collect metrics
+
+	// TODO
 }
