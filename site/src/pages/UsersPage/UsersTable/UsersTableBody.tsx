@@ -23,11 +23,14 @@ import GitHub from "@mui/icons-material/GitHub";
 import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { UserRoleCell } from "./UserRoleCell";
+import { GroupsByUserId } from "api/queries/groups";
+import { GroupsCell } from "./GroupsCell";
 
 dayjs.extend(relativeTime);
 
 interface UsersTableBodyProps {
-  users?: TypesGen.User[];
+  users: TypesGen.User[] | undefined;
+  groupsByUserId: GroupsByUserId | undefined;
   authMethods?: TypesGen.AuthMethods;
   roles?: TypesGen.AssignableRoles[];
   isUpdatingUserRoles?: boolean;
@@ -72,6 +75,7 @@ export const UsersTableBody: FC<
   isNonInitialPage,
   actorID,
   oidcRoleSyncEnabled,
+  groupsByUserId,
 }) => {
   return (
     <ChooseOne>
@@ -153,7 +157,7 @@ export const UsersTableBody: FC<
               onUserRolesUpdate={onUpdateUserRoles}
             />
 
-            <TableCell>5 Groups</TableCell>
+            <GroupsCell groupsByUserId={groupsByUserId} user={user} />
 
             <TableCell>
               <LoginType authMethods={authMethods!} value={user.login_type} />

@@ -1,11 +1,13 @@
+import { type FC } from "react";
+import type * as TypesGen from "api/typesGenerated";
+import { type GroupsByUserId } from "api/queries/groups";
+
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import { FC } from "react";
-import * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { UserRoleHelpTooltip } from "./UserRoleHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
@@ -20,8 +22,9 @@ export const Language = {
 } as const;
 
 export interface UsersTableProps {
-  users?: TypesGen.User[];
-  roles?: TypesGen.AssignableRoles[];
+  users: TypesGen.User[] | undefined;
+  roles: TypesGen.AssignableRoles[] | undefined;
+  groupsByUserId: GroupsByUserId | undefined;
   isUpdatingUserRoles?: boolean;
   canEditUsers: boolean;
   canViewActivity?: boolean;
@@ -60,6 +63,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
   actorID,
   oidcRoleSyncEnabled,
   authMethods,
+  groupsByUserId,
 }) => {
   return (
     <TableContainer>
@@ -88,6 +92,7 @@ export const UsersTable: FC<React.PropsWithChildren<UsersTableProps>> = ({
           <UsersTableBody
             users={users}
             roles={roles}
+            groupsByUserId={groupsByUserId}
             isLoading={isLoading}
             canEditUsers={canEditUsers}
             canViewActivity={canViewActivity}
