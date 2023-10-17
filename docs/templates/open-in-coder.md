@@ -19,7 +19,7 @@ See
 [Git Authentication](../admin/git-providers.md#require-git-authentication-in-templates)
 in your Coder deployment
 
-### 2. Modify your template to auto-clone repos:
+### 2. Modify your template to auto-clone repos
 
 The id in the template's `coder_git_auth` data source must match the
 `CODER_GITAUTH_0_ID` in the Coder deployment configuration.
@@ -95,7 +95,7 @@ resource "coder_agent" "dev" {
 ```
 
 Be sure to replace `YOUR_ACCESS_URL` with your Coder access url (e.g.
-https://coder.example.com) and `YOUR_TEMPLATE` with the name of your template.
+<https://coder.example.com>) and `YOUR_TEMPLATE` with the name of your template.
 
 ### 4. Optional: pre-fill parameter values in the "Create Workspace" page
 
@@ -106,3 +106,21 @@ This can be used to pre-fill the git repo URL, disk size, image, etc.
 ```
 
 ![Pre-filled parameters](../images/templates/pre-filled-parameters.png)
+
+### 5. Optional: disable specific parameter fields by including their names as
+
+specified in your template in the `disable_params` search params list
+
+```md
+[![Open in Coder](https://YOUR_ACCESS_URL/open-in-coder.svg)](https://YOUR_ACCESS_URL/templates/YOUR_TEMPLATE/workspace?disable_params=first_parameter,second_parameter)
+```
+
+## Example: Kubernetes
+
+For a full example of the Open in Coder flow in Kubernetes, check out
+[this example template](https://github.com/bpmct/coder-templates/tree/main/kubernetes-open-in-coder).
+
+## Devcontainer support
+
+Devcontainer support is on the roadmap.
+[Follow along here](https://github.com/coder/coder/issues/5559)
