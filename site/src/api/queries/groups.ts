@@ -58,7 +58,7 @@ export function groupsByUserId(organizationId: string) {
         });
       }
 
-      return userIdMapper;
+      return userIdMapper as GroupsByUserId;
     },
   } satisfies UseQueryOptions<Group[], unknown, GroupsByUserId>;
 }
