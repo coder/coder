@@ -64,16 +64,7 @@ export function WorkspacesButton({
           {children}
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        anchorOrigin={{
-          vertical: "bottom",
-          horizontal: "right",
-        }}
-        transformOrigin={{
-          vertical: "top",
-          horizontal: "right",
-        }}
-      >
+      <PopoverContent horizontal="right">
         <SearchBox
           value={searchTerm}
           onValueChange={(newValue) => setSearchTerm(newValue)}

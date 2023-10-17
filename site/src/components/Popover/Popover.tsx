@@ -63,10 +63,15 @@ export const PopoverTrigger = (props: { children: TriggerElement }) => {
   });
 };
 
+type Horizontal = "left" | "right";
+
 export const PopoverContent = (
-  props: Omit<MuiPopoverProps, "open" | "onClose" | "anchorEl">,
+  props: Omit<MuiPopoverProps, "open" | "onClose" | "anchorEl"> & {
+    horizontal?: Horizontal;
+  },
 ) => {
   const popover = usePopover();
+  const horizontal = props.horizontal ?? "left";
 
   return (
     <MuiPopover
@@ -77,10 +82,26 @@ export const PopoverContent = (
           width: theme.spacing(40),
         },
       })}
+      {...horizontalProps(horizontal)}
       {...props}
       open={popover.open}
       onClose={() => popover.setOpen(false)}
       anchorEl={popover.triggerRef.current}
     />
   );
+};
+
+const horizontalProps = (horizontal: Horizontal) => {
+  if (horizontal === "right") {
+    return {
+      anchorOrigin: {
+        vertical: "bottom",
+        horizontal: "right",
+      },
+      transformOrigin: {
+        vertical: "top",
+        horizontal: "right",
+      },
+    } as const;
+  }
 };
