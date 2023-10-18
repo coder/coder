@@ -45,17 +45,21 @@ export function groupsByUserId(organizationId: string) {
         }
       }
 
+      // Defined outside the loop because it can be reused by all group arrays,
+      // and doesn't need to be rebuilt from scratch on each iteration
+      const orderGroupsByName = (g1: Group, g2: Group) => {
+        const key =
+          g1.display_name && g2.display_name ? "display_name" : "name";
+
+        if (g1[key] === g2[key]) {
+          return 0;
+        }
+
+        return g1[key] < g2[key] ? -1 : 1;
+      };
+
       for (const groupsList of userIdMapper.values()) {
-        groupsList.sort((g1, g2) => {
-          const key =
-            g1.display_name && g2.display_name ? "display_name" : "name";
-
-          if (g1[key] === g2[key]) {
-            return 0;
-          }
-
-          return g1[key] < g2[key] ? -1 : 1;
-        });
+        groupsList.sort(orderGroupsByName);
       }
 
       return userIdMapper as GroupsByUserId;
