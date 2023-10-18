@@ -1,10 +1,5 @@
 import { updateTemplateACL } from "api/api";
-import {
-  TemplateACL,
-  TemplateGroup,
-  TemplateRole,
-  TemplateUser,
-} from "api/typesGenerated";
+import { TemplateACL, TemplateGroup, TemplateRole } from "api/typesGenerated";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { assign, createMachine } from "xstate";
 
@@ -23,7 +18,6 @@ export const templateACLMachine = createMachine(
         loadTemplateACL: {
           data: TemplateACL;
         };
-        // User
         // Group
         addGroup: {
           data: unknown;
@@ -36,10 +30,6 @@ export const templateACLMachine = createMachine(
         | {
             type: "LOAD";
             data: TemplateACL;
-          }
-        | {
-            type: "REMOVE_USER";
-            user: TemplateUser;
           }
         // Group
         | {
@@ -72,11 +62,6 @@ export const templateACLMachine = createMachine(
       },
       idle: {
         on: {
-          // User
-          REMOVE_USER: {
-            target: "removingUser",
-            actions: ["removeUserFromTemplateACL"],
-          },
           // Group
           ADD_GROUP: {
             target: "addingGroup",
@@ -89,16 +74,6 @@ export const templateACLMachine = createMachine(
           REMOVE_GROUP: {
             target: "removingGroup",
             actions: ["removeGroupFromTemplateACL"],
-          },
-        },
-      },
-      // User
-      removingUser: {
-        invoke: {
-          src: "removeUser",
-          onDone: {
-            target: "idle",
-            actions: ["displayRemoveUserSuccessMessage"],
           },
         },
       },
@@ -138,13 +113,6 @@ export const templateACLMachine = createMachine(
   },
   {
     services: {
-      // User
-      removeUser: ({ templateId }, { user }) =>
-        updateTemplateACL(templateId, {
-          user_perms: {
-            [user.id]: "",
-          },
-        }),
       // Group
       addGroup: ({ templateId }, { group, role }) =>
         updateTemplateACL(templateId, {
@@ -169,23 +137,6 @@ export const templateACLMachine = createMachine(
       assignTemplateACL: assign({
         templateACL: (_, { data }) => data,
       }),
-      // User
-      removeUserFromTemplateACL: assign({
-        templateACL: ({ templateACL }, { user }) => {
-          if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet");
-          }
-          return {
-            ...templateACL,
-            users: templateACL.users.filter((oldTemplateUser) => {
-              return oldTemplateUser.id !== user.id;
-            }),
-          };
-        },
-      }),
-      displayRemoveUserSuccessMessage: () => {
-        displaySuccess("User removed successfully!");
-      },
       // Group
       assignGroupToBeAdded: assign({
         groupToBeAdded: (_, { group, role }) => ({ ...group, role }),

@@ -36,6 +36,7 @@ export const TemplatePermissionsPage: FC<
   const queryClient = useQueryClient();
   const addUserMutation = useMutation(setUserRole(queryClient));
   const updateUserMutation = useMutation(setUserRole(queryClient));
+  const removeUserMutation = useMutation(setUserRole(queryClient));
 
   return (
     <>
@@ -94,8 +95,13 @@ export const TemplatePermissionsPage: FC<
               ? updateUserMutation.variables?.userId
               : undefined
           }
-          onRemoveUser={(user) => {
-            send("REMOVE_USER", { user });
+          onRemoveUser={async (user) => {
+            await removeUserMutation.mutateAsync({
+              templateId: template.id,
+              userId: user.id,
+              role: "",
+            });
+            displaySuccess("User removed successfully!");
           }}
           onAddGroup={(group, role, reset) => {
             send("ADD_GROUP", { group, role, onDone: reset });
