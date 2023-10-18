@@ -1,8 +1,7 @@
 # Workspace Scheduling
 
-You can configure a template to control how workspaces are started and 
-stopped. You can also manage the lifecycle of failed or inactive 
-workspaces.
+You can configure a template to control how workspaces are started and stopped.
+You can also manage the lifecycle of failed or inactive workspaces.
 
 ![Schedule screen](../images/template-scheduling.png)
 
@@ -10,10 +9,10 @@ workspaces.
 
 Template [admins](../admin/users.md) may define these default values:
 
-- **Autostop**: How long a workspace runs without user activity before
-  Coder automatically stops it.
-- **Max lifetime**: The maximum duration a workspace stays in a
-  started state before Coder forcibly stops it.
+- **Autostop**: How long a workspace runs without user activity before Coder
+  automatically stops it.
+- **Max lifetime**: The maximum duration a workspace stays in a started state
+  before Coder forcibly stops it.
 
 ## User scheduling
 
