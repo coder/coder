@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -700,10 +699,9 @@ func ConvertWorkspaceProxy(proxy database.WorkspaceProxy) WorkspaceProxy {
 }
 
 func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisioners []database.ProvisionerType) ExternalProvisioner {
-	hashedTags := make(map[string]string, len(tags))
+	tagsCopy := make(map[string]string, len(tags))
 	for k, v := range tags {
-		hash := sha256.Sum256([]byte(v))
-		hashedTags[k] = hex.EncodeToString(hash[:])
+		tagsCopy[k] = v
 	}
 	strProvisioners := make([]string, 0, len(provisioners))
 	for _, prov := range provisioners {
@@ -711,7 +709,7 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 	return ExternalProvisioner{
 		ID:           id.String(),
-		Tags:         hashedTags,
+		Tags:         tagsCopy,
 		Provisioners: strProvisioners,
 		StartedAt:    time.Now(),
 	}
