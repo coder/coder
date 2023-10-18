@@ -16,7 +16,7 @@ import (
 )
 
 var (
-	activeUsersDesc = prometheus.NewDesc("coderd_insights_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
+	templatesActiveUsersDesc = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 )
 
 type MetricsCollector struct {
@@ -101,6 +101,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		templateNames := onlyTemplateNames(templates)
 
+		// Refresh the collector state
 		mc.data.Store(&insightsData{
 			templates: templateInsights,
 
@@ -127,7 +128,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 }
 
 func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
-	descCh <- activeUsersDesc
+	descCh <- templatesActiveUsersDesc
 }
 
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
@@ -139,7 +140,7 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	}
 
 	for _, templateRow := range data.templates {
-		metricsCh <- prometheus.MustNewConstMetric(activeUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
+		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
 	}
 }
 
@@ -155,6 +156,7 @@ func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplate
 	var i int
 	for t := range tids {
 		uniqueUUIDs[i] = t
+		i++
 	}
 	return uniqueUUIDs
 }
