@@ -79,10 +79,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
           >
             <OverflowY
               maxHeight={400}
-              sx={{
-                maxWidth: "360px",
-                overflowX: "hidden",
-              }}
+              sx={{ maxWidth: "320px", overflowX: "hidden" }}
             >
               <List
                 component="ul"
@@ -95,7 +92,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                 }}
               >
                 {userGroups.map((group) => {
-                  const groupText = group.display_name || group.name;
+                  const groupName = group.display_name || group.name;
                   return (
                     <ListItem
                       key={group.id}
@@ -104,23 +101,21 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                         alignItems: "center",
                       }}
                     >
-                      <Avatar size="sm" src={group.avatar_url} alt={groupText}>
-                        {groupText}
+                      <Avatar size="sm" src={group.avatar_url} alt={groupName}>
+                        {groupName}
                       </Avatar>
 
-                      <p
+                      <span
                         css={{
-                          height: "min-content",
                           whiteSpace: "nowrap",
                           textOverflow: "ellipsis",
-                          lineHeight: 0,
+                          lineHeight: 1,
                           margin: 0,
                         }}
                       >
-                        {/* {groupText} */}
-                        So this is some really, really long text, so uh Good
-                        luck making this look good
-                      </p>
+                        {groupName || <em>N/A</em>} So this is some really,
+                        really long text, so uh Good luck making this look good
+                      </span>
                     </ListItem>
                   );
                 })}
