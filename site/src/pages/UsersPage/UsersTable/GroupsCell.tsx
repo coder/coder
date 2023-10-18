@@ -84,7 +84,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                   display: "flex",
                   flexFlow: "column nowrap",
                   fontSize: theme.typography.body2.fontSize,
-                  padding: theme.spacing(1, 0.5),
+                  padding: theme.spacing(0.5, 0.25),
                   gap: theme.spacing(0),
                 }}
               >
@@ -94,11 +94,11 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                     <ListItem
                       key={group.id}
                       css={{
-                        columnGap: theme.spacing(1.5),
+                        columnGap: theme.spacing(1.25),
                         alignItems: "center",
                       }}
                     >
-                      <Avatar size="sm" src={group.avatar_url} alt={groupName}>
+                      <Avatar size="xs" src={group.avatar_url} alt={groupName}>
                         {groupName}
                       </Avatar>
 
