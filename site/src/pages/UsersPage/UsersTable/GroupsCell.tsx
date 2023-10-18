@@ -23,9 +23,10 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
           onPointerEnter={() => setIsHovering(true)}
           onPointerLeave={() => setIsHovering(false)}
           css={{
+            width: "100%",
             border: "none",
             fontWeight: 400,
-            textAlign: "left",
+            justifyContent: "flex-start",
             padding: 0,
             lineHeight: theme.typography.body2.lineHeight,
             "&:hover": {
