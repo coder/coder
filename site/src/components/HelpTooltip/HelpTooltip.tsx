@@ -1,4 +1,6 @@
 import Link from "@mui/material/Link";
+// This is used as base for the main HelpTooltip component
+// eslint-disable-next-line no-restricted-imports -- Read above
 import Popover, { PopoverProps } from "@mui/material/Popover";
 import HelpIcon from "@mui/icons-material/HelpOutline";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
