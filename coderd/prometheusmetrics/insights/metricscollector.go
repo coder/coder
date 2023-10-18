@@ -15,9 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
-var (
-	templatesActiveUsersDesc = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
-)
+var templatesActiveUsersDesc = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name"}, nil)
 
 type MetricsCollector struct {
 	database database.Store
