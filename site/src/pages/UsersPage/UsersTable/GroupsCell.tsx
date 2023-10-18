@@ -77,17 +77,14 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
             anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
             transformOrigin={{ vertical: 16, horizontal: 0 }}
           >
-            <OverflowY
-              maxHeight={400}
-              sx={{ maxWidth: "320px", overflowX: "hidden" }}
-            >
+            <OverflowY maxHeight={400} sx={{ maxWidth: "320px" }}>
               <List
                 component="ul"
                 css={{
                   display: "flex",
                   flexFlow: "column nowrap",
                   fontSize: theme.typography.body2.fontSize,
-                  padding: theme.spacing(2, 1),
+                  padding: theme.spacing(1, 0.5),
                   gap: theme.spacing(0),
                 }}
               >
@@ -109,12 +106,12 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                         css={{
                           whiteSpace: "nowrap",
                           textOverflow: "ellipsis",
+                          overflow: "hidden",
                           lineHeight: 1,
                           margin: 0,
                         }}
                       >
-                        {groupName || <em>N/A</em>} So this is some really,
-                        really long text, so uh Good luck making this look good
+                        {groupName || <em>N/A</em>}
                       </span>
                     </ListItem>
                   );
