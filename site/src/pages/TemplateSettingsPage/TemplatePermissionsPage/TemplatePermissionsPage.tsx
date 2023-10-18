@@ -14,7 +14,8 @@ import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplatePermissionsPageView } from "./TemplatePermissionsPageView";
 import { docs } from "utils/docs";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { addUserToTemplateACL, templateACL } from "api/queries/templates";
+import { setUserRole, templateACL } from "api/queries/templates";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 
 export const TemplatePermissionsPage: FC<
   React.PropsWithChildren<unknown>
@@ -25,7 +26,7 @@ export const TemplatePermissionsPage: FC<
   const [state, send] = useMachine(templateACLMachine, {
     context: { templateId: template.id },
   });
-  const { userToBeUpdated, groupToBeUpdated } = state.context;
+  const { groupToBeUpdated } = state.context;
   const templateACLQuery = useQuery({
     ...templateACL(template.id),
     onSuccess: (data) => {
@@ -33,7 +34,8 @@ export const TemplatePermissionsPage: FC<
     },
   });
   const queryClient = useQueryClient();
-  const addUserMutation = useMutation(addUserToTemplateACL(queryClient));
+  const addUserMutation = useMutation(setUserRole(queryClient));
+  const updateUserMutation = useMutation(setUserRole(queryClient));
 
   return (
     <>
@@ -79,10 +81,19 @@ export const TemplatePermissionsPage: FC<
             reset();
           }}
           isAddingUser={addUserMutation.isLoading}
-          onUpdateUser={(user, role) => {
-            send("UPDATE_USER_ROLE", { user, role });
+          onUpdateUser={async (user, role) => {
+            await updateUserMutation.mutateAsync({
+              templateId: template.id,
+              userId: user.id,
+              role,
+            });
+            displaySuccess("User role updated successfully!");
           }}
-          updatingUser={userToBeUpdated}
+          updatingUserId={
+            updateUserMutation.isLoading
+              ? updateUserMutation.variables?.userId
+              : undefined
+          }
           onRemoveUser={(user) => {
             send("REMOVE_USER", { user });
           }}

@@ -48,7 +48,7 @@ export const templateACL = (templateId: string) => {
   };
 };
 
-export const addUserToTemplateACL = (
+export const setUserRole = (
   queryClient: QueryClient,
 ): MutationOptions<
   Awaited<ReturnType<typeof API.updateTemplateACL>>,

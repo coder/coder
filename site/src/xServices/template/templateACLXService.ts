@@ -14,9 +14,6 @@ export const templateACLMachine = createMachine(
       context: {} as {
         templateId: string;
         templateACL?: TemplateACL;
-        // User
-        userToBeUpdated?: TemplateUser;
-        addUserCallback?: () => void;
         // Group
         groupToBeAdded?: TemplateGroup;
         groupToBeUpdated?: TemplateGroup;
@@ -27,9 +24,6 @@ export const templateACLMachine = createMachine(
           data: TemplateACL;
         };
         // User
-        updateUser: {
-          data: unknown;
-        };
         // Group
         addGroup: {
           data: unknown;
@@ -42,11 +36,6 @@ export const templateACLMachine = createMachine(
         | {
             type: "LOAD";
             data: TemplateACL;
-          }
-        | {
-            type: "UPDATE_USER_ROLE";
-            user: TemplateUser;
-            role: TemplateRole;
           }
         | {
             type: "REMOVE_USER";
@@ -84,10 +73,6 @@ export const templateACLMachine = createMachine(
       idle: {
         on: {
           // User
-          UPDATE_USER_ROLE: {
-            target: "updatingUser",
-            actions: ["assignUserToBeUpdated"],
-          },
           REMOVE_USER: {
             target: "removingUser",
             actions: ["removeUserFromTemplateACL"],
@@ -108,19 +93,6 @@ export const templateACLMachine = createMachine(
         },
       },
       // User
-      updatingUser: {
-        invoke: {
-          src: "updateUser",
-          onDone: {
-            target: "idle",
-            actions: [
-              "updateUserOnTemplateACL",
-              "clearUserToBeUpdated",
-              "displayUpdateUserSuccessMessage",
-            ],
-          },
-        },
-      },
       removingUser: {
         invoke: {
           src: "removeUser",
@@ -167,12 +139,6 @@ export const templateACLMachine = createMachine(
   {
     services: {
       // User
-      updateUser: ({ templateId }, { user, role }) =>
-        updateTemplateACL(templateId, {
-          user_perms: {
-            [user.id]: role,
-          },
-        }),
       removeUser: ({ templateId }, { user }) =>
         updateTemplateACL(templateId, {
           user_perms: {
@@ -204,33 +170,6 @@ export const templateACLMachine = createMachine(
         templateACL: (_, { data }) => data,
       }),
       // User
-      assignUserToBeUpdated: assign({
-        userToBeUpdated: (_, { user, role }) => ({ ...user, role }),
-      }),
-      updateUserOnTemplateACL: assign({
-        templateACL: ({ templateACL, userToBeUpdated }) => {
-          if (!userToBeUpdated) {
-            throw new Error("No user to be added");
-          }
-          if (!templateACL) {
-            throw new Error("Template ACL is not loaded yet");
-          }
-          return {
-            ...templateACL,
-            users: templateACL.users.map((oldTemplateUser) => {
-              return oldTemplateUser.id === userToBeUpdated.id
-                ? userToBeUpdated
-                : oldTemplateUser;
-            }),
-          };
-        },
-      }),
-      clearUserToBeUpdated: assign({
-        userToBeUpdated: (_) => undefined,
-      }),
-      displayUpdateUserSuccessMessage: () => {
-        displaySuccess("User role update successfully!");
-      },
       removeUserFromTemplateACL: assign({
         templateACL: ({ templateACL }, { user }) => {
           if (!templateACL) {
