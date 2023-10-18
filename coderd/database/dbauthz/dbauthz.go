@@ -2222,7 +2222,7 @@ func (q *querier) InsertWorkspaceBuild(ctx context.Context, arg database.InsertW
 			return xerrors.Errorf("get template by id: %w", err)
 		}
 
-		accessControl, err := (*q.acs.Load()).GetTemplateAccessControl(ctx, q.db, w.TemplateID)
+		accessControl, err := (*q.acs.Load()).GetTemplateAccessControl(t)
 		if err != nil {
 			return xerrors.Errorf("get template access control by id: %w", err)
 		}

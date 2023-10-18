@@ -24,12 +24,13 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd"
 	agplaudit "github.com/coder/coder/v2/coderd/audit"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	agpldbauthz "github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/dbauthz"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/proxyhealth"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
@@ -113,7 +114,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	api.AGPL.SiteHandler.RegionsFetcher = func(ctx context.Context) (any, error) {
 		// If the user can read the workspace proxy resource, return that.
 		// If not, always default to the regions.
-		actor, ok := dbauthz.ActorFromContext(ctx)
+		actor, ok := agpldbauthz.ActorFromContext(ctx)
 		if ok && api.Authorizer.Authorize(ctx, actor, rbac.ActionRead, rbac.ResourceWorkspaceProxy) == nil {
 			return api.fetchWorkspaceProxies(ctx)
 		}
@@ -656,7 +657,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	}
 
 	if initial, changed, enabled := featureChanged(codersdk.FeatureAccessControl); shouldUpdate(initial, changed, enabled) {
-		var acs dbauthz.AccessControlStore = dbauthz.AGPLTemplateAccessControlStore{}
+		var acs agpldbauthz.AccessControlStore = agpldbauthz.AGPLTemplateAccessControlStore{}
 		if enabled {
 			acs = dbauthz.EnterpriseTemplateAccessControlStore{}
 		}

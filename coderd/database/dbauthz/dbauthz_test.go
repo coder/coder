@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"reflect"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1227,14 +1226,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("Start/RequireActiveVersion/VersionMismatch/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		t := dbgen.Template(s.T(), db, database.Template{})
-
 		ctx := testutil.Context(s.T(), testutil.WaitShort)
 		err := db.UpdateTemplateAccessControlByID(ctx, database.UpdateTemplateAccessControlByIDParams{
 			ID:                   t.ID,
 			RequireActiveVersion: true,
 		})
 		require.NoError(s.T(), err)
-
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t.ID},
 		})
@@ -1670,11 +1667,4 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Transition: database.WorkspaceTransitionStart,
 		}).Asserts(rbac.ResourceSystem, rbac.ActionCreate)
 	}))
-}
-
-func accessControlStorePointer() *atomic.Pointer[dbauthz.AccessControlStore] {
-	acs := &atomic.Pointer[dbauthz.AccessControlStore]{}
-	var tacs dbauthz.AccessControlStore = dbauthz.EnterpriseTemplateAccessControlStore{}
-	acs.Store(&tacs)
-	return acs
 }
