@@ -1891,6 +1891,7 @@ type Template struct {
 	TimeTilDormantAutoDelete      int64           `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
 	AutostopRequirementDaysOfWeek int16           `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	AutostopRequirementWeeks      int64           `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	AutostartBlockDaysOfWeek      int16           `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 	CreatedByAvatarURL            sql.NullString  `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -1927,6 +1928,8 @@ type TemplateTable struct {
 	AutostopRequirementDaysOfWeek int16 `db:"autostop_requirement_days_of_week" json:"autostop_requirement_days_of_week"`
 	// The number of weeks between restarts. 0 or 1 weeks means "every week", 2 week means "every second week", etc. Weeks are counted from January 2, 2023, which is the first Monday of 2023. This is to ensure workspaces are started consistently for all customers on the same n-week cycles.
 	AutostopRequirementWeeks int64 `db:"autostop_requirement_weeks" json:"autostop_requirement_weeks"`
+	// A bitmap of days of week that autostart of a workspace is not allowed. Default allows all days. This is intended as a cost savings measure to prevent auto start on weekends (for example).
+	AutostartBlockDaysOfWeek int16 `db:"autostart_block_days_of_week" json:"autostart_block_days_of_week"`
 }
 
 // Joins in the username + avatar url of the created by user.

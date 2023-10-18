@@ -9,7 +9,7 @@ import { useProxy } from "contexts/ProxyContext";
 
 export const Navbar: FC = () => {
   const { appearance, buildInfo } = useDashboard();
-  const [_, authSend] = useAuth();
+  const { signOut } = useAuth();
   const me = useMe();
   const permissions = usePermissions();
   const featureVisibility = useFeatureVisibility();
@@ -17,7 +17,6 @@ export const Navbar: FC = () => {
     featureVisibility["audit_log"] && Boolean(permissions.viewAuditLog);
   const canViewDeployment = Boolean(permissions.viewDeploymentValues);
   const canViewAllUsers = Boolean(permissions.readAllUsers);
-  const onSignOut = () => authSend("SIGN_OUT");
   const proxyContextValue = useProxy();
   const dashboard = useDashboard();
 
@@ -27,7 +26,7 @@ export const Navbar: FC = () => {
       logo_url={appearance.config.logo_url}
       buildInfo={buildInfo}
       supportLinks={appearance.config.support_links}
-      onSignOut={onSignOut}
+      onSignOut={signOut}
       canViewAuditLog={canViewAuditLog}
       canViewDeployment={canViewDeployment}
       canViewAllUsers={canViewAllUsers}

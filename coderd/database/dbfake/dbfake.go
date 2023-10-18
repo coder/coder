@@ -814,8 +814,26 @@ func (q *FakeQuerier) ActivityBumpWorkspace(ctx context.Context, workspaceID uui
 		if q.workspaceBuilds[i].Deadline.IsZero() {
 			return nil
 		}
+
+		// Check the template default TTL.
+		template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+		if err != nil {
+			return err
+		}
+
+		var ttlDur time.Duration
+		if workspace.Ttl.Valid {
+			ttlDur = time.Duration(workspace.Ttl.Int64)
+		}
+		if !template.AllowUserAutostop {
+			ttlDur = time.Duration(template.DefaultTTL)
+		}
+		if ttlDur <= 0 {
+			// There's no TTL set anymore, so we don't know the bump duration.
+			return nil
+		}
+
 		// Only bump if 5% of the deadline has passed.
-		ttlDur := time.Duration(workspace.Ttl.Int64)
 		ttlDur95 := ttlDur - (ttlDur / 20)
 		minBumpDeadline := q.workspaceBuilds[i].Deadline.Add(-ttlDur95)
 		if now.Before(minBumpDeadline) {
@@ -3500,13 +3518,20 @@ func (q *FakeQuerier) GetWorkspaceAgentLogsAfter(_ context.Context, arg database
 	return logs, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+func (q *FakeQuerier) GetWorkspaceAgentMetadata(_ context.Context, arg database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
+	if err := validateDatabaseType(arg); err != nil {
+		return nil, err
+	}
+
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	metadata := make([]database.WorkspaceAgentMetadatum, 0)
 	for _, m := range q.workspaceAgentMetadata {
-		if m.WorkspaceAgentID == workspaceAgentID {
+		if m.WorkspaceAgentID == arg.WorkspaceAgentID {
+			if len(arg.Keys) > 0 && !slices.Contains(arg.Keys, m.Key) {
+				continue
+			}
 			metadata = append(metadata, m)
 		}
 	}
@@ -4564,6 +4589,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		Type:           arg.Type,
 		Input:          arg.Input,
 		Tags:           arg.Tags,
+		TraceMetadata:  arg.TraceMetadata,
 	}
 	job.JobStatus = provisonerJobStatus(job)
 	q.provisionerJobs = append(q.provisionerJobs, job)
@@ -5700,6 +5726,7 @@ func (q *FakeQuerier) UpdateTemplateScheduleByID(_ context.Context, arg database
 		tpl.MaxTTL = arg.MaxTTL
 		tpl.AutostopRequirementDaysOfWeek = arg.AutostopRequirementDaysOfWeek
 		tpl.AutostopRequirementWeeks = arg.AutostopRequirementWeeks
+		tpl.AutostartBlockDaysOfWeek = arg.AutostartBlockDaysOfWeek
 		tpl.FailureTTL = arg.FailureTTL
 		tpl.TimeTilDormant = arg.TimeTilDormant
 		tpl.TimeTilDormantAutoDelete = arg.TimeTilDormantAutoDelete
@@ -6115,19 +6142,17 @@ func (q *FakeQuerier) UpdateWorkspaceAgentMetadata(_ context.Context, arg databa
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	//nolint:gosimple
-	updated := database.WorkspaceAgentMetadatum{
-		WorkspaceAgentID: arg.WorkspaceAgentID,
-		Key:              arg.Key,
-		Value:            arg.Value,
-		Error:            arg.Error,
-		CollectedAt:      arg.CollectedAt,
-	}
-
 	for i, m := range q.workspaceAgentMetadata {
-		if m.WorkspaceAgentID == arg.WorkspaceAgentID && m.Key == arg.Key {
-			q.workspaceAgentMetadata[i] = updated
-			return nil
+		if m.WorkspaceAgentID != arg.WorkspaceAgentID {
+			continue
+		}
+		for j := 0; j < len(arg.Key); j++ {
+			if m.Key == arg.Key[j] {
+				q.workspaceAgentMetadata[i].Value = arg.Value[j]
+				q.workspaceAgentMetadata[i].Error = arg.Error[j]
+				q.workspaceAgentMetadata[i].CollectedAt = arg.CollectedAt[j]
+				return nil
+			}
 		}
 	}
 

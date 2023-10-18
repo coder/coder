@@ -120,19 +120,9 @@ export const logout = async (): Promise<void> => {
   await axios.post("/api/v2/users/logout");
 };
 
-export const getAuthenticatedUser = async (): Promise<
-  TypesGen.User | undefined
-> => {
-  try {
-    const response = await axios.get<TypesGen.User>("/api/v2/users/me");
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      return undefined;
-    }
-
-    throw error;
-  }
+export const getAuthenticatedUser = async () => {
+  const response = await axios.get<TypesGen.User>("/api/v2/users/me");
+  return response.data;
 };
 
 export const getAuthMethods = async (): Promise<TypesGen.AuthMethods> => {
@@ -874,6 +864,19 @@ export const getExperiments = async (): Promise<TypesGen.Experiment[]> => {
   }
 };
 
+export const getAvailableExperiments =
+  async (): Promise<TypesGen.AvailableExperiments> => {
+    try {
+      const response = await axios.get("/api/v2/experiments/available");
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return { safe: [] };
+      }
+      throw error;
+    }
+  };
+
 export const getExternalAuthProvider = async (
   provider: string,
 ): Promise<TypesGen.ExternalAuth> => {
@@ -1526,14 +1529,17 @@ export const getInsightsTemplate = async (
   return response.data;
 };
 
-export const getHealth = () => {
-  return axios.get<{
-    healthy: boolean;
-    time: string;
-    coder_version: string;
-    derp: { healthy: boolean };
-    access_url: { healthy: boolean };
-    websocket: { healthy: boolean };
-    database: { healthy: boolean };
-  }>("/api/v2/debug/health");
+export interface Health {
+  healthy: boolean;
+  time: string;
+  coder_version: string;
+  access_url: { healthy: boolean };
+  database: { healthy: boolean };
+  derp: { healthy: boolean };
+  websocket: { healthy: boolean };
+}
+
+export const getHealth = async () => {
+  const response = await axios.get<Health>("/api/v2/debug/health");
+  return response.data;
 };

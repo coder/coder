@@ -375,6 +375,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 	}
 
+	err = api.PrometheusRegistry.Register(&api.licenseMetricsCollector)
+	if err != nil {
+		return nil, xerrors.Errorf("unable to register license metrics collector")
+	}
+
 	err = api.updateEntitlements(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("update entitlements: %w", err)
@@ -434,6 +439,8 @@ type API struct {
 	entitlements         codersdk.Entitlements
 
 	provisionerDaemonAuth *provisionerDaemonAuth
+
+	licenseMetricsCollector license.MetricsCollector
 }
 
 func (api *API) Close() error {
@@ -660,8 +667,8 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 	api.entitlementsMu.Lock()
 	defer api.entitlementsMu.Unlock()
 	api.entitlements = entitlements
+	api.licenseMetricsCollector.Entitlements.Store(&entitlements)
 	api.AGPL.SiteHandler.Entitlements.Store(&entitlements)
-
 	return nil
 }
 

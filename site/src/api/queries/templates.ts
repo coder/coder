@@ -1,7 +1,6 @@
 import * as API from "api/api";
 import {
   type Template,
-  type AuthorizationResponse,
   type CreateTemplateVersionRequest,
   type ProvisionerJobStatus,
   type TemplateVersion,
@@ -21,25 +20,10 @@ export const templateByNameKey = (orgId: string, name: string) => [
 export const templateByName = (
   orgId: string,
   name: string,
-): QueryOptions<{ template: Template; permissions: AuthorizationResponse }> => {
+): QueryOptions<Template> => {
   return {
     queryKey: templateByNameKey(orgId, name),
-    queryFn: async () => {
-      const template = await API.getTemplateByName(orgId, name);
-      const permissions = await API.checkAuthorization({
-        checks: {
-          canUpdateTemplate: {
-            object: {
-              resource_type: "template",
-              resource_id: template.id,
-            },
-            action: "update",
-          },
-        },
-      });
-
-      return { template, permissions };
-    },
+    queryFn: async () => API.getTemplateByName(orgId, name),
   };
 };
 
@@ -63,6 +47,18 @@ export const templateVersion = (versionId: string) => {
   return {
     queryKey: ["templateVersion", versionId],
     queryFn: () => API.getTemplateVersion(versionId),
+  };
+};
+
+export const templateVersionByName = (
+  orgId: string,
+  templateName: string,
+  versionName: string,
+) => {
+  return {
+    queryKey: ["templateVersion", orgId, templateName, versionName],
+    queryFn: () =>
+      API.getTemplateVersionByName(orgId, templateName, versionName),
   };
 };
 
@@ -141,6 +137,20 @@ const createTemplateFn = async (options: {
     ...options.template,
     template_version_id: version.id,
   });
+};
+
+export const templateVersionLogs = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "logs"],
+    queryFn: () => API.getTemplateVersionLogs(versionId),
+  };
+};
+
+export const richParameters = (versionId: string) => {
+  return {
+    queryKey: ["templateVersion", versionId, "richParameters"],
+    queryFn: () => API.getTemplateVersionRichParameters(versionId),
+  };
 };
 
 const waitBuildToBeFinished = async (version: TemplateVersion) => {

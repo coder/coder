@@ -1,19 +1,19 @@
-import { makeStyles } from "@mui/styles";
-import { useCallback, useState, FC } from "react";
+import { type FC, useCallback, useState } from "react";
 import { useCustomEvent } from "hooks/events";
-import { CustomEventListener } from "utils/events";
+import type { CustomEventListener } from "utils/events";
 import { EnterpriseSnackbar } from "./EnterpriseSnackbar";
 import { ErrorIcon } from "../Icons/ErrorIcon";
 import { Typography } from "../Typography/Typography";
 import {
-  AdditionalMessage,
+  type AdditionalMessage,
   isNotificationList,
   isNotificationText,
   isNotificationTextPrefixed,
   MsgType,
-  NotificationMsg,
+  type NotificationMsg,
   SnackbarEventType,
 } from "./utils";
+import { type Interpolation, type Theme } from "@emotion/react";
 
 const variantFromMsgType = (type: MsgType) => {
   if (type === MsgType.Error) {
@@ -26,7 +26,6 @@ const variantFromMsgType = (type: MsgType) => {
 };
 
 export const GlobalSnackbar: FC = () => {
-  const styles = useStyles();
   const [open, setOpen] = useState<boolean>(false);
   const [notification, setNotification] = useState<NotificationMsg>();
 
@@ -47,7 +46,7 @@ export const GlobalSnackbar: FC = () => {
           key={idx}
           gutterBottom
           variant="body2"
-          className={styles.messageSubtitle}
+          css={styles.messageSubtitle}
         >
           {msg}
         </Typography>
@@ -58,17 +57,17 @@ export const GlobalSnackbar: FC = () => {
           key={idx}
           gutterBottom
           variant="body2"
-          className={styles.messageSubtitle}
+          css={styles.messageSubtitle}
         >
           <strong>{msg.prefix}:</strong> {msg.text}
         </Typography>
       );
     } else if (isNotificationList(msg)) {
       return (
-        <ul className={styles.list} key={idx}>
+        <ul css={styles.list} key={idx}>
           {msg.map((item, idx) => (
             <li key={idx}>
-              <Typography variant="body2" className={styles.messageSubtitle}>
+              <Typography variant="body2" css={styles.messageSubtitle}>
                 {item}
               </Typography>
             </li>
@@ -89,12 +88,12 @@ export const GlobalSnackbar: FC = () => {
       open={open}
       variant={variantFromMsgType(notification.msgType)}
       message={
-        <div className={styles.messageWrapper}>
+        <div css={styles.messageWrapper}>
           {notification.msgType === MsgType.Error && (
-            <ErrorIcon className={styles.errorIcon} />
+            <ErrorIcon css={styles.errorIcon} />
           )}
-          <div className={styles.message}>
-            <Typography variant="body1" className={styles.messageTitle}>
+          <div css={styles.message}>
+            <Typography variant="body1" css={styles.messageTitle}>
               {notification.msg}
             </Typography>
             {notification.additionalMsgs &&
@@ -112,7 +111,7 @@ export const GlobalSnackbar: FC = () => {
   );
 };
 
-const useStyles = makeStyles((theme) => ({
+const styles = {
   list: {
     paddingLeft: 0,
   },
@@ -126,11 +125,11 @@ const useStyles = makeStyles((theme) => ({
     fontSize: 14,
     fontWeight: 600,
   },
-  messageSubtitle: {
+  messageSubtitle: (theme) => ({
     marginTop: theme.spacing(1.5),
-  },
-  errorIcon: {
+  }),
+  errorIcon: (theme) => ({
     color: theme.palette.error.contrastText,
     marginRight: theme.spacing(2),
-  },
-}));
+  }),
+} satisfies Record<string, Interpolation<Theme>>;

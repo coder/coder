@@ -26,12 +26,12 @@ import {
   ImmutableTemplateParametersSection,
   MutableTemplateParametersSection,
 } from "components/TemplateParameters/TemplateParameters";
-import { CreateWSPermissions } from "xServices/createWorkspace/createWorkspaceXService";
 import { ExternalAuth } from "./ExternalAuth";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Stack } from "components/Stack/Stack";
 import { type ExternalAuthPollingState } from "./CreateWorkspacePage";
 import { useSearchParams } from "react-router-dom";
+import { CreateWSPermissions } from "./permissions";
 
 export interface CreateWorkspacePageViewProps {
   error: unknown;
@@ -93,7 +93,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
       enableReinitialize: true,
       onSubmit: (request) => {
         if (!verifyExternalAuth()) {
-          form.setSubmitting(false);
           return;
         }
 
@@ -138,7 +137,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
             )}
             <TextField
               {...getFieldHelpers("name")}
-              disabled={form.isSubmitting}
+              disabled={creatingWorkspace}
               onChange={onChangeTrimmed(form)}
               autoFocus
               fullWidth
@@ -205,7 +204,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   disabled:
                     disabledParamsList?.includes(
                       parameter.name.toLowerCase().replace(/ /g, "_"),
-                    ) || form.isSubmitting,
+                    ) || creatingWorkspace,
                 };
               }}
             />
@@ -226,7 +225,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
                   disabled:
                     disabledParamsList?.includes(
                       parameter.name.toLowerCase().replace(/ /g, "_"),
-                    ) || form.isSubmitting,
+                    ) || creatingWorkspace,
                 };
               }}
             />

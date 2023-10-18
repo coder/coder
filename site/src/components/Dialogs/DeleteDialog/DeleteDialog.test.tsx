@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { render } from "testHelpers/renderHelpers";
+import { renderComponent } from "testHelpers/renderHelpers";
 import { DeleteDialog } from "./DeleteDialog";
 import { act } from "react-dom/test-utils";
 
@@ -22,7 +22,7 @@ async function fillInputField(inputElement: HTMLElement, text: string) {
 
 describe("DeleteDialog", () => {
   it("disables confirm button when the text field is empty", () => {
-    render(
+    renderComponent(
       <DeleteDialog
         isOpen
         onConfirm={jest.fn()}
@@ -37,7 +37,7 @@ describe("DeleteDialog", () => {
   });
 
   it("disables confirm button when the text field is filled incorrectly", async () => {
-    render(
+    renderComponent(
       <DeleteDialog
         isOpen
         onConfirm={jest.fn()}
@@ -55,7 +55,7 @@ describe("DeleteDialog", () => {
   });
 
   it("enables confirm button when the text field is filled correctly", async () => {
-    render(
+    renderComponent(
       <DeleteDialog
         isOpen
         onConfirm={jest.fn()}

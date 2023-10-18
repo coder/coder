@@ -597,6 +597,7 @@ func New(options *Options) *API {
 		})
 		r.Route("/experiments", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
+			r.Get("/available", handleExperimentsSafe)
 			r.Get("/", api.handleExperimentsGet)
 		})
 		r.Get("/updatecheck", api.updateCheck)
@@ -821,7 +822,8 @@ func New(options *Options) *API {
 				r.Get("/coordinate", api.workspaceAgentCoordinate)
 				r.Post("/report-stats", api.workspaceAgentReportStats)
 				r.Post("/report-lifecycle", api.workspaceAgentReportLifecycle)
-				r.Post("/metadata/{key}", api.workspaceAgentPostMetadata)
+				r.Post("/metadata", api.workspaceAgentPostMetadata)
+				r.Post("/metadata/{key}", api.workspaceAgentPostMetadataDeprecated)
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {
 				r.Use(
@@ -1107,6 +1109,7 @@ func (api *API) CreateInMemoryProvisionerDaemon(ctx context.Context) (client pro
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	logger.Info(ctx, "starting in-memory provisioner daemon")
 	srv, err := provisionerdserver.NewServer(
+		api.ctx,
 		api.AccessURL,
 		uuid.New(),
 		logger,

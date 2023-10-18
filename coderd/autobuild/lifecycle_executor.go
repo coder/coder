@@ -184,7 +184,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						builder = builder.ActiveVersion()
 					}
 
-					build, job, err = builder.Build(e.ctx, tx, nil)
+					build, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+
 					if err != nil {
 						log.Error(e.ctx, "unable to transition workspace",
 							slog.F("transition", nextTransition),
@@ -354,6 +355,17 @@ func isEligibleForAutostart(ws database.Workspace, build database.WorkspaceBuild
 	// Truncate is probably not necessary here, but doing it anyway to be sure.
 	nextTransition := sched.Next(build.CreatedAt).Truncate(time.Minute)
 
+	// The nextTransition is when the auto start should kick off. If it lands on a
+	// forbidden day, do not allow the auto start. We use the time location of the
+	// schedule to determine the weekday. So if "Saturday" is disallowed, the
+	// definition of "Saturday" depends on the location of the schedule.
+	zonedTransition := nextTransition.In(sched.Location())
+	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
+	if !allowed {
+		return false
+	}
+
+	// Must used '.Before' vs '.After' so equal times are considered "valid for autostart".
 	return !currentTick.Before(nextTransition)
 }
 

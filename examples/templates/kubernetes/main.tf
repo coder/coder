@@ -250,6 +250,9 @@ resource "kubernetes_deployment" "main" {
         "app.kubernetes.io/name" = "coder-workspace"
       }
     }
+    strategy {
+      type = "Recreate"
+    }
 
     template {
       metadata {

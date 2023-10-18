@@ -11,21 +11,12 @@ import {
   MockOutdatedWorkspace,
   MockTemplateVersionParameter1,
   MockTemplateVersionParameter2,
-  MockStoppingWorkspace,
-  MockFailedWorkspace,
-  MockCancelingWorkspace,
-  MockCanceledWorkspace,
-  MockDeletingWorkspace,
-  MockDeletedWorkspace,
-  MockWorkspaceWithDeletion,
   MockBuilds,
   MockTemplateVersion3,
   MockUser,
-  MockEntitlementsWithScheduling,
   MockDeploymentConfig,
 } from "testHelpers/entities";
 import * as api from "api/api";
-import { Workspace } from "api/typesGenerated";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import { server } from "testHelpers/server";
 import { WorkspacePage } from "./WorkspacePage";
@@ -63,21 +54,6 @@ const testButton = async (label: string, actionMock: jest.SpyInstance) => {
   const button = within(workspaceActions).getByRole("button", { name: label });
   await user.click(button);
   expect(actionMock).toBeCalled();
-};
-
-const testStatus = async (ws: Workspace, label: string) => {
-  server.use(
-    rest.get(
-      `/api/v2/users/:username/workspace/:workspaceName`,
-      (req, res, ctx) => {
-        return res(ctx.status(200), ctx.json(ws));
-      },
-    ),
-  );
-  await renderWorkspacePage();
-  const header = screen.getByTestId("header");
-  const status = within(header).getByRole("status");
-  expect(status).toHaveTextContent(label);
 };
 
 let originalEventSource: typeof window.EventSource;
@@ -277,49 +253,6 @@ describe("WorkspacePage", () => {
         },
       ]);
     });
-  });
-
-  it("shows the Stopping status when the workspace is stopping", async () => {
-    await testStatus(MockStoppingWorkspace, "Stopping");
-  });
-
-  it("shows the Stopped status when the workspace is stopped", async () => {
-    await testStatus(MockStoppedWorkspace, "Stopped");
-  });
-
-  it("shows the Building status when the workspace is starting", async () => {
-    await testStatus(MockStartingWorkspace, "Starting");
-  });
-
-  it("shows the Running status when the workspace is running", async () => {
-    await testStatus(MockWorkspace, "Running");
-  });
-
-  it("shows the Failed status when the workspace is failed or canceled", async () => {
-    await testStatus(MockFailedWorkspace, "Failed");
-  });
-
-  it("shows the Canceling status when the workspace is canceling", async () => {
-    await testStatus(MockCancelingWorkspace, "Canceling");
-  });
-
-  it("shows the Canceled status when the workspace is canceling", async () => {
-    await testStatus(MockCanceledWorkspace, "Canceled");
-  });
-
-  it("shows the Deleting status when the workspace is deleting", async () => {
-    await testStatus(MockDeletingWorkspace, "Deleting");
-  });
-
-  it("shows the Deleted status when the workspace is deleted", async () => {
-    await testStatus(MockDeletedWorkspace, "Deleted");
-  });
-
-  it("shows the Impending deletion status when the workspace is impending deletion", async () => {
-    jest
-      .spyOn(api, "getEntitlements")
-      .mockResolvedValue(MockEntitlementsWithScheduling);
-    await testStatus(MockWorkspaceWithDeletion, "Impending deletion");
   });
 
   it("shows the timeline build", async () => {

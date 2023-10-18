@@ -116,4 +116,21 @@ func Test_Experiments(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorContains(t, err, httpmw.SignedOutErrorMessage)
 	})
+
+	t.Run("available experiments", func(t *testing.T) {
+		t.Parallel()
+		cfg := coderdtest.DeploymentValues(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: cfg,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		experiments, err := client.SafeExperiments(ctx)
+		require.NoError(t, err)
+		require.NotNil(t, experiments)
+		require.ElementsMatch(t, codersdk.ExperimentsAll, experiments.Safe)
+	})
 }

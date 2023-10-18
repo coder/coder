@@ -42,8 +42,9 @@ locals {
   cpu                                            = 16
   memory                                         = 64
   home_disk_size                                 = 10
-  scaletest_run_id                               = "scaletest-${time_static.start_time.rfc3339}"
+  scaletest_run_id                               = "scaletest-${replace(time_static.start_time.rfc3339, ":", "-")}"
   scaletest_run_dir                              = "/home/coder/${local.scaletest_run_id}"
+  scaletest_run_start_time                       = time_static.start_time.rfc3339
   grafana_url                                    = "https://stats.dev.c8s.io"
   grafana_dashboard_uid                          = "qLVSTR-Vz"
   grafana_dashboard_name                         = "coderv2-loadtest-dashboard"
@@ -71,6 +72,25 @@ data "coder_parameter" "dry_run" {
   name        = "Dry-run"
   default     = true
   description = "Perform a dry-run to see what would happen."
+  mutable     = true
+  ephemeral   = true
+}
+
+data "coder_parameter" "repo_branch" {
+  order       = 3
+  type        = "string"
+  name        = "Branch"
+  default     = "main"
+  description = "Branch of coder/coder repo to check out (only useful for developing the runner)."
+  mutable     = true
+}
+
+data "coder_parameter" "comment" {
+  order       = 4
+  type        = "string"
+  name        = "Comment"
+  default     = ""
+  description = "Describe **what** you're testing and **why** you're testing it."
   mutable     = true
   ephemeral   = true
 }
@@ -355,8 +375,14 @@ resource "coder_agent" "main" {
     # Local envs passed as arguments to `coder exp scaletest` invocations.
     SCALETEST_RUN_ID : local.scaletest_run_id,
     SCALETEST_RUN_DIR : local.scaletest_run_dir,
+    SCALETEST_RUN_START_TIME : local.scaletest_run_start_time,
+
+    # Comment is a scaletest param, but we want to surface it separately from
+    # the rest, so we use a different name.
+    SCALETEST_COMMENT : data.coder_parameter.comment.value != "" ? data.coder_parameter.comment.value : "No comment provided",
 
     SCALETEST_PARAM_TEMPLATE : data.coder_parameter.workspace_template.value,
+    SCALETEST_PARAM_REPO_BRANCH : data.coder_parameter.repo_branch.value,
     SCALETEST_PARAM_NUM_WORKSPACES : data.coder_parameter.num_workspaces.value,
     SCALETEST_PARAM_CREATE_CONCURRENCY : "${data.coder_parameter.create_concurrency.value}",
     SCALETEST_PARAM_CLEANUP_STRATEGY : data.coder_parameter.cleanup_strategy.value,

@@ -1869,7 +1869,7 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentLogsAfter(arg0, arg1 interface
 }
 
 // GetWorkspaceAgentMetadata mocks base method.
-func (m *MockStore) GetWorkspaceAgentMetadata(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceAgentMetadatum, error) {
+func (m *MockStore) GetWorkspaceAgentMetadata(arg0 context.Context, arg1 database.GetWorkspaceAgentMetadataParams) ([]database.WorkspaceAgentMetadatum, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceAgentMetadata", arg0, arg1)
 	ret0, _ := ret[0].([]database.WorkspaceAgentMetadatum)

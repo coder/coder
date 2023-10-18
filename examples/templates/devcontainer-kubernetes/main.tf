@@ -177,6 +177,9 @@ resource "kubernetes_deployment" "workspace" {
         "coder.workspace_id" = data.coder_workspace.me.id
       }
     }
+    strategy {
+      type = "Recreate"
+    }
     template {
       metadata {
         labels = {

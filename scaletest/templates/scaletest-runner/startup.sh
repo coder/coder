@@ -16,7 +16,10 @@ echo "Cloning coder/coder repo..."
 if [[ ! -d "${HOME}/coder" ]]; then
 	git clone https://github.com/coder/coder.git "${HOME}/coder"
 fi
-(cd "${HOME}/coder" && git pull)
+(cd "${HOME}/coder" && git fetch -a && git checkout "${SCALETEST_PARAM_REPO_BRANCH}" && git pull)
+
+# Store the input parameters (for debugging).
+env | grep "^SCALETEST_" | sort >"${SCALETEST_RUN_DIR}/environ.txt"
 
 # shellcheck disable=SC2153 source=scaletest/templates/scaletest-runner/scripts/lib.sh
 . "${SCRIPTS_DIR}/lib.sh"
@@ -44,7 +47,11 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 	trap 'trap - EXIT; kill -INT "${pids[@]}"; exit 1' INT EXIT
 
 	while :; do
-		sleep 285 # ~300 when accounting for profile and trace.
+		# Sleep for short periods of time so that we can exit quickly.
+		# This adds up to ~300 when accounting for profile and trace.
+		for ((i = 0; i < 285; i++)); do
+			sleep 1
+		done
 		log "Grabbing pprof dumps"
 		start="$(date +%s)"
 		annotate_grafana "pprof" "Grab pprof dumps (start=${start})"
@@ -59,6 +66,28 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 	done
 } &
 pprof_pid=$!
+
+logs_gathered=0
+gather_logs() {
+	if ((logs_gathered == 1)); then
+		return
+	fi
+	logs_gathered=1
+
+	# Gather logs from all coderd and provisioner instances, and all workspaces.
+	annotate_grafana "logs" "Gather logs"
+	podsraw="$(
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder -o name
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name || true
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-" || true
+	)"
+	mapfile -t pods <<<"${podsraw}"
+	for pod in "${pods[@]}"; do
+		pod_name="${pod#pod/}"
+		kubectl -n coder-big logs "${pod}" --since-time="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
+	done
+	annotate_grafana_end "logs" "Gather logs"
+}
 
 set_appearance "${appearance_json}" "${service_banner_color}" "${service_banner_message} | Scaletest running: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
@@ -76,6 +105,10 @@ on_exit() {
 		message_color="#D94A5D" # Red.
 		message_status=FAILED
 	fi
+
+	# In case the test failed before gathering logs, gather them before
+	# cleaning up, whilst the workspaces are still present.
+	gather_logs
 
 	case "${SCALETEST_PARAM_CLEANUP_STRATEGY}" in
 	on_stop)
@@ -101,7 +134,10 @@ on_exit() {
 
 	set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
-	annotate_grafana_end "" "Start scaletest"
+	annotate_grafana_end "" "Start scaletest: ${SCALETEST_COMMENT}"
+
+	wait "${pprof_pid}"
+	exit "${code}"
 }
 trap on_exit EXIT
 
@@ -121,10 +157,13 @@ trap on_err ERR
 
 # Pass session token since `prepare.sh` has not yet run.
 CODER_SESSION_TOKEN=$CODER_USER_TOKEN "${SCRIPTS_DIR}/report.sh" started
-annotate_grafana "" "Start scaletest"
+annotate_grafana "" "Start scaletest: ${SCALETEST_COMMENT}"
 
 "${SCRIPTS_DIR}/prepare.sh"
 
 "${SCRIPTS_DIR}/run.sh"
+
+# Gather logs before ending the test.
+gather_logs
 
 "${SCRIPTS_DIR}/report.sh" completed
