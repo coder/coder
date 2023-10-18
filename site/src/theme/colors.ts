@@ -6,7 +6,7 @@ export const colors = {
   gray: {
     17: tw.zinc[950],
     16: tw.zinc[900],
-    15: tw.zinc[800],
+    // 15: tw.zinc[800],
     14: tw.zinc[775],
     13: tw.zinc[700],
     12: tw.zinc[650],
@@ -14,8 +14,8 @@ export const colors = {
     9: tw.zinc[500],
     6: tw.zinc[400],
     4: tw.zinc[300],
-    3: tw.zinc[200],
-    2: tw.zinc[100],
+    // 3: tw.zinc[200],
+    // 2: tw.zinc[100],
     1: tw.zinc[50],
   },
 
