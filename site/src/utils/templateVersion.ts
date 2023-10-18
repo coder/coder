@@ -1,18 +1,15 @@
 import * as API from "api/api";
-import { TemplateVersion } from "api/typesGenerated";
 import { FileTree, createFile } from "./filetree";
 import { TarReader } from "./tar";
 
-/**
- * Content by filename
- */
+// Content by filename
 export type TemplateVersionFiles = Record<string, string>;
 
 export const getTemplateVersionFiles = async (
-  version: TemplateVersion,
+  fileId: string,
 ): Promise<TemplateVersionFiles> => {
   const files: TemplateVersionFiles = {};
-  const tarFile = await API.getFile(version.job.file_id);
+  const tarFile = await API.getFile(fileId);
   const tarReader = new TarReader();
   await tarReader.readFile(tarFile);
   for (const file of tarReader.fileInfo) {

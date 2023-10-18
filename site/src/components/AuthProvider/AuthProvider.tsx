@@ -45,7 +45,9 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
-  const meOptions = me();
+  const queryClient = useQueryClient();
+  const meOptions = me(queryClient);
+
   const userQuery = useQuery(meOptions);
   const authMethodsQuery = useQuery(authMethods());
   const hasFirstUserQuery = useQuery(hasFirstUser());
@@ -54,7 +56,6 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
     enabled: userQuery.data !== undefined,
   });
 
-  const queryClient = useQueryClient();
   const loginMutation = useMutation(
     login({ checks: permissionsToCheck }, queryClient),
   );

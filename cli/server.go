@@ -41,6 +41,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/mod/semver"
 	"golang.org/x/oauth2"
@@ -2018,6 +2020,13 @@ func ConfigureTraceProvider(
 		tracerProvider = trace.NewNoopTracerProvider()
 		closeTracing   = func(context.Context) error { return nil }
 		sqlDriver      = "postgres"
+	)
+
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
 	)
 
 	if cfg.Trace.Enable.Value() || cfg.Trace.DataDog.Value() || cfg.Trace.HoneycombAPIKey != "" {

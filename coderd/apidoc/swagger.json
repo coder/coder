@@ -497,8 +497,32 @@
         ],
         "produces": ["application/json"],
         "tags": ["General"],
-        "summary": "Get experiments",
-        "operationId": "get-experiments",
+        "summary": "Get enabled experiments",
+        "operationId": "get-enabled-experiments",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/codersdk.Experiment"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/experiments/available": {
+      "get": {
+        "security": [
+          {
+            "CoderSessionToken": []
+          }
+        ],
+        "produces": ["application/json"],
+        "tags": ["General"],
+        "summary": "Get safe experiments",
+        "operationId": "get-safe-experiments",
         "responses": {
           "200": {
             "description": "OK",

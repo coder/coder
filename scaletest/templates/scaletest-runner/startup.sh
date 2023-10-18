@@ -47,7 +47,11 @@ annotate_grafana "workspace" "Agent running" # Ended in shutdown.sh.
 	trap 'trap - EXIT; kill -INT "${pids[@]}"; exit 1' INT EXIT
 
 	while :; do
-		sleep 285 # ~300 when accounting for profile and trace.
+		# Sleep for short periods of time so that we can exit quickly.
+		# This adds up to ~300 when accounting for profile and trace.
+		for ((i = 0; i < 285; i++)); do
+			sleep 1
+		done
 		log "Grabbing pprof dumps"
 		start="$(date +%s)"
 		annotate_grafana "pprof" "Grab pprof dumps (start=${start})"
@@ -74,13 +78,13 @@ gather_logs() {
 	annotate_grafana "logs" "Gather logs"
 	podsraw="$(
 		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder -o name
-		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name
-		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-"
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-provisioner -o name || true
+		kubectl -n coder-big get pods -l app.kubernetes.io/name=coder-workspace -o name | grep "^pod/scaletest-" || true
 	)"
 	mapfile -t pods <<<"${podsraw}"
 	for pod in "${pods[@]}"; do
 		pod_name="${pod#pod/}"
-		kubectl -n coder-big logs "${pod}" --since="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
+		kubectl -n coder-big logs "${pod}" --since-time="${SCALETEST_RUN_START_TIME}" >"${SCALETEST_LOGS_DIR}/${pod_name}.txt"
 	done
 	annotate_grafana_end "logs" "Gather logs"
 }
@@ -131,6 +135,9 @@ on_exit() {
 	set_appearance "${appearance_json}" "${message_color}" "${service_banner_message} | Scaletest ${message_status}: [${CODER_USER}/${CODER_WORKSPACE}](${CODER_URL}/@${CODER_USER}/${CODER_WORKSPACE})!"
 
 	annotate_grafana_end "" "Start scaletest: ${SCALETEST_COMMENT}"
+
+	wait "${pprof_pid}"
+	exit "${code}"
 }
 trap on_exit EXIT
 

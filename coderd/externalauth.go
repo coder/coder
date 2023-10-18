@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"golang.org/x/sync/errgroup"
-
 	"github.com/sqlc-dev/pqtype"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"

@@ -4,6 +4,7 @@ import Box, { BoxProps } from "@mui/material/Box";
 import { useTheme } from "@mui/system";
 import { DisabledBadge, EnabledBadge } from "./Badges";
 import { css } from "@emotion/react";
+import CheckCircleOutlined from "@mui/icons-material/CheckCircleOutlined";
 
 export const OptionName: FC<PropsWithChildren> = (props) => {
   const { children } = props;
@@ -38,11 +39,11 @@ export const OptionDescription: FC<PropsWithChildren> = (props) => {
 };
 
 interface OptionValueProps {
-  children?: boolean | number | string | string[];
+  children?: boolean | number | string | string[] | Record<string, boolean>;
 }
 
 export const OptionValue: FC<OptionValueProps> = (props) => {
-  const { children } = props;
+  const { children: value } = props;
   const theme = useTheme();
 
   const optionStyles = css`
@@ -56,35 +57,74 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     }
   `;
 
-  if (typeof children === "boolean") {
-    return children ? <EnabledBadge /> : <DisabledBadge />;
+  const listStyles = css`
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flex-direction: "column",
+    gap: theme.spacing(0.5),
+  `;
+
+  if (typeof value === "boolean") {
+    return value ? <EnabledBadge /> : <DisabledBadge />;
   }
 
-  if (typeof children === "number") {
-    return <span css={optionStyles}>{children}</span>;
+  if (typeof value === "number") {
+    return <span css={optionStyles}>{value}</span>;
   }
 
-  if (!children || children.length === 0) {
+  if (!value || value.length === 0) {
     return <span css={optionStyles}>Not set</span>;
   }
 
-  if (typeof children === "string") {
-    return <span css={optionStyles}>{children}</span>;
+  if (typeof value === "string") {
+    return <span css={optionStyles}>{value}</span>;
   }
 
-  if (Array.isArray(children)) {
+  if (typeof value === "object" && !Array.isArray(value)) {
     return (
-      <ul
-        css={{
-          margin: 0,
-          padding: 0,
-          listStylePosition: "inside",
-          display: "flex",
-          flexDirection: "column",
-          gap: theme.spacing(0.5),
-        }}
-      >
-        {children.map((item) => (
+      <ul css={listStyles && { listStyle: "none" }}>
+        {Object.entries(value)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([option, isEnabled]) => (
+            <li
+              key={option}
+              css={[
+                optionStyles,
+                !isEnabled && {
+                  marginLeft: 32,
+                  color: theme.palette.text.disabled,
+                },
+              ]}
+            >
+              <Box
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                }}
+              >
+                {isEnabled && (
+                  <CheckCircleOutlined
+                    sx={{
+                      width: 16,
+                      height: 16,
+                      color: (theme) => theme.palette.success.light,
+                      margin: (theme) => theme.spacing(0, 1),
+                    }}
+                  />
+                )}
+                {option}
+              </Box>
+            </li>
+          ))}
+      </ul>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    return (
+      <ul css={listStyles && { listStylePosition: "inside" }}>
+        {value.map((item) => (
           <li key={item} css={optionStyles}>
             {item}
           </li>
@@ -93,7 +133,7 @@ export const OptionValue: FC<OptionValueProps> = (props) => {
     );
   }
 
-  return <span css={optionStyles}>{JSON.stringify(children)}</span>;
+  return <span css={optionStyles}>{JSON.stringify(value)}</span>;
 };
 
 interface OptionConfigProps extends BoxProps {
