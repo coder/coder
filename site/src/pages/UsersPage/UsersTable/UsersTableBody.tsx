@@ -24,7 +24,7 @@ import PasswordOutlined from "@mui/icons-material/PasswordOutlined";
 import ShieldOutlined from "@mui/icons-material/ShieldOutlined";
 import { UserRoleCell } from "./UserRoleCell";
 import { GroupsByUserId } from "api/queries/groups";
-import { GroupsCell } from "./GroupsCell";
+import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);
 
@@ -157,7 +157,7 @@ export const UsersTableBody: FC<
               onUserRolesUpdate={onUpdateUserRoles}
             />
 
-            <GroupsCell userGroups={groupsByUserId?.get(user.id)} />
+            <UserGroupsCell userGroups={groupsByUserId?.get(user.id)} />
 
             <TableCell>
               <LoginType authMethods={authMethods!} value={user.login_type} />

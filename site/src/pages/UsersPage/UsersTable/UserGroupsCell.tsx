@@ -1,29 +1,37 @@
-import { useState } from "react";
+import { type PointerEvent, useId, useState } from "react";
 import { useTheme } from "@emotion/react";
 import { type Group } from "api/typesGenerated";
 
 import { Stack } from "components/Stack/Stack";
 import { Avatar } from "components/Avatar/Avatar";
+import { OverflowY } from "components/OverflowY/OverflowY";
+
 import TableCell from "@mui/material/TableCell";
 import Button from "@mui/material/Button";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import Popover from "@mui/material/Popover";
-import { OverflowY } from "components/OverflowY/OverflowY";
 
 type GroupsCellProps = {
   userGroups: readonly Group[] | undefined;
 };
 
-export function GroupsCell({ userGroups }: GroupsCellProps) {
-  const [isHovering, setIsHovering] = useState(false);
+export function UserGroupsCell({ userGroups }: GroupsCellProps) {
+  const hookId = useId();
   const theme = useTheme();
 
   // 2023-10-18 - Temporary code - waiting for Bruno to finish the refactoring
   // of PopoverContainer. Popover code should all be torn out and replaced with
   // PopoverContainer once the new API is ready
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-  const hideCtaUnderline = isHovering || anchorEl !== null;
+
+  const closePopover = () => setAnchorEl(null);
+  const openPopover = (event: PointerEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const isPopoverOpen = anchorEl !== null;
+  const popoverId = `${hookId}-popover`;
 
   return (
     <TableCell>
@@ -35,11 +43,11 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
       ) : (
         <>
           <Button
-            onPointerEnter={() => setIsHovering(true)}
-            onPointerLeave={() => setIsHovering(false)}
-            onClick={(event) => setAnchorEl(event.currentTarget)}
+            aria-haspopup
+            aria-owns={isPopoverOpen ? popoverId : undefined}
+            onPointerEnter={openPopover}
+            onPointerLeave={closePopover}
             css={{
-              width: "100%",
               justifyContent: "flex-start",
               fontSize: theme.typography.body1.fontSize,
               lineHeight: theme.typography.body2.lineHeight,
@@ -61,7 +69,7 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
                 css={{
                   fontSize: "0.75rem",
                   color: theme.palette.text.secondary,
-                  textDecoration: hideCtaUnderline ? "none" : "underline",
+                  textDecoration: isPopoverOpen ? "none" : "underline",
                   textUnderlineOffset: "0.2em",
                 }}
               >
@@ -71,11 +79,12 @@ export function GroupsCell({ userGroups }: GroupsCellProps) {
           </Button>
 
           <Popover
+            id={popoverId}
             anchorEl={anchorEl}
             open={anchorEl !== null}
-            onClose={() => setAnchorEl(null)}
+            onClose={closePopover}
             anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-            transformOrigin={{ vertical: 16, horizontal: 0 }}
+            css={{ pointerEvents: "none" }}
           >
             <OverflowY maxHeight={400} sx={{ maxWidth: "320px" }}>
               <List
