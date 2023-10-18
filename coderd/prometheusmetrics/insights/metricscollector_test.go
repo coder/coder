@@ -2,7 +2,9 @@ package insights_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
+	"os"
 	"testing"
 	"time"
 
@@ -94,6 +96,12 @@ func TestCollect_TemplateInsights(t *testing.T) {
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
+	goldenFile, err := os.ReadFile("testdata/insights-metrics.json")
+	require.NoError(t, err)
+	golden := map[string]int{}
+	err = json.Unmarshal(goldenFile, &golden)
+	require.NoError(t, err)
+
 	collected := map[string]int{}
 	assert.Eventuallyf(t, func() bool {
 		// When
@@ -112,12 +120,12 @@ func TestCollect_TemplateInsights(t *testing.T) {
 			}
 		}
 
-		return len(collected) > 0
+		return assert.ObjectsAreEqualValues(golden, collected)
 	}, testutil.WaitMedium, testutil.IntervalFast, "template insights are missing")
 
 	// We got our latency metrics, close the connection.
 	_ = sess.Close()
 	_ = sshConn.Close()
 
-	require.EqualValues(t, nil, collected)
+	require.EqualValues(t, golden, collected)
 }
