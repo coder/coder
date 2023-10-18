@@ -5654,8 +5654,7 @@ func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg dat
 		if tpl.ID != arg.ID {
 			continue
 		}
-		tpl.RequireActiveVersion = arg.RequireActiveVersion
-		q.templates[idx] = tpl
+		q.templates[idx].RequireActiveVersion = arg.RequireActiveVersion
 		return nil
 	}
 

@@ -677,8 +677,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			inactivityTTL != time.Duration(template.TimeTilDormant) ||
 			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
 			req.AllowUserAutostart != template.AllowUserAutostart ||
-			req.AllowUserAutostop != template.AllowUserAutostop ||
-			req.RequireActiveVersion != template.RequireActiveVersion {
+			req.AllowUserAutostop != template.AllowUserAutostop {
 			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
 				// Some of these values are enterprise-only, but the
 				// TemplateScheduleStore will handle avoiding setting them if
