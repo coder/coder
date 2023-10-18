@@ -2,6 +2,7 @@ package insights
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,6 +25,16 @@ type MetricsCollector struct {
 	database database.Store
 	logger   slog.Logger
 	duration time.Duration
+
+	data atomic.Pointer[insightsData]
+}
+
+type insightsData struct {
+	templates  []database.GetTemplateInsightsByTemplateRow
+	apps       []database.GetTemplateAppInsightsRow
+	parameters []database.GetTemplateParameterInsightsRow
+
+	templateNames map[uuid.UUID]string
 }
 
 var _ prometheus.Collector = new(MetricsCollector)
@@ -59,7 +70,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		// TODO collect iteration time
 
-		var userActivity []database.GetUserActivityInsightsRow
+		var templateInsights []database.GetTemplateInsightsByTemplateRow
 		var appInsights []database.GetTemplateAppInsightsRow
 		var parameterInsights []database.GetTemplateParameterInsightsRow
 
@@ -69,7 +80,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 
 		eg.Go(func() error {
 			var err error
-			userActivity, err = mc.database.GetUserActivityInsights(egCtx, database.GetUserActivityInsightsParams{
+			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
@@ -107,7 +118,7 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		}
 
 		// Phase 2: Collect template IDs, and fetch relevant details
-		templateIDs := uniqueTemplateIDs(userActivity, appInsights, parameterInsights)
+		templateIDs := uniqueTemplateIDs(templateInsights, appInsights, parameterInsights)
 		templates, err := mc.database.GetTemplatesWithFilter(ctx, database.GetTemplatesWithFilterParams{
 			IDs: templateIDs,
 		})
@@ -116,8 +127,15 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 			return
 		}
 
-		/*templateNames := */
-		onlyTemplateNames(templates)
+		templateNames := onlyTemplateNames(templates)
+
+		mc.data.Store(&insightsData{
+			templates:  templateInsights,
+			apps:       appInsights,
+			parameters: parameterInsights,
+
+			templateNames: templateNames,
+		})
 	}
 
 	go func() {
@@ -147,17 +165,24 @@ func (*MetricsCollector) Describe(descCh chan<- *prometheus.Desc) {
 func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 	// Phase 3: Collect metrics
 
-	// TODO
+	data := mc.data.Load()
+	if data == nil {
+		return // insights data not loaded yet
+	}
+
+	for _, templateRow := range data.templates {
+		metricsCh <- prometheus.MustNewConstMetric(activeUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID])
+
+		// TODO applicationsUsageSeconds, parameters
+	}
 }
 
 // Helper functions below.
 
-func uniqueTemplateIDs(userActivity []database.GetUserActivityInsightsRow, appInsights []database.GetTemplateAppInsightsRow, parameterInsights []database.GetTemplateParameterInsightsRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsRow, parameterInsights []database.GetTemplateParameterInsightsRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
-	for _, t := range userActivity {
-		for _, tid := range t.TemplateIDs {
-			tids[tid] = true
-		}
+	for _, t := range templateInsights {
+		tids[t.TemplateID] = true
 	}
 
 	for _, a := range appInsights {
