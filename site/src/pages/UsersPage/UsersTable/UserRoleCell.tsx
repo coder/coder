@@ -115,6 +115,8 @@ function OverflowRolePill({ roles }: OverflowRolePillProps) {
         anchorEl={anchorEl}
         open={anchorEl !== null}
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        disableScrollLock
+        disablePortal
         css={{ pointerEvents: "none" }}
       >
         <div
