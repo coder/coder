@@ -1713,6 +1713,7 @@ export const Experiments: Experiment[] = [
 
 // From codersdk/deployment.go
 export type FeatureName =
+  | "access_control"
   | "advanced_template_scheduling"
   | "appearance"
   | "audit_log"
@@ -1729,6 +1730,7 @@ export type FeatureName =
   | "workspace_batch_actions"
   | "workspace_proxy";
 export const FeatureNames: FeatureName[] = [
+  "access_control",
   "advanced_template_scheduling",
   "appearance",
   "audit_log",

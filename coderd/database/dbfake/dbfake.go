@@ -5642,7 +5642,7 @@ func (q *FakeQuerier) UpdateTemplateACLByID(_ context.Context, arg database.Upda
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateTemplateAccessControlByID(ctx context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
+func (q *FakeQuerier) UpdateTemplateAccessControlByID(_ context.Context, arg database.UpdateTemplateAccessControlByIDParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}

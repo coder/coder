@@ -2474,7 +2474,6 @@ func (q *querier) UpdateTemplateAccessControlByID(ctx context.Context, arg datab
 		return q.db.GetTemplateByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateTemplateAccessControlByID)(ctx, arg)
-
 }
 
 func (q *querier) UpdateTemplateActiveVersionByID(ctx context.Context, arg database.UpdateTemplateActiveVersionByIDParams) error {
