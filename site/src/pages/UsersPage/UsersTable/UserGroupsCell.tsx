@@ -79,12 +79,17 @@ export function UserGroupsCell({ userGroups }: GroupsCellProps) {
           </Button>
 
           <Popover
-            disableScrollLock
             id={popoverId}
             anchorEl={anchorEl}
             open={anchorEl !== null}
             onClose={closePopover}
             anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+            // These are necessary to ensure that the popover doesn't exhibit
+            // weird, janky behavior when scrolling
+            disablePortal
+            disableScrollLock
+            // Makes sure that the table cell and the popover don't fight each
+            // other over deciding whether the popover should be open or closed
             css={{ pointerEvents: "none" }}
           >
             <OverflowY maxHeight={400} sx={{ maxWidth: "320px" }}>
