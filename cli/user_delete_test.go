@@ -121,7 +121,6 @@ func TestUserDelete(t *testing.T) {
 	// 	pw, err := cryptorand.String(16)
 	// 	require.NoError(t, err)
 
-	// 	fmt.Println(aUser.OrganizationID)
 	// 	toDelete, err := client.CreateUser(ctx, codersdk.CreateUserRequest{
 	// 		Email:          "colin5@coder.com",
 	// 		Username:       "coolin",

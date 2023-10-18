@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -372,6 +373,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		func(action rbac.Action, object rbac.Objecter) bool {
 			return api.Authorize(r, action, object)
 		},
+		audit.WorkspaceBuildBaggageFromRequest(r),
 	)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {

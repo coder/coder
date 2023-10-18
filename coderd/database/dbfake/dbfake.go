@@ -4589,6 +4589,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		Type:           arg.Type,
 		Input:          arg.Input,
 		Tags:           arg.Tags,
+		TraceMetadata:  arg.TraceMetadata,
 	}
 	job.JobStatus = provisonerJobStatus(job)
 	q.provisionerJobs = append(q.provisionerJobs, job)
